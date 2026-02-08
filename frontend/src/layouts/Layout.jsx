@@ -158,11 +158,13 @@ const Layout = ({ children }) => {
                 ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}
             `}>
                 <div className={`flex flex-col items-center justify-center border-b border-border p-4`}>
-                    <img
-                        src={tenant?.logo ? `${import.meta.env.VITE_API_BASE_URL}/${tenant.logo}` : logo}
-                        alt={t('common.logo')}
-                        className="h-36 w-auto mb-4 object-contain drop-shadow-md transition-transform"
-                    />
+                    <div className="h-28 w-full overflow-hidden flex items-center justify-center mb-4">
+                        <img
+                            src={tenant?.logo ? `${import.meta.env.VITE_API_BASE_URL}/${tenant.logo}` : logo}
+                            alt={t('common.logo')}
+                            className="h-full w-full object-contain drop-shadow-md scale-[2.5]"
+                        />
+                    </div>
                     <h1 className="text-base font-black bg-gradient-to-r from-primary-600 to-blue-800 dark:from-sky-400 dark:to-blue-500 bg-clip-text text-transparent text-center tracking-tight">
                         {isSuperAdmin ? t('sidebar.system_admin') : (tenant?.name || t('common.default_clinic_name'))}
                     </h1>
