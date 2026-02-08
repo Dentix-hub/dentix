@@ -567,7 +567,7 @@ export default function SuperAdmin() {
                                         <option value="">اختر المستخدم</option>
                                         {tenantUsers.map(u => (
                                             <option key={u.id} value={u.id}>
-                                                {u.email || u.username || `مستخدم #${u.id}`} - {u.role}
+                                                {u.username || u.email || `مستخدم #${u.id}`} - {u.role}
                                                 {!u.is_active && ' [معطل]'}
                                                 {u.account_locked_until && ' [مقفل]'}
                                             </option>
