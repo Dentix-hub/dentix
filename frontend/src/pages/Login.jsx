@@ -60,7 +60,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                     </button>
 
                     <div className="h-44 w-full overflow-hidden flex items-center justify-center">
-                        <img src={logo} alt="DENTIX Logo" className="h-full w-full object-contain scale-[2.5]" />
+                        <img src={logo} alt="DENTIX Logo" className="h-full w-full object-contain scale-[2.5] translate-x-4" />
                     </div>
 
                     <button
