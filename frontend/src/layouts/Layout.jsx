@@ -162,7 +162,7 @@ const Layout = ({ children }) => {
                         <img
                             src={tenant?.logo ? `${import.meta.env.VITE_API_BASE_URL}/${tenant.logo}` : logo}
                             alt={t('common.logo')}
-                            className="h-full w-full object-contain drop-shadow-md scale-[2.5]"
+                            className="h-full w-full object-contain drop-shadow-md scale-[2.5] translate-x-4"
                         />
                     </div>
                     <h1 className="text-base font-black bg-gradient-to-r from-primary-600 to-blue-800 dark:from-sky-400 dark:to-blue-500 bg-clip-text text-transparent text-center tracking-tight">
