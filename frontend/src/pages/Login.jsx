@@ -59,7 +59,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         <Globe size={20} />
                     </button>
 
-                    <img src={logo} alt="DENTIX Logo" className="h-24 w-auto object-contain" />
+                    <img src={logo} alt="DENTIX Logo" className="h-24 w-auto object-contain scale-150 transition-transform" />
 
                     <button
                         onClick={toggleDarkMode}
