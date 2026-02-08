@@ -1,0 +1,108 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from typing import List, Optional, Dict, Any
+
+from ..database import get_db
+from ..routers.auth import get_current_user
+from ..schemas import User
+from ..services.inventory_learning_service import InventoryLearningService
+from ..models import inventory as inv_models
+
+router = APIRouter(prefix="/inventory/smart", tags=["Inventory Smart"])
+
+@router.get("/suggestions/{procedure_id}")
+def get_material_suggestions(
+    procedure_id: int,
+    patient_age: Optional[int] = None,
+    doctor_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get smart material suggestions for a procedure.
+    """
+    service = InventoryLearningService(db)
+    
+    # Use current doctor if not specified and user is a doctor
+    effective_doctor_id = doctor_id
+    if not effective_doctor_id and current_user.role == 'doctor':
+        effective_doctor_id = current_user.id
+        
+    suggestions = service.get_suggested_materials(
+        procedure_id=procedure_id,
+        doctor_id=effective_doctor_id,
+        patient_age=patient_age
+    )
+    return {"data": suggestions, "success": True}
+
+@router.post("/check-availability")
+def check_availability(
+    materials: List[Dict[str, Any]], # [{material_id, quantity}]
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Pre-flight check for materials availability.
+    Returns warnings if stock is low or expired.
+    FIXED: Includes items with Active Sessions (quantity may be 0 but usable)
+    """
+    results = []
+    
+    for item in materials:
+        mat_id = item.get('material_id')
+        qty_needed = item.get('quantity', 0)
+        
+        # First, get material info directly
+        material = db.query(inv_models.Material).filter(
+            inv_models.Material.id == mat_id
+        ).first()
+        material_name = material.name if material else "Unknown Material"
+        
+        # Check for active sessions for this material (virtual stock for divisible items)
+        has_active_session = db.query(inv_models.MaterialSession).join(
+            inv_models.StockItem
+        ).join(
+            inv_models.Batch
+        ).filter(
+            inv_models.Batch.material_id == mat_id,
+            inv_models.MaterialSession.status == "ACTIVE"
+        ).count() > 0
+        
+        # Get total available stock (include 0-quantity items if active session exists)
+        if has_active_session:
+            # If active session, we don't need to check quantity - it's virtual consumption
+            total_available = float('inf')  # Virtually unlimited while session is open
+        else:
+            stock_items = db.query(inv_models.StockItem).join(inv_models.Batch).filter(
+                inv_models.StockItem.tenant_id == current_user.tenant_id,
+                inv_models.Batch.material_id == mat_id,
+                inv_models.StockItem.quantity > 0
+            ).all()
+            total_available = sum(s.quantity for s in stock_items)
+        
+        status = "OK"
+        message = ""
+        
+        if has_active_session:
+            # Material has active session - always OK (virtual consumption)
+            status = "OK"
+            message = "جلسة مفتوحة (استهلاك افتراضي)"
+        elif total_available == 0:
+            status = "CRITICAL"
+            message = "Out of stock"
+        elif total_available < qty_needed:
+            status = "WARNING"
+            message = f"Insufficient stock (Available: {total_available})"
+            
+        results.append({
+            "material_id": mat_id,
+            "material_name": material_name,
+            "available": total_available if total_available != float('inf') else 999,
+            "required": qty_needed,
+            "status": status,
+            "message": message,
+            "has_active_session": has_active_session
+        })
+        
+    return {"data": results, "success": True}
+

@@ -1,0 +1,39 @@
+"""
+Dashboard Router
+Handles dashboard statistics.
+"""
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy.orm import Session
+
+from .. import models, schemas, crud
+from .auth import get_current_user, get_db
+from backend.services.cache_service import cached
+from backend.core.limiter import limiter
+
+router = APIRouter(prefix="/stats", tags=["Dashboard"])
+
+
+@router.get("/dashboard", response_model=schemas.DashboardStats)
+@limiter.limit("30/minute")  # Tighter limit for heavy endpoint
+@cached(key_prefix="dashboard_stats", expire=60)  # Cache for 60 seconds
+def get_dashboard_stats(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Get dashboard statistics for current tenant."""
+    doctor_id = current_user.id if current_user.role == "doctor" else None
+    return crud.get_dashboard_stats(db, current_user.tenant_id, doctor_id=doctor_id)
+
+
+@router.get("/finance", response_model=schemas.FinancialStats)
+@limiter.limit("30/minute")  # Tighter limit for heavy endpoint
+@cached(key_prefix="finance_stats", expire=60)  # Cache for 60 seconds
+def get_finance_stats(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Get financial statistics for current tenant."""
+    doctor_id = current_user.id if current_user.role == "doctor" else None
+    return crud.get_financial_stats(db, current_user.tenant_id, doctor_id=doctor_id)
