@@ -59,7 +59,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         <Globe size={20} />
                     </button>
 
-                    <img src={logo} alt="DENTIX Logo" className="h-24 w-auto object-contain scale-150 transition-transform" />
+                    <img src={logo} alt="DENTIX Logo" className="h-40 w-auto object-contain mx-auto" />
 
                     <button
                         onClick={toggleDarkMode}
@@ -68,9 +68,6 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
                     </button>
                 </div>
-
-                <h1 className={`text-3xl font-black mb-2 text-text-primary`}>{t('auth.login.title')}</h1>
-                <p className={`text-text-secondary mb-8 font-medium`}>{t('auth.login.subtitle')}</p>
 
                 {error && (
                     <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-2xl text-sm font-bold mb-6 animate-shake">

@@ -53,7 +53,7 @@ const RegisterClinic = ({ isDarkMode }) => {
         <div className={`min-h-screen flex items-center justify-center p-4 dir-rtl bg-background`}>
             <div className={`w-full max-w-md p-8 rounded-2xl shadow-xl bg-surface`}>
                 <div className="text-center mb-8">
-                    <img src={logo} alt="Logo" className="h-16 w-auto mx-auto mb-4 scale-150 transition-transform" />
+                    <img src={logo} alt="Logo" className="h-32 w-auto mx-auto mb-4 transition-transform" />
                     <h1 className={`text-2xl font-bold mb-2 text-text-primary`}>{t('auth.register.title')}</h1>
                     <p className={`text-sm text-text-secondary`}>{t('auth.register.subtitle')}</p>
                 </div>

@@ -161,7 +161,7 @@ const Layout = ({ children }) => {
                     <img
                         src={tenant?.logo ? `${import.meta.env.VITE_API_BASE_URL}/${tenant.logo}` : logo}
                         alt={t('common.logo')}
-                        className="h-14 w-auto mb-3 object-contain drop-shadow-md scale-125 transition-transform"
+                        className="h-16 w-auto mb-3 object-contain drop-shadow-md transition-transform"
                     />
                     <h1 className="text-base font-black bg-gradient-to-r from-primary-600 to-blue-800 dark:from-sky-400 dark:to-blue-500 bg-clip-text text-transparent text-center tracking-tight">
                         {isSuperAdmin ? t('sidebar.system_admin') : (tenant?.name || t('common.default_clinic_name'))}
