@@ -7,7 +7,7 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '@/auth/useAuth';
-import logo from '@/assets/logo.png';
+import { logoBase64 as logo } from '@/assets/logoBase64';
 
 // Components
 import GlobalSearch from '@/shared/ui/GlobalSearch';

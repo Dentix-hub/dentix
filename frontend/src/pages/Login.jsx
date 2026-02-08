@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../api';
 import { Sun, Moon, Globe } from 'lucide-react';
-import logo from '@/assets/logo.png';
+import { logoBase64 as logo } from '@/assets/logoBase64';
 
 export default function Login({ isDarkMode, toggleDarkMode }) {
     const { t, i18n } = useTranslation();

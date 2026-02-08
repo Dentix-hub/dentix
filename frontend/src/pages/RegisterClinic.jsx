@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import { registerClinic } from '../api';
-import logo from '@/assets/logo.png';
+import { logoBase64 as logo } from '@/assets/logoBase64';
 import { Building2, User, Lock, AlertCircle, CheckCircle } from 'lucide-react';
 
 const RegisterClinic = ({ isDarkMode }) => {
