@@ -1,0 +1,52 @@
+[
+    {
+        "input": "كم سعر حشو العصب؟",
+        "expected_tool": "get_procedure_price",
+        "risk_level": "SAFE"
+    },
+    {
+        "input": "عايز احجز موعد لـ أحمد محمد بكرة الساعة 5",
+        "expected_tool": "smart_book_appointment",
+        "risk_level": "WRITE"
+    },
+    {
+        "input": "سجل دفعة 500 جنيه للمريض إسلام عمارة",
+        "expected_tool": "create_payment",
+        "risk_level": "WRITE"
+    },
+    {
+        "input": "المريض بيشتكي من وجع في الطاحونة السفلية يمين",
+        "expected_tool": "record_medical_note",
+        "risk_level": "WRITE"
+    },
+    {
+        "input": "هات لي ملف المريض علي حسن",
+        "expected_tool": "get_patient_file",
+        "risk_level": "SAFE"
+    },
+    {
+        "input": "ضيف علاج حشو كومبوزيت للسن 46 تكلفته 800",
+        "expected_tool": "add_treatment_voice",
+        "risk_level": "CRITICAL"
+    },
+    {
+        "input": "السن 11 حالته مسوسة جداً",
+        "expected_tool": "update_tooth_status",
+        "risk_level": "CRITICAL"
+    },
+    {
+        "input": "ايه مواعيد العيادة في رمضان؟",
+        "expected_tool": "response",
+        "risk_level": "SAFE"
+    },
+    {
+        "input": "ازيك يا دكتور",
+        "expected_tool": "greeting",
+        "risk_level": "SAFE"
+    },
+    {
+        "input": "احسب لي دخل العيادة النهاردة",
+        "expected_tool": "get_today_payments",
+        "risk_level": "SAFE"
+    }
+]

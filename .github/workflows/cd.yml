@@ -1,0 +1,43 @@
+name: Deploy to HuggingFace
+
+on:
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy-backend:
+    name: Deploy Backend to HuggingFace
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global user.email "deploy@smartclinic.com"
+          git config --global user.name "Smart Clinic Deploy Bot"
+
+      - name: Push to HuggingFace
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ secrets.HF_SPACE }}
+        run: |
+          git remote add hf https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}
+          git push hf main --force
+
+      - name: Wait for deployment
+        run: sleep 60
+
+      - name: Health check
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+        run: |
+          curl -f ${BACKEND_URL}/health || exit 1
