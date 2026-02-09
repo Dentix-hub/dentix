@@ -56,7 +56,7 @@ export default function TenantsPage() {
 
     const handleResetPassword = async (tenantId) => {
         try {
-            const res = await api.get(`/admin/system/tenants/${tenantId}/users`);
+            const res = await api.get(`/api/v1/admin/system/tenants/${tenantId}/users`);
             setTenantUsers(res.data.users || []);
             const tenant = tenants.find(t => t.id === tenantId);
             setShowPasswordResetModal({ tenantId, tenantName: tenant?.name || 'العيادة' });
@@ -77,7 +77,7 @@ export default function TenantsPage() {
         if (!window.confirm('هل أنت متأكد من إعادة تعيين كلمة المرور؟')) return;
 
         try {
-            await api.post(`/admin/system/users/${passwordResetForm.user_id}/reset-password`, {
+            await api.post(`/api/v1/admin/system/users/${passwordResetForm.user_id}/reset-password`, {
                 new_password: passwordResetForm.new_password
             });
             setShowPasswordResetModal(null);

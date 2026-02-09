@@ -1,3 +1,6 @@
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 import os
 import sys
 import time
@@ -27,6 +30,7 @@ def run_command(command, cwd=None):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE
         )
+        # print(result.stdout)
         return True, result.stdout
     except subprocess.CalledProcessError as e:
         print(f"❌ Error: {e.stderr}")
@@ -38,54 +42,39 @@ def clear_screen():
 def main():
     while True:
         clear_screen()
-        print("🤖 DENTIX - Git Deployment Manager")
-        print("===================================")
-        print("Use this when HF API is failing.\n")
-        print("Select Target Environment:")
+        print("🤖 Smart Clinic - Git Deployment Manager")
+        print("========================================")
+        print("Use this when HF API (Standard/Clean Deploy) is failing.")
+        print("\nSelect Target Environment:")
         print("  1. Deploy to Staging 🚀")
         print("  2. Deploy to Production 🚀")
-        print("  3. Clean Deploy to Staging 🧹 (Force)")
-        print("  4. Clean Deploy to Production 🧹 (Force)")
         print("  0. Exit")
         
-        choice = input("\n👉 Choose (0-4): ").strip()
+        choice = input("\n👉 Choose (1-2): ").strip()
         
         if choice == '0':
             print("Bye! 👋")
             break
-        
-        # Map choices to repos and deploy mode
-        if choice == '1':
-            deploy(REPOS["1"], force=False)
-        elif choice == '2':
-            deploy(REPOS["2"], force=False)
-        elif choice == '3':
-            deploy(REPOS["1"], force=True)
-        elif choice == '4':
-            deploy(REPOS["2"], force=True)
+            
+        if choice in REPOS:
+            target = REPOS[choice]
+            deploy(target)
+            input("\nPress Enter to return to menu...")
         else:
             time.sleep(0.5)
-            continue
-            
-        input("\nPress Enter to return to menu...")
 
-def deploy(target, force=False):
+def deploy(target):
     repo_url = target['url']
     clone_dir = target['dir']
     source_dir = os.getcwd()
     
-    mode = "🧹 CLEAN/FORCE" if force else "📦 Normal"
-    print(f"\n🚀 Starting {mode} Deployment to [{target['name']}]...")
+    print(f"\n🚀 Starting Git Deployment to [{target['name']}]...")
     print(f"Repo: {repo_url}")
-    
-    # For Clean Deploy: Delete the entire clone directory first
-    if force and os.path.exists(clone_dir):
-        print("\n🗑️  Removing old clone for clean deploy...")
-        shutil.rmtree(clone_dir)
     
     # 1. Clone or Update
     if os.path.exists(clone_dir):
         print("\n📥 Updating existing clone...")
+        # Reset any local changes in clone just in case
         run_command("git reset --hard HEAD", cwd=clone_dir)
         run_command("git pull --rebase", cwd=clone_dir)
     else:
@@ -106,6 +95,7 @@ def deploy(target, force=False):
     # 3. Copy Files
     print("\n📂 Copying files...")
     
+    # Helper to copy with ignore
     def copy_tree(src, dst):
         shutil.copytree(src, dst, ignore=IGNORE_PATTERNS)
 
@@ -133,19 +123,11 @@ def deploy(target, force=False):
     
     # Check if anything to commit
     status_ok, status_out = run_command("git status --porcelain", cwd=clone_dir)
-    
     if not status_out.strip():
-        if force:
-            # Force mode: create empty commit to trigger rebuild
-            print("⚡ Force mode: Creating empty commit to trigger rebuild...")
-            commit_ok, _ = run_command(f'git commit --allow-empty -m "Force Deploy: {timestamp}"', cwd=clone_dir)
-        else:
-            print("⚠️  No changes to deploy (already up to date).")
-            print("💡 Tip: Use Clean Deploy (options 3 or 4) to force redeploy.")
-            return
-    else:
-        commit_msg = f"Force Deploy: {timestamp}" if force else f"Deploy: {timestamp}"
-        commit_ok, _ = run_command(f'git commit -m "{commit_msg}"', cwd=clone_dir)
+        print("⚠️  No changes to deploy (already up to date).")
+        return
+
+    commit_ok, _ = run_command(f'git commit -m "Deploy: {timestamp}"', cwd=clone_dir)
     
     if commit_ok:
         print("⬆️  Pushing to Hugging Face...")
