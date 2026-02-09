@@ -1216,7 +1216,14 @@
             "login_link": "Already have an account? Login",
             "errors": {
                 "password_mismatch": "Passwords do not match",
-                "generic": "Registration failed. Please try again."
+                "generic": "Registration failed. Please try again.",
+                "clinic_name_short": "Clinic name must be at least 2 characters.",
+                "invalid_email": "Invalid email address. Please enter a valid email.",
+                "username_short": "Username must be at least 3 characters.",
+                "password_min_length": "Password must be at least 6 characters.",
+                "password_weak": "Password must contain at least one letter and one number.",
+                "email_taken": "Email is already registered. Use a different email or log in.",
+                "connection": "Connection failed. Check your internet connection."
             },
             "success": "Clinic registered successfully! Please login."
         },

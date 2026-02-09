@@ -741,6 +741,22 @@ def register_clinic(
         
         return {"access_token": access_token, "token_type": "bearer", "refresh_token": refresh_token}
 
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        import traceback
+        traceback.print_exc()
+        error_str = str(e).lower()
+        # Parse common DB errors into user-friendly messages
+        if "unique constraint" in error_str or "already exists" in error_str or "duplicate" in error_str:
+            if "email" in error_str:
+                raise HTTPException(status_code=400, detail="البريد الإلكتروني مسجل بالفعل. استخدم بريد آخر أو سجل دخول.")
+            elif "username" in error_str:
+                raise HTTPException(status_code=400, detail="اسم المستخدم مستخدم بالفعل. اختر اسماً آخر.")
+            else:
+                raise HTTPException(status_code=400, detail="بيانات مكررة. تأكد من أن البريد الإلكتروني واسم المستخدم غير مسجلين.")
+        
+        print(f"[REGISTER ERROR] Unhandled: {e}")
+        raise HTTPException(status_code=500, detail="حدث خطأ أثناء التسجيل. الرجاء المحاولة مرة أخرى لاحقاً.")

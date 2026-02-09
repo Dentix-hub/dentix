@@ -26,6 +26,34 @@ const RegisterClinic = ({ isDarkMode }) => {
         e.preventDefault();
         setError('');
 
+        // Frontend validations
+        if (!formData.clinic_name.trim() || formData.clinic_name.trim().length < 2) {
+            setError(t('auth.register.errors.clinic_name_short'));
+            return;
+        }
+
+        if (!formData.admin_email.includes('@') || !formData.admin_email.includes('.')) {
+            setError(t('auth.register.errors.invalid_email'));
+            return;
+        }
+
+        if (!formData.admin_username.trim() || formData.admin_username.trim().length < 3) {
+            setError(t('auth.register.errors.username_short'));
+            return;
+        }
+
+        if (formData.admin_password.length < 6) {
+            setError(t('auth.register.errors.password_min_length'));
+            return;
+        }
+
+        const hasLetter = /[a-zA-Z]/.test(formData.admin_password);
+        const hasNumber = /[0-9]/.test(formData.admin_password);
+        if (!hasLetter || !hasNumber) {
+            setError(t('auth.register.errors.password_weak'));
+            return;
+        }
+
         if (formData.admin_password !== formData.confirm_password) {
             setError(t('auth.register.errors.password_mismatch'));
             return;
@@ -34,16 +62,24 @@ const RegisterClinic = ({ isDarkMode }) => {
         setLoading(true);
         try {
             const data = new FormData();
-            data.append('clinic_name', formData.clinic_name);
-            data.append('admin_username', formData.admin_username);
-            data.append('admin_email', formData.admin_email);
+            data.append('clinic_name', formData.clinic_name.trim());
+            data.append('admin_username', formData.admin_username.trim());
+            data.append('admin_email', formData.admin_email.trim().toLowerCase());
             data.append('admin_password', formData.admin_password);
 
             await registerClinic(data);
             navigate('/', { state: { message: t('auth.register.success') } });
         } catch (err) {
             console.error(err);
-            setError(err.response?.data?.detail || t('auth.register.errors.generic'));
+            const serverDetail = err.response?.data?.detail;
+            if (serverDetail) {
+                // Backend returns specific Arabic messages now
+                setError(serverDetail);
+            } else if (err.code === 'ERR_NETWORK' || !err.response) {
+                setError(t('auth.register.errors.connection'));
+            } else {
+                setError(t('auth.register.errors.generic'));
+            }
         } finally {
             setLoading(false);
         }
