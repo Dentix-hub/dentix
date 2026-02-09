@@ -35,6 +35,26 @@ def run_command(command, cwd=None):
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
+def safe_rmtree(path):
+    """Safely remove directory with retry for Windows file locking issues."""
+    max_retries = 3
+    for i in range(max_retries):
+        try:
+            if os.path.exists(path):
+                shutil.rmtree(path)
+            return True
+        except PermissionError as e:
+            if i < max_retries - 1:
+                print(f"⚠️  Retry {i+1}/{max_retries} - Files locked, waiting...")
+                time.sleep(2)
+            else:
+                print(f"❌ Cannot delete {path}: {e}")
+                return False
+        except Exception as e:
+            print(f"❌ Error deleting {path}: {e}")
+            return False
+    return True
+
 def main():
     while True:
         clear_screen()
@@ -54,18 +74,23 @@ def main():
             print("Bye! 👋")
             break
         
-        # Map choices to repos and deploy mode
-        if choice == '1':
-            deploy(REPOS["1"], force=False)
-        elif choice == '2':
-            deploy(REPOS["2"], force=False)
-        elif choice == '3':
-            deploy(REPOS["1"], force=True)
-        elif choice == '4':
-            deploy(REPOS["2"], force=True)
-        else:
-            time.sleep(0.5)
-            continue
+        try:
+            if choice == '1':
+                deploy(REPOS["1"], force=False)
+            elif choice == '2':
+                deploy(REPOS["2"], force=False)
+            elif choice == '3':
+                deploy(REPOS["1"], force=True)
+            elif choice == '4':
+                deploy(REPOS["2"], force=True)
+            else:
+                print("❌ Invalid choice!")
+                time.sleep(1)
+                continue
+        except Exception as e:
+            print(f"\n❌ Unexpected Error: {e}")
+            import traceback
+            traceback.print_exc()
             
         input("\nPress Enter to return to menu...")
 
@@ -81,7 +106,8 @@ def deploy(target, force=False):
     # For Clean Deploy: Delete the entire clone directory first
     if force and os.path.exists(clone_dir):
         print("\n🗑️  Removing old clone for clean deploy...")
-        shutil.rmtree(clone_dir)
+        if not safe_rmtree(clone_dir):
+            print("⚠️  Continuing with existing directory...")
     
     # 1. Clone or Update
     if os.path.exists(clone_dir):
@@ -90,7 +116,10 @@ def deploy(target, force=False):
         run_command("git pull --rebase", cwd=clone_dir)
     else:
         print("\n📥 Cloning repository...")
-        run_command(f"git clone {repo_url} {clone_dir}")
+        success, output = run_command(f"git clone {repo_url} {clone_dir}")
+        if not success:
+            print("❌ Clone failed. Check internet/credentials.")
+            return
         
     if not os.path.exists(clone_dir):
         print("❌ Clone failed. Check internet/credentials.")
@@ -101,7 +130,7 @@ def deploy(target, force=False):
     for folder in ["backend", "frontend"]:
         dest_path = os.path.join(clone_dir, folder)
         if os.path.exists(dest_path):
-            shutil.rmtree(dest_path)
+            safe_rmtree(dest_path)
             
     # 3. Copy Files
     print("\n📂 Copying files...")
