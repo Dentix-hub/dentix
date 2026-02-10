@@ -1,4 +1,5 @@
 """Patient-related schemas."""
+
 from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from datetime import datetime
@@ -17,7 +18,6 @@ class PatientBase(BaseModel):
     default_price_list_id: Optional[int] = None
 
 
-
 class PatientCreate(PatientBase):
     pass
 
@@ -34,13 +34,11 @@ class PatientUpdate(BaseModel):
     assigned_doctor_id: Optional[int] = None
 
 
-
 class Patient(PatientBase):
     id: int
     created_at: Optional[datetime] = None
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PatientSummary(BaseModel):
@@ -51,8 +49,7 @@ class PatientSummary(BaseModel):
     email: Optional[str] = None
     created_at: Optional[datetime] = None
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AttachmentBase(BaseModel):
@@ -70,5 +67,4 @@ class Attachment(AttachmentBase):
     created_at: datetime
     file_path: str
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)

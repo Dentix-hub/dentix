@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-from backend import models, schemas
-from fastapi import HTTPException, status
+from backend import models
+from fastapi import HTTPException
+
 
 class SecurityService:
     MAX_FAILED_ATTEMPTS = 5
@@ -11,10 +11,17 @@ class SecurityService:
     @staticmethod
     def check_ip_blocked(db: Session, ip_address: str):
         """Check if IP is blocked. Returns blockage details or None."""
-        blocked_entry = db.query(models.BlockedIP).filter(models.BlockedIP.ip_address == ip_address).first()
+        blocked_entry = (
+            db.query(models.BlockedIP)
+            .filter(models.BlockedIP.ip_address == ip_address)
+            .first()
+        )
         if blocked_entry:
             # Check expiry
-            if blocked_entry.expires_at and blocked_entry.expires_at < datetime.utcnow():
+            if (
+                blocked_entry.expires_at
+                and blocked_entry.expires_at < datetime.utcnow()
+            ):
                 # Expired, unblock
                 db.delete(blocked_entry)
                 db.commit()
@@ -23,15 +30,21 @@ class SecurityService:
         return None
 
     @staticmethod
-    def record_login_attempt(db: Session, ip_address: str, username: str, success: bool, user: models.User = None):
+    def record_login_attempt(
+        db: Session,
+        ip_address: str,
+        username: str,
+        success: bool,
+        user: models.User = None,
+    ):
         """Log login attempt and manage failed count/locking."""
-        
+
         # 1. Log History
         history = models.LoginHistory(
             user_id=user.id if user else None,
             ip_address=ip_address,
             status="success" if success else "failed",
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
         )
         db.add(history)
 
@@ -50,12 +63,14 @@ class SecurityService:
             # Handle Failure
             user.failed_login_attempts += 1
             user.last_failed_login = datetime.utcnow()
-            
+
             # Check for Lockout
             if user.failed_login_attempts >= SecurityService.MAX_FAILED_ATTEMPTS:
-                user.account_locked_until = datetime.utcnow() + timedelta(minutes=SecurityService.LOCKOUT_DURATION_MINUTES)
+                user.account_locked_until = datetime.utcnow() + timedelta(
+                    minutes=SecurityService.LOCKOUT_DURATION_MINUTES
+                )
                 # Optional: Log a separate "blocked" status or event
-            
+
             db.commit()
 
     @staticmethod
@@ -65,18 +80,28 @@ class SecurityService:
         return False
 
     @staticmethod
-    def block_ip(db: Session, ip_address: str, reason: str, admin_username: str, minutes: int = None):
-        existing = db.query(models.BlockedIP).filter(models.BlockedIP.ip_address == ip_address).first()
+    def block_ip(
+        db: Session,
+        ip_address: str,
+        reason: str,
+        admin_username: str,
+        minutes: int = None,
+    ):
+        existing = (
+            db.query(models.BlockedIP)
+            .filter(models.BlockedIP.ip_address == ip_address)
+            .first()
+        )
         if existing:
             raise HTTPException(status_code=400, detail="IP already blocked")
 
         expires_at = datetime.utcnow() + timedelta(minutes=minutes) if minutes else None
-        
+
         new_block = models.BlockedIP(
             ip_address=ip_address,
             reason=reason,
             blocked_by=admin_username,
-            expires_at=expires_at
+            expires_at=expires_at,
         )
         db.add(new_block)
         db.commit()
@@ -84,10 +109,14 @@ class SecurityService:
 
     @staticmethod
     def unblock_ip(db: Session, ip_address: str):
-        entry = db.query(models.BlockedIP).filter(models.BlockedIP.ip_address == ip_address).first()
+        entry = (
+            db.query(models.BlockedIP)
+            .filter(models.BlockedIP.ip_address == ip_address)
+            .first()
+        )
         if not entry:
             raise HTTPException(status_code=404, detail="IP not found in blocklist")
-        
+
         db.delete(entry)
         db.commit()
 
@@ -103,7 +132,7 @@ class SecurityService:
             print("DEBUG: Querying LoginHistory...")
             recent_failures_rows = (
                 db.query(models.LoginHistory)
-                .filter(models.LoginHistory.status == 'failed')
+                .filter(models.LoginHistory.status == "failed")
                 .order_by(models.LoginHistory.created_at.desc())
                 .limit(50)
                 .all()
@@ -139,14 +168,15 @@ class SecurityService:
                 for user in locked_user_rows
             ]
             print(f"DEBUG: Locked Users: {len(locked_users)}")
-            
+
             return {
                 "blocked_ips_count": blocked_ips,
                 "recent_failures": recent_failures,
-                "locked_users": locked_users
+                "locked_users": locked_users,
             }
         except Exception as e:
             print(f"CRITICAL ERROR in get_security_stats: {e}")
             import traceback
+
             traceback.print_exc()
             raise e

@@ -2,15 +2,15 @@
 Patients Router
 Handles patient CRUD operations.
 """
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from .. import models, schemas, crud, database
+from .. import models, schemas, crud
 from .auth import get_current_user, get_db
+
 # Import new async dependency
-from ..database import get_async_db
 # Multi-Doctor Visibility
 from ..services.visibility_service import get_visibility_service
 
@@ -19,7 +19,13 @@ router = APIRouter(prefix="/patients", tags=["Patients"])
 
 from ..services.patient_service import patient_service
 
-@router.post("/", response_model=schemas.Patient)
+
+@router.post(
+    "/",
+    response_model=schemas.Patient,
+    summary="Create a new patient",
+    description="Register a new patient into the current tenant. Requires authentication.",
+)
 def create_patient(
     patient: schemas.PatientCreate,
     db: Session = Depends(get_db),
@@ -28,15 +34,19 @@ def create_patient(
     """Create a new patient (Gov-Enforced)."""
     try:
         # Assign doctor_id if not provided and user is doctor
-        patient_data = patient.model_copy() if hasattr(patient, 'model_copy') else patient
-        if current_user.role == "doctor" and not getattr(patient_data, 'assigned_doctor_id', None):
+        patient_data = (
+            patient.model_copy() if hasattr(patient, "model_copy") else patient
+        )
+        if current_user.role == "doctor" and not getattr(
+            patient_data, "assigned_doctor_id", None
+        ):
             patient_data.assigned_doctor_id = current_user.id
-            
+
         return patient_service.create_patient(
-            db=db, 
-            patient_data=patient_data, 
+            db=db,
+            patient_data=patient_data,
             tenant_id=current_user.tenant_id,
-            creator_role=current_user.role
+            creator_role=current_user.role,
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
@@ -54,13 +64,16 @@ def search_patients(
     # Get visibility-filtered patients
     visibility = get_visibility_service(db, current_user, current_user.tenant_id)
     visible_query = visibility.get_visible_patient_query()
-    
+
     # Apply search filter
-    results = visible_query.filter(
-        models.Patient.name.ilike(f"%{q}%") | 
-        models.Patient.phone.ilike(f"%{q}%")
-    ).limit(50).all()
-    
+    results = (
+        visible_query.filter(
+            models.Patient.name.ilike(f"%{q}%") | models.Patient.phone.ilike(f"%{q}%")
+        )
+        .limit(50)
+        .all()
+    )
+
     return results
 
 
@@ -73,7 +86,13 @@ def read_patients(
 ):
     """Get patients for current user (filtered by visibility)."""
     visibility = get_visibility_service(db, current_user, current_user.tenant_id)
-    return visibility.get_visible_patient_query().order_by(models.Patient.id.desc()).offset(skip).limit(limit).all()
+    return (
+        visibility.get_visible_patient_query()
+        .order_by(models.Patient.id.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 
 @router.get("/{patient_id}", response_model=schemas.Patient)
@@ -87,7 +106,7 @@ def read_patient(
     visibility = get_visibility_service(db, current_user, current_user.tenant_id)
     if not visibility.can_view_patient(patient_id):
         raise HTTPException(status_code=404, detail="Patient not found")
-    
+
     db_patient = patient_service.get_patient(db, patient_id)
     if not db_patient or db_patient.tenant_id != current_user.tenant_id:
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -108,7 +127,7 @@ def update_patient(
             patient_id=patient_id,
             updates=patient,
             tenant_id=current_user.tenant_id,
-            updater_role=current_user.role
+            updater_role=current_user.role,
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
@@ -125,17 +144,17 @@ def delete_patient(
 ):
     """Delete a patient."""
     from ..utils.audit_logger import log_admin_action
-    
+
     # 1. Get Patient for logging (before delete)
     patient = crud.get_patient(db, patient_id, current_user.tenant_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-        
+
     patient_name = patient.name
-    
+
     # 2. Delete
     result = crud.delete_patient(db, patient_id, tenant_id=current_user.tenant_id)
-    
+
     # 3. Log Action
     log_admin_action(
         db=db,
@@ -143,9 +162,9 @@ def delete_patient(
         action="delete",
         entity_type="patient",
         entity_id=patient_id,
-        details=f"Deleted user {patient_name}"
+        details=f"Deleted user {patient_name}",
     )
-    
+
     return result
 
 
@@ -160,26 +179,34 @@ def delete_patient_permanently(
     WARNING: This action is irreversible.
     """
     from ..utils.audit_logger import log_admin_action
-    
+
     # Check permissions (Only Admin/SuperAdmin)
     if current_user.role not in ["admin", "super_admin"]:
-         raise HTTPException(status_code=403, detail="Only Admins can perform permanent deletion.")
+        raise HTTPException(
+            status_code=403, detail="Only Admins can perform permanent deletion."
+        )
 
     # 1. Get Patient for logging (before delete)
     # We use a custom query because get_patient might filter out soft-deleted ones
-    patient = db.query(models.Patient).filter(
-        models.Patient.id == patient_id, 
-        models.Patient.tenant_id == current_user.tenant_id
-    ).first()
-    
+    patient = (
+        db.query(models.Patient)
+        .filter(
+            models.Patient.id == patient_id,
+            models.Patient.tenant_id == current_user.tenant_id,
+        )
+        .first()
+    )
+
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-        
+
     patient_name = patient.name
-    
+
     # 2. Delete
-    result = crud.delete_patient_permanently(db, patient_id, tenant_id=current_user.tenant_id)
-    
+    result = crud.delete_patient_permanently(
+        db, patient_id, tenant_id=current_user.tenant_id
+    )
+
     # 3. Log Action
     log_admin_action(
         db=db,
@@ -187,9 +214,9 @@ def delete_patient_permanently(
         action="hard_delete",
         entity_type="patient",
         entity_id=patient_id,
-        details=f"PERMANENTLY deleted user {patient_name} and all data"
+        details=f"PERMANENTLY deleted user {patient_name} and all data",
     )
-    
+
     return result
 
 

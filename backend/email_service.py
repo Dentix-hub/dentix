@@ -3,11 +3,13 @@
 Email Service for sending password reset emails via Gmail SMTP.
 Production-ready with timeout protection, improved headers, and anti-enumeration safety.
 """
+
 import smtplib
 import os
 import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
 # Added: email.utils for RFC 2822 compliant Date header
 from email.utils import formatdate, make_msgid
 
@@ -17,6 +19,7 @@ logger = logging.getLogger(__name__)
 # Load environment variables from .env file
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass  # python-dotenv not installed
@@ -26,8 +29,18 @@ SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 
 # Support multiple variable names to prevent user errors
-SMTP_USER = os.getenv("SMTP_USER") or os.getenv("SMTP_USERNAME") or os.getenv("EMAIL_USER") or ""
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD") or os.getenv("SMTP_PASS") or os.getenv("EMAIL_PASSWORD") or ""
+SMTP_USER = (
+    os.getenv("SMTP_USER")
+    or os.getenv("SMTP_USERNAME")
+    or os.getenv("EMAIL_USER")
+    or ""
+)
+SMTP_PASSWORD = (
+    os.getenv("SMTP_PASSWORD")
+    or os.getenv("SMTP_PASS")
+    or os.getenv("EMAIL_PASSWORD")
+    or ""
+)
 APP_URL = os.getenv("APP_URL", "http://localhost:5173")
 
 # SMTP timeout in seconds
@@ -44,14 +57,16 @@ def send_password_reset_email(to_email: str, reset_token: str, username: str) ->
         logger.warning("SMTP Config Missing:")
         logger.warning(f"- SMTP_USER: {'Set' if SMTP_USER else 'MISSING'}")
         logger.warning(f"- SMTP_PASSWORD: {'Set' if SMTP_PASSWORD else 'MISSING'}")
-        
+
         # Development fallback
         if os.getenv("DEBUG", "").lower() == "true":
-            logger.info(f"DEBUG Reset link: {APP_URL}/reset-password?token={reset_token}")
+            logger.info(
+                f"DEBUG Reset link: {APP_URL}/reset-password?token={reset_token}"
+            )
         return False
 
     reset_link = f"{APP_URL}/reset-password?token={reset_token}"
-    
+
     # Create email message with multipart/alternative for HTML + plaintext
     msg = MIMEMultipart("alternative")
     msg["Subject"] = "إعادة تعيين كلمة المرور - DENTIX"
@@ -136,7 +151,11 @@ def send_password_reset_email(to_email: str, reset_token: str, username: str) ->
             server.login(SMTP_USER, SMTP_PASSWORD)
             server.sendmail(SMTP_USER, to_email, msg.as_string())
         # Log success without exposing email address fully
-        masked_email = to_email[:3] + "***" + to_email[to_email.index("@"):] if "@" in to_email else "***"
+        masked_email = (
+            to_email[:3] + "***" + to_email[to_email.index("@") :]
+            if "@" in to_email
+            else "***"
+        )
         logger.info(f"Password reset email sent successfully to {masked_email}")
         return True
     except smtplib.SMTPAuthenticationError:
@@ -145,7 +164,9 @@ def send_password_reset_email(to_email: str, reset_token: str, username: str) ->
         return False
     except smtplib.SMTPConnectError as e:
         # Connection failed - often firewall/network issue
-        logger.error(f"SMTP connection failed: {e.smtp_code if hasattr(e, 'smtp_code') else 'unknown'}")
+        logger.error(
+            f"SMTP connection failed: {e.smtp_code if hasattr(e, 'smtp_code') else 'unknown'}"
+        )
         return False
     except smtplib.SMTPRecipientsRefused:
         # Recipient rejected - don't log full email to prevent enumeration

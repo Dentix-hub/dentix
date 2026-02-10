@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Printer, Trash2 } from 'lucide-react';
 import { fdiToPalmer } from '@/utils/toothUtils';
 import { useTranslation } from 'react-i18next';
-
 const PatientBilling = ({
     patientId,
     history,
@@ -13,11 +12,9 @@ const PatientBilling = ({
 }) => {
     const { t } = useTranslation();
     const [billingTab, setBillingTab] = useState('invoices');
-
     const totalTreatments = history.reduce((acc, curr) => acc + (curr.cost - (curr.discount || 0)), 0);
     const totalPayments = payments.reduce((acc, curr) => acc + curr.amount, 0);
     const totalRemaining = totalTreatments - totalPayments;
-
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
             {/* Sub Tabs and Print Button */}
@@ -45,7 +42,6 @@ const PatientBilling = ({
                     </button>
                 </div>
             </div>
-
             {/* Summary Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
@@ -65,7 +61,6 @@ const PatientBilling = ({
                     </p>
                 </div>
             </div>
-
             {/* Invoices Tab Content */}
             {billingTab === 'invoices' && (
                 <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -100,7 +95,6 @@ const PatientBilling = ({
                     {history.length === 0 && <div className="p-8 text-center text-slate-400">{t('patientDetails.billing.empty_treatments')}</div>}
                 </div>
             )}
-
             {/* Payments Tab Content */}
             {billingTab === 'payments' && (
                 <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -137,5 +131,4 @@ const PatientBilling = ({
         </div>
     );
 };
-
 export default PatientBilling;

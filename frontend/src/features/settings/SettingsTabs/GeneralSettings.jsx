@@ -1,4 +1,3 @@
-import React from 'react';
 import { Save } from 'lucide-react';
 import * as api from '@/api';
 import { useTranslation } from 'react-i18next';

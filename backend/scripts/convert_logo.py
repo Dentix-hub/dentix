@@ -12,12 +12,16 @@ if not os.path.exists(input_path):
     exit(1)
 
 with open(input_path, "rb") as image_file:
-    encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+    encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
 
 # Create JS file with export
-js_content = f"""export const logoBase64 = "data:image/png;base64,{encoded_string}";\n"""
+js_content = (
+    f"""export const logoBase64 = "data:image/png;base64,{encoded_string}";\n"""
+)
 
 with open(output_path, "w") as js_file:
     js_file.write(js_content)
 
-print(f"Successfully created {output_path} with Base64 string length: {len(encoded_string)}")
+print(
+    f"Successfully created {output_path} with Base64 string length: {len(encoded_string)}"
+)

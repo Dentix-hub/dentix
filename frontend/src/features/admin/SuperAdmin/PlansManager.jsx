@@ -1,27 +1,46 @@
-import React from 'react';
+import { useState, useEffect } from 'react';
 import { Edit3, Save, X, Users, Activity, PlusCircle, Trash2 } from 'lucide-react';
-
-import { createSubscriptionPlan } from '@/api';
-
-const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setEditedPlanData, handleSavePlan, onRefresh }) => {
-    const [isCreating, setIsCreating] = React.useState(false);
-    const [newPlanData, setNewPlanData] = React.useState({
+import { api } from '@/api';
+const PlansManager = () => {
+    const [plans, setPlans] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [editingPlan, setEditingPlan] = useState(null);
+    const [editedPlanData, setEditedPlanData] = useState({});
+    // Create Mode State
+    const [isCreating, setIsCreating] = useState(false);
+    const [newPlanData, setNewPlanData] = useState({
         name: '',
         display_name_ar: '',
         price: 0,
         duration_days: 30,
         max_users: null,
         max_patients: null,
-        features: ''
+        features: '',
+        is_ai_enabled: false,
+        ai_daily_limit: 0,
+        is_default: false
     });
-
+    useEffect(() => {
+        fetchPlans();
+    }, []);
+    const fetchPlans = async () => {
+        try {
+            setLoading(true);
+            const res = await api.get('/api/v1/admin/plans');
+            setPlans(Array.isArray(res.data) ? res.data : []);
+        } catch (err) {
+            console.error("Failed to fetch plans", err);
+        } finally {
+            setLoading(false);
+        }
+    };
     const handleCreatePlan = async () => {
         if (!newPlanData.name || !newPlanData.display_name_ar) {
             alert('يرجى تعبئة الاسم والمعرف');
             return;
         }
         try {
-            await createSubscriptionPlan(newPlanData);
+            await api.post('/api/v1/admin/plans', newPlanData);
             setIsCreating(false);
             setNewPlanData({
                 name: '',
@@ -30,19 +49,45 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                 duration_days: 30,
                 max_users: null,
                 max_patients: null,
-                features: ''
+                features: '',
+                is_ai_enabled: false,
+                ai_daily_limit: 0,
+                is_default: false
             });
-            if (onRefresh) onRefresh();
+            fetchPlans();
             alert('تم إنشاء الخطة بنجاح');
         } catch (err) {
             console.error(err);
             alert('فشل إنشاء الخطة: ' + (err.response?.data?.detail || err.message));
         }
     };
-
+    const handleSavePlan = async (planId) => {
+        try {
+            await api.put(`/api/v1/admin/plans/${planId}`, editedPlanData);
+            setEditingPlan(null);
+            setEditedPlanData({});
+            fetchPlans();
+            alert('تم تعديل الخطة بنجاح');
+        } catch (err) {
+            console.error(err);
+            alert('فشل التعديل: ' + (err.response?.data?.detail || err.message));
+        }
+    };
+    const handleDeletePlan = async (planId) => {
+        if (!window.confirm("هل أنت متأكد من حذف هذه الخطة؟")) return;
+        try {
+            await api.delete(`/api/v1/admin/plans/${planId}`);
+            fetchPlans();
+            alert('تم حذف الخطة بنجاح');
+        } catch (err) {
+            console.error(err);
+            alert('فشل الحذف: ' + (err.response?.data?.detail || err.message));
+        }
+    };
+    if (loading) return <div className="p-10 text-center text-slate-500 animate-pulse">جاري تحميل الخطط...</div>;
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-            {(Array.isArray(plans) ? plans : []).map(plan => (
+            {plans.map(plan => (
                 <div key={plan.id} className={`relative group bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border hover:border-indigo-500/50 transition-all duration-300 ${editingPlan === plan.id ? 'border-indigo-500 ring-4 ring-indigo-500/10 z-10 scale-105 shadow-2xl' : 'border-slate-100 dark:border-slate-800 shadow-lg'}`}>
                     {editingPlan === plan.id ? (
                         <div className="space-y-5 animate-fade-in">
@@ -50,7 +95,6 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                 <Edit3 size={20} />
                                 تعديل الخطة
                             </div>
-
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">اسم الخطة (للعرض)</label>
                                 <input
@@ -61,7 +105,6 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     placeholder="مثال: الباقة الذهبية"
                                 />
                             </div>
-
                             <div className="flex gap-4">
                                 <div className="flex-1">
                                     <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">السعر (ج.م)</label>
@@ -82,7 +125,6 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     />
                                 </div>
                             </div>
-
                             <div className="flex gap-4">
                                 <div className="flex-1">
                                     <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">مستخدمين</label>
@@ -105,7 +147,6 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     />
                                 </div>
                             </div>
-
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">المميزات (نص وصفي)</label>
                                 <textarea
@@ -114,7 +155,6 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none text-sm min-h-[80px]"
                                 />
                             </div>
-
                             {/* AI Settings Section */}
                             <div className="bg-indigo-50 dark:bg-indigo-900/10 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/30">
                                 <h4 className="font-bold text-indigo-600 mb-3 flex items-center gap-2">
@@ -151,7 +191,6 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     />
                                 </div>
                             </div>
-
                             <div className="flex gap-3 pt-2">
                                 <button onClick={() => handleSavePlan(plan.id)} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all">
                                     <Save size={18} /> حفظ التعديلات
@@ -187,20 +226,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                             <Edit3 size={20} />
                                         </button>
                                         <button
-                                            onClick={() => {
-                                                if (window.confirm(`هل أنت متأكد من حذف خطة "${plan.display_name_ar}"؟`)) {
-                                                    import('@/api').then(({ default: api }) => {
-                                                        api.delete(`/admin/subscriptions/plans/${plan.id}`)
-                                                            .then(() => {
-                                                                alert('تم حذف الخطة بنجاح');
-                                                                if (onRefresh) onRefresh();
-                                                            })
-                                                            .catch(err => {
-                                                                alert('فشل الحذف: ' + (err.response?.data?.detail || err.message));
-                                                            });
-                                                    });
-                                                }
-                                            }}
+                                            onClick={() => handleDeletePlan(plan.id)}
                                             className="p-3 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 transition-all hover:scale-110"
                                             title="حذف الخطة"
                                         >
@@ -208,7 +234,6 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                         </button>
                                     </div>
                                 </div>
-
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
                                         <div className="p-2 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 rounded-xl">
@@ -219,7 +244,6 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                             <p className="font-bold text-slate-700 dark:text-slate-200">{plan.max_users ? `${plan.max_users} مستخدم` : 'غير محدود'}</p>
                                         </div>
                                     </div>
-
                                     {/* AI Badge */}
                                     {plan.is_ai_enabled && (
                                         <div className="flex items-center gap-3 p-3 bg-indigo-50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/30">
@@ -236,7 +260,6 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                             </div>
                                         </div>
                                     )}
-
                                     <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
                                         <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed bg-slate-50/50 dark:bg-slate-800/20 p-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
                                             {plan.features}
@@ -248,7 +271,6 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                     )}
                 </div>
             ))}
-
             {/* Add New Plan Card */}
             {isCreating ? (
                 <div className="relative group bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-emerald-500 ring-4 ring-emerald-500/10 shadow-2xl animate-fade-in-up">
@@ -257,7 +279,6 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                             <PlusCircle size={20} />
                             إضافة خطة جديدة
                         </div>
-
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">المعرف (EN)</label>
@@ -280,7 +301,6 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                 />
                             </div>
                         </div>
-
                         <div className="flex gap-4">
                             <div className="flex-1">
                                 <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">السعر (ج.م)</label>
@@ -301,7 +321,6 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                 />
                             </div>
                         </div>
-
                         <div className="flex gap-4">
                             <div className="flex-1">
                                 <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">مستخدمين</label>
@@ -324,7 +343,6 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                 />
                             </div>
                         </div>
-
                         <div>
                             <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">المميزات</label>
                             <textarea
@@ -334,7 +352,6 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                 placeholder="دعم كامل، وصول لجميع الخصائص..."
                             />
                         </div>
-
                         {/* AI Settings Section for New Plan */}
                         <div className="bg-emerald-50 dark:bg-emerald-900/10 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
                             <h4 className="font-bold text-emerald-600 mb-3 flex items-center gap-2">
@@ -370,7 +387,6 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                 </div>
                             </div>
                         </div>
-
                         <div className="flex gap-3 pt-2">
                             <button onClick={handleCreatePlan} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all">
                                 <PlusCircle size={18} /> إنشاء
@@ -392,5 +408,4 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
         </div>
     );
 };
-
 export default PlansManager;

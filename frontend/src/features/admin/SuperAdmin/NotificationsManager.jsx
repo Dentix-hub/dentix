@@ -1,7 +1,59 @@
-import React from 'react';
+import { useState, useEffect } from 'react';
 import { Send, Bell, Trash2 } from 'lucide-react';
-
-const NotificationsManager = ({ notifForm, setNotifForm, handleSendNotification, notifications, handleDeleteNotification, tenants }) => {
+import { api, broadcastNotification, deleteNotification } from '@/api';
+const NotificationsManager = () => {
+    const [notifications, setNotifications] = useState([]);
+    const [tenants, setTenants] = useState([]);
+    const [loading, setLoading] = useState(true);
+    // Form State
+    const [notifForm, setNotifForm] = useState({
+        title: '',
+        content: '',
+        type: 'info',
+        is_global: true,
+        tenant_id: null
+    });
+    useEffect(() => {
+        fetchData();
+    }, []);
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            const [notifRes, tenantsRes] = await Promise.all([
+                api.get('/api/v1/notifications/'),
+                api.get('/api/v1/admin/tenants')
+            ]);
+            setNotifications(Array.isArray(notifRes.data) ? notifRes.data : []);
+            setTenants(Array.isArray(tenantsRes.data) ? tenantsRes.data : []);
+        } catch (err) {
+            console.error("Failed to fetch data for notifications manager", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+    const handleSendNotification = async () => {
+        if (!notifForm.title || !notifForm.content) return alert('الرجاء تعبئة العنوان والمحتوى');
+        try {
+            await broadcastNotification(notifForm);
+            setNotifForm({ title: '', content: '', type: 'info', is_global: true, tenant_id: null });
+            fetchData(); // Refresh list
+            alert('تم إرسال الإشعار بنجاح');
+        } catch (err) {
+            console.error(err);
+            alert('فشل إرسال الإشعار');
+        }
+    };
+    const handleDeleteNotification = async (id) => {
+        if (!window.confirm('هل أنت متأكد من حذف هذا الإشعار؟')) return;
+        try {
+            await deleteNotification(id);
+            setNotifications(prev => prev.filter(n => n.id !== id));
+        } catch (err) {
+            console.error(err);
+            alert('فشل حذف الإشعار');
+        }
+    };
+    if (loading) return <div className="p-10 text-center text-slate-500 animate-pulse">جاري تحميل الإشعارات...</div>;
     return (
         <div className="space-y-8 animate-fade-in text-right">
             <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
@@ -9,7 +61,6 @@ const NotificationsManager = ({ notifForm, setNotifForm, handleSendNotification,
                     <Send className="text-indigo-500" />
                     إرسال إشعار جديد للنظام
                 </h3>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-4">
                         <div>
@@ -22,7 +73,6 @@ const NotificationsManager = ({ notifForm, setNotifForm, handleSendNotification,
                                 placeholder="مثال: تحديث جديد للنظام"
                             />
                         </div>
-
                         <div className="flex gap-4">
                             <div className="flex-1">
                                 <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-2">نوع التنبيه</label>
@@ -50,7 +100,6 @@ const NotificationsManager = ({ notifForm, setNotifForm, handleSendNotification,
                                 </select>
                             </div>
                         </div>
-
                         {!notifForm.is_global && (
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-2">اختر العيادة</label>
@@ -67,7 +116,6 @@ const NotificationsManager = ({ notifForm, setNotifForm, handleSendNotification,
                             </div>
                         )}
                     </div>
-
                     <div className="flex flex-col">
                         <label className="block text-sm font-bold text-slate-600 dark:text-slate-400 mb-2">محتوى الرسالة</label>
                         <textarea
@@ -86,7 +134,6 @@ const NotificationsManager = ({ notifForm, setNotifForm, handleSendNotification,
                     </div>
                 </div>
             </div>
-
             <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="p-6 border-b border-slate-50 dark:border-slate-800">
                     <h3 className="font-bold text-slate-800 dark:text-white">سجل الإشعارات المرسلة</h3>
@@ -141,5 +188,4 @@ const NotificationsManager = ({ notifForm, setNotifForm, handleSendNotification,
         </div>
     );
 };
-
 export default NotificationsManager;

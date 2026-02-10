@@ -1,9 +1,6 @@
-import React from 'react';
 import { TrendingUp, Banknote, DollarSign, Calendar } from 'lucide-react';
-import { Button, Card, StatCard, Skeleton } from '@/shared/ui';
-
+import { Button, Card, StatCard } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
-
 const SummaryTab = ({ startDate, setStartDate, endDate, setEndDate, comprehensiveStats, loading, getComprehensiveStats, setComprehensiveStats, setLoading }) => {
     const { t } = useTranslation();
     return (
@@ -49,7 +46,6 @@ const SummaryTab = ({ startDate, setStartDate, endDate, setEndDate, comprehensiv
                     </Button>
                 </div>
             </Card>
-
             {/* Header Cards - Income */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <StatCard
@@ -77,7 +73,6 @@ const SummaryTab = ({ startDate, setStartDate, endDate, setEndDate, comprehensiv
                     color="primary"
                 />
             </div>
-
             {/* Deductions Breakdown */}
             <Card className="overflow-hidden">
                 <div className="p-6 border-b border-border flex items-center gap-4 bg-surface">
@@ -98,7 +93,6 @@ const SummaryTab = ({ startDate, setStartDate, endDate, setEndDate, comprehensiv
                             </div>
                         ))}
                     </div>
-
                     {/* Staff Dues */}
                     <div className="p-4 bg-blue-50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-900/20">
                         <div className="flex items-center justify-between mb-3">
@@ -115,8 +109,6 @@ const SummaryTab = ({ startDate, setStartDate, endDate, setEndDate, comprehensiv
                             <p className="text-sm text-text-muted">{t('billing.summary.no_employees')}</p>
                         )}
                     </div>
-
-
                     {/* Lab Costs */}
                     <div className="p-4 bg-orange-50 dark:bg-orange-900/10 rounded-xl border border-orange-100 dark:border-orange-900/20">
                         <div className="flex items-center justify-between">
@@ -124,7 +116,6 @@ const SummaryTab = ({ startDate, setStartDate, endDate, setEndDate, comprehensiv
                             <span className="font-black text-xl text-orange-600">-{(comprehensiveStats?.deductions?.lab_costs || 0).toLocaleString()}</span>
                         </div>
                     </div>
-
                     {/* Expenses */}
                     <div className="p-4 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900/20">
                         <div className="flex items-center justify-between">
@@ -134,7 +125,6 @@ const SummaryTab = ({ startDate, setStartDate, endDate, setEndDate, comprehensiv
                     </div>
                 </div>
             </Card>
-
             {/* Net Profit */}
             <div className={`p-8 rounded-2xl text-center ${(comprehensiveStats?.net_profit || 0) >= 0 ? 'bg-gradient-to-br from-emerald-500 to-emerald-600' : 'bg-gradient-to-br from-red-500 to-red-600'} text-white shadow-xl`}>
                 <p className="text-white/80 font-bold mb-2">{t('billing.summary.net_profit_after')}</p>
@@ -144,5 +134,4 @@ const SummaryTab = ({ startDate, setStartDate, endDate, setEndDate, comprehensiv
         </div>
     );
 };
-
 export default SummaryTab;

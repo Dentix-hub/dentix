@@ -1,23 +1,19 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { X, ArrowDownLeft, Calendar, Plus } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getMaterials, getWarehouses, receiveStock } from '@/api/inventory';
 import { showToast } from '@/shared/ui/Toast';
 import AddWarehouseModal from './components/AddWarehouseModal';
 import { useTranslation } from 'react-i18next';
-
 const ReceiveStockModal = ({ isOpen, onClose }) => {
     const { t } = useTranslation();
     const queryClient = useQueryClient();
     const [isAddWarehouseOpen, setIsAddWarehouseOpen] = useState(false);
-
     // Data Fetching
     const { data: materials } = useQuery({ queryKey: ['inventory-materials'], queryFn: async () => (await getMaterials()).data });
     const { data: warehouses } = useQuery({ queryKey: ['inventory-warehouses'], queryFn: async () => (await getWarehouses()).data });
-
     // Helper to get today's date in YYYY-MM-DD format
     const getToday = () => new Date().toISOString().split('T')[0];
-
     const [formData, setFormData] = useState({
         material_id: '',
         warehouse_id: '',
@@ -27,7 +23,6 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
         supplier: '',
         package_price: 0
     });
-
     const mutation = useMutation({
         mutationFn: (data) => {
             // Logic: Convert YYYY-MM to YYYY-MM-{LastDay}
@@ -38,7 +33,6 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
                 const lastDay = new Date(y, m, 0).getDate(); // Day 0 of next month is last day of this month
                 finalExpiry = `${y}-${String(m).padStart(2, '0')}-${lastDay}`;
             }
-
             return receiveStock({
                 material_id: parseInt(data.material_id),
                 warehouse_id: parseInt(data.warehouse_id),
@@ -68,31 +62,25 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
             showToast('error', t('inventory.receive.fail') + (error.response?.data?.detail || error.message));
         }
     });
-
     if (!isOpen) return null;
-
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!formData.material_id || !formData.warehouse_id) {
             showToast('error', t('inventory.receive.validation_error'));
             return;
         }
-
         // Calculate Cost Per Unit derived from Package Price
         const selectedMat = materials?.find(m => m.id === parseInt(formData.material_id));
         const ratio = selectedMat?.packaging_ratio || 1.0;
         const finalCostPerUnit = (parseFloat(formData.package_price) || 0) / ratio;
-
         mutation.mutate({
             ...formData,
             cost_per_unit: finalCostPerUnit
         });
     };
-
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <div className="bg-surface w-full max-w-2xl rounded-2xl shadow-2xl border border-border overflow-hidden animate-in fade-in zoom-in duration-200">
-
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b border-border bg-background">
                     <h2 className="text-lg font-bold flex items-center gap-2">
@@ -103,10 +91,8 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
                         <X size={20} />
                     </button>
                 </div>
-
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-
                     {/* Material Selection */}
                     <div className="col-span-2">
                         <label className="block text-sm font-medium text-text-secondary mb-1">{t('inventory.receive.select_material')}</label>
@@ -130,7 +116,6 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
                             ))}
                         </select>
                     </div>
-
                     {/* Warehouse Selection */}
                     <div>
                         <label className="block text-sm font-medium text-text-secondary mb-1">{t('inventory.receive.select_warehouse')}</label>
@@ -156,7 +141,6 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
                             </button>
                         </div>
                     </div>
-
                     {/* Quantity */}
                     <div>
                         <label className="block text-sm font-medium text-text-secondary mb-1">{t('inventory.receive.quantity')}</label>
@@ -170,9 +154,7 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
                             className="w-full px-4 py-2 rounded-lg border border-border bg-background font-mono"
                         />
                     </div>
-
                     <div className="col-span-2 border-t border-border my-2"></div>
-
                     {/* Batch Details Group */}
                     <div>
                         <label className="block text-sm font-medium text-text-secondary mb-1">
@@ -194,7 +176,6 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
                         </div>
                         <p className="text-xs text-slate-400 mt-1">{t('inventory.receive.expiry_note')}</p>
                     </div>
-
                     {/* PACKAGE PRICE INPUT */}
                     <div>
                         <label className="block text-sm font-medium text-text-secondary mb-1">{t('inventory.receive.package_price')}</label>
@@ -211,7 +192,6 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
                             {t('inventory.receive.price_note')}
                         </p>
                     </div>
-
                     {/* Supplier - Full Width */}
                     <div className="col-span-2">
                         <label className="block text-sm font-medium text-text-secondary mb-1">{t('inventory.receive.supplier')}</label>
@@ -223,7 +203,6 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
                             placeholder={t('inventory.receive.supplier_placeholder')}
                         />
                     </div>
-
                     {/* Actions */}
                     <div className="col-span-2 pt-4 flex justify-end gap-3 mt-4 border-t border-border">
                         <button
@@ -247,7 +226,6 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
                         </button>
                     </div>
                 </form>
-
                 {/* Nested Modals */}
                 <AddWarehouseModal
                     isOpen={isAddWarehouseOpen}
@@ -258,5 +236,4 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
         </div>
     );
 };
-
 export default ReceiveStockModal;

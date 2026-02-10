@@ -1,34 +1,28 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Database, List, User, Settings as SettingsIcon, CreditCard, CheckCircle, AlertTriangle, Printer, Banknote, Shield } from 'lucide-react';
+import { Database, List, User, Settings as SettingsIcon, CreditCard, CheckCircle, AlertTriangle, Printer } from 'lucide-react';
 import { getMe, getBackupStatus } from '../api';
-
 // Import newly created components
 // Import newly created components
 import GeneralSettings from '@/features/settings/SettingsTabs/GeneralSettings';
 import SubscriptionSettings from '@/features/settings/SettingsTabs/SubscriptionSettings';
-import ProceduresSettings from '@/features/settings/SettingsTabs/ProceduresSettings';
 import ServicesSettings from '@/features/settings/SettingsTabs/ServicesSettings';
 import BackupSettings from '@/features/settings/SettingsTabs/BackupSettings';
 import RxSettings from '@/features/settings/SettingsTabs/RxSettings';
 // Legacy imports removed (PriceLists, InsuranceProviders now inside ServicesSettings)
-
 export default function Settings() {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState('general');
     const [message, setMessage] = useState(null);
     const [currentUser, setCurrentUser] = useState(null);
-
     // Backup State
     const [backupStatus, setBackupStatus] = useState({ connected: false, loading: true });
-
     useEffect(() => {
         // Parse URL params for status (redirected from Google)
         const query = new URLSearchParams(window.location.search);
         const status = query.get('status');
         const detail = query.get('detail');
         const tabParam = query.get('tab');
-
         if (status === 'success') {
             setMessage({ type: 'success', text: 'Google Account Linked Successfully' }); // Could keep backend msg or translate
             window.history.replaceState({}, document.title, window.location.pathname);
@@ -44,10 +38,8 @@ export default function Settings() {
         } else {
             checkBackupConnection();
         }
-
         loadUserInfo();
     }, []);
-
     const checkBackupConnection = async () => {
         try {
             const res = await getBackupStatus();
@@ -60,7 +52,6 @@ export default function Settings() {
             setBackupStatus({ connected: false, loading: false });
         }
     };
-
     const loadUserInfo = async () => {
         try {
             const res = await getMe();
@@ -69,7 +60,6 @@ export default function Settings() {
             console.error('Failed to load user info', err);
         }
     };
-
     const tabs = useMemo(() => [
         { id: 'general', label: t('settings.tabs.general'), icon: User },
         { id: 'subscription', label: t('settings.tabs.subscription'), icon: CreditCard },
@@ -77,10 +67,8 @@ export default function Settings() {
         { id: 'rx', label: t('settings.tabs.rx'), icon: Printer },
         { id: 'backup', label: t('settings.tabs.backup'), icon: Database },
     ], [t]);
-
     return (
         <div className="min-h-screen bg-slate-50/50 dark:bg-slate-900/50 p-6 flex flex-col md:flex-row gap-6 animate-in fade-in active">
-
             {/* Sidebar Navigation */}
             <div className="w-full md:w-64 flex-shrink-0">
                 <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-white/5 sticky top-6">
@@ -88,7 +76,6 @@ export default function Settings() {
                         <SettingsIcon className="text-indigo-600" />
                         {t('settings.title')}
                     </h2>
-
                     <nav className="space-y-1">
                         {tabs.map(tab => {
                             const Icon = tab.icon;
@@ -110,11 +97,9 @@ export default function Settings() {
                     </nav>
                 </div>
             </div>
-
             {/* Main Content Area */}
             <div className="flex-1">
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-white/5 min-h-[600px] relative overflow-hidden">
-
                     {/* Header Banner */}
                     <div className="h-32 bg-gradient-to-r from-indigo-500 to-violet-600 relative overflow-hidden">
                         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
@@ -128,9 +113,7 @@ export default function Settings() {
                             </div>
                         </div>
                     </div>
-
                     <div className="p-8 pt-12">
-
                         {/* Tab Title */}
                         <div className="mb-8">
                             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
@@ -144,7 +127,6 @@ export default function Settings() {
                                 {activeTab === 'backup' && t('settings.headers.backup')}
                             </p>
                         </div>
-
                         {/* TAB CONTENT */}
                         {activeTab === 'general' && (
                             <GeneralSettings
@@ -153,26 +135,21 @@ export default function Settings() {
                                 setMessage={setMessage}
                             />
                         )}
-
                         {activeTab === 'subscription' && (
                             <SubscriptionSettings
                                 currentUser={currentUser}
                             />
                         )}
-
-
                         {activeTab === 'services' && (
                             <ServicesSettings
                                 setMessage={setMessage}
                             />
                         )}
-
                         {activeTab === 'rx' && (
                             <RxSettings
                                 setMessage={setMessage}
                             />
                         )}
-
                         {activeTab === 'backup' && (
                             <BackupSettings
                                 backupStatus={backupStatus}
@@ -181,11 +158,9 @@ export default function Settings() {
                                 loadUserInfo={loadUserInfo}
                             />
                         )}
-
                     </div>
                 </div>
             </div>
-
             {/* Toast Message */}
             {message && (
                 <div className={`fixed bottom-8 left-8 p-4 rounded-2xl flex items-center gap-3 shadow-2xl animate-in slide-in-from-bottom-10 z-[100] ${message.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>

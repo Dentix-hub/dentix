@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { getPatient, getTenantSettings } from '../api';
+import { getTenantSettings } from '../api';
 import { Stethoscope, MapPin, Phone } from 'lucide-react';
-
 export default function PrintRx() {
     const { id } = useParams();
     const [patient, setPatient] = useState(null);
@@ -13,7 +12,6 @@ export default function PrintRx() {
         clinic_address: 'العنوان',
         clinic_phone: '0000000000'
     });
-
     useEffect(() => {
         // Fetch Tenant Settings (Rx Header)
         getTenantSettings().then((res) => {
@@ -26,7 +24,6 @@ export default function PrintRx() {
                 });
             }
         }).catch(err => console.error("Failed to fetch rx header info", err));
-
         // In a real app, you'd fetch the specific prescription by an ID
         // For now, let's look for state passed via router or fetch last one
         const data = sessionStorage.getItem('print_rx_data');
@@ -34,25 +31,19 @@ export default function PrintRx() {
             const parsed = JSON.parse(data);
             setPrescription(parsed.prescription);
             setPatient(parsed.patient);
-
             // Auto print and close tab/go back
             setTimeout(() => {
                 window.print();
             }, 1000); // Increased delay slightly to ensure font loading
         }
     }, [id]);
-
     if (!patient || !prescription) return <div className="p-10 text-center text-slate-400">Loading Prescription Data...</div>;
-
     const medications = JSON.parse(prescription.medications);
-
     return (
         <div className="min-h-screen bg-white p-4 sm:p-10 font-['Cairo']" dir="rtl">
             <div className="max-w-2xl mx-auto border-2 border-slate-900 min-h-[90vh] flex flex-col p-8 relative overflow-hidden">
-
                 {/* Header Decoration */}
                 <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 -mr-16 -mt-16 rounded-full"></div>
-
                 {/* Header */}
                 <div className="flex justify-between items-start border-b-2 border-slate-900 pb-6 mb-8 relative z-10">
                     <div>
@@ -63,7 +54,6 @@ export default function PrintRx() {
                         <Stethoscope size={40} />
                     </div>
                 </div>
-
                 {/* Patient Info Bar */}
                 <div className="bg-slate-50 p-4 rounded-xl flex justify-between items-center mb-10 border border-slate-200">
                     <div className="flex gap-4">
@@ -75,12 +65,10 @@ export default function PrintRx() {
                         <span className="font-bold text-slate-900">{new Date(prescription.date).toLocaleDateString('ar-EG')}</span>
                     </div>
                 </div>
-
                 {/* RX Symbol Area */}
                 <div className="mb-6">
                     <span className="text-6xl font-serif text-slate-900 opacity-20">℞</span>
                 </div>
-
                 {/* Medications List */}
                 <div className="flex-1 space-y-8 px-6">
                     {medications.map((med, index) => (
@@ -93,7 +81,6 @@ export default function PrintRx() {
                         </div>
                     ))}
                 </div>
-
                 {/* Doctor's Notes */}
                 {prescription.notes && (
                     <div className="mt-10 p-4 bg-yellow-50/50 rounded-lg border-r-4 border-yellow-400">
@@ -101,7 +88,6 @@ export default function PrintRx() {
                         <p className="text-slate-600">{prescription.notes}</p>
                     </div>
                 )}
-
                 {/* Footer Signature */}
                 <div className="mt-auto pt-10 flex justify-end">
                     <div className="text-center w-48">
@@ -109,7 +95,6 @@ export default function PrintRx() {
                         <p className="text-sm font-bold text-slate-400">توقيع الطبيب</p>
                     </div>
                 </div>
-
                 {/* Contact Info Footer */}
                 <div className="mt-10 pt-6 border-t border-slate-200 flex flex-wrap justify-center gap-x-10 gap-y-2 text-sm text-slate-500">
                     <div className="flex items-center gap-2">
@@ -122,7 +107,6 @@ export default function PrintRx() {
                     </div>
                 </div>
             </div>
-
             {/* Print Instructions Hide on Print */}
             <div className="mt-8 text-center print:hidden flex flex-col items-center gap-4">
                 <p className="text-slate-500">انتهت المعاينة، سيتم فتح نافذة الطباعة تلقائياً.</p>

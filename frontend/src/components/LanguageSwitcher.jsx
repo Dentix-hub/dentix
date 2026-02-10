@@ -1,22 +1,18 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/shared/ui';
 import { Globe } from 'lucide-react';
-
 const LanguageSwitcher = () => {
     const { t, i18n } = useTranslation();
-
     // Effect to update document direction when language changes
     useEffect(() => {
         document.documentElement.dir = i18n.language === 'ar' ? 'rtl' : 'ltr';
         document.documentElement.lang = i18n.language;
     }, [i18n.language]);
-
     const toggleLanguage = () => {
         const newLang = i18n.language === 'ar' ? 'en' : 'ar';
         i18n.changeLanguage(newLang);
     };
-
     return (
         <Button
             variant="ghost"
@@ -31,5 +27,4 @@ const LanguageSwitcher = () => {
         </Button>
     );
 };
-
 export default LanguageSwitcher;

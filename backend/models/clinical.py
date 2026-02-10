@@ -1,17 +1,38 @@
-from .base import Base, Column, Integer, String, DateTime, Float, Text, ForeignKey, relationship, Index, datetime
+from .base import (
+    Base,
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Float,
+    Text,
+    ForeignKey,
+    relationship,
+    Index,
+    datetime,
+)
 from sqlalchemy import Boolean
+
 
 class Appointment(Base):
     __tablename__ = "appointments"
+    __table_args__ = (
+        Index("idx_appointment_doctor_date", "doctor_id", "date_time"),
+        Index("idx_appointment_tenant_date", "patient_id", "date_time"), # Indirect via patient join usually, but useful if denormalized or for patient history
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
-    doctor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # Multi-Doctor Support
-    price_list_id = Column(Integer, ForeignKey("price_lists.id"), nullable=True, index=True)  # Multi Price List
+    doctor_id = Column(
+        Integer, ForeignKey("users.id"), nullable=True, index=True
+    )  # Multi-Doctor Support
+    price_list_id = Column(
+        Integer, ForeignKey("price_lists.id"), nullable=True, index=True
+    )  # Multi Price List
     date_time = Column(DateTime, index=True)
     status = Column(String, default="Scheduled")
     notes = Column(Text, nullable=True)
-    
+
     # Soft Delete
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True)
@@ -35,8 +56,8 @@ class ToothStatus(Base):
 class Treatment(Base):
     __tablename__ = "treatments"
     __table_args__ = (
-        Index('idx_treatment_doctor_date', 'doctor_id', 'date'),
-        Index('idx_treatment_patient_date', 'patient_id', 'date'),
+        Index("idx_treatment_doctor_date", "doctor_id", "date"),
+        Index("idx_treatment_patient_date", "patient_id", "date"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -54,11 +75,15 @@ class Treatment(Base):
     complications = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    
+
     # Multi Price List Support
-    price_list_id = Column(Integer, ForeignKey("price_lists.id"), nullable=True, index=True)
+    price_list_id = Column(
+        Integer, ForeignKey("price_lists.id"), nullable=True, index=True
+    )
     unit_price = Column(Float, nullable=True)  # Price at time of treatment (snapshot)
-    price_snapshot = Column(Text, nullable=True)  # JSON: {"list_name", "price", "discount"}
+    price_snapshot = Column(
+        Text, nullable=True
+    )  # JSON: {"list_name", "price", "discount"}
 
     patient = relationship("Patient", back_populates="treatments")
 
@@ -97,8 +122,8 @@ class Laboratory(Base):
 class LabOrder(Base):
     __tablename__ = "lab_orders"
     __table_args__ = (
-        Index('idx_laborder_doctor_date', 'doctor_id', 'order_date'),
-        Index('idx_laborder_tenant_date', 'tenant_id', 'order_date'),
+        Index("idx_laborder_doctor_date", "doctor_id", "order_date"),
+        Index("idx_laborder_tenant_date", "tenant_id", "order_date"),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -116,7 +141,7 @@ class LabOrder(Base):
     delivery_date = Column(DateTime, nullable=True)
     received_date = Column(DateTime, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    
+
     doctor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
     patient = relationship("Patient", back_populates="lab_orders")

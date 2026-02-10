@@ -2,10 +2,9 @@
 Accounting Router
 Handles doctor revenue and compensation calculations.
 """
-from fastapi import APIRouter, Depends, Query, HTTPException
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
-from datetime import datetime
-from typing import List
 
 from .. import models, schemas
 from .auth import get_current_user, get_db
@@ -56,7 +55,7 @@ def get_doctor_details(
     details = service.get_doctor_details_data(doctor_id, start, end)
     if not details:
         return {"error": "Doctor not found"}
-        
+
     return details
 
 
@@ -74,10 +73,10 @@ def update_staff_compensation(
     success = service.update_staff_compensation_settings(
         user_id, current_user, commission_percent, fixed_salary, per_appointment_fee
     )
-    
+
     if not success:
         return {"error": "User not found"}
-    
+
     return {"success": True, "message": "Compensation updated"}
 
 
@@ -89,7 +88,7 @@ def get_staff_revenue(
     current_user: schemas.User = Depends(get_current_user),
 ):
     """Get revenue for non-doctor staff (assistants, receptionists, etc.)."""
-    # Note: date range logic was in original but unused for listing staff. 
+    # Note: date range logic was in original but unused for listing staff.
     # Just validating date format to keep API consistent.
     service = AccountingService(db, current_user.tenant_id)
     try:
@@ -120,49 +119,65 @@ def get_comprehensive_stats(
     # 1. Basic Income Stats
     total_income = service.get_total_income(start, end)
     total_collected = service.get_total_collected(start, end)
-    
+
     # 2. Get appointments count (needed for staff dues)
-    # Using service query manually or adding a helper? 
-    # Let's add a quick helper or just query it here since it's simple? 
-    # Actually, let's keep it simple here and query. 
-    # But wait, we want to move logic out. 
+    # Using service query manually or adding a helper?
+    # Let's add a quick helper or just query it here since it's simple?
+    # Actually, let's keep it simple here and query.
+    # But wait, we want to move logic out.
     # Let's add `get_appointments_count` to service or just use what we have.
-    # Service doesn't have `get_appointments_count` yet. 
+    # Service doesn't have `get_appointments_count` yet.
     # I can query it using count on treatments.
     # 2a. Get Appointments Count (for staff dues calculation)
-    total_appointments = db.query(models.Treatment.id)\
-        .join(models.Patient, models.Treatment.patient_id == models.Patient.id)\
+    total_appointments = (
+        db.query(models.Treatment.id)
+        .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
         .filter(
             models.Patient.tenant_id == current_user.tenant_id,
             models.Patient.is_deleted == False,
             models.Treatment.date >= start,
-            models.Treatment.date <= end
-        ).count()
+            models.Treatment.date <= end,
+        )
+        .count()
+    )
 
     # 2b. Get Unique Patients Count (for UI display)
-    unique_patients_count = db.query(models.Treatment.patient_id)\
-        .join(models.Patient, models.Treatment.patient_id == models.Patient.id)\
+    unique_patients_count = (
+        db.query(models.Treatment.patient_id)
+        .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
         .filter(
             models.Patient.tenant_id == current_user.tenant_id,
             models.Patient.is_deleted == False,
             models.Treatment.date >= start,
-            models.Treatment.date <= end
-        ).distinct().count()
+            models.Treatment.date <= end,
+        )
+        .distinct()
+        .count()
+    )
 
     # 3. Dues & Expenses
     doctor_dues, total_doctor_dues = service.calculate_doctor_dues(start, end)
-    staff_dues, total_staff_dues = service.calculate_staff_dues(start, end, total_appointments)
-    
+    staff_dues, total_staff_dues = service.calculate_staff_dues(
+        start, end, total_appointments
+    )
+
     total_expenses = service.get_total_expenses(start, end)
     total_lab_costs = service.get_total_lab_costs(start, end)
 
     # 4. Net Profit
     # Net Profit = Collected (Cash In) - Expenses (Cash Out)
-    net_profit = float(total_collected) - float(total_doctor_dues) - float(total_staff_dues) - float(total_expenses) - float(total_lab_costs)
+    net_profit = (
+        float(total_collected)
+        - float(total_doctor_dues)
+        - float(total_staff_dues)
+        - float(total_expenses)
+        - float(total_lab_costs)
+    )
 
     # 5. ALL TIME Outstanding (Total Debt)
     # The user wants "Remaining" to be the actual debt, not period math.
     from ..crud import billing as billing_crud
+
     all_time_stats = billing_crud.get_financial_stats(db, current_user.tenant_id)
     real_outstanding = all_time_stats["outstanding"]
 
@@ -171,24 +186,20 @@ def get_comprehensive_stats(
         "income": {
             "total_revenue": float(total_income),
             "total_collected": float(total_collected),
-            "outstanding": float(real_outstanding), # FIXED: Show actual total debt
-            "total_appointments": unique_patients_count, # Returning unique patients as requested (keeping key name compatible if frontend expects it, or better rename it)
-            "unique_patients": unique_patients_count
+            "outstanding": float(real_outstanding),  # FIXED: Show actual total debt
+            "total_appointments": unique_patients_count,  # Returning unique patients as requested (keeping key name compatible if frontend expects it, or better rename it)
+            "unique_patients": unique_patients_count,
         },
         "deductions": {
-            "doctor_dues": {
-                "total": float(total_doctor_dues),
-                "details": doctor_dues
-            },
-            "staff_dues": {
-                "total": float(total_staff_dues),
-                "details": staff_dues
-            },
+            "doctor_dues": {"total": float(total_doctor_dues), "details": doctor_dues},
+            "staff_dues": {"total": float(total_staff_dues), "details": staff_dues},
             "lab_costs": float(total_lab_costs),
             "expenses": float(total_expenses),
-            "total_deductions": float(total_doctor_dues) + float(total_staff_dues) + float(total_expenses)
+            "total_deductions": float(total_doctor_dues)
+            + float(total_staff_dues)
+            + float(total_expenses),
         },
-        "net_profit": net_profit
+        "net_profit": net_profit,
     }
 
 
@@ -226,8 +237,12 @@ def record_salary_payment(
     )
     if "error" in result:
         return result
-    
-    return {"success": True, "payment_id": result["payment_id"], "message": "تم تسجيل الدفع بنجاح"}
+
+    return {
+        "success": True,
+        "payment_id": result["payment_id"],
+        "message": "تم تسجيل الدفع بنجاح",
+    }
 
 
 @router.delete("/salaries/{payment_id}")
@@ -239,7 +254,7 @@ def delete_salary_payment(
     """Delete/Cancel a salary payment record."""
     service = AccountingService(db, current_user.tenant_id)
     success = service.remove_salary_payment(payment_id, current_user)
-    
+
     if not success:
         return {"error": "لم يتم العثور على سجل الدفع"}
 
@@ -256,10 +271,10 @@ def update_hire_date(
     """Update the hire date for an employee."""
     service = AccountingService(db, current_user.tenant_id)
     success = service.update_employee_hire_date(user_id, hire_date, current_user)
-    
+
     if not success:
-        # success=False usually implies user not found or format error. 
-        # service returns False for both. 
+        # success=False usually implies user not found or format error.
+        # service returns False for both.
         # For better error message we might check format here or assume format error handled by helper?
         # Helper logs format error as False.
         # Let's return generic error.

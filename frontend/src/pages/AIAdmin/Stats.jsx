@@ -1,14 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Brain, DollarSign, Activity, Zap, TrendingUp } from 'lucide-react';
 import { getAIStats } from '@/api';
-
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-
 export default function AIStats() {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
-
     useEffect(() => {
         const fetchStats = async () => {
             try {
@@ -22,7 +19,6 @@ export default function AIStats() {
         };
         fetchStats();
     }, []);
-
     if (loading) return (
         <div className="flex h-[50vh] items-center justify-center">
             <div className="flex flex-col items-center gap-4">
@@ -31,17 +27,13 @@ export default function AIStats() {
             </div>
         </div>
     );
-
     if (!stats) return <div className="p-8 text-center text-red-500">فشل تحميل الإحصائيات</div>;
-
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20" dir="rtl">
-
             {/* Header Section */}
             <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-600 rounded-3xl p-8 text-white shadow-xl shadow-indigo-500/20">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
                 <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full -ml-8 -mb-8 blur-2xl"></div>
-
                 <div className="relative z-10">
                     <h1 className="text-3xl font-black mb-2 flex items-center gap-3">
                         <Brain className="w-8 h-8 text-indigo-100" />
@@ -52,7 +44,6 @@ export default function AIStats() {
                     </p>
                 </div>
             </div>
-
             {/* Key Metrics Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <MetricCard
@@ -82,10 +73,8 @@ export default function AIStats() {
                     color="rose"
                 />
             </div>
-
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
                 {/* Tool Usage Chart */}
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col">
                     <div className="mb-8">
@@ -95,7 +84,6 @@ export default function AIStats() {
                         </h3>
                         <p className="text-slate-400 text-sm mt-1 mr-4">توزيع استخدام أدوات النظام المختلفة</p>
                     </div>
-
                     <div className="h-[400px] w-full" dir="ltr">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={stats.tool_usage} layout="vertical" margin={{ left: 20, right: 30, top: 10, bottom: 10 }}>
@@ -123,7 +111,6 @@ export default function AIStats() {
                         </ResponsiveContainer>
                     </div>
                 </div>
-
                 {/* Users Activity Chart */}
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col">
                     <div className="mb-8">
@@ -133,7 +120,6 @@ export default function AIStats() {
                         </h3>
                         <p className="text-slate-400 text-sm mt-1 mr-4">نسبة تفاعل كل مستخدم مع النظام</p>
                     </div>
-
                     <div className="h-[400px] w-full relative">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
@@ -162,7 +148,6 @@ export default function AIStats() {
                                 />
                             </PieChart>
                         </ResponsiveContainer>
-
                         {/* Center Text */}
                         <div className="absolute top-[45%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
                             <p className="text-3xl font-black text-slate-800 dark:text-white">{stats.total_requests}</p>
@@ -174,7 +159,6 @@ export default function AIStats() {
         </div>
     );
 }
-
 function MetricCard({ title, value, icon: Icon, color, subtext, trend }) {
     // Map color names to tailwind classes for dynamic usage
     const colorMap = {
@@ -184,9 +168,7 @@ function MetricCard({ title, value, icon: Icon, color, subtext, trend }) {
         rose: 'bg-rose-50 text-rose-600 ring-rose-100',
         blue: 'bg-blue-50 text-blue-600 ring-blue-100',
     };
-
     const styleClass = colorMap[color] || colorMap.indigo;
-
     return (
         <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-[0_2px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-100 dark:border-slate-700 hover:translate-y-[-4px] transition-all duration-300">
             <div className="flex justify-between items-start mb-4">
@@ -199,7 +181,6 @@ function MetricCard({ title, value, icon: Icon, color, subtext, trend }) {
                     </span>
                 )}
             </div>
-
             <h3 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight mb-1">{value}</h3>
             <p className="text-slate-500 font-medium text-sm">{title}</p>
             {subtext && <p className="text-xs text-slate-400 mt-3 pt-3 border-t border-slate-50 dark:border-slate-700 border-dashed">{subtext}</p>}

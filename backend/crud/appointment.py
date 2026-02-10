@@ -1,23 +1,25 @@
 from sqlalchemy.orm import Session, joinedload
 from backend import models, schemas
 
-def get_appointments(db: Session, tenant_id: int, skip: int = 0, limit: int = 100, doctor_id: int = None):
+
+def get_appointments(
+    db: Session, tenant_id: int, skip: int = 0, limit: int = 100, doctor_id: int = None
+):
     query = (
         db.query(models.Appointment)
         .join(models.Patient)
         .filter(
             models.Patient.tenant_id == tenant_id,
             models.Patient.is_deleted == False,
-            models.Appointment.is_deleted == False
+            models.Appointment.is_deleted == False,
         )
     )
-    
+
     if doctor_id:
         query = query.filter(models.Appointment.doctor_id == doctor_id)
-        
+
     return (
-        query
-        .options(joinedload(models.Appointment.patient))
+        query.options(joinedload(models.Appointment.patient))
         .order_by(models.Appointment.date_time.desc())
         .offset(skip)
         .limit(limit)
@@ -30,13 +32,17 @@ def create_appointment(db: Session, appointment: schemas.AppointmentCreate):
     if appointment.doctor_id:
         # Check if doctor has an appointment at the exact same time
         # We assume 15-30 min slots usually, but strict check on start time is a good first step
-        existing = db.query(models.Appointment).filter(
-            models.Appointment.doctor_id == appointment.doctor_id,
-            models.Appointment.date_time == appointment.date_time,
-            models.Appointment.is_deleted == False,
-            models.Appointment.status != "Cancelled"
-        ).first()
-        
+        existing = (
+            db.query(models.Appointment)
+            .filter(
+                models.Appointment.doctor_id == appointment.doctor_id,
+                models.Appointment.date_time == appointment.date_time,
+                models.Appointment.is_deleted == False,
+                models.Appointment.status != "Cancelled",
+            )
+            .first()
+        )
+
         if existing:
             raise ValueError("Doctor is already booked at this time.")
 
@@ -56,7 +62,7 @@ def update_appointment_status(
         .filter(
             models.Appointment.id == appointment_id,
             models.Patient.tenant_id == tenant_id,
-            models.Appointment.is_deleted == False
+            models.Appointment.is_deleted == False,
         )
         .first()
     )
@@ -70,13 +76,14 @@ def update_appointment_status(
 def delete_appointment(db: Session, appointment_id: int, tenant_id: int):
     """Soft Delete Appointment."""
     from datetime import datetime
+
     db_appt = (
         db.query(models.Appointment)
         .join(models.Patient)
         .filter(
             models.Appointment.id == appointment_id,
             models.Patient.tenant_id == tenant_id,
-            models.Appointment.is_deleted == False
+            models.Appointment.is_deleted == False,
         )
         .first()
     )

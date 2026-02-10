@@ -10,7 +10,9 @@ from dotenv import load_dotenv
 
 # Add project root to python path to allow importing backend modules
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir)) # Go up: alembic -> backend -> root
+project_root = os.path.dirname(
+    os.path.dirname(current_dir)
+)  # Go up: alembic -> backend -> root
 sys.path.insert(0, project_root)
 
 # Load environment variables
@@ -42,6 +44,7 @@ if db_url:
 # add your model's MetaData object here
 # for 'autogenerate' support
 target_metadata = Base.metadata
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -81,9 +84,7 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

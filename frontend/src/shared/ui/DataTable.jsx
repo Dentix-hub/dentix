@@ -2,7 +2,6 @@
  * DataTable Component
  * Reusable table with empty state support.
  */
-import React from 'react';
 
 export default function DataTable({
     columns,

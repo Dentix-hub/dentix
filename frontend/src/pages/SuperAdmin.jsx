@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, broadcastNotification, deleteNotification, deleteSupportMessage } from '../api';
 import {
     LayoutDashboard, Building2, CreditCard, CalendarRange,
     MessageSquare, Bell, ShieldCheck, X, Banknote, Landmark,
     PlusCircle, Activity, Users, Settings, Puzzle, Key
 } from 'lucide-react';
-
 // Imported Sub-Components
 // Imported Sub-Components
 import DashboardStats from '@/features/admin/SuperAdmin/DashboardStats';
@@ -17,12 +16,10 @@ import SettingsManager from '@/features/admin/SuperAdmin/SettingsManager'; // Ph
 import SupportInbox from '@/features/admin/SuperAdmin/SupportInbox';
 import NotificationsManager from '@/features/admin/SuperAdmin/NotificationsManager';
 import AuditLogViewer from '@/features/admin/SuperAdmin/AuditLogViewer';
+import AIAnalyticsDashboard from '@/features/admin/SuperAdmin/AIAnalyticsDashboard';
 import SecurityPanel from '@/features/admin/SuperAdmin/SecurityPanel'; // Phase 3
 import FeatureManager from '@/features/admin/SuperAdmin/FeatureManager'; // Phase 3
 import SystemHealth from '@/features/admin/SuperAdmin/SystemHealth'; // Phase 5
-
-import Modal from '@/shared/ui/Modal'; // Assuming generic Modal exists, or keeping locally if needed for logic reuse
-
 export default function SuperAdmin() {
     const [activeTab, setActiveTab] = useState('dashboard');
     const [tenants, setTenants] = useState([]);
@@ -34,27 +31,21 @@ export default function SuperAdmin() {
     const [auditLogs, setAuditLogs] = useState([]);
     const [systemSettings, setSystemSettings] = useState([]);
     const [loading, setLoading] = useState(true);
-
     // Editing Plan State
     const [editingPlan, setEditingPlan] = useState(null);
     const [editedPlanData, setEditedPlanData] = useState({});
-
     // Payment Modal State
     const [showPaymentModal, setShowPaymentModal] = useState(null);
     const [paymentForm, setPaymentForm] = useState({ plan_id: '', amount: '', payment_method: 'cash', notes: '' });
-
     // Notification Form State
     const [notifForm, setNotifForm] = useState({ title: '', content: '', type: 'info', is_global: true, tenant_id: null });
-
     // Password Reset State
     const [showPasswordResetModal, setShowPasswordResetModal] = useState(null); // {tenantId, tenantName}
     const [tenantUsers, setTenantUsers] = useState([]);
     const [passwordResetForm, setPasswordResetForm] = useState({ user_id: '', new_password: '' });
-
     useEffect(() => {
         fetchData();
     }, []);
-
     const fetchData = async () => {
         try {
             setLoading(true);
@@ -70,9 +61,7 @@ export default function SuperAdmin() {
                 api.get(`/api/v1/admin/audit-logs?_t=${timestamp}`),
                 api.get(`/api/v1/admin/settings?_t=${timestamp}`)
             ]);
-
             const [tenantsRes, plansRes, statsRes, paymentsRes, messagesRes, notificationsRes, auditsRes, settingsRes] = results;
-
             if (tenantsRes.status === 'fulfilled') setTenants(Array.isArray(tenantsRes.value.data) ? tenantsRes.value.data : []);
             if (plansRes.status === 'fulfilled') setPlans(Array.isArray(plansRes.value.data) ? plansRes.value.data : []);
             if (statsRes.status === 'fulfilled') setStats(statsRes.value.data);
@@ -81,12 +70,10 @@ export default function SuperAdmin() {
             if (notificationsRes.status === 'fulfilled') setNotifications(notificationsRes.value.data);
             if (auditsRes.status === 'fulfilled') setAuditLogs(auditsRes.value.data);
             if (settingsRes.status === 'fulfilled') setSystemSettings(settingsRes.value.data);
-
         } finally {
             setLoading(false);
         }
     };
-
     const handleSavePlan = async (planId) => {
         try {
             await api.put(`/admin/plans/${planId}`, editedPlanData);
@@ -97,7 +84,6 @@ export default function SuperAdmin() {
             alert('فشل التعديل');
         }
     };
-
     const handleRecordPayment = async () => {
         try {
             await api.post('/api/v1/admin/payments', {
@@ -111,7 +97,6 @@ export default function SuperAdmin() {
             alert('فشل تسجيل الدفعة');
         }
     };
-
     const handleSendNotification = async () => {
         if (!notifForm.title || !notifForm.content) return alert('الرجاء تعبئة العنوان والمحتوى');
         try {
@@ -123,7 +108,6 @@ export default function SuperAdmin() {
             alert('فشل إرسال الإشعار');
         }
     };
-
     const handleDeleteNotification = async (id) => {
         if (!window.confirm('هل أنت متأكد من حذف هذا الإشعار؟')) return;
         try {
@@ -133,7 +117,6 @@ export default function SuperAdmin() {
             alert('فشل حذف الإشعار');
         }
     };
-
     const handleDeleteMessage = async (id) => {
         if (!window.confirm('هل أنت متأكد من حذف هذه الرسالة؟')) return;
         try {
@@ -144,7 +127,6 @@ export default function SuperAdmin() {
             alert('فشل حذف الرسالة');
         }
     };
-
     const handlePlanChange = (e, tenantId) => {
         const newPlanId = parseInt(e.target.value);
         if (!newPlanId) return;
@@ -154,13 +136,11 @@ export default function SuperAdmin() {
                 .catch(() => alert('فشل تغيير الخطة'));
         }
     };
-
     const getDaysRemaining = (endDate) => {
         if (!endDate) return null;
         const days = Math.ceil((new Date(endDate) - new Date()) / (1000 * 60 * 60 * 24));
         return days;
     };
-
     const handleArchiveTenant = async (tenantId) => {
         if (!window.confirm("هل أنت متأكد من أرشفة هذه العيادة؟ ستختفي من القائمة النشطة ويتم تعطيل دخول المستخدمين.")) return;
         try {
@@ -172,12 +152,6 @@ export default function SuperAdmin() {
             alert("فشلت عملية الأرشفة");
         }
     };
-
-
-
-
-
-
     const handleRestoreTenant = async (tenantId) => {
         if (!window.confirm("هل أنت متأكد من استعادة هذه العيادة؟")) return;
         try {
@@ -189,11 +163,9 @@ export default function SuperAdmin() {
             alert("فشلت عملية الاستعادة");
         }
     };
-
     // Phase 2: User Management Handlers
     const [globalUsers, setGlobalUsers] = useState([]);
     const [usersLoading, setUsersLoading] = useState(false);
-
     const handleSearchUsers = async (query) => {
         setUsersLoading(true);
         try {
@@ -208,11 +180,9 @@ export default function SuperAdmin() {
             setUsersLoading(false);
         }
     };
-
     const handleToggleUserStatus = async (userId, currentStatus) => {
         const action = currentStatus ? "تعطيل" : "تفعيل";
         if (!window.confirm(`هل أنت متأكد من ${action} هذا المستخدم؟`)) return;
-
         try {
             await api.post(`/api/v1/admin/users/${userId}/toggle-status`);
             // Update local state to reflect change instantly
@@ -225,23 +195,18 @@ export default function SuperAdmin() {
             alert("فشل تغيير حالة المستخدم");
         }
     };
-
     const handleResetPassword = async (tenantId) => {
         try {
             console.log('[DEBUG] Fetching users for tenant:', tenantId);
             const res = await api.get(`/api/v1/admin/system/tenants/${tenantId}/users`);
             console.log('[DEBUG] API Response:', res.data);
-
             // Temporary Debug Alert (Version 2)
             alert(`[V2 FIX] Found ${res.data?.users?.length || 0} users. \nFirst User: ${JSON.stringify(res.data?.users?.[0])}`);
-
             const users = res.data.users || [];
             setTenantUsers(users);
-
             if (users.length === 0) {
                 console.warn('[DEBUG] No users found for tenant:', tenantId);
             }
-
             const tenant = Array.isArray(tenants) ? tenants.find(t => t.id === tenantId) : null;
             setShowPasswordResetModal({ tenantId, tenantName: tenant?.name || 'العيادة' });
             setPasswordResetForm({ user_id: '', new_password: '' });
@@ -250,7 +215,6 @@ export default function SuperAdmin() {
             alert('فشل تحميل مستخدمي العيادة: ' + (err.response?.data?.detail || err.message));
         }
     };
-
     const handleSubmitPasswordReset = async () => {
         if (!passwordResetForm.user_id || !passwordResetForm.new_password) {
             return alert('الرجاء اختيار المستخدم وإدخال كلمة المرور الجديدة');
@@ -259,7 +223,6 @@ export default function SuperAdmin() {
             return alert('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
         }
         if (!window.confirm('هل أنت متأكد من إعادة تعيين كلمة المرور؟')) return;
-
         try {
             await api.post(`/api/v1/admin/system/users/${passwordResetForm.user_id}/reset-password`, {
                 new_password: passwordResetForm.new_password
@@ -272,7 +235,6 @@ export default function SuperAdmin() {
             alert('فشل إعادة تعيين كلمة المرور');
         }
     };
-
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
             <div className="flex flex-col items-center gap-4">
@@ -281,11 +243,9 @@ export default function SuperAdmin() {
             </div>
         </div>
     );
-
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6 lg:p-10 font-sans" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-8">
-
                 {/* Header */}
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-4">
@@ -327,14 +287,12 @@ export default function SuperAdmin() {
                         ))}
                     </div>
                 </div>
-
                 {/* Content */}
                 <div className="animate-fade-in-up">
                     {/* Dashboard Tab */}
                     {activeTab === 'dashboard' && stats && (
                         <DashboardStats stats={stats} />
                     )}
-
                     {/* Tenants Tab */}
                     {activeTab === 'tenants' && (
                         <TenantsManager
@@ -349,7 +307,6 @@ export default function SuperAdmin() {
                             onResetPassword={handleResetPassword}
                         />
                     )}
-
                     {/* Global Users Tab (Phase 2) */}
                     {activeTab === 'users' && (
                         <UsersManager
@@ -359,7 +316,6 @@ export default function SuperAdmin() {
                             loading={usersLoading}
                         />
                     )}
-
                     {/* Plans Tab */}
                     {activeTab === 'plans' && (
                         <PlansManager
@@ -372,7 +328,6 @@ export default function SuperAdmin() {
                             onRefresh={fetchData}
                         />
                     )}
-
                     {/* Payments Tab */}
                     {activeTab === 'payments' && (
                         <PaymentsManager
@@ -381,7 +336,6 @@ export default function SuperAdmin() {
                             plans={plans}
                         />
                     )}
-
                     {/* Support Messages Tab */}
                     {activeTab === 'messages' && (
                         <SupportInbox
@@ -391,7 +345,6 @@ export default function SuperAdmin() {
                             fetchData={fetchData}
                         />
                     )}
-
                     {/* Notifications Tab */}
                     {activeTab === 'notifications' && (
                         <NotificationsManager
@@ -403,39 +356,32 @@ export default function SuperAdmin() {
                             tenants={tenants}
                         />
                     )}
-
                     {/* Audit Logs Tab */}
                     {activeTab === 'audit_logs' && (
                         <AuditLogViewer logs={auditLogs} />
                     )}
-
                     {/* AI Analytics Tab (Phase 0+1) */}
                     {activeTab === 'ai_analytics' && (
                         <AIAnalyticsDashboard />
                     )}
-
                     {/* Settings Tab (Phase 3) */}
                     {activeTab === 'settings' && (
                         <SettingsManager settings={systemSettings} fetchData={fetchData} />
                     )}
-
                     {/* Security Tab (Phase 3) */}
                     {activeTab === 'security' && (
                         <SecurityPanel />
                     )}
-
                     {/* Features Tab (Phase 3) */}
                     {activeTab === 'features' && (
                         <FeatureManager tenants={tenants} />
                     )}
-
                     {/* Operational Health (Phase 5) */}
                     {activeTab === 'health' && (
                         <SystemHealth />
                     )}
                 </div>
             </div>
-
             {/* Global Payment Modal - Kept in main since it needs overlay state */}
             {showPaymentModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
@@ -452,7 +398,6 @@ export default function SuperAdmin() {
                                 <X size={20} />
                             </button>
                         </div>
-
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-bold text-slate-500 mb-1.5">خطة الاشتراك</label>
@@ -470,7 +415,6 @@ export default function SuperAdmin() {
                                     ))}
                                 </select>
                             </div>
-
                             <div>
                                 <label className="block text-sm font-bold text-slate-500 mb-1.5">المبلغ المدفوع</label>
                                 <input
@@ -480,7 +424,6 @@ export default function SuperAdmin() {
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
                                 />
                             </div>
-
                             <div>
                                 <label className="block text-sm font-bold text-slate-500 mb-1.5">وسيلة الدفع</label>
                                 <div className="grid grid-cols-3 gap-3">
@@ -503,7 +446,6 @@ export default function SuperAdmin() {
                                     ))}
                                 </div>
                             </div>
-
                             <button
                                 onClick={handleRecordPayment}
                                 className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 text-lg hover:scale-[1.02] transition-all"
@@ -515,7 +457,6 @@ export default function SuperAdmin() {
                     </div>
                 </div>
             )}
-
             {/* Password Reset Modal */}
             {showPasswordResetModal && (
                 <div key={showPasswordResetModal.tenantId} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
@@ -542,7 +483,6 @@ export default function SuperAdmin() {
                                 <X size={20} />
                             </button>
                         </div>
-
                         <div className="space-y-4">
                             {/* VISUAL DEBUGGING - REMOVE AFTER FIX */}
                             <div className="p-4 bg-black text-green-400 font-mono text-xs rounded-xl overflow-auto max-h-40" dir="ltr">
@@ -551,7 +491,6 @@ export default function SuperAdmin() {
                                 <p>Users Count: {tenantUsers.length}</p>
                                 <pre>{JSON.stringify(tenantUsers.slice(0, 3), null, 2)}</pre>
                             </div>
-
                             <div>
                                 <label className="block text-sm font-bold text-slate-500 mb-1.5">المستخدم</label>
                                 {tenantUsers.length === 0 ? (
@@ -584,7 +523,6 @@ export default function SuperAdmin() {
                                     </div>
                                 )}
                             </div>
-
                             <div>
                                 <label className="block text-sm font-bold text-slate-500 mb-1.5">كلمة المرور الجديدة</label>
                                 <input
@@ -597,7 +535,6 @@ export default function SuperAdmin() {
                                 />
                                 <p className="text-xs text-slate-400 mt-2">💡 سيتم إلغاء قفل الحساب وتفعيله تلقائياً</p>
                             </div>
-
                             <button
                                 onClick={handleSubmitPasswordReset}
                                 disabled={tenantUsers.length === 0}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import StockList from '@/features/inventory/StockList';
 import WarehouseList from '@/features/inventory/WarehouseList';
 import AddMaterialModal from '@/features/inventory/AddMaterialModal';
@@ -7,14 +7,12 @@ import { getExpiryAlerts } from '@/api/inventory';
 import { Package, AlertTriangle, Layers, Warehouse } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-
 const Inventory = () => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState('stock'); // 'stock' | 'warehouses'
     const [editingMaterial, setEditingMaterial] = useState(null);
     const [isAddMaterialOpen, setIsAddMaterialOpen] = useState(false);
     const [isReceiveStockOpen, setIsReceiveStockOpen] = useState(false);
-
     const { data: alerts = [] } = useQuery({
         queryKey: ['inventory-alerts'],
         queryFn: async () => {
@@ -29,20 +27,16 @@ const Inventory = () => {
         },
         enabled: !!getExpiryAlerts
     });
-
     const handleOpenAdd = () => {
         setEditingMaterial(null);
         setIsAddMaterialOpen(true);
     };
-
     const handleOpenEdit = (material) => {
         setEditingMaterial(material);
         setIsAddMaterialOpen(true);
     };
-
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6">
-
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
@@ -53,7 +47,6 @@ const Inventory = () => {
                     <p className="text-text-secondary mt-1">{t('inventory.subtitle')}</p>
                 </div>
             </div>
-
             {/* Tabs */}
             <div className="flex border-b border-border">
                 <button
@@ -81,7 +74,6 @@ const Inventory = () => {
                     )}
                 </button>
             </div>
-
             {/* Content based on Tab */}
             {activeTab === 'stock' ? (
                 <>
@@ -108,7 +100,6 @@ const Inventory = () => {
                             </div>
                         </div>
                     )}
-
                     {/* Main Content */}
                     <StockList
                         onAddMaterial={handleOpenAdd}
@@ -119,14 +110,12 @@ const Inventory = () => {
             ) : (
                 <WarehouseList />
             )}
-
             {/* Modals */}
             <AddMaterialModal
                 isOpen={isAddMaterialOpen}
                 onClose={() => setIsAddMaterialOpen(false)}
                 initialData={editingMaterial}
             />
-
             <ReceiveStockModal
                 isOpen={isReceiveStockOpen}
                 onClose={() => setIsReceiveStockOpen(false)}
@@ -134,5 +123,4 @@ const Inventory = () => {
         </div>
     );
 };
-
 export default Inventory;

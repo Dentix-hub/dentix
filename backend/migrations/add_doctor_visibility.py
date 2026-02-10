@@ -3,7 +3,7 @@ Migration: Add Doctor Visibility Fields
 
 This migration adds the necessary columns for multi-doctor patient visibility:
 - User: patient_visibility_mode, can_view_other_doctors_history
-- Patient: assigned_doctor_id  
+- Patient: assigned_doctor_id
 - Appointment: doctor_id
 
 Run with: python backend/migrations/add_doctor_visibility.py
@@ -27,26 +27,24 @@ MIGRATIONS = [
     {
         "table": "users",
         "column": "patient_visibility_mode",
-        "sql": "ALTER TABLE users ADD COLUMN IF NOT EXISTS patient_visibility_mode VARCHAR(50) DEFAULT 'all_assigned'"
+        "sql": "ALTER TABLE users ADD COLUMN IF NOT EXISTS patient_visibility_mode VARCHAR(50) DEFAULT 'all_assigned'",
     },
     {
-        "table": "users", 
+        "table": "users",
         "column": "can_view_other_doctors_history",
-        "sql": "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_view_other_doctors_history BOOLEAN DEFAULT FALSE"
+        "sql": "ALTER TABLE users ADD COLUMN IF NOT EXISTS can_view_other_doctors_history BOOLEAN DEFAULT FALSE",
     },
-    
     # Patient table - doctor assignment
     {
         "table": "patients",
         "column": "assigned_doctor_id",
-        "sql": "ALTER TABLE patients ADD COLUMN IF NOT EXISTS assigned_doctor_id INTEGER REFERENCES users(id)"
+        "sql": "ALTER TABLE patients ADD COLUMN IF NOT EXISTS assigned_doctor_id INTEGER REFERENCES users(id)",
     },
-    
     # Appointment table - doctor reference
     {
         "table": "appointments",
         "column": "doctor_id",
-        "sql": "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS doctor_id INTEGER REFERENCES users(id)"
+        "sql": "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS doctor_id INTEGER REFERENCES users(id)",
     },
 ]
 
@@ -60,11 +58,14 @@ INDEXES = [
 def check_column_exists(conn, table: str, column: str) -> bool:
     """Check if column already exists in table."""
     try:
-        result = conn.execute(text(f"""
+        result = conn.execute(
+            text("""
             SELECT column_name 
             FROM information_schema.columns 
             WHERE table_name = :table AND column_name = :column
-        """), {"table": table, "column": column})
+        """),
+            {"table": table, "column": column},
+        )
         return result.fetchone() is not None
     except Exception:
         return False
@@ -73,22 +74,24 @@ def check_column_exists(conn, table: str, column: str) -> bool:
 def run_migration():
     """Run all migrations."""
     logger.info("Starting Doctor Visibility Migration...")
-    
+
     with engine.connect() as conn:
         # Run column migrations
         for migration in MIGRATIONS:
             try:
                 if check_column_exists(conn, migration["table"], migration["column"]):
-                    logger.info(f"Column {migration['column']} already exists in {migration['table']}")
+                    logger.info(
+                        f"Column {migration['column']} already exists in {migration['table']}"
+                    )
                     continue
-                
+
                 conn.execute(text(migration["sql"]))
                 conn.commit()
                 logger.info(f"Added column: {migration['table']}.{migration['column']}")
-                
+
             except Exception as e:
                 logger.warning(f"Could not add {migration['column']}: {e}")
-        
+
         # Run index creation
         for index_sql in INDEXES:
             try:
@@ -97,21 +100,21 @@ def run_migration():
                 logger.info(f"Created index: {index_sql.split(' ')[5]}")
             except Exception as e:
                 logger.warning(f"Could not create index: {e}")
-    
+
     logger.info("Migration complete!")
 
 
 def rollback():
     """Rollback migration (for development only)."""
     logger.warning("Rolling back Doctor Visibility Migration...")
-    
+
     rollback_sql = [
         "ALTER TABLE users DROP COLUMN IF EXISTS patient_visibility_mode",
         "ALTER TABLE users DROP COLUMN IF EXISTS can_view_other_doctors_history",
         "ALTER TABLE patients DROP COLUMN IF EXISTS assigned_doctor_id",
         "ALTER TABLE appointments DROP COLUMN IF EXISTS doctor_id",
     ]
-    
+
     with engine.connect() as conn:
         for sql in rollback_sql:
             try:

@@ -1,6 +1,16 @@
-from .base import Base, Column, Integer, String, DateTime, Text, ForeignKey, relationship, datetime
+from .base import (
+    Base,
+    Column,
+    Integer,
+    String,
+    DateTime,
+    ForeignKey,
+    relationship,
+    datetime,
+)
 from sqlalchemy import Boolean
 from backend.core.security import EncryptedString
+
 
 class Patient(Base):
     __tablename__ = "patients"
@@ -9,21 +19,23 @@ class Patient(Base):
     name = Column(String, index=True)
     age = Column(Integer)
     phone = Column(EncryptedString, index=True)  # Encrypted
-    email = Column(EncryptedString, nullable=True, index=True) # Encrypted
-    address = Column(EncryptedString, nullable=True) # Encrypted
-    medical_history = Column(EncryptedString) # Encrypted
-    notes = Column(EncryptedString) # Encrypted
+    email = Column(EncryptedString, nullable=True, index=True)  # Encrypted
+    address = Column(EncryptedString, nullable=True)  # Encrypted
+    medical_history = Column(EncryptedString)  # Encrypted
+    notes = Column(EncryptedString)  # Encrypted
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     # Soft Delete
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True)
 
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    
+
     # Doctor assignment (Multi-Doctor Support)
-    assigned_doctor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
-    
+    assigned_doctor_id = Column(
+        Integer, ForeignKey("users.id"), nullable=True, index=True
+    )
+
     # Default Price List (Multi Price List Support)
     default_price_list_id = Column(Integer, ForeignKey("price_lists.id"), nullable=True)
 

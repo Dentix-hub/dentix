@@ -54,7 +54,7 @@ export const useVoiceInput = (onFinalTranscript) => {
 
                     // Auto-stop after silence following a final phrase
                     silenceTimerRef.current = setTimeout(() => {
-                        try { recognition.stop(); } catch (e) { }
+                        try { recognition.stop(); } catch (e) { /* ignore */ }
                     }, 2000);
                 }
 
@@ -72,11 +72,8 @@ export const useVoiceInput = (onFinalTranscript) => {
                     setIsListening(false);
                     alert('يرجى السماح بالوصول للميكروفون 🎤');
                 } else if (event.error === 'no-speech') {
-                    // Just stop listening on silence timeout
                     setIsListening(false);
-                }
-                else {
-                    // Stop on other errors
+                } else {
                     setIsListening(false);
                 }
             };
@@ -86,7 +83,7 @@ export const useVoiceInput = (onFinalTranscript) => {
             // Cleanup on unmount
             return () => {
                 if (recognitionRef.current) {
-                    try { recognitionRef.current.abort(); } catch (e) { }
+                    try { recognitionRef.current.abort(); } catch (e) { /* ignore */ }
                 }
                 if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
             };
@@ -106,7 +103,7 @@ export const useVoiceInput = (onFinalTranscript) => {
         } catch (error) {
             // If failed (e.g. already running/zombie), then force reset
             console.warn("Speech start failed, resetting:", error);
-            try { recognitionRef.current.abort(); } catch (e) { }
+            try { recognitionRef.current.abort(); } catch (e) { /* ignore */ }
 
             setTimeout(() => {
                 try {
@@ -123,7 +120,7 @@ export const useVoiceInput = (onFinalTranscript) => {
         if (!recognitionRef.current) return;
         try {
             recognitionRef.current.stop();
-        } catch (e) { }
+        } catch (e) { /* ignore */ }
         setIsListening(false);
     }, []);
 

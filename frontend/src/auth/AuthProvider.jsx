@@ -1,17 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { api, login as apiLogin, registerClinic, getMe } from '@/api';
+import { useState, useEffect } from 'react';
+import { login as apiLogin, registerClinic, getMe } from '@/';
 import { getToken, setToken, removeToken, parseJwt } from '@/utils';
 import AuthContext from './useAuth';
 import { useTenantStore } from '@/store/tenant.store';
-
 export default function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
-
     useEffect(() => {
         const initAuth = async () => {
             const token = getToken();
-
             if (token) {
                 try {
                     // 1. Decode locally for fast UI
@@ -23,7 +20,6 @@ export default function AuthProvider({ children }) {
                             tenant_id: decoded.tenant_id
                         });
                     }
-
                     // 2. Verify with backend
                     try {
                         const res = await getMe();
@@ -44,18 +40,14 @@ export default function AuthProvider({ children }) {
             }
             setLoading(false);
         };
-
         initAuth();
     }, []);
-
     const login = async (username, password, remember = true) => {
         setLoading(true);
         try {
             const res = await apiLogin(username, password);
             const { access_token, refresh_token, role } = res.data;
-
             setToken(access_token, refresh_token, remember);
-
             // Decoded User
             const decoded = parseJwt(access_token);
             setUser({
@@ -63,7 +55,6 @@ export default function AuthProvider({ children }) {
                 role: role,
                 tenant_id: decoded.tenant_id
             });
-
             return res.data;
         } catch (err) {
             throw err;
@@ -71,17 +62,14 @@ export default function AuthProvider({ children }) {
             setLoading(false);
         }
     };
-
     const logout = () => {
         removeToken();
         setUser(null);
         window.location.href = '/';
     };
-
     const register = async (data) => {
         return registerClinic(data);
     };
-
     const value = {
         user,
         loading,
@@ -90,7 +78,6 @@ export default function AuthProvider({ children }) {
         register,
         isAuthenticated: !!user
     };
-
     return (
         <AuthContext.Provider value={value}>
             {!loading && children}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getProfitability } from '@/api/analytics';
 import KPIGrid from './components/KPIGrid';
@@ -6,21 +6,18 @@ import ProfitChart from './components/ProfitChart';
 import AiAdvisor from './components/AiAdvisor';
 import ProcedureCostAnalysis from './components/ProcedureCostAnalysis';
 import GeneralCostAnalysis from './components/GeneralCostAnalysis';
-import { Calendar, PieChart, Activity } from 'lucide-react';
+import { PieChart, Activity } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-
 const SmartDashboard = () => {
     const { t } = useTranslation();
     const [period, setPeriod] = useState('30d');
     const [activeTab, setActiveTab] = useState('financials'); // financials, procedures
-
     const { data, isLoading, error } = useQuery({
         queryKey: ['profitability', period],
         queryFn: () => getProfitability(period),
         refetchOnWindowFocus: false,
         staleTime: 5 * 60 * 1000 // 5 minutes
     });
-
     return (
         <div className="p-4 md:p-8 space-y-6 max-w-[1920px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
             {/* Header Area */}
@@ -29,7 +26,6 @@ const SmartDashboard = () => {
                     <h1 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight">{t('analytics.dashboard.title')}</h1>
                     <p className="text-slate-500 mt-1 font-medium">{t('analytics.dashboard.subtitle')}</p>
                 </div>
-
                 <div className="flex flex-wrap items-center gap-3">
                     {/* Period Selector */}
                     <div className="flex bg-white dark:bg-slate-800 rounded-xl p-1.5 border border-slate-200 dark:border-slate-700 shadow-sm">
@@ -48,7 +44,6 @@ const SmartDashboard = () => {
                     </div>
                 </div>
             </div>
-
             {/* Main Tabs */}
             <div className="border-b border-slate-200 dark:border-slate-700 mb-6">
                 <div className="flex space-x-8 rtl:space-x-reverse overflow-x-auto">
@@ -74,14 +69,12 @@ const SmartDashboard = () => {
                     </button>
                 </div>
             </div>
-
             {/* Error State */}
             {error && (
                 <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-100 flex items-center justify-center font-bold">
                     {t('analytics.dashboard.error_loading')} {error.message}
                 </div>
             )}
-
             {/* Tab: Financial Overview */}
             {activeTab === 'financials' && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
@@ -108,7 +101,6 @@ const SmartDashboard = () => {
                             },
                             ...data
                         };
-
                         return (
                             <>
                                 <KPIGrid data={safeData} />
@@ -125,15 +117,12 @@ const SmartDashboard = () => {
                     })()}
                 </div>
             )}
-
             {/* Tab: Procedure Analytics */}
             {activeTab === 'procedures' && (
                 <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
                     {/* Top: General Analysis (All Procedures) */}
                     <GeneralCostAnalysis />
-
                     <div className="border-t border-slate-200 dark:border-slate-700 my-8"></div>
-
                     {/* Bottom: Detailed Single Procedure Analysis */}
                     <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-3xl border border-dashed border-slate-200 dark:border-slate-800">
                         <div className="mb-4">
@@ -147,5 +136,4 @@ const SmartDashboard = () => {
         </div>
     );
 };
-
 export default SmartDashboard;

@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import { registerClinic } from '../api';
 import { logoBase64 as logo } from '@/assets/logoBase64';
-import { Building2, User, Lock, AlertCircle, CheckCircle } from 'lucide-react';
-
+import { Building2, User, Lock, AlertCircle } from 'lucide-react';
 const RegisterClinic = ({ isDarkMode }) => {
     const { t } = useTranslation();
     const [formData, setFormData] = useState({
@@ -17,48 +16,39 @@ const RegisterClinic = ({ isDarkMode }) => {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
-
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-
         // Frontend validations
         if (!formData.clinic_name.trim() || formData.clinic_name.trim().length < 2) {
             setError(t('auth.register.errors.clinic_name_short'));
             return;
         }
-
         if (!formData.admin_email.includes('@') || !formData.admin_email.includes('.')) {
             setError(t('auth.register.errors.invalid_email'));
             return;
         }
-
         if (!formData.admin_username.trim() || formData.admin_username.trim().length < 3) {
             setError(t('auth.register.errors.username_short'));
             return;
         }
-
         if (formData.admin_password.length < 6) {
             setError(t('auth.register.errors.password_min_length'));
             return;
         }
-
         const hasLetter = /[a-zA-Z]/.test(formData.admin_password);
         const hasNumber = /[0-9]/.test(formData.admin_password);
         if (!hasLetter || !hasNumber) {
             setError(t('auth.register.errors.password_weak'));
             return;
         }
-
         if (formData.admin_password !== formData.confirm_password) {
             setError(t('auth.register.errors.password_mismatch'));
             return;
         }
-
         setLoading(true);
         try {
             const data = new FormData();
@@ -66,7 +56,6 @@ const RegisterClinic = ({ isDarkMode }) => {
             data.append('admin_username', formData.admin_username.trim());
             data.append('admin_email', formData.admin_email.trim().toLowerCase());
             data.append('admin_password', formData.admin_password);
-
             await registerClinic(data);
             navigate('/', { state: { message: t('auth.register.success') } });
         } catch (err) {
@@ -84,7 +73,6 @@ const RegisterClinic = ({ isDarkMode }) => {
             setLoading(false);
         }
     };
-
     return (
         <div className={`min-h-screen flex items-center justify-center p-4 dir-rtl bg-background`}>
             <div className={`w-full max-w-md p-8 rounded-2xl shadow-xl bg-surface`}>
@@ -95,14 +83,12 @@ const RegisterClinic = ({ isDarkMode }) => {
                     <h1 className={`text-2xl font-bold mb-2 text-text-primary`}>{t('auth.register.title')}</h1>
                     <p className={`text-sm text-text-secondary`}>{t('auth.register.subtitle')}</p>
                 </div>
-
                 {error && (
                     <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-500">
                         <AlertCircle size={20} />
                         <span className="text-sm font-medium">{error}</span>
                     </div>
                 )}
-
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
                         <label className={`text-sm font-medium text-text-secondary`}>{t('auth.register.clinic_name')}</label>
@@ -119,7 +105,6 @@ const RegisterClinic = ({ isDarkMode }) => {
                             />
                         </div>
                     </div>
-
                     <div className="space-y-2">
                         <label className={`text-sm font-medium text-text-secondary`}>{t('auth.register.email')}</label>
                         <div className="relative">
@@ -136,7 +121,6 @@ const RegisterClinic = ({ isDarkMode }) => {
                         </div>
                         <p className={`text-xs text-text-secondary`}>{t('auth.register.email_hint')}</p>
                     </div>
-
                     <div className="space-y-2">
                         <label className={`text-sm font-medium text-text-secondary`}>{t('auth.register.username')}</label>
                         <div className="relative">
@@ -152,7 +136,6 @@ const RegisterClinic = ({ isDarkMode }) => {
                             />
                         </div>
                     </div>
-
                     <div className="space-y-2">
                         <label className={`text-sm font-medium text-text-secondary`}>{t('auth.register.password')}</label>
                         <div className="relative">
@@ -168,7 +151,6 @@ const RegisterClinic = ({ isDarkMode }) => {
                             />
                         </div>
                     </div>
-
                     <div className="space-y-2">
                         <label className={`text-sm font-medium text-text-secondary`}>{t('auth.register.confirm_password')}</label>
                         <div className="relative">
@@ -184,7 +166,6 @@ const RegisterClinic = ({ isDarkMode }) => {
                             />
                         </div>
                     </div>
-
                     <div className="flex items-start gap-3 mt-4">
                         <div className="relative flex items-center">
                             <input
@@ -203,7 +184,6 @@ const RegisterClinic = ({ isDarkMode }) => {
                             {t('auth.register.agree_pre')} <Link to="/terms" className="text-primary hover:underline font-bold" target="_blank">{t('auth.register.agree_terms')}</Link> {t('auth.register.agree_and')} <Link to="/privacy" className="text-primary hover:underline font-bold" target="_blank">{t('auth.register.agree_privacy')}</Link> {t('auth.register.agree_post')}
                         </label>
                     </div>
-
                     <button
                         type="submit"
                         disabled={loading}
@@ -211,7 +191,6 @@ const RegisterClinic = ({ isDarkMode }) => {
                     >
                         {loading ? t('auth.register.submitting') : t('auth.register.submit')}
                     </button>
-
                     <div className="text-center mt-4">
                         <Link to="/" className={`text-sm hover:underline text-primary`}>
                             {t('auth.register.login_link')}
@@ -222,5 +201,4 @@ const RegisterClinic = ({ isDarkMode }) => {
         </div>
     );
 };
-
 export default RegisterClinic;

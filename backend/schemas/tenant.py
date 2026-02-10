@@ -1,6 +1,7 @@
 """Tenant and subscription schemas."""
+
 from pydantic import BaseModel, ConfigDict
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime
 
 
@@ -19,7 +20,6 @@ class TenantBase(BaseModel):
     is_deleted: bool = False
     deleted_at: Optional[datetime] = None
 
-
     # Prescription Info
     doctor_name: Optional[str] = None
     doctor_title: Optional[str] = None
@@ -27,6 +27,7 @@ class TenantBase(BaseModel):
     clinic_phone: Optional[str] = None
     print_header_image: Optional[str] = None
     print_footer_image: Optional[str] = None
+
 
 class TenantCreate(TenantBase):
     pass
@@ -38,11 +39,11 @@ class TenantUpdate(BaseModel):
     is_active: Optional[bool] = None
     subscription_end_date: Optional[datetime] = None
     logo: Optional[str] = None
-    
+
     # Backup & System
     backup_frequency: Optional[str] = None
     google_refresh_token: Optional[str] = None
-    
+
     # Prescription Info
     doctor_name: Optional[str] = None
     doctor_title: Optional[str] = None
@@ -59,8 +60,7 @@ class Tenant(TenantBase):
     manual_override_reason: Optional[str] = None
     subscription_plan: Optional["SubscriptionPlan"] = None
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TenantWithStats(Tenant):
@@ -88,7 +88,7 @@ class SubscriptionPlanBase(BaseModel):
     is_ai_enabled: bool = False
     ai_daily_limit: int = 0
     ai_features: Optional[str] = None
-    is_default: bool = False # New Field
+    is_default: bool = False  # New Field
 
 
 class SubscriptionPlanCreate(SubscriptionPlanBase):
@@ -114,8 +114,7 @@ class SubscriptionPlan(SubscriptionPlanBase):
     is_active: bool
     created_at: datetime
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SubscriptionPaymentBase(BaseModel):
@@ -139,5 +138,4 @@ class SubscriptionPayment(SubscriptionPaymentBase):
     payment_date: datetime
     created_by: Optional[str] = None
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)

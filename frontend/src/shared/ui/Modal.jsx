@@ -2,28 +2,23 @@
  * Modal Component
  * Reusable modal wrapper with backdrop blur and close on escape.
  */
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { X } from 'lucide-react';
-
 export default function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-md', scrollable = true, className = '' }) {
     useEffect(() => {
         const handleEscape = (e) => {
             if (e.key === 'Escape') onClose();
         };
-
         if (isOpen) {
             document.addEventListener('keydown', handleEscape);
             document.body.style.overflow = 'hidden';
         }
-
         return () => {
             document.removeEventListener('keydown', handleEscape);
             document.body.style.overflow = 'auto';
         };
     }, [isOpen, onClose]);
-
     if (!isOpen) return null;
-
     return (
         <div
             className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm"

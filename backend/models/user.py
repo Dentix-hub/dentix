@@ -1,34 +1,50 @@
-from .base import Base, Column, Integer, String, Boolean, DateTime, Float, Text, Date, ForeignKey, relationship, datetime
+from .base import (
+    Base,
+    Column,
+    Integer,
+    String,
+    Boolean,
+    DateTime,
+    Float,
+    Text,
+    Date,
+    ForeignKey,
+    relationship,
+    datetime,
+)
+
 
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, index=True) # Non-unique to allow duplicates across tenants or same user
-    email = Column(String, unique=True, index=True) # Email MUST be unique now
+    username = Column(
+        String, index=True
+    )  # Non-unique to allow duplicates across tenants or same user
+    email = Column(String, unique=True, index=True)  # Email MUST be unique now
     hashed_password = Column(String)
-    
+
     # Enterprise Security Fields
     failed_login_attempts = Column(Integer, default=0)
     last_failed_login = Column(DateTime, nullable=True)
     account_locked_until = Column(DateTime, nullable=True)
     is_2fa_enabled = Column(Boolean, default=False)
     otp_secret = Column(String, nullable=True)
-    
+
     # Session Security
     active_session_id = Column(String, nullable=True)
 
     role = Column(String, default="doctor")
     permissions = Column(Text, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
-    
+
     # Doctor Visibility Settings (Multi-Doctor Support)
     # ALL_ASSIGNED = see assigned patients only
     # APPOINTMENTS_ONLY = see patients with appointments only
     # MIXED = see both assigned and appointment patients
     patient_visibility_mode = Column(String, default="all_assigned")
     can_view_other_doctors_history = Column(Boolean, default=False)
-    
+
     # Compensation settings
     commission_percent = Column(Float, default=0.0)
     fixed_salary = Column(Float, default=0.0)

@@ -1,54 +1,44 @@
-import { useState, useEffect, Suspense, lazy, useCallback } from 'react';
+import { useEffect, Suspense, lazy, useCallback } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import {
     Home, Users, Banknote, Calendar, Menu, Settings as SettingsIcon, Package, LineChart, Globe,
     LogOut, Shield, Sun, Moon, FlaskConical, Brain, HelpCircle, AlertTriangle
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-
 import { useAuth } from '@/auth/useAuth';
 import { logoBase64 as logo } from '@/assets/logoBase64';
-
 // Components
 import GlobalSearch from '@/shared/ui/GlobalSearch';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import NotificationBell from '@/shared/ui/NotificationBell';
 import GlobalBanner from '@/shared/ui/GlobalBanner';
-
 // Prefetching hooks
 import { usePrefetchPatients } from '@/hooks/usePatients';
 import { usePrefetchAppointments } from '@/hooks/useAppointments';
 import { usePrefetchDashboard } from '@/hooks/useDashboard';
-
 // Lazy load AIChat
 const AIChat = lazy(() => import('@/features/ai/AIChat'));
-
 import { useUIStore } from '@/store/ui.store';
 import { useTenantStore } from '@/store/tenant.store';
-
 const Layout = ({ children }) => {
     const { t, i18n } = useTranslation();
     const { sidebarOpen, setSidebarOpen, darkMode: isDarkMode, toggleDarkMode } = useUIStore();
     const { tenant, hasFeature } = useTenantStore();
     const { user: currentUser, logout } = useAuth();
     const location = useLocation();
-
     // Role derived from user object directly
     const role = currentUser?.role || 'doctor';
     const isAdmin = role === 'admin';
     const isSuperAdmin = role === 'super_admin';
     const navigate = useNavigate();
-
     // Redirect Super Admin to /admin if they land on root /
     useEffect(() => {
         if (isSuperAdmin && location.pathname === '/') {
             navigate('/admin', { replace: true });
         }
     }, [isSuperAdmin, location.pathname, navigate]);
-
     // Navigation Items
     let navItems = [];
-
     if (isSuperAdmin) {
         // System Admin View (Redesigned)
         navItems = [
@@ -69,18 +59,15 @@ const Layout = ({ children }) => {
             { icon: Users, label: t('sidebar.patients'), path: '/patients' },
             { icon: Package, label: t('sidebar.inventory'), path: '/inventory' },
         ];
-
         if (isAdmin) {
             // Always show Billing for Admins (User Request: All plans have it)
             navItems.push({ icon: Banknote, label: t('sidebar.billing'), path: '/billing' });
             navItems.push({ icon: LineChart, label: t('sidebar.reports'), path: '/analytics' });
-
             navItems.push(
                 { icon: Users, label: t('sidebar.users'), path: '/users' },
                 { icon: SettingsIcon, label: t('sidebar.settings'), path: '/settings' },
             );
         }
-
         // Labs visible to Admin or users with permission (Always Enabled for Tenant)
         let hasLabPermission = isAdmin;
         if (!isAdmin && currentUser?.permissions) {
@@ -95,30 +82,24 @@ const Layout = ({ children }) => {
                 // ignore parse error
             }
         }
-
         if (hasLabPermission) {
             navItems.push({ icon: FlaskConical, label: t('sidebar.labs'), path: '/labs' });
         }
     }
-
     // Helper to calculate subscription days
     const getSubscriptionStatus = () => {
         if (!tenant?.subscription_end_date) return null;
         const daysLeft = Math.ceil((new Date(tenant.subscription_end_date) - new Date()) / (1000 * 60 * 60 * 24));
-
         if (daysLeft < 0) return { text: t('sidebar.subscription.expired'), color: 'text-red-500' };
         if (daysLeft === 0) return { text: t('sidebar.subscription.ends_today'), color: 'text-amber-500' };
         if (daysLeft <= 7) return { text: t('sidebar.subscription.days_left', { count: daysLeft }), color: 'text-amber-500' };
         return { text: t('sidebar.subscription.days_left', { count: daysLeft }), color: 'text-text-secondary' };
     };
-
     const subStatus = getSubscriptionStatus();
-
     // Prefetch functions for hover-based prefetching
     const prefetchPatients = usePrefetchPatients();
     const prefetchAppointments = usePrefetchAppointments();
     const prefetchDashboard = usePrefetchDashboard();
-
     // Handler for prefetching on hover
     const handlePrefetch = useCallback((path) => {
         switch (path) {
@@ -135,15 +116,12 @@ const Layout = ({ children }) => {
                 break;
         }
     }, [prefetchPatients, prefetchAppointments, prefetchDashboard]);
-
     return (
         <div className={`flex h-screen bg-background`}>
-
             {/* Global Banner (Phase 3) */}
             <div className="fixed top-0 left-0 right-0 z-[60]">
                 <GlobalBanner />
             </div>
-
             {/* Mobile Sidebar Overlay */}
             {sidebarOpen && (
                 <div
@@ -151,7 +129,6 @@ const Layout = ({ children }) => {
                     onClick={() => setSidebarOpen(false)}
                 />
             )}
-
             {/* Sidebar */}
             <aside className={`
                 fixed inset-y-0 right-0 z-30 w-72 bg-surface/95 backdrop-blur-xl border-l border-border/50 transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static shadow-2xl shadow-black/5
@@ -168,7 +145,6 @@ const Layout = ({ children }) => {
                     <h1 className="text-base font-black bg-gradient-to-r from-primary-600 to-blue-800 dark:from-sky-400 dark:to-blue-500 bg-clip-text text-transparent text-center tracking-tight">
                         {isSuperAdmin ? t('sidebar.system_admin') : (tenant?.name || t('common.default_clinic_name'))}
                     </h1>
-
                     {/* Subscription Badge */}
                     {tenant && (
                         <div className="mt-2 text-center text-xs">
@@ -187,7 +163,6 @@ const Layout = ({ children }) => {
                         </div>
                     )}
                 </div>
-
                 <nav className="p-4 space-y-2">
                     {navItems.map((item) => {
                         const isActive = location.pathname === item.path;
@@ -214,7 +189,6 @@ const Layout = ({ children }) => {
                             </Link>
                         )
                     })}
-
                     <div className="mt-auto pt-6 border-t border-border/50">
                         {/* Utilities Row (Lang & Theme) */}
                         <div className="grid grid-cols-2 gap-3 mb-3">
@@ -225,7 +199,6 @@ const Layout = ({ children }) => {
                             >
                                 <Globe size={20} className="transition-transform group-hover:rotate-12" />
                             </button>
-
                             <button
                                 onClick={toggleDarkMode}
                                 className="flex items-center justify-center py-3 rounded-2xl bg-surface-hover text-slate-600 dark:text-slate-300 hover:bg-amber-400/10 hover:text-amber-500 transition-all group"
@@ -237,7 +210,6 @@ const Layout = ({ children }) => {
                                 }
                             </button>
                         </div>
-
                         <Link
                             to="/support"
                             onClick={() => setSidebarOpen(false)}
@@ -246,7 +218,6 @@ const Layout = ({ children }) => {
                             <HelpCircle size={22} />
                             <span className="text-sm font-medium">{t('common.help_support')}</span>
                         </Link>
-
                         <button
                             onClick={() => {
                                 logout();
@@ -256,7 +227,6 @@ const Layout = ({ children }) => {
                             <LogOut size={22} />
                             <span className="text-sm font-bold">{t('sidebar.logout')}</span>
                         </button>
-
                         {!isAdmin && !isSuperAdmin && (
                             <div className="mt-4 p-4 bg-surface-hover rounded-xl text-center">
                                 <p className="text-xs text-text-secondary">{t('sidebar.limited_account')}</p>
@@ -265,7 +235,6 @@ const Layout = ({ children }) => {
                     </div>
                 </nav>
             </aside>
-
             {/* Main Content */}
             <div className="flex-1 flex flex-col h-screen overflow-hidden bg-background/50">
                 <header className={`h-18 border-b flex items-center justify-between px-6 md:px-8 shrink-0 sticky top-0 z-20 shadow-sm bg-surface/90 backdrop-blur-xl border-border/60`}>
@@ -280,19 +249,16 @@ const Layout = ({ children }) => {
                             {currentUser?.tenant?.name || t('common.default_clinic_name')}
                         </h1>
                     </div>
-
                     <div className="flex-1 flex max-w-xl mx-auto gap-4 items-center">
                         <GlobalSearch />
                         <div className="hidden md:block">
                             <NotificationBell />
                         </div>
                     </div>
-
                     <div className="md:hidden">
                         <NotificationBell />
                     </div>
                 </header>
-
                 <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
                     <div className="w-full max-w-[1920px] mx-auto">
                         <Suspense fallback={<LoadingSpinner />}>
@@ -300,7 +266,6 @@ const Layout = ({ children }) => {
                         </Suspense>
                     </div>
                 </main>
-
                 <Suspense fallback={null}>
                     <AIChat />
                 </Suspense>
@@ -308,5 +273,4 @@ const Layout = ({ children }) => {
         </div >
     );
 };
-
 export default Layout;

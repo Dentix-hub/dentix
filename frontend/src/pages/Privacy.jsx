@@ -1,4 +1,3 @@
-import React from 'react';
 import { ArrowRight, Lock, Eye, Server, UserCheck, Shield, MessageCircle, AlertTriangle, FileText, Database } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';

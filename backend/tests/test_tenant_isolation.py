@@ -4,12 +4,13 @@ from backend.core.tenancy import set_current_tenant_id, reset_current_tenant_id
 from sqlalchemy.orm import Session
 from unittest.mock import MagicMock
 
+
 def test_tenant_isolation_enforcement():
     # 1. Setup Context: User belongs to Tenant 100
     set_current_tenant_id(100)
-    
+
     mock_db = MagicMock(spec=Session)
-    
+
     # 2. Attempt to access data for Tenant 100 (Should pass validation)
     try:
         # We expect this to call db.query... but fail on query building since it's a mock
@@ -28,9 +29,10 @@ def test_tenant_isolation_enforcement():
     except ValueError as e:
         assert "Tenant Isolation Violation" in str(e)
         print("\nSUCCESS: Blocked cross-tenant access.")
-    
+
     # Clean up
     reset_current_tenant_id()
+
 
 if __name__ == "__main__":
     test_tenant_isolation_enforcement()

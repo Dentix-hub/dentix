@@ -1,20 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import ToothSegmentMap from './ToothSegmentMap';
 import { PROCEDURE_CATEGORIES, TOOTH_STATUS_OPTIONS } from './dentalData';
-
 export default function DentalSidePanelV2({ activeTooth, procedures, onAddProcedure, chartSelectedSegments = [] }) {
     const [selectedSegments, setSelectedSegments] = useState([]);
-
     // UI State
     const [view, setView] = useState('ADD'); // ADD | HISTORY
     const [selectedCategory, setSelectedCategory] = useState('restorative');
     const [selectedProcedure, setSelectedProcedure] = useState(null);
     const [quickStatus, setQuickStatus] = useState(null); // For fast status updates
-
     // Form inputs
     const [price, setPrice] = useState(0);
     const [notes, setNotes] = useState('');
-
     // Sync Chart Selection
     useEffect(() => {
         if (chartSelectedSegments && chartSelectedSegments.length > 0) {
@@ -24,14 +20,11 @@ export default function DentalSidePanelV2({ activeTooth, procedures, onAddProced
             setSelectedSegments([]);
         }
     }, [chartSelectedSegments, activeTooth]);
-
     if (!activeTooth) return <div className="p-6 text-center text-slate-400 font-medium">Select a tooth to begin</div>;
-
     const handleCategoryClick = (catId) => {
         setSelectedCategory(catId);
         setSelectedProcedure(null); // Reset procedure when category changes
     };
-
     const handleProcedureSelect = (proc) => {
         setSelectedProcedure(proc);
         setPrice(proc.price);
@@ -40,12 +33,10 @@ export default function DentalSidePanelV2({ activeTooth, procedures, onAddProced
             setSelectedSegments([]); // Clear segments for whole tooth
         }
     };
-
     const toggleSegment = (seg) => {
         if (selectedProcedure?.isWholeTooth) return; // Block segment picking for whole tooth procs
         setSelectedSegments(prev => prev.includes(seg) ? prev.filter(s => s !== seg) : [...prev, seg]);
     };
-
     const handleSubmit = () => {
         if (selectedProcedure) {
             onAddProcedure({
@@ -62,7 +53,6 @@ export default function DentalSidePanelV2({ activeTooth, procedures, onAddProced
             setView('HISTORY');
         }
     };
-
     const handleQuickStatus = (status) => {
         // Defines general status (missing, sound, etc.)
         // In a real app this might be a separate API call "updateToothStatus"
@@ -78,7 +68,6 @@ export default function DentalSidePanelV2({ activeTooth, procedures, onAddProced
         });
         setQuickStatus(status.id);
     };
-
     return (
         <div className="w-96 bg-white border-l border-slate-200 flex flex-col h-full shadow-2xl z-20 font-sans">
             {/* Header */}
@@ -87,7 +76,6 @@ export default function DentalSidePanelV2({ activeTooth, procedures, onAddProced
                     <h2 className="text-2xl font-bold">Tooth #{activeTooth}</h2>
                     <span className="text-xs bg-slate-700 px-2 py-1 rounded">Universal</span>
                 </div>
-
                 {/* Tabs */}
                 <div className="flex gap-1 p-1 bg-slate-800 rounded-lg">
                     <button
@@ -104,12 +92,10 @@ export default function DentalSidePanelV2({ activeTooth, procedures, onAddProced
                     </button>
                 </div>
             </div>
-
             {/* Content */}
             <div className="flex-1 overflow-y-auto bg-slate-50">
                 {view === 'ADD' && (
                     <div className="p-4 space-y-6">
-
                         {/* 1. Quick Status (Always visible on top) */}
                         <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
                             <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 text-right">الحالة العامة</h4>
@@ -125,7 +111,6 @@ export default function DentalSidePanelV2({ activeTooth, procedures, onAddProced
                                 ))}
                             </div>
                         </div>
-
                         {/* 2. Categories */}
                         <div>
                             <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 text-right">التصنيف</h4>
@@ -142,7 +127,6 @@ export default function DentalSidePanelV2({ activeTooth, procedures, onAddProced
                                 ))}
                             </div>
                         </div>
-
                         {/* 3. Procedures List */}
                         <div>
                             <h4 className="text-xs font-bold text-slate-400 uppercase mb-2 text-right">الإجراءات المتاحة</h4>
@@ -159,11 +143,9 @@ export default function DentalSidePanelV2({ activeTooth, procedures, onAddProced
                                 ))}
                             </div>
                         </div>
-
                         {/* 4. Details Panel (Shows when procedure selected) */}
                         {selectedProcedure && (
                             <div className="animate-in slide-in-from-bottom-5 fade-in duration-300 bg-white border border-blue-100 rounded-xl p-4 shadow-lg ring-1 ring-blue-50">
-
                                 {/* Segments (If required) */}
                                 {selectedProcedure.requiresSegments && !selectedProcedure.isWholeTooth && (
                                     <div className="mb-4 text-center">
@@ -171,7 +153,6 @@ export default function DentalSidePanelV2({ activeTooth, procedures, onAddProced
                                         <ToothSegmentMap selectedSegments={selectedSegments} onToggleSegment={toggleSegment} />
                                     </div>
                                 )}
-
                                 <div className="flex gap-2">
                                     <div className="flex-1">
                                         <label className="text-[10px] font-bold text-slate-400 block mb-1">السعر النهائي</label>
@@ -191,14 +172,11 @@ export default function DentalSidePanelV2({ activeTooth, procedures, onAddProced
                                 </div>
                             </div>
                         )}
-
                     </div>
                 )}
-
                 {view === 'HISTORY' && (
                     <div className="p-4 space-y-2">
                         {procedures.filter(p => p.tooth === activeTooth).length === 0 && <div className="text-center text-slate-400 text-sm py-10">No history</div>}
-
                         {procedures.filter(p => p.tooth === activeTooth).map((proc, idx) => (
                             <div key={idx} className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex justify-between items-center group">
                                 <div dir="rtl">

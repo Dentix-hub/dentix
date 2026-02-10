@@ -1,13 +1,15 @@
-from typing import Dict, List, Any
+from typing import Dict
 from .base import BaseHandler
 from backend.services.patient_service import PatientService
 from backend.ai.adapters.patient_adapter import PatientToolAdapter
+
 
 class PatientHandler(BaseHandler):
     """
     Handles patient tools via Adapter and Service.
     No direct DB access allowed here.
     """
+
     def __init__(self, db, user):
         super().__init__(db, user)
         self.service = PatientService(db, self.tenant_id)

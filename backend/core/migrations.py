@@ -5,12 +5,15 @@ import logging
 # Configure logger
 logger = logging.getLogger("smart_clinic.migrations")
 
+
 def check_and_migrate_tables():
     """Auto-migrate schema for cloud deployments."""
     print("[MIGRATION] Starting schema checks...")
-    
-    is_sqlite = database.engine.name == 'sqlite'
-    auto_inc = "INTEGER PRIMARY KEY AUTOINCREMENT" if is_sqlite else "SERIAL PRIMARY KEY"
+
+    is_sqlite = database.engine.name == "sqlite"
+    auto_inc = (
+        "INTEGER PRIMARY KEY AUTOINCREMENT" if is_sqlite else "SERIAL PRIMARY KEY"
+    )
 
     def add_column_safe(table, col_def):
         try:
@@ -23,7 +26,9 @@ def check_and_migrate_tables():
             if "duplicate column" in msg or "already exists" in msg:
                 pass  # Column exists, ignore
             else:
-                print(f"[MIGRATION ERROR] Failed to add column '{col_def}' to '{table}': {e}")
+                print(
+                    f"[MIGRATION ERROR] Failed to add column '{col_def}' to '{table}': {e}"
+                )
 
     # Treatments
     add_column_safe("treatments", "canal_count INTEGER")
@@ -93,17 +98,17 @@ def check_and_migrate_tables():
     # Expenses
     add_column_safe("expenses", "tenant_id INTEGER REFERENCES tenants(id)")
 
-    
     # Staff compensation settings
     add_column_safe("users", "commission_percent FLOAT DEFAULT 0.0")
     add_column_safe("users", "fixed_salary FLOAT DEFAULT 0.0")
     add_column_safe("users", "per_appointment_fee FLOAT DEFAULT 0.0")
     add_column_safe("users", "hire_date DATE")
-    
+
     # Create salary_payments table if not exists
     try:
         with database.engine.connect() as conn:
-            conn.execute(text(f"""
+            conn.execute(
+                text(f"""
                 CREATE TABLE IF NOT EXISTS salary_payments (
                     id {auto_inc},
                     user_id INTEGER REFERENCES users(id),
@@ -115,9 +120,18 @@ def check_and_migrate_tables():
                     notes TEXT,
                     tenant_id INTEGER REFERENCES tenants(id)
                 )
-            """))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_salary_payments_user_id ON salary_payments(user_id)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_salary_payments_month ON salary_payments(month)"))
+            """)
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_salary_payments_user_id ON salary_payments(user_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_salary_payments_month ON salary_payments(month)"
+                )
+            )
             conn.commit()
             print("[MIGRATION] Verified table 'salary_payments'")
     except Exception as e:
@@ -135,18 +149,19 @@ def check_and_migrate_tables():
     add_column_safe("users", "is_active BOOLEAN DEFAULT TRUE")
     add_column_safe("users", "is_deleted BOOLEAN DEFAULT FALSE")
     add_column_safe("users", "deleted_at TIMESTAMP")
-    
+
     # User - Multi-Doctor Visibility
     add_column_safe("users", "patient_visibility_mode VARCHAR DEFAULT 'all_assigned'")
     add_column_safe("users", "can_view_other_doctors_history BOOLEAN DEFAULT FALSE")
-    
+
     # Session Security
     add_column_safe("users", "active_session_id VARCHAR")
 
     # Create password_reset_tokens table if not exists
     try:
         with database.engine.connect() as conn:
-            conn.execute(text(f"""
+            conn.execute(
+                text(f"""
                 CREATE TABLE IF NOT EXISTS password_reset_tokens (
                     id {auto_inc},
                     token VARCHAR UNIQUE NOT NULL,
@@ -155,8 +170,13 @@ def check_and_migrate_tables():
                     used BOOLEAN DEFAULT FALSE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_password_reset_tokens_token ON password_reset_tokens(token)"))
+            """)
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_password_reset_tokens_token ON password_reset_tokens(token)"
+                )
+            )
             conn.commit()
     except Exception as e:
         print(f"[MIGRATION ERROR] Failed to create table 'password_reset_tokens': {e}")
@@ -164,7 +184,8 @@ def check_and_migrate_tables():
     # Create support_messages table if not exists
     try:
         with database.engine.connect() as conn:
-            conn.execute(text(f"""
+            conn.execute(
+                text(f"""
                 CREATE TABLE IF NOT EXISTS support_messages (
                     id {auto_inc},
                     user_id INTEGER REFERENCES users(id),
@@ -175,8 +196,13 @@ def check_and_migrate_tables():
                     status VARCHAR(50) DEFAULT 'unread',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_support_messages_status ON support_messages(status)"))
+            """)
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_support_messages_status ON support_messages(status)"
+                )
+            )
             conn.commit()
             print("[MIGRATION] Verified table 'support_messages'")
     except Exception as e:
@@ -185,7 +211,8 @@ def check_and_migrate_tables():
     # Create ai_usage_logs table if not exists
     try:
         with database.engine.connect() as conn:
-            conn.execute(text(f"""
+            conn.execute(
+                text(f"""
                 CREATE TABLE IF NOT EXISTS ai_usage_logs (
                     id {auto_inc},
                     user_id INTEGER REFERENCES users(id),
@@ -199,9 +226,18 @@ def check_and_migrate_tables():
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     tenant_id INTEGER REFERENCES tenants(id)
                 )
-            """))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_ai_usage_logs_user_id ON ai_usage_logs(user_id)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_ai_usage_logs_created_at ON ai_usage_logs(created_at)"))
+            """)
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_ai_usage_logs_user_id ON ai_usage_logs(user_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_ai_usage_logs_created_at ON ai_usage_logs(created_at)"
+                )
+            )
             conn.commit()
             print("[MIGRATION] Verified table 'ai_usage_logs'")
     except Exception as e:
@@ -215,7 +251,8 @@ def check_and_migrate_tables():
     # Create notifications table if not exists
     try:
         with database.engine.connect() as conn:
-            conn.execute(text(f"""
+            conn.execute(
+                text(f"""
                 CREATE TABLE IF NOT EXISTS notifications (
                     id {auto_inc},
                     title VARCHAR,
@@ -226,28 +263,47 @@ def check_and_migrate_tables():
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     created_by_id INTEGER REFERENCES users(id)
                 )
-            """))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_tenant_id ON notifications(tenant_id)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notifications_created_at ON notifications(created_at)"))
-            
-            conn.execute(text(f"""
+            """)
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_notifications_tenant_id ON notifications(tenant_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_notifications_created_at ON notifications(created_at)"
+                )
+            )
+
+            conn.execute(
+                text(f"""
                 CREATE TABLE IF NOT EXISTS notification_reads (
                     id {auto_inc},
                     user_id INTEGER REFERENCES users(id),
                     notification_id INTEGER REFERENCES notifications(id),
                     read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notification_reads_user_id ON notification_reads(user_id)"))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_notification_reads_notification_id ON notification_reads(notification_id)"))
+            """)
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_notification_reads_user_id ON notification_reads(user_id)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_notification_reads_notification_id ON notification_reads(notification_id)"
+                )
+            )
             conn.commit()
             print("[MIGRATION] Verified table 'notifications'")
     except Exception as e:
         print(f"[MIGRATION ERROR] Failed to create table 'notifications': {e}")
-    
+
     # Missing Columns Fixes
     add_column_safe("notification_reads", "is_deleted BOOLEAN DEFAULT FALSE")
-    
+
     # Financial Enhancements
     add_column_safe("subscription_payments", "paid_by VARCHAR")
     add_column_safe("subscription_payments", "created_by VARCHAR")
@@ -256,7 +312,8 @@ def check_and_migrate_tables():
     # Create saved_medications table if not exists
     try:
         with database.engine.connect() as conn:
-            conn.execute(text(f"""
+            conn.execute(
+                text(f"""
                 CREATE TABLE IF NOT EXISTS saved_medications (
                     id {auto_inc},
                     tenant_id INTEGER REFERENCES tenants(id),
@@ -265,13 +322,18 @@ def check_and_migrate_tables():
                     notes VARCHAR,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """))
-            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_saved_medications_tenant_id ON saved_medications(tenant_id)"))
+            """)
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_saved_medications_tenant_id ON saved_medications(tenant_id)"
+                )
+            )
             conn.commit()
             print("[MIGRATION] Verified table 'saved_medications'")
     except Exception as e:
         print(f"[MIGRATION ERROR] Failed to create table 'saved_medications': {e}")
-        
+
     # Saved Medications Updates
     add_column_safe("saved_medications", "strength VARCHAR")
     add_column_safe("saved_medications", "frequency VARCHAR")
@@ -283,7 +345,8 @@ def check_and_migrate_tables():
     try:
         with database.engine.connect() as conn:
             # user_sessions
-            conn.execute(text(f"""
+            conn.execute(
+                text(f"""
                 CREATE TABLE IF NOT EXISTS user_sessions (
                     id {auto_inc},
                     user_id INTEGER REFERENCES users(id),
@@ -296,9 +359,11 @@ def check_and_migrate_tables():
                     is_active BOOLEAN DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """))
+            """)
+            )
             # login_history
-            conn.execute(text(f"""
+            conn.execute(
+                text(f"""
                 CREATE TABLE IF NOT EXISTS login_history (
                     id {auto_inc},
                     user_id INTEGER REFERENCES users(id),
@@ -307,9 +372,11 @@ def check_and_migrate_tables():
                     status VARCHAR,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """))
+            """)
+            )
             # blocked_ips
-            conn.execute(text(f"""
+            conn.execute(
+                text(f"""
                 CREATE TABLE IF NOT EXISTS blocked_ips (
                     id {auto_inc},
                     ip_address VARCHAR UNIQUE,
@@ -318,7 +385,8 @@ def check_and_migrate_tables():
                     blocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     expires_at TIMESTAMP
                 )
-            """))
+            """)
+            )
             conn.commit()
             print("[MIGRATION] Verified Security Tables")
     except Exception as e:
@@ -328,7 +396,8 @@ def check_and_migrate_tables():
     try:
         with database.engine.connect() as conn:
             # insurance_providers
-            conn.execute(text(f"""
+            conn.execute(
+                text(f"""
                 CREATE TABLE IF NOT EXISTS insurance_providers (
                     id {auto_inc},
                     tenant_id INTEGER REFERENCES tenants(id),
@@ -341,10 +410,12 @@ def check_and_migrate_tables():
                     is_active BOOLEAN DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """))
-            
+            """)
+            )
+
             # price_lists
-            conn.execute(text(f"""
+            conn.execute(
+                text(f"""
                 CREATE TABLE IF NOT EXISTS price_lists (
                     id {auto_inc},
                     tenant_id INTEGER REFERENCES tenants(id),
@@ -362,10 +433,12 @@ def check_and_migrate_tables():
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """))
+            """)
+            )
 
             # price_list_items
-            conn.execute(text(f"""
+            conn.execute(
+                text(f"""
                 CREATE TABLE IF NOT EXISTS price_list_items (
                     id {auto_inc},
                     price_list_id INTEGER REFERENCES price_lists(id),
@@ -378,20 +451,25 @@ def check_and_migrate_tables():
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """))
+            """)
+            )
             conn.commit()
             print("[MIGRATION] Verified Price List Tables")
     except Exception as e:
         print(f"[MIGRATION ERROR] Price List tables check failed: {e}")
 
     add_column_safe("patients", "assigned_doctor_id INTEGER REFERENCES users(id)")
-    add_column_safe("patients", "default_price_list_id INTEGER REFERENCES price_lists(id)")
+    add_column_safe(
+        "patients", "default_price_list_id INTEGER REFERENCES price_lists(id)"
+    )
     add_column_safe("appointments", "doctor_id INTEGER REFERENCES users(id)")
     add_column_safe("appointments", "price_list_id INTEGER REFERENCES price_lists(id)")
     add_column_safe("treatments", "price_list_id INTEGER REFERENCES price_lists(id)")
     add_column_safe("treatments", "unit_price FLOAT")
     add_column_safe("treatments", "price_snapshot TEXT")
-    
+
     # Cost Engine / Smart Inventory
     add_column_safe("materials", "packaging_ratio FLOAT DEFAULT 1.0")
-    add_column_safe("procedure_material_weights", "current_average_usage FLOAT DEFAULT 0.0")
+    add_column_safe(
+        "procedure_material_weights", "current_average_usage FLOAT DEFAULT 0.0"
+    )

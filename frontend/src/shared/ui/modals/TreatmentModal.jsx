@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { X, Check, AlertCircle, Package, Plus, Trash2, BoxSelect, Loader2 } from 'lucide-react';
-import { fdiToPalmer } from '@/utils/toothUtils';
+import { useState, useEffect } from 'react';
+import { X, Package, Plus, Trash2 } from 'lucide-react';
 import { getMaterials, getProcedureWeights, getActiveSessions } from '@/api/inventory';
 import TrackSessionModal from '@/features/inventory/components/TrackSessionModal';
 import { EnhancedMaterialConsumption } from '@/features/inventory/components/EnhancedMaterialConsumption';
 import { useQuery } from '@tanstack/react-query';
-
 export default function TreatmentModal({
     isOpen,
     onClose,
@@ -19,19 +17,16 @@ export default function TreatmentModal({
     const [treatment, setTreatment] = useState(initialData);
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [isManualProcedure, setIsManualProcedure] = useState(false);
-
     // Modal Tabs
     const [toothModalTab, setToothModalTab] = useState('Status');
     const [selectedPathologies, setSelectedPathologies] = useState([]);
     const [selectedRestorations, setSelectedRestorations] = useState([]);
-
     // Inventory State
     const [availableMaterials, setAvailableMaterials] = useState([]);
     const [consumedMaterials, setConsumedMaterials] = useState([]); // [{ material_id, quantity }]
     const [showInventory, setShowInventory] = useState(false);
     const [isSmartConsumptionOpen, setIsSmartConsumptionOpen] = useState(false);
     const [smartConsumptionMode, setSmartConsumptionMode] = useState('smart');
-
     // Fetch Active Sessions to show status
     const { data: activeSessionsRes, refetch: refetchSessions } = useQuery({
         queryKey: ['active-sessions'],
@@ -39,24 +34,20 @@ export default function TreatmentModal({
         enabled: isOpen
     });
     const activeSessions = activeSessionsRes?.data || [];
-
     // Session Tracking State
     const [isTrackSessionOpen, setIsTrackSessionOpen] = useState(false);
     const [trackSessionMode, setTrackSessionMode] = useState('OPEN');
     const [trackSessionMaterial, setTrackSessionMaterial] = useState(null);
     const [trackSessionData, setTrackSessionData] = useState(null);
-
     // Fetch Materials on Mount
     useEffect(() => {
         if (isOpen) {
             getMaterials().then(res => setAvailableMaterials(res.data)).catch(err => console.error("Failed to load materials", err));
         }
     }, [isOpen]);
-
     useEffect(() => {
         if (isOpen) {
             setTreatment(initialData);
-
             // FIX: Initialize consumed materials from initialData when editing
             if (isEditing && initialData.consumedMaterials) {
                 console.log("[TreatmentModal] Loading existing materials:", initialData.consumedMaterials);
@@ -69,7 +60,6 @@ export default function TreatmentModal({
                 setConsumedMaterials([]);
                 setShowInventory(false);
             }
-
             // Reset tabs logic when opening new (or editing if needed, but usually keep existing)
             if (!isEditing) {
                 setToothModalTab('Status');
@@ -78,14 +68,10 @@ export default function TreatmentModal({
             }
         }
     }, [isOpen, initialData, isEditing]);
-
     const [confirmOpenMaterial, setConfirmOpenMaterial] = useState(null); // { materialId, stockItemId }
-
     if (!isOpen) return null;
-
     const handleSave = async (e) => {
         if (e) e.preventDefault();
-
         // 0. Smart Inventory Pre-Check (Client Side Optimization)
         const payload = {
             ...treatment,
@@ -98,7 +84,6 @@ export default function TreatmentModal({
             selectedRestorations,
             consumedMaterials
         };
-
         try {
             await onSave(payload);
         } catch (error) {
@@ -106,18 +91,15 @@ export default function TreatmentModal({
             // Backend now returns detailed logic in `error.details`
             const errorData = error.response?.data?.error;
             const errorDetails = errorData?.details;
-
             if (error.response?.status === 409) {
                 // Check structured details first
                 if (errorDetails?.code === "CONFIRM_OPEN_REQUIRED") {
                     const stockId = errorDetails.stock_item_id;
                     const matName = errorDetails.material_info;
-
                     setConfirmOpenMaterial({
                         stockItemId: stockId,
                         name: matName
                     });
-
                     // Set mode for TrackSessionModal
                     setTrackSessionMaterial({ name: matName, id: stockId });
                     setTrackSessionMode('OPEN');
@@ -125,11 +107,9 @@ export default function TreatmentModal({
                     return;
                 }
             }
-
             // Fallback / Legacy String Parsing
             const res = error?.response?.data;
             const errorMsg = res?.error?.message || res?.detail || res?.message || "";
-
             if (typeof errorMsg === 'string' && errorMsg.includes("CONFIRM_OPEN_REQUIRED")) {
                 const parts = errorMsg.split('CONFIRM_OPEN_REQUIRED:');
                 if (parts.length > 1) {
@@ -137,7 +117,6 @@ export default function TreatmentModal({
                     if (infoParts.length >= 1) {
                         const stockId = infoParts[0];
                         const matName = infoParts.slice(1).join(':') || "Unknown Material";
-
                         setConfirmOpenMaterial({
                             stockItemId: stockId,
                             name: matName
@@ -153,7 +132,6 @@ export default function TreatmentModal({
             throw error;
         }
     };
-
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -163,7 +141,6 @@ export default function TreatmentModal({
                     </h3>
                     <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X size={20} /></button>
                 </div>
-
                 <div className="space-y-4">
                     {treatment.tooth_number && (
                         <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm mb-4">
@@ -181,7 +158,6 @@ export default function TreatmentModal({
                                     </button>
                                 ))}
                             </div>
-
                             {/* Tab Content */}
                             <div className="min-h-[100px]">
                                 {/* Tab 1: Status (Single Select) */}
@@ -213,7 +189,6 @@ export default function TreatmentModal({
                                         </div>
                                     </div>
                                 )}
-
                                 {/* Tab 2: Pathology (Multi Select) */}
                                 {toothModalTab === 'Pathology' && (
                                     <div className="animate-in fade-in zoom-in-95 duration-200">
@@ -228,11 +203,9 @@ export default function TreatmentModal({
                                                                 ? selectedPathologies.filter(i => i !== item)
                                                                 : [...selectedPathologies, item];
                                                             setSelectedPathologies(newSel);
-
                                                             // Update diagnosis with all selected
                                                             const diagnosis = [...newSel, ...selectedRestorations].join(', ');
                                                             setTreatment(prev => ({ ...prev, diagnosis: diagnosis || prev.diagnosis }));
-
                                                             // If Decayed is selected, update chart color
                                                             if (!isSelected && item === 'Decayed') setSelectedToothCondition('Decayed');
                                                         }}
@@ -248,7 +221,6 @@ export default function TreatmentModal({
                                         </div>
                                     </div>
                                 )}
-
                                 {/* Tab 3: Restorations (Multi Select) */}
                                 {toothModalTab === 'Restorations' && (
                                     <div className="animate-in fade-in zoom-in-95 duration-200">
@@ -263,10 +235,8 @@ export default function TreatmentModal({
                                                                 ? selectedRestorations.filter(i => i !== item)
                                                                 : [...selectedRestorations, item];
                                                             setSelectedRestorations(newSel);
-
                                                             const diagnosis = [...selectedPathologies, ...newSel].join(', ');
                                                             setTreatment(prev => ({ ...prev, diagnosis: diagnosis || prev.diagnosis }));
-
                                                             const chartMap = { 'Filled': 'Filled', 'Root Canal': 'RootCanal', 'Crown': 'Crown', 'Bridge': 'Crown', 'Implant': 'Crown' };
                                                             if (!isSelected && chartMap[item]) {
                                                                 setSelectedToothCondition(chartMap[item]);
@@ -287,10 +257,7 @@ export default function TreatmentModal({
                             </div>
                         </div>
                     )}
-
                     <input value={treatment.diagnosis} onChange={e => setTreatment({ ...treatment, diagnosis: e.target.value })} placeholder="التشخيص" className="w-full p-3 bg-slate-50 rounded-xl outline-none" />
-
-
                     {/* Procedure Selection & Price Calculation */}
                     <div className="bg-slate-50 p-4 rounded-xl space-y-4">
                         {/* Price List Selection (Optional Override) */}
@@ -298,7 +265,6 @@ export default function TreatmentModal({
                             <span>قائمة الأسعار:</span>
                             {/* In a real app, this could be a dropdown. For now, we just show the active one or allow toggle if needed */}
                         </div>
-
                         {isManualProcedure ? (
                             <div className="flex gap-2 animate-in fade-in zoom-in-95 duration-200">
                                 <input
@@ -329,16 +295,13 @@ export default function TreatmentModal({
                                             setTreatment({ ...treatment, procedure: '', cost: '', price_list_id: null });
                                             return;
                                         }
-
                                         // Find generic procedure info
                                         const foundProc = procedures.find(p => p.name === val);
                                         const baseProcedurePrice = foundProc?.price || 0; // Fallback value
                                         let calculatedPrice = baseProcedurePrice;
                                         let activePriceListId = treatment.price_list_id;
-
                                         console.log('[PRICE_DEBUG] Found Procedure:', foundProc?.name, 'Base Price:', baseProcedurePrice);
                                         console.log('[PRICE_DEBUG] Default Price List ID:', initialData?.default_price_list_id);
-
                                         // If we have a patient default price list, try to fetch specific price
                                         if (foundProc && initialData?.default_price_list_id) {
                                             try {
@@ -346,15 +309,12 @@ export default function TreatmentModal({
                                                 const { getProcedurePrices } = await import('@/api');
                                                 const pricesData = await getProcedurePrices(foundProc.id);
                                                 console.log('[PRICE_DEBUG] Prices Data:', pricesData?.data);
-
                                                 // Check if there's a price for the patient's list
                                                 const specificPrice = pricesData.data?.price_lists?.find(pl =>
                                                     // Loose comparison for ID safety
                                                     String(pl.price_list_id) === String(initialData.default_price_list_id)
                                                 );
-
                                                 console.log('[PRICE_DEBUG] Specific Price Found:', specificPrice);
-
                                                 if (specificPrice && specificPrice.final_price > 0) {
                                                     // Use price list price ONLY if it's greater than 0
                                                     calculatedPrice = specificPrice.final_price;
@@ -368,9 +328,7 @@ export default function TreatmentModal({
                                                 console.error("Failed to fetch custom prices", err);
                                             }
                                         }
-
                                         console.log('[PRICE_DEBUG] Final Calculated Price:', calculatedPrice);
-
                                         // NEW: Auto-load consumed materials (BOM)
                                         if (foundProc) {
                                             try {
@@ -388,7 +346,6 @@ export default function TreatmentModal({
                                                 console.error("Failed to load procedure materials", err);
                                             }
                                         }
-
                                         setTreatment({
                                             ...treatment,
                                             procedure: val,
@@ -411,7 +368,6 @@ export default function TreatmentModal({
                                 </div>
                             </div>
                         )}
-
                         {/* Price Display / Override */}
                         <div className="grid grid-cols-2 gap-4">
                             <div>
@@ -437,7 +393,6 @@ export default function TreatmentModal({
                         </div>
                     </div>
                     <input value={treatment.tooth_number} onChange={e => setTreatment({ ...treatment, tooth_number: e.target.value })} placeholder="رقم السن" className="w-full p-3 bg-slate-50 rounded-xl outline-none" />
-
                     {/* Advanced Toggle */}
                     <button
                         onClick={() => setShowAdvanced(!showAdvanced)}
@@ -445,7 +400,6 @@ export default function TreatmentModal({
                     >
                         {showAdvanced ? '- إخفاء التفاصيل' : '+ إضافة تفاصيل (عصب، قنوات)'}
                     </button>
-
                     {showAdvanced && (
                         <div className="space-y-4 p-4 bg-primary/5 rounded-2xl border border-primary/10 animate-in slide-in-from-top-2 duration-200">
                             {/* Simplified Advanced Fields for Brevity - Keeping core functionality */}
@@ -473,7 +427,6 @@ export default function TreatmentModal({
                             <textarea value={treatment.complications} onChange={e => setTreatment({ ...treatment, complications: e.target.value })} placeholder="المضاعفات" className="w-full p-3 bg-white rounded-xl border border-red-100 text-red-600 h-20" />
                         </div>
                     )}
-
                     {/* Inventory Consumption Section */}
                     <div className="border border-slate-200 rounded-xl overflow-hidden">
                         <div className="p-3 bg-slate-50 flex items-center justify-between">
@@ -491,7 +444,6 @@ export default function TreatmentModal({
                                 <Plus size={14} /> إضافة
                             </button>
                         </div>
-
                         {consumedMaterials.length > 0 ? (
                             <div className="p-3 bg-white space-y-2">
                                 {consumedMaterials.map((item, idx) => {
@@ -529,16 +481,13 @@ export default function TreatmentModal({
                             </div>
                         )}
                     </div>
-
                     <textarea value={treatment.notes} onChange={e => setTreatment({ ...treatment, notes: e.target.value })} placeholder="ملاحظات عامة" className="w-full p-3 bg-slate-50 rounded-xl outline-none" />
-
                     <div className="flex justify-end gap-3 text-lg font-bold">
                         <button onClick={onClose} className="px-4 py-2 hover:bg-slate-100 rounded-lg">إلغاء</button>
                         <button onClick={handleSave} className="px-6 py-2 bg-primary text-white rounded-lg">حفظ</button>
                     </div>
                 </div>
             </div>
-
             {/* Smart Inventory Modal */}
             <EnhancedMaterialConsumption
                 isOpen={isSmartConsumptionOpen}
@@ -560,7 +509,6 @@ export default function TreatmentModal({
                     setConsumedMaterials(mapped);
                 }}
             />
-
             {/* Session Tracking Modal */}
             <TrackSessionModal
                 isOpen={isTrackSessionOpen}

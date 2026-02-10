@@ -1,6 +1,5 @@
-import pytest
-import time
 from backend.core.cache import CacheManager
+
 
 def test_cache_manager():
     # 1. Initialize Cache Manager (Will default to Local Memory if no Redis)
@@ -16,13 +15,14 @@ def test_cache_manager():
     retrieved = cm.get(test_key)
     print(f"Retrieved: {retrieved}")
     assert retrieved == test_val
-    assert retrieved['foo'] == "bar"
+    assert retrieved["foo"] == "bar"
 
     # 4. Test DELETE
     cm.delete(test_key)
     deleted = cm.get(test_key)
     assert deleted is None
     print("Delete Verification Successful")
+
 
 if __name__ == "__main__":
     test_cache_manager()

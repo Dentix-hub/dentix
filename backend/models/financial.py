@@ -1,4 +1,19 @@
-from .base import Base, Column, Integer, String, DateTime, Float, Text, Date, Boolean, ForeignKey, relationship, Index, datetime
+from .base import (
+    Base,
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Float,
+    Text,
+    Date,
+    Boolean,
+    ForeignKey,
+    relationship,
+    Index,
+    datetime,
+)
+
 
 class Payment(Base):
     __tablename__ = "payments"
@@ -20,9 +35,7 @@ class Payment(Base):
 
 class Expense(Base):
     __tablename__ = "expenses"
-    __table_args__ = (
-        Index('idx_expense_tenant_date', 'tenant_id', 'date'),
-    )
+    __table_args__ = (Index("idx_expense_tenant_date", "tenant_id", "date"),)
 
     id = Column(Integer, primary_key=True, index=True)
     item_name = Column(String)

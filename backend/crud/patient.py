@@ -1,14 +1,17 @@
 from sqlalchemy.orm import Session, load_only, joinedload
-from sqlalchemy import or_
 from backend import models, schemas
 from backend.core.tenancy import get_current_tenant_id
+
 
 def _validate_tenant(tenant_id: int):
     ctx_id = get_current_tenant_id()
     if ctx_id is not None and ctx_id != tenant_id:
         # Log this critical security event
-        print(f"SECURITY ALERT: Tenant Isolation Violation! Context: {ctx_id}, Requested: {tenant_id}") 
+        print(
+            f"SECURITY ALERT: Tenant Isolation Violation! Context: {ctx_id}, Requested: {tenant_id}"
+        )
         raise ValueError("Access Denied: Tenant Isolation Violation")
+
 
 # --- Patient CRUD ---
 def get_patient(db: Session, patient_id: int, tenant_id: int):
@@ -16,9 +19,9 @@ def get_patient(db: Session, patient_id: int, tenant_id: int):
     return (
         db.query(models.Patient)
         .filter(
-            models.Patient.id == patient_id, 
+            models.Patient.id == patient_id,
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False
+            models.Patient.is_deleted == False,
         )
         .first()
     )
@@ -29,19 +32,18 @@ def get_patients(db: Session, tenant_id: int, skip: int = 0, limit: int = 100):
     return (
         db.query(models.Patient)
         .filter(
-            models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False
+            models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False
         )
         # Defer heavy encrypted fields for list view
         .options(
             load_only(
-                models.Patient.id, 
-                models.Patient.name, 
-                models.Patient.phone, 
+                models.Patient.id,
+                models.Patient.name,
+                models.Patient.phone,
                 models.Patient.email,
-                models.Patient.age, 
+                models.Patient.age,
                 models.Patient.created_at,
-                models.Patient.assigned_doctor_id
+                models.Patient.assigned_doctor_id,
             )
         )
         # Prevent N+1 for doctor name if needed
@@ -60,7 +62,7 @@ def search_patients(db: Session, query: str, tenant_id: int):
         .filter(
             models.Patient.tenant_id == tenant_id,
             models.Patient.is_deleted == False,
-            models.Patient.name.ilike(search)
+            models.Patient.name.ilike(search),
         )
         .limit(5)
         .all()
@@ -69,20 +71,24 @@ def search_patients(db: Session, query: str, tenant_id: int):
 
 def create_patient(db: Session, patient: schemas.PatientCreate, tenant_id: int):
     # 1. Check for Duplicates (Name + Phone) within Tenant
-    # Note: Phone is encrypted, so we can't easily search it without decryption 
-    # OR blind index. For now, we'll rely on Name + exact match if possible, 
+    # Note: Phone is encrypted, so we can't easily search it without decryption
+    # OR blind index. For now, we'll rely on Name + exact match if possible,
     # but since phone is encrypted_string, we can't filter by it directly in SQL.
     # We will enforce Name uniqueness for now as a basic check, or we can fetch all and check in python (slow).
     # BETTER APPROACH: Just warn on Name duplication.
     # Given the constraint: "Duplicate detection"
-    
+
     # Let's check Name at least.
-    existing = db.query(models.Patient).filter(
-        models.Patient.tenant_id == tenant_id, 
-        models.Patient.name == patient.name,
-        models.Patient.is_deleted == False
-    ).first()
-    
+    existing = (
+        db.query(models.Patient)
+        .filter(
+            models.Patient.tenant_id == tenant_id,
+            models.Patient.name == patient.name,
+            models.Patient.is_deleted == False,
+        )
+        .first()
+    )
+
     if existing:
         # We allow same name if it's different person, but maybe warn?
         # For this refactor, let's just proceed but adding a TODO for strict duplicate check
@@ -115,6 +121,7 @@ def update_patient(
 def delete_patient(db: Session, patient_id: int, tenant_id: int):
     """Soft Delete Patient."""
     from datetime import datetime
+
     db_patient = get_patient(db, patient_id, tenant_id)
     if db_patient:
         db_patient.is_deleted = True
@@ -130,14 +137,17 @@ def delete_patient_permanently(db: Session, patient_id: int, tenant_id: int):
     if not db_patient:
         # Check if it's already soft deleted?
         # get_patient filters by is_deleted=False. We need to fetch even if deleted.
-        db_patient = db.query(models.Patient).filter(
-            models.Patient.id == patient_id,
-            models.Patient.tenant_id == tenant_id
-        ).first()
+        db_patient = (
+            db.query(models.Patient)
+            .filter(
+                models.Patient.id == patient_id, models.Patient.tenant_id == tenant_id
+            )
+            .first()
+        )
 
     if db_patient:
         # Cascade should be handled by DB FKs if ON DELETE CASCADE is set.
-        # If not, we might need manual cleanup. 
+        # If not, we might need manual cleanup.
         # Assuming SQLAlchemy relationship cascade="all, delete-orphan" handles it on app side
         # if loaded, or DB side if configured.
         db.delete(db_patient)

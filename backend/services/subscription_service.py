@@ -1,7 +1,8 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from backend import models, schemas
 from fastapi import HTTPException
+
 
 class SubscriptionService:
     DEFAULT_GRACE_PERIOD_DAYS = 7
@@ -32,10 +33,7 @@ class SubscriptionService:
 
         # 3. Check Grace Period
         grace_end = tenant.grace_period_until
-        
-        # If no custom grace period set, maybe we calculate default?
-        # But let's assume grace_period_until is set explicitly or we use default logic if allowed.
-        # For now, rely on DB field.
+
         if grace_end and now <= grace_end:
             return "grace_period"
 
@@ -49,11 +47,8 @@ class SubscriptionService:
 
         tenant.grace_period_until = datetime.utcnow() + timedelta(days=days)
         tenant.manual_override_reason = reason
-        # Ensure it's active if it was suspended due to expiry?
-        # Usually we keep is_active=True but status is 'expired'.
-        # If we want to allow login, we might need to ensure is_active is True.
-        tenant.is_active = True 
-        
+        tenant.is_active = True
+
         db.commit()
         return tenant
 
@@ -74,12 +69,15 @@ class SubscriptionService:
         tenant = db.query(models.Tenant).filter(models.Tenant.id == tenant_id).first()
         if not tenant:
             return None
-        
+
         plan = None
-        if tenant.plan_id: # Use plan_id as per new model, fallback to legacy if needed
-            plan = db.query(models.SubscriptionPlan).filter(models.SubscriptionPlan.id == tenant.plan_id).first()
-        
-        # Fallback to string plan if plan_id is missing (Legacy support)
+        if tenant.plan_id:
+            plan = (
+                db.query(models.SubscriptionPlan)
+                .filter(models.SubscriptionPlan.id == tenant.plan_id)
+                .first()
+            )
+
         plan_name = plan.display_name_ar if plan else (tenant.plan or "مجاني")
         plan_price = plan.price if plan else 0
 
@@ -87,29 +85,41 @@ class SubscriptionService:
             "plan_name": plan_name,
             "plan_price": plan_price,
             "status": tenant.subscription_status or "active",
-            "start_date": None, # Add these fields to Tenant model if critical, currently legacy
-            "end_date": str(tenant.subscription_end_date) if tenant.subscription_end_date else None,
-            "is_active": tenant.subscription_status == "active"
+            "start_date": None,
+            "end_date": str(tenant.subscription_end_date)
+            if tenant.subscription_end_date
+            else None,
+            "is_active": tenant.subscription_status == "active",
         }
 
     @staticmethod
     def get_all_plans(db: Session):
         """List all active subscription plans."""
-        return db.query(models.SubscriptionPlan).filter(models.SubscriptionPlan.is_active == True).all()
+        return (
+            db.query(models.SubscriptionPlan)
+            .filter(models.SubscriptionPlan.is_active == True)
+            .all()
+        )
 
     @staticmethod
     def create_plan(db: Session, plan_data: schemas.SubscriptionPlanCreate):
         """Create a new subscription plan."""
-        # Check if name exists
-        existing = db.query(models.SubscriptionPlan).filter(models.SubscriptionPlan.name == plan_data.name).first()
+        existing = (
+            db.query(models.SubscriptionPlan)
+            .filter(models.SubscriptionPlan.name == plan_data.name)
+            .first()
+        )
         if existing:
-            raise HTTPException(status_code=400, detail="Plan with this name already exists")
+            raise HTTPException(
+                status_code=400, detail="Plan with this name already exists"
+            )
 
-        # Logic: If is_default is True, unset others
         if getattr(plan_data, "is_default", False):
-            db.query(models.SubscriptionPlan).update({models.SubscriptionPlan.is_default: False})
+            db.query(models.SubscriptionPlan).update(
+                {models.SubscriptionPlan.is_default: False}
+            )
             db.commit()
-            
+
         new_plan = models.SubscriptionPlan(
             name=plan_data.name,
             display_name_ar=plan_data.display_name_ar,
@@ -122,7 +132,7 @@ class SubscriptionService:
             ai_daily_limit=plan_data.ai_daily_limit,
             ai_features=plan_data.ai_features,
             is_default=getattr(plan_data, "is_default", False),
-            is_active=True
+            is_active=True,
         )
         db.add(new_plan)
         db.commit()
@@ -130,24 +140,28 @@ class SubscriptionService:
         return new_plan
 
     @staticmethod
-    def update_plan(db: Session, plan_id: int, update_data: schemas.SubscriptionPlanUpdate):
+    def update_plan(
+        db: Session, plan_id: int, update_data: schemas.SubscriptionPlanUpdate
+    ):
         """Update an existing plan."""
-        plan = db.query(models.SubscriptionPlan).filter(models.SubscriptionPlan.id == plan_id).first()
+        plan = (
+            db.query(models.SubscriptionPlan)
+            .filter(models.SubscriptionPlan.id == plan_id)
+            .first()
+        )
         if not plan:
             raise HTTPException(status_code=404, detail="Plan not found")
-            
-        # Update fields dynamically
+
         update_dict = update_data.dict(exclude_unset=True)
 
-        # Logic: If setting is_default=True, unset others
         if update_dict.get("is_default") is True:
-             # Unset all other plans (excluding current)
-             db.query(models.SubscriptionPlan).filter(models.SubscriptionPlan.id != plan_id).update({models.SubscriptionPlan.is_default: False})
-             # Note: We don't commit here yet, as we will commit after updating the current plan
+            db.query(models.SubscriptionPlan).filter(
+                models.SubscriptionPlan.id != plan_id
+            ).update({models.SubscriptionPlan.is_default: False})
 
         for key, value in update_dict.items():
             setattr(plan, key, value)
-            
+
         db.commit()
         db.refresh(plan)
         return plan
@@ -155,10 +169,80 @@ class SubscriptionService:
     @staticmethod
     def delete_plan(db: Session, plan_id: int):
         """Soft delete a plan (set is_active=False)."""
-        plan = db.query(models.SubscriptionPlan).filter(models.SubscriptionPlan.id == plan_id).first()
+        plan = (
+            db.query(models.SubscriptionPlan)
+            .filter(models.SubscriptionPlan.id == plan_id)
+            .first()
+        )
         if not plan:
             raise HTTPException(status_code=404, detail="Plan not found")
-            
+
         plan.is_active = False
         db.commit()
         return {"success": True, "message": "Plan deactivated successfully"}
+
+    # --- Payment Methods ---
+    @staticmethod
+    def get_payments(db: Session, skip: int = 0, limit: int = 100):
+        return (
+            db.query(models.SubscriptionPayment)
+            .order_by(models.SubscriptionPayment.payment_date.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+
+    @staticmethod
+    def record_payment(
+        db: Session, payment_data: schemas.SubscriptionPaymentCreate, created_by: str
+    ):
+        tenant = (
+            db.query(models.Tenant)
+            .filter(models.Tenant.id == payment_data.tenant_id)
+            .first()
+        )
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+
+        plan = (
+            db.query(models.SubscriptionPlan)
+            .filter(models.SubscriptionPlan.id == payment_data.plan_id)
+            .first()
+        )
+        if not plan:
+            raise HTTPException(status_code=404, detail="Plan not found")
+
+        payment = models.SubscriptionPayment(
+            **payment_data.model_dump(exclude={"payment_date"}),
+            payment_date=payment_data.payment_date or datetime.now(timezone.utc),
+            created_by=created_by,
+        )
+        db.add(payment)
+
+        # Update tenant subscription
+        target_date = (
+            tenant.subscription_end_date
+            if tenant.subscription_end_date
+            and tenant.subscription_end_date > datetime.now(timezone.utc)
+            else datetime.now(timezone.utc)
+        )
+        tenant.subscription_end_date = target_date + timedelta(days=plan.duration_days)
+        tenant.plan = plan.name
+        tenant.is_active = True
+
+        db.commit()
+        db.refresh(payment)
+        return payment
+
+    @staticmethod
+    def delete_payment(db: Session, payment_id: int):
+        payment = (
+            db.query(models.SubscriptionPayment)
+            .filter(models.SubscriptionPayment.id == payment_id)
+            .first()
+        )
+        if not payment:
+            raise HTTPException(status_code=404, detail="Payment not found")
+
+        db.delete(payment)
+        db.commit()

@@ -1,13 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { getPatient, getPatientTreatments, getPatientPayments } from '../api';
-
 export default function PrintInvoice() {
     const { id } = useParams();
     const [patient, setPatient] = useState(null);
     const [items, setItems] = useState([]);
     const [payments, setPayments] = useState([]);
-
     useEffect(() => {
         async function fetchData() {
             const [p, t, pay] = await Promise.all([
@@ -23,13 +21,10 @@ export default function PrintInvoice() {
         }
         fetchData();
     }, [id]);
-
     if (!patient) return <div>Loading...</div>;
-
     const total = items.reduce((acc, curr) => acc + curr.cost, 0);
     const paid = payments.reduce((acc, curr) => acc + curr.amount, 0);
     const remaining = total - paid;
-
     return (
         <div className="bg-white p-8 min-h-screen font-cairo" dir="rtl">
             {/* Header */}
@@ -43,7 +38,6 @@ export default function PrintInvoice() {
                     <p>Invoice #: {id}-{Date.now().toString().slice(-4)}</p>
                 </div>
             </div>
-
             {/* Patient Info */}
             <div className="mb-8 p-4 bg-slate-50 rounded-lg border border-slate-200">
                 <h2 className="text-lg font-bold mb-2">بيانات المريض</h2>
@@ -52,7 +46,6 @@ export default function PrintInvoice() {
                     <p><span className="text-slate-500">رقم الهاتف:</span> <span dir="ltr" className="font-mono">{patient.phone}</span></p>
                 </div>
             </div>
-
             {/* Treatments Table */}
             <div className="mb-8">
                 <table className="w-full text-right border-collapse">
@@ -74,7 +67,6 @@ export default function PrintInvoice() {
                     </tbody>
                 </table>
             </div>
-
             {/* Totals */}
             <div className="flex justify-end">
                 <div className="w-64 space-y-2">
@@ -92,7 +84,6 @@ export default function PrintInvoice() {
                     </div>
                 </div>
             </div>
-
             {/* Footer */}
             <div className="fixed bottom-0 left-0 right-0 p-8 text-center text-slate-400 text-sm border-t border-slate-100">
                 <p>عنوان العيادة: شارع التحرير - أمام محطة المترو</p>

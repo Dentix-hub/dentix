@@ -2,20 +2,31 @@
 Payments Router
 Handles billing, payments, and financial reporting.
 """
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+import logging
 from typing import List
 
-from .. import schemas, crud
+from .. import schemas, crud, models
 from .auth import get_current_user, get_db
+from ..utils.audit_logger import log_admin_action
+
+logger = logging.getLogger("smart_clinic")
 from ..services.billing_service import BillingService
+
 # Multi-Doctor Financial Visibility
 from ..services.financial_visibility_service import get_financial_visibility_service
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
 
-@router.post("/", response_model=schemas.Payment)
+@router.post(
+    "/",
+    response_model=schemas.Payment,
+    summary="Record a payment",
+    description="Record a new payment for a patient. Auto-assigns doctor if not provided. Audit logged.",
+)
 def create_payment(
     payment: schemas.PaymentCreate,
     db: Session = Depends(get_db),
@@ -23,17 +34,31 @@ def create_payment(
 ):
     """Record a new payment."""
     service = BillingService(db, current_user.tenant_id)
-    
+
     # Use current_user.id as default doctor_id if not provided
     doctor_id = payment.doctor_id if payment.doctor_id else current_user.id
-    
+
     try:
-        return service.create_payment(payment, doctor_id=doctor_id)
+        result = service.create_payment(payment, doctor_id=doctor_id)
+        log_admin_action(
+            db=db,
+            admin_user=current_user,
+            action="create",
+            entity_type="payment",
+            entity_id=result.id if hasattr(result, 'id') else None,
+            details=f"Payment of {payment.amount} for patient {payment.patient_id}",
+        )
+        return result
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.get("/", response_model=List[schemas.Payment])
+@router.get(
+    "/",
+    response_model=List[schemas.Payment],
+    summary="List payments",
+    description="Get payments visible to the current user based on their role.",
+)
 def read_payments(
     skip: int = 0,
     limit: int = 100,
@@ -41,7 +66,9 @@ def read_payments(
     current_user: schemas.User = Depends(get_current_user),
 ):
     """Get payments for current user (filtered by role)."""
-    visibility = get_financial_visibility_service(db, current_user, current_user.tenant_id)
+    visibility = get_financial_visibility_service(
+        db, current_user, current_user.tenant_id
+    )
     return visibility.get_visible_payments_query().offset(skip).limit(limit).all()
 
 
@@ -52,13 +79,15 @@ def delete_payment(
     current_user: schemas.User = Depends(get_current_user),
 ):
     """Delete a payment record."""
+    log_admin_action(
+        db=db,
+        admin_user=current_user,
+        action="delete",
+        entity_type="payment",
+        entity_id=payment_id,
+        details=f"Deleted payment #{payment_id}",
+    )
     return crud.delete_payment(db, payment_id, current_user.tenant_id)
-
-
-# --- Financial Stats ---
-    """Get financial statistics for current tenant."""
-    service = BillingService(db, current_user.tenant_id)
-    return service.get_financial_stats()
 
 
 @router.get("/today/payments")

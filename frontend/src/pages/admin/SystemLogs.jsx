@@ -1,13 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
 import { Card, Button, DataTable, Skeleton } from '@/shared/ui';
-import { AlertTriangle, RefreshCw, Smartphone, Server, Info } from 'lucide-react';
-
+import { AlertTriangle, RefreshCw, Smartphone, Server } from 'lucide-react';
 export default function SystemLogs() {
     const [page, setPage] = useState(0);
     const limit = 50;
-
     const { data: logs = [], isLoading, refetch } = useQuery({
         queryKey: ['system-logs', page],
         queryFn: async () => {
@@ -17,7 +15,6 @@ export default function SystemLogs() {
         },
         keepPreviousData: true
     });
-
     const columns = [
         {
             header: 'المستوى',
@@ -57,7 +54,6 @@ export default function SystemLogs() {
             render: (date) => <span className="text-xs">{new Date(date).toLocaleString()}</span>
         }
     ];
-
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -73,7 +69,6 @@ export default function SystemLogs() {
                     تحديث
                 </Button>
             </div>
-
             <Card>
                 {isLoading ? (
                     <div className="space-y-4">
@@ -88,7 +83,6 @@ export default function SystemLogs() {
                         emptyMessage="لا توجد أخطاء مسجلة، النظام يعمل بكفاءة! 🎉"
                     />
                 )}
-
                 <div className="p-4 border-t border-border flex justify-between items-center">
                     <Button
                         variant="ghost"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '@/api';
 import {
     Activity, CheckCircle, XCircle, Clock,
@@ -9,9 +9,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell
 } from 'recharts';
-
 // --- Components ---
-
 // 1. Overview Tab
 const OverviewTab = ({ stats, costs, suggestions }) => {
     return (
@@ -47,7 +45,6 @@ const OverviewTab = ({ stats, costs, suggestions }) => {
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/30 rounded-full -ml-10 -mb-10 blur-xl"></div>
             </div>
-
             {/* KPI Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <KPICard title="إجمالي الطلبات" value={stats?.total_requests} icon={MessageSquare} color="blue" suffix="طلب" />
@@ -55,7 +52,6 @@ const OverviewTab = ({ stats, costs, suggestions }) => {
                 <KPICard title="متوسط التأخير" value={stats?.avg_latency_ms} icon={Clock} color="amber" suffix="ms" />
                 <KPICard title="التوكنز المستهلكة" value={stats?.total_tokens?.toLocaleString()} icon={Activity} color="purple" suffix="T" />
             </div>
-
             {/* Suggestions Panel */}
             {suggestions?.length > 0 && (
                 <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800 p-6 rounded-3xl">
@@ -81,7 +77,6 @@ const OverviewTab = ({ stats, costs, suggestions }) => {
         </div>
     );
 };
-
 // 2. Analytics Tab (Failures & Heatmap)
 const AnalyticsTab = ({ failures, heatmap, intents }) => {
     return (
@@ -112,7 +107,6 @@ const AnalyticsTab = ({ failures, heatmap, intents }) => {
                         )}
                     </div>
                 </div>
-
                 {/* Confidence Heatmap */}
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm">
                     <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-indigo-500">
@@ -143,7 +137,6 @@ const AnalyticsTab = ({ failures, heatmap, intents }) => {
                     </div>
                 </div>
             </div>
-
             {/* Top Intents */}
             <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800">
                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
@@ -176,7 +169,6 @@ const AnalyticsTab = ({ failures, heatmap, intents }) => {
         </div>
     );
 }
-
 // 3. Logs Tab
 const LogsTab = ({ logs, page, setPage, fetchLogDetails, selectedLog, setSelectedLog }) => {
     return (
@@ -193,7 +185,6 @@ const LogsTab = ({ logs, page, setPage, fetchLogDetails, selectedLog, setSelecte
                         <button onClick={() => setPage(page + 1)} className="p-2 bg-slate-100 rounded-lg hover:bg-slate-200"><ChevronLeft size={16} /></button>
                     </div>
                 </div>
-
                 <div className="space-y-3">
                     {logs.map(log => (
                         <div key={log.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-indigo-200 transition-colors cursor-pointer" onClick={() => fetchLogDetails(log.id)}>
@@ -219,7 +210,6 @@ const LogsTab = ({ logs, page, setPage, fetchLogDetails, selectedLog, setSelecte
                     {logs.length === 0 && <p className="text-center text-slate-400 py-10">لا توجد سجلات.</p>}
                 </div>
             </div>
-
             {/* Log Detail Modal */}
             {selectedLog && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in" style={{ direction: 'rtl' }}>
@@ -236,7 +226,6 @@ const LogsTab = ({ logs, page, setPage, fetchLogDetails, selectedLog, setSelecte
                                 <XCircle size={28} />
                             </button>
                         </div>
-
                         <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-6 content-start pr-2">
                             <div className="bg-slate-50 dark:bg-slate-800 p-5 rounded-2xl border border-slate-100">
                                 <label className="block text-xs font-black text-slate-400 uppercase mb-3 tracking-wider">مدخلات المستخدم</label>
@@ -246,21 +235,18 @@ const LogsTab = ({ logs, page, setPage, fetchLogDetails, selectedLog, setSelecte
                                 <label className="block text-xs font-black text-indigo-400 uppercase mb-3 tracking-wider">رد الذكاء الاصطناعي</label>
                                 <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{selectedLog.output_text}</p>
                             </div>
-
                             <div className="col-span-2">
                                 <label className="block text-xs font-black text-slate-400 uppercase mb-3 tracking-wider">معاملات الأداة</label>
                                 <pre className="bg-slate-900 text-emerald-400 p-5 rounded-2xl text-xs font-mono overflow-x-auto ltr border border-slate-800 shadow-inner">
                                     {tryFormatJSON(selectedLog.tool_params)}
                                 </pre>
                             </div>
-
                             <div className="col-span-2">
                                 <label className="block text-xs font-black text-slate-400 uppercase mb-3 tracking-wider">نتائج التنفيذ</label>
                                 <pre className="bg-slate-900 text-blue-400 p-5 rounded-2xl text-xs font-mono overflow-x-auto ltr border border-slate-800 shadow-inner">
                                     {tryFormatJSON(selectedLog.tool_result)}
                                 </pre>
                             </div>
-
                             {selectedLog.error_details && (
                                 <div className="col-span-2 bg-red-50 dark:bg-red-900/20 p-5 rounded-2xl border border-red-100 dark:border-red-800">
                                     <label className="block text-xs font-black text-red-500 uppercase mb-3 tracking-wider">تفاصيل الخطأ</label>
@@ -276,7 +262,6 @@ const LogsTab = ({ logs, page, setPage, fetchLogDetails, selectedLog, setSelecte
         </div>
     );
 }
-
 // 4. Governance Tab
 const GovernanceTab = ({ governance, updateGovernance, saving }) => {
     return (
@@ -289,7 +274,6 @@ const GovernanceTab = ({ governance, updateGovernance, saving }) => {
                     </h3>
                     {saving && <span className="text-sm text-emerald-500 animate-pulse font-bold bg-emerald-50 px-3 py-1 rounded-full">جاري حفظ التغييرات...</span>}
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                     <div className="space-y-8">
                         <ToggleSetting
@@ -313,7 +297,6 @@ const GovernanceTab = ({ governance, updateGovernance, saving }) => {
                             onToggle={(val) => updateGovernance('ai_require_human_review', val)}
                         />
                     </div>
-
                     <div className="bg-slate-50 dark:bg-slate-800 p-8 rounded-3xl flex flex-col justify-center border border-slate-200 dark:border-slate-700">
                         <label className="text-sm font-bold text-slate-500 mb-4 uppercase tracking-wider">حد الإنفاق اليومي</label>
                         <div className="flex items-end gap-2 mb-2">
@@ -337,9 +320,7 @@ const GovernanceTab = ({ governance, updateGovernance, saving }) => {
         </div>
     );
 }
-
 // --- Main Page Component ---
-
 const AIStats = () => {
     // State
     const [activeTab, setActiveTab] = useState('overview');
@@ -356,17 +337,14 @@ const AIStats = () => {
     const [selectedLog, setSelectedLog] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-
     // Initial Load
     useEffect(() => {
         fetchAllData();
     }, [period]);
-
     // Logs Pagination
     useEffect(() => {
         fetchLogs();
     }, [logsPage]);
-
     const fetchAllData = async () => {
         setLoading(true);
         try {
@@ -380,7 +358,6 @@ const AIStats = () => {
             setLoading(false);
         }
     };
-
     const fetchDashboard = async () => {
         try {
             const [s, c, sug] = await Promise.all([
@@ -393,7 +370,6 @@ const AIStats = () => {
             setSuggestions(Array.isArray(sug.data) ? sug.data : []);
         } catch (e) { console.error(e); }
     };
-
     const fetchAnalytics = async () => {
         try {
             const [f, h, i] = await Promise.all([
@@ -406,14 +382,12 @@ const AIStats = () => {
             setIntents(Array.isArray(i.data) ? i.data : []);
         } catch (e) { console.error(e); }
     };
-
     const fetchGovernance = async () => {
         try {
             const res = await api.get('/api/v1/admin/ai/governance');
             setGovernance(res.data);
         } catch (e) { console.error(e); }
     };
-
     const fetchLogs = async () => {
         try {
             const res = await api.get(`/api/v1/admin/ai/logs?page=${logsPage}&limit=15`);
@@ -421,14 +395,12 @@ const AIStats = () => {
             setLogs(Array.isArray(logsData) ? logsData : []);
         } catch (e) { console.error(e); }
     };
-
     const fetchLogDetails = async (id) => {
         try {
             const res = await api.get(`/api/v1/admin/ai/logs/${id}`);
             setSelectedLog(res.data);
         } catch (e) { alert("فشل تحميل التفاصيل"); }
     };
-
     const updateGovernance = async (key, value) => {
         if (!governance) return;
         setSaving(true);
@@ -444,7 +416,6 @@ const AIStats = () => {
             setSaving(false);
         }
     };
-
     if (loading && !stats) return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50">
             <div className="flex flex-col items-center gap-4">
@@ -453,7 +424,6 @@ const AIStats = () => {
             </div>
         </div>
     );
-
     return (
         <div className="min-h-screen bg-slate-50/50 pb-20 font-sans" dir="rtl">
             {/* Top Bar */}
@@ -468,7 +438,6 @@ const AIStats = () => {
                             <p className="text-slate-500 text-sm font-medium">الذكاء والحوكمة اللحظية</p>
                         </div>
                     </div>
-
                     {/* Period Selector */}
                     <div className="flex bg-slate-100 p-1.5 rounded-xl">
                         {["24h", "7d", "30d"].map(p => (
@@ -486,7 +455,6 @@ const AIStats = () => {
                     </div>
                 </div>
             </div>
-
             <div className="max-w-7xl mx-auto px-8">
                 {/* Tabs */}
                 <div className="flex items-center gap-2 mb-8 overflow-x-auto pb-2">
@@ -495,7 +463,6 @@ const AIStats = () => {
                     <TabButton active={activeTab} id="logs" label="سجل العمليات" icon={FileText} onClick={setActiveTab} />
                     <TabButton active={activeTab} id="governance" label="الحوكمة والأمان" icon={Shield} onClick={setActiveTab} />
                 </div>
-
                 {/* Content */}
                 <div className="min-h-[600px]">
                     {activeTab === 'overview' && <OverviewTab stats={stats} costs={costs} suggestions={suggestions} />}
@@ -507,9 +474,7 @@ const AIStats = () => {
         </div>
     );
 };
-
 // --- Helpers ---
-
 const TabButton = ({ active, id, label, icon: Icon, onClick }) => (
     <button
         onClick={() => onClick(id)}
@@ -522,7 +487,6 @@ const TabButton = ({ active, id, label, icon: Icon, onClick }) => (
         {label}
     </button>
 );
-
 const KPICard = ({ title, value, icon: Icon, color, suffix }) => {
     const colors = {
         blue: "bg-blue-50 text-blue-600",
@@ -544,11 +508,9 @@ const KPICard = ({ title, value, icon: Icon, color, suffix }) => {
         </div>
     );
 };
-
 function tryFormatJSON(str) {
     try { return JSON.stringify(JSON.parse(str), null, 2); } catch (e) { return str; }
 }
-
 const ToggleSetting = ({ label, desc, enabled, onToggle }) => (
     <div className="flex items-center justify-between group">
         <div>
@@ -563,5 +525,4 @@ const ToggleSetting = ({ label, desc, enabled, onToggle }) => (
         </button>
     </div>
 );
-
 export default AIStats;

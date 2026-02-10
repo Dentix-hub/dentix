@@ -1,14 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Sparkles, Brain, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { analyzeClinic } from '@/api/analytics';
 import { showToast } from '@/shared/ui/Toast';
-
 const AiAdvisor = ({ stats }) => {
     const { t } = useTranslation();
     const [insights, setInsights] = useState(null);
     const [loading, setLoading] = useState(false);
-
     const handleAnalyze = async () => {
         if (!stats) return;
         setLoading(true);
@@ -22,7 +20,6 @@ const AiAdvisor = ({ stats }) => {
             setLoading(false);
         }
     };
-
     return (
         <div className="bg-gradient-to-br from-indigo-50/50 to-purple-50/50 backdrop-blur-sm p-6 rounded-2xl border border-indigo-100/50 shadow-sm relative overflow-hidden h-full min-h-[400px]">
             {/* Header */}
@@ -45,7 +42,6 @@ const AiAdvisor = ({ stats }) => {
                     {insights ? t('analytics.advisor.refresh') : t('analytics.advisor.start')}
                 </button>
             </div>
-
             {/* Content */}
             <div className="relative z-10">
                 {loading ? (
@@ -67,12 +63,10 @@ const AiAdvisor = ({ stats }) => {
                     </div>
                 )}
             </div>
-
             {/* Background Decoration */}
             <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-purple-200 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-64 h-64 bg-indigo-200 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
         </div>
     );
 };
-
 export default AiAdvisor;

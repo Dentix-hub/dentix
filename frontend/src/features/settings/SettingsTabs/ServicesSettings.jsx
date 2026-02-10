@@ -1,20 +1,17 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { List, Banknote, Shield } from 'lucide-react';
 import ProceduresSettings from './ProceduresSettings';
 import PriceLists from '@/pages/admin/PriceLists';
 import InsuranceProviders from '@/pages/admin/InsuranceProviders';
 import { useTranslation } from 'react-i18next';
-
 export default function ServicesSettings({ setMessage }) {
     const { t } = useTranslation();
     const [activeSubTab, setActiveSubTab] = useState('procedures');
-
     const subTabs = [
         { id: 'procedures', label: t('settings.services.tabs.procedures'), icon: List },
         { id: 'price-lists', label: t('settings.services.tabs.price_lists'), icon: Banknote },
         { id: 'insurance', label: t('settings.services.tabs.insurance'), icon: Shield },
     ];
-
     return (
         <div className="space-y-6">
             {/* Sub-Tab Navigation */}
@@ -37,17 +34,14 @@ export default function ServicesSettings({ setMessage }) {
                     );
                 })}
             </div>
-
             {/* Content Area */}
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                 {activeSubTab === 'procedures' && (
                     <ProceduresSettings setMessage={setMessage} />
                 )}
-
                 {activeSubTab === 'price-lists' && (
                     <PriceLists />
                 )}
-
                 {activeSubTab === 'insurance' && (
                     <InsuranceProviders />
                 )}

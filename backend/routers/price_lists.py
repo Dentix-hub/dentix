@@ -3,13 +3,14 @@ Price Lists Router
 
 CRUD operations for price lists and pricing.
 """
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Optional
 from datetime import date
 
-from ..models import PriceList, PriceListItem, InsuranceProvider, Procedure, User
+from ..models import PriceList, PriceListItem, Procedure, User
 from ..constants import ROLES
 from .auth import get_current_user, get_db
 from ..services.pricing_service import get_pricing_service
@@ -18,6 +19,7 @@ router = APIRouter(prefix="/price-lists", tags=["Price Lists"])
 
 
 # --- Schemas ---
+
 
 class PriceListCreate(BaseModel):
     name: str
@@ -48,12 +50,13 @@ class PriceListResponse(BaseModel):
     is_active: bool
     coverage_percent: float
     copay_percent: float
-    
+
     class Config:
         from_attributes = True
 
 
 # --- Endpoints ---
+
 
 @router.get("/")
 def get_price_lists(
@@ -63,14 +66,14 @@ def get_price_lists(
     """Get available price lists for current user."""
     pricing = get_pricing_service(db, current_user.tenant_id)
     lists = pricing.get_available_price_lists(current_user)
-    
+
     return [
         {
             "id": pl.id,
             "name": pl.name,
             "type": pl.type,
             "is_default": pl.is_default,
-            "is_active": pl.is_active
+            "is_active": pl.is_active,
         }
         for pl in lists
     ]
@@ -84,15 +87,11 @@ def get_default_price_list(
     """Get default (cash) price list."""
     pricing = get_pricing_service(db, current_user.tenant_id)
     default = pricing.get_default_price_list()
-    
+
     if not default:
         raise HTTPException(status_code=404, detail="No default price list found")
-    
-    return {
-        "id": default.id,
-        "name": default.name,
-        "type": default.type
-    }
+
+    return {"id": default.id, "name": default.name, "type": default.type}
 
 
 @router.get("/{price_list_id}")
@@ -103,18 +102,25 @@ def get_price_list(
 ):
     """Get a specific price list with items."""
     try:
-        price_list = db.query(PriceList).filter(
-            PriceList.id == price_list_id,
-            PriceList.tenant_id == current_user.tenant_id
-        ).first()
-        
+        price_list = (
+            db.query(PriceList)
+            .filter(
+                PriceList.id == price_list_id,
+                PriceList.tenant_id == current_user.tenant_id,
+            )
+            .first()
+        )
+
         if not price_list:
             raise HTTPException(status_code=404, detail="Price list not found")
-        
-        items = db.query(PriceListItem).join(Procedure).filter(
-            PriceListItem.price_list_id == price_list_id
-        ).all()
-        
+
+        items = (
+            db.query(PriceListItem)
+            .join(Procedure)
+            .filter(PriceListItem.price_list_id == price_list_id)
+            .all()
+        )
+
         return {
             "id": price_list.id,
             "name": price_list.name,
@@ -130,15 +136,16 @@ def get_price_list(
                     "procedure_name": item.procedure.name if item.procedure else None,
                     "price": item.price,
                     "discount_percent": item.discount_percent,
-                    "final_price": item.final_price
+                    "final_price": item.final_price,
                 }
                 for item in items
-            ]
+            ],
         }
     except HTTPException:
         raise
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"DEBUG ERROR: {str(e)}")
 
@@ -152,20 +159,21 @@ def get_procedure_prices(
     """Get all prices for a procedure across price lists."""
     pricing = get_pricing_service(db, current_user.tenant_id)
     prices = pricing.get_all_prices_for_procedure(procedure_id)
-    
+
     # Also get legacy price
     procedure = db.query(Procedure).filter(Procedure.id == procedure_id).first()
     legacy_price = procedure.price if procedure else 0
-    
+
     return {
         "procedure_id": procedure_id,
         "procedure_name": procedure.name if procedure else None,
         "legacy_price": legacy_price,
-        "price_lists": prices
+        "price_lists": prices,
     }
 
 
 # --- Admin Endpoints ---
+
 
 @router.post("/", response_model=dict)
 def create_price_list(
@@ -176,14 +184,13 @@ def create_price_list(
     """Create a new price list (Admin only)."""
     if current_user.role not in (ROLES.ADMIN_ROLES + ["accountant"]):
         raise HTTPException(status_code=403, detail="Admin access required")
-    
+
     # If setting as default, unset other defaults
     if data.is_default:
         db.query(PriceList).filter(
-            PriceList.tenant_id == current_user.tenant_id,
-            PriceList.is_default == True
+            PriceList.tenant_id == current_user.tenant_id, PriceList.is_default == True
         ).update({"is_default": False})
-    
+
     price_list = PriceList(
         tenant_id=current_user.tenant_id,
         name=data.name,
@@ -196,13 +203,13 @@ def create_price_list(
         copay_percent=data.copay_percent,
         copay_fixed=data.copay_fixed,
         effective_from=data.effective_from,
-        effective_to=data.effective_to
+        effective_to=data.effective_to,
     )
-    
+
     db.add(price_list)
     db.commit()
     db.refresh(price_list)
-    
+
     return {"id": price_list.id, "name": price_list.name, "message": "Created"}
 
 
@@ -216,22 +223,29 @@ def add_price_list_item(
     """Add procedure price to a price list (Admin only)."""
     if current_user.role not in (ROLES.ADMIN_ROLES + ["accountant"]):
         raise HTTPException(status_code=403, detail="Admin access required")
-    
+
     # Verify price list exists
-    price_list = db.query(PriceList).filter(
-        PriceList.id == price_list_id,
-        PriceList.tenant_id == current_user.tenant_id
-    ).first()
-    
+    price_list = (
+        db.query(PriceList)
+        .filter(
+            PriceList.id == price_list_id, PriceList.tenant_id == current_user.tenant_id
+        )
+        .first()
+    )
+
     if not price_list:
         raise HTTPException(status_code=404, detail="Price list not found")
-    
+
     # Check if item already exists
-    existing = db.query(PriceListItem).filter(
-        PriceListItem.price_list_id == price_list_id,
-        PriceListItem.procedure_id == data.procedure_id
-    ).first()
-    
+    existing = (
+        db.query(PriceListItem)
+        .filter(
+            PriceListItem.price_list_id == price_list_id,
+            PriceListItem.procedure_id == data.procedure_id,
+        )
+        .first()
+    )
+
     if existing:
         # Update existing
         existing.price = data.price
@@ -240,7 +254,7 @@ def add_price_list_item(
         existing.requires_approval = data.requires_approval
         db.commit()
         return {"id": existing.id, "message": "Updated"}
-    
+
     # Create new
     item = PriceListItem(
         price_list_id=price_list_id,
@@ -248,13 +262,13 @@ def add_price_list_item(
         price=data.price,
         discount_percent=data.discount_percent,
         insurance_code=data.insurance_code,
-        requires_approval=data.requires_approval
+        requires_approval=data.requires_approval,
     )
-    
+
     db.add(item)
     db.commit()
     db.refresh(item)
-    
+
     return {"id": item.id, "message": "Created"}
 
 
@@ -268,15 +282,18 @@ def update_price_list(
     """Update a price list (Admin only)."""
     if current_user.role not in (ROLES.ADMIN_ROLES + ["accountant"]):
         raise HTTPException(status_code=403, detail="Admin access required")
-    
-    price_list = db.query(PriceList).filter(
-        PriceList.id == price_list_id,
-        PriceList.tenant_id == current_user.tenant_id
-    ).first()
-    
+
+    price_list = (
+        db.query(PriceList)
+        .filter(
+            PriceList.id == price_list_id, PriceList.tenant_id == current_user.tenant_id
+        )
+        .first()
+    )
+
     if not price_list:
         raise HTTPException(status_code=404, detail="Price list not found")
-    
+
     # Update fields
     price_list.name = data.name
     price_list.description = data.description
@@ -285,17 +302,16 @@ def update_price_list(
     price_list.copay_fixed = data.copay_fixed
     price_list.effective_from = data.effective_from
     price_list.effective_to = data.effective_to
-    
+
     # Handle default flag
     if data.is_default and not price_list.is_default:
         db.query(PriceList).filter(
-            PriceList.tenant_id == current_user.tenant_id,
-            PriceList.is_default == True
+            PriceList.tenant_id == current_user.tenant_id, PriceList.is_default == True
         ).update({"is_default": False})
         price_list.is_default = True
-    
+
     db.commit()
-    
+
     return {"id": price_list.id, "message": "Updated"}
 
 
@@ -308,19 +324,24 @@ def deactivate_price_list(
     """Deactivate a price list (Admin only). Does not delete."""
     if current_user.role not in ROLES.ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin access required")
-    
-    price_list = db.query(PriceList).filter(
-        PriceList.id == price_list_id,
-        PriceList.tenant_id == current_user.tenant_id
-    ).first()
-    
+
+    price_list = (
+        db.query(PriceList)
+        .filter(
+            PriceList.id == price_list_id, PriceList.tenant_id == current_user.tenant_id
+        )
+        .first()
+    )
+
     if not price_list:
         raise HTTPException(status_code=404, detail="Price list not found")
-    
+
     if price_list.is_default:
-        raise HTTPException(status_code=400, detail="Cannot deactivate default price list")
-    
+        raise HTTPException(
+            status_code=400, detail="Cannot deactivate default price list"
+        )
+
     price_list.is_active = False
     db.commit()
-    
+
     return {"message": "Deactivated"}

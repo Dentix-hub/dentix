@@ -1,10 +1,51 @@
-import React from 'react';
-import { MessageSquare, AlertCircle, ShieldCheck, Trash2 } from 'lucide-react';
-import { api } from '@/api';
-
-const SupportInbox = ({ messages, setMessages, handleDeleteMessage, fetchData }) => {
+import { useState, useEffect } from 'react';
+import { MessageSquare, AlertCircle, ShieldCheck, Trash2, Eye } from 'lucide-react';
+import { api, updateMessageStatus, deleteSupportMessage } from '@/api';
+const SupportInbox = () => {
+    const [messages, setMessages] = useState([]);
+    const [loading, setLoading] = useState(true);
+    useEffect(() => {
+        fetchMessages();
+    }, []);
+    const fetchMessages = async () => {
+        try {
+            setLoading(true);
+            const res = await api.get('/api/v1/support/messages');
+            setMessages(Array.isArray(res.data) ? res.data : []);
+        } catch (err) {
+            console.error("Failed to fetch support messages", err);
+        } finally {
+            setLoading(false);
+        }
+    };
+    const handleDeleteMessage = async (id) => {
+        if (!window.confirm('هل أنت متأكد من حذف هذه الرسالة؟')) return;
+        try {
+            await deleteSupportMessage(id);
+            setMessages(prev => prev.filter(m => m.id !== id));
+            alert('تم حذف الرسالة بنجاح');
+        } catch (err) {
+            console.error(err);
+            alert('فشل حذف الرسالة');
+        }
+    };
+    const handleViewMessage = async (msg) => {
+        alert(`الرسالة:\n${msg.message}`);
+        if (msg.status === 'unread') {
+            try {
+                await updateMessageStatus(msg.id, 'read');
+                // Optimistic update
+                setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, status: 'read' } : m));
+            } catch (err) {
+                console.error("Failed to mark message as read", err);
+            }
+        }
+    };
+    if (loading) return <div className="p-10 text-center text-slate-500 animate-pulse">جاري تحميل الرسائل...</div>;
+    const unreadCount = messages.filter(m => m.status === 'unread').length;
+    const highPriorityCount = messages.filter(m => m.priority === 'high').length;
     return (
-        <div className="space-y-8 animate-fade-in">
+        <div className="space-y-8 animate-fade-in text-right">
             {/* Messages Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
@@ -19,7 +60,7 @@ const SupportInbox = ({ messages, setMessages, handleDeleteMessage, fetchData })
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
                     <div>
                         <p className="text-slate-500 font-bold text-sm mb-1">رسائل غير مقروءة</p>
-                        <p className="text-3xl font-black text-rose-600 dark:text-rose-400">{messages.filter(m => m.status === 'unread').length}</p>
+                        <p className="text-3xl font-black text-rose-600 dark:text-rose-400">{unreadCount}</p>
                     </div>
                     <div className="p-4 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-2xl">
                         <AlertCircle size={24} />
@@ -28,14 +69,13 @@ const SupportInbox = ({ messages, setMessages, handleDeleteMessage, fetchData })
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
                     <div>
                         <p className="text-slate-500 font-bold text-sm mb-1">أولوية عالية</p>
-                        <p className="text-3xl font-black text-amber-600 dark:text-amber-400">{messages.filter(m => m.priority === 'high').length}</p>
+                        <p className="text-3xl font-black text-amber-600 dark:text-amber-400">{highPriorityCount}</p>
                     </div>
                     <div className="p-4 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-2xl">
                         <ShieldCheck size={24} />
                     </div>
                 </div>
             </div>
-
             <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                 <div className="p-6 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
                     <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -89,16 +129,11 @@ const SupportInbox = ({ messages, setMessages, handleDeleteMessage, fetchData })
                                     <td className="p-6 text-center">
                                         <div className="flex items-center justify-center gap-2">
                                             <button
-                                                onClick={() => {
-                                                    alert(`الرسالة:\n${msg.message}`);
-                                                    if (msg.status === 'unread') {
-                                                        api.put(`/support/messages/${msg.id}/status?status=read`).then(() => fetchData());
-                                                    }
-                                                }}
+                                                onClick={() => handleViewMessage(msg)}
                                                 className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-indigo-600 rounded-xl transition-all"
                                                 title="عرض التفاصيل"
                                             >
-                                                عرض التفاصيل
+                                                <Eye size={18} />
                                             </button>
                                             <button
                                                 onClick={() => handleDeleteMessage(msg.id)}
@@ -124,5 +159,4 @@ const SupportInbox = ({ messages, setMessages, handleDeleteMessage, fetchData })
         </div>
     );
 };
-
 export default SupportInbox;

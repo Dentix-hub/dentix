@@ -1,27 +1,22 @@
 import React, { useState, useMemo, memo, useCallback } from 'react';
-import { Search, Plus, User, Trash2, Users, UserPlus, Activity, Phone, MapPin, Calendar, Clock } from 'lucide-react';
+import { Search, Plus, Trash2, Users, UserPlus, Activity, Phone, MapPin, Calendar } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { createPatient, deletePatient, searchPatients, getUsers } from '@/api';
 import { usePatients } from '@/hooks/usePatients';
 import { useAuth } from '@/auth/useAuth';
 import PatientScanner from '@/features/patients/PatientScanner';
-import { Skeleton, EmptyState, Modal, Button, Input, toast, Badge } from '@/shared/ui';
-
+import { Skeleton, EmptyState, Modal, Button, Input, toast } from '@/shared/ui';
 export default function Patients() {
     const navigate = useNavigate();
     const { t } = useTranslation();
-
     // Use cached patients data from React Query
     const { data: patients = [], isLoading: loading, refetch } = usePatients();
-
     const [search, setSearch] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isScannerOpen, setIsScannerOpen] = useState(false);
-
     const { user } = useAuth();
     const [doctors, setDoctors] = useState([]);
-
     // New Patient State
     const [newPatient, setNewPatient] = useState({
         name: '',
@@ -34,7 +29,6 @@ export default function Patients() {
     const [suggestions, setSuggestions] = useState([]);
     const [searchTimeoutState, setSearchTimeoutState] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-
     // Fetch Doctors if Admin or Staff
     React.useEffect(() => {
         const fetchDoctors = async () => {
@@ -43,7 +37,6 @@ export default function Patients() {
                 // But we still list other doctors in case they want to assign to a colleague
                 const res = await getUsers({ role: 'doctor' });
                 setDoctors(res.data);
-
                 // Auto-set assigned_doctor_id if current user is a doctor
                 if (user?.role === 'doctor') {
                     setNewPatient(prev => ({ ...prev, assigned_doctor_id: user.id }));
@@ -54,7 +47,6 @@ export default function Patients() {
         };
         if (isModalOpen) fetchDoctors();
     }, [isModalOpen, user]);
-
     // Modern Vibrant Card Colors - keeping this logic as it adds nice variety
     const cardColors = [
         {
@@ -88,9 +80,7 @@ export default function Patients() {
             accent: "from-rose-500 to-pink-600"
         }
     ];
-
     // cardColors array stays the same...
-
     // Derived Stats
     const stats = useMemo(() => {
         const total = patients.length;
@@ -103,7 +93,6 @@ export default function Patients() {
         const active = Math.floor(total * 0.7); // Mock logic kept
         return { total, newThisMonth, active };
     }, [patients]);
-
     const handleDeletePatient = useCallback(async (id, name) => {
         if (!window.confirm(t('patients.delete_confirm', { name }))) {
             return;
@@ -117,17 +106,14 @@ export default function Patients() {
             toast.error(t('patients.delete_error'), { id: toastId });
         }
     }, [refetch, t]);
-
     const handleCreatePatient = async (e) => {
         e.preventDefault();
         if (!newPatient.name || !newPatient.phone) {
             toast.error(t('patients.form.name_placeholder') + ' ' + t('common.and') + ' ' + t('patients.form.phone_label')); // Fallback simplistic validation message
             return;
         }
-
         setIsSubmitting(true);
         const toastId = toast.loading(t('common.loading'));
-
         try {
             // Check duplicates
             const res = await searchPatients(newPatient.phone);
@@ -142,7 +128,6 @@ export default function Patients() {
         } catch (err) {
             console.error("Error checking duplicates", err);
         }
-
         try {
             await createPatient({
                 name: newPatient.name,
@@ -174,18 +159,14 @@ export default function Patients() {
             setIsSubmitting(false);
         }
     };
-
     const handleInputChange = (field, value) => {
         setNewPatient(prev => ({ ...prev, [field]: value }));
-
         if (['name', 'phone'].includes(field)) {
             if (searchTimeoutState) clearTimeout(searchTimeoutState);
-
             if (!value || value.length < 2) {
                 setSuggestions([]);
                 return;
             }
-
             const timeoutId = setTimeout(async () => {
                 try {
                     const res = await searchPatients(value);
@@ -197,7 +178,6 @@ export default function Patients() {
             setSearchTimeoutState(timeoutId);
         }
     };
-
     const handleScanComplete = (data) => {
         setNewPatient(prev => ({
             ...prev,
@@ -208,11 +188,9 @@ export default function Patients() {
         }));
         toast.success(t('patients.form.scan_success'));
     };
-
     const filteredPatients = patients.filter(p =>
         p.name.includes(search) || p.phone.includes(search)
     );
-
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 min-h-screen pb-20">
             {/* Header Section */}
@@ -233,7 +211,6 @@ export default function Patients() {
                     {t('patients.add_new')}
                 </Button>
             </div>
-
             {/* Stats Bar */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatCard
@@ -261,7 +238,6 @@ export default function Patients() {
                     loading={loading}
                 />
             </div>
-
             {/* Search Bar */}
             <div className="sticky top-20 z-30 bg-surface/80 backdrop-blur-xl p-4 rounded-3xl border border-border shadow-lg shadow-slate-200/50 dark:shadow-black/20 transitiion-all">
                 <Input
@@ -273,7 +249,6 @@ export default function Patients() {
                     containerClassName="w-full"
                 />
             </div>
-
             {/* Patients Grid Virtualized */}
             <div className="flex-1 min-h-[500px]">
                 {loading ? (
@@ -292,7 +267,6 @@ export default function Patients() {
                                 >
                                     {/* Card Background Decoration */}
                                     <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${theme.accent} opacity-10 rounded-bl-[4rem] group-hover:opacity-20 transition-all`} />
-
                                     <div className="relative z-10 flex flex-col h-full justify-between">
                                         <div className="flex justify-between items-start">
                                             <div className="flex items-center gap-3">
@@ -314,7 +288,6 @@ export default function Patients() {
                                                 <Trash2 size={16} />
                                             </button>
                                         </div>
-
                                         <div className="space-y-1.5">
                                             <div className="flex items-center gap-2 p-2 bg-surface/50 rounded-xl backdrop-blur-sm">
                                                 <Phone size={14} className={theme.text} />
@@ -345,7 +318,6 @@ export default function Patients() {
                     />
                 )}
             </div>
-
             {/* Add Patient Modal */}
             <Modal
                 isOpen={isModalOpen}
@@ -385,7 +357,6 @@ export default function Patients() {
                             onChange={(e) => handleInputChange('address', e.target.value)}
                             containerClassName="md:col-span-2"
                         />
-
                         {/* Doctor Assignment Dropdown */}
                         <div className="md:col-span-2 space-y-1.5">
                             <label className="block text-sm font-bold text-text-secondary">
@@ -404,7 +375,6 @@ export default function Patients() {
                                 ))}
                             </select>
                         </div>
-
                         <div className="md:col-span-2 space-y-3 pt-2 border-t border-border">
                             <label className="text-sm font-black text-text-secondary flex items-center gap-2">
                                 <Activity size={16} />
@@ -418,7 +388,6 @@ export default function Patients() {
                                         onClick={() => {
                                             let current = newPatient.medical_history ? newPatient.medical_history.split('، ') : [];
                                             current = current.map(c => c.trim()).filter(c => c && c !== 'لا يوجد');
-
                                             if (condition === 'لا يوجد') {
                                                 setNewPatient(prev => ({ ...prev, medical_history: 'لا يوجد' }));
                                                 return;
@@ -445,7 +414,6 @@ export default function Patients() {
                                 onChange={(e) => handleInputChange('medical_history', e.target.value)}
                             />
                         </div>
-
                         {suggestions.length > 0 && (
                             <div className="md:col-span-2 bg-amber-50 dark:bg-amber-900/20 p-4 rounded-2xl border border-amber-200 dark:border-amber-700/50">
                                 <h4 className="text-amber-800 dark:text-amber-400 font-bold mb-3 text-sm">
@@ -462,7 +430,6 @@ export default function Patients() {
                             </div>
                         )}
                     </div>
-
                     <div className="flex gap-4 pt-4">
                         <Button
                             variant="ghost"
@@ -482,7 +449,6 @@ export default function Patients() {
                     </div>
                 </form>
             </Modal>
-
             {isScannerOpen && (
                 <PatientScanner
                     onScanComplete={handleScanComplete}
@@ -492,7 +458,6 @@ export default function Patients() {
         </div>
     );
 }
-
 // Memoized StatCard to prevent re-renders
 const StatCard = memo(({ label, value, icon: Icon, color, bg, loading }) => (
     <div className="bg-surface p-6 rounded-3xl border border-border shadow-sm flex items-center gap-4">
@@ -518,5 +483,4 @@ const StatCard = memo(({ label, value, icon: Icon, color, bg, loading }) => (
         </div>
     </div>
 ));
-
 StatCard.displayName = 'StatCard';

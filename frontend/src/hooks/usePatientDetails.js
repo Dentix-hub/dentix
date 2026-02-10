@@ -7,8 +7,6 @@ import {
     getPatientPayments,
     getAttachments
 } from '@/api';
-import { queryKeys } from '@/lib/queryClient';
-
 /**
  * Hook for patient core data (basic info) - loads immediately
  */
@@ -23,7 +21,6 @@ export function usePatient(patientId) {
         staleTime: 60 * 1000, // 1 minute
     });
 }
-
 /**
  * Hook for patient teeth data - loads for chart tab
  */
@@ -40,7 +37,6 @@ export function usePatientTeeth(patientId, enabled = true) {
         staleTime: 60 * 1000,
     });
 }
-
 /**
  * Hook for patient treatments - loads only on history tab
  */
@@ -55,7 +51,6 @@ export function usePatientTreatments(patientId, enabled = true) {
         staleTime: 30 * 1000,
     });
 }
-
 /**
  * Hook for patient payments - loads only on billing tab
  */
@@ -70,7 +65,6 @@ export function usePatientPayments(patientId, enabled = true) {
         staleTime: 30 * 1000,
     });
 }
-
 /**
  * Hook for patient attachments - loads only on files tab
  */
@@ -85,13 +79,11 @@ export function usePatientAttachments(patientId, enabled = true) {
         staleTime: 30 * 1000,
     });
 }
-
 /**
  * Hook to invalidate patient-related queries
  */
 export function useInvalidatePatientData() {
     const queryClient = useQueryClient();
-
     return useCallback((patientId, type) => {
         if (type) {
             queryClient.invalidateQueries({ queryKey: ['patient', patientId, type] });

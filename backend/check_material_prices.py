@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from backend.database import SessionLocal
 from backend.models.inventory import Material
 
+
 def check_prices():
     db: Session = SessionLocal()
     try:
@@ -12,6 +13,7 @@ def check_prices():
             print(f"{m.id:<5} {m.name[:28]:<30} {m.type[:13]:<15} {m.standard_price}")
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     check_prices()

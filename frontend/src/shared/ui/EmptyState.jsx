@@ -1,7 +1,4 @@
-import React from 'react';
 import { Ghost } from 'lucide-react';
-import Button from './Button';
-
 const EmptyState = ({
     title = 'لا يوجد بيانات',
     description = 'لم يتم العثور على أي بيانات لعرضها هنا.',
@@ -28,5 +25,4 @@ const EmptyState = ({
         </div>
     );
 };
-
 export default EmptyState;

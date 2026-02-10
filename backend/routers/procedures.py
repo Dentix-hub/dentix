@@ -2,6 +2,7 @@
 Procedures Router
 Handles dental procedure templates.
 """
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
@@ -37,7 +38,9 @@ def create_procedure(
     current_user: schemas.User = Depends(get_current_user),
 ):
     """Create a new procedure template."""
-    result = crud.create_procedure(db=db, procedure=procedure, tenant_id=current_user.tenant_id)
+    result = crud.create_procedure(
+        db=db, procedure=procedure, tenant_id=current_user.tenant_id
+    )
     # Invalidate cache for this function
     invalidate_cache("_get_cached_procedures")
     return result
@@ -66,4 +69,3 @@ def delete_procedure(
     result = crud.delete_procedure(db, procedure_id, current_user.tenant_id)
     invalidate_cache("_get_cached_procedures")
     return result
-

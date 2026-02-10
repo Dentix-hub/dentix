@@ -15,7 +15,7 @@ celery_app = Celery(
     "smart_clinic_worker",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=["backend.tasks.email_tasks"]
+    include=["backend.tasks.email_tasks"],
 )
 
 celery_app.conf.update(

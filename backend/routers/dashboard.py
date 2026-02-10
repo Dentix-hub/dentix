@@ -2,6 +2,7 @@
 Dashboard Router
 Handles dashboard statistics.
 """
+
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 

@@ -1,18 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getAllProceduresFinancials } from '@/api/financials';
-import { TrendingDown, TrendingUp, AlertTriangle, DollarSign, Activity, ArrowUpDown } from 'lucide-react';
-
+import { TrendingDown, TrendingUp, DollarSign, Activity, ArrowUpDown } from 'lucide-react';
 const GeneralCostAnalysis = () => {
     const { t } = useTranslation();
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [sortConfig, setSortConfig] = useState({ key: 'margin_percent', direction: 'asc' });
-
     useEffect(() => {
         loadData();
     }, []);
-
     const loadData = async () => {
         try {
             const res = await getAllProceduresFinancials();
@@ -28,7 +25,6 @@ const GeneralCostAnalysis = () => {
             setLoading(false);
         }
     };
-
     const handleSort = (key) => {
         let direction = 'asc';
         if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -36,9 +32,7 @@ const GeneralCostAnalysis = () => {
         }
         setSortConfig({ key, direction });
     };
-
     const isDataArray = Array.isArray(data);
-
     // Sort logic
     const sortedData = isDataArray ? [...data].sort((a, b) => {
         if (a[sortConfig.key] < b[sortConfig.key]) {
@@ -49,20 +43,16 @@ const GeneralCostAnalysis = () => {
         }
         return 0;
     }) : [];
-
     const getMarginColor = (percent) => {
         if (percent < 30) return 'text-red-600 bg-red-50 dark:bg-red-900/20';
         if (percent < 50) return 'text-amber-600 bg-amber-50 dark:bg-amber-900/20';
         return 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20';
     };
-
     const averages = isDataArray && data.length > 0 ? {
         margin: data.reduce((acc, curr) => acc + curr.margin_percent, 0) / data.length,
         cost: data.reduce((acc, curr) => acc + curr.cost, 0) / data.length
     } : { margin: 0, cost: 0 };
-
     if (loading) return <div className="p-12 text-center text-slate-500 animate-pulse">{t('analytics.general_analysis.loading')}</div>;
-
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Summary Cards */}
@@ -76,7 +66,6 @@ const GeneralCostAnalysis = () => {
                         <div className="text-2xl font-black text-slate-800 dark:text-white">{data.length}</div>
                     </div>
                 </div>
-
                 <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm flex items-center gap-4">
                     <div className={`p-3 rounded-xl ${averages.margin < 30 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
                         {averages.margin < 30 ? <TrendingDown size={24} /> : <TrendingUp size={24} />}
@@ -88,7 +77,6 @@ const GeneralCostAnalysis = () => {
                         </div>
                     </div>
                 </div>
-
                 <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm flex items-center gap-4">
                     <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl text-amber-600 dark:text-amber-400">
                         <DollarSign size={24} />
@@ -99,14 +87,12 @@ const GeneralCostAnalysis = () => {
                     </div>
                 </div>
             </div>
-
             {/* Analysis Table */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
                 <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
                     <h3 className="font-bold text-slate-800 dark:text-white">{t('analytics.general_analysis.table.title')}</h3>
                     <div className="text-xs text-slate-400">{t('analytics.general_analysis.table.subtitle')}</div>
                 </div>
-
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 font-bold text-xs uppercase">
@@ -152,5 +138,4 @@ const GeneralCostAnalysis = () => {
         </div>
     );
 };
-
 export default GeneralCostAnalysis;

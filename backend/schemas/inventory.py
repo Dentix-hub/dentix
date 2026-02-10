@@ -1,50 +1,59 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import Optional
 from datetime import date, datetime
 from enum import Enum
+
 
 class WarehouseType(str, Enum):
     MAIN = "MAIN"
     CLINIC = "CLINIC"
 
+
 class MaterialType(str, Enum):
     DIVISIBLE = "DIVISIBLE"
     NON_DIVISIBLE = "NON_DIVISIBLE"
+
 
 # --- WAREHOUSE ---
 class WarehouseBase(BaseModel):
     name: str = Field(..., title="Warehouse Name")
     type: WarehouseType = Field(default=WarehouseType.MAIN)
 
+
 class WarehouseCreate(WarehouseBase):
     pass
+
 
 class WarehouseRead(WarehouseBase):
     id: int
     tenant_id: int
-    
+
     class Config:
         from_attributes = True
+
 
 # --- MATERIAL ---
 class MaterialBase(BaseModel):
     name: str
-    type: str # Was MaterialType, but DB has categories like 'Restorative'
+    type: str  # Was MaterialType, but DB has categories like 'Restorative'
     base_unit: str
     alert_threshold: int = 10
     packaging_ratio: float = 1.0
     standard_price: Optional[float] = 0.0
 
+
 class MaterialCreate(MaterialBase):
     pass
 
+
 class MaterialUpdate(BaseModel):
     name: Optional[str] = None
-    type: Optional[str] = None # Relaxed to match MaterialBase
+    type: Optional[str] = None  # Relaxed to match MaterialBase
     base_unit: Optional[str] = None
     alert_threshold: Optional[int] = None
     packaging_ratio: Optional[float] = None
     standard_price: Optional[float] = None
+
 
 class MaterialRead(MaterialBase):
     id: int
@@ -53,6 +62,7 @@ class MaterialRead(MaterialBase):
     class Config:
         from_attributes = True
 
+
 # --- BATCH ---
 class BatchBase(BaseModel):
     batch_number: str
@@ -60,25 +70,29 @@ class BatchBase(BaseModel):
     supplier: Optional[str] = None
     cost_per_unit: float = 0.0
 
+
 class BatchCreate(BatchBase):
     material_id: int
+
 
 class BatchRead(BatchBase):
     id: int
     material_id: int
     tenant_id: int
     created_at: datetime
-    
-    material: Optional[MaterialRead] = None 
+
+    material: Optional[MaterialRead] = None
 
     class Config:
         from_attributes = True
+
 
 # --- STOCK ITEM ---
 class StockItemBase(BaseModel):
     warehouse_id: int
     batch_id: int
     quantity: float
+
 
 class StockItemRead(StockItemBase):
     id: int
@@ -89,14 +103,17 @@ class StockItemRead(StockItemBase):
     class Config:
         from_attributes = True
 
+
 # --- MATERIAL SESSION ---
 class MaterialSessionBase(BaseModel):
     stock_item_id: int
     status: str = "ACTIVE"
     remaining_est: float = 1.0
 
+
 class MaterialSessionCreate(MaterialSessionBase):
     pass
+
 
 class MaterialSessionRead(MaterialSessionBase):
     id: int
@@ -107,6 +124,7 @@ class MaterialSessionRead(MaterialSessionBase):
     class Config:
         from_attributes = True
 
+
 # --- COMPOSITE READ MODELS (For Dashboard) ---
 class MaterialStockSummary(BaseModel):
     material_id: int
@@ -114,15 +132,17 @@ class MaterialStockSummary(BaseModel):
     material_type: str
     total_quantity: float
     unit: str
-    alert_status: str # OK, LOW, CRITICAL
+    alert_status: str  # OK, LOW, CRITICAL
     batches_count: int
     packaging_ratio: Optional[float] = 1.0
     standard_price: Optional[float] = 0.0
+
 
 class ConsumptionItem(BaseModel):
     material_id: int
     quantity: float
     batch_id: Optional[int] = None
+
 
 class StockReceiveRequest(BaseModel):
     material_id: int
@@ -130,13 +150,14 @@ class StockReceiveRequest(BaseModel):
     quantity: float
     batch: BatchBase
 
-
     batch: BatchBase
+
 
 class StockTransferRequest(BaseModel):
     stock_item_id: int
     target_warehouse_id: int
     quantity: float
+
 
 class StockMovementRead(BaseModel):
     id: int
@@ -145,33 +166,41 @@ class StockMovementRead(BaseModel):
     reason: str
     performed_by: int
     created_at: datetime
-    
+
     class Config:
         from_attributes = True
 
+
 class SessionCloseRequest(BaseModel):
-    total_consumed: Optional[float] = None  # Optional - will be auto-calculated from treatments if not provided
+    total_consumed: Optional[float] = (
+        None  # Optional - will be auto-calculated from treatments if not provided
+    )
+
 
 class ProcedureWeightBase(BaseModel):
     procedure_id: int
     material_id: int
     weight: float = 1.0
 
+
 class ProcedureWeightUpdate(BaseModel):
-    procedure_name: str # Use name for easier UI mapping
+    procedure_name: str  # Use name for easier UI mapping
     material_id: int
     weight: float
 
+
 class ProcedureName(BaseModel):
     name: str
+
     class Config:
         from_attributes = True
+
 
 class ProcedureWeightRead(ProcedureWeightBase):
     id: int
     current_average_usage: float
     sample_size: int
     procedure: Optional[ProcedureName] = None
-    
+
     class Config:
         from_attributes = True

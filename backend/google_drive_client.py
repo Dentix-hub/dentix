@@ -4,12 +4,14 @@ Google Drive OAuth + Backup Upload Service.
 Production-ready with improved error handling, timeout protection, and secure logging.
 Scope: drive.file only (minimal required permissions).
 """
+
 import os
 import logging
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+
 # Added: HttpError for proper API error handling
 from googleapiclient.errors import HttpError
 
@@ -42,9 +44,9 @@ def get_client_config():
     backend_url = os.getenv("BACKEND_PUBLIC_URL", "http://localhost:8000")
     # Normalize URL: remove trailing slash for consistent redirect_uri
     backend_url = backend_url.rstrip("/")
-        
+
     redirect_uri = f"{backend_url}/settings/backup/callback"
-    
+
     # Validate redirect_uri doesn't contain dangerous characters
     if not redirect_uri.startswith(("http://", "https://")):
         logger.error("Invalid BACKEND_PUBLIC_URL: must start with http:// or https://")
@@ -68,11 +70,11 @@ class GoogleDriveClient:
     Google Drive OAuth client for backup functionality.
     Handles OAuth flow and file uploads to user's Drive.
     """
-    
+
     def __init__(self, redirect_uri: str):
         """
         Initialize OAuth flow with the specified redirect URI.
-        
+
         Args:
             redirect_uri: The OAuth callback URL (must match Google Console config)
         """
@@ -94,10 +96,10 @@ class GoogleDriveClient:
     def get_auth_url(self, state: str = None):
         """
         Generate OAuth authorization URL for user consent.
-        
+
         Args:
             state: Optional CSRF state parameter for security
-            
+
         Returns:
             Authorization URL to redirect user to Google consent screen
         """
@@ -116,13 +118,13 @@ class GoogleDriveClient:
     def fetch_token(self, code: str) -> dict:
         """
         Exchange authorization code for tokens.
-        
+
         Args:
             code: Authorization code from OAuth callback
-            
+
         Returns:
             Dict containing token, refresh_token, and OAuth metadata
-            
+
         Raises:
             Exception: If token exchange fails
         """
@@ -132,13 +134,13 @@ class GoogleDriveClient:
             # Log error type only, not full message which may contain sensitive data
             logger.error(f"Token exchange failed: {type(e).__name__}")
             raise
-            
+
         creds = self.flow.credentials
-        
+
         # Validate we got a refresh_token (critical for offline access)
         if not creds.refresh_token:
             logger.warning("No refresh_token received. User may need to re-authorize.")
-        
+
         return {
             "token": creds.token,
             "refresh_token": creds.refresh_token,
@@ -153,15 +155,15 @@ class GoogleDriveClient:
         """
         Uploads a file to Google Drive using the user's refresh token.
         Creates 'DentalSaaS Backups' folder if it doesn't exist.
-        
+
         Args:
             refresh_token: User's OAuth refresh token for offline access
             file_path: Local path to the file to upload
             filename: Name for the file in Google Drive
-            
+
         Returns:
             Dict containing 'id' and 'link' of the uploaded file
-            
+
         Raises:
             ValueError: If refresh_token is missing
             FileNotFoundError: If file_path doesn't exist
@@ -169,7 +171,7 @@ class GoogleDriveClient:
         """
         if not refresh_token:
             raise ValueError("No refresh token provided for Google Drive upload")
-        
+
         # Validate file exists before attempting upload
         if not os.path.isfile(file_path):
             raise FileNotFoundError(f"Backup file not found: {file_path}")
@@ -189,16 +191,20 @@ class GoogleDriveClient:
 
         folder_id = None
         folder_name = "DentalSaaS Backups"
-        
+
         try:
             # 1. Search for backup folder (only in non-trashed items)
             # Added: quotes around folder name for exact match
             query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-            results = service.files().list(
-                q=query, 
-                fields="files(id, name)",
-                pageSize=1  # We only need one result
-            ).execute()
+            results = (
+                service.files()
+                .list(
+                    q=query,
+                    fields="files(id, name)",
+                    pageSize=1,  # We only need one result
+                )
+                .execute()
+            )
             files = results.get("files", [])
 
             if not files:
@@ -208,44 +214,40 @@ class GoogleDriveClient:
                     "name": folder_name,
                     "mimeType": "application/vnd.google-apps.folder",
                 }
-                folder = service.files().create(
-                    body=folder_metadata, 
-                    fields="id"
-                ).execute()
+                folder = (
+                    service.files().create(body=folder_metadata, fields="id").execute()
+                )
                 folder_id = folder.get("id")
             else:
                 folder_id = files[0]["id"]
                 logger.debug(f"Using existing folder: {folder_id}")
 
             # 2. Upload file to the backup folder
-            file_metadata = {
-                "name": filename, 
-                "parents": [folder_id]
-            }
-            
+            file_metadata = {"name": filename, "parents": [folder_id]}
+
             # Use resumable upload for reliability on slow connections
             media = MediaFileUpload(
-                file_path, 
-                mimetype="application/octet-stream", 
-                resumable=True
+                file_path, mimetype="application/octet-stream", resumable=True
             )
 
-            uploaded_file = service.files().create(
-                body=file_metadata, 
-                media_body=media, 
-                fields="id, webViewLink"
-            ).execute()
-            
+            uploaded_file = (
+                service.files()
+                .create(body=file_metadata, media_body=media, fields="id, webViewLink")
+                .execute()
+            )
+
             file_id = uploaded_file.get("id")
             web_link = uploaded_file.get("webViewLink")
             logger.info(f"Backup uploaded successfully. File ID: {file_id}")
             return {"id": file_id, "link": web_link}
-            
+
         except HttpError as e:
             # Handle specific API errors
-            status_code = e.resp.status if hasattr(e, 'resp') else 'unknown'
+            status_code = e.resp.status if hasattr(e, "resp") else "unknown"
             if status_code == 401:
-                logger.error("Google Drive: Authentication failed. Refresh token may be expired.")
+                logger.error(
+                    "Google Drive: Authentication failed. Refresh token may be expired."
+                )
             elif status_code == 403:
                 logger.error("Google Drive: Permission denied. Check OAuth scopes.")
             elif status_code == 404:

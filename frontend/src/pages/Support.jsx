@@ -1,22 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { MessageSquare, Send, Smartphone, AlertCircle, CheckCircle2, Mail, MapPin, Clock } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { MessageSquare, Send, Smartphone, AlertCircle, CheckCircle2, Mail, Clock } from 'lucide-react';
 import { api, submitFeedback } from '../api';
 import { useTranslation } from 'react-i18next';
-
 export default function Support() {
     const { t, i18n } = useTranslation();
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [form, setForm] = useState({ subject: '', message: '', priority: 'normal' });
     const [error, setError] = useState('');
-
     const [supportInfo, setSupportInfo] = useState({
         phone: '+20 120 130 1415',
         whatsapp: '201201301415',
         email: 'support@smartclinic.com',
         working_hours: '9:00 AM - 10:00 PM'
     });
-
     useEffect(() => {
         const fetchSettings = async () => {
             try {
@@ -36,11 +33,9 @@ export default function Support() {
         };
         fetchSettings();
     }, [i18n.language]);
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!form.message) return;
-
         setLoading(true);
         setError('');
         try {
@@ -56,7 +51,6 @@ export default function Support() {
             setLoading(false);
         }
     };
-
     return (
         <div className="space-y-6 animate-fade-in pb-12">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -65,7 +59,6 @@ export default function Support() {
                     <p className="text-slate-500 mt-1">{t('static.support.subtitle')}</p>
                 </div>
             </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Contact Information Cards */}
                 <div className="space-y-6">
@@ -84,7 +77,6 @@ export default function Support() {
                                     <p className="font-bold text-lg ltr font-mono">{supportInfo.phone}</p>
                                 </div>
                             </a>
-
                             <div className="flex items-center gap-3 p-4 rounded-2xl bg-indigo-50 text-indigo-700">
                                 <div className="p-2 bg-indigo-200 rounded-full text-indigo-700">
                                     <Mail size={18} />
@@ -96,7 +88,6 @@ export default function Support() {
                             </div>
                         </div>
                     </div>
-
                     <div className="bg-gradient-to-br from-violet-600 to-indigo-600 rounded-3xl p-6 text-white shadow-xl shadow-indigo-500/20">
                         <Clock size={32} className="mb-4 opacity-80" />
                         <h3 className="text-xl font-bold mb-2">{t('static.support.working_hours')}</h3>
@@ -109,7 +100,6 @@ export default function Support() {
                         </div>
                     </div>
                 </div>
-
                 {/* Contact Form */}
                 <div className="lg:col-span-2">
                     <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-lg border border-slate-100 dark:border-white/5 overflow-hidden">
@@ -136,14 +126,12 @@ export default function Support() {
                                         </div>
                                         <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t('static.support.send_ticket')}</h2>
                                     </div>
-
                                     {error && (
                                         <div className="flex items-center gap-3 p-4 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-2xl text-sm font-bold border border-rose-100 dark:border-rose-900/30">
                                             <AlertCircle size={18} />
                                             {error}
                                         </div>
                                     )}
-
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="col-span-2">
                                             <label className="block text-sm font-black uppercase tracking-wider mb-3 pr-1 text-slate-500 dark:text-slate-400">{t('static.support.subject')}</label>
@@ -156,7 +144,6 @@ export default function Support() {
                                                 placeholder={t('static.support.subject_placeholder')}
                                             />
                                         </div>
-
                                         <div className="col-span-2">
                                             <label className="block text-sm font-black uppercase tracking-wider mb-3 pr-1 text-slate-500 dark:text-slate-400">{t('static.support.message')}</label>
                                             <textarea
@@ -169,7 +156,6 @@ export default function Support() {
                                             />
                                         </div>
                                     </div>
-
                                     <div className="flex justify-end">
                                         <button
                                             type="submit"

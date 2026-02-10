@@ -64,9 +64,6 @@ api.interceptors.request.use(config => {
     const token = getToken();
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
-        console.log(`[API_DEBUG] Attaching Token to ${config.url}: ${token.substring(0, 10)}...${token.substring(token.length - 10)}`);
-    } else {
-        console.warn(`[API_DEBUG] No Token found for ${config.url}`);
     }
     return config;
 });
@@ -93,20 +90,12 @@ api.interceptors.response.use(
 
         // Log detailed error for debugging
         if (error.response) {
-            console.error('[API_ERROR_DEBUG] FULL RESPONSE:', JSON.stringify({
-                status: error.response.status,
-                url: originalRequest.url,
-                data: error.response.data,
-                headers: originalRequest.headers
-            }, null, 2));
+            console.error('[API] Request failed:', error.response.status, originalRequest.url);
         }
 
         if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/api/v1/token' && originalRequest.url !== '/api/v1/auth/refresh') {
 
-            // DEBUG: Alert the user to the specific error
             const debugMsg = error.response?.data?.detail || "Unknown Auth Error";
-            // Alert removed to avoid spamming user
-            console.log(`Login Error Debug: ${debugMsg}`);
 
             if (isRefreshing) {
                 return new Promise(function (resolve, reject) {
@@ -140,14 +129,10 @@ api.interceptors.response.use(
                 const response = await axios.post(`${API_URL}/api/v1/auth/refresh`, formData);
 
                 const { access_token, refresh_token: newRefreshToken } = response.data;
-                console.log(`[API_DEBUG] Refresh Successful. New Token: ${access_token.substring(0, 10)}...${access_token.substring(access_token.length - 10)}`);
 
                 // Detect which storage to use (if session has token, keep using session)
                 const isSession = !!sessionStorage.getItem('token');
                 setToken(access_token, newRefreshToken, !isSession);
-
-                console.log(`[API_DEBUG] Token set to storage. matches? ${getToken() === access_token}`);
-
                 api.defaults.headers.common['Authorization'] = 'Bearer ' + access_token;
                 originalRequest.headers['Authorization'] = 'Bearer ' + access_token;
 
@@ -170,10 +155,8 @@ api.interceptors.response.use(
             }
         }
 
-        // DEBUG: Alert for 500 errors too
         if (error.response?.status === 500) {
-            const debugMsg = error.response?.data?.detail || "Internal Server Error";
-            alert(`Server Error Debug: ${debugMsg}\nPlease report this message.`);
+            console.error('[API] Server Error:', error.response?.data?.detail || 'Internal Server Error');
         }
 
         return Promise.reject(error);

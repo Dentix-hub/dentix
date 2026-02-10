@@ -1,15 +1,17 @@
+from backend.database import Base
 from sqlalchemy import (
     Column,
     Integer,
     String,
-    ForeignKey,
+    Boolean,
     DateTime,
     Float,
     Text,
     Date,
-    Boolean,
+    ForeignKey,
     Index,
+    JSON,
+    func
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from backend.database import Base

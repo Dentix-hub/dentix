@@ -1,4 +1,5 @@
 """Billing and financial schemas."""
+
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime, date
@@ -21,8 +22,7 @@ class Payment(PaymentBase):
     date: datetime
     patient_name: Optional[str] = None
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ExpenseBase(BaseModel):
@@ -40,8 +40,7 @@ class ExpenseCreate(ExpenseBase):
 class Expense(ExpenseBase):
     id: int
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FinancialStats(BaseModel):

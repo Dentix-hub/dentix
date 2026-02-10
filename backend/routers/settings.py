@@ -2,7 +2,16 @@
 Settings Router
 Handles backup and settings endpoints.
 """
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    UploadFile,
+    File,
+    Form,
+    BackgroundTasks,
+)
 from fastapi.responses import FileResponse, RedirectResponse
 
 from sqlalchemy.orm import Session
@@ -17,6 +26,7 @@ from .auth import get_current_user, get_db
 def get_drive_client():
     """Lazy import to avoid circular dependency."""
     from ..main import drive_client
+
     return drive_client
 
 
@@ -36,17 +46,17 @@ def get_backup_status(
             "connected": False,
             "frequency": "weekly",
             "last_backup": None,
-            "message": "User has no tenant assigned"
+            "message": "User has no tenant assigned",
         }
 
     tenant = current_user.tenant
     is_connected = bool(tenant.google_refresh_token)
-    
+
     return {
         "connected": is_connected,
         "frequency": tenant.backup_frequency,
         "last_backup": tenant.last_backup_at,
-        "message": "Google Drive connected" if is_connected else "Not connected"
+        "message": "Google Drive connected" if is_connected else "Not connected",
     }
 
 
@@ -60,10 +70,7 @@ def get_backup_auth_url(
     """
     state = f"user_{current_user.id}"
     auth_url = get_drive_client().get_auth_url(state=state)
-    return {
-        "url": auth_url,
-        "message": "Redirecting..."
-    }
+    return {"url": auth_url, "message": "Redirecting..."}
 
 
 @router.post("/backup/callback")
@@ -78,7 +85,7 @@ def backup_auth_callback_post(
     """
     try:
         token_data = get_drive_client().fetch_token(code=code)
-        
+
         # Save refresh token to tenant
         tenant = current_user.tenant
         if token_data.get("refresh_token"):
@@ -86,8 +93,11 @@ def backup_auth_callback_post(
             db.commit()
             return {"success": True, "message": "تم ربط Google Drive بنجاح"}
         else:
-            return {"success": False, "message": "لم يتم استلام refresh token. يرجى إعادة المحاولة."}
-            
+            return {
+                "success": False,
+                "message": "لم يتم استلام refresh token. يرجى إعادة المحاولة.",
+            }
+
     except Exception as e:
         print(f"Auth Error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -105,22 +115,32 @@ def backup_auth_callback_get(
     """
     try:
         # 1. Exchange Code
-        print(f"DEBUG: Processing OAuth Callback with code={code[:10]}... State={state}")
+        print(
+            f"DEBUG: Processing OAuth Callback with code={code[:10]}... State={state}"
+        )
         token_data = get_drive_client().fetch_token(code=code)
-        
+
         status = "success"
         refresh_token = token_data.get("refresh_token")
-        
+
         if not refresh_token:
             print("DEBUG: No refresh token in response.")
             status = "no_refresh_token"
-        
+
         # 2. Decode user from state and save token
         if status == "success" and state:
             if state == "super_admin":
-                setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "google_refresh_token_super_admin").first()
+                setting = (
+                    db.query(models.SystemSetting)
+                    .filter(
+                        models.SystemSetting.key == "google_refresh_token_super_admin"
+                    )
+                    .first()
+                )
                 if not setting:
-                    setting = models.SystemSetting(key="google_refresh_token_super_admin", value=refresh_token)
+                    setting = models.SystemSetting(
+                        key="google_refresh_token_super_admin", value=refresh_token
+                    )
                     db.add(setting)
                 else:
                     setting.value = refresh_token
@@ -128,18 +148,30 @@ def backup_auth_callback_get(
             elif state.startswith("user_"):
                 try:
                     user_id = int(state.split("_")[1])
-                    user = db.query(models.User).filter(models.User.id == user_id).first()
+                    user = (
+                        db.query(models.User).filter(models.User.id == user_id).first()
+                    )
                     if user and user.tenant:
                         user.tenant.google_refresh_token = refresh_token
                         db.commit()
                     elif user and user.role == "super_admin":
-                         setting = db.query(models.SystemSetting).filter(models.SystemSetting.key == "google_refresh_token_super_admin").first()
-                         if not setting:
-                            setting = models.SystemSetting(key="google_refresh_token_super_admin", value=refresh_token)
+                        setting = (
+                            db.query(models.SystemSetting)
+                            .filter(
+                                models.SystemSetting.key
+                                == "google_refresh_token_super_admin"
+                            )
+                            .first()
+                        )
+                        if not setting:
+                            setting = models.SystemSetting(
+                                key="google_refresh_token_super_admin",
+                                value=refresh_token,
+                            )
                             db.add(setting)
-                         else:
+                        else:
                             setting.value = refresh_token
-                         db.commit()
+                        db.commit()
                     else:
                         status = "no_tenant"
                 except (ValueError, IndexError):
@@ -147,17 +179,18 @@ def backup_auth_callback_get(
 
         # 3. Redirect back to frontend
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
-        
+
         if state == "super_admin":
             target_url = f"{frontend_url}/admin/system?backup_status={status}"
         else:
             target_url = f"{frontend_url}/settings?backup_status={status}"
-             
+
         return RedirectResponse(url=target_url)
 
     except Exception as e:
         print(f"Auth Callback Error: {e}")
         import traceback
+
         traceback.print_exc()
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
         return RedirectResponse(url=f"{frontend_url}/settings?error={str(e)}")
@@ -179,28 +212,30 @@ def trigger_manual_backup(
     # Check if Google Drive is connected for this tenant
     tenant = current_user.tenant
     if not tenant.google_refresh_token:
-        raise HTTPException(status_code=400, detail="Google Drive not connected for this clinic")
+        raise HTTPException(
+            status_code=400, detail="Google Drive not connected for this clinic"
+        )
 
     # Get DB URL
     import os
+
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
-        raise HTTPException(status_code=500, detail="DATABASE_URL configuration missing")
+        raise HTTPException(
+            status_code=500, detail="DATABASE_URL configuration missing"
+        )
 
     # Dispatch background task for backup with tenant info
     from ..services.backup_service import run_backup_task
+
     background_tasks.add_task(
-        run_backup_task, 
-        tenant.google_refresh_token, 
-        db_url,
-        tenant.id,
-        tenant.name
+        run_backup_task, tenant.google_refresh_token, db_url, tenant.id, tenant.name
     )
 
     return {
         "success": True,
         "message": "Manual backup started in background. Please check Google Drive in a few minutes.",
-        "status": "processing"
+        "status": "processing",
     }
 
 
@@ -216,11 +251,11 @@ def update_backup_schedule(
     tenant = current_user.tenant
     tenant.backup_frequency = frequency
     db.commit()
-    
+
     return {
         "success": True,
         "frequency": frequency,
-        "message": f"تم تحديث جدول النسخ الاحتياطي إلى: {frequency}"
+        "message": f"تم تحديث جدول النسخ الاحتياطي إلى: {frequency}",
     }
 
 
@@ -234,34 +269,36 @@ def download_backup(
     For tenant backup, use /backup/export instead.
     """
     from ..constants import ROLES
-    
+
     # Only Super Admin can download full SQL backup
     if current_user.role != ROLES.SUPER_ADMIN:
         raise HTTPException(
             status_code=403,
-            detail="Only Super Admin can download full SQL backup. Use /settings/backup/export for tenant JSON backup."
+            detail="Only Super Admin can download full SQL backup. Use /settings/backup/export for tenant JSON backup.",
         )
-    
+
     db_url = database.SQLALCHEMY_DATABASE_URL
-    
+
     # 1. SQLite Handling
     if "sqlite" in db_url:
         # Extract path from URL (sqlite:///./clinic.db -> ./clinic.db)
         db_path = db_url.replace("sqlite:///", "")
         if not os.path.exists(db_path):
-             # Fallback for some OS paths
-             if db_path.startswith("/"):
-                 db_path = db_path # Absolute path
-             else:
-                 db_path = os.path.join(database.BACKEND_DIR, db_path.replace("./", ""))
-        
+            # Fallback for some OS paths
+            if db_path.startswith("/"):
+                db_path = db_path  # Absolute path
+            else:
+                db_path = os.path.join(database.BACKEND_DIR, db_path.replace("./", ""))
+
         if not os.path.exists(db_path):
-            raise HTTPException(status_code=404, detail="Database file not found on server")
-            
+            raise HTTPException(
+                status_code=404, detail="Database file not found on server"
+            )
+
         return FileResponse(
-            path=db_path, 
-            filename="clinic_backup.db", 
-            media_type="application/octet-stream"
+            path=db_path,
+            filename="clinic_backup.db",
+            media_type="application/octet-stream",
         )
 
     # 2. PostgreSQL Handling
@@ -270,27 +307,28 @@ def download_backup(
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"backup_{timestamp}.sql"
             filepath = os.path.join("/tmp", filename)
-            
+
             # Normalize URL
             dump_url = db_url.replace("postgresql://", "postgres://", 1)
-            
+
             # Execute pg_dump
             import subprocess
+
             process = subprocess.Popen(
                 ["pg_dump", "--dbname", dump_url, "-f", filepath],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
+                stderr=subprocess.PIPE,
             )
             stdout, stderr = process.communicate(timeout=60)
-            
+
             if process.returncode != 0:
                 raise Exception(f"PG dump failed: {stderr.decode()}")
-                
+
             return FileResponse(
                 path=filepath,
                 filename=filename,
                 media_type="application/sql",
-                background=None # TODO: Add cleanup task if desired
+                background=None,  # TODO: Add cleanup task if desired
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
@@ -312,98 +350,104 @@ async def upload_backup(
     """
     from ..constants import ROLES
     from ..services.import_service import restore_tenant_from_json
-    
+
     db_url = database.SQLALCHEMY_DATABASE_URL
-    
+
     # Check file extension to determine restore type
     filename = file.filename.lower() if file.filename else ""
-    
+
     # JSON restore for tenants
     if filename.endswith(".json"):
         if not current_user.tenant:
-            raise HTTPException(status_code=400, detail="No tenant associated with user")
-        
+            raise HTTPException(
+                status_code=400, detail="No tenant associated with user"
+            )
+
         # Read file content
         content = await file.read()
         json_content = content.decode("utf-8")
-        
+
         result = restore_tenant_from_json(db, current_user.tenant.id, json_content)
-        
+
         if not result["success"]:
             raise HTTPException(status_code=400, detail=result["error"])
-        
+
         return {
             "message": "Tenant data restored successfully",
             "deleted": result["deleted"],
             "imported": result["imported"],
-            "backup_date": result["backup_date"]
+            "backup_date": result["backup_date"],
         }
-    
+
     # SQL restore for Super Admin only
     if filename.endswith(".sql"):
         if current_user.role != ROLES.SUPER_ADMIN:
             raise HTTPException(
-                status_code=403, 
-                detail="Only Super Admin can restore SQL backups. Use JSON backup for tenant restore."
+                status_code=403,
+                detail="Only Super Admin can restore SQL backups. Use JSON backup for tenant restore.",
             )
-        
+
         # PostgreSQL restore using psql
         if "postgres" in db_url:
             import subprocess
             import tempfile
-            
+
             # Save uploaded file to temp
             with tempfile.NamedTemporaryFile(delete=False, suffix=".sql") as tmp:
                 content = await file.read()
                 tmp.write(content)
                 tmp_path = tmp.name
-            
+
             try:
                 # Normalize URL
                 restore_url = db_url.replace("postgresql://", "postgres://", 1)
-                
+
                 # Execute psql to restore
                 process = subprocess.Popen(
                     ["psql", restore_url, "-f", tmp_path],
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE
+                    stderr=subprocess.PIPE,
                 )
                 stdout, stderr = process.communicate(timeout=300)
-                
+
                 if process.returncode != 0:
                     error_msg = stderr.decode()[:500]
-                    raise HTTPException(status_code=500, detail=f"Restore failed: {error_msg}")
-                
+                    raise HTTPException(
+                        status_code=500, detail=f"Restore failed: {error_msg}"
+                    )
+
                 return {"message": "Database restored successfully from SQL backup."}
             finally:
                 # Cleanup temp file
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
-        
+
         # SQLite restore
         elif "sqlite" in db_url:
             db_path = db_url.replace("sqlite:///", "")
-            
+
             temp_path = f"{db_path}.restore"
             content = await file.read()
             with open(temp_path, "wb") as buffer:
                 buffer.write(content)
-            
+
             try:
                 backup_path = f"{db_path}.bak"
                 if os.path.exists(backup_path):
                     os.remove(backup_path)
-                
+
                 shutil.copy(db_path, backup_path)
                 shutil.move(temp_path, db_path)
-                
-                return {"message": "Backup restored successfully. Please restart server if needed."}
+
+                return {
+                    "message": "Backup restored successfully. Please restart server if needed."
+                }
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Restore failed: {str(e)}")
-    
+
     raise HTTPException(
-        status_code=400, 
-        detail="Unsupported file format. Use .json for tenant restore or .sql for full system restore."
+        status_code=400,
+        detail="Unsupported file format. Use .json for tenant restore or .sql for full system restore.",
     )
 
 
@@ -418,24 +462,22 @@ def export_tenant_backup(
     """
     from fastapi.responses import Response
     from ..services.export_service import export_tenant_to_json
-    
+
     if not current_user.tenant:
         raise HTTPException(status_code=400, detail="No tenant associated with user")
-    
+
     tenant_id = current_user.tenant.id
     tenant_name = current_user.tenant.name or f"tenant_{tenant_id}"
-    
+
     json_content = export_tenant_to_json(db, tenant_id)
-    
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{tenant_name}_backup_{timestamp}.json"
-    
+
     return Response(
         content=json_content,
         media_type="application/json",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
-        }
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -449,6 +491,7 @@ def get_tenant_settings(
     if not current_user.tenant:
         return {}
     return current_user.tenant
+
 
 @router.put("/tenant")
 def update_tenant_settings(
@@ -475,7 +518,7 @@ def update_tenant_settings(
         tenant.print_header_image = config.print_header_image
     if config.print_footer_image is not None:
         tenant.print_footer_image = config.print_footer_image
-        
+
     db.commit()
     db.refresh(tenant)
     return tenant

@@ -1,4 +1,3 @@
-import React from 'react';
 
 const StatCard = ({ icon: Icon, title, value, subtext, label, color = "indigo", onClick }) => (
     <div

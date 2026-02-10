@@ -1,24 +1,20 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { useState, useEffect, Suspense, lazy } from 'react';
+import { useEffect, Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
-
 // Auth
 import AuthProvider from '@/auth/AuthProvider';
 import { useAuth } from '@/auth/useAuth';
 import ProtectedRoute from '@/auth/ProtectedRoute';
 import { ToastProvider } from '@/shared/ui';
-
 // Components
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import { ProceduresProvider } from '@/shared/context/ProceduresContext';
 import Layout from '@/layouts/Layout';
 import BackgroundWrapper from '@/shared/ui/BackgroundWrapper';
 import ErrorBoundary from '@/shared/ui/ErrorBoundary';
-
 // React Query for data caching
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
-
 // Lazy load pages
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Patients = lazy(() => import('./pages/Patients'));
@@ -44,7 +40,6 @@ const NotFound = lazy(() => import('./pages/NotFound'));
 const DentalChartPrototype = lazy(() => import('./pages/DentalChartPrototype'));
 const Inventory = lazy(() => import('./pages/Inventory'));
 const SmartDashboard = lazy(() => import('@/features/analytics/SmartDashboard'));
-
 // New Admin Pages
 const AdminOverview = lazy(() => import('./pages/admin/Overview'));
 const AdminTenants = lazy(() => import('./pages/admin/TenantsPage'));
@@ -55,21 +50,17 @@ const AdminSystem = lazy(() => import('./pages/admin/SystemPage'));
 const SystemLogs = lazy(() => import('./pages/admin/SystemLogs'));
 const PriceLists = lazy(() => import('./pages/admin/PriceLists'));
 const InsuranceProviders = lazy(() => import('./pages/admin/InsuranceProviders'));
-
 // Stores
 import { useUIStore } from '@/store/ui.store';
-
 function AppRoutes() {
     const { isAuthenticated, loading } = useAuth();
     const { darkMode, setDarkMode, toggleDarkMode } = useUIStore();
     const { i18n } = useTranslation();
-
     // Sync direction with language
     useEffect(() => {
         document.documentElement.dir = i18n.language === 'ar' ? 'rtl' : 'ltr';
         document.documentElement.lang = i18n.language;
     }, [i18n.language]);
-
     // Initialize Theme
     useEffect(() => {
         const storedTheme = localStorage.getItem('theme');
@@ -79,11 +70,9 @@ function AppRoutes() {
             setDarkMode(false);
         }
     }, [setDarkMode]);
-
     if (loading) {
         return <LoadingSpinner />;
     }
-
     if (!isAuthenticated) {
         return (
             <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -101,7 +90,6 @@ function AppRoutes() {
             </Router>
         );
     }
-
     return (
         <ProceduresProvider>
             <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
@@ -111,10 +99,8 @@ function AppRoutes() {
                         {/* Print Routes (No Layout) */}
                         <Route path="/print/invoice/:id" element={<PrintInvoice />} />
                         <Route path="/print/rx/:id" element={<PrintRx />} />
-
                         {/* Prototype Route - Temporary */}
                         <Route path="/dental-prototype" element={<DentalChartPrototype />} />
-
                         {/* App Routes */}
                         <Route path="*" element={
                             <Layout>
@@ -124,7 +110,6 @@ function AppRoutes() {
                                     <Route path="/patients/:id" element={<PatientDetails />} />
                                     <Route path="/appointments" element={<Appointments />} />
                                     <Route path="/inventory" element={<Inventory />} />
-
                                     {/* Admin Protected Routes */}
                                     <Route path="/billing" element={
                                         <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
@@ -166,7 +151,6 @@ function AppRoutes() {
                                             <InsuranceProviders />
                                         </ProtectedRoute>
                                     } />
-
                                     {/* Super Admin Routes */}
                                     <Route path="/admin" element={
                                         <ProtectedRoute allowedRoles={['super_admin']}>
@@ -203,18 +187,15 @@ function AppRoutes() {
                                             <SystemLogs />
                                         </ProtectedRoute>
                                     } />
-
                                     <Route path="/ai/stats" element={
                                         <ProtectedRoute allowedRoles={['super_admin']}>
                                             <AIStats />
                                         </ProtectedRoute>
                                     } />
-
                                     <Route path="/terms" element={<Terms />} />
                                     <Route path="/privacy" element={<Privacy />} />
                                     <Route path="/support" element={<Support />} />
                                     <Route path="/profile" element={<UserProfile />} />
-
                                     <Route path="*" element={<NotFound />} />
                                 </Routes>
                             </Layout>
@@ -225,7 +206,6 @@ function AppRoutes() {
         </ProceduresProvider>
     );
 }
-
 export default function App() {
     return (
         <ErrorBoundary>

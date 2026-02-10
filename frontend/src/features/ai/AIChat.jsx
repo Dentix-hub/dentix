@@ -3,19 +3,16 @@
  * Floating chat interface for natural language queries with voice support
  * Features: Context Memory, Medical Scribe Mode
  */
-
-import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Send, X, Bot, User, Loader2, Sparkles, AlertCircle, Mic, MicOff, Calendar, Users, DollarSign, Building2, Volume2, VolumeX, FileEdit } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Send, X, Bot, Loader2, Mic, MicOff, Calendar, Users, DollarSign, Building2, Volume2, VolumeX, FileEdit } from 'lucide-react';
 import { sendAIQuery } from '@/api';
 import { dentalAiAvatarBase64 as aiAvatar } from '@/assets/dentalAiAvatarBase64';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import { formatAIResponse } from '@/utils/aiResponseFormatter';
 import { useTranslation } from 'react-i18next';
-
 export default function AIChat() {
     const { t } = useTranslation();
-
     // Initial greeting in current language
     const [messages, setMessages] = useState([
         {
@@ -24,17 +21,14 @@ export default function AIChat() {
             type: 'greeting'
         }
     ]);
-
     const [isOpen, setIsOpen] = useState(false);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [autoSendAfterSpeech, setAutoSendAfterSpeech] = useState(false);
     const [lastPatientName, setLastPatientName] = useState(null); // For context memory
     const [scribeMode, setScribeMode] = useState(false); // Medical Scribe Mode
-
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
-
     // Custom Hooks
     const {
         isListening,
@@ -48,32 +42,27 @@ export default function AIChat() {
             setAutoSendAfterSpeech(true);
         }
     });
-
     const {
         ttsEnabled,
         setTtsEnabled,
         speakText
     } = useTextToSpeech(false);
-
     // Sync transcript to input
     useEffect(() => {
         if (isListening) {
             setInput(transcript);
         }
     }, [transcript, isListening]);
-
     // Auto-scroll to bottom
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
-
     // Focus input when opened
     useEffect(() => {
         if (isOpen) {
             inputRef.current?.focus();
         }
     }, [isOpen]);
-
     // Auto-send after speech recognition ends
     useEffect(() => {
         if (autoSendAfterSpeech && input.trim() && !isListening) {
@@ -81,7 +70,6 @@ export default function AIChat() {
             handleSend();
         }
     }, [autoSendAfterSpeech, isListening, input]);
-
     // Sync Scribe Mode with Microphone
     useEffect(() => {
         if (scribeMode) {
@@ -90,45 +78,36 @@ export default function AIChat() {
             if (isListening) stopListening();
         }
     }, [scribeMode]);
-
     const handleSend = async () => {
         if (!input.trim() || isLoading) return;
-
         // Stop listening if active
         if (isListening) {
             stopListening();
         }
-
         const userMessage = input.trim();
         setInput('');
-
         // Add user message
         setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
         setIsLoading(true);
-
         try {
             // Build conversation context (last 10 messages)
             const conversationContext = messages.slice(-10).map(m => ({
                 role: m.role,
                 content: m.content
             }));
-
             // Send query with context (Phase 1: Memory)
             const response = await sendAIQuery(userMessage, {
                 context: conversationContext,
                 last_patient_name: lastPatientName,
                 scribe_mode: scribeMode
             });
-
             // Format response based on tool
             let assistantMessage = formatAIResponse(response.data);
             setMessages(prev => [...prev, assistantMessage]);
-
             // Text-to-Speech
             if (ttsEnabled && assistantMessage.content) {
                 speakText(assistantMessage.content);
             }
-
             // Remember patient name for context
             if (response.data?.data?.patient?.name) {
                 setLastPatientName(response.data.data.patient.name);
@@ -146,7 +125,6 @@ export default function AIChat() {
             setIsLoading(false);
         }
     };
-
     // Quick action handler - transmits the exact query to backend
     const handleQuickAction = (displayLabel, queryText) => {
         // We display the queryText in input for clarity, but the button label was translated
@@ -160,14 +138,12 @@ export default function AIChat() {
             }
         }, 100);
     };
-
     const handleKeyPress = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSend();
         }
     };
-
     const getMessageStyle = (type) => {
         switch (type) {
             case 'error': return 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
@@ -176,7 +152,6 @@ export default function AIChat() {
             default: return 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700';
         }
     };
-
     return (
         <>
             {/* Floating Button */}
@@ -197,7 +172,6 @@ export default function AIChat() {
                     />
                 )}
             </button>
-
             {/* Chat Window */}
             {isOpen && (
                 <div className="fixed bottom-24 z-50 w-96 max-w-[calc(100vw-3rem)] h-[500px] max-h-[70vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300 ltr:right-6 rtl:left-6">
@@ -225,7 +199,6 @@ export default function AIChat() {
                             {ttsEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
                         </button>
                     </div>
-
                     {/* Quick Actions */}
                     <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700 flex gap-2 overflow-x-auto">
                         <button
@@ -269,7 +242,6 @@ export default function AIChat() {
                             <span>{scribeMode ? t('ai_chat.scribe_mode.button_active') : t('ai_chat.scribe_mode.button_inactive')}</span>
                         </button>
                     </div>
-
                     {/* Scribe Mode Banner */}
                     {scribeMode && (
                         <div className="px-3 py-2 bg-gradient-to-r from-rose-500 to-pink-500 text-white text-xs flex items-center justify-between">
@@ -282,7 +254,6 @@ export default function AIChat() {
                             </button>
                         </div>
                     )}
-
                     {/* Messages */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
                         {messages.map((msg, idx) => (
@@ -319,7 +290,6 @@ export default function AIChat() {
                                 </div>
                             </div>
                         ))}
-
                         {isLoading && (
                             <div className="flex justify-start">
                                 <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl rounded-bl-sm p-4 flex items-center gap-2">
@@ -328,10 +298,8 @@ export default function AIChat() {
                                 </div>
                             </div>
                         )}
-
                         <div ref={messagesEndRef} />
                     </div>
-
                     {/* Input with Voice */}
                     <div className="p-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
                         <div className="flex gap-2">
@@ -348,7 +316,6 @@ export default function AIChat() {
                                     {isListening ? <MicOff size={20} /> : <Mic size={20} />}
                                 </button>
                             )}
-
                             <input
                                 ref={inputRef}
                                 type="text"

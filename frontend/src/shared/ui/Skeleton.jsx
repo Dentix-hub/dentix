@@ -1,20 +1,16 @@
-import React, { memo } from 'react';
-
+import { memo } from 'react';
 /**
  * Skeleton Loading Components
  * Use these for better perceived performance while data loads
  */
-
 // Shimmer animation style
 const shimmerStyle = {
     backgroundImage: 'linear-gradient(90deg, #f0f0f0 0%, #e0e0e0 50%, #f0f0f0 100%)',
     backgroundSize: '200% 100%',
     animation: 'shimmer 1.5s infinite',
 };
-
 // Add this to your CSS:
 // @keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
-
 export const SkeletonBox = memo(function SkeletonBox({
     className = '',
     width = '100%',
@@ -28,7 +24,6 @@ export const SkeletonBox = memo(function SkeletonBox({
         />
     );
 });
-
 export const SkeletonText = memo(function SkeletonText({ lines = 3, className = '' }) {
     return (
         <div className={`space-y-2 ${className}`}>
@@ -42,7 +37,6 @@ export const SkeletonText = memo(function SkeletonText({ lines = 3, className = 
         </div>
     );
 });
-
 export const SkeletonCard = memo(function SkeletonCard({ className = '' }) {
     return (
         <div className={`bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm ${className}`}>
@@ -57,7 +51,6 @@ export const SkeletonCard = memo(function SkeletonCard({ className = '' }) {
         </div>
     );
 });
-
 export const SkeletonTable = memo(function SkeletonTable({ rows = 5, cols = 4 }) {
     return (
         <div className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden">
@@ -82,7 +75,6 @@ export const SkeletonTable = memo(function SkeletonTable({ rows = 5, cols = 4 })
         </div>
     );
 });
-
 export const SkeletonStatCard = memo(function SkeletonStatCard() {
     return (
         <div className="bg-white dark:bg-slate-800/50 p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-white/5 flex items-center gap-4">
@@ -94,7 +86,6 @@ export const SkeletonStatCard = memo(function SkeletonStatCard() {
         </div>
     );
 });
-
 export default {
     Box: SkeletonBox,
     Text: SkeletonText,
