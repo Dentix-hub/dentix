@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { login as apiLogin, registerClinic, getMe } from '@/';
+import { login as apiLogin, registerClinic, getMe } from '@/api';
 import { getToken, setToken, removeToken, parseJwt } from '@/utils';
 import AuthContext from './useAuth';
 import { useTenantStore } from '@/store/tenant.store';
