@@ -227,8 +227,22 @@ class AdminService:
             except Exception as e:
                 print(f"[WARN] Patient-related cleanup error: {e}")
 
-            # 3. Handle tenant-specific tables
+            # 3. Handle tenant-specific tables (order matters: children before parents)
             tenant_specific_tables = [
+                # Inventory & Costing (children first)
+                "TreatmentCost",
+                "MaterialUsage",
+                "InventoryTransaction",
+                "InventoryAlert",
+                "InventoryItem",
+                "InventoryCategory",
+                # Price Lists & Insurance
+                "PriceListItem",
+                "PriceList",
+                "InsuranceProvider",
+                # Medications
+                "Medication",
+                # Original tables
                 "SubscriptionPayment",
                 "Expense",
                 "SalaryPayment",
