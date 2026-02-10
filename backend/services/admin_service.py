@@ -162,114 +162,97 @@ class AdminService:
         """
         Hard delete a tenant and all related data.
         WARNING: This is irreversible.
+
+        Uses dynamic model discovery to find ALL tables with tenant_id,
+        ensuring no FK constraints are missed even as new models are added.
         """
+        from backend.models.base import Base
+
         try:
             tenant = self.get_tenant_by_id(tenant_id)
             if not tenant:
                 return False
 
-            # 1. Handle user-related tables first
-            try:
-                user_ids = [
-                    u.id
-                    for u in self.db.query(models.User.id)
-                    .filter(models.User.tenant_id == tenant.id)
-                    .all()
-                ]
-                if user_ids:
-                    # Generic cleanup for user-linked tables
-                    for table_attr in [
-                        "PasswordResetToken",
-                        "NotificationRead",
-                        "UserSession",
-                        "LoginHistory",
-                    ]:
-                        if hasattr(models, table_attr):
-                            table_model = getattr(models, table_attr)
-                            try:
-                                if hasattr(table_model, "user_id"):
-                                    with self.db.begin_nested():
-                                        self.db.query(table_model).filter(
-                                            table_model.user_id.in_(user_ids)
-                                        ).delete(synchronize_session=False)
-                            except Exception:
-                                pass
-            except Exception as e:
-                print(f"[WARN] User-related cleanup error: {e}")
+            # Dynamically find ALL models with tenant_id column
+            tenant_models = []
+            for mapper in Base.registry.mappers:
+                model_class = mapper.class_
+                if hasattr(model_class, "tenant_id") and model_class.__name__ != "Tenant":
+                    tenant_models.append(model_class)
 
-            # 2. Handle patient-related tables
-            try:
-                patient_ids = [
-                    p.id
-                    for p in self.db.query(models.Patient.id)
-                    .filter(models.Patient.tenant_id == tenant.id)
-                    .all()
-                ]
-                if patient_ids:
-                    for table_attr in [
-                        "Appointment",
-                        "Prescription",
-                        "LabOrder",
-                        "Treatment",
-                        "Attachment",
-                        "ToothStatus",
-                    ]:
-                        if hasattr(models, table_attr):
-                            table_model = getattr(models, table_attr)
-                            try:
-                                if hasattr(table_model, "patient_id"):
-                                    with self.db.begin_nested():
-                                        self.db.query(table_model).filter(
-                                            table_model.patient_id.in_(patient_ids)
-                                        ).delete(synchronize_session=False)
-                            except Exception:
-                                pass
-            except Exception as e:
-                print(f"[WARN] Patient-related cleanup error: {e}")
+            # Also find models with user_id (for user-linked tables)
+            user_models = []
+            for mapper in Base.registry.mappers:
+                model_class = mapper.class_
+                if hasattr(model_class, "user_id") and not hasattr(model_class, "tenant_id"):
+                    user_models.append(model_class)
 
-            # 3. Handle tenant-specific tables (order matters: children before parents)
-            tenant_specific_tables = [
-                # Inventory & Costing (children first)
-                "TreatmentCost",
-                "MaterialUsage",
-                "InventoryTransaction",
-                "InventoryAlert",
-                "InventoryItem",
-                "InventoryCategory",
-                # Price Lists & Insurance
-                "PriceListItem",
-                "PriceList",
-                "InsuranceProvider",
-                # Medications
-                "Medication",
-                # Original tables
-                "SubscriptionPayment",
-                "Expense",
-                "SalaryPayment",
-                "Payment",
-                "Laboratory",
-                "Procedure",
-                "AIUsageLog",
-                "SupportMessage",
-                "BackgroundJob",
-                "TenantFeature",
-                "Notification",
-                "AuditLog",
+            # Also find models with patient_id (for patient-linked tables)
+            patient_models = []
+            for mapper in Base.registry.mappers:
+                model_class = mapper.class_
+                if hasattr(model_class, "patient_id") and not hasattr(model_class, "tenant_id"):
+                    patient_models.append(model_class)
+
+            # 1. Get user IDs for this tenant
+            user_ids = [
+                u.id
+                for u in self.db.query(models.User.id)
+                .filter(models.User.tenant_id == tenant.id)
+                .all()
             ]
 
-            for table_name in tenant_specific_tables:
-                if hasattr(models, table_name):
-                    table_model = getattr(models, table_name)
-                    try:
-                        if hasattr(table_model, "tenant_id"):
-                            with self.db.begin_nested():
-                                self.db.query(table_model).filter(
-                                    table_model.tenant_id == tenant.id
-                                ).delete(synchronize_session=False)
-                    except Exception as e:
-                        print(f"[WARN] Failed to clean {table_name}: {e}")
+            # 2. Get patient IDs for this tenant
+            patient_ids = [
+                p.id
+                for p in self.db.query(models.Patient.id)
+                .filter(models.Patient.tenant_id == tenant.id)
+                .all()
+            ]
 
-            # 4. Handle patients
+            # 3. Delete from user-linked tables (no tenant_id)
+            if user_ids:
+                for model_class in user_models:
+                    try:
+                        with self.db.begin_nested():
+                            self.db.query(model_class).filter(
+                                model_class.user_id.in_(user_ids)
+                            ).delete(synchronize_session=False)
+                    except Exception as e:
+                        print(f"[WARN] Failed to clean {model_class.__name__} (user): {e}")
+
+            # 4. Delete from patient-linked tables (no tenant_id)
+            if patient_ids:
+                for model_class in patient_models:
+                    try:
+                        with self.db.begin_nested():
+                            self.db.query(model_class).filter(
+                                model_class.patient_id.in_(patient_ids)
+                            ).delete(synchronize_session=False)
+                    except Exception as e:
+                        print(f"[WARN] Failed to clean {model_class.__name__} (patient): {e}")
+
+            # 5. Delete ALL tenant-scoped tables (multiple passes for FK ordering)
+            #    Repeat until no more deletions needed, handles any FK depth
+            remaining = list(tenant_models)
+            max_passes = 5
+            for pass_num in range(max_passes):
+                still_remaining = []
+                for model_class in remaining:
+                    try:
+                        with self.db.begin_nested():
+                            self.db.query(model_class).filter(
+                                model_class.tenant_id == tenant.id
+                            ).delete(synchronize_session=False)
+                    except Exception as e:
+                        still_remaining.append(model_class)
+                        if pass_num == max_passes - 1:
+                            print(f"[WARN] Could not clean {model_class.__name__} after {max_passes} passes: {e}")
+                remaining = still_remaining
+                if not remaining:
+                    break
+
+            # 6. Delete patients
             try:
                 with self.db.begin_nested():
                     self.db.query(models.Patient).filter(
@@ -278,7 +261,7 @@ class AdminService:
             except Exception as e:
                 print(f"[WARN] Patient deletion error: {e}")
 
-            # 5. Handle users
+            # 7. Delete users
             try:
                 with self.db.begin_nested():
                     self.db.query(models.User).filter(
@@ -287,7 +270,7 @@ class AdminService:
             except Exception as e:
                 print(f"[WARN] User deletion error: {e}")
 
-            # 6. Finally, delete the tenant itself
+            # 8. Finally, delete the tenant itself
             self.db.delete(tenant)
             self.db.commit()
             return True
@@ -296,3 +279,4 @@ class AdminService:
             self.db.rollback()
             print(f"[PERMANENT DELETE ERROR] {e}")
             raise e
+
