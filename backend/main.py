@@ -353,6 +353,17 @@ app.include_router(financials.router, prefix=API_V1_STR)
 app.include_router(metrics.router, prefix=API_V1_STR)
 
 
+# --- Global Settings (public, no auth) ---
+@app.get(f"{API_V1_STR}/global-settings")
+async def get_global_settings():
+    """Return global application settings (banner, support info, etc.)."""
+    return {
+        "banner": None,
+        "support_email": os.getenv("SUPPORT_EMAIL", ""),
+        "support_phone": os.getenv("SUPPORT_PHONE", ""),
+    }
+
+
 # --- Observability ---
 Instrumentator().instrument(app).expose(app)
 

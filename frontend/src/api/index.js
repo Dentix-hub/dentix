@@ -49,7 +49,7 @@ export const login = (username, password) => {
 };
 
 export const registerClinic = (data) => api.post('/api/v1/auth/register_clinic', data);
-export const getMe = () => api.get('/api/v1/users/me/');
+export const getMe = () => api.get('/api/v1/users/me');
 export const updateProfile = (data) => api.put('/api/v1/users/me', data);
 
 export default api;
