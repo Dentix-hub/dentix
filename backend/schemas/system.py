@@ -1,4 +1,5 @@
 """System and admin schemas."""
+
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime, date
@@ -16,8 +17,7 @@ class AuditLog(BaseModel):
     details: Optional[str] = None
     created_at: datetime
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SystemSetting(BaseModel):
@@ -26,8 +26,7 @@ class SystemSetting(BaseModel):
     description: Optional[str] = None
     updated_at: datetime
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SupportMessageBase(BaseModel):
@@ -49,8 +48,7 @@ class SupportMessage(SupportMessageBase):
     username: Optional[str] = None
     clinic_name: Optional[str] = None
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class NotificationBase(BaseModel):
@@ -70,8 +68,7 @@ class Notification(NotificationBase):
     created_at: datetime
     is_read: bool = False
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FeatureFlag(BaseModel):
@@ -81,8 +78,7 @@ class FeatureFlag(BaseModel):
     is_global_enabled: bool
     rollout_percentage: int
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FeatureFlagCreate(BaseModel):
@@ -98,8 +94,7 @@ class TenantFeature(BaseModel):
     feature_key: str
     is_enabled: bool
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AdminDashboardStats(BaseModel):
@@ -120,8 +115,7 @@ class DailySystemStats(BaseModel):
     total_revenue: float = 0.0
     api_error_rate: float = 0.0
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BackgroundJob(BaseModel):
@@ -135,5 +129,21 @@ class BackgroundJob(BaseModel):
     triggered_by: str
     tenant_id: Optional[int] = None
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SystemError(BaseModel):
+    id: int
+    level: str
+    source: str
+    message: str
+    stack_trace: Optional[str] = None
+    path: Optional[str] = None
+    method: Optional[str] = None
+    user_id: Optional[int] = None
+    tenant_id: Optional[int] = None
+    user_agent: Optional[str] = None
+    ip_address: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

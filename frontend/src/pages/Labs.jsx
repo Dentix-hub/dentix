@@ -1,25 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FlaskConical, Plus, Edit2, Trash2, X, Phone, MapPin, Mail, User, Search, Building2, Crown } from 'lucide-react';
 import { getLaboratories, createLaboratory, updateLaboratory, deleteLaboratory, getLabOrdersStats } from '../api';
 import LabDetailsModal from './LabDetailsModal';
 import GlobalLabOrdersModal from './GlobalLabOrdersModal';
-
 export default function Labs() {
     const { t } = useTranslation();
     const [labs, setLabs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [stats, setStats] = useState(null);
-
     // Modal State
     const [selectedLab, setSelectedLab] = useState(null);
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-
     const [isGlobalModalOpen, setIsGlobalModalOpen] = useState(false);
     const [globalModalTitle, setGlobalModalTitle] = useState('');
     const [globalModalStatus, setGlobalModalStatus] = useState('');
-
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingLab, setEditingLab] = useState(null);
     const [formData, setFormData] = useState({
@@ -31,11 +27,9 @@ export default function Labs() {
         specialties: '',
         notes: ''
     });
-
     useEffect(() => {
         loadData();
     }, []);
-
     const loadData = async () => {
         try {
             setLoading(true);
@@ -51,7 +45,6 @@ export default function Labs() {
             setLoading(false);
         }
     };
-
     const handleOpenModal = (lab = null) => {
         if (lab) {
             setEditingLab(lab);
@@ -78,12 +71,10 @@ export default function Labs() {
         }
         setIsModalOpen(true);
     };
-
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setEditingLab(null);
     };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
@@ -99,7 +90,6 @@ export default function Labs() {
             console.error(err);
         }
     };
-
     const handleDelete = async (id) => {
         if (!window.confirm(t('labs.actions.confirm_delete'))) return;
         try {
@@ -110,12 +100,10 @@ export default function Labs() {
             console.error(err);
         }
     };
-
     const filteredLabs = labs.filter(lab =>
         lab.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (lab.contact_person && lab.contact_person.toLowerCase().includes(searchQuery.toLowerCase()))
     );
-
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
@@ -123,7 +111,6 @@ export default function Labs() {
             </div>
         );
     }
-
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -145,7 +132,6 @@ export default function Labs() {
                     {t('labs.actions.add_lab')}
                 </button>
             </div>
-
             {/* Stats Cards */}
             {stats && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -209,7 +195,6 @@ export default function Labs() {
                     </div>
                 </div>
             )}
-
             {/* Search */}
             <div className="relative">
                 <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
@@ -221,7 +206,6 @@ export default function Labs() {
                     className="w-full pr-12 pl-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
                 />
             </div>
-
             {/* Labs Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredLabs.map(lab => (
@@ -254,7 +238,6 @@ export default function Labs() {
                                 {lab.is_active ? t('labs.active') : t('labs.inactive')}
                             </div>
                         </div>
-
                         <div className="space-y-2 text-sm text-slate-600 mb-4">
                             {lab.phone && (
                                 <div className="flex items-center gap-2">
@@ -275,7 +258,6 @@ export default function Labs() {
                                 </div>
                             )}
                         </div>
-
                         {lab.specialties && (
                             <div className="flex flex-wrap gap-1 mb-3">
                                 {lab.specialties.split(',').map((s, i) => (
@@ -285,13 +267,11 @@ export default function Labs() {
                                 ))}
                             </div>
                         )}
-
                         {lab.notes && (
                             <p className="text-xs text-slate-500 bg-slate-50 p-2 rounded-lg mb-4 line-clamp-2">
                                 {lab.notes}
                             </p>
                         )}
-
                         <div className="flex gap-2 pt-3 border-t border-slate-100">
                             <button
                                 onClick={() => handleOpenModal(lab)}
@@ -310,7 +290,6 @@ export default function Labs() {
                         </div>
                     </div>
                 ))}
-
                 {filteredLabs.length === 0 && (
                     <div className="col-span-full py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                         <FlaskConical size={48} className="mx-auto mb-3 text-slate-300" />
@@ -325,7 +304,6 @@ export default function Labs() {
                     </div>
                 )}
             </div>
-
             {/* Add/Edit Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -341,7 +319,6 @@ export default function Labs() {
                                 <X size={20} />
                             </button>
                         </div>
-
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 mb-1">
@@ -356,7 +333,6 @@ export default function Labs() {
                                     required
                                 />
                             </div>
-
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-bold text-slate-600 mb-1">{t('labs.form.phone')}</label>
@@ -381,7 +357,6 @@ export default function Labs() {
                                     />
                                 </div>
                             </div>
-
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 mb-1">{t('labs.form.address')}</label>
                                 <input
@@ -392,7 +367,6 @@ export default function Labs() {
                                     placeholder={t('labs.form.placeholders.address')}
                                 />
                             </div>
-
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 mb-1">{t('labs.form.contact_person')}</label>
                                 <input
@@ -403,7 +377,6 @@ export default function Labs() {
                                     placeholder={t('labs.form.placeholders.contact_person')}
                                 />
                             </div>
-
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 mb-1">{t('labs.form.specialties')}</label>
                                 <input
@@ -415,7 +388,6 @@ export default function Labs() {
                                 />
                                 <p className="text-xs text-slate-400 mt-1">{t('labs.form.specialties_hint')}</p>
                             </div>
-
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 mb-1">{t('labs.form.notes')}</label>
                                 <textarea
@@ -425,7 +397,6 @@ export default function Labs() {
                                     placeholder={t('labs.form.placeholders.notes')}
                                 />
                             </div>
-
                             <div className="flex gap-3 pt-4">
                                 <button
                                     type="button"
@@ -451,7 +422,6 @@ export default function Labs() {
                 isOpen={isDetailsModalOpen}
                 onClose={() => setIsDetailsModalOpen(false)}
             />
-
             {/* Global Orders Modal */}
             <GlobalLabOrdersModal
                 isOpen={isGlobalModalOpen}

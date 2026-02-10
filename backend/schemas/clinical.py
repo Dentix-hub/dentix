@@ -1,4 +1,5 @@
 """Clinical/treatment-related schemas."""
+
 from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from datetime import datetime
@@ -21,8 +22,7 @@ class Appointment(AppointmentBase):
     id: int
     patient_name: Optional[str] = None
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ToothStatusBase(BaseModel):
@@ -39,8 +39,7 @@ class ToothStatusCreate(ToothStatusBase):
 class ToothStatus(ToothStatusBase):
     id: int
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TreatmentBase(BaseModel):
@@ -58,7 +57,6 @@ class TreatmentBase(BaseModel):
     notes: Optional[str] = None
 
 
-
 class ConsumedMaterialItem(BaseModel):
     material_id: int
     quantity: float
@@ -73,8 +71,7 @@ class Treatment(TreatmentBase):
     date: Optional[datetime] = None
     consumedMaterials: Optional[list[ConsumedMaterialItem]] = None
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProcedureBase(BaseModel):
@@ -89,8 +86,7 @@ class ProcedureCreate(ProcedureBase):
 class Procedure(ProcedureBase):
     id: int
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PrescriptionBase(BaseModel):
@@ -108,8 +104,7 @@ class Prescription(PrescriptionBase):
     id: int
     date: datetime
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SavedMedicationBase(BaseModel):
@@ -128,5 +123,4 @@ class SavedMedication(SavedMedicationBase):
     id: int
     tenant_id: int
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)

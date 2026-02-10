@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, LayoutDashboard, Receipt, Briefcase, TrendingDown } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -6,7 +6,6 @@ import DoctorRevenue from '@/features/billing/DoctorRevenue';
 import { getFinancialStats, getAllPayments, getExpenses, createExpense, deleteExpense, getStaffRevenue, updateStaffCompensation, getComprehensiveStats, getSalariesStatus, recordSalaryPayment, deleteSalaryPayment, updateHireDate, getLabOrders } from '@/api';
 import { getTodayStr } from '@/utils/toothUtils';
 import { Skeleton, Button } from '@/shared/ui';
-
 // Import extracted components
 import ExpensesTab from '@/features/billing/BillingTabs/ExpensesTab';
 import ExpenseModal from '@/features/billing/BillingTabs/ExpenseModal';
@@ -15,7 +14,6 @@ import StaffModal from '@/features/billing/BillingTabs/StaffModal';
 import SalariesTab from '@/features/billing/BillingTabs/SalariesTab';
 import PaymentsTab from '@/features/billing/BillingTabs/PaymentsTab';
 import SummaryTab from '@/features/billing/BillingTabs/SummaryTab';
-
 import { useTranslation } from 'react-i18next';
 export default function Billing() {
     const { t } = useTranslation();
@@ -28,33 +26,27 @@ export default function Billing() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('doctors');
     const [expensesSubTab, setExpensesSubTab] = useState('expenses'); // 'expenses' or 'salaries'
-
     // Expense Modal
     const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
     const [newExpense, setNewExpense] = useState({ item_name: '', cost: '', category: 'General', date: getTodayStr(), notes: '' });
-
     // Staff Profile Modal
     const [staffModalOpen, setStaffModalOpen] = useState(false);
     const [selectedStaff, setSelectedStaff] = useState(null);
     const [editStaffSalary, setEditStaffSalary] = useState(0);
     const [editStaffPerAppointment, setEditStaffPerAppointment] = useState(0);
     const [savingStaff, setSavingStaff] = useState(false);
-
     // Date range: 1 month from today by default
     const today = new Date();
     const oneMonthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate()).toISOString().split('T')[0];
     const [startDate, setStartDate] = useState(oneMonthAgo);
     const [endDate, setEndDate] = useState(today.toISOString().split('T')[0]);
-
     // Salaries state
     const [salaryMonth, setSalaryMonth] = useState(today.toISOString().slice(0, 7));
     const [salariesData, setSalariesData] = useState([]);
     const [salariesLoading, setSalariesLoading] = useState(false);
-
     useEffect(() => {
         loadData();
     }, []);
-
     const loadData = async () => {
         try {
             const [sRes, pRes, eRes, labRes, staffRes, compRes] = await Promise.all([
@@ -67,7 +59,6 @@ export default function Billing() {
             ]);
             setStats(sRes.data);
             setPayments(pRes.data);
-
             // Merge Expenses and Lab Orders
             const manualExpenses = eRes.data.map(e => ({ ...e, type: 'manual' }));
             const labExpenses = (labRes.data || []).map(order => ({
@@ -79,9 +70,7 @@ export default function Billing() {
                 cost: order.cost,
                 type: 'lab_order'
             }));
-
             setExpenses([...manualExpenses, ...labExpenses].sort((a, b) => new Date(b.date) - new Date(a.date)));
-
             setStaff(staffRes.data.staff || []);
             setComprehensiveStats(compRes.data);
         } catch (err) {
@@ -91,7 +80,6 @@ export default function Billing() {
             setLoading(false);
         }
     };
-
     const handleCreateExpense = async () => {
         if (!newExpense.item_name || !newExpense.cost) return toast.error(t('billing.alerts.enter_item_cost'));
         try {
@@ -104,7 +92,6 @@ export default function Billing() {
             toast.error(t('billing.alerts.expense_add_fail'));
         }
     };
-
     const handleDeleteExpense = async (id) => {
         if (String(id).startsWith('lab-')) {
             return toast.error(t('billing.alerts.lab_delete_error'));
@@ -119,14 +106,12 @@ export default function Billing() {
             toast.error(t('billing.alerts.delete_error'));
         }
     };
-
     const openStaffProfile = (staffMember) => {
         setSelectedStaff(staffMember);
         setEditStaffSalary(staffMember.fixed_salary || 0);
         setEditStaffPerAppointment(staffMember.per_appointment_fee || 0);
         setStaffModalOpen(true);
     };
-
     const saveStaffCompensation = async () => {
         if (!selectedStaff) return;
         setSavingStaff(true);
@@ -147,7 +132,6 @@ export default function Billing() {
             setSavingStaff(false);
         }
     };
-
     const loadSalaries = async () => {
         setSalariesLoading(true);
         try {
@@ -160,11 +144,9 @@ export default function Billing() {
             setSalariesLoading(false);
         }
     };
-
     const handlePaySalary = async (employee, isPartial = false) => {
         const amount = isPartial ? employee.prorated_salary : employee.base_salary;
         if (!confirm(`${t('billing.alerts.pay_confirm_prefix')} ${amount} ${t('billing.alerts.pay_confirm_suffix')} ${employee.username}?`)) return;
-
         try {
             await recordSalaryPayment(employee.id, salaryMonth, amount, isPartial, isPartial ? employee.days_worked : null, null);
             toast.success(t('billing.alerts.pay_success'));
@@ -174,8 +156,6 @@ export default function Billing() {
             toast.error(err.response?.data?.error || t('billing.alerts.pay_fail'));
         }
     };
-
-
     const updateEmployeeHireDate = async (userId, date) => {
         try {
             await updateHireDate(userId, date); // Use the imported function directly
@@ -186,14 +166,12 @@ export default function Billing() {
             toast.error(t('billing.alerts.hire_date_fail'));
         }
     };
-
     // UseEffect for salary month change
     useEffect(() => {
         if (activeTab === 'expenses' && expensesSubTab === 'salaries') {
             loadSalaries();
         }
     }, [activeTab, expensesSubTab, salaryMonth]);
-
     if (loading) return (
         <div className="space-y-6">
             <div className="flex gap-4">
@@ -203,7 +181,6 @@ export default function Billing() {
             <Skeleton.Box className="h-[400px] w-full rounded-2xl" />
         </div>
     );
-
     const tabs = [
         { id: 'doctors', label: t('billing.tabs.doctors'), icon: Users },
         { id: 'staff', label: t('billing.tabs.staff'), icon: Briefcase },
@@ -212,14 +189,12 @@ export default function Billing() {
         { id: 'summary', label: t('billing.tabs.summary'), icon: LayoutDashboard },
         { id: 'payments', label: t('billing.tabs.payments'), icon: Receipt },
     ];
-
     const roleLabels = {
         assistant: t('billing.roles.assistant'),
         receptionist: t('billing.roles.receptionist'),
         accountant: t('billing.roles.accountant'),
         nurse: t('billing.roles.nurse')
     };
-
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Header */}
@@ -229,7 +204,6 @@ export default function Billing() {
                     <p className="text-text-secondary mt-1 text-lg font-medium">{t('billing.subtitle')}</p>
                 </div>
             </div>
-
             {/* Tabs */}
             <div className="flex flex-wrap gap-2 p-1.5 bg-surface rounded-2xl w-fit border border-border">
                 {tabs.map(tab => (
@@ -246,10 +220,8 @@ export default function Billing() {
                     </button>
                 ))}
             </div>
-
             {/* Tab Content */}
             {activeTab === 'doctors' && <DoctorRevenue />}
-
             {activeTab === 'staff' && (
                 <StaffTab
                     staff={staff}
@@ -257,7 +229,6 @@ export default function Billing() {
                     openStaffProfile={openStaffProfile}
                 />
             )}
-
             {activeTab === 'expenses' && (
                 <div className="space-y-4">
                     {/* Sub Tabs */}
@@ -277,7 +248,6 @@ export default function Billing() {
                             {t('billing.subtabs.salaries')}
                         </Button>
                     </div>
-
                     {expensesSubTab === 'expenses' ? (
                         <ExpensesTab
                             expenses={expenses}
@@ -300,7 +270,6 @@ export default function Billing() {
                     )}
                 </div>
             )}
-
             {activeTab === 'summary' && (
                 <SummaryTab
                     startDate={startDate}
@@ -314,14 +283,12 @@ export default function Billing() {
                     setLoading={setLoading}
                 />
             )}
-
             {activeTab === 'payments' && (
                 <PaymentsTab
                     payments={payments}
                     navigate={navigate}
                 />
             )}
-
             {/* Modals */}
             <ExpenseModal
                 isOpen={isExpenseModalOpen}
@@ -330,7 +297,6 @@ export default function Billing() {
                 setNewExpense={setNewExpense}
                 handleCreateExpense={handleCreateExpense}
             />
-
             <StaffModal
                 isOpen={staffModalOpen}
                 onClose={() => setStaffModalOpen(false)}

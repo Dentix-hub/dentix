@@ -1,11 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { X } from 'lucide-react';
-
 export default function PaymentModal({ isOpen, onClose, onAdd }) {
     const [payment, setPayment] = useState({ amount: '', notes: '', date: new Date().toISOString().split('T')[0] });
-
     if (!isOpen) return null;
-
     const handleSave = () => {
         // Ensure date is valid ISO datetime for backend
         const submissionData = {
@@ -15,7 +12,6 @@ export default function PaymentModal({ isOpen, onClose, onAdd }) {
         onAdd(submissionData);
         setPayment({ amount: '', notes: '', date: new Date().toISOString().split('T')[0] }); // Reset
     };
-
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">

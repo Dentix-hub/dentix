@@ -1,4 +1,3 @@
-import React from 'react';
 
 const Card = ({ children, className = '', title, subtitle, actions }) => {
     return (

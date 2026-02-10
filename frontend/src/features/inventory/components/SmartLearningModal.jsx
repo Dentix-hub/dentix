@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Save, Plus, Scale, Brain } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getProcedureWeights, setProcedureWeight } from '@/api/inventory';
 import { useProcedures } from '@/shared/context/ProceduresContext';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import { useTranslation } from 'react-i18next';
-
 const SmartLearningModal = ({ isOpen, onClose, material }) => {
     const { t } = useTranslation();
     const queryClient = useQueryClient();
@@ -15,14 +14,12 @@ const SmartLearningModal = ({ isOpen, onClose, material }) => {
     const [newProcWeight, setNewProcWeight] = useState(1.0);
     const [isAdding, setIsAdding] = useState(false);
     const [editingId, setEditingId] = useState(null);
-
     // Fetch existing weights
     const { data: existingWeights, isLoading: isLoadingWeights } = useQuery({
         queryKey: ['procedure-weights', material?.id],
         queryFn: () => getProcedureWeights(material?.id),
         enabled: !!material?.id,
     });
-
     useEffect(() => {
         if (existingWeights?.data) {
             setWeights(existingWeights.data);
@@ -30,7 +27,6 @@ const SmartLearningModal = ({ isOpen, onClose, material }) => {
             setWeights(existingWeights);
         }
     }, [existingWeights]);
-
     const mutation = useMutation({
         mutationFn: setProcedureWeight,
         onSuccess: () => {
@@ -41,7 +37,6 @@ const SmartLearningModal = ({ isOpen, onClose, material }) => {
             setNewProcWeight(1.0);
         }
     });
-
     const handleAdd = async (procName, weight) => {
         await mutation.mutateAsync({
             procedure_name: procName,
@@ -49,7 +44,6 @@ const SmartLearningModal = ({ isOpen, onClose, material }) => {
             weight: parseFloat(weight)
         });
     };
-
     const handleUpdate = async (item, newWeight) => {
         if (!newWeight || isNaN(newWeight)) return;
         await mutation.mutateAsync({
@@ -58,13 +52,10 @@ const SmartLearningModal = ({ isOpen, onClose, material }) => {
             weight: parseFloat(newWeight)
         });
     };
-
     if (!isOpen || !material) return null;
-
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <div className="bg-surface w-full max-w-2xl rounded-2xl shadow-2xl border border-border flex flex-col max-h-[90vh]">
-
                 {/* Header */}
                 <div className="p-6 border-b border-border flex justify-between items-center bg-primary/5">
                     <div className="flex items-center gap-3">
@@ -80,10 +71,8 @@ const SmartLearningModal = ({ isOpen, onClose, material }) => {
                         <X size={24} />
                     </button>
                 </div>
-
                 {/* Body */}
                 <div className="p-6 overflow-y-auto flex-1 space-y-6">
-
                     <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl text-sm text-blue-800 dark:text-blue-200 flex gap-3 items-start">
                         <Scale size={20} className="mt-0.5 shrink-0" />
                         <div>
@@ -92,7 +81,6 @@ const SmartLearningModal = ({ isOpen, onClose, material }) => {
                             <p className="mt-1 opacity-80">{t('inventory.smart_learning.help_note')}</p>
                         </div>
                     </div>
-
                     {isLoadingWeights ? <LoadingSpinner /> : (
                         <div className="border border-border rounded-xl overflow-hidden">
                             <table className="w-full text-right">
@@ -171,7 +159,6 @@ const SmartLearningModal = ({ isOpen, onClose, material }) => {
                                             </tr>
                                         );
                                     })}
-
                                     {/* Add Row */}
                                     {isAdding && (
                                         <tr className="bg-primary/5">
@@ -213,7 +200,6 @@ const SmartLearningModal = ({ isOpen, onClose, material }) => {
                             </table>
                         </div>
                     )}
-
                     {!isAdding && (
                         <button
                             onClick={() => setIsAdding(true)}
@@ -223,9 +209,7 @@ const SmartLearningModal = ({ isOpen, onClose, material }) => {
                             <span>{t('inventory.smart_learning.add_button')}</span>
                         </button>
                     )}
-
                 </div>
-
                 {/* Footer */}
                 <div className="p-6 border-t border-border bg-surface-secondary/30 flex justify-end">
                     <button
@@ -239,5 +223,4 @@ const SmartLearningModal = ({ isOpen, onClose, material }) => {
         </div>
     );
 };
-
 export default SmartLearningModal;

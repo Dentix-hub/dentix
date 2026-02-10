@@ -1,33 +1,26 @@
-import React, { Component } from 'react';
+import { Component } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
-
 class ErrorBoundary extends Component {
     constructor(props) {
         super(props);
         this.state = { hasError: false, error: null, errorInfo: null };
     }
-
     static getDerivedStateFromError(error) {
         return { hasError: true, error };
     }
-
     componentDidCatch(error, errorInfo) {
         this.setState({ errorInfo });
-
         // Log to internal backend logger
         import('@/lib/logger').then(({ logger }) => {
             logger.error(error, errorInfo.componentStack);
         });
     }
-
     handleReload = () => {
         window.location.reload();
     };
-
     handleGoHome = () => {
         window.location.href = '/dashboard';
     };
-
     render() {
         if (this.state.hasError) {
             return (
@@ -36,7 +29,6 @@ class ErrorBoundary extends Component {
                         <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto">
                             <AlertTriangle size={40} className="text-red-500" />
                         </div>
-
                         <div className="space-y-2">
                             <h1 className="text-2xl font-black text-slate-800 dark:text-white">
                                 حدث خطأ غير متوقع
@@ -45,13 +37,11 @@ class ErrorBoundary extends Component {
                                 عذراً، حدث خطأ أثناء تحميل الصفحة. يرجى المحاولة مرة أخرى.
                             </p>
                         </div>
-
-                        {process.env.NODE_ENV === 'development' && this.state.error && (
+                        {import.meta.env.DEV && this.state.error && (
                             <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 text-left text-xs font-mono text-red-600 dark:text-red-400 overflow-auto max-h-40">
                                 {this.state.error.toString()}
                             </div>
                         )}
-
                         <div className="flex items-center justify-center gap-4">
                             <button
                                 onClick={this.handleReload}
@@ -72,9 +62,7 @@ class ErrorBoundary extends Component {
                 </div>
             );
         }
-
         return this.props.children;
     }
 }
-
 export default ErrorBoundary;

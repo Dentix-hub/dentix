@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search, User, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { searchPatients } from '@/api';
-
 export default function GlobalSearch() {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
@@ -10,7 +9,6 @@ export default function GlobalSearch() {
     const [loading, setLoading] = useState(false);
     const searchRef = useRef(null);
     const navigate = useNavigate();
-
     useEffect(() => {
         // Close on click outside
         const handleClickOutside = (event) => {
@@ -21,7 +19,6 @@ export default function GlobalSearch() {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
-
     useEffect(() => {
         const delayDebounceFn = setTimeout(async () => {
             if (query.trim().length > 1) {
@@ -40,16 +37,13 @@ export default function GlobalSearch() {
                 setIsOpen(false);
             }
         }, 300);
-
         return () => clearTimeout(delayDebounceFn);
     }, [query]);
-
     const handleSelect = (patientId) => {
         navigate(`/patients/${patientId}`);
         setIsOpen(false);
         setQuery('');
     };
-
     return (
         <div className="relative w-full max-w-md mx-auto block" ref={searchRef}>
             <div className="relative">
@@ -71,7 +65,6 @@ export default function GlobalSearch() {
                     </button>
                 )}
             </div>
-
             {/* Results Dropdown */}
             {isOpen && (
                 <div className="absolute top-full mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-white/5 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">

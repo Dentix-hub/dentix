@@ -1,4 +1,5 @@
 """Laboratory and lab order schemas."""
+
 from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from datetime import datetime
@@ -34,8 +35,7 @@ class Laboratory(LaboratoryBase):
     is_active: bool
     created_at: datetime
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LabOrderBase(BaseModel):
@@ -77,8 +77,7 @@ class LabOrder(LabOrderBase):
     patient_name: Optional[str] = None
     laboratory_name: Optional[str] = None
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LabPaymentBase(BaseModel):
@@ -95,6 +94,5 @@ class LabPaymentCreate(LabPaymentBase):
 
 class LabPayment(LabPaymentBase):
     id: int
-    
-    model_config = ConfigDict(
-        from_attributes=True)
+
+    model_config = ConfigDict(from_attributes=True)

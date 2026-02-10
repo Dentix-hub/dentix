@@ -6,16 +6,18 @@ from typing import Any, Optional
 
 logger = logging.getLogger("smart_clinic")
 
+
 class CacheManager:
     """
     Smart Cache Manager that tries to use Redis, but falls back to in-memory dictionary
     if Redis is not configured or unreachable.
     """
+
     def __init__(self):
         self.redis_client = None
         self.local_cache = {}
         self.use_redis = False
-        
+
         redis_url = os.getenv("REDIS_URL")
         if redis_url:
             try:
@@ -53,7 +55,7 @@ class CacheManager:
                 self.redis_client.setex(key, expire, val_str)
             else:
                 self.local_cache[key] = val_str
-                # Note: Local cache technically needs cleanup for expiry, 
+                # Note: Local cache technically needs cleanup for expiry,
                 # but for this fallback implementation we ignore strictly clearing it
                 # or we could implement a simple TTLCache later.
                 # For now, it stays until restart.
@@ -69,6 +71,7 @@ class CacheManager:
                     del self.local_cache[key]
         except Exception as e:
             logger.error(f"Cache DELETE Error: {e}")
+
 
 # Global Instance
 cache = CacheManager()

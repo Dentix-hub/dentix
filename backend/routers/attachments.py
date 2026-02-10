@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from .. import schemas, crud
 from .auth import get_current_user, get_db
 
 router = APIRouter(prefix="/attachments", tags=["Attachments"])
+
 
 @router.delete("/{attachment_id}", response_model=schemas.Attachment)
 def delete_attachment(

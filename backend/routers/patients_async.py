@@ -5,11 +5,12 @@ Handles patient CRUD operations using async database operations.
 This is the async version of patients.py for gradual migration.
 Mount under /v2/patients or replace original once tested.
 """
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from .. import models, schemas
+from .. import schemas
 from ..crud import patient_async as crud
 from ..database import get_async_db
 from .auth import get_current_user
@@ -24,7 +25,9 @@ async def create_patient(
     current_user: schemas.User = Depends(get_current_user),
 ):
     """Create a new patient."""
-    return await crud.create_patient(db=db, patient=patient, tenant_id=current_user.tenant_id)
+    return await crud.create_patient(
+        db=db, patient=patient, tenant_id=current_user.tenant_id
+    )
 
 
 @router.get("/search", response_model=List[schemas.Patient])

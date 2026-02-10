@@ -1,12 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { Search, Filter, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { CheckCircle, XCircle, Clock } from 'lucide-react';
 import { getAILogs } from '@/api';
-
 export default function AILogs() {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(0);
-
     const fetchLogs = async (pageNum = 0) => {
         try {
             setLoading(true);
@@ -19,14 +17,11 @@ export default function AILogs() {
             setLoading(false);
         }
     };
-
     useEffect(() => {
         fetchLogs();
     }, []);
-
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700" dir="rtl">
-
             {/* Header */}
             <div className="flex justify-between items-center">
                 <div>
@@ -49,7 +44,6 @@ export default function AILogs() {
                     </button>
                 </div>
             </div>
-
             {/* Logs Table */}
             <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
                 <div className="overflow-x-auto">

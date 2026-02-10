@@ -1,18 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '@/api';
-import { Activity, Server, Clock, CheckCircle, XCircle, Play } from 'lucide-react';
-
+import { Activity, Server, Clock, CheckCircle, Play } from 'lucide-react';
 export default function SystemHealth() {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [runningTest, setRunningTest] = useState(false);
-
     useEffect(() => {
         fetchJobs();
         const interval = setInterval(fetchJobs, 10000); // Poll every 10s
         return () => clearInterval(interval);
     }, []);
-
     const fetchJobs = async () => {
         try {
             const res = await api.get('/api/v1/admin/security/jobs'); // Check endpoint path
@@ -22,7 +19,6 @@ export default function SystemHealth() {
             console.error("Failed to fetch jobs", error);
         }
     };
-
     const runTestJob = async () => {
         setRunningTest(true);
         try {
@@ -34,7 +30,6 @@ export default function SystemHealth() {
             setRunningTest(false);
         }
     };
-
     return (
         <div className="space-y-6 animate-fade-in-up">
             <div className="flex justify-between items-center">
@@ -51,7 +46,6 @@ export default function SystemHealth() {
                     {runningTest ? 'جاري التشغيل...' : 'تشغيل فحص يدوي'}
                 </button>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 flex items-center gap-4">
                     <div className="p-4 bg-emerald-100 text-emerald-600 rounded-xl">
@@ -81,7 +75,6 @@ export default function SystemHealth() {
                     </div>
                 </div>
             </div>
-
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                 <table className="w-full text-right">
                     <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 font-bold text-sm">

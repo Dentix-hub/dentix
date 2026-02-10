@@ -1,17 +1,14 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { X, MessageSquare, Send, Smartphone, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { submitFeedback } from '@/api';
-
 export default function SupportModal({ isOpen, onClose, isDarkMode }) {
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [form, setForm] = useState({ subject: '', message: '', priority: 'normal' });
     const [error, setError] = useState('');
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!form.message) return;
-
         setLoading(true);
         setError('');
         try {
@@ -28,13 +25,10 @@ export default function SupportModal({ isOpen, onClose, isDarkMode }) {
             setLoading(false);
         }
     };
-
     if (!isOpen) return null;
-
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in" dir="rtl">
             <div className={`relative w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] shadow-2xl border ${isDarkMode ? 'bg-slate-900 border-white/10' : 'bg-white border-slate-200'}`}>
-
                 {/* Header */}
                 <div className="p-8 pb-4 flex justify-between items-center sticky top-0 z-10 bg-inherit backdrop-blur-md">
                     <div className="flex items-center gap-4">
@@ -50,7 +44,6 @@ export default function SupportModal({ isOpen, onClose, isDarkMode }) {
                         <X size={28} />
                     </button>
                 </div>
-
                 <div className="p-8 pt-4">
                     {success ? (
                         <div className="text-center py-12 animate-bounce-subtle">
@@ -62,14 +55,12 @@ export default function SupportModal({ isOpen, onClose, isDarkMode }) {
                         </div>
                     ) : (
                         <form onSubmit={handleSubmit} className="space-y-8">
-
                             {error && (
                                 <div className="flex items-center gap-3 p-4 bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 rounded-2xl text-sm font-bold border border-rose-100 dark:border-rose-900/30">
                                     <AlertCircle size={18} />
                                     {error}
                                 </div>
                             )}
-
                             <div>
                                 <label className={`block text-sm font-black uppercase tracking-wider mb-3 pr-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>الموضوع</label>
                                 <input
@@ -81,7 +72,6 @@ export default function SupportModal({ isOpen, onClose, isDarkMode }) {
                                     placeholder="مثلاً: مشكلة في الحجوزات"
                                 />
                             </div>
-
                             <div>
                                 <label className={`block text-sm font-black uppercase tracking-wider mb-3 pr-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>رسالتك</label>
                                 <textarea
@@ -93,7 +83,6 @@ export default function SupportModal({ isOpen, onClose, isDarkMode }) {
                                     placeholder="اشرح لنا المشكلة أو الاقتراح بالتفصيل..."
                                 />
                             </div>
-
                             <button
                                 type="submit"
                                 disabled={loading}
@@ -108,7 +97,6 @@ export default function SupportModal({ isOpen, onClose, isDarkMode }) {
                                     </>
                                 )}
                             </button>
-
                             <div className="relative py-2">
                                 <div className="absolute inset-0 flex items-center">
                                     <div className={`w-full border-t ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`} />
@@ -117,7 +105,6 @@ export default function SupportModal({ isOpen, onClose, isDarkMode }) {
                                     <span className={`px-4 font-black ${isDarkMode ? 'bg-slate-900 text-slate-500' : 'bg-white text-slate-400'}`}>أو تواصل فوراً</span>
                                 </div>
                             </div>
-
                             <a
                                 href="https://wa.me/201201301415" // Replace with actual WhatsApp number
                                 target="_blank"

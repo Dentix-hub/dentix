@@ -1,22 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '@/api';
-import { ToggleLeft, ToggleRight, Settings, Plus, X, Building2 } from 'lucide-react';
-
+import { ToggleLeft, ToggleRight, Settings, Plus, X } from 'lucide-react';
 export default function FeatureManager({ tenants }) {
     const [flags, setFlags] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-
     // Form State
     const [form, setForm] = useState({ key: '', description: '', is_global_enabled: false, rollout_percentage: 100 });
-
     // Override State
     const [overrideTenant, setOverrideTenant] = useState(null); // ID of tenant to override
-
     useEffect(() => {
         fetchFlags();
     }, []);
-
     const fetchFlags = async () => {
         try {
             setLoading(true);
@@ -28,7 +23,6 @@ export default function FeatureManager({ tenants }) {
             setLoading(false);
         }
     };
-
     const handleCreateFlag = async () => {
         if (!form.key) return alert("مفتاح الميزة مطلوب");
         try {
@@ -41,7 +35,6 @@ export default function FeatureManager({ tenants }) {
             alert("فشل إنشاء الميزة (ربما المفتاح موجود مسبقاً)");
         }
     };
-
     const handleToggleGlobal = async (key, currentStatus) => {
         // Since we don't have a direct PUT endpoint for just one field in the minimal router we built,
         // we might need to use the POST override or expand the API. 
@@ -59,15 +52,14 @@ export default function FeatureManager({ tenants }) {
         // CRITICAL MISSING API: Update Flag.
         // I will implement the UI assuming the API exists or I will quick fix it in next step.
         // Let's implement UI logic to call PUT /admin/features/{key} 
-
         try {
-            await api.put(`/admin/features/${key}`, { is_global_enabled: !currentStatus });
+            await api.put(`/api/v1/admin/features/${key}`, { is_global_enabled: !currentStatus });
             fetchFlags();
         } catch (err) {
-            alert("غير مدعوم حالياً (API Update Missing)");
+            console.error(err);
+            alert("فشل تحديث الميزة");
         }
     };
-
     const handleOverride = async (key, tenantId, enabled) => {
         try {
             await api.post('/api/v1/admin/features/override', {
@@ -80,9 +72,7 @@ export default function FeatureManager({ tenants }) {
             alert("فشل التخصيص");
         }
     };
-
     if (loading) return <div className="p-8 text-center text-slate-500">جاري تحميل المزايا...</div>;
-
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
@@ -101,7 +91,6 @@ export default function FeatureManager({ tenants }) {
                     ميزة جديدة
                 </button>
             </div>
-
             <div className="grid grid-cols-1 gap-4">
                 {flags.map(flag => (
                     <div key={flag.id} className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -119,7 +108,6 @@ export default function FeatureManager({ tenants }) {
                                 </div>
                             </div>
                         </div>
-
                         <div className="flex items-center gap-4 w-full md:w-auto">
                             <div className="md:text-left flex-1">
                                 <label className="text-xs font-bold text-slate-400 block mb-1">override tenant</label>
@@ -135,7 +123,6 @@ export default function FeatureManager({ tenants }) {
                                     ))}
                                 </select>
                             </div>
-
                             <button
                                 onClick={() => handleToggleGlobal(flag.key, flag.is_global_enabled)}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all ${flag.is_global_enabled
@@ -149,7 +136,6 @@ export default function FeatureManager({ tenants }) {
                     </div>
                 ))}
             </div>
-
             {/* Create Modal */}
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
@@ -158,7 +144,6 @@ export default function FeatureManager({ tenants }) {
                             <h3 className="text-xl font-bold text-slate-800 dark:text-white">إضافة ميزة جديدة</h3>
                             <button onClick={() => setShowModal(false)}><X className="text-slate-400" /></button>
                         </div>
-
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-bold text-slate-500 mb-1.5">Feature Key (Unique)</label>
@@ -191,7 +176,6 @@ export default function FeatureManager({ tenants }) {
                                     <span className="font-bold text-slate-700 dark:text-slate-300">تفعيل عالمي</span>
                                 </label>
                             </div>
-
                             <button
                                 onClick={handleCreateFlag}
                                 className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg"

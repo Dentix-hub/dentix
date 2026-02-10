@@ -1,26 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { FlaskConical, CheckCircle, Clock, AlertCircle, Plus, Edit2, Trash2, X } from 'lucide-react';
 import { getPatientLabOrders, getLaboratories, createLabOrder, updateLabOrder, deleteLabOrder } from '@/api';
 import { useTranslation } from 'react-i18next';
-
 const LabOrdersTab = ({ patientId }) => {
     const { t } = useTranslation();
     const [labOrders, setLabOrders] = useState([]);
     const [laboratories, setLaboratories] = useState([]);
     const [loading, setLoading] = useState(false);
-
     // Modal State
     const [isLabOrderModalOpen, setIsLabOrderModalOpen] = useState(false);
     const [editingLabOrder, setEditingLabOrder] = useState(null);
     const initialLabOrder = { laboratory_id: '', work_type: '', tooth_number: '', shade: '', material: '', cost: '', price_to_patient: '', notes: '' };
     const [newLabOrder, setNewLabOrder] = useState(initialLabOrder);
-
     useEffect(() => {
         if (patientId) {
             loadData();
         }
     }, [patientId]);
-
     const loadData = async () => {
         setLoading(true);
         try {
@@ -36,7 +32,6 @@ const LabOrdersTab = ({ patientId }) => {
             setLoading(false);
         }
     };
-
     const handleDeleteLabOrder = async (orderId) => {
         if (!window.confirm(t('patientDetails.lab_orders.confirm_delete'))) return;
         try {
@@ -46,7 +41,6 @@ const LabOrdersTab = ({ patientId }) => {
             alert(t('patientDetails.lab_orders.delete_failed'));
         }
     };
-
     const handleSaveLabOrder = async () => {
         if (!newLabOrder.laboratory_id || !newLabOrder.work_type) {
             alert(t('patientDetails.lab_orders.validation_error'));
@@ -64,14 +58,12 @@ const LabOrdersTab = ({ patientId }) => {
                 price_to_patient: parseFloat(newLabOrder.price_to_patient) || 0,
                 notes: newLabOrder.notes
             };
-
             if (editingLabOrder) {
                 orderData.status = newLabOrder.status;
                 await updateLabOrder(editingLabOrder.id, orderData);
             } else {
                 await createLabOrder(orderData);
             }
-
             setIsLabOrderModalOpen(false);
             setNewLabOrder(initialLabOrder);
             setEditingLabOrder(null);
@@ -81,9 +73,7 @@ const LabOrdersTab = ({ patientId }) => {
             console.error(err);
         }
     };
-
     if (loading && labOrders.length === 0) return <div className="p-10 text-center">Loading...</div>;
-
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
             {/* Lab Stats */}
@@ -105,7 +95,6 @@ const LabOrdersTab = ({ patientId }) => {
                     </p>
                 </div>
             </div>
-
             {/* Lab Orders List */}
             <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
                 <div className="p-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
@@ -214,7 +203,6 @@ const LabOrdersTab = ({ patientId }) => {
                     </div>
                 )}
             </div>
-
             {/* Lab Order Modal */}
             {isLabOrderModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -228,7 +216,6 @@ const LabOrdersTab = ({ patientId }) => {
                                 <X size={20} />
                             </button>
                         </div>
-
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 mb-1">
@@ -246,7 +233,6 @@ const LabOrdersTab = ({ patientId }) => {
                                     ))}
                                 </select>
                             </div>
-
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 mb-1">
                                     {t('patientDetails.lab_orders.modal.work_type')} <span className="text-red-500">*</span>
@@ -269,7 +255,6 @@ const LabOrdersTab = ({ patientId }) => {
                                     <option value="Other">{t('patientDetails.lab_orders.modal.work_types.other')}</option>
                                 </select>
                             </div>
-
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-bold text-slate-600 mb-1">{t('patientDetails.lab_orders.modal.tooth_label')}</label>
@@ -292,7 +277,6 @@ const LabOrdersTab = ({ patientId }) => {
                                     />
                                 </div>
                             </div>
-
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 mb-1">{t('patientDetails.lab_orders.modal.material_label')}</label>
                                 <select
@@ -310,7 +294,6 @@ const LabOrdersTab = ({ patientId }) => {
                                     <option value="Other">{t('patientDetails.lab_orders.modal.materials.other')}</option>
                                 </select>
                             </div>
-
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-bold text-slate-600 mb-1">{t('patientDetails.lab_orders.modal.cost_label')}</label>
@@ -333,7 +316,6 @@ const LabOrdersTab = ({ patientId }) => {
                                     />
                                 </div>
                             </div>
-
                             {editingLabOrder && (
                                 <div>
                                     <label className="block text-sm font-bold text-slate-600 mb-1">{t('patientDetails.lab_orders.modal.status_label')}</label>
@@ -350,7 +332,6 @@ const LabOrdersTab = ({ patientId }) => {
                                     </select>
                                 </div>
                             )}
-
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 mb-1">{t('patientDetails.lab_orders.modal.notes_label')}</label>
                                 <textarea
@@ -360,7 +341,6 @@ const LabOrdersTab = ({ patientId }) => {
                                     placeholder={t('patientDetails.lab_orders.modal.notes_placeholder')}
                                 />
                             </div>
-
                             <div className="flex gap-3 pt-4">
                                 <button
                                     onClick={() => setIsLabOrderModalOpen(false)}
@@ -382,5 +362,4 @@ const LabOrdersTab = ({ patientId }) => {
         </div>
     );
 };
-
 export default LabOrdersTab;

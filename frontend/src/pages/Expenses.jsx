@@ -1,24 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, DollarSign, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
 import { getExpenses, createExpense, deleteExpense, getFinancialStats } from '../api';
 import { getTodayStr } from '../utils/toothUtils';
-
 import { useTranslation } from 'react-i18next';
-
 export default function Expenses() {
     const { t } = useTranslation();
     const [expenses, setExpenses] = useState([]);
     const [stats, setStats] = useState({ total_received: 0, total_expenses: 0, net_profit: 0 });
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-
     // Form
     const [newItem, setNewItem] = useState({ item_name: '', cost: '', category: 'General', date: getTodayStr(), notes: '' });
-
     useEffect(() => {
         loadData();
     }, []);
-
     const loadData = async () => {
         try {
             setLoading(true);
@@ -34,7 +29,6 @@ export default function Expenses() {
             setLoading(false);
         }
     };
-
     const handleCreate = async () => {
         if (!newItem.item_name || !newItem.cost) return alert(t('billing.alerts.enter_item_cost'));
         try {
@@ -46,7 +40,6 @@ export default function Expenses() {
             alert(t('billing.expenses_page.create_fail'));
         }
     };
-
     const handleDelete = async (id) => {
         if (!confirm(t('billing.alerts.delete_expense_confirm'))) return;
         try {
@@ -56,7 +49,6 @@ export default function Expenses() {
             console.error(err);
         }
     };
-
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row justify-between items-end gap-4">
@@ -71,7 +63,6 @@ export default function Expenses() {
                     <Plus size={20} /> {t('billing.expenses_page.add_button')}
                 </button>
             </div>
-
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden">
@@ -81,7 +72,6 @@ export default function Expenses() {
                     </div>
                     <TrendingUp className="absolute left-4 bottom-4 text-emerald-100" size={60} />
                 </div>
-
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden">
                     <div className="relative z-10">
                         <p className="text-slate-500 font-bold mb-1">{t('billing.stats.total_expenses')}</p>
@@ -89,7 +79,6 @@ export default function Expenses() {
                     </div>
                     <TrendingDown className="absolute left-4 bottom-4 text-red-100" size={60} />
                 </div>
-
                 <div className={`p-6 rounded-2xl shadow-sm border relative overflow-hidden ${stats.net_profit >= 0 ? 'bg-gradient-to-br from-blue-500 to-blue-600 border-blue-400 text-white' : 'bg-red-50 border-red-200 text-red-600'}`}>
                     <div className="relative z-10">
                         <p className={`font-bold mb-1 ${stats.net_profit >= 0 ? 'text-blue-100' : 'text-red-400'}`}>{t('billing.stats.net_profit')}</p>
@@ -98,7 +87,6 @@ export default function Expenses() {
                     <DollarSign className={`absolute left-4 bottom-4 ${stats.net_profit >= 0 ? 'text-white/20' : 'text-red-200'}`} size={60} />
                 </div>
             </div>
-
             {/* Expenses Table */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                 <div className="overflow-x-auto">
@@ -136,7 +124,6 @@ export default function Expenses() {
                 </div>
                 {expenses.length === 0 && <div className="p-12 text-center text-slate-400">{t('billing.expenses_page.empty')}</div>}
             </div>
-
             {/* Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">

@@ -1,6 +1,6 @@
 import sys
 import os
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 
@@ -25,9 +25,9 @@ try:
         log = AIUsageLog(
             username="test_user",
             query="test",
-            trace_id="123", # New field
-            trace_details="{}", # New field
-            created_at=datetime.utcnow()
+            trace_id="123",  # New field
+            trace_details="{}",  # New field
+            created_at=datetime.utcnow(),
         )
         db.add(log)
         db.commit()

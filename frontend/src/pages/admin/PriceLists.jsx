@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
     getPriceLists,
     createPriceList,
@@ -20,18 +19,15 @@ import {
     XMarkIcon
 } from '@heroicons/react/24/outline';
 import { useTranslation } from 'react-i18next';
-
 const PriceListEditor = ({ priceListId, onClose }) => {
     const { t } = useTranslation();
     const [listDetails, setListDetails] = useState(null);
     const [procedures, setProcedures] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-
     useEffect(() => {
         loadData();
     }, [priceListId]);
-
     const loadData = async () => {
         setLoading(true);
         try {
@@ -47,7 +43,6 @@ const PriceListEditor = ({ priceListId, onClose }) => {
             setLoading(false);
         }
     };
-
     const handlePriceUpdate = async (procId, price) => {
         try {
             await addPriceListItem(priceListId, {
@@ -59,7 +54,6 @@ const PriceListEditor = ({ priceListId, onClose }) => {
             setListDetails(prev => {
                 const existingItemIndex = prev.items.findIndex(i => i.procedure_id === procId);
                 const newItem = { procedure_id: procId, price: parseFloat(price) };
-
                 const newItems = [...prev.items];
                 if (existingItemIndex >= 0) {
                     newItems[existingItemIndex] = { ...newItems[existingItemIndex], ...newItem };
@@ -73,13 +67,10 @@ const PriceListEditor = ({ priceListId, onClose }) => {
             alert("Failed to update price");
         }
     };
-
     if (loading) return <div className="p-8 text-center">Loading Editor...</div>;
-
     const filteredProcedures = procedures.filter(p =>
         p.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
-
     return (
         <div className="fixed inset-0 bg-white z-50 flex flex-col">
             <div className="p-6 border-b flex justify-between items-center bg-gray-50">
@@ -96,7 +87,6 @@ const PriceListEditor = ({ priceListId, onClose }) => {
                     <XMarkIcon className="w-6 h-6" />
                 </button>
             </div>
-
             <div className="flex-1 overflow-hidden flex flex-col p-6 max-w-5xl mx-auto w-full">
                 <div className="mb-4">
                     <input
@@ -107,7 +97,6 @@ const PriceListEditor = ({ priceListId, onClose }) => {
                         onChange={e => setSearchTerm(e.target.value)}
                     />
                 </div>
-
                 <div className="flex-1 overflow-y-auto border rounded-xl shadow-sm">
                     <table className="w-full text-right">
                         <thead className="bg-gray-50 text-gray-700 sticky top-0">
@@ -122,7 +111,6 @@ const PriceListEditor = ({ priceListId, onClose }) => {
                             {filteredProcedures.map(proc => {
                                 const item = listDetails?.items?.find(i => i.procedure_id === proc.id);
                                 const price = item ? item.price : '';
-
                                 return (
                                     <tr key={proc.id} className="hover:bg-gray-50">
                                         <td className="p-4 font-medium">{proc.name}</td>
@@ -154,7 +142,6 @@ const PriceListEditor = ({ priceListId, onClose }) => {
         </div>
     );
 };
-
 export default function PriceLists() {
     const { t } = useTranslation();
     const [priceLists, setPriceLists] = useState([]);
@@ -163,7 +150,6 @@ export default function PriceLists() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingList, setEditingList] = useState(null); // For metadata editing
     const [editingItemsListId, setEditingItemsListId] = useState(null); // For items editing (full screen)
-
     const [formData, setFormData] = useState({
         name: '',
         type: 'cash',
@@ -173,11 +159,9 @@ export default function PriceLists() {
         copay_fixed: 0,
         is_default: false
     });
-
     useEffect(() => {
         fetchData();
     }, []);
-
     const fetchData = async () => {
         try {
             setLoading(true);
@@ -193,7 +177,6 @@ export default function PriceLists() {
             setLoading(false);
         }
     };
-
     const handleOpenModal = (list = null) => {
         if (list) {
             setEditingList(list);
@@ -238,7 +221,6 @@ export default function PriceLists() {
         }
         setIsModalOpen(true);
     };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
@@ -247,16 +229,13 @@ export default function PriceLists() {
                 payload.insurance_provider_id = null;
             }
             if (payload.insurance_provider_id === '') payload.insurance_provider_id = null;
-
             // Type conversion
             payload.coverage_percent = parseFloat(payload.coverage_percent) || 0;
             payload.copay_percent = parseFloat(payload.copay_percent) || 0;
             payload.copay_fixed = parseFloat(payload.copay_fixed) || 0;
-
             // Date handling
             if (payload.effective_from === '') payload.effective_from = null;
             if (payload.effective_to === '') payload.effective_to = null;
-
             if (editingList) {
                 await updatePriceList(editingList.id, payload);
             } else {
@@ -269,7 +248,6 @@ export default function PriceLists() {
             alert("Error saving price list");
         }
     };
-
     const handleDeactivateList = async (list) => {
         if (!window.confirm(`هل أنت متأكد من تعطيل قائمة الأسعار: ${list.name} ؟`)) return;
         try {
@@ -280,9 +258,7 @@ export default function PriceLists() {
             alert(error.response?.data?.detail || "فشل تعطيل قائمة الأسعار");
         }
     };
-
     if (loading) return <div>Loading...</div>;
-
     return (
         <div className="p-6 relative">
             {editingItemsListId && (
@@ -291,7 +267,6 @@ export default function PriceLists() {
                     onClose={() => setEditingItemsListId(null)}
                 />
             )}
-
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -308,7 +283,6 @@ export default function PriceLists() {
                     {t('settings.price_lists.add_btn')}
                 </button>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {priceLists.map((list) => (
                     <div key={list.id} className={`p-6 rounded-xl shadow-sm border transition-shadow ${list.is_default ? 'border-green-300 bg-green-50/50' : 'border-gray-100 bg-white hover:shadow-md'}`}>
@@ -344,7 +318,6 @@ export default function PriceLists() {
                                 </button>
                             </div>
                         </div>
-
                         <h3 className="text-lg font-bold mb-1 flex items-center gap-2">
                             {list.name}
                             {list.is_default && <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{t('settings.price_lists.default_badge')}</span>}
@@ -352,7 +325,6 @@ export default function PriceLists() {
                         <p className="text-sm text-gray-500">
                             {list.type === 'insurance' ? t('settings.price_lists.insurance_list') : t('settings.price_lists.cash_list')}
                         </p>
-
                         {!list.is_active && (
                             <div className="mt-4 text-center bg-red-50 text-red-600 py-1 text-xs rounded">
                                 {t('settings.price_lists.inactive')}
@@ -361,7 +333,6 @@ export default function PriceLists() {
                     </div>
                 ))}
             </div>
-
             {/* Modal for Metadata */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40 p-4">
@@ -371,7 +342,6 @@ export default function PriceLists() {
                                 {editingList ? t('settings.price_lists.edit_modal_title') : t('settings.price_lists.add_modal_title')}
                             </h2>
                         </div>
-
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings.price_lists.list_name')}</label>
@@ -384,7 +354,6 @@ export default function PriceLists() {
                                     placeholder={t('settings.price_lists.list_name_placeholder')}
                                 />
                             </div>
-
                             <div className="flex gap-4">
                                 <div className="flex-1">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings.price_lists.type')}</label>
@@ -397,7 +366,6 @@ export default function PriceLists() {
                                         <option value="insurance">{t('settings.price_lists.type_insurance')}</option>
                                     </select>
                                 </div>
-
                                 {formData.type === 'insurance' && (
                                     <div className="flex-1">
                                         <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings.price_lists.insurance_provider')}</label>
@@ -415,7 +383,6 @@ export default function PriceLists() {
                                     </div>
                                 )}
                             </div>
-
                             {formData.type === 'insurance' && (
                                 <div className="grid grid-cols-2 gap-4 bg-purple-50 p-4 rounded-lg">
                                     <div>
@@ -438,7 +405,6 @@ export default function PriceLists() {
                                     </div>
                                 </div>
                             )}
-
                             <label className="flex items-center gap-2 cursor-pointer mt-2">
                                 <input
                                     type="checkbox"
@@ -448,7 +414,6 @@ export default function PriceLists() {
                                 />
                                 <span className="text-sm font-medium">{t('settings.price_lists.set_default')}</span>
                             </label>
-
                             <div className="flex gap-3 mt-8">
                                 <button
                                     type="button"

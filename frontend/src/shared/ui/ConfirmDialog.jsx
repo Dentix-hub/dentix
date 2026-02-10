@@ -2,7 +2,6 @@
  * ConfirmDialog Component
  * Reusable confirmation dialog.
  */
-import React from 'react';
 import Modal from './Modal';
 
 export default function ConfirmDialog({

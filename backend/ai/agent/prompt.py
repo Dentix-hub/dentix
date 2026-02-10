@@ -1,22 +1,27 @@
-
 """
 System Prompt Builder
 Constructs the persona and instruction set for the AI.
 """
+
 from typing import Optional
 from datetime import datetime
 from ..tools.registry import tool_registry
 
-def build_system_prompt(last_entity: Optional[str] = None, rag_context: Optional[str] = None, scribe_mode: bool = False) -> str:
+
+def build_system_prompt(
+    last_entity: Optional[str] = None,
+    rag_context: Optional[str] = None,
+    scribe_mode: bool = False,
+) -> str:
     """
     Build the system prompt dynamically from registered tools.
     """
     now = datetime.now()
     date_str = now.strftime("%Y-%m-%d")
     time_str = now.strftime("%H:%M")
-    
+
     # 1. PERSONA & CONTEXT
-    prompt = f"""
+    prompt = """
 أنت مساعد ذكي داخل نظام لإدارة عيادات الأسنان.
 
 ⚠️ قواعد إلزامية:
@@ -100,26 +105,30 @@ Current Time: {time_str}
 
     # 2. TOOL DEFINITIONS
     prompt += "\n\nAvailable Tools (You MUST use one of these or reply with message):"
-    
+
     tools = tool_registry.all()
-    
+
     # --- SCRIBE MODE TOOL FILTERING ---
     if scribe_mode:
         # In scribe mode, we block tools that modify data (except for recording notes)
         # to prevent accidental actions during medical dictation.
         allowed_scribe_tools = [
-            "record_medical_note", "response", "get_patient_file", 
-            "get_financial_record", "get_appointments", "get_dashboard_stats",
-            "get_procedure_price" # Allow queries
+            "record_medical_note",
+            "response",
+            "get_patient_file",
+            "get_financial_record",
+            "get_appointments",
+            "get_dashboard_stats",
+            "get_procedure_price",  # Allow queries
         ]
         tools = [t for t in tools if t.name in allowed_scribe_tools]
-        
+
     for tool in tools:
         prompt += f"\n- {tool.name}: {tool.description}"
         if tool.parameters:
             params = ", ".join([f"{k} ({v})" for k, v in tool.parameters.items()])
             prompt += f"\n  Parameters: {params}"
-    
+
     # 3. RESPONSE FORMAT (JSON ENFORCEMENT)
     prompt += """
 

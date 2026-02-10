@@ -1,4 +1,3 @@
-import React from 'react';
 import { Upload, RefreshCw, Edit2, Trash2, FileText, File as FileIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 

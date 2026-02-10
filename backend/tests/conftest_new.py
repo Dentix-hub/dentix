@@ -3,7 +3,7 @@ Test Fixtures for Smart Clinic Backend.
 
 This module provides shared fixtures for all tests:
 - Database session management
-- Test client setup  
+- Test client setup
 - Authentication helpers
 - Sample data factories
 """
@@ -30,6 +30,7 @@ from backend.auth import create_access_token
 # ============================================
 # DATABASE FIXTURES
 # ============================================
+
 
 @pytest.fixture(scope="function")
 def engine():
@@ -59,17 +60,18 @@ def db_session(engine):
 @pytest.fixture(scope="function")
 def client(db_session):
     """Create a test client with database override."""
+
     def override_get_db():
         try:
             yield db_session
         finally:
             pass
-    
+
     app.dependency_overrides[get_db] = override_get_db
-    
+
     with TestClient(app) as test_client:
         yield test_client
-    
+
     app.dependency_overrides.clear()
 
 
@@ -77,14 +79,11 @@ def client(db_session):
 # DATA FIXTURES
 # ============================================
 
+
 @pytest.fixture
 def test_tenant(db_session):
     """Create a test tenant."""
-    tenant = models.Tenant(
-        name="Test Clinic",
-        subdomain="test",
-        is_active=True
-    )
+    tenant = models.Tenant(name="Test Clinic", subdomain="test", is_active=True)
     db_session.add(tenant)
     db_session.commit()
     db_session.refresh(tenant)
@@ -95,7 +94,7 @@ def test_tenant(db_session):
 def test_user(db_session, test_tenant):
     """Create a test user with doctor role."""
     from backend.auth import get_password_hash
-    
+
     user = models.User(
         username="testdoctor",
         email="doctor@test.com",
@@ -103,7 +102,7 @@ def test_user(db_session, test_tenant):
         hashed_password=get_password_hash("testpass123"),
         role="doctor",
         tenant_id=test_tenant.id,
-        is_active=True
+        is_active=True,
     )
     db_session.add(user)
     db_session.commit()
@@ -115,7 +114,7 @@ def test_user(db_session, test_tenant):
 def admin_user(db_session, test_tenant):
     """Create a test admin user."""
     from backend.auth import get_password_hash
-    
+
     user = models.User(
         username="testadmin",
         email="admin@test.com",
@@ -123,7 +122,7 @@ def admin_user(db_session, test_tenant):
         hashed_password=get_password_hash("adminpass123"),
         role="admin",
         tenant_id=test_tenant.id,
-        is_active=True
+        is_active=True,
     )
     db_session.add(user)
     db_session.commit()
@@ -135,14 +134,14 @@ def admin_user(db_session, test_tenant):
 def super_admin_user(db_session):
     """Create a super admin user (no tenant)."""
     from backend.auth import get_password_hash
-    
+
     user = models.User(
         username="superadmin",
         email="super@test.com",
         full_name="Super Admin",
         hashed_password=get_password_hash("superpass123"),
         role="super_admin",
-        is_active=True
+        is_active=True,
     )
     db_session.add(user)
     db_session.commit()
@@ -159,7 +158,7 @@ def test_patient(db_session, test_tenant):
         email="patient@test.com",
         age=30,
         gender="male",
-        tenant_id=test_tenant.id
+        tenant_id=test_tenant.id,
     )
     db_session.add(patient)
     db_session.commit()
@@ -170,6 +169,7 @@ def test_patient(db_session, test_tenant):
 # ============================================
 # AUTH FIXTURES
 # ============================================
+
 
 @pytest.fixture
 def auth_headers(test_user):
@@ -195,6 +195,7 @@ def super_admin_headers(super_admin_user):
 # ============================================
 # MOCK FIXTURES
 # ============================================
+
 
 @pytest.fixture
 def mock_groq_client():

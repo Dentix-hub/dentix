@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Save, Plus, Trash2, Printer, Edit3 } from 'lucide-react';
+import { Save, Plus, Trash2, Printer } from 'lucide-react';
 import { getSavedMedications, saveMedication, deleteSavedMedication, updateTenantSettings, getTenantSettings } from '@/api';
-
 export default function RxSettings({ setMessage }) {
     const { t } = useTranslation();
     const [headerInfo, setHeaderInfo] = useState({
@@ -14,18 +13,15 @@ export default function RxSettings({ setMessage }) {
     const [medications, setMedications] = useState([]);
     const [newMed, setNewMed] = useState({ name: '', default_dose: '', notes: '' });
     const [loading, setLoading] = useState(false);
-
     useEffect(() => {
         loadData();
     }, []);
-
     const loadData = async () => {
         try {
             const [settingsRes, medsRes] = await Promise.all([
                 getTenantSettings(),
                 getSavedMedications()
             ]);
-
             // Populate header info if exists
             setHeaderInfo({
                 doctor_name: settingsRes.data.doctor_name || '',
@@ -33,13 +29,11 @@ export default function RxSettings({ setMessage }) {
                 clinic_address: settingsRes.data.clinic_address || '',
                 clinic_phone: settingsRes.data.clinic_phone || ''
             });
-
             setMedications(medsRes.data);
         } catch (err) {
             console.error(err);
         }
     };
-
     const handleSaveHeader = async () => {
         setLoading(true);
         try {
@@ -51,11 +45,9 @@ export default function RxSettings({ setMessage }) {
             setLoading(false);
         }
     };
-
     const handleAddMedication = async (e) => {
         e.preventDefault();
         if (!newMed.name) return;
-
         try {
             const res = await saveMedication(newMed);
             setMedications([...medications, res.data]);
@@ -65,7 +57,6 @@ export default function RxSettings({ setMessage }) {
             setMessage({ type: 'error', text: err.response?.data?.detail || 'فشل الإضافة' });
         }
     };
-
     const handleDeleteMed = async (id) => {
         if (!window.confirm('هل أنت متأكد من الحذف؟')) return;
         try {
@@ -76,10 +67,8 @@ export default function RxSettings({ setMessage }) {
             setMessage({ type: 'error', text: 'فشل الحذف' });
         }
     };
-
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
             {/* Header Settings Section */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-white/5 p-6 shadow-sm">
                 <div className="flex items-center gap-3 mb-6">
@@ -91,7 +80,6 @@ export default function RxSettings({ setMessage }) {
                         <p className="text-sm text-slate-500">{t('rx_settings.subtitle')}</p>
                     </div>
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{t('rx_settings.doctor_name')}</label>
@@ -135,7 +123,6 @@ export default function RxSettings({ setMessage }) {
                         />
                     </div>
                 </div>
-
                 <div className="mt-6 flex justify-end">
                     <button
                         onClick={handleSaveHeader}
@@ -147,7 +134,6 @@ export default function RxSettings({ setMessage }) {
                     </button>
                 </div>
             </div>
-
             {/* Saved Medications Section */}
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-white/5 p-6 shadow-sm">
                 <div className="flex items-center gap-3 mb-6">
@@ -159,7 +145,6 @@ export default function RxSettings({ setMessage }) {
                         <p className="text-sm text-slate-500">{t('rx_settings.saved_meds_subtitle')}</p>
                     </div>
                 </div>
-
                 {/* Add Form */}
                 <form onSubmit={handleAddMedication} className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl mb-6 grid grid-cols-1 md:grid-cols-4 gap-4 items-end border border-slate-200 dark:border-slate-700">
                     <div className="md:col-span-1">
@@ -202,7 +187,6 @@ export default function RxSettings({ setMessage }) {
                         {t('rx_settings.add_btn')}
                     </button>
                 </form>
-
                 {/* List */}
                 <div className="overflow-x-auto">
                     <table className="w-full text-right">

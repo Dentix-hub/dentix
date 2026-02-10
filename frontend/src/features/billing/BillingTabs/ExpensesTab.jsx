@@ -1,4 +1,3 @@
-import React from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Plus, Calendar, Trash2 } from 'lucide-react';
 import { Button, Card, EmptyState, StatCard } from '@/shared/ui';
 

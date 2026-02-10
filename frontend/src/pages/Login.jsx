@@ -1,10 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../api';
 import { Sun, Moon, Globe } from 'lucide-react';
 import { logoBase64 as logo } from '@/assets/logoBase64';
-
 export default function Login({ isDarkMode, toggleDarkMode }) {
     const { t, i18n } = useTranslation();
     const [username, setUsername] = useState('');
@@ -12,7 +11,6 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
     const [rememberMe, setRememberMe] = useState(false);
     const [error, setError] = useState('');
     const navigate = useNavigate();
-
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
@@ -42,7 +40,6 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
             }
         }
     };
-
     return (
         <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-500 bg-background`}>
             <div className={`w-full max-w-md p-8 rounded-[2rem] shadow-2xl border transition-all duration-300 bg-surface border-white/10 text-center`}>
@@ -58,11 +55,9 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                     >
                         <Globe size={20} />
                     </button>
-
                     <div className="h-44 w-full overflow-hidden flex items-center justify-center">
                         <img src={logo} alt="DENTIX Logo" className="h-full w-full object-contain scale-[2.5] translate-x-4" />
                     </div>
-
                     <button
                         onClick={toggleDarkMode}
                         className={`p-3 rounded-2xl transition-colors bg-surface-hover text-text-secondary hover:text-text-primary hover:bg-primary/5`}
@@ -70,13 +65,11 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
                     </button>
                 </div>
-
                 {error && (
                     <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-2xl text-sm font-bold mb-6 animate-shake">
                         {error}
                     </div>
                 )}
-
                 <form onSubmit={handleLogin} className="space-y-5">
                     <div className="relative group">
                         <input
@@ -96,7 +89,6 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                             onChange={(e) => setPassword(e.target.value)}
                         />
                     </div>
-
                     <div className="flex items-center justify-between px-1">
                         <Link
                             to="/forgot-password"
@@ -117,14 +109,12 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                             />
                         </div>
                     </div>
-
                     <button
                         type="submit"
                         className="w-full py-4 bg-primary text-white font-black rounded-2xl hover:brightness-110 shadow-xl shadow-primary/25 transition-all active:scale-[0.98] transform"
                     >
                         {t('auth.login.submit')}
                     </button>
-
                     <div className="text-center mt-6">
                         <Link
                             to="/register"
@@ -137,7 +127,6 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         </Link>
                     </div>
                 </form>
-
                 <div className="mt-8 pt-6 border-t border-slate-100/10 flex flex-col gap-2">
                     <div className="flex justify-center gap-4 text-xs font-medium text-text-secondary">
                         <Link to="/terms" className="hover:text-primary transition-colors">{t('auth.login.terms')}</Link>

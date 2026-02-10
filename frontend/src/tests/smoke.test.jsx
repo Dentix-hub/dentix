@@ -1,7 +1,6 @@
 
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
-import React from 'react';
 
 // Simple component for testing
 const TestComponent = () => <div>Hello, World!</div>;

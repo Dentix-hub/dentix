@@ -1,4 +1,3 @@
-import React from 'react';
 import { Briefcase, Save } from 'lucide-react';
 import { Button, Input, Modal } from '@/shared/ui';
 

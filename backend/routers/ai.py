@@ -3,7 +3,7 @@ AI Router - Smart Dent Clinic
 Handles AI query endpoint via AIService.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 import logging
 
@@ -18,27 +18,29 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai", tags=["AI Assistant"])
 
+
 @router.post("/query", response_model=AIQueryResponse)
 @limiter.limit("10/minute")
 async def ai_query(
     query_data: AIQueryRequest,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_user),
 ):
     """
     Process AI queries using the Smart Agent Service.
     """
     service = AIService(db, current_user)
     trace_id = getattr(request.state, "trace_id", None)
-    
+
     return await service.process_query(
         text=query_data.text,
         context=[m.dict() for m in query_data.context] if query_data.context else None,
         last_patient_name=query_data.last_patient_name,
         trace_id=trace_id,
-        scribe_mode=query_data.scribe_mode
+        scribe_mode=query_data.scribe_mode,
     )
+
 
 @router.get("/tools")
 async def list_tools(
@@ -48,11 +50,7 @@ async def list_tools(
     tools = tool_registry.all()
     return {
         "tools": [
-            {
-                "name": t.name,
-                "description": t.description,
-                "parameters": t.parameters
-            }
+            {"name": t.name, "description": t.description, "parameters": t.parameters}
             for t in tools
         ]
     }

@@ -1,20 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { X, FlaskConical, Search, Filter } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, FlaskConical, Search } from 'lucide-react';
 import { getLabOrders } from '../api';
-
 const GlobalLabOrdersModal = ({ isOpen, onClose, initialStatus = '', title = '' }) => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(false);
     const [statusFilter, setStatusFilter] = useState(initialStatus);
     const [searchQuery, setSearchQuery] = useState('');
-
     useEffect(() => {
         if (isOpen) {
             setStatusFilter(initialStatus);
             loadOrders(initialStatus);
         }
     }, [isOpen, initialStatus]);
-
     const loadOrders = async (status) => {
         setLoading(true);
         try {
@@ -26,19 +23,15 @@ const GlobalLabOrdersModal = ({ isOpen, onClose, initialStatus = '', title = '' 
             setLoading(false);
         }
     };
-
     const handleFilterChange = (status) => {
         setStatusFilter(status);
         loadOrders(status);
     };
-
     const filteredOrders = orders.filter(order =>
         (order.patient_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
         (order.laboratory_name?.toLowerCase() || '').includes(searchQuery.toLowerCase())
     );
-
     if (!isOpen) return null;
-
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -59,7 +52,6 @@ const GlobalLabOrdersModal = ({ isOpen, onClose, initialStatus = '', title = '' 
                         <X size={20} className="text-slate-500" />
                     </button>
                 </div>
-
                 {/* Filters */}
                 <div className="p-4 border-b flex gap-4 bg-white">
                     <div className="relative flex-1">
@@ -83,7 +75,6 @@ const GlobalLabOrdersModal = ({ isOpen, onClose, initialStatus = '', title = '' 
                         <option value="completed">مكتمل (Completed)</option>
                     </select>
                 </div>
-
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
                     {loading ? (
@@ -136,5 +127,4 @@ const GlobalLabOrdersModal = ({ isOpen, onClose, initialStatus = '', title = '' 
         </div>
     );
 };
-
 export default GlobalLabOrdersModal;

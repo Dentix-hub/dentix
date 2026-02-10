@@ -1,9 +1,10 @@
 import traceback
-from fastapi import Request, Response
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy.orm import Session
 from backend.database import SessionLocal
 from backend.models.system import SystemError, ErrorLevel, ErrorSource
+
 
 class ErrorLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -15,7 +16,7 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
             stack_trace = traceback.format_exc()
             path = str(request.url)
             method = request.method
-            
+
             # Log to Database (New Session)
             try:
                 db: Session = SessionLocal()
@@ -28,7 +29,7 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
                         path=path,
                         method=method,
                         ip_address=request.client.host if request.client else None,
-                        user_agent=request.headers.get("user-agent")
+                        user_agent=request.headers.get("user-agent"),
                     )
                     db.add(system_error)
                     db.commit()
@@ -39,6 +40,6 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
                     db.close()
             except Exception as e:
                 print(f"CRITICAL: Failed to create DB session for logging: {e}")
-            
+
             # Re-raise so FastAPI's exception handler (or other middleware) can still catch it
             raise exc

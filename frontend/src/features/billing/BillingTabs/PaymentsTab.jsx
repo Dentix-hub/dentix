@@ -1,9 +1,6 @@
-import React from 'react';
 import { Banknote } from 'lucide-react';
-import { Card, EmptyState, Badge } from '@/shared/ui';
-
+import { Card, EmptyState } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
-
 const PaymentsTab = ({ payments, navigate }) => {
     const { t } = useTranslation();
     return (
@@ -54,5 +51,4 @@ const PaymentsTab = ({ payments, navigate }) => {
         </Card>
     );
 };
-
 export default PaymentsTab;

@@ -1,15 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { getUsers, registerUser, updateUser, deleteUser } from '../api';
 import { UserPlus, Trash2, Shield, User, Edit } from 'lucide-react';
-import { parseJwt } from '../utils';
 import { useTranslation } from 'react-i18next';
-
 export default function UsersManager() {
     const { t } = useTranslation();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-
     // Form
     const [newUser, setNewUser] = useState({
         username: '',
@@ -18,7 +15,6 @@ export default function UsersManager() {
         permissions: [],
         patient_visibility_mode: 'all_assigned'
     });
-
     // Permission Presets
     const permissionPresets = {
         doctor: ['view_patients', 'edit_patients', 'view_treatments', 'edit_treatments', 'view_calendar'],
@@ -27,12 +23,10 @@ export default function UsersManager() {
         accountant: ['view_financials', 'view_reports'],
         custom: []
     };
-
     // Check admin, although App.jsx protects route, this is extra safety
     useEffect(() => {
         loadUsers();
     }, []);
-
     const loadUsers = async () => {
         try {
             setLoading(true);
@@ -47,7 +41,6 @@ export default function UsersManager() {
             setLoading(false);
         }
     };
-
     const handleOpenModal = (user = null) => {
         if (user) {
             let perms = [];
@@ -58,7 +51,6 @@ export default function UsersManager() {
             } catch (e) {
                 console.error("Error parsing permissions", e);
             }
-
             setNewUser({
                 id: user.id,
                 username: user.username,
@@ -78,24 +70,20 @@ export default function UsersManager() {
         }
         setIsModalOpen(true);
     };
-
     const handleSave = async () => {
         if (!newUser.username) return alert(t('common.messages.fill_all'));
         // Password required only for new users
         if (!newUser.id && !newUser.password) return alert(t('common.messages.fill_all'));
-
         try {
             const dataToSend = {
                 ...newUser,
                 permissions: newUser.permissions ? JSON.stringify(newUser.permissions) : ''
             };
-
             if (newUser.id) {
                 await updateUser(newUser.id, dataToSend);
             } else {
                 await registerUser(dataToSend);
             }
-
             setIsModalOpen(false);
             setNewUser({ username: '', password: '', role: 'doctor', permissions: [], patient_visibility_mode: 'all_assigned' });
             loadUsers();
@@ -103,7 +91,6 @@ export default function UsersManager() {
             alert('Failed to save user: ' + (err.response?.data?.detail || err.message));
         }
     };
-
     const handleDelete = async (id) => {
         if (!id) {
             console.error('Cannot delete user: id is undefined');
@@ -117,7 +104,6 @@ export default function UsersManager() {
             alert('Error: ' + (err.response?.data?.detail || err.message));
         }
     };
-
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex justify-between items-center">
@@ -132,7 +118,6 @@ export default function UsersManager() {
                     <UserPlus size={20} /> {t('users.add_new')}
                 </button>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {users && users.length > 0 && users.map((user, index) => {
                     const roleConfig = {
@@ -144,7 +129,6 @@ export default function UsersManager() {
                         custom: { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-600', label: `🛠️ ${t('users.roles.custom')}`, icon: <User size={24} /> },
                     };
                     const config = roleConfig[user.role] || roleConfig.doctor;
-
                     return (
                         <div key={user.id || `user-${index}`} className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-white/5 flex items-center justify-between group hover:shadow-md transition-all">
                             <div className="flex items-center gap-4">
@@ -172,7 +156,6 @@ export default function UsersManager() {
                     );
                 })}
             </div>
-
             {/* Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -223,7 +206,6 @@ export default function UsersManager() {
                                     {newUser.role === 'custom' ? t('users.roles.custom') : ''}
                                 </p>
                             </div>
-
                             {/* Data Visibility Mode (For Doctors) */}
                             {newUser.role === 'doctor' && (
                                 <div>
@@ -240,7 +222,6 @@ export default function UsersManager() {
                                     <p className="text-xs text-slate-400 mt-1">{t('users.form.visibility_hint')}</p>
                                 </div>
                             )}
-
                             {/* Granular Permissions (Not for Admin) */}
                             {newUser.role !== 'admin' && (
                                 <div className="border-t pt-4 mt-2">
@@ -280,7 +261,6 @@ export default function UsersManager() {
                                     </div>
                                 </div>
                             )}
-
                             <div className="flex justify-end gap-3 mt-6">
                                 <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 hover:bg-slate-100 rounded-lg font-bold text-slate-500">{t('users.form.cancel')}</button>
                                 <button onClick={handleSave} className="px-6 py-2 bg-primary text-white font-bold rounded-lg hover:bg-sky-600 shadow-lg shadow-primary/20">{newUser.id ? t('users.form.update') : t('users.form.save')}</button>

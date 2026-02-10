@@ -1,14 +1,12 @@
 from typing import Dict, Any
 from backend.ai.tools.base import Tool
 
+
 async def echo_handler(params: Dict[str, Any]) -> Dict[str, Any]:
     """Simple echo handler."""
     message = params.get("message", "No message provided")
-    return {
-        "success": True,
-        "message": f"Echo: {message}",
-        "original_params": params
-    }
+    return {"success": True, "message": f"Echo: {message}", "original_params": params}
+
 
 # Tool Definition
 echo_tool = Tool(
@@ -17,7 +15,7 @@ echo_tool = Tool(
     parameters={"message": "The text to echo back"},
     complexity="simple",
     allowed_roles=["doctor", "admin"],
-    handler=echo_handler
+    handler=echo_handler,
 )
 
 # Export for discovery

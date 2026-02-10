@@ -1,15 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
 import { verifyResetToken, resetPassword } from '../api';
-
 export default function ResetPassword() {
     const { t } = useTranslation();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const token = searchParams.get('token');
-
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -18,14 +16,12 @@ export default function ResetPassword() {
     const [tokenValid, setTokenValid] = useState(false);
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState('');
-
     useEffect(() => {
         if (!token) {
             setError(t('auth.reset_password.errors.invalid_link'));
             setLoading(false);
             return;
         }
-
         // Verify token on mount
         verifyResetToken(token)
             .then(res => {
@@ -41,18 +37,13 @@ export default function ResetPassword() {
                 setLoading(false);
             });
     }, [token]);
-
     const handleSubmit = async (e) => {
         e.preventDefault();
-
         if (!password) return setError(t('auth.reset_password.errors.password_required'));
         if (password.length < 6) return setError(t('auth.reset_password.errors.password_min_length'));
         if (password !== confirmPassword) return setError(t('auth.reset_password.errors.password_mismatch'));
-
-
         setSubmitting(true);
         setError('');
-
         try {
             await resetPassword(token, password);
             setSuccess(true);
@@ -63,7 +54,6 @@ export default function ResetPassword() {
             setSubmitting(false);
         }
     };
-
     if (loading) {
         return (
             <div className="min-h-screen bg-gradient-to-br from-slate-100 to-sky-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center">
@@ -71,7 +61,6 @@ export default function ResetPassword() {
             </div>
         );
     }
-
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-100 to-sky-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
             <div className="w-full max-w-md">
@@ -80,7 +69,6 @@ export default function ResetPassword() {
                     <div className="text-5xl mb-2">🏥</div>
                     <h1 className="text-3xl font-black text-slate-800 dark:text-white">DENTIX</h1>
                 </div>
-
                 <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-8">
                     {success ? (
                         <div className="text-center">
@@ -110,7 +98,6 @@ export default function ResetPassword() {
                                 <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">{t('auth.reset_password.title')}</h2>
                                 <p className="text-slate-500">{t('auth.reset_password.subtitle')}</p>
                             </div>
-
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{t('auth.reset_password.new_password')}</label>
@@ -130,7 +117,6 @@ export default function ResetPassword() {
                                         </button>
                                     </div>
                                 </div>
-
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{t('auth.reset_password.confirm_password')}</label>
                                     <input
@@ -140,14 +126,12 @@ export default function ResetPassword() {
                                         className="w-full p-4 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 outline-none focus:border-sky-500 transition-colors"
                                     />
                                 </div>
-
                                 {error && (
                                     <div className="flex items-center gap-2 text-red-500 bg-red-50 dark:bg-red-500/10 p-3 rounded-xl">
                                         <AlertCircle size={18} />
                                         <span className="text-sm">{error}</span>
                                     </div>
                                 )}
-
                                 <button
                                     type="submit"
                                     disabled={submitting}
@@ -162,7 +146,6 @@ export default function ResetPassword() {
                             </form>
                         </>
                     )}
-
                     <div className="mt-6 text-center">
                         <Link to="/login" className="inline-flex items-center gap-2 text-sky-500 hover:text-sky-600 font-bold">
                             <ArrowLeft size={16} />

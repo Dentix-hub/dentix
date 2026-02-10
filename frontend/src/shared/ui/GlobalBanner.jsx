@@ -1,12 +1,9 @@
-
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Megaphone, X } from 'lucide-react';
 import { api } from '@/api';
-
 const GlobalBanner = () => {
     const [message, setMessage] = useState('');
     const [visible, setVisible] = useState(false);
-
     useEffect(() => {
         const fetchBanner = async () => {
             try {
@@ -20,14 +17,11 @@ const GlobalBanner = () => {
                 console.error("Failed to fetch banner", error);
             }
         };
-
         // Only fetch if authenticated? Or always?
         // App.jsx structure might check token.
         fetchBanner();
     }, []);
-
     if (!visible || !message) return null;
-
     return (
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-3 shadow-md relative animate-fade-in-down z-50">
             <div className="container mx-auto flex items-center justify-center text-sm md:text-base font-bold text-center pr-8 pl-8">
@@ -43,5 +37,4 @@ const GlobalBanner = () => {
         </div>
     );
 };
-
 export default GlobalBanner;

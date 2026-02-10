@@ -3,9 +3,8 @@ from sqlalchemy.orm import Session
 import os
 import shutil
 import uuid
-from datetime import datetime
 
-from .. import schemas, crud, models
+from .. import schemas, crud
 from .auth import get_current_user, get_db
 
 import cloudinary
@@ -16,13 +15,14 @@ cloudinary.config(
     cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
     api_key=os.getenv("CLOUDINARY_API_KEY"),
     api_secret=os.getenv("CLOUDINARY_API_SECRET"),
-    secure=True
+    secure=True,
 )
 
 router = APIRouter(prefix="/upload", tags=["Uploads"])
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
 
 @router.post("/", response_model=schemas.Attachment)
 def upload_file(
@@ -40,31 +40,29 @@ def upload_file(
     patient = crud.get_patient(db, patient_id, current_user.tenant_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-        
+
     file_path_db = ""
-    
+
     # 2. Try Cloudinary Upload
     try:
         if os.getenv("CLOUDINARY_CLOUD_NAME"):
             # Upload to Cloudinary
             upload_result = cloudinary.uploader.upload(
-                file.file, 
-                folder="smart_clinic_uploads",
-                resource_type="auto"
+                file.file, folder="smart_clinic_uploads", resource_type="auto"
             )
             file_path_db = upload_result.get("secure_url")
             print(f"☁️ Uploaded to Cloudinary: {file_path_db}")
         else:
             raise Exception("Cloudinary not configured")
-            
+
     except Exception as e:
         print(f"⚠️ Cloudinary failed/skipped: {e}. Falling back to local storage.")
-        
+
         # 3. Fallback: Local Save
         file_ext = os.path.splitext(file.filename)[1]
         unique_filename = f"{uuid.uuid4()}{file_ext}"
         local_path = os.path.join(UPLOAD_DIR, unique_filename)
-        
+
         try:
             # Reset file pointer if it was read by cloudinary attempt
             file.file.seek(0)
@@ -72,14 +70,16 @@ def upload_file(
                 shutil.copyfileobj(file.file, buffer)
             file_path_db = f"uploads/{unique_filename}"
         except Exception as local_e:
-            raise HTTPException(status_code=500, detail=f"File save failed: {str(local_e)}")
-        
+            raise HTTPException(
+                status_code=500, detail=f"File save failed: {str(local_e)}"
+            )
+
     # 4. Create DB Record
     attachment_create = schemas.AttachmentCreate(
         patient_id=patient_id,
         filename=file.filename,
         file_path=file_path_db,
-        file_type=file.content_type or "application/octet-stream"
+        file_type=file.content_type or "application/octet-stream",
     )
-    
+
     return crud.create_attachment(db, attachment_create)

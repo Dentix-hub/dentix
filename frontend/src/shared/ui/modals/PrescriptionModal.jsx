@@ -1,19 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Star, Plus } from 'lucide-react';
 import { getSavedMedications } from '@/api';
-
 export default function PrescriptionModal({ isOpen, onClose, onPrint }) {
     const [drugs, setDrugs] = useState([{ name: '', dose: '' }]);
     const [notes, setNotes] = useState('');
     const [savedMeds, setSavedMeds] = useState([]);
     const [showSavedList, setShowSavedList] = useState(false);
-
     useEffect(() => {
         if (isOpen) {
             loadSavedMeds();
         }
     }, [isOpen]);
-
     const loadSavedMeds = async () => {
         try {
             const res = await getSavedMedications();
@@ -22,13 +19,10 @@ export default function PrescriptionModal({ isOpen, onClose, onPrint }) {
             console.error("Failed to load saved medications", err);
         }
     };
-
     if (!isOpen) return null;
-
     const handleAddDrug = () => {
         setDrugs([...drugs, { name: '', dose: '' }]);
     };
-
     const handleSelectSavedMed = (med) => {
         // If the last line is empty, use it. Otherwise add new line.
         const lastDrug = drugs[drugs.length - 1];
@@ -41,11 +35,9 @@ export default function PrescriptionModal({ isOpen, onClose, onPrint }) {
         }
         setShowSavedList(false);
     };
-
     const handlePrint = () => {
         onPrint({ drugs, notes });
     };
-
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="bg-white w-full max-w-2xl rounded-2xl p-6 shadow-2xl h-[80vh] flex flex-col">
@@ -53,7 +45,6 @@ export default function PrescriptionModal({ isOpen, onClose, onPrint }) {
                     <h3 className="text-xl font-bold">كتابة روشتة</h3>
                     <button onClick={onClose}><X /></button>
                 </div>
-
                 <div className="flex-1 overflow-y-auto space-y-4 relative">
                     {/* Saved Meds Quick Access */}
                     {savedMeds.length > 0 && (
@@ -65,7 +56,6 @@ export default function PrescriptionModal({ isOpen, onClose, onPrint }) {
                                 <Star size={16} className="fill-yellow-500" />
                                 {showSavedList ? 'إخفاء الأدوية المحفوظة' : 'اختر من الأدوية المحفوظة'}
                             </button>
-
                             {showSavedList && (
                                 <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl max-h-40 overflow-y-auto">
                                     {savedMeds.map(med => (
@@ -82,7 +72,6 @@ export default function PrescriptionModal({ isOpen, onClose, onPrint }) {
                             )}
                         </div>
                     )}
-
                     {drugs.map((d, i) => (
                         <div key={i} className="flex gap-2">
                             <input
@@ -103,12 +92,10 @@ export default function PrescriptionModal({ isOpen, onClose, onPrint }) {
                             )}
                         </div>
                     ))}
-
                     <button onClick={handleAddDrug} className="text-primary text-sm font-bold hover:underline flex items-center gap-1">
                         <Plus size={16} />
                         دواء آخر
                     </button>
-
                     <textarea
                         value={notes}
                         onChange={e => setNotes(e.target.value)}

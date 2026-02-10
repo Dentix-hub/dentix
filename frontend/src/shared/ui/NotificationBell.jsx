@@ -1,22 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Bell, Info, AlertTriangle, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import { getNotifications, markNotificationRead, dismissNotification } from '@/api';
-
 const NOTIFICATION_TYPES = {
     WARNING: 'warning',
     SUCCESS: 'success',
     ERROR: 'error',
     INFO: 'info'
 };
-
 const POLL_INTERVAL_MS = 120000; // 2 Minutes
-
 const NotificationBell = () => {
     const [notifications, setNotifications] = useState([]);
     const [showDropdown, setShowDropdown] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const dropdownRef = useRef(null);
-
     const fetchNotifications = async () => {
         try {
             const response = await getNotifications();
@@ -33,13 +29,11 @@ const NotificationBell = () => {
             // Silent fail is acceptable here to avoid disrupting user workflow
         }
     };
-
     useEffect(() => {
         fetchNotifications();
         const interval = setInterval(fetchNotifications, POLL_INTERVAL_MS);
         return () => clearInterval(interval);
     }, []);
-
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -49,7 +43,6 @@ const NotificationBell = () => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
-
     const handleMarkAsRead = async (id) => {
         try {
             await markNotificationRead(id);
@@ -61,7 +54,6 @@ const NotificationBell = () => {
             console.error('Error marking notification as read:', error);
         }
     };
-
     const handleDismiss = async (id) => {
         try {
             // Optimistic Update
@@ -77,7 +69,6 @@ const NotificationBell = () => {
             fetchNotifications(); // Revert on error
         }
     };
-
     const getIcon = (type) => {
         switch (type) {
             case NOTIFICATION_TYPES.WARNING: return <AlertTriangle className="w-4 h-4 text-amber-500" />;
@@ -86,7 +77,6 @@ const NotificationBell = () => {
             default: return <Info className="w-4 h-4 text-blue-500" />;
         }
     };
-
     return (
         <div className="relative" ref={dropdownRef}>
             <button
@@ -101,14 +91,12 @@ const NotificationBell = () => {
                     </span>
                 )}
             </button>
-
             {showDropdown && (
                 <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-50 overflow-hidden max-h-[450px] flex flex-col">
                     <div className="px-4 py-2 border-b border-slate-50 flex justify-between items-center">
                         <h3 className="font-bold text-slate-800">الإشعارات</h3>
                         {unreadCount > 0 && <span className="text-xs text-blue-600 font-medium">{unreadCount} جديد</span>}
                     </div>
-
                     <div className="overflow-y-auto">
                         {notifications.length === 0 ? (
                             <div className="px-4 py-8 text-center text-slate-400">
@@ -154,7 +142,6 @@ const NotificationBell = () => {
                             ))
                         )}
                     </div>
-
                     <div className="px-4 py-2 border-t border-slate-50 text-center">
                         <button className="text-xs text-slate-400 hover:text-slate-600 transition-all font-medium">
                             عرض كل الإشعارات
@@ -165,5 +152,4 @@ const NotificationBell = () => {
         </div>
     );
 };
-
 export default NotificationBell;

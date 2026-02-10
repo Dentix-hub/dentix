@@ -1,13 +1,12 @@
-import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
-import { Calendar, Clock, Plus, User, CheckCircle, XCircle, Trash2, LayoutGrid, List as ListIcon, Edit2, Filter } from 'lucide-react';
+import { Calendar, Clock, Plus, User, CheckCircle, XCircle, Trash2, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { createAppointment, updateAppointmentStatus, deleteAppointment } from '@/api';
 import { useAppointments } from '@/hooks/useAppointments';
 import { usePatients } from '@/hooks/usePatients';
 import { getTodayDateTimeStr } from '@/utils/toothUtils';
 import { Button, Input, Modal, Badge, Skeleton, EmptyState, toast } from '@/shared/ui';
-
 export default function Appointments() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { t } = useTranslation();
@@ -15,7 +14,6 @@ export default function Appointments() {
     const [viewMode, setViewMode] = useState('board'); // 'list' | 'board'
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newAppt, setNewAppt] = useState({ patient_id: '', date_time: getTodayDateTimeStr(), notes: '' });
-
     useEffect(() => {
         if (preselectPatientId) {
             setNewAppt(prev => ({ ...prev, patient_id: preselectPatientId }));
@@ -23,13 +21,10 @@ export default function Appointments() {
             setSearchParams({}, { replace: true });
         }
     }, [preselectPatientId, setSearchParams]);
-
     // Use cached hooks instead of direct API calls
     const { data: appointments = [], isLoading: apptsLoading, refetch: refetchAppointments } = useAppointments();
     const { data: patients = [], isLoading: patientsLoading } = usePatients();
-
     const loading = apptsLoading || patientsLoading;
-
     const handleCreate = useCallback(async () => {
         if (!newAppt.patient_id || !newAppt.date_time) {
             toast.error(t('appointments.messages.fill_all'));
@@ -49,7 +44,6 @@ export default function Appointments() {
             toast.error(t('appointments.messages.booking_error'), { id: toastId });
         }
     }, [newAppt, refetchAppointments, t]);
-
     const handleStatus = useCallback(async (id, status) => {
         const toastId = toast.loading(t('appointments.messages.updating'));
         try {
@@ -60,7 +54,6 @@ export default function Appointments() {
             toast.error(t('appointments.messages.update_error'), { id: toastId });
         }
     }, [refetchAppointments, t]);
-
     const handleDelete = useCallback(async (id) => {
         if (!window.confirm(t('appointments.confirm_delete'))) return;
         const toastId = toast.loading(t('appointments.messages.deleting'));
@@ -72,7 +65,6 @@ export default function Appointments() {
             toast.error(t('appointments.messages.delete_error'), { id: toastId });
         }
     }, [refetchAppointments, t]);
-
     // Kanban Columns
     const columns = useMemo(() => [
         { id: 'Scheduled', title: t('appointments.status.scheduled'), icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800' },
@@ -81,14 +73,12 @@ export default function Appointments() {
         { id: 'Completed', title: t('appointments.status.completed'), icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-800' },
         { id: 'Cancelled', title: t('appointments.status.cancelled_noshow'), icon: XCircle, color: 'text-slate-600', bg: 'bg-slate-50 dark:bg-slate-800', border: 'border-slate-200 dark:border-slate-700' },
     ], [t]);
-
     const getColumnAppointments = (status) => {
         if (status === 'Cancelled') {
             return appointments.filter(a => ['Cancelled', 'No Show'].includes(a.status));
         }
         return appointments.filter(a => a.status === status);
     };
-
     const getStatusVariant = (status) => {
         switch (status) {
             case 'Scheduled': return 'info';
@@ -99,7 +89,6 @@ export default function Appointments() {
             default: return 'default';
         }
     };
-
     const getStatusLabel = (status) => {
         const labels = {
             'Scheduled': t('appointments.status.scheduled'),
@@ -112,7 +101,6 @@ export default function Appointments() {
         };
         return labels[status] || status;
     };
-
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 min-h-screen pb-20">
             {/* Header */}
@@ -137,14 +125,12 @@ export default function Appointments() {
                             <LayoutGrid size={18} />
                         </button>
                     </div>
-
                     <Button onClick={() => setIsModalOpen(true)}>
                         <Plus size={20} className="mr-2" />
                         {t('appointments.new_booking')}
                     </Button>
                 </div>
             </div>
-
             {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <Skeleton.Box className="h-96 w-full rounded-3xl" />
@@ -253,7 +239,6 @@ export default function Appointments() {
                                     {getColumnAppointments(col.id).length}
                                 </span>
                             </div>
-
                             {/* Cards */}
                             <div className="flex flex-col gap-3 min-h-[100px]">
                                 {getColumnAppointments(col.id).map(appt => {
@@ -276,7 +261,6 @@ export default function Appointments() {
                                                     <Trash2 size={14} />
                                                 </button>
                                             </div>
-
                                             <div className="flex items-center gap-2 text-text-secondary text-xs font-bold mb-3 bg-surface p-2 rounded-lg border border-border/50">
                                                 <Clock size={14} className="text-primary" />
                                                 <span dir="ltr">
@@ -285,13 +269,11 @@ export default function Appointments() {
                                                     })}
                                                 </span>
                                             </div>
-
                                             {appt.notes && (
                                                 <p className="text-text-secondary text-xs p-2 bg-surface rounded-lg mb-3 border border-border/50">
                                                     {appt.notes}
                                                 </p>
                                             )}
-
                                             <select
                                                 className="w-full text-xs p-2 bg-surface rounded-lg border border-border font-bold outline-none focus:border-primary"
                                                 value={appt.status}
@@ -316,7 +298,6 @@ export default function Appointments() {
                     ))}
                 </div>
             )}
-
             <Modal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
@@ -337,14 +318,12 @@ export default function Appointments() {
                             ))}
                         </select>
                     </div>
-
                     <Input
                         type="datetime-local"
                         label={t('appointments.form.datetime')}
                         value={newAppt.date_time}
                         onChange={e => setNewAppt({ ...newAppt, date_time: e.target.value })}
                     />
-
                     <div>
                         <label className="block text-sm font-bold text-text-primary mb-2">{t('appointments.form.notes')}</label>
                         <textarea
@@ -355,7 +334,6 @@ export default function Appointments() {
                             onChange={e => setNewAppt({ ...newAppt, notes: e.target.value })}
                         />
                     </div>
-
                     <div className="flex gap-3 pt-4">
                         <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="flex-1">{t('appointments.form.cancel_btn')}</Button>
                         <Button onClick={handleCreate} className="flex-[2]">{t('appointments.form.confirm_btn')}</Button>

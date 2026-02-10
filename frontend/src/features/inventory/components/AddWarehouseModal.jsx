@@ -1,15 +1,13 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { X, Warehouse, Save } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createWarehouse } from '@/api/inventory';
 import { showToast } from '@/shared/ui/Toast';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
-
 const AddWarehouseModal = ({ isOpen, onClose, onSuccess }) => {
     const queryClient = useQueryClient();
     const [name, setName] = useState('');
     const [type, setType] = useState('MAIN'); // MAIN, CLINIC
-
     const mutation = useMutation({
         mutationFn: createWarehouse,
         onSuccess: (res) => {
@@ -22,20 +20,16 @@ const AddWarehouseModal = ({ isOpen, onClose, onSuccess }) => {
             showToast('error', 'فشل الإضافة: ' + (err.response?.data?.detail || err.message));
         }
     });
-
     const handleClose = () => {
         setName('');
         setType('MAIN');
         onClose();
     };
-
     const handleSubmit = (e) => {
         e.preventDefault();
         mutation.mutate({ name, type });
     };
-
     if (!isOpen) return null;
-
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <div className="bg-surface w-full max-w-sm rounded-2xl shadow-xl border border-border overflow-hidden animate-in fade-in zoom-in duration-200">
@@ -48,7 +42,6 @@ const AddWarehouseModal = ({ isOpen, onClose, onSuccess }) => {
                         <X size={20} />
                     </button>
                 </div>
-
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div>
                         <label className="block text-sm font-medium text-text-secondary mb-1">اسم المخزن</label>
@@ -62,7 +55,6 @@ const AddWarehouseModal = ({ isOpen, onClose, onSuccess }) => {
                             placeholder="مثال: المخزن الرئيسي"
                         />
                     </div>
-
                     <div>
                         <label className="block text-sm font-medium text-text-secondary mb-1">النوع</label>
                         <select
@@ -74,7 +66,6 @@ const AddWarehouseModal = ({ isOpen, onClose, onSuccess }) => {
                             <option value="CLINIC">عيادة / فرعي (Clinic)</option>
                         </select>
                     </div>
-
                     <div className="pt-4 flex justify-end gap-3">
                         <button
                             type="button"
@@ -101,5 +92,4 @@ const AddWarehouseModal = ({ isOpen, onClose, onSuccess }) => {
         </div>
     );
 };
-
 export default AddWarehouseModal;

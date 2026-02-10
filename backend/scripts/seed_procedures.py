@@ -1,12 +1,10 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import create_engine
 import sys
 import os
 
 # Ensure backend structure is visible
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from backend.database import SessionLocal, engine
+from backend.database import SessionLocal
 from backend.models.clinical import Procedure
 
 PROCEDURES_LIST = [
@@ -42,13 +40,14 @@ PROCEDURES_LIST = [
     "طقم مرن – Flexible Denture",
     "تنظيف جير – Scaling",
     "كشف – Examination",
-    "جلسة متابعة – Follow-up Session"
+    "جلسة متابعة – Follow-up Session",
 ]
+
 
 def seed_procedures():
     db = SessionLocal()
     try:
-        tenant_id = None # Global procedures
+        tenant_id = None  # Global procedures
         added_count = 0
         existing_count = 0
 
@@ -59,20 +58,23 @@ def seed_procedures():
             if exists:
                 existing_count += 1
                 continue
-            
+
             # Create new
             new_proc = Procedure(name=proc_name, price=0.0, tenant_id=tenant_id)
             db.add(new_proc)
             added_count += 1
-        
+
         db.commit()
-        print(f"Done! Added {added_count} new procedures. Skipped {existing_count} existing.")
-    
+        print(
+            f"Done! Added {added_count} new procedures. Skipped {existing_count} existing."
+        )
+
     except Exception as e:
         print(f"Error seeding procedures: {e}")
         db.rollback()
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     seed_procedures()

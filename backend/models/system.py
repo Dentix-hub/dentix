@@ -1,12 +1,26 @@
-from .base import Base, Column, Integer, String, DateTime, Float, Text, Date, Boolean, ForeignKey, relationship, datetime
-from sqlalchemy import Enum
+from .base import (
+    Base,
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Float,
+    Text,
+    Date,
+    Boolean,
+    ForeignKey,
+    relationship,
+    datetime,
+)
 import enum
+
 
 class ErrorLevel(str, enum.Enum):
     INFO = "INFO"
     WARNING = "WARNING"
     ERROR = "ERROR"
     CRITICAL = "CRITICAL"
+
 
 class ErrorSource(str, enum.Enum):
     BACKEND = "BACKEND"
@@ -45,10 +59,10 @@ class AIUsageLog(Base):
     success = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
-    
+
     # Traceability & Observability
     trace_id = Column(String, index=True, nullable=True)
-    trace_details = Column(Text, nullable=True) # JSON store for full context
+    trace_details = Column(Text, nullable=True)  # JSON store for full context
 
     user = relationship("User")
 
@@ -81,7 +95,9 @@ class Notification(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
-    read_by = relationship("NotificationRead", back_populates="notification", cascade="all, delete-orphan")
+    read_by = relationship(
+        "NotificationRead", back_populates="notification", cascade="all, delete-orphan"
+    )
 
 
 class NotificationRead(Base):
@@ -180,4 +196,3 @@ class SystemError(Base):
     user_agent = Column(String, nullable=True)
     ip_address = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
-

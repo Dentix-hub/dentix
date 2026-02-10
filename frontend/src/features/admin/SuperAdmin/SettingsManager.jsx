@@ -1,55 +1,57 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Save, AlertTriangle, Monitor, Megaphone } from 'lucide-react';
 import { api } from '@/api';
-
-const SettingsManager = ({ settings, fetchData }) => {
-    const [localSettings, setLocalSettings] = useState(Array.isArray(settings) ? settings : []);
-    const [loading, setLoading] = useState(false);
-
+const SettingsManager = () => {
+    const [localSettings, setLocalSettings] = useState([]);
+    const [loading, setLoading] = useState(true);
     useEffect(() => {
-        if (Array.isArray(settings)) {
-            setLocalSettings(settings);
-        }
-    }, [settings]);
-
-    const handleToggleMaintenance = async () => {
-        const setting = localSettings.find(s => s.key === 'maintenance_mode');
-        if (!setting) return;
-
-        const newValue = setting.value === 'true' ? 'false' : 'true';
-        const confirmMsg = newValue === 'true'
-            ? "هل أنت متأكد من تفعيل وضع الصيانة؟ سيتم منع جميع المستخدمين (غير المسؤولين) من الدخول."
-            : "هل أنت متأكد من إيقاف وضع الصيانة؟";
-
-        if (!window.confirm(confirmMsg)) return;
-
-        await updateSetting('maintenance_mode', newValue);
-    };
-
-    const updateSetting = async (key, value) => {
-        setLoading(true);
+        fetchSettings();
+    }, []);
+    const fetchSettings = async () => {
         try {
-            await api.put(`/admin/settings/${key}`, { key, value, updated_at: new Date().toISOString() });
-
-            // Update local state
-            setLocalSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
-
-            // Refresh parent data if needed, or just rely on local state
-            if (fetchData) fetchData();
-
-            alert("تم حفظ الإعدادات بنجاح");
-        } catch (error) {
-            console.error(error);
-            alert("فشل حفظ الإعدادات");
+            setLoading(true);
+            const res = await api.get('/api/v1/admin/settings');
+            setLocalSettings(Array.isArray(res.data) ? res.data : []);
+        } catch (err) {
+            console.error("Failed to fetch settings", err);
         } finally {
             setLoading(false);
         }
     };
-
+    const handleToggleMaintenance = async () => {
+        const setting = localSettings.find(s => s.key === 'maintenance_mode');
+        // If not found, assume false and create it on toggle
+        const currentValue = setting ? setting.value : 'false';
+        const newValue = currentValue === 'true' ? 'false' : 'true';
+        const confirmMsg = newValue === 'true'
+            ? "هل أنت متأكد من تفعيل وضع الصيانة؟ سيتم منع جميع المستخدمين (غير المسؤولين) من الدخول."
+            : "هل أنت متأكد من إيقاف وضع الصيانة؟";
+        if (!window.confirm(confirmMsg)) return;
+        await updateSetting('maintenance_mode', newValue);
+    };
+    const updateSetting = async (key, value) => {
+        // Optimistic update
+        setLocalSettings(prev => {
+            const exists = prev.find(s => s.key === key);
+            if (exists) {
+                return prev.map(s => s.key === key ? { ...s, value } : s);
+            } else {
+                return [...prev, { key, value }];
+            }
+        });
+        try {
+            await api.put(`/api/v1/admin/settings/${key}`, { key, value, updated_at: new Date().toISOString() });
+            alert("تم حفظ الإعدادات بنجاح");
+        } catch (error) {
+            console.error(error);
+            alert("فشل حفظ الإعدادات");
+            // Revert changes on error would be ideal, but simple alert for now
+            fetchSettings();
+        }
+    };
     const getSettingValue = (key) => {
         return localSettings.find(s => s.key === key)?.value || '';
     };
-
     const handleLocalChange = (key, newValue) => {
         setLocalSettings(prev => {
             const exists = prev.find(s => s.key === key);
@@ -60,10 +62,9 @@ const SettingsManager = ({ settings, fetchData }) => {
             }
         });
     };
-
+    if (loading && localSettings.length === 0) return <div className="p-10 text-center text-slate-500 animate-pulse">جاري تحميل الإعدادات...</div>;
     return (
         <div className="space-y-6 animate-fade-in-up">
-
             {/* Maintenance Mode Card */}
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-start justify-between">
@@ -79,10 +80,8 @@ const SettingsManager = ({ settings, fetchData }) => {
                             </p>
                         </div>
                     </div>
-
                     <button
                         onClick={handleToggleMaintenance}
-                        disabled={loading}
                         className={`relative w-16 h-8 rounded-full transition-colors duration-300 ${getSettingValue('maintenance_mode') === 'true'
                             ? 'bg-rose-500'
                             : 'bg-slate-200 dark:bg-slate-700'
@@ -95,7 +94,6 @@ const SettingsManager = ({ settings, fetchData }) => {
                     </button>
                 </div>
             </div>
-
             {/* Global Banner Card */}
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex gap-4 mb-6">
@@ -109,7 +107,6 @@ const SettingsManager = ({ settings, fetchData }) => {
                         </p>
                     </div>
                 </div>
-
                 <div className="space-y-4">
                     <textarea
                         className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[100px] text-slate-700 dark:text-slate-300 font-medium"
@@ -120,7 +117,6 @@ const SettingsManager = ({ settings, fetchData }) => {
                     <div className="flex justify-end">
                         <button
                             onClick={() => updateSetting('global_announcement', getSettingValue('global_announcement'))}
-                            disabled={loading}
                             className="flex items-center gap-2 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/30 transition-all"
                         >
                             <Save size={18} />
@@ -129,7 +125,6 @@ const SettingsManager = ({ settings, fetchData }) => {
                     </div>
                 </div>
             </div>
-
             {/* Support Info Card */}
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex gap-4 mb-6">
@@ -143,7 +138,6 @@ const SettingsManager = ({ settings, fetchData }) => {
                         </p>
                     </div>
                 </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                         <label className="block text-sm font-bold mb-2 text-slate-700 dark:text-slate-300">رقم الهاتف (للعرض)</label>
@@ -187,9 +181,7 @@ const SettingsManager = ({ settings, fetchData }) => {
                     </div>
                 </div>
             </div>
-
         </div>
     );
 };
-
 export default SettingsManager;

@@ -3,6 +3,7 @@ import json
 from typing import Dict, Any, List
 from groq import Groq
 
+
 class ScribeService:
     """
     Handles Medical Dictation Analysis using LLMs (Groq).
@@ -43,17 +44,17 @@ RULES:
             completion = self.client.chat.completions.create(
                 messages=[
                     {"role": "system", "content": self.SYSTEM_PROMPT},
-                    {"role": "user", "content": text}
+                    {"role": "user", "content": text},
                 ],
                 model="llama3-70b-8192",
                 temperature=0,
-                response_format={"type": "json_object"}
+                response_format={"type": "json_object"},
             )
-            
+
             result_json = completion.choices[0].message.content
             parsed = json.loads(result_json)
             return parsed.get("procedures", [])
-            
+
         except Exception as e:
             print(f"Scribe LLM Error: {e}")
             raise e

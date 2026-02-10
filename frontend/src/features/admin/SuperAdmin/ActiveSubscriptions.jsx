@@ -1,6 +1,4 @@
-import React from 'react';
-import { Calendar, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
-
+import { CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 const ActiveSubscriptions = ({ tenants, plans, getDaysRemaining }) => {
     return (
         <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
@@ -21,7 +19,6 @@ const ActiveSubscriptions = ({ tenants, plans, getDaysRemaining }) => {
                             const daysLeft = getDaysRemaining(tenant.subscription_end_date);
                             const plan = plans.find(p => p.id === tenant.plan_id);
                             const isActive = tenant.is_active && (daysLeft === null || daysLeft > 0);
-
                             return (
                                 <tr key={tenant.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
                                     <td className="p-6">
@@ -72,5 +69,4 @@ const ActiveSubscriptions = ({ tenants, plans, getDaysRemaining }) => {
         </div>
     );
 };
-
 export default ActiveSubscriptions;

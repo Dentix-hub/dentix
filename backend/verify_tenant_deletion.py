@@ -29,10 +29,15 @@ except ImportError as e:
 client = TestClient(app)
 db = SessionLocal()
 
+
 def verify():
     # 1. Create Data
     print("Creating test tenant...")
-    tenant = models.Tenant(name=f"DelTest_{int(datetime.now().timestamp())}", subscription_status="active", plan="trial")
+    tenant = models.Tenant(
+        name=f"DelTest_{int(datetime.now().timestamp())}",
+        subscription_status="active",
+        plan="trial",
+    )
     db.add(tenant)
     db.commit()
     db.refresh(tenant)
@@ -41,21 +46,41 @@ def verify():
     print("Creating dependencies...")
     try:
         # Patient
-        patient = models.Patient(name="Test Patient", tenant_id=tenant.id, age=30, phone="123", medical_history="None", notes="None")
+        patient = models.Patient(
+            name="Test Patient",
+            tenant_id=tenant.id,
+            age=30,
+            phone="123",
+            medical_history="None",
+            notes="None",
+        )
         db.add(patient)
         db.commit()
         db.refresh(patient)
-        
+
         # Appointment
-        appt = models.Appointment(patient_id=patient.id, date_time=datetime.now(), status="Scheduled")
+        appt = models.Appointment(
+            patient_id=patient.id, date_time=datetime.now(), status="Scheduled"
+        )
         db.add(appt)
-        
+
         # Log
-        log = models.AuditLog(action="test_creation", entity_type="tenant", tenant_id=tenant.id, performed_by_username="tester")
+        log = models.AuditLog(
+            action="test_creation",
+            entity_type="tenant",
+            tenant_id=tenant.id,
+            performed_by_username="tester",
+        )
         db.add(log)
-        
+
         # Expense (Financial)
-        expense = models.Expense(item_name="Test Expense", cost=100.0, category="Test", date=datetime.now(), tenant_id=tenant.id)
+        expense = models.Expense(
+            item_name="Test Expense",
+            cost=100.0,
+            category="Test",
+            date=datetime.now(),
+            tenant_id=tenant.id,
+        )
         db.add(expense)
 
         db.commit()
@@ -66,32 +91,43 @@ def verify():
         return
 
     # 2. Mock Auth
-    superuser = models.User(username="superuser", role="super_admin", id=99999, is_active=True)
+    superuser = models.User(
+        username="superuser", role="super_admin", id=99999, is_active=True
+    )
     app.dependency_overrides[require_super_admin] = lambda: superuser
 
     # 3. Execute Delete
     print(f"Deleting Tenant {tenant.id} permanently...")
     try:
         response = client.delete(f"/admin/tenants/{tenant.id}/permanent")
-        
+
         print(f"Response Status: {response.status_code}")
         print(f"Response Body: {response.text}")
 
         # 4. Verification
         if response.status_code == 200:
             # Re-query
-            db.expire_all() 
-            t_check = db.query(models.Tenant).filter(models.Tenant.id == tenant.id).first()
-            p_check = db.query(models.Patient).filter(models.Patient.id == patient.id).first()
-            e_check = db.query(models.Expense).filter(models.Expense.id == expense.id).first()
-            
+            db.expire_all()
+            t_check = (
+                db.query(models.Tenant).filter(models.Tenant.id == tenant.id).first()
+            )
+            p_check = (
+                db.query(models.Patient).filter(models.Patient.id == patient.id).first()
+            )
+            e_check = (
+                db.query(models.Expense).filter(models.Expense.id == expense.id).first()
+            )
+
             if not t_check and not p_check and not e_check:
                 print("SUCCESS: Tenant and all dependencies deleted.")
             else:
                 print("FAILURE: Some data remains.")
-                if t_check: print("  - Tenant still exists")
-                if p_check: print("  - Patient still exists")
-                if e_check: print("  - Expense still exists")
+                if t_check:
+                    print("  - Tenant still exists")
+                if p_check:
+                    print("  - Patient still exists")
+                if e_check:
+                    print("  - Expense still exists")
         else:
             print("FAILURE: API returned error.")
     except Exception as e:
@@ -99,6 +135,7 @@ def verify():
 
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     verify()

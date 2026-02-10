@@ -1,16 +1,14 @@
 import React, { useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getMaterialStock, updateMaterial } from '@/api/inventory';
-import { X, Package, Calendar, Truck, AlertCircle, Play, Square, Settings } from 'lucide-react';
+import { X, Package, Calendar, Truck, AlertCircle, Square, Settings } from 'lucide-react';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import { showToast } from '@/shared/ui/Toast';
 import { useTranslation } from 'react-i18next';
-
 const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }) => {
     const { t } = useTranslation();
     // Handle both 'id' (Active Session) and 'material_id' (Stock Summary) formats
     const materialId = material?.material_id || material?.id;
-
     const [isEditing, setIsEditing] = React.useState(false);
     const [formData, setFormData] = React.useState({
         type: 'NON_DIVISIBLE',
@@ -18,9 +16,7 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
         packaging_ratio: 1.0,
         standard_price: 0.0
     });
-
     const queryClient = useQueryClient();
-
     const { data: stockItems, isLoading } = useQuery({
         queryKey: ['material-stock', materialId],
         queryFn: async () => {
@@ -29,7 +25,6 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
         },
         enabled: !!materialId && isOpen
     });
-
     // Initialize form data when material changes
     React.useEffect(() => {
         if (material) {
@@ -43,7 +38,6 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
             });
         }
     }, [material]);
-
     const activeSessionMap = useMemo(() => {
         const map = {};
         const sessions = Array.isArray(activeSessions) ? activeSessions : [];
@@ -52,7 +46,6 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
         });
         return map;
     }, [activeSessions]);
-
     const handleSaveSettings = async () => {
         try {
             await updateMaterial(materialId, formData);
@@ -66,13 +59,10 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
             showToast('error', t('inventory.material_details.messages.update_fail'));
         }
     };
-
     if (!isOpen || !material) return null;
-
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-surface w-full max-w-4xl rounded-xl shadow-2xl border border-border flex flex-col max-h-[90vh]">
-
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-border">
                     <div>
@@ -88,7 +78,6 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
                         <X size={20} className="text-text-secondary" />
                     </button>
                 </div>
-
                 {/* Material Settings Section */}
                 <div className="p-4 bg-secondary/5 border-b border-border">
                     <div className="flex items-center justify-between mb-2">
@@ -119,7 +108,6 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
                             </div>
                         )}
                     </div>
-
                     <div className="grid grid-cols-3 gap-4">
                         <div>
                             <label className="block text-xs text-text-secondary mb-1">{t('inventory.material_details.settings.type')}</label>
@@ -181,7 +169,6 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
                         </div>
                     </div>
                 </div>
-
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
                     {isLoading ? (
@@ -199,7 +186,6 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
                                 const activeSession = activeSessionMap[item.id];
                                 const isExpired = new Date(item.batch?.expiry_date) < new Date();
                                 const isNearExpiry = new Date(item.batch?.expiry_date) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
                                 return (
                                     <div
                                         key={item.id}
@@ -211,7 +197,6 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
                                         `}
                                     >
                                         <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-
                                             {/* Batch Info */}
                                             <div className="flex items-center gap-4">
                                                 <div className={`
@@ -220,7 +205,6 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
                                                 `}>
                                                     {activeSession ? <Square size={24} className="animate-pulse" /> : <Package size={24} />}
                                                 </div>
-
                                                 <div>
                                                     <div className="flex items-center gap-2">
                                                         <span className="font-mono font-bold text-lg dir-ltr">
@@ -232,7 +216,6 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
                                                             </span>
                                                         )}
                                                     </div>
-
                                                     <div className="flex items-center gap-4 text-sm text-text-secondary mt-1">
                                                         <span className="flex items-center gap-1" title="تاريخ الصلاحية">
                                                             <Calendar size={14} />
@@ -249,7 +232,6 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
                                                     </div>
                                                 </div>
                                             </div>
-
                                             {/* Quantity & Warehouse */}
                                             <div className="text-right">
                                                 <div className="font-bold text-xl text-text-primary">
@@ -260,7 +242,6 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
                                                 </div>
                                             </div>
                                         </div>
-
                                         {/* Usage Bar (Visual only for now) */}
                                         {activeSession && (
                                             <div className="mt-4 pt-4 border-t border-red-100 flex items-center justify-between text-xs text-red-700">
@@ -279,7 +260,6 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
                         </div>
                     )}
                 </div>
-
                 {/* Footer */}
                 <div className="p-4 border-t border-border bg-surface-hover/30 flex justify-end">
                     <button
@@ -293,5 +273,4 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
         </div>
     );
 };
-
 export default MaterialDetailsModal;

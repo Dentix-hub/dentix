@@ -2,13 +2,12 @@
 Expenses Router
 Handles expense tracking.
 """
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import List
 
 from .. import schemas, crud
-from ..models import Expense, Payment, Patient
-from sqlalchemy import func
 from .auth import get_current_user, get_db
 
 router = APIRouter(prefix="/expenses", tags=["Expenses"])

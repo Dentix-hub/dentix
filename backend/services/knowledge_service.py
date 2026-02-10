@@ -1,5 +1,6 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from backend.rag.store import knowledge_store
+
 
 class KnowledgeService:
     """
@@ -12,9 +13,7 @@ class KnowledgeService:
     def learn_info(self, text: str, category: str = "general") -> str:
         """Add info to knowledge base."""
         doc_id = knowledge_store.add(
-            text=text,
-            tenant_id=self.tenant_id,
-            metadata={"category": category}
+            text=text, tenant_id=self.tenant_id, metadata={"category": category}
         )
         return doc_id
 

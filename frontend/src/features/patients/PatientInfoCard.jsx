@@ -1,4 +1,3 @@
-import React from 'react';
 import { Edit2, FileText, Plus, User as UserIcon, Phone, MapPin } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -47,11 +46,13 @@ const PatientInfoCard = ({ patient, onEdit, onPrescription, onNewAppointment }) 
     );
 };
 
-const PriceListBadge = ({ priceListId, t }) => {
-    const [name, setName] = React.useState(null);
-    const [isInsurance, setIsInsurance] = React.useState(false);
+import { useState, useEffect } from 'react';
 
-    React.useEffect(() => {
+const PriceListBadge = ({ priceListId, t }) => {
+    const [name, setName] = useState(null);
+    const [isInsurance, setIsInsurance] = useState(false);
+
+    useEffect(() => {
         if (!priceListId) return;
         import('../../api').then(({ getPriceList }) => {
             getPriceList(priceListId).then(res => {

@@ -1,7 +1,5 @@
-import React from 'react';
 import { Toaster, toast } from 'react-hot-toast';
-import { X, Check, AlertTriangle, Info } from 'lucide-react';
-
+import { X, Check } from 'lucide-react';
 const ToastProvider = () => {
     return (
         <Toaster
@@ -27,6 +25,5 @@ const ToastProvider = () => {
         />
     );
 };
-
 export { toast };
 export default ToastProvider;

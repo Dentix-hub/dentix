@@ -1,27 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '@/api';
 import SettingsManager from '@/features/admin/SuperAdmin/SettingsManager';
 import AuditLogViewer from '@/features/admin/SuperAdmin/AuditLogViewer';
 import SecurityPanel from '@/features/admin/SuperAdmin/SecurityPanel';
 import { Settings, User, Database, Shield } from 'lucide-react';
-
 export default function SystemPage() {
     const [activeTab, setActiveTab] = useState('settings');
     const [settings, setSettings] = useState([]);
     const [auditLogs, setAuditLogs] = useState([]);
     const [tenants, setTenants] = useState([]);
     const [loading, setLoading] = useState(true);
-
     // Profile State
     const [profileForm, setProfileForm] = useState({ username: '', email: '', password: '' });
-
     // Backup State
     const [uploading, setUploading] = useState(false);
-
     // Google Drive Handlers
     const [googleConnected, setGoogleConnected] = useState(false);
     const [lastBackupStatus, setLastBackupStatus] = useState(null);
-
     const fetchData = async () => {
         setLoading(true);
         try {
@@ -42,10 +37,8 @@ export default function SystemPage() {
             setLoading(false);
         }
     };
-
     useEffect(() => {
         fetchData();
-
         // Check for backup status in URL (from OAuth redirect)
         const params = new URLSearchParams(window.location.search);
         const status = params.get('backup_status');
@@ -59,7 +52,6 @@ export default function SystemPage() {
             }
         }
     }, []);
-
     // --- Profile Handlers ---
     const handleUpdateProfile = async (e) => {
         e.preventDefault();
@@ -72,7 +64,6 @@ export default function SystemPage() {
             alert("فشل تحديث البيانات");
         }
     };
-
     // --- Backup Handlers ---
     const handleDownloadBackup = async () => {
         try {
@@ -80,12 +71,10 @@ export default function SystemPage() {
             const response = await api.get('/api/v1/admin/system/backup', {
                 responseType: 'blob' // Important for binary files
             });
-
             // Create download link
             const url = window.URL.createObjectURL(new Blob([response.data]));
             const link = document.createElement('a');
             link.href = url;
-
             // Extract filename from headers or default
             const contentDisposition = response.headers['content-disposition'];
             let fileName = 'smart_clinic_backup.db';
@@ -94,13 +83,11 @@ export default function SystemPage() {
                 if (fileNameMatch && fileNameMatch.length === 2)
                     fileName = fileNameMatch[1];
             }
-
             link.setAttribute('download', fileName);
             document.body.appendChild(link);
             link.click();
             link.parentNode.removeChild(link);
             window.URL.revokeObjectURL(url);
-
         } catch (error) {
             console.error("Backup download failed:", error);
             alert("فشل تحميل النسخة الاحتياطية. يرجى التأكد من الصلاحيات.");
@@ -108,16 +95,12 @@ export default function SystemPage() {
             setUploading(false);
         }
     };
-
     const handleRestoreBackup = async (event) => {
         const file = event.target.files[0];
         if (!file) return;
-
         if (!window.confirm("تحذير: استعادة النسخة الاحتياطية ستقوم بحذف جميع البيانات الحالية واستبدالها بالنسخة. هل أنت متأكد تماماً؟")) return;
-
         const formData = new FormData();
         formData.append('file', file);
-
         setUploading(true);
         try {
             await api.post('/api/v1/admin/system/restore', formData, {
@@ -130,7 +113,6 @@ export default function SystemPage() {
             setUploading(false);
         }
     };
-
     // --- Google Drive Handlers ---
     const handleConnectGoogle = async () => {
         try {
@@ -146,7 +128,6 @@ export default function SystemPage() {
             alert("فشل الاتصال بـ Google Drive");
         }
     };
-
     const handleGoogleUpload = async () => {
         if (!window.confirm("هل تريد رفع نسخة احتياطية إلى Google Drive الآن؟")) return;
         setUploading(true);
@@ -162,10 +143,7 @@ export default function SystemPage() {
             setUploading(false);
         }
     };
-
-
     if (loading) return <div className="p-8 text-center text-slate-500">جاري تحميل إعدادات النظام...</div>;
-
     return (
         <div className="space-y-6 animate-fade-in-up">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
@@ -178,7 +156,6 @@ export default function SystemPage() {
                         <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">التحكم في الإعدادات العامة والأمان</p>
                     </div>
                 </div>
-
                 <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl flex-wrap">
                     {[
                         { id: 'settings', label: 'عام', icon: Settings },
@@ -197,12 +174,10 @@ export default function SystemPage() {
                     ))}
                 </div>
             </div>
-
             {/* General Settings */}
             {activeTab === 'settings' && (
                 <SettingsManager settings={settings} fetchData={fetchData} />
             )}
-
             {/* Profile Management */}
             {activeTab === 'profile' && (
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 max-w-2xl">
@@ -244,7 +219,6 @@ export default function SystemPage() {
                     </form>
                 </div>
             )}
-
             {/* Backup & Restore */}
             {activeTab === 'backup' && (
                 <>
@@ -264,7 +238,6 @@ export default function SystemPage() {
                                 تحميل الآن
                             </button>
                         </div>
-
                         <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col items-center text-center gap-4 border-2 border-dashed border-slate-200 dark:border-slate-700">
                             <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center text-amber-600">
                                 <Shield size={32} />
@@ -273,14 +246,12 @@ export default function SystemPage() {
                             <p className="text-slate-500 dark:text-slate-400 text-sm">
                                 رفع ملف نسخة احتياطية لاستبدال البيانات الحالية. <br /><span className="text-rose-500 font-bold">تحذير: سيتم حذف البيانات الحالية!</span>
                             </p>
-
                             <label className={`mt-2 px-6 py-3 ${uploading ? 'bg-slate-400' : 'bg-slate-800 hover:bg-slate-900'} text-white rounded-xl font-bold shadow-lg cursor-pointer transition-all w-full md:w-auto`}>
                                 {uploading ? 'جاري الرفع...' : 'رفع ملف الاستعادة'}
                                 <input type="file" className="hidden" accept=".db" onChange={handleRestoreBackup} disabled={uploading} />
                             </label>
                         </div>
                     </div>
-
                     {/* Google Drive Integration */}
                     <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 mt-6">
                         <div className="flex items-center justify-between mb-6">
@@ -301,7 +272,6 @@ export default function SystemPage() {
                                 <span className="px-3 py-1 bg-slate-100 text-slate-500 text-xs font-bold rounded-full">غير متصل</span>
                             )}
                         </div>
-
                         <div className="flex gap-4">
                             {!googleConnected ? (
                                 <button
@@ -321,7 +291,6 @@ export default function SystemPage() {
                                 </button>
                             )}
                         </div>
-
                         {/* Status Display */}
                         {googleConnected && lastBackupStatus && lastBackupStatus.status && (
                             <div className={`mt-6 p-4 rounded-xl border ${lastBackupStatus.status === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' :
@@ -332,7 +301,6 @@ export default function SystemPage() {
                                     {lastBackupStatus.status === 'success' && <div className="w-2 h-2 rounded-full bg-emerald-500"></div>}
                                     {lastBackupStatus.status === 'processing' && <div className="animate-pulse w-2 h-2 rounded-full bg-blue-500"></div>}
                                     {lastBackupStatus.status === 'failed' && <div className="w-2 h-2 rounded-full bg-rose-500"></div>}
-
                                     <span>
                                         {lastBackupStatus.status === 'success' ? 'آخر عملية نسخ: ناجحة' :
                                             lastBackupStatus.status === 'processing' ? 'جاري النسخ الآن...' :
@@ -358,7 +326,6 @@ export default function SystemPage() {
                 </>
             )
             }
-
             {/* Security Audit */}
             {
                 activeTab === 'security' && (

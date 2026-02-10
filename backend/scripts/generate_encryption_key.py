@@ -4,7 +4,7 @@ Encryption Key Generator for Smart Clinic.
 
 Usage:
     python scripts/generate_encryption_key.py
-    
+
 Output:
     Generates a new Fernet encryption key and displays usage instructions.
 """
@@ -37,23 +37,24 @@ def main():
     print("🔐 Smart Clinic - Security Key Generator")
     print("=" * 60)
     print()
-    
+
     # Generate ENCRYPTION_KEY
     enc_key = generate_encryption_key()
     print("📋 ENCRYPTION_KEY (for data encryption):")
     print(f"   {enc_key}")
     print()
-    
+
     # Generate SECRET_KEY
     secret_key = generate_secret_key()
     print("📋 SECRET_KEY (for JWT tokens):")
     print(f"   {secret_key}")
     print()
-    
+
     print("=" * 60)
     print("📝 Usage Instructions:")
     print("=" * 60)
-    print("""
+    print(
+        """
 1. Copy these keys to your production environment:
    
    For local development (.env file):
@@ -75,8 +76,9 @@ def main():
    - Keep these keys SECRET and SECURE
    - Backup keys securely (losing them = losing encrypted data)
    - Different keys for development vs production
-""".format(enc_key=enc_key, secret_key=secret_key))
-    
+""".format(enc_key=enc_key, secret_key=secret_key)
+    )
+
     # Validate the generated key
     if validate_key(enc_key):
         print("✅ Generated ENCRYPTION_KEY is valid")

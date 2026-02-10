@@ -3,9 +3,9 @@ Async Patient CRUD Operations
 
 Mirrors the synchronous patient.py CRUD but uses AsyncSession and SQLAlchemy 2.0 patterns.
 """
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
-from sqlalchemy.orm import selectinload
 from backend import models, schemas
 from backend.core.tenancy import get_current_tenant_id
 
@@ -22,14 +22,15 @@ async def get_patient(db: AsyncSession, patient_id: int, tenant_id: int):
     """Get a single patient by ID with tenant isolation."""
     _validate_tenant(tenant_id)
     stmt = select(models.Patient).where(
-        models.Patient.id == patient_id,
-        models.Patient.tenant_id == tenant_id
+        models.Patient.id == patient_id, models.Patient.tenant_id == tenant_id
     )
     result = await db.execute(stmt)
     return result.scalar_one_or_none()
 
 
-async def get_patients(db: AsyncSession, tenant_id: int, skip: int = 0, limit: int = 100):
+async def get_patients(
+    db: AsyncSession, tenant_id: int, skip: int = 0, limit: int = 100
+):
     """Get all patients for a tenant with pagination."""
     _validate_tenant(tenant_id)
     stmt = (
@@ -61,7 +62,9 @@ async def search_patients(db: AsyncSession, query: str, tenant_id: int):
     return result.scalars().all()
 
 
-async def create_patient(db: AsyncSession, patient: schemas.PatientCreate, tenant_id: int):
+async def create_patient(
+    db: AsyncSession, patient: schemas.PatientCreate, tenant_id: int
+):
     """Create a new patient."""
     db_patient = models.Patient(**patient.model_dump(), tenant_id=tenant_id)
     db.add(db_patient)
@@ -107,7 +110,9 @@ async def get_tooth_status(db: AsyncSession, patient_id: int, tenant_id: int):
     return result.scalars().all()
 
 
-async def update_tooth_status(db: AsyncSession, status: schemas.ToothStatusCreate, tenant_id: int):
+async def update_tooth_status(
+    db: AsyncSession, status: schemas.ToothStatusCreate, tenant_id: int
+):
     """Create or update a tooth status."""
     stmt = (
         select(models.ToothStatus)
@@ -163,8 +168,7 @@ async def delete_attachment(db: AsyncSession, attachment_id: int, tenant_id: int
         select(models.Attachment)
         .join(models.Patient)
         .where(
-            models.Attachment.id == attachment_id,
-            models.Patient.tenant_id == tenant_id
+            models.Attachment.id == attachment_id, models.Patient.tenant_id == tenant_id
         )
     )
     result = await db.execute(stmt)
@@ -176,7 +180,9 @@ async def delete_attachment(db: AsyncSession, attachment_id: int, tenant_id: int
 
 
 # --- Prescriptions ---
-async def create_prescription(db: AsyncSession, prescription: schemas.PrescriptionCreate):
+async def create_prescription(
+    db: AsyncSession, prescription: schemas.PrescriptionCreate
+):
     """Create a new prescription."""
     db_prescription = models.Prescription(**prescription.model_dump())
     db.add(db_prescription)

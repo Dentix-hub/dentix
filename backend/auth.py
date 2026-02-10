@@ -1,14 +1,12 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from jose import JWTError, jwt
+from jose import jwt, JWTError  # noqa: F401 - JWTError used by routers via auth.JWTError
 from passlib.context import CryptContext
 
 # Configure password hashing context to support both bcrypt (legacy) and pbkdf2_sha256 (new)
 # bcrypt__truncate_error=False suppresses "password too long" error by truncating input to 72 bytes
 pwd_context = CryptContext(
-    schemes=["pbkdf2_sha256", "bcrypt"], 
-    deprecated="auto", 
-    bcrypt__truncate_error=False
+    schemes=["pbkdf2_sha256", "bcrypt"], deprecated="auto", bcrypt__truncate_error=False
 )
 
 import os
@@ -41,7 +39,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(
+            minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+        )
     to_encode.update({"exp": expire, "type": "access"})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -54,6 +54,7 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None):
     else:
         expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     import uuid
+
     to_encode.update({"exp": expire, "type": "refresh", "jti": str(uuid.uuid4())})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

@@ -1,20 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { User, Shield, CheckCircle, AlertTriangle } from 'lucide-react';
 import { getMe } from '../api';
 import GeneralSettings from '@/features/settings/SettingsTabs/GeneralSettings';
 import SecuritySettings from '@/features/settings/Profile/SecuritySettings';
 import { useTranslation } from 'react-i18next';
-
 export default function UserProfile() {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState('general');
     const [message, setMessage] = useState(null);
     const [currentUser, setCurrentUser] = useState(null);
-
     useEffect(() => {
         loadUserInfo();
     }, []);
-
     const loadUserInfo = async () => {
         try {
             const res = await getMe();
@@ -23,17 +20,13 @@ export default function UserProfile() {
             console.error('Failed to load user info', err);
         }
     };
-
     const tabs = [
         { id: 'general', label: t('static.user_profile.tabs.general'), icon: User },
         { id: 'security', label: t('static.user_profile.tabs.security'), icon: Shield },
     ];
-
     if (!currentUser) return <div className="p-8 text-center text-slate-400 font-bold">{t('static.user_profile.loading')}</div>;
-
     return (
         <div className="min-h-screen bg-slate-50/50 dark:bg-slate-900/50 p-6 flex flex-col md:flex-row gap-6 animate-in fade-in active">
-
             {/* Sidebar Navigation */}
             <div className="w-full md:w-64 flex-shrink-0">
                 <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-white/5 sticky top-6">
@@ -41,7 +34,6 @@ export default function UserProfile() {
                         <User className="text-emerald-500" />
                         {t('static.user_profile.menu_title')}
                     </h2>
-
                     <nav className="space-y-1">
                         {tabs.map(tab => {
                             const Icon = tab.icon;
@@ -63,11 +55,9 @@ export default function UserProfile() {
                     </nav>
                 </div>
             </div>
-
             {/* Main Content Area */}
             <div className="flex-1">
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-white/5 min-h-[600px] relative overflow-hidden">
-
                     {/* Header Banner */}
                     <div className="h-32 bg-gradient-to-r from-emerald-500 to-teal-600 relative overflow-hidden">
                         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
@@ -78,9 +68,7 @@ export default function UserProfile() {
                             </div>
                         </div>
                     </div>
-
                     <div className="p-8 pt-12">
-
                         {/* Tab Title */}
                         <div className="mb-8">
                             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
@@ -91,7 +79,6 @@ export default function UserProfile() {
                                 {activeTab === 'security' && t('static.user_profile.desc.security')}
                             </p>
                         </div>
-
                         {/* TAB CONTENT */}
                         {activeTab === 'general' && (
                             <GeneralSettings
@@ -100,15 +87,12 @@ export default function UserProfile() {
                                 setMessage={setMessage}
                             />
                         )}
-
                         {activeTab === 'security' && (
                             <SecuritySettings />
                         )}
-
                     </div>
                 </div>
             </div>
-
             {/* Toast Message */}
             {message && (
                 <div className={`fixed bottom-8 left-8 p-4 rounded-2xl flex items-center gap-3 shadow-2xl animate-in slide-in-from-bottom-10 z-[100] ${message.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>

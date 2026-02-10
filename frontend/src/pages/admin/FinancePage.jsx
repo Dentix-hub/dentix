@@ -1,16 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '@/api';
 import PaymentsManager from '@/features/admin/SuperAdmin/PaymentsManager';
 import PlansManager from '@/features/admin/SuperAdmin/PlansManager';
 import ActiveSubscriptions from '@/features/admin/SuperAdmin/ActiveSubscriptions';
 import { CreditCard, PlusCircle, X, Banknote, Landmark, User, Calendar } from 'lucide-react';
-
 export default function FinancePage() {
     const [activeTab, setActiveTab] = useState('payments'); // payments, plans, subscriptions
     const [payments, setPayments] = useState([]);
     const [tenants, setTenants] = useState([]);
     const [plans, setPlans] = useState([]);
-
     // Payment Modal State
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [paymentForm, setPaymentForm] = useState({
@@ -23,14 +21,11 @@ export default function FinancePage() {
         notes: ''
     });
     const [tenantUsers, setTenantUsers] = useState([]);
-
     // Plans Editing State
     const [editingPlan, setEditingPlan] = useState(null);
     const [editedPlanData, setEditedPlanData] = useState({});
-
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
-
     const fetchData = async () => {
         setLoading(true);
         try {
@@ -48,11 +43,9 @@ export default function FinancePage() {
             setLoading(false);
         }
     };
-
     useEffect(() => {
         fetchData();
     }, []);
-
     const handleSavePlan = async (planId) => {
         try {
             await api.put(`/admin/plans/${planId}`, editedPlanData);
@@ -63,7 +56,6 @@ export default function FinancePage() {
             alert('فشل التعديل');
         }
     };
-
     const handleClinicChange = async (tenantId) => {
         setPaymentForm(prev => ({ ...prev, tenant_id: tenantId, paid_by: '' }));
         if (!tenantId) {
@@ -79,7 +71,6 @@ export default function FinancePage() {
             setTenantUsers([]); // Set empty array on error
         }
     };
-
     const handleRecordPayment = async () => {
         if (!paymentForm.tenant_id || !paymentForm.plan_id || !paymentForm.amount) {
             alert('الرجاء إكمال البيانات الأساسية');
@@ -106,15 +97,12 @@ export default function FinancePage() {
             setProcessing(false);
         }
     };
-
     const getDaysRemaining = (endDate) => {
         if (!endDate) return null;
         const days = Math.ceil((new Date(endDate) - new Date()) / (1000 * 60 * 60 * 24));
         return days;
     };
-
     if (loading) return <div className="p-8 text-center text-slate-500">جاري تحميل البيانات المالية...</div>;
-
     return (
         <div className="space-y-6 animate-fade-in-up">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
@@ -127,7 +115,6 @@ export default function FinancePage() {
                         <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">المدفوعات وخطط الاشتراك</p>
                     </div>
                 </div>
-
                 <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
                     <button
                         onClick={() => setActiveTab('payments')}
@@ -148,7 +135,6 @@ export default function FinancePage() {
                         الخطط
                     </button>
                 </div>
-
                 <button
                     onClick={() => {
                         setShowPaymentModal(true);
@@ -162,7 +148,6 @@ export default function FinancePage() {
                     تسجيل دفعة
                 </button>
             </div>
-
             {activeTab === 'payments' ? (
                 <PaymentsManager
                     payments={payments}
@@ -196,7 +181,6 @@ export default function FinancePage() {
                     onRefresh={fetchData}
                 />
             )}
-
             {/* Enhanced Payment Modal */}
             {showPaymentModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
@@ -213,7 +197,6 @@ export default function FinancePage() {
                                 <X size={20} />
                             </button>
                         </div>
-
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {/* Clinic Selection */}
                             <div className="space-y-2">
@@ -231,7 +214,6 @@ export default function FinancePage() {
                                     ))}
                                 </select>
                             </div>
-
                             {/* Plan Selection */}
                             <div className="space-y-2">
                                 <label className="flex items-center gap-2 text-sm font-bold text-slate-500">
@@ -251,7 +233,6 @@ export default function FinancePage() {
                                     ))}
                                 </select>
                             </div>
-
                             {/* Amount */}
                             <div className="space-y-2">
                                 <label className="flex items-center gap-2 text-sm font-bold text-slate-500">
@@ -264,7 +245,6 @@ export default function FinancePage() {
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none font-bold"
                                 />
                             </div>
-
                             {/* Paid By (Users) */}
                             <div className="space-y-2">
                                 <label className="flex items-center gap-2 text-sm font-bold text-slate-500">
@@ -282,7 +262,6 @@ export default function FinancePage() {
                                     ))}
                                 </select>
                             </div>
-
                             {/* Payment Date */}
                             <div className="space-y-2">
                                 <label className="flex items-center gap-2 text-sm font-bold text-slate-500">
@@ -295,7 +274,6 @@ export default function FinancePage() {
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none font-bold"
                                 />
                             </div>
-
                             {/* Payment Method */}
                             <div className="space-y-2">
                                 <label className="flex items-center gap-2 text-sm font-bold text-slate-500">
@@ -323,7 +301,6 @@ export default function FinancePage() {
                                 </div>
                             </div>
                         </div>
-
                         {/* Notes */}
                         <div className="space-y-2">
                             <label className="text-sm font-bold text-slate-500">ملاحظات إضافية</label>
@@ -334,7 +311,6 @@ export default function FinancePage() {
                                 placeholder="أضف أي ملاحظات هنا..."
                             ></textarea>
                         </div>
-
                         <button
                             onClick={handleRecordPayment}
                             disabled={processing}

@@ -1,4 +1,3 @@
-import React from 'react';
 
 export default function DentalChartPrototype() {
     return (
@@ -10,4 +9,3 @@ export default function DentalChartPrototype() {
         </div>
     );
 }
-

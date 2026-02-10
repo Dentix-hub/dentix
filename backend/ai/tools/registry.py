@@ -1,17 +1,19 @@
-
 """
 AI Tool Registry
 Manages valid tools and handles lookup.
 """
+
 from typing import Dict, List, Optional
 from .base import Tool
 from .definitions import register_default_tools
+
 
 class ToolRegistry:
     """
     Extensible registry for AI tools.
     Add new tools here to expand the agent's capabilities.
     """
+
     def __init__(self):
         self._tools: Dict[str, Tool] = {}
         # Auto-register defaults on init
@@ -22,7 +24,7 @@ class ToolRegistry:
         """Auto-discover tools from backend/ai/extensions/*.py"""
         import os
         import importlib.util
-        
+
         ext_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "extensions")
         if not os.path.exists(ext_dir):
             return
@@ -31,15 +33,19 @@ class ToolRegistry:
             if filename.endswith(".py") and not filename.startswith("__"):
                 try:
                     module_name = f"backend.ai.extensions.{filename[:-3]}"
-                    spec = importlib.util.spec_from_file_location(module_name, os.path.join(ext_dir, filename))
+                    spec = importlib.util.spec_from_file_location(
+                        module_name, os.path.join(ext_dir, filename)
+                    )
                     module = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(module)
-                    
+
                     # Look for 'tools' list in module
                     if hasattr(module, "TOOLS"):
                         for tool in module.TOOLS:
                             if isinstance(tool, Tool):
-                                print(f"[EXTENSION] Loaded tool: {tool.name} from {filename}")
+                                print(
+                                    f"[EXTENSION] Loaded tool: {tool.name} from {filename}"
+                                )
                                 self.register(tool)
                 except Exception as e:
                     print(f"[EXTENSION] Failed to load {filename}: {e}")
@@ -55,6 +61,7 @@ class ToolRegistry:
     def all(self) -> List[Tool]:
         """Get all registered tools."""
         return list(self._tools.values())
+
 
 # Global registry instance
 tool_registry = ToolRegistry()

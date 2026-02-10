@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getProcedures } from '@/api';
 import { getProcedureFinancials } from '@/api/financials';
 import { updateMaterial } from '@/api/inventory';
-import { Package, Search, TrendingUp, AlertTriangle, CheckCircle } from 'lucide-react';
-
+import { Package, Search, TrendingUp, AlertTriangle } from 'lucide-react';
 const ProcedureCostAnalysis = () => {
     const { t } = useTranslation();
     const [procedures, setProcedures] = useState([]);
@@ -12,11 +11,9 @@ const ProcedureCostAnalysis = () => {
     const [analysis, setAnalysis] = useState(null);
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('analysis'); // analysis, coverage
-
     useEffect(() => {
         loadProcedures();
     }, []);
-
     useEffect(() => {
         if (selectedProcedure) {
             loadFinancials(selectedProcedure);
@@ -24,7 +21,6 @@ const ProcedureCostAnalysis = () => {
             setAnalysis(null);
         }
     }, [selectedProcedure]);
-
     const loadProcedures = async () => {
         try {
             const res = await getProcedures();
@@ -33,7 +29,6 @@ const ProcedureCostAnalysis = () => {
             console.error("Failed to load procedures", err);
         }
     };
-
     const loadFinancials = async (procId) => {
         setLoading(true);
         try {
@@ -46,7 +41,6 @@ const ProcedureCostAnalysis = () => {
             setLoading(false);
         }
     };
-
     return (
         <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
@@ -57,7 +51,6 @@ const ProcedureCostAnalysis = () => {
                     </h2>
                     <p className="text-sm text-slate-500 mt-1">{t('analytics.procedure_analysis.subtitle')}</p>
                 </div>
-
                 <div className="w-full md:w-64">
                     <select
                         className="w-full p-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm outline-none focus:border-indigo-500"
@@ -71,7 +64,6 @@ const ProcedureCostAnalysis = () => {
                     </select>
                 </div>
             </div>
-
             {!selectedProcedure ? (
                 <div className="text-center py-12 text-slate-400 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200">
                     <Search className="mx-auto mb-2 opacity-50" size={32} />
@@ -96,7 +88,6 @@ const ProcedureCostAnalysis = () => {
                             {t('analytics.procedure_analysis.tabs.consumption')}
                         </button>
                     </div>
-
                     {/* ANALYSIS TAB */}
                     {activeTab === 'analysis' && (
                         <div className="animate-in fade-in slide-in-from-right-4 space-y-4">
@@ -107,7 +98,6 @@ const ProcedureCostAnalysis = () => {
                                     <div className="text-2xl font-black text-slate-800 dark:text-white">{analysis.current_price}</div>
                                     <div className="text-[10px] text-slate-400">{t('analytics.general_analysis.currency')}</div>
                                 </div>
-
                                 {/* Actual Cost (AI) */}
                                 <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-800 text-center shadow-sm relative overflow-hidden">
                                     <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[9px] px-2 py-0.5 rounded-bl-lg">AI Learn</div>
@@ -115,7 +105,6 @@ const ProcedureCostAnalysis = () => {
                                     <div className="text-2xl font-black text-indigo-700 dark:text-indigo-400">{analysis.total_actual_cost}</div>
                                     <div className="text-[10px] text-indigo-400">{t('analytics.procedure_analysis.metrics.actual_margin')}</div>
                                 </div>
-
                                 {/* Actual Profit */}
                                 <div className={`p-4 rounded-2xl border text-center shadow-sm ${analysis.actual_profit_margin < 0 ? 'bg-red-50 border-red-100 text-red-700' : 'bg-emerald-50 border-emerald-100 text-emerald-700'}`}>
                                     <div className="text-xs font-bold mb-1 opacity-80">{t('analytics.procedure_analysis.metrics.actual_profit')}</div>
@@ -123,7 +112,6 @@ const ProcedureCostAnalysis = () => {
                                     <div className="text-[10px] opacity-70">{analysis.actual_margin_percentage}%</div>
                                 </div>
                             </div>
-
                             {/* Suggestions */}
                             {analysis.actual_margin_percentage < 30 && (
                                 <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex gap-3 items-start text-amber-800">
@@ -136,7 +124,6 @@ const ProcedureCostAnalysis = () => {
                                     </div>
                                 </div>
                             )}
-
                             <div className="bg-slate-50 dark:bg-slate-900/30 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
                                 <h4 className="font-bold text-sm text-slate-600 dark:text-slate-300 mb-3 flex justify-between">
                                     <span>{t('analytics.procedure_analysis.comparison.title')}</span>
@@ -149,7 +136,6 @@ const ProcedureCostAnalysis = () => {
                                                 <div className="font-bold text-slate-700 dark:text-slate-200">{item.material_name}</div>
                                                 <div className="text-xs text-slate-400 mt-0.5">{item.unit_cost} ج.م / {item.base_unit}</div>
                                             </div>
-
                                             {/* Comparison Grid */}
                                             <div className="flex bg-slate-50 dark:bg-slate-900 rounded-lg p-1 gap-4 text-center w-full sm:w-auto justify-center">
                                                 <div className="px-2 border-r border-slate-200 dark:border-slate-700">
@@ -169,7 +155,6 @@ const ProcedureCostAnalysis = () => {
                             </div>
                         </div>
                     )}
-
                     {/* COVERAGE TAB */}
                     {activeTab === 'coverage' && (
                         <div className="animate-in fade-in slide-in-from-right-4">
@@ -184,7 +169,6 @@ const ProcedureCostAnalysis = () => {
                                     <span className="font-bold text-red-600 dark:text-red-400">{t('analytics.procedure_analysis.coverage.important')}</span> {t('analytics.procedure_analysis.coverage.desc_continued')}
                                 </p>
                             </div>
-
                             <div className="border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-sm overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 font-bold text-xs uppercase">
@@ -246,5 +230,4 @@ const ProcedureCostAnalysis = () => {
         </div>
     );
 };
-
 export default ProcedureCostAnalysis;

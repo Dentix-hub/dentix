@@ -1,10 +1,27 @@
-import React from 'react';
+import { useState, useEffect } from 'react';
 import { Building2, TrendingUp, AlertCircle, DollarSign, Users, Activity } from 'lucide-react';
 import StatCard from '@/shared/ui/StatCard';
-
-const DashboardStats = ({ stats }) => {
+import { api } from '@/api';
+const DashboardStats = () => {
+    const [stats, setStats] = useState(null);
+    const [loading, setLoading] = useState(true);
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                // Cache busting
+                const timestamp = new Date().getTime();
+                const res = await api.get(`/api/v1/admin/stats?_t=${timestamp}`);
+                setStats(res.data);
+            } catch (err) {
+                console.error("Failed to fetch stats", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchStats();
+    }, []);
+    if (loading) return <div className="p-10 text-center text-slate-500 animate-pulse">جاري تحميل الإحصائيات...</div>;
     if (!stats) return null;
-
     return (
         <div className="space-y-8 animate-fade-in">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -13,7 +30,6 @@ const DashboardStats = ({ stats }) => {
                 <StatCard icon={AlertCircle} title="اشتراكات منتهية" value={stats.expired_tenants} subtext="تحتاج تجديد" color="rose" />
                 <StatCard icon={DollarSign} title="الإيرادات الكلية" value={`${(stats.total_revenue || 0).toLocaleString()} ج.م`} subtext="منذ البداية" color="violet" />
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
                     <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
@@ -45,5 +61,4 @@ const DashboardStats = ({ stats }) => {
         </div>
     );
 };
-
 export default DashboardStats;

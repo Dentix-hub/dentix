@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
     Search, Plus, Package, ArrowDownLeft, Brain, Play, Square, AlertCircle, Trash2, Edit
 } from 'lucide-react';
@@ -6,11 +6,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getStockSummary, getActiveSessions, deleteMaterial } from '@/api/inventory';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import { useTranslation } from 'react-i18next';
-
 import SmartLearningModal from './components/SmartLearningModal';
 import TrackSessionModal from './components/TrackSessionModal';
 import MaterialDetailsModal from './components/MaterialDetailsModal';
-
 const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
     const { t } = useTranslation();
     const queryClient = useQueryClient();
@@ -19,7 +17,6 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
     const [smartMaterial, setSmartMaterial] = useState(null);
     const [selectedMaterial, setSelectedMaterial] = useState(null); // For Details Modal
     const [sessionModal, setSessionModal] = useState({ open: false, mode: 'OPEN', material: null, session: null });
-
     const { data: stockItems, isLoading, error } = useQuery({
         queryKey: ['inventory-stock'],
         queryFn: async () => {
@@ -27,7 +24,6 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
             return Array.isArray(res.data) ? res.data : [];
         }
     });
-
     const { data: activeSessions } = useQuery({
         queryKey: ['active-sessions'],
         queryFn: async () => {
@@ -36,7 +32,6 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
         },
         refetchInterval: 30000 // Refresh every 30s
     });
-
     const deleteMutation = useMutation({
         mutationFn: deleteMaterial,
         onSuccess: () => {
@@ -51,7 +46,6 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
             alert(msg);
         }
     });
-
     // Map material_id -> Active Session (just take first one for MVP, or indicate count)
     const activeSessionsMap = useMemo(() => {
         const map = {};
@@ -68,13 +62,11 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
         }
         return map;
     }, [activeSessions]);
-
     const filteredItems = (stockItems || [])?.filter(item => {
         const matchesSearch = item.material_name.toLowerCase().includes(searchQuery.toLowerCase());
         if (filter === 'ALL') return matchesSearch;
         return matchesSearch && item.alert_status === filter;
     });
-
     const handleOpenSession = (item) => {
         setSessionModal({
             open: true,
@@ -83,7 +75,6 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
             session: null
         });
     };
-
     const handleCloseSession = (session) => {
         setSessionModal({
             open: true,
@@ -92,16 +83,13 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
             session: session
         });
     };
-
     const handleDelete = (id, name) => {
         if (window.confirm(t('inventory.messages.delete_confirm', { name }))) {
             deleteMutation.mutate(id);
         }
     };
-
     if (isLoading) return <LoadingSpinner />;
     if (error) return <div className="text-red-500 text-center p-4">حدث خطأ في تحميل البيانات</div>;
-
     return (
         <div className="space-y-4">
             {/* Header Actions */}
@@ -116,7 +104,6 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                         className="w-full pr-10 pl-4 py-2 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                     />
                 </div>
-
                 <div className="flex gap-2 w-full md:w-auto">
                     <select
                         value={filter}
@@ -127,7 +114,6 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                         <option value="LOW">{t('inventory.filters.low')}</option>
                         <option value="CRITICAL">{t('inventory.filters.critical')}</option>
                     </select>
-
                     <button
                         onClick={onReceiveStock}
                         className="flex items-center gap-2 px-4 py-2 bg-secondary/10 text-secondary hover:bg-secondary/20 rounded-lg font-bold transition-colors"
@@ -135,7 +121,6 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                         <ArrowDownLeft size={18} />
                         <span>{t('inventory.actions.receive_stock')}</span>
                     </button>
-
                     <button
                         onClick={onAddMaterial}
                         className="flex items-center gap-2 px-4 py-2 bg-primary text-white hover:bg-primary-600 rounded-lg font-bold transition-colors shadow-lg shadow-primary/20"
@@ -145,7 +130,6 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                     </button>
                 </div>
             </div>
-
             {/* Table */}
             <div className="bg-surface rounded-xl shadow-sm border border-border overflow-hidden">
                 <div className="overflow-x-auto">
@@ -174,7 +158,6 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                                 filteredItems?.map((item) => {
                                     const sessions = activeSessionsMap[item.material_id] || [];
                                     const hasActiveSession = sessions.length > 0;
-
                                     return (
                                         <tr key={item.material_id} className="hover:bg-surface-hover transition-colors group">
                                             <td
@@ -208,7 +191,6 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                                                 )}
                                             </td>
                                             {/* Batches cell removed */}
-
                                             {/* Status */}
                                             <td className="px-6 py-4">
                                                 {/* Existing alert logic can be simplified or kept */}
@@ -218,7 +200,6 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                                                     <span className="text-amber-600 text-xs font-bold px-2 py-1 bg-amber-100 rounded-full">{t('inventory.status.low')}</span>
                                                 )}
                                             </td>
-
                                             {/* Active Sessions Control */}
                                             <td className="px-6 py-4">
                                                 <div className="flex gap-2">
@@ -248,7 +229,6 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                                                     )}
                                                 </div>
                                             </td>
-
                                             {/* Smart Config & Actions */}
                                             <td className="px-6 py-4">
                                                 <div className="flex gap-2">
@@ -261,7 +241,6 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                                                             <Brain size={18} />
                                                         </button>
                                                     )}
-
                                                     <button
                                                         onClick={() => onEditMaterial && onEditMaterial(item)}
                                                         className="p-2 text-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-colors"
@@ -269,7 +248,6 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                                                     >
                                                         <Edit size={18} />
                                                     </button>
-
                                                     <button
                                                         onClick={() => handleDelete(item.material_id, item.material_name)}
                                                         className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition-colors"
@@ -287,20 +265,17 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                     </table>
                 </div>
             </div>
-
             <SmartLearningModal
                 isOpen={!!smartMaterial}
                 onClose={() => setSmartMaterial(null)}
                 material={smartMaterial}
             />
-
             <MaterialDetailsModal
                 isOpen={!!selectedMaterial}
                 onClose={() => setSelectedMaterial(null)}
                 material={selectedMaterial}
                 activeSessions={activeSessions || []}
             />
-
             <TrackSessionModal
                 isOpen={sessionModal.open}
                 onClose={() => setSessionModal(prev => ({ ...prev, open: false }))}
@@ -311,5 +286,4 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
         </div>
     );
 };
-
 export default StockList;

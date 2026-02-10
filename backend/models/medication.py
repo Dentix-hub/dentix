@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from datetime import datetime
 from .base import Base
 
+
 class SavedMedication(Base):
     __tablename__ = "saved_medications"
 

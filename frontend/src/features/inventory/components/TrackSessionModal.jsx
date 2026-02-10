@@ -1,27 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { X, Play, Square, AlertCircle, Clock, Package } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Play, Square, AlertCircle, Clock } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { openSession, closeSession, getMaterialStock } from '@/api/inventory';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import { useTranslation } from 'react-i18next';
-
 const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode = 'OPEN', onSuccess }) => {
     const { t } = useTranslation();
     const queryClient = useQueryClient();
     const [selectedStockId, setSelectedStockId] = useState(stockItem?.id || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
-
     // Fetch batches if we don't have a specific stock item but have material
     const { data: batches, isLoading: isLoadingBatches } = useQuery({
         queryKey: ['material-stock', material?.id],
         queryFn: () => getMaterialStock(material?.id),
         enabled: isOpen && mode === 'OPEN' && !stockItem && !!material?.id,
     });
-
     useEffect(() => {
         if (stockItem) setSelectedStockId(stockItem.id);
     }, [stockItem]);
-
     const openMutation = useMutation({
         mutationFn: openSession,
         onSuccess: () => {
@@ -30,7 +26,6 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
             onClose();
         }
     });
-
     const closeMutation = useMutation({
         mutationFn: (data) => closeSession(session.id, data),
         onSuccess: () => {
@@ -40,7 +35,6 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
             onClose();
         }
     });
-
     const handleConfirm = async () => {
         setIsSubmitting(true);
         console.log("Starting Confirm...", { mode, selectedStockId });
@@ -71,13 +65,10 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
             setIsSubmitting(false);
         }
     };
-
     if (!isOpen) return null;
-
     const isOpenMode = mode === 'OPEN';
     const displayMaterialName = material?.name || material?.material_name || stockItem?.name || stockItem?.material_name || session?.stock_item?.batch?.material?.name || session?.stock_item?.material?.name;
     const unit = material?.unit || session?.stock_item?.batch?.material?.base_unit || session?.stock_item?.material?.base_unit || 'Units';
-
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <div className="bg-surface w-full max-w-md rounded-2xl shadow-xl border border-border overflow-hidden">
@@ -95,13 +86,11 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
                     </div>
                     <button onClick={onClose} className="p-1 hover:bg-black/5 rounded-full"><X size={20} /></button>
                 </div>
-
                 <div className="p-6 space-y-6">
                     <div className="text-sm font-medium border-b border-border pb-4">
                         <span className="text-text-secondary">{t('inventory.track_session.material_label')} </span>
                         <span className="font-bold text-lg text-text-primary mr-2">{displayMaterialName}</span>
                     </div>
-
                     {isOpenMode ? (
                         <div className="space-y-4">
                             <div className="flex items-start gap-3 p-3 bg-background-secondary rounded-lg">
@@ -110,7 +99,6 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
                                     {t('inventory.track_session.info_open')}
                                 </p>
                             </div>
-
                             {!stockItem && (
                                 <div>
                                     <label className="block text-sm font-bold mb-2">{t('inventory.track_session.select_batch_label')}</label>
@@ -133,7 +121,6 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
                                     )}
                                 </div>
                             )}
-
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -144,7 +131,6 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
                                     {session?.opened_at ? new Date(session.opened_at).toLocaleDateString() + ' ' + new Date(session.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}
                                 </span>
                             </div>
-
                             <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg dark:bg-amber-900/10">
                                 <AlertCircle className="text-amber-600 shrink-0 mt-0.5" size={18} />
                                 <p className="text-sm text-text-secondary leading-relaxed">
@@ -154,7 +140,6 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
                         </div>
                     )}
                 </div>
-
                 <div className="p-4 border-t border-border bg-surface-secondary/30 flex justify-end gap-3">
                     <button onClick={onClose} className="px-4 py-2 rounded-lg font-bold hover:bg-black/5">{t('inventory.track_session.actions.cancel')}</button>
                     <button
@@ -170,5 +155,4 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
         </div>
     );
 };
-
 export default TrackSessionModal;

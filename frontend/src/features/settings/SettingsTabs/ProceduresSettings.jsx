@@ -1,23 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { getMaterials, getProcedureWeights, setProcedureWeight, deleteProcedureWeight } from '@/api/inventory';
 import * as api from '@/api';
 import { Package, X, Search, Plus, Edit2, Trash2 } from 'lucide-react';
-
 const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
     const [materials, setMaterials] = useState([]);
     const [weights, setWeights] = useState([]);
     const [loading, setLoading] = useState(false);
-
     // Form state
     const [selectedMaterial, setSelectedMaterial] = useState('');
     const [amount, setAmount] = useState(1);
-
     useEffect(() => {
         if (isOpen && procedure) {
             loadData();
         }
     }, [isOpen, procedure]);
-
     const loadData = async () => {
         setLoading(true);
         try {
@@ -33,7 +29,6 @@ const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
             setLoading(false);
         }
     };
-
     const handleAdd = async () => {
         if (!selectedMaterial || amount <= 0) return;
         try {
@@ -49,7 +44,6 @@ const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
             alert('فشل إضافة المادة');
         }
     };
-
     const handleDelete = async (weightId) => {
         if (!window.confirm('هل أنت متأكد من إزالة هذه المادة من الإجراء؟')) return;
         try {
@@ -59,9 +53,7 @@ const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
             alert('فشل حذف المادة');
         }
     };
-
     if (!isOpen) return null;
-
     return (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
             <div className="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-3xl p-6 shadow-2xl scale-100 animate-in zoom-in-95 duration-200 flex flex-col">
@@ -72,7 +64,6 @@ const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
                     </div>
                     <button onClick={onClose}><X /></button>
                 </div>
-
                 <div className="space-y-4 animate-in fade-in slide-in-from-left-4">
                     <div className="flex gap-2 items-end bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
                         <div className="flex-1">
@@ -105,7 +96,6 @@ const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
                             <Plus size={20} />
                         </button>
                     </div>
-
                     {/* List */}
                     <div className="space-y-2">
                         {weights.length === 0 ? (
@@ -126,12 +116,10 @@ const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
                             );
                         })}
                     </div>
-
                     <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg text-xs text-blue-700 dark:text-blue-300 mt-4">
                         💡 لتحليل التكلفة واستهلاك المواد (Coverage)، انتقل إلى قسم <b>التحليلات الذكية</b>.
                     </div>
                 </div>
-
                 <div className="pt-4 border-t dark:border-slate-700 mt-6">
                     <button onClick={onClose} className="w-full py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600">إغلاق</button>
                 </div>
@@ -139,7 +127,6 @@ const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
         </div>
     );
 };
-
 const ProceduresSettings = ({ setMessage }) => {
     const [procedures, setProcedures] = useState([]);
     const [isProcLoading, setIsProcLoading] = useState(false);
@@ -147,14 +134,11 @@ const ProceduresSettings = ({ setMessage }) => {
     const [editingProc, setEditingProc] = useState(null);
     const [newProc, setNewProc] = useState({ name: '', price: '' });
     const [procSearch, setProcSearch] = useState('');
-
     // Material Modal State
     const [materialModal, setMaterialModal] = useState({ open: false, procedure: null });
-
     useEffect(() => {
         loadProcedures();
     }, []);
-
     const loadProcedures = async () => {
         setIsProcLoading(true);
         try {
@@ -166,7 +150,6 @@ const ProceduresSettings = ({ setMessage }) => {
             setIsProcLoading(false);
         }
     };
-
     const handleSaveProcedure = async (e) => {
         e.preventDefault();
         try {
@@ -189,7 +172,6 @@ const ProceduresSettings = ({ setMessage }) => {
             setMessage({ type: 'error', text: 'حدث خطأ أثناء الحفظ' });
         }
     };
-
     const handleDeleteProcedure = async (id) => {
         if (!window.confirm('هل أنت متأكد من حذف هذا الإجراء؟')) return;
         try {
@@ -201,15 +183,12 @@ const ProceduresSettings = ({ setMessage }) => {
             setMessage({ type: 'error', text: 'فشل الحذف' });
         }
     };
-
     const openEditProc = (proc) => {
         setEditingProc(proc);
         setNewProc({ name: proc.name, price: proc.price });
         setIsProcModalOpen(true);
     };
-
     const filteredProcedures = procedures.filter(p => p.name.toLowerCase().includes(procSearch.toLowerCase()));
-
     return (
         <div className="space-y-6">
             <div className="flex justify-between gap-4">
@@ -235,7 +214,6 @@ const ProceduresSettings = ({ setMessage }) => {
                     إضافة
                 </button>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {isProcLoading ? (
                     <div className="col-span-2 text-center py-10 text-slate-500">جاري التحميل...</div>
@@ -259,7 +237,6 @@ const ProceduresSettings = ({ setMessage }) => {
                     </div>
                 ))}
             </div>
-
             {/* Proc Modal */}
             {isProcModalOpen && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
@@ -293,7 +270,6 @@ const ProceduresSettings = ({ setMessage }) => {
                     </div>
                 </div>
             )}
-
             {/* Materials Modal */}
             <ProceduresMaterialsModal
                 isOpen={materialModal.open}
@@ -303,5 +279,4 @@ const ProceduresSettings = ({ setMessage }) => {
         </div>
     );
 };
-
 export default ProceduresSettings;

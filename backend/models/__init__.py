@@ -1,8 +1,9 @@
 from .base import Base
 
-from .ai_audit import AILog # Phase 0: Unified AI Logs
+from .ai_audit import AILog  # Phase 0: Unified AI Logs
+
 # from .audit_log import AuditLog <-- REMOVED
-from .security_event import SecurityEvent # Phase 3: Security Hardening
+from .security_event import SecurityEvent  # Phase 3: Security Hardening
 from .tenant import Tenant, SubscriptionPlan, SubscriptionPayment
 from .user import User, PasswordResetToken, LoginHistory, UserSession
 from .medication import SavedMedication

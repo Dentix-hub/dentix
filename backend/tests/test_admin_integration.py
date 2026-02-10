@@ -2,7 +2,7 @@
 Admin Module Integration Tests
 Tests for tenant management: pagination, plan upgrades, and soft deletion.
 """
-from datetime import datetime, timedelta
+
 from backend.models import Tenant, User
 from backend.constants import ROLES
 from backend import auth
@@ -16,89 +16,105 @@ def test_token_validity(super_admin_headers):
     try:
         payload = auth.jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
         print(f"DEBUG: Manual Decode Success: {payload}", file=sys.stderr)
-        assert payload["sub"] == "test_super_admin"
+        assert payload["sub"] == "superadmin"
         assert payload["role"] == "super_admin"
-        assert payload["tenant_id"] == 1
+        assert payload.get("tenant_id") is None
     except Exception as e:
         print(f"DEBUG: Manual Decode Failed: {e}", file=sys.stderr)
         assert False, f"Manual decode failed: {e}"
 
 
-def test_get_tenants_pagination(client, db, super_admin_headers):
+def test_get_tenants_pagination(client, db_session, super_admin_headers):
     """Test pagination of tenant list."""
     # 1. Seed 15 tenants
     for i in range(15):
         tenant = Tenant(name=f"Clinic {i}", plan="basic", is_active=True)
-        db.add(tenant)
-    db.commit()
-    
+        db_session.add(tenant)
+    db_session.commit()
+
     print(f"DEBUG: HEADERS: {super_admin_headers}", file=sys.stderr)
-    
+
     # 2. Request Page 1 (Limit 10)
-    response = client.get("/admin/tenants?skip=0&limit=10", headers=super_admin_headers)
-    assert response.status_code == 200, f"Status {response.status_code}. Detail: {response.text}"
+    response = client.get(
+        "/api/v1/admin/tenants?skip=0&limit=10", headers=super_admin_headers
+    )
+    assert response.status_code == 200, (
+        f"Status {response.status_code}. Detail: {response.text}"
+    )
     data = response.json()
     assert len(data) == 10
-    
+
     # 3. Request Page 2 (Limit 10)
-    response = client.get("/admin/tenants?skip=10&limit=10", headers=super_admin_headers)
-    assert response.status_code == 200, f"Status {response.status_code}. Detail: {response.text}"
+    response = client.get(
+        "/api/v1/admin/tenants?skip=10&limit=10", headers=super_admin_headers
+    )
+    assert response.status_code == 200, (
+        f"Status {response.status_code}. Detail: {response.text}"
+    )
     data = response.json()
     assert len(data) >= 5
 
 
-def test_update_tenant_plan_upgrade(client, db, super_admin_headers):
+def test_update_tenant_plan_upgrade(client, db_session, super_admin_headers):
     """Test upgrading a tenant's plan from basic to premium."""
     # 1. Create a basic tenant
     tenant = Tenant(name="Upgrade Clinic", plan="basic", is_active=True)
-    db.add(tenant)
-    db.commit()
-    
+    db_session.add(tenant)
+    db_session.commit()
+
     # 2. Send Upgrade Request
     payload = {"plan": "premium", "subscription_end_date": None, "is_active": True}
-    response = client.put(f"/admin/tenants/{tenant.id}", json=payload, headers=super_admin_headers)
-    
+    response = client.put(
+        f"/api/v1/admin/tenants/{tenant.id}", json=payload, headers=super_admin_headers
+    )
+
     # 3. Verify Response and DB
-    assert response.status_code == 200, f"Status {response.status_code}. Detail: {response.text}"
+    assert response.status_code == 200, (
+        f"Status {response.status_code}. Detail: {response.text}"
+    )
     data = response.json()
     assert data["plan"] == "premium"
-    
-    db.refresh(tenant)
+
+    db_session.refresh(tenant)
     assert tenant.plan == "premium"
 
 
-def test_soft_delete_tenant(client, db, super_admin_headers):
+def test_soft_delete_tenant(client, db_session, super_admin_headers):
     """Test soft deletion of a tenant and cascade to users."""
     # 1. Create Tenant and Admin User
     tenant = Tenant(name="Closing Clinic", plan="basic", is_active=True)
-    db.add(tenant)
-    db.commit()
-    
+    db_session.add(tenant)
+    db_session.commit()
+
     admin_user = User(
-        username="clinic_admin", 
-        email="admin@clinic.com", 
-        hashed_password="pw", 
-        role=ROLES.MANAGER, 
+        username="clinic_admin",
+        email="admin@clinic.com",
+        hashed_password="pw",
+        role=ROLES.MANAGER,
         tenant_id=tenant.id,
-        is_active=True
+        is_active=True,
     )
-    db.add(admin_user)
-    db.commit()
-    
+    db_session.add(admin_user)
+    db_session.commit()
+
     # 2. Send Delete Request
-    response = client.delete(f"/admin/tenants/{tenant.id}", headers=super_admin_headers)
-    assert response.status_code == 200, f"Status {response.status_code}. Detail: {response.text}"
-    
+    response = client.delete(
+        f"/api/v1/admin/tenants/{tenant.id}", headers=super_admin_headers
+    )
+    assert response.status_code == 200, (
+        f"Status {response.status_code}. Detail: {response.text}"
+    )
+
     # 3. Verify Soft Delete (Not Hard Delete)
-    db.expire_all()  # invalidate cache
-    updated_tenant = db.query(Tenant).filter(Tenant.id == tenant.id).first()
-    updated_user = db.query(User).filter(User.id == admin_user.id).first()
-    
+    db_session.expire_all()  # invalidate cache
+    updated_tenant = db_session.query(Tenant).filter(Tenant.id == tenant.id).first()
+    updated_user = db_session.query(User).filter(User.id == admin_user.id).first()
+
     # Tenant Checks
     assert updated_tenant.is_deleted is True
     assert updated_tenant.is_active is False
     assert updated_tenant.deleted_at is not None
-    
+
     # Cascading User Check
     assert updated_user.is_deleted is True
     assert updated_user.is_active is False

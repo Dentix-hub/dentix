@@ -3,6 +3,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 # from . import BaseSchema # Removed undefined import
 
+
 class SystemErrorBase(BaseModel):
     level: str = "ERROR"
     source: str = "BACKEND"
@@ -14,8 +15,10 @@ class SystemErrorBase(BaseModel):
     tenant_id: Optional[int] = None
     user_agent: Optional[str] = None
 
+
 class SystemErrorCreate(SystemErrorBase):
     pass
+
 
 class SystemError(SystemErrorBase):
     id: int

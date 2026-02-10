@@ -1,4 +1,3 @@
-import React from 'react';
 import { Check, Trash2 } from 'lucide-react';
 import { Button, Card, Badge, Skeleton, EmptyState } from '@/shared/ui';
 

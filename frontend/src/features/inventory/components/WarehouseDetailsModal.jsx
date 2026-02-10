@@ -1,4 +1,3 @@
-import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { X, Package, Layers } from 'lucide-react';
 import api from '@/api'; // Using base API instance for flexible query

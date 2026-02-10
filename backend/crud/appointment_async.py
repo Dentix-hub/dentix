@@ -3,13 +3,16 @@ Async Appointment CRUD Operations
 
 Mirrors the synchronous appointment.py CRUD but uses AsyncSession and SQLAlchemy 2.0 patterns.
 """
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from backend import models, schemas
 
 
-async def get_appointments(db: AsyncSession, tenant_id: int, skip: int = 0, limit: int = 100):
+async def get_appointments(
+    db: AsyncSession, tenant_id: int, skip: int = 0, limit: int = 100
+):
     """Get all appointments for a tenant with patient eager loading."""
     stmt = (
         select(models.Appointment)
@@ -72,15 +75,17 @@ async def delete_appointment(db: AsyncSession, appointment_id: int, tenant_id: i
 async def get_appointments_by_date(db: AsyncSession, date_str: str, tenant_id: int):
     """Get appointments for a specific date."""
     from datetime import datetime
-    
+
     target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
     stmt = (
         select(models.Appointment)
         .join(models.Patient)
         .where(
             models.Patient.tenant_id == tenant_id,
-            models.Appointment.date_time >= datetime.combine(target_date, datetime.min.time()),
-            models.Appointment.date_time < datetime.combine(target_date, datetime.max.time()),
+            models.Appointment.date_time
+            >= datetime.combine(target_date, datetime.min.time()),
+            models.Appointment.date_time
+            < datetime.combine(target_date, datetime.max.time()),
         )
         .options(selectinload(models.Appointment.patient))
         .order_by(models.Appointment.date_time)

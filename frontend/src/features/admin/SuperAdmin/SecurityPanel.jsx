@@ -1,20 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '@/api';
-import { Shield, Lock, Unlock, AlertTriangle, CheckCircle, Search, Ban, History } from 'lucide-react';
-
+import { Lock, Unlock, AlertTriangle, CheckCircle, Ban, History } from 'lucide-react';
 export default function SecurityPanel() {
     const [stats, setStats] = useState(null);
     const [blockedIps, setBlockedIps] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showBlockModal, setShowBlockModal] = useState(false);
-
     // Form State
     const [blockForm, setBlockForm] = useState({ ip_address: '', reason: '' });
-
     useEffect(() => {
         fetchSecurityData();
     }, []);
-
     const fetchSecurityData = async () => {
         try {
             setLoading(true);
@@ -30,7 +26,6 @@ export default function SecurityPanel() {
             setLoading(false);
         }
     };
-
     const handleBlockIp = async () => {
         if (!blockForm.ip_address) return alert("الرجاء إدخال عنوان IP");
         try {
@@ -43,7 +38,6 @@ export default function SecurityPanel() {
             alert("فشلت عملية الحظر");
         }
     };
-
     const handleUnblockIp = async (ip) => {
         if (!window.confirm("هل أنت متأكد من فك الحظر؟")) return;
         try {
@@ -53,9 +47,7 @@ export default function SecurityPanel() {
             alert("فشل فك الحظر");
         }
     };
-
     if (loading && !stats) return <div className="p-8 text-center text-slate-500">جاري تحميل البيانات الأمنية...</div>;
-
     return (
         <div className="space-y-8">
             {/* Header Stats */}
@@ -69,7 +61,6 @@ export default function SecurityPanel() {
                         <h3 className="text-3xl font-black text-slate-800 dark:text-white">{stats?.blocked_ips_count || 0}</h3>
                     </div>
                 </div>
-
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 flex items-center gap-4">
                     <div className="p-4 bg-orange-100 dark:bg-orange-900/30 text-orange-600 rounded-2xl">
                         <Lock size={28} />
@@ -79,7 +70,6 @@ export default function SecurityPanel() {
                         <h3 className="text-3xl font-black text-slate-800 dark:text-white">{stats?.locked_users?.length || 0}</h3>
                     </div>
                 </div>
-
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 flex items-center gap-4">
                     <div className="p-4 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 rounded-2xl">
                         <AlertTriangle size={28} />
@@ -90,7 +80,6 @@ export default function SecurityPanel() {
                     </div>
                 </div>
             </div>
-
             <div className="flex flex-col lg:flex-row gap-8">
                 {/* Blocked IPs List */}
                 <div className="flex-1 bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
@@ -106,7 +95,6 @@ export default function SecurityPanel() {
                             حظر عنوان جديد
                         </button>
                     </div>
-
                     <div className="p-6">
                         {blockedIps.length === 0 ? (
                             <div className="text-center py-8 text-slate-400">
@@ -147,7 +135,6 @@ export default function SecurityPanel() {
                         )}
                     </div>
                 </div>
-
                 {/* Recent Failed Logins */}
                 <div className="lg:w-1/3 bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                     <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3">
@@ -175,7 +162,6 @@ export default function SecurityPanel() {
                     </div>
                 </div>
             </div>
-
             {/* Block Modal */}
             {showBlockModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
@@ -184,7 +170,6 @@ export default function SecurityPanel() {
                             <Ban className="text-red-500" />
                             حظر عنوان IP جديد
                         </h3>
-
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-bold text-slate-500 mb-1.5">IP Address</label>

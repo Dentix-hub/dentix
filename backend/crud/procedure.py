@@ -3,10 +3,16 @@ from backend import models, schemas
 
 from sqlalchemy import or_
 
+
 def get_procedures(db: Session, tenant_id: int, skip: int = 0, limit: int = 100):
     return (
         db.query(models.Procedure)
-        .filter(or_(models.Procedure.tenant_id == tenant_id, models.Procedure.tenant_id == None))
+        .filter(
+            or_(
+                models.Procedure.tenant_id == tenant_id,
+                models.Procedure.tenant_id == None,
+            )
+        )
         .offset(skip)
         .limit(limit)
         .all()
@@ -28,12 +34,15 @@ def update_procedure(
         db.query(models.Procedure)
         .filter(
             models.Procedure.id == procedure_id,
-            or_(models.Procedure.tenant_id == tenant_id, models.Procedure.tenant_id == None)
+            or_(
+                models.Procedure.tenant_id == tenant_id,
+                models.Procedure.tenant_id == None,
+            ),
         )
         .first()
     )
     if db_procedure:
-        # If updating a global procedure, we might want to "fork" it (Copy on Write) 
+        # If updating a global procedure, we might want to "fork" it (Copy on Write)
         # But for now, let's allow direct modification as per user request to "fix" the list.
         for key, value in procedure.dict().items():
             setattr(db_procedure, key, value)
@@ -47,7 +56,10 @@ def delete_procedure(db: Session, procedure_id: int, tenant_id: int):
         db.query(models.Procedure)
         .filter(
             models.Procedure.id == procedure_id,
-            or_(models.Procedure.tenant_id == tenant_id, models.Procedure.tenant_id == None)
+            or_(
+                models.Procedure.tenant_id == tenant_id,
+                models.Procedure.tenant_id == None,
+            ),
         )
         .first()
     )

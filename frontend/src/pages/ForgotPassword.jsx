@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Mail, ArrowLeft, Send, CheckCircle, AlertCircle } from 'lucide-react';
 import { forgotPassword } from '../api';
-
 export default function ForgotPassword() {
     const { t } = useTranslation();
     const [email, setEmail] = useState('');
@@ -11,15 +10,11 @@ export default function ForgotPassword() {
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState('');
     const [devToken, setDevToken] = useState(null);
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!email) return setError(t('auth.forgot_password.errors.email_required'));
-
-
         setLoading(true);
         setError('');
-
         try {
             const res = await forgotPassword(email);
             setSuccess(true);
@@ -33,7 +28,6 @@ export default function ForgotPassword() {
             setLoading(false);
         }
     };
-
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-100 to-sky-50 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
             <div className="w-full max-w-md">
@@ -42,7 +36,6 @@ export default function ForgotPassword() {
                     <div className="text-5xl mb-2">🏥</div>
                     <h1 className="text-3xl font-black text-slate-800 dark:text-white">DENTIX</h1>
                 </div>
-
                 <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-8">
                     {!success ? (
                         <>
@@ -53,7 +46,6 @@ export default function ForgotPassword() {
                                 <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">{t('auth.forgot_password.title')}</h2>
                                 <p className="text-slate-500">{t('auth.forgot_password.subtitle')}</p>
                             </div>
-
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">{t('auth.forgot_password.email')}</label>
@@ -66,14 +58,12 @@ export default function ForgotPassword() {
                                         dir="ltr"
                                     />
                                 </div>
-
                                 {error && (
                                     <div className="flex items-center gap-2 text-red-500 bg-red-50 dark:bg-red-500/10 p-3 rounded-xl">
                                         <AlertCircle size={18} />
                                         <span className="text-sm">{error}</span>
                                     </div>
                                 )}
-
                                 <button
                                     type="submit"
                                     disabled={loading}
@@ -97,7 +87,6 @@ export default function ForgotPassword() {
                             </div>
                             <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">{t('auth.forgot_password.success_title')}</h2>
                             <p className="text-slate-500 mb-4">{t('auth.forgot_password.success_msg')}</p>
-
                             {devToken && (
                                 <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl p-4 mb-4 text-left" dir="ltr">
                                     <p className="text-amber-600 text-xs font-bold mb-2">⚠️ Development Mode (SMTP not configured)</p>
@@ -112,7 +101,6 @@ export default function ForgotPassword() {
                             )}
                         </div>
                     )}
-
                     <div className="mt-6 text-center">
                         <Link to="/login" className="inline-flex items-center gap-2 text-sky-500 hover:text-sky-600 font-bold">
                             <ArrowLeft size={16} />

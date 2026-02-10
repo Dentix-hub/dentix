@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Database, Upload, Download, AlertTriangle } from 'lucide-react';
 import * as api from '@/api';
-
 const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo }) => {
     const { t } = useTranslation();
     const [restoring, setRestoring] = useState(false);
-
     const handleDownload = async () => {
         try {
             const response = await api.exportTenantBackup();
@@ -24,12 +22,10 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
             setMessage({ type: 'error', text: msg });
         }
     };
-
     const handleUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
         if (!window.confirm(t('backup.restore_warning'))) return;
-
         const formData = new FormData();
         formData.append('file', file);
         try {
@@ -42,10 +38,8 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
             setRestoring(false);
         }
     };
-
     const handlePurge = async () => {
         if (!window.confirm(t('backup.danger_zone.purge_confirm'))) return;
-
         try {
             await api.purgeDeletedPatients(currentUser.tenant_id);
             setMessage({ type: 'success', text: t('backup.danger_zone.purge_success') });
@@ -53,7 +47,6 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
             setMessage({ type: 'error', text: 'فشل تنفيذ العملية' });
         }
     };
-
     return (
         <div className="space-y-8">
             {/* Google Drive */}
@@ -62,7 +55,6 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                     <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><Database size={20} /></div>
                     {t('backup.cloud_title')}
                 </h3>
-
                 <div className={`p-6 rounded-2xl border ${backupStatus.connected ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
                     <div className="flex justify-between items-center mb-4">
                         <div>
@@ -85,7 +77,6 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                             </button>
                         )}
                     </div>
-
                     {backupStatus.connected && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-200/50">
                             <div>
@@ -126,7 +117,6 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                     )}
                 </div>
             </div>
-
             {/* Local Backup */}
             <div className="space-y-4 pt-6 border-t dark:border-white/10">
                 <h3 className="font-bold text-lg flex items-center gap-2 text-slate-700 dark:text-slate-200">
@@ -138,7 +128,6 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                         <Download className="text-slate-400" size={32} />
                         <span className="font-bold text-slate-600">{t('backup.download_btn')}</span>
                     </button>
-
                     <div className="relative">
                         <input type="file" accept=".json,.db,.sql" onChange={handleUpload} disabled={restoring} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
                         <div className="h-full p-6 border-2 border-amber-200 border-dashed rounded-2xl bg-amber-50/50 flex flex-col items-center justify-center gap-3">
@@ -148,7 +137,6 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                     </div>
                 </div>
             </div>
-
             {/* Danger Zone */}
             <div className="space-y-4 pt-6 border-t border-red-100 dark:border-red-900/30">
                 <h3 className="font-bold text-lg flex items-center gap-2 text-red-600">
@@ -171,5 +159,4 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
         </div>
     );
 };
-
 export default BackupSettings;

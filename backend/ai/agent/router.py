@@ -1,19 +1,17 @@
-
 """
 Smart Model Router
 Decides which model to use based on query intent and complexity.
 """
+
 from typing import Optional
-from ..config import (
-    MODEL_CARDS, DEFAULT_MODEL, COMPLEX_MODEL, 
-    COMPLEX_KEYWORDS, COMPLEX_TOOLS
-)
+from ..config import DEFAULT_MODEL, COMPLEX_MODEL, COMPLEX_KEYWORDS, COMPLEX_TOOLS
+
 
 class SmartModelRouter:
     """
     Routes queries to appropriate models based on complexity.
     """
-    
+
     @classmethod
     def select_model(cls, query: str, tool_name: Optional[str] = None) -> str:
         """
@@ -23,7 +21,7 @@ class SmartModelRouter:
         2. Query Keywords (semantic complexity)
         3. Length of input (longer = likely more complex)
         """
-        
+
         # 1. Force complex model for specific tools
         if tool_name and tool_name in COMPLEX_TOOLS:
             return COMPLEX_MODEL

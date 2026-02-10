@@ -1,4 +1,5 @@
 """Authentication and user schemas."""
+
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, TYPE_CHECKING
 from datetime import datetime
@@ -32,8 +33,7 @@ class User(BaseModel):
     is_2fa_enabled: bool = False
     patient_visibility_mode: Optional[str] = "all_assigned"
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserUpdate(BaseModel):
@@ -56,8 +56,7 @@ class UserAdminView(BaseModel):
     tenant_name: Optional[str] = None
     last_login: Optional[datetime] = None
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class LoginHistory(BaseModel):
@@ -68,8 +67,7 @@ class LoginHistory(BaseModel):
     status: str
     created_at: datetime
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BlockedIP(BaseModel):
@@ -80,5 +78,4 @@ class BlockedIP(BaseModel):
     created_at: datetime
     expires_at: Optional[datetime] = None
 
-    model_config = ConfigDict(
-        from_attributes=True)
+    model_config = ConfigDict(from_attributes=True)

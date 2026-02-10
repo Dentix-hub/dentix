@@ -26,24 +26,30 @@ try:
     SQLALCHEMY_DATABASE_URL = os.environ["DATABASE_URL"]
 except KeyError:
     # Allow fallback for testing/CI environments where .env might not be loaded
-    print("WARNING: DATABASE_URL is not set. Using sqlite:///:memory: for fallback/testing.")
+    print(
+        "WARNING: DATABASE_URL is not set. Using sqlite:///:memory: for fallback/testing."
+    )
     SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 # Normalize PostgreSQL URL format
 if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
-    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace(
+        "postgres://", "postgresql://", 1
+    )
 
 SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.strip().strip("'").strip('"')
 
 # Async URL configuration
-# Async URL configuration
 ASYNC_DATABASE_URL = SQLALCHEMY_DATABASE_URL
 if ASYNC_DATABASE_URL.startswith("postgresql"):
-    ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+    ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace(
+        "postgresql://", "postgresql+asyncpg://", 1
+    )
 elif ASYNC_DATABASE_URL.startswith("sqlite"):
-    ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace("sqlite://", "sqlite+aiosqlite://", 1)
+    ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace(
+        "sqlite://", "sqlite+aiosqlite://", 1
+    )
 
-# Create engines
 # Create engines
 connect_args = {}
 if "postgresql" in SQLALCHEMY_DATABASE_URL:
@@ -57,33 +63,27 @@ async_pool_args = {}
 if "sqlite" not in SQLALCHEMY_DATABASE_URL:
     # PostgreSQL supports QueuePool with these settings
     sync_pool_args = {
-        "pool_size": 50,          # Increased from 20 for stress test optimization
-        "max_overflow": 30,       # Increased from 10 for burst handling
-        "pool_recycle": 300,
+        "pool_size": 15,
+        "max_overflow": 10,
+        "pool_recycle": 1800,
     }
     async_pool_args = sync_pool_args.copy()
 
 sync_engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    pool_pre_ping=True, 
+    pool_pre_ping=True,
     connect_args=connect_args,
-    **sync_pool_args
+    **sync_pool_args,
 )
 
 async_engine = create_async_engine(
-    ASYNC_DATABASE_URL,
-    pool_pre_ping=True,
-    echo=False,
-    **async_pool_args
+    ASYNC_DATABASE_URL, pool_pre_ping=True, echo=False, **async_pool_args
 )
 
 # Create session makers
 SyncSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)
 AsyncSessionLocal = async_sessionmaker(
-    bind=async_engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False
+    bind=async_engine, class_=AsyncSession, expire_on_commit=False, autoflush=False
 )
 
 # Base for models

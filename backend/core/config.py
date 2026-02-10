@@ -2,11 +2,12 @@ import os
 
 API_V1_STR = "/api/v1"
 
+
 def get_cors_origins():
     env_origins = os.getenv("CORS_ORIGINS")
     if env_origins:
         return [origin.strip() for origin in env_origins.split(",")]
-    
+
     return [
         "http://localhost:5173",
         "http://localhost:5174",
@@ -18,10 +19,12 @@ def get_cors_origins():
         "https://smartclinic-v2plus-git-ff1c75-eslamemara1312-gmailcoms-projects.vercel.app",
     ]
 
+
 def get_allow_origin_regex():
     if os.getenv("ENVIRONMENT") != "production":
         return r"http://192\.168\.\d+\.\d+:\d+"
     return None
+
 
 def is_ai_read_only() -> bool:
     """
@@ -29,6 +32,7 @@ def is_ai_read_only() -> bool:
     Defaults to False unless explicitly set to 'true'.
     """
     return os.getenv("AI_READ_ONLY", "false").lower() == "true"
+
 
 def is_ai_disabled() -> bool:
     """

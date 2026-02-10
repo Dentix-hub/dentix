@@ -1,10 +1,11 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from sqlalchemy.orm import Session
 from ... import models
 
+
 class BaseHandler:
     """Base class for all AI Tool Handlers."""
-    
+
     def __init__(self, db: Session, user: models.User):
         self.db = db
         self.user = user

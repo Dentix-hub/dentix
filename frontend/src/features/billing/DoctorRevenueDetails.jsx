@@ -1,22 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, DollarSign, Calendar, Save } from 'lucide-react';
+import { X, DollarSign, Calendar } from 'lucide-react';
 import { Button, Input, Skeleton, Badge } from '@/shared/ui';
 import { getDoctorDetails, updateStaffCompensation } from '@/api';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
-
 export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClose, onUpdate }) {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState('treatments');
     const [details, setDetails] = useState(null);
     const [loading, setLoading] = useState(true);
-
     // Edit Form State
     const [commission, setCommission] = useState(0);
     const [salary, setSalary] = useState(0);
     const [saving, setSaving] = useState(false);
-
     useEffect(() => {
         if (doctor) {
             setCommission(doctor.commission_percent || 0);
@@ -24,13 +21,11 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
             loadDetails();
         }
     }, [doctor]);
-
     useEffect(() => {
         // Prevent background scrolling when open
         document.body.style.overflow = 'hidden';
         return () => { document.body.style.overflow = ''; }
     }, []);
-
     const loadDetails = async () => {
         setLoading(true);
         try {
@@ -43,7 +38,6 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
             setLoading(false);
         }
     };
-
     const handleSave = async () => {
         setSaving(true);
         try {
@@ -57,22 +51,18 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
             setSaving(false);
         }
     };
-
     const calculateTotal = (netRevenue) => {
         const commValue = netRevenue * (commission / 100);
         return commValue + salary;
     };
-
     const netRevenue = details ? (
         (details.treatments?.reduce((sum, t) => sum + t.net, 0) || 0) -
         (details.lab_orders?.reduce((sum, l) => sum + l.cost, 0) || 0)
     ) : 0;
-
     return createPortal(
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-0 md:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
             {/* Main Card Container - Fixed Dimensions */}
             <div className="bg-white dark:bg-slate-900 w-full md:w-[95vw] md:max-w-6xl h-[100vh] md:h-[90vh] md:rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800 relative">
-
                 {/* 1. Header (Fixed) */}
                 <div className="flex justify-between items-center p-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 z-10 shrink-0">
                     <div>
@@ -90,7 +80,6 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                         <X size={24} className="text-slate-500" />
                     </button>
                 </div>
-
                 {/* 2. Tabs (Fixed) */}
                 <div className="flex border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 px-4 pt-4 gap-4 shrink-0">
                     <button
@@ -114,7 +103,6 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                         {t('billing.doctor_revenue.tabs.settings')}
                     </button>
                 </div>
-
                 {/* 3. Content Area (Scrollable) */}
                 <div className="flex-1 overflow-y-auto bg-slate-50/30 dark:bg-black/20 p-6 relative">
                     {loading ? (
@@ -148,7 +136,6 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                                             </div>
                                         </div>
                                     </div>
-
                                     {/* Tables */}
                                     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                                         <div className="p-4 border-b border-slate-100 dark:border-slate-800 font-bold text-slate-700 dark:text-slate-200">
@@ -182,7 +169,6 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                                     </div>
                                 </div>
                             )}
-
                             {/* TAB: SETTINGS */}
                             {activeTab === 'settings' && (
                                 <div className="max-w-xl mx-auto mt-10">
@@ -192,7 +178,6 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                                             <h3 className="text-2xl font-bold">{t('billing.doctor_revenue.settings.title')}</h3>
                                             <p className="opacity-80 text-sm mt-2">{t('billing.doctor_revenue.settings.subtitle')}</p>
                                         </div>
-
                                         <div className="p-8 space-y-6">
                                             <div>
                                                 <label className="block text-sm font-bold text-slate-700 mb-2">{t('billing.doctor_revenue.settings.commission_rate')}</label>
@@ -206,7 +191,6 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                                                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</div>
                                                 </div>
                                             </div>
-
                                             <div>
                                                 <label className="block text-sm font-bold text-slate-700 mb-2">{t('billing.doctor_revenue.settings.fixed_salary')}</label>
                                                 <div className="relative">
@@ -219,7 +203,6 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                                                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold"></div>
                                                 </div>
                                             </div>
-
                                             <Button
                                                 onClick={handleSave}
                                                 className="w-full bg-indigo-600 hover:bg-indigo-700 h-12 text-lg shadow-lg shadow-indigo-500/30"
@@ -234,7 +217,6 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                         </>
                     )}
                 </div>
-
                 {/* 4. Footer (Fixed Total) - Only visible in Treatments tab */}
                 {activeTab === 'treatments' && !loading && (
                     <div className="border-t border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] shrink-0">
@@ -256,7 +238,6 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                         </div>
                     </div>
                 )}
-
             </div>
         </div>,
         document.body

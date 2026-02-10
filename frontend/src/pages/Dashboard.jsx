@@ -1,4 +1,4 @@
-import React, { useState, useMemo, memo, useCallback } from 'react';
+import { useState, useMemo, memo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Users, Calendar, Activity, Clock,
@@ -9,11 +9,10 @@ import {
     AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart
 } from 'recharts';
 import { getTodayPayments, getTodayDebtors } from '@/api';
-import { useDashboardStats, useTodayPayments, useTodayDebtors } from '@/hooks/useDashboard';
+import { useDashboardStats } from '@/hooks/useDashboard';
 import { useAppointments } from '@/hooks/useAppointments';
 import { useAuth } from '@/auth/useAuth';
-import { Skeleton, Card, Button, Modal, DataTable } from '@/shared/ui';
-
+import { Skeleton, Card, Button, Modal } from '@/shared/ui';
 // Memoized Gradient Card - prevents re-renders when parent state changes
 const GradientCard = memo(({ title, value, subtext, icon: Icon, gradient, onClick }) => (
     <div
@@ -37,20 +36,15 @@ const GradientCard = memo(({ title, value, subtext, icon: Icon, gradient, onClic
         <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
     </div>
 ));
-
 GradientCard.displayName = 'GradientCard';
-
 export default function Dashboard() {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { t } = useTranslation();
-
     // Use cached hooks instead of direct API calls
     const { data: statsData, isLoading: statsLoading } = useDashboardStats();
     const { data: appointments = [], isLoading: apptsLoading } = useAppointments();
-
     const loading = statsLoading || apptsLoading;
-
     // Derive stats from cached data
     const stats = useMemo(() => ({
         new_patients_today: statsData?.new_patients_today || 0,
@@ -59,7 +53,6 @@ export default function Dashboard() {
         outstanding: statsData?.outstanding || 0,
         chartData: statsData?.revenue_chart || []
     }), [statsData]);
-
     // Filter today's appointments from cached data
     const todaysAppointments = useMemo(() => {
         if (!Array.isArray(appointments)) return [];
@@ -68,18 +61,15 @@ export default function Dashboard() {
             .filter(app => app.date_time?.startsWith(today) && app.status !== 'Cancelled')
             .sort((a, b) => new Date(a.date_time) - new Date(b.date_time));
     }, [appointments]);
-
     // Modal State
     const [modalOpen, setModalOpen] = useState(false);
     const [modalTitle, setModalTitle] = useState('');
     const [modalData, setModalData] = useState([]);
     const [modalLoading, setModalLoading] = useState(false);
     const [modalType, setModalType] = useState(null);
-
     const formatCurrency = useCallback((amount) => {
         return new Intl.NumberFormat('en-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 }).format(amount);
     }, []);
-
     const handleRevenueClick = useCallback(async () => {
         setModalTitle(t('dashboard.daily_income_details'));
         setModalOpen(true);
@@ -91,7 +81,6 @@ export default function Dashboard() {
         } catch (err) { /* Silent */ }
         finally { setModalLoading(false); }
     }, [t]);
-
     const handleOutstandingClick = useCallback(async () => {
         setModalTitle(t('dashboard.outstanding_today'));
         setModalOpen(true);
@@ -103,7 +92,6 @@ export default function Dashboard() {
         } catch (err) { /* Silent */ }
         finally { setModalLoading(false); }
     }, [t]);
-
     return (
         <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500 pb-10">
             {/* Header */}
@@ -127,7 +115,6 @@ export default function Dashboard() {
                         )}
                     </div>
                 </div>
-
                 <div className="flex items-center gap-3 w-full md:w-auto">
                     <div className="px-5 py-3 bg-surface-hover rounded-2xl font-bold text-text-secondary text-sm flex items-center gap-2 border border-border">
                         <Clock size={18} className="text-primary" />
@@ -135,7 +122,6 @@ export default function Dashboard() {
                     </div>
                 </div>
             </div>
-
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {loading ? (
@@ -177,7 +163,6 @@ export default function Dashboard() {
                     </>
                 )}
             </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Main Chart Section */}
                 <div className="lg:col-span-2 space-y-8">
@@ -191,7 +176,6 @@ export default function Dashboard() {
                                 <p className="text-sm text-text-secondary mt-1">{t('dashboard.revenue_growth')}</p>
                             </div>
                         </div>
-
                         <div className="h-[300px] w-full" style={{ direction: 'ltr' }}>
                             {loading ? (
                                 <Skeleton.Box height="100%" width="100%" />
@@ -234,7 +218,6 @@ export default function Dashboard() {
                         </div>
                     </Card>
                 </div>
-
                 {/* Left Sidebar: Timeline */}
                 <div className="space-y-6">
                     <Card className="h-full relative overflow-hidden transition-all duration-300 hover:shadow-lg">
@@ -247,7 +230,6 @@ export default function Dashboard() {
                                 {t('dashboard.appointments_count', { count: loading ? '...' : todaysAppointments.length })}
                             </span>
                         </div>
-
                         <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                             {loading ? (
                                 <Skeleton.Text lines={5} />
@@ -261,7 +243,6 @@ export default function Dashboard() {
                                     <div className={`absolute -right-[9px] top-3 w-4 h-4 rounded-full border-2 border-background ${appt.status === 'Completed' ? 'bg-emerald-500' :
                                         appt.status === 'Cancelled' ? 'bg-red-500' : 'bg-primary'
                                         }`}></div>
-
                                     <div className="bg-surface-hover p-4 rounded-xl group-hover:bg-primary/5 transition-colors">
                                         <div className="flex justify-between items-start mb-1">
                                             <h4 className="font-bold text-text-primary">{appt.patient_name}</h4>
@@ -286,7 +267,6 @@ export default function Dashboard() {
                                 </div>
                             )}
                         </div>
-
                         {!loading && todaysAppointments.length > 0 && (
                             <Button
                                 variant="secondary"
@@ -300,7 +280,6 @@ export default function Dashboard() {
                     </Card>
                 </div>
             </div>
-
             {/* Reusable Modal for Revenue/Debtors */}
             <Modal
                 isOpen={modalOpen}
@@ -338,7 +317,6 @@ export default function Dashboard() {
         </div>
     );
 }
-
 const ActionButton = ({ icon: Icon, label, color, onClick }) => (
     <button
         onClick={onClick}

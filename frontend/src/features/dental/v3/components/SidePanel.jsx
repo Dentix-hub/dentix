@@ -1,25 +1,19 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { PROCEDURE_TYPES, PROCEDURE_STATUS, SEGMENTS } from '../assets/dentalConstants';
-
 export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
     // Mode: VIEW | WIZARD
     const [mode, setMode] = useState('VIEW');
-
     // Wizard State
     const [wizStep, setWizStep] = useState(1);
     const [newProc, setNewProc] = useState({ type: null, segments: [], price: 0, notes: '' });
-
     if (!activeTooth) return <div className="w-full h-full flex items-center justify-center text-slate-400">Select a tooth</div>;
-
     const toothProcs = procedures.filter(p => p.tooth === activeTooth).sort((a, b) => new Date(b.date) - new Date(a.date));
-
     // --- WIZARD HANDLERS ---
     const startWizard = () => {
         setMode('WIZARD');
         setWizStep(1);
         setNewProc({ type: null, segments: [], price: 0, notes: '' });
     };
-
     const handleTypeSelect = (typeKey) => {
         const typeDef = PROCEDURE_TYPES[typeKey];
         setNewProc(prev => ({ ...prev, type: typeKey.toLowerCase(), price: 0 })); // Reset price or set default
@@ -30,7 +24,6 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
             setWizStep(2);
         }
     };
-
     const toggleSegment = (seg) => {
         setNewProc(prev => ({
             ...prev,
@@ -39,7 +32,6 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                 : [...prev.segments, seg]
         }));
     };
-
     const commitProcedure = () => {
         onAddProcedure({
             ...newProc,
@@ -49,7 +41,6 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
         });
         setMode('VIEW');
     };
-
     return (
         <div className="w-96 bg-white flex flex-col h-full shadow-2xl border-l border-slate-100 font-sans">
             {/* HEADER */}
@@ -63,10 +54,8 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                     <span className="px-2 py-1 bg-slate-800 rounded text-xs">Status: Healthy</span>
                 </div>
             </div>
-
             {/* CONTENT AREA */}
             <div className="flex-1 overflow-y-auto bg-slate-50 p-4">
-
                 {/* MODE: VIEW TIMELINE */}
                 {mode === 'VIEW' && (
                     <div className="space-y-6">
@@ -79,18 +68,15 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                                 + Add Procedure
                             </button>
                         </div>
-
                         <div className="space-y-4 relative before:absolute before:inset-y-0 before:left-4 before:w-0.5 before:bg-slate-200">
                             {toothProcs.length === 0 && (
                                 <p className="text-center text-slate-400 text-sm py-4 ml-8">No medical history</p>
                             )}
-
                             {toothProcs.map(proc => (
                                 <div key={proc.id} className="relative pl-8">
                                     {/* Dot */}
                                     <div className={`absolute left-[13px] top-3 w-2 h-2 rounded-full ring-4 ring-slate-50 ${proc.status === 'completed' ? 'bg-green-500' : 'bg-slate-400'
                                         }`} />
-
                                     {/* Card */}
                                     <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition">
                                         <div className="flex justify-between mb-1">
@@ -118,7 +104,6 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                         </div>
                     </div>
                 )}
-
                 {/* MODE: WIZARD STEP 1 (TYPE) */}
                 {mode === 'WIZARD' && wizStep === 1 && (
                     <div className="animate-in fade-in slide-in-from-right-4 duration-300">
@@ -138,7 +123,6 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                         </div>
                     </div>
                 )}
-
                 {/* MODE: WIZARD STEP 2 (SEGMENTS) */}
                 {mode === 'WIZARD' && wizStep === 2 && (
                     <div className="animate-in fade-in slide-in-from-right-4 duration-300">
@@ -174,13 +158,11 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                         </button>
                     </div>
                 )}
-
                 {/* MODE: WIZARD STEP 3 (DETAILS) */}
                 {mode === 'WIZARD' && wizStep === 3 && (
                     <div className="animate-in fade-in slide-in-from-right-4 duration-300">
                         <button onClick={() => setWizStep(newProc.segments.length ? 2 : 1)} className="text-slate-400 text-xs mb-4">← Back</button>
                         <h3 className="font-bold text-lg mb-4">Procedure Details</h3>
-
                         <div className="space-y-4">
                             <div>
                                 <label className="text-xs font-bold text-slate-500 block mb-1">Notes</label>
@@ -202,7 +184,6 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                                 />
                             </div>
                         </div>
-
                         <button
                             onClick={commitProcedure}
                             className="w-full mt-8 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-green-200 transition"
@@ -211,7 +192,6 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                         </button>
                     </div>
                 )}
-
             </div>
         </div>
     );

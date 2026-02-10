@@ -1,4 +1,3 @@
-import React from 'react';
 
 // A generic molar map used for segment selection
 // Segments: Occlusal (Center), Mesial, Distal, Buccal, Lingual

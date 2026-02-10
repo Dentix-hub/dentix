@@ -1,8 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Badge, IconButton, Input } from '@/shared/ui';
-import { X, Check, AlertTriangle } from 'lucide-react';
+import { X, Check } from 'lucide-react';
 import { cn } from '@/utils/cn';
-
 export function SmartMaterialRow({
     material,
     stockInfo,
@@ -30,13 +29,11 @@ export function SmartMaterialRow({
             ];
         }
     }, [isDivisible]);
-
     const [mode, setMode] = useState(() => {
         // Auto-detect mode: If quantity matches a quick amount, use 'quick', else 'custom'
         const isQuick = quickAmounts.some(q => q.value === material.quantity);
         return isQuick ? 'quick' : 'custom';
     });
-
     // Stock status - now uses has_active_session from backend
     const stockStatus = useMemo(() => {
         if (!stockInfo) return 'unknown';
@@ -47,7 +44,6 @@ export function SmartMaterialRow({
         if (stockInfo.available < material.quantity * 2) return 'low';
         return 'ok';
     }, [stockInfo, material.quantity]);
-
     const StockStatusBadge = ({ status, stockInfo }) => {
         switch (status) {
             case 'session_active':
@@ -67,7 +63,6 @@ export function SmartMaterialRow({
             default: return <Badge variant="secondary">تحقق...</Badge>;
         }
     };
-
     return (
         <div className={cn(
             "bg-white border-2 rounded-xl p-4 transition-all",
@@ -80,14 +75,12 @@ export function SmartMaterialRow({
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                         <h4 className="font-bold text-lg truncate text-slate-800">{material.materialName}</h4>
-
                         {material.suggested && (
                             <Badge variant="primary" size="sm" className="bg-blue-100 text-blue-700 hover:bg-blue-200">
                                 ✨ مقترح
                             </Badge>
                         )}
                     </div>
-
                     {/* Suggestion Reason */}
                     {material.reason && material.suggested && (
                         <p className="text-sm text-gray-500 mb-2 flex items-center gap-1">
@@ -99,17 +92,14 @@ export function SmartMaterialRow({
                             )}
                         </p>
                     )}
-
                     {/* Stock Status */}
                     <div className="flex items-center gap-3 flex-wrap mt-2">
                         <StockStatusBadge status={stockStatus} stockInfo={stockInfo} />
-
                         {stockInfo && stockStatus !== 'session_active' && (
                             <span className="text-sm text-gray-600">
                                 المتوفر: <strong className="font-mono">{stockInfo.available} {isDivisible ? material.unit : 'وحدة'}</strong>
                             </span>
                         )}
-
                         {stockInfo && stockStatus === 'session_active' && (
                             <span className="text-sm text-green-700 font-medium">
                                 استهلاك افتراضي (لا حاجة للتحقق من الكمية)
@@ -117,7 +107,6 @@ export function SmartMaterialRow({
                         )}
                     </div>
                 </div>
-
                 {/* Quantity Selector */}
                 <div className="flex-shrink-0">
                     {mode === 'quick' ? (
@@ -139,7 +128,6 @@ export function SmartMaterialRow({
                                     </button>
                                 ))}
                             </div>
-
                             <button
                                 type="button"
                                 onClick={() => setMode('custom')}
@@ -175,7 +163,6 @@ export function SmartMaterialRow({
                         </div>
                     )}
                 </div>
-
                 {/* Remove Button */}
                 <button
                     onClick={onRemove}

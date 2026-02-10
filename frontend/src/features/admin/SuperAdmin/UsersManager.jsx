@@ -1,15 +1,40 @@
-
-import React, { useState } from 'react';
-import { Search, Power, Edit, MoreVertical, Shield, ShieldOff, User } from 'lucide-react';
-
-const UsersManager = ({ users, onSearch, onToggleStatus, loading }) => {
+import { useState, useEffect } from 'react';
+import { Search, Shield, ShieldOff, User } from 'lucide-react';
+import { api } from '@/api';
+const UsersManager = () => {
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-
+    useEffect(() => {
+        fetchUsers();
+    }, []);
+    const fetchUsers = async (query = '') => {
+        try {
+            setLoading(true);
+            const params = { search_query: query };
+            const res = await api.get('/api/v1/admin/users', { params });
+            setUsers(Array.isArray(res.data) ? res.data : []);
+        } catch (err) {
+            console.error("Failed to fetch users", err);
+        } finally {
+            setLoading(false);
+        }
+    };
     const handleSearch = (e) => {
         e.preventDefault();
-        onSearch(searchTerm);
+        fetchUsers(searchTerm);
     };
-
+    const handleToggleStatus = async (userId, currentStatus) => {
+        try {
+            await api.post(`/api/v1/admin/users/${userId}/toggle-status`);
+            // Optimistic update
+            setUsers(prev => prev.map(u => u.id === userId ? { ...u, is_active: !currentStatus } : u));
+            alert(`تم ${!currentStatus ? 'تفعيل' : 'تعطيل'} المستخدم بنجاح`);
+        } catch (err) {
+            console.error(err);
+            alert('فشل تغيير حالة المستخدم');
+        }
+    };
     return (
         <div className="space-y-6 animate-fade-in-up">
             {/* Search Header */}
@@ -28,7 +53,6 @@ const UsersManager = ({ users, onSearch, onToggleStatus, loading }) => {
                     </button>
                 </form>
             </div>
-
             {/* Users Table */}
             <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
                 <div className="overflow-x-auto min-h-[300px]">
@@ -75,7 +99,7 @@ const UsersManager = ({ users, onSearch, onToggleStatus, loading }) => {
                                     </td>
                                     <td className="p-4 text-center">
                                         <button
-                                            onClick={() => onToggleStatus(user.id, user.is_active)}
+                                            onClick={() => handleToggleStatus(user.id, user.is_active)}
                                             className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${user.is_active
                                                 ? 'bg-rose-100 hover:bg-rose-200 text-rose-600'
                                                 : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-600'
@@ -109,5 +133,4 @@ const UsersManager = ({ users, onSearch, onToggleStatus, loading }) => {
         </div>
     );
 };
-
 export default UsersManager;

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Button, Input, Modal } from '@/shared/ui';
 
 import { useTranslation } from 'react-i18next';

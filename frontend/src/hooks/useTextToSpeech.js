@@ -13,7 +13,7 @@ export const useTextToSpeech = (initialEnabled = false) => {
         // Clean text
         const cleanText = text
             .replace(/\*\*/g, '')
-            .replace(/[📋💰📊📅👥🏥🩺💳💸🔬✅❌📌📛🎫]/g, '')
+            .replace(/[📋💰📊📅👥🏥🩺💳💸🔬✅❌📌📛🎫]/gu, '')
             .replace(/\n/g, '. ');
 
         const utterance = new SpeechSynthesisUtterance(cleanText);

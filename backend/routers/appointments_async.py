@@ -5,6 +5,7 @@ Handles appointment scheduling and management using async database operations.
 This is the async version of appointments.py for gradual migration.
 Mount under /v2/appointments or replace original once tested.
 """
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
@@ -25,7 +26,9 @@ async def create_appointment(
     current_user: schemas.User = Depends(get_current_user),
 ):
     """Create a new appointment."""
-    patient = await patient_crud.get_patient(db, appointment.patient_id, current_user.tenant_id)
+    patient = await patient_crud.get_patient(
+        db, appointment.patient_id, current_user.tenant_id
+    )
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
     return await crud.create_appointment(db=db, appointment=appointment)
@@ -39,7 +42,9 @@ async def read_appointments(
     current_user: schemas.User = Depends(get_current_user),
 ):
     """Get all appointments for current tenant."""
-    return await crud.get_appointments(db, current_user.tenant_id, skip=skip, limit=limit)
+    return await crud.get_appointments(
+        db, current_user.tenant_id, skip=skip, limit=limit
+    )
 
 
 @router.get("/{appointment_id}", response_model=schemas.Appointment)

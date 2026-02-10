@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Building2, FlaskConical, DollarSign, Calendar, CheckCircle, Clock, TrendingUp, Plus, Search } from 'lucide-react';
+import { X, FlaskConical, Plus } from 'lucide-react';
 import { getLabStats, getLabOrders, getLabPayments, createLabPayment } from '../api';
-
 const LabDetailsModal = ({ lab, isOpen, onClose }) => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState('overview'); // overview, orders, payments
@@ -10,14 +9,11 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
     const [orders, setOrders] = useState([]);
     const [payments, setPayments] = useState([]);
     const [loading, setLoading] = useState(false);
-
     // Order filters
     const [orderStatus, setOrderStatus] = useState('');
-
     // Payment Form
     const [showPaymentForm, setShowPaymentForm] = useState(false);
     const [paymentData, setPaymentData] = useState({ amount: '', notes: '', method: 'Cash' });
-
     useEffect(() => {
         if (isOpen && lab) {
             loadData();
@@ -26,14 +22,12 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
             setShowPaymentForm(false);
         }
     }, [isOpen, lab]);
-
     // Reload orders when filter changes
     useEffect(() => {
         if (activeTab === 'orders' && lab) {
             loadOrders();
         }
     }, [orderStatus]);
-
     const loadData = async () => {
         setLoading(true);
         try {
@@ -51,7 +45,6 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
             setLoading(false);
         }
     };
-
     const loadOrders = async () => {
         try {
             const res = await getLabOrders({ laboratory_id: lab.id, status: orderStatus || undefined });
@@ -60,11 +53,9 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
             console.error("Failed to filter orders", error);
         }
     };
-
     const handleAddPayment = async (e) => {
         e.preventDefault();
         if (!paymentData.amount) return;
-
         try {
             await createLabPayment(lab.id, paymentData);
             setPaymentData({ amount: '', notes: '', method: 'Cash' });
@@ -74,9 +65,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
             alert(t('labs.details.payments.messages.add_fail'));
         }
     };
-
     if (!isOpen || !lab) return null;
-
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
             <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -98,7 +87,6 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                         <X size={20} className="text-slate-500" />
                     </button>
                 </div>
-
                 {/* Tabs */}
                 <div className="flex border-b px-6 bg-white shrink-0">
                     <button
@@ -120,7 +108,6 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                         {t('labs.details.tabs.payments')}
                     </button>
                 </div>
-
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
                     {loading && !stats ? (
@@ -153,11 +140,9 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                                             </div>
                                         </div>
                                     </div>
-
                                     {/* Recent Activity placeholder could go here */}
                                 </div>
                             )}
-
                             {/* ORDERS TAB */}
                             {activeTab === 'orders' && (
                                 <div className="space-y-4 animate-in slide-in-from-bottom-2 fade-in duration-300">
@@ -173,7 +158,6 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                                             <option value="completed">{t('labs.details.orders.filter_completed')}</option>
                                         </select>
                                     </div>
-
                                     <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
                                         <table className="w-full text-sm text-right">
                                             <thead className="bg-slate-50 border-b text-slate-500">
@@ -215,7 +199,6 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                                     </div>
                                 </div>
                             )}
-
                             {/* PAYMENTS TAB */}
                             {activeTab === 'payments' && (
                                 <div className="space-y-4 animate-in slide-in-from-bottom-2 fade-in duration-300">
@@ -229,7 +212,6 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                                             {showPaymentForm ? t('labs.details.payments.cancel_button') : t('labs.details.payments.add_button')}
                                         </button>
                                     </div>
-
                                     {showPaymentForm && (
                                         <form onSubmit={handleAddPayment} className="bg-indigo-50 p-4 rounded-xl mb-4 border border-indigo-100 animate-in fade-in slide-in-from-top-2">
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
@@ -271,7 +253,6 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                                             </button>
                                         </form>
                                     )}
-
                                     <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
                                         <table className="w-full text-sm text-right">
                                             <thead className="bg-slate-50 border-b text-slate-500">
@@ -308,5 +289,4 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
         </div>
     );
 };
-
 export default LabDetailsModal;
