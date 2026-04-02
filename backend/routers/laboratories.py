@@ -11,6 +11,7 @@ from datetime import datetime
 from .. import models, schemas
 from ..cache import cache_response, invalidate_cache
 from .auth import get_current_user, get_db
+from backend.core.permissions import Permission, require_permission
 
 router = APIRouter()
 
@@ -51,7 +52,7 @@ def get_laboratories(
 def create_laboratory(
     lab: schemas.LaboratoryCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     """Create a new laboratory"""
     db_lab = models.Laboratory(**lab.model_dump(), tenant_id=current_user.tenant_id)
@@ -116,7 +117,7 @@ def update_laboratory(
 def delete_laboratory(
     lab_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     """Delete a laboratory"""
     lab = (
@@ -175,7 +176,7 @@ def get_lab_orders(
 def create_lab_order(
     order: schemas.LabOrderCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     """Create a new lab order and automatically create linked treatment for billing"""
     # Verify patient exists and belongs to tenant
@@ -354,7 +355,7 @@ def update_lab_order(
 def delete_lab_order(
     order_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     """Delete a lab order and its linked treatment"""
     order = (
@@ -561,7 +562,7 @@ def create_lab_payment(
     lab_id: int,
     payment: schemas.LabPaymentCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
 ):
     """Record a payment to a laboratory"""
     # Verify lab exists

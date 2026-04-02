@@ -54,6 +54,8 @@ elif ASYNC_DATABASE_URL.startswith("sqlite"):
 connect_args = {}
 if "postgresql" in SQLALCHEMY_DATABASE_URL:
     connect_args["sslmode"] = os.getenv("DB_SSL_MODE", "require")
+    # Prevent Noisy Neighbor: max 30s per query
+    connect_args["options"] = f"-c statement_timeout={os.getenv('DB_STATEMENT_TIMEOUT', '30000')}"
 elif "sqlite" in SQLALCHEMY_DATABASE_URL:
     connect_args["check_same_thread"] = False
 
@@ -66,6 +68,7 @@ if "sqlite" not in SQLALCHEMY_DATABASE_URL:
         "pool_size": 15,
         "max_overflow": 10,
         "pool_recycle": 1800,
+        "pool_timeout": 20,  # Wait max 20s for a connection from pool
     }
     async_pool_args = sync_pool_args.copy()
 

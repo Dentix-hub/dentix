@@ -3,12 +3,14 @@ Patients Router
 Handles patient CRUD operations.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from typing import List
 
 from .. import models, schemas, crud
 from .auth import get_current_user, get_db
+from backend.core.permissions import Permission, require_permission
+from backend.core.limiter import limiter
 
 # Import new async dependency
 # Multi-Doctor Visibility
@@ -26,7 +28,9 @@ from ..services.patient_service import patient_service
     summary="Create a new patient",
     description="Register a new patient into the current tenant. Requires authentication.",
 )
+@limiter.limit("10/minute")
 def create_patient(
+    request: Request,
     patient: schemas.PatientCreate,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(get_current_user),
@@ -140,7 +144,7 @@ def update_patient(
 def delete_patient(
     patient_id: int,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.PATIENT_DELETE)),
 ):
     """Delete a patient."""
     from ..utils.audit_logger import log_admin_action
@@ -172,7 +176,7 @@ def delete_patient(
 def delete_patient_permanently(
     patient_id: int,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
     Hard Delete a patient and all related data (Cascading).

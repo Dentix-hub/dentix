@@ -22,7 +22,7 @@ def get_cors_origins():
 
 def get_allow_origin_regex():
     if os.getenv("ENVIRONMENT") != "production":
-        return r"http://192\.168\.\d+\.\d+:\d+"
+        return r"http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+):\d+"
     return None
 
 

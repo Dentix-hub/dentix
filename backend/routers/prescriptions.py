@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from .. import schemas, crud
 from .auth import get_current_user, get_db
+from backend.core.permissions import Permission, require_permission
+from ..utils.audit_logger import log_admin_action
 
 router = APIRouter(prefix="/prescriptions", tags=["Prescriptions"])
 
@@ -16,20 +18,37 @@ router = APIRouter(prefix="/prescriptions", tags=["Prescriptions"])
 def create_prescription(
     prescription: schemas.PrescriptionCreate,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     """Create a new prescription."""
     patient = crud.get_patient(db, prescription.patient_id, current_user.tenant_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    return crud.create_prescription(db=db, prescription=prescription)
+    result = crud.create_prescription(db=db, prescription=prescription)
+    log_admin_action(
+        db=db,
+        admin_user=current_user,
+        action="create",
+        entity_type="prescription",
+        entity_id=result.id if hasattr(result, 'id') else None,
+        details=f"Prescription for patient {prescription.patient_id}",
+    )
+    return result
 
 
 @router.delete("/{prescription_id}")
 def delete_prescription(
     prescription_id: int,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     """Delete a prescription."""
+    log_admin_action(
+        db=db,
+        admin_user=current_user,
+        action="delete",
+        entity_type="prescription",
+        entity_id=prescription_id,
+        details=f"Deleted prescription #{prescription_id}",
+    )
     return crud.delete_prescription(db, prescription_id, current_user.tenant_id)

@@ -37,6 +37,13 @@ class Appointment(Base):
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True)
 
+    # Optimistic Locking: prevents double-booking race conditions
+    version_id = Column(Integer, default=1, nullable=False)
+
+    __mapper_args__ = {
+        "version_id_col": version_id,
+    }
+
     patient = relationship("Patient", back_populates="appointments")
     doctor = relationship("User")
 

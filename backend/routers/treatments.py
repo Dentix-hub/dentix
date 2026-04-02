@@ -3,12 +3,14 @@ Treatments Router
 Handles dental treatments and tooth status.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from .. import schemas, crud, models
 from .auth import get_current_user, get_db
+from backend.core.permissions import Permission, require_permission
+from backend.core.limiter import limiter
 from ..services.inventory_service import inventory_service
 from ..utils.audit_logger import log_admin_action
 import logging
@@ -19,10 +21,12 @@ router = APIRouter(prefix="/treatments", tags=["Treatments"])
 
 
 @router.post("/", response_model=schemas.Treatment)
+@limiter.limit("10/minute")
 def create_treatment(
+    request: Request,
     treatment: schemas.TreatmentCreate,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
 ):
     """Create a new treatment record."""
     patient = crud.get_patient(db, treatment.patient_id, current_user.tenant_id)
@@ -173,7 +177,7 @@ def update_treatment(
     treatment_id: int,
     treatment: schemas.TreatmentCreate,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
 ):
     """Update a treatment record."""
     # 0. Stock Validation (Pre-Check)

@@ -21,6 +21,7 @@ from datetime import datetime
 
 from .. import schemas, database, models
 from .auth import get_current_user, get_db
+from backend.core.permissions import Permission, require_permission
 
 
 def get_drive_client():
@@ -200,7 +201,7 @@ def backup_auth_callback_get(
 def trigger_manual_backup(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
     Trigger a manual backup to Google Drive.
@@ -243,7 +244,7 @@ def trigger_manual_backup(
 def update_backup_schedule(
     frequency: str = Form(...),
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
     Update backup schedule frequency.
@@ -497,7 +498,7 @@ def get_tenant_settings(
 def update_tenant_settings(
     config: schemas.TenantUpdate,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
     Update tenant settings.

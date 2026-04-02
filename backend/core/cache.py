@@ -26,11 +26,21 @@ class CacheManager:
                 self.redis_client.ping()
                 self.use_redis = True
                 logger.info(f"✅ Redis Cache Connected: {redis_url}")
+
+                # Initialize Stampede Protection
+                from backend.core.cache_stampede import init_stampede_protection
+                init_stampede_protection(self.redis_client)
             except Exception as e:
                 logger.warning(f"⚠️ Redis Connection Failed (Using Local Memory): {e}")
                 self.use_redis = False
         else:
             logger.info("ℹ️ No REDIS_URL found. Using Local Memory Cache.")
+
+    def get_redis_client(self) -> Optional[redis.Redis]:
+        """Return the Redis client if available."""
+        if self.use_redis:
+            return self.redis_client
+        return None
 
     def get(self, key: str) -> Optional[Any]:
         try:
@@ -55,10 +65,6 @@ class CacheManager:
                 self.redis_client.setex(key, expire, val_str)
             else:
                 self.local_cache[key] = val_str
-                # Note: Local cache technically needs cleanup for expiry,
-                # but for this fallback implementation we ignore strictly clearing it
-                # or we could implement a simple TTLCache later.
-                # For now, it stays until restart.
         except Exception as e:
             logger.error(f"Cache SET Error: {e}")
 

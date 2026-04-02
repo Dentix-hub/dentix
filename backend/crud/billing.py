@@ -565,7 +565,7 @@ def get_dashboard_stats(db: Session, tenant_id: int, doctor_id: int = None):
             models.Patient.assigned_doctor_id == doctor_id
         )
 
-    total_patients = patients_query.scalar()
+    total_patients = patients_query.scalar() or 0
 
     # 2. Today's Appointments Count
     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -602,7 +602,7 @@ def get_dashboard_stats(db: Session, tenant_id: int, doctor_id: int = None):
             models.Appointment.doctor_id == doctor_id
         )
 
-    total_appointments_today = appointments_query.scalar()
+    total_appointments_today = appointments_query.scalar() or 0
 
     # 4. Revenue Chart (Last 7 Days)
     from datetime import timedelta

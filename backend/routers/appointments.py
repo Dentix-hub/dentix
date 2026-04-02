@@ -3,13 +3,15 @@ Appointments Router
 Handles appointment scheduling and management.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from typing import List
 import logging
 
 from .. import schemas, crud
 from .auth import get_current_user, get_db
+from backend.core.permissions import Permission, require_permission
+from backend.core.limiter import limiter
 from ..utils.audit_logger import log_admin_action
 
 logger = logging.getLogger("smart_clinic")
@@ -23,10 +25,12 @@ router = APIRouter(prefix="/appointments", tags=["Appointments"])
     summary="Create appointment",
     description="Schedule a new appointment for a patient. Validates patient existence.",
 )
+@limiter.limit("15/minute")
 def create_appointment(
+    request: Request,
     appointment: schemas.AppointmentCreate,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.APPOINTMENT_CREATE)),
 ):
     """Create a new appointment."""
     patient = crud.get_patient(db, appointment.patient_id, current_user.tenant_id)
@@ -63,9 +67,11 @@ def update_appointment_status(
     appointment_id: int,
     status: str,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.APPOINTMENT_UPDATE)),
 ):
     """Update appointment status."""
+    from sqlalchemy.orm.exc import StaleDataError
+
     log_admin_action(
         db=db,
         admin_user=current_user,
@@ -74,16 +80,23 @@ def update_appointment_status(
         entity_id=appointment_id,
         details=f"Status changed to '{status}'",
     )
-    return crud.update_appointment_status(
-        db, appointment_id, status, current_user.tenant_id
-    )
+    try:
+        return crud.update_appointment_status(
+            db, appointment_id, status, current_user.tenant_id
+        )
+    except StaleDataError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="هذا الموعد تم تعديله من مستخدم آخر. يرجى تحديث الصفحة والمحاولة مرة أخرى.",
+        )
 
 
 @router.delete("/{appointment_id}")
 def delete_appointment(
     appointment_id: int,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.APPOINTMENT_CANCEL)),
 ):
     """Delete an appointment."""
     log_admin_action(
