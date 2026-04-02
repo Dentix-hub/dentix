@@ -3,13 +3,15 @@ Payments Router
 Handles billing, payments, and financial reporting.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 import logging
 from typing import List
 
 from .. import schemas, crud, models
 from .auth import get_current_user, get_db
+from backend.core.permissions import Permission, require_permission
+from backend.core.limiter import limiter
 from ..utils.audit_logger import log_admin_action
 
 logger = logging.getLogger("smart_clinic")
@@ -27,10 +29,12 @@ router = APIRouter(prefix="/payments", tags=["Payments"])
     summary="Record a payment",
     description="Record a new payment for a patient. Auto-assigns doctor if not provided. Audit logged.",
 )
+@limiter.limit("15/minute")
 def create_payment(
+    request: Request,
     payment: schemas.PaymentCreate,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
 ):
     """Record a new payment."""
     service = BillingService(db, current_user.tenant_id)
@@ -76,7 +80,7 @@ def read_payments(
 def delete_payment(
     payment_id: int,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
 ):
     """Delete a payment record."""
     log_admin_action(

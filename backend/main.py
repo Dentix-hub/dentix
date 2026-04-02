@@ -21,7 +21,7 @@ import time
 import uuid
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from backend.core.config import get_cors_origins, API_V1_STR
+from backend.core.config import get_cors_origins, API_V1_STR, get_allow_origin_regex
 from backend.core.limiter import limiter
 from backend import models, database, auth
 from backend.core import migrations, seeding
@@ -159,6 +159,7 @@ app.add_middleware(ErrorLoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_cors_origins(),
+    allow_origin_regex=get_allow_origin_regex(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],

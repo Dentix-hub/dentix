@@ -1,56 +1,99 @@
+"""
+Cache Service — @cached decorator with Stampede Protection.
+
+Usage:
+    @cached(key_prefix="dashboard_stats", expire=60)
+    def get_dashboard_stats(request, db, current_user):
+        ...
+
+Cache key is built ONLY from serializable kwargs (tenant_id, doctor_id, etc.)
+and explicitly skips non-serializable objects (Session, Request, User model).
+"""
+
 from functools import wraps
 import logging
+from sqlalchemy.orm import Session
 from backend.core.cache import cache
 
 logger = logging.getLogger("smart_clinic")
 
+# Types that should never appear in a cache key
+_SKIP_TYPES = (Session,)
+
+# Attribute names that signal a non-serializable object
+_SKIP_ATTRS = ("scope", "headers", "state")  # Request-like objects
+
+
+def _is_serializable_arg(value) -> bool:
+    """Return False for DB sessions, HTTP requests, ORM models, etc."""
+    if isinstance(value, _SKIP_TYPES):
+        return False
+    if any(hasattr(value, attr) for attr in _SKIP_ATTRS):
+        return False
+    if hasattr(value, "__tablename__"):  # SQLAlchemy model
+        return False
+    return True
+
+
+def _build_cache_key(prefix: str, args: tuple, kwargs: dict) -> str:
+    """Build a stable, serializable cache key."""
+    parts = [prefix]
+
+    for arg in args:
+        if _is_serializable_arg(arg):
+            parts.append(str(arg))
+
+    for key, value in sorted(kwargs.items()):
+        if _is_serializable_arg(value):
+            parts.append(f"{key}={value}")
+
+    return ":".join(parts)
+
 
 def cached(key_prefix: str, expire: int = 300):
     """
-    Decorator to cache function results.
-    Key structure: {key_prefix}:{arg1}:{arg2}...
+    Decorator to cache function results with Stampede Protection.
+
+    - Builds a clean cache key (no Session/Request objects).
+    - Uses StampedeProtection lock when Redis is available.
+    - Falls back to simple get/set when Redis is not available.
     """
 
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            # 1. Build Cache Key
-            # Simple key generation based on args.
-            # Note: Complex objects in args might break this str() conversion
-            # or make keys inconsistent. Use carefully for simple GET endpoints.
-            cache_key = f"{key_prefix}"
-            if args:
-                cache_key += ":" + ":".join(str(a) for a in args)
-            if kwargs:
-                # Sort kwargs to ensure stable key
-                cache_key += ":" + ":".join(
-                    f"{k}={v}" for k, v in sorted(kwargs.items())
+            cache_key = _build_cache_key(key_prefix, args, kwargs)
+
+            # Try stampede-protected path
+            from backend.core.cache_stampede import get_stampede_protection
+            protection = get_stampede_protection()
+
+            if protection:
+                return protection.get_or_compute(
+                    cache_key=cache_key,
+                    compute_func=lambda: func(*args, **kwargs),
+                    cache_instance=cache,
+                    expire=expire,
                 )
 
-            # 2. Try Fetch from Cache
+            # Fallback: simple get/set (no stampede protection)
             cached_val = cache.get(cache_key)
             if cached_val is not None:
-                # logger.info(f"CACHE HIT: {cache_key}")
                 return cached_val
 
-            # 3. Compute (Cache Miss)
-            # logger.info(f"CACHE MISS: {cache_key}")
             result = func(*args, **kwargs)
 
-            # 4. Store in Cache (if result is serializable)
-            # Pydantic models need .dict() or .json() before caching usually,
-            # but if the result is a dict/list (FastAPI often returns dicts), it works directly.
-            # If result is Pydantic model, we might need a custom encoder.
-            try:
-                # Basic check: if it's a Pydantic model, convert to dict
-                if hasattr(result, "dict"):
-                    val_to_cache = result.dict()
-                else:
-                    val_to_cache = result
+            if hasattr(result, "model_dump"):
+                val_to_cache = result.model_dump()
+            elif hasattr(result, "dict"):
+                val_to_cache = result.dict()
+            else:
+                val_to_cache = result
 
+            try:
                 cache.set(cache_key, val_to_cache, expire=expire)
             except Exception as e:
-                logger.error(f"Failed to cache result for {cache_key}: {e}")
+                logger.error(f"Failed to cache {cache_key}: {e}")
 
             return result
 

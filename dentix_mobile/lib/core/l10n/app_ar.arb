@@ -1,0 +1,279 @@
+{
+  "@@locale": "ar",
+  "appTitle": "دنتكس",
+  "@appTitle": {
+    "description": "App title"
+  },
+  "login": "تسجيل الدخول",
+  "@login": {
+    "description": "Login button text"
+  },
+  "email": "البريد الإلكتروني",
+  "@email": {
+    "description": "Email field label"
+  },
+  "password": "كلمة المرور",
+  "@password": {
+    "description": "Password field label"
+  },
+  "invalidEmail": "البريد الإلكتروني غير صالح",
+  "@invalidEmail": {
+    "description": "Invalid email error"
+  },
+  "invalidPassword": "كلمة المرور يجب أن تكون 6 أحرف على الأقل",
+  "@invalidPassword": {
+    "description": "Invalid password error"
+  },
+  "loginFailed": "فشل تسجيل الدخول، يرجى التحقق من البيانات",
+  "@loginFailed": {
+    "description": "Login failed error"
+  },
+  "dashboard": "لوحة التحكم",
+  "@dashboard": {
+    "description": "Dashboard title"
+  },
+  "patients": "المرضى",
+  "@patients": {
+    "description": "Patients title"
+  },
+  "appointments": "المواعيد",
+  "@appointments": {
+    "description": "Appointments title"
+  },
+  "more": "المزيد",
+  "@more": {
+    "description": "More tab label"
+  },
+  "settings": "الإعدادات",
+  "@settings": {
+    "description": "Settings title"
+  },
+  "logout": "تسجيل الخروج",
+  "@logout": {
+    "description": "Logout button"
+  },
+  "search": "بحث",
+  "@search": {
+    "description": "Search hint"
+  },
+  "loading": "جاري التحميل...",
+  "@loading": {
+    "description": "Loading text"
+  },
+  "error": "حدث خطأ",
+  "@error": {
+    "description": "Error message"
+  },
+  "retry": "إعادة المحاولة",
+  "@retry": {
+    "description": "Retry button"
+  },
+  "totalPatients": "إجمالي المرضى",
+  "@totalPatients": {
+    "description": "Total patients stat"
+  },
+  "todayAppointments": "مواعيد اليوم",
+  "@todayAppointments": {
+    "description": "Today's appointments stat"
+  },
+  "todayRevenue": "إيرادات اليوم",
+  "@todayRevenue": {
+    "description": "Today's revenue stat"
+  },
+  "welcome": "مرحباً بك في دنتكس",
+  "@welcome": {
+    "description": "Welcome message"
+  },
+  "pleaseLogin": "يرجى تسجيل الدخول للمتابعة",
+  "@pleaseLogin": {
+    "description": "Please login message"
+  },
+  "welcomeBack": "مرحباً بعودتك!",
+  "@welcomeBack": {
+    "description": "Welcome back message"
+  },
+  "noAppointmentsToday": "لا توجد مواعيد اليوم",
+  "@noAppointmentsToday": {
+    "description": "No appointments today message"
+  },
+  "searchPatients": "بحث عن مريض...",
+  "@searchPatients": {
+    "description": "Search patients hint"
+  },
+  "noPatientsFound": "لم يتم العثور على مرضى",
+  "@noPatientsFound": {
+    "description": "No patients found message"
+  },
+  "addFirstPatient": "أضف أول مريض للبدء",
+  "@addFirstPatient": {
+    "description": "Add first patient message"
+  },
+  "addPatient": "إضافة مريض",
+  "@addPatient": {
+    "description": "Add patient button"
+  },
+  "newAppointment": "موعد جديد",
+  "@newAppointment": {
+    "description": "New appointment button"
+  },
+  "calendarView": "عرض التقويم",
+  "@calendarView": {
+    "description": "Calendar view title"
+  },
+  "selectDate": "حدد تاريخاً لعرض المواعيد",
+  "@selectDate": {
+    "description": "Select date instructions"
+  },
+  "noAppointments": "لا توجد مواعيد",
+  "@noAppointments": {
+    "description": "No appointments message"
+  },
+  "tapToAddAppointment": "اضغط على الزر لإضافة موعد",
+  "@tapToAddAppointment": {
+    "description": "Tap to add appointment instructions"
+  },
+  "appearance": "المظهر",
+  "@appearance": {
+    "description": "Appearance section title"
+  },
+  "darkMode": "الوضع الليلي",
+  "@darkMode": {
+    "description": "Dark mode switch"
+  },
+  "language": "اللغة",
+  "@language": {
+    "description": "Language setting"
+  },
+  "account": "الحساب",
+  "@account": {
+    "description": "Account section title"
+  },
+  "changePassword": "تغيير كلمة المرور",
+  "@changePassword": {
+    "description": "Change password setting"
+  },
+  "notifications": "الإشعارات",
+  "@notifications": {
+    "description": "Notifications setting"
+  },
+  "about": "حول التطبيق",
+  "@about": {
+    "description": "About section title"
+  },
+  "version": "الإصدار",
+  "@version": {
+    "description": "Version label"
+  },
+  "helpSupport": "المساعدة والدعم",
+  "@helpSupport": {
+    "description": "Help and support setting"
+  },
+  "cancel": "إلغاء",
+  "@cancel": {
+    "description": "Cancel button"
+  },
+  "confirmLogout": "هل أنت متأكد من تسجيل الخروج؟",
+  "@confirmLogout": {
+    "description": "Logout confirmation message"
+  },
+  "dentalManagement": "نظام إدارة عيادات الأسنان",
+  "@dentalManagement": {
+    "description": "App subtitle"
+  },
+  "profile": "الملف الشخصي",
+  "@profile": {
+    "description": "Profile tab label"
+  },
+  "treatments": "العلاجات",
+  "@treatments": {
+    "description": "Treatments tab label"
+  },
+  "history": "السجل",
+  "@history": {
+    "description": "History tab label"
+  },
+  "contactInfo": "معلومات التواصل",
+  "@contactInfo": {
+    "description": "Contact information section"
+  },
+  "personalInfo": "المعلومات الشخصية",
+  "@personalInfo": {
+    "description": "Personal information section"
+  },
+  "medicalInfo": "المعلومات الطبية",
+  "@medicalInfo": {
+    "description": "Medical information section"
+  },
+  "medicalHistory": "التاريخ الطبي",
+  "@medicalHistory": {
+    "description": "Medical history label"
+  },
+  "allergies": "الحساسية",
+  "@allergies": {
+    "description": "Allergies label"
+  },
+  "notAvailable": "غير متوفر",
+  "@notAvailable": {
+    "description": "Not available text"
+  },
+  "noMedicalHistory": "لا يوجد تاريخ طبي مسجل",
+  "@noMedicalHistory": {
+    "description": "No medical history message"
+  },
+  "noAllergies": "لا يوجد حساسية مسجلة",
+  "@noAllergies": {
+    "description": "No allergies message"
+  },
+  "retry": "إعادة المحاولة",
+  "@retry": {
+    "description": "Retry button label"
+  },
+  "noTreatments": "لا توجد علاجات بعد",
+  "@noTreatments": {
+    "description": "No treatments message"
+  },
+  "historyComingSoon": "سجل المواعيد قريباً",
+  "@historyComingSoon": {
+    "description": "History tab placeholder"
+  },
+  "themeSystem": "افتراضي النظام",
+  "@themeSystem": {
+    "description": "System theme option"
+  },
+  "themeLight": "فاتح",
+  "@themeLight": {
+    "description": "Light theme option"
+  },
+  "themeDark": "داكن",
+  "@themeDark": {
+    "description": "Dark theme option"
+  },
+  "language": "اللغة",
+  "@language": {
+    "description": "Language setting label"
+  },
+  "theme": "السمة",
+  "@theme": {
+    "description": "Theme setting label"
+  },
+  "security": "الأمان",
+  "@security": {
+    "description": "Security section label"
+  },
+  "changePassword": "تغيير كلمة المرور",
+  "@changePassword": {
+    "description": "Change password option"
+  },
+  "logout": "تسجيل الخروج",
+  "@logout": {
+    "description": "Logout button"
+  },
+  "appointmentCreated": "تم إنشاء الموعد بنجاح",
+  "@appointmentCreated": {
+    "description": "Appointment created success message"
+  },
+  "noInfoAvailable": "لا توجد معلومات متاحة",
+  "@noInfoAvailable": {
+    "description": "No information available message"
+  }
+}

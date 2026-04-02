@@ -131,3 +131,53 @@ def get_role_permissions(role: str) -> Set[Permission]:
         return ROLE_PERMISSIONS.get(role_enum, set())
     except ValueError:
         return set()
+
+
+# ============================================
+# FastAPI Dependencies for RBAC Enforcement
+# ============================================
+
+def require_permission(*permissions: Permission):
+    """
+    FastAPI dependency that enforces RBAC permissions.
+
+    Usage in routers:
+        @router.delete("/patients/{id}")
+        def delete_patient(
+            user=Depends(require_permission(Permission.PATIENT_DELETE)),
+            ...
+        ):
+
+    Multiple permissions (ANY must match):
+        @router.post("/clinical")
+        def write_clinical(
+            user=Depends(require_permission(Permission.CLINICAL_WRITE, Permission.TREATMENT_PLAN_WRITE)),
+            ...
+        ):
+    """
+    from fastapi import Depends, HTTPException
+
+    def _checker(current_user=Depends(_get_current_user_lazy())):
+        user_role = getattr(current_user, "role", "guest")
+
+        # Check if user has ANY of the required permissions
+        for perm in permissions:
+            if has_permission(user_role, perm):
+                return current_user
+
+        raise HTTPException(
+            status_code=403,
+            detail=f"Permission denied. Required: {[p.value for p in permissions]}",
+        )
+
+    return _checker
+
+
+def _get_current_user_lazy():
+    """Lazy import to avoid circular imports with auth module."""
+    def _inner():
+        from backend.routers.auth import get_current_user
+        return get_current_user
+    dep = _inner()
+    return dep
+

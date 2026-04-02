@@ -1,0 +1,561 @@
+{
+  "@@locale": "en",
+  "appTitle": "Dentix",
+  "@appTitle": {
+    "description": "App title"
+  },
+  "login": "Login",
+  "@login": {
+    "description": "Login button text"
+  },
+  "email": "Email",
+  "@email": {
+    "description": "Email field label"
+  },
+  "password": "Password",
+  "@password": {
+    "description": "Password field label"
+  },
+  "invalidEmail": "Invalid email address",
+  "@invalidEmail": {
+    "description": "Invalid email error"
+  },
+  "invalidPassword": "Password must be at least 6 characters",
+  "@invalidPassword": {
+    "description": "Invalid password error"
+  },
+  "loginFailed": "Login failed, please check your credentials",
+  "@loginFailed": {
+    "description": "Login failed error"
+  },
+  "dashboard": "Dashboard",
+  "@dashboard": {
+    "description": "Dashboard title"
+  },
+  "patients": "Patients",
+  "@patients": {
+    "description": "Patients title"
+  },
+  "appointments": "Appointments",
+  "@appointments": {
+    "description": "Appointments title"
+  },
+  "more": "More",
+  "@more": {
+    "description": "More tab label"
+  },
+  "settings": "Settings",
+  "@settings": {
+    "description": "Settings title"
+  },
+  "logout": "Logout",
+  "@logout": {
+    "description": "Logout button"
+  },
+  "search": "Search",
+  "@search": {
+    "description": "Search hint"
+  },
+  "loading": "Loading...",
+  "@loading": {
+    "description": "Loading text"
+  },
+  "error": "An error occurred",
+  "@error": {
+    "description": "Error message"
+  },
+  "retry": "Retry",
+  "@retry": {
+    "description": "Retry button"
+  },
+  "totalPatients": "Total Patients",
+  "@totalPatients": {
+    "description": "Total patients stat"
+  },
+  "todayAppointments": "Today's Appointments",
+  "@todayAppointments": {
+    "description": "Today's appointments stat"
+  },
+  "todayRevenue": "Today's Revenue",
+  "@todayRevenue": {
+    "description": "Today's revenue stat"
+  },
+  "welcome": "Welcome to Dentix",
+  "@welcome": {
+    "description": "Welcome message"
+  },
+  "pleaseLogin": "Please login to continue",
+  "@pleaseLogin": {
+    "description": "Please login message"
+  },
+  "welcomeBack": "Welcome back!",
+  "@welcomeBack": {
+    "description": "Welcome back message"
+  },
+  "noAppointmentsToday": "No appointments today",
+  "@noAppointmentsToday": {
+    "description": "No appointments today message"
+  },
+  "searchPatients": "Search patients...",
+  "@searchPatients": {
+    "description": "Search patients hint"
+  },
+  "noPatientsFound": "No patients found",
+  "@noPatientsFound": {
+    "description": "No patients found message"
+  },
+  "addFirstPatient": "Add your first patient to get started",
+  "@addFirstPatient": {
+    "description": "Add first patient message"
+  },
+  "addPatient": "Add Patient",
+  "@addPatient": {
+    "description": "Add patient button"
+  },
+  "newAppointment": "New Appointment",
+  "@newAppointment": {
+    "description": "New appointment button"
+  },
+  "calendarView": "Calendar View",
+  "@calendarView": {
+    "description": "Calendar view title"
+  },
+  "selectDate": "Select a date to view appointments",
+  "@selectDate": {
+    "description": "Select date instructions"
+  },
+  "noAppointments": "No appointments",
+  "@noAppointments": {
+    "description": "No appointments message"
+  },
+  "tapToAddAppointment": "Tap the button to add an appointment",
+  "@tapToAddAppointment": {
+    "description": "Tap to add appointment instructions"
+  },
+  "appearance": "Appearance",
+  "@appearance": {
+    "description": "Appearance section title"
+  },
+  "darkMode": "Dark Mode",
+  "@darkMode": {
+    "description": "Dark mode switch"
+  },
+  "language": "Language",
+  "@language": {
+    "description": "Language setting"
+  },
+  "account": "Account",
+  "@account": {
+    "description": "Account section title"
+  },
+  "changePassword": "Change Password",
+  "@changePassword": {
+    "description": "Change password setting"
+  },
+  "notifications": "Notifications",
+  "@notifications": {
+    "description": "Notifications setting"
+  },
+  "about": "About",
+  "@about": {
+    "description": "About section title"
+  },
+  "version": "Version",
+  "@version": {
+    "description": "Version label"
+  },
+  "helpSupport": "Help & Support",
+  "@helpSupport": {
+    "description": "Help and support setting"
+  },
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Cancel button"
+  },
+  "confirmLogout": "Are you sure you want to logout?",
+  "@confirmLogout": {
+    "description": "Logout confirmation message"
+  },
+  "dentalManagement": "Dental Clinic Management",
+  "@dentalManagement": {
+    "description": "App subtitle"
+  },
+  "profile": "Profile",
+  "@profile": {
+    "description": "Profile tab label"
+  },
+  "treatments": "Treatments",
+  "@treatments": {
+    "description": "Treatments tab label"
+  },
+  "history": "History",
+  "@history": {
+    "description": "History tab label"
+  },
+  "contactInfo": "Contact Information",
+  "@contactInfo": {
+    "description": "Contact information section"
+  },
+  "personalInfo": "Personal Information",
+  "@personalInfo": {
+    "description": "Personal information section"
+  },
+  "medicalInfo": "Medical Information",
+  "@medicalInfo": {
+    "description": "Medical information section"
+  },
+  "medicalHistory": "Medical History",
+  "@medicalHistory": {
+    "description": "Medical history label"
+  },
+  "allergies": "Allergies",
+  "@allergies": {
+    "description": "Allergies label"
+  },
+  "notAvailable": "N/A",
+  "@notAvailable": {
+    "description": "Not available text"
+  },
+  "noMedicalHistory": "No medical history recorded",
+  "@noMedicalHistory": {
+    "description": "No medical history message"
+  },
+  "noAllergies": "No allergies recorded",
+  "@noAllergies": {
+    "description": "No allergies message"
+  },
+  "retry": "Retry",
+  "@retry": {
+    "description": "Retry button label"
+  },
+  "noTreatments": "No treatments yet",
+  "@noTreatments": {
+    "description": "No treatments message"
+  },
+  "historyComingSoon": "Appointment history coming soon",
+  "@historyComingSoon": {
+    "description": "History tab placeholder"
+  },
+  "themeSystem": "System Default",
+  "@themeSystem": {
+    "description": "System theme option"
+  },
+  "themeLight": "Light",
+  "@themeLight": {
+    "description": "Light theme option"
+  },
+  "themeDark": "Dark",
+  "@themeDark": {
+    "description": "Dark theme option"
+  },
+  "language": "Language",
+  "@language": {
+    "description": "Language setting label"
+  },
+  "theme": "Theme",
+  "@theme": {
+    "description": "Theme setting label"
+  },
+  "security": "Security",
+  "@security": {
+    "description": "Security section label"
+  },
+  "changePassword": "Change Password",
+  "@changePassword": {
+    "description": "Change password option"
+  },
+  "logout": "Logout",
+  "@logout": {
+    "description": "Logout button"
+  },
+  "financialOverview": "Financial Overview",
+  "@financialOverview": {
+    "description": "Financial overview page title"
+  },
+  "recordPayment": "Record Payment",
+  "@recordPayment": {
+    "description": "Record payment button"
+  },
+  "revenue": "Revenue",
+  "@revenue": {
+    "description": "Revenue label"
+  },
+  "expense": "Expense",
+  "@expense": {
+    "description": "Expense label"
+  },
+  "netIncome": "Net Income",
+  "@netIncome": {
+    "description": "Net income label"
+  },
+  "transactionNumber": "Transaction #{number}",
+  "@transactionNumber": {
+    "description": "Transaction number label",
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "revenue": "Revenue",
+  "@revenue": {
+    "description": "Revenue label"
+  },
+  "expense": "Expense",
+  "@expense": {
+    "description": "Expense label"
+  },
+  "amount": "Amount",
+  "@amount": {
+    "description": "Amount field label"
+  },
+  "date": "Date",
+  "@date": {
+    "description": "Date field label"
+  },
+  "patientId": "Patient ID",
+  "@patientId": {
+    "description": "Patient ID field label"
+  },
+  "description": "Description",
+  "@description": {
+    "description": "Description field label"
+  },
+  "requiredField": "This field is required",
+  "@requiredField": {
+    "description": "Required field error message"
+  },
+  "invalidAmount": "Please enter a valid amount",
+  "@invalidAmount": {
+    "description": "Invalid amount error message"
+  },
+  "invalidNumber": "Please enter a valid number",
+  "@invalidNumber": {
+    "description": "Invalid number error message"
+  },
+  "paymentRecorded": "Payment recorded successfully",
+  "@paymentRecorded": {
+    "description": "Payment recorded success message"
+  },
+  "prescriptions": "Prescriptions",
+  "@prescriptions": {
+    "description": "Prescriptions page title"
+  },
+  "createPrescription": "Create Prescription",
+  "@createPrescription": {
+    "description": "Create prescription button"
+  },
+  "noPrescriptions": "No prescriptions yet",
+  "@noPrescriptions": {
+    "description": "No prescriptions message"
+  },
+  "medications": "Medications",
+  "@medications": {
+    "description": "Medications section label"
+  },
+  "addMedication": "Add Medication",
+  "@addMedication": {
+    "description": "Add medication button"
+  },
+  "medication": "Medication",
+  "@medication": {
+    "description": "Medication label"
+  },
+  "medicationId": "Medication ID",
+  "@medicationId": {
+    "description": "Medication ID field label"
+  },
+  "dosage": "Dosage",
+  "@dosage": {
+    "description": "Dosage field label"
+  },
+  "frequency": "Frequency",
+  "@frequency": {
+    "description": "Frequency field label"
+  },
+  "duration": "Duration",
+  "@duration": {
+    "description": "Duration field label"
+  },
+  "noMedicationsAdded": "No medications added yet",
+  "@noMedicationsAdded": {
+    "description": "No medications message"
+  },
+  "addAtLeastOneMedication": "Please add at least one medication",
+  "@addAtLeastOneMedication": {
+    "description": "Add medication validation message"
+  },
+  "prescriptionCreated": "Prescription created successfully",
+  "@prescriptionCreated": {
+    "description": "Prescription created success message"
+  },
+  "labOrders": "Lab Orders",
+  "@labOrders": {
+    "description": "Lab orders page title"
+  },
+  "createLabOrder": "Create Lab Order",
+  "@createLabOrder": {
+    "description": "Create lab order button"
+  },
+  "noLabOrders": "No lab orders yet",
+  "@noLabOrders": {
+    "description": "No lab orders message"
+  },
+  "dueDate": "Due Date",
+  "@dueDate": {
+    "description": "Due date label"
+  },
+  "overdue": "Overdue",
+  "@overdue": {
+    "description": "Overdue badge label"
+  },
+  "all": "All",
+  "@all": {
+    "description": "All filter option"
+  },
+  "statusPending": "Pending",
+  "@statusPending": {
+    "description": "Pending status label"
+  },
+  "statusInProgress": "In Progress",
+  "@statusInProgress": {
+    "description": "In Progress status label"
+  },
+  "statusCompleted": "Completed",
+  "@statusCompleted": {
+    "description": "Completed status label"
+  },
+  "statusCancelled": "Cancelled",
+  "@statusCancelled": {
+    "description": "Cancelled status label"
+  },
+  "featureComingSoon": "Coming soon",
+  "@featureComingSoon": {
+    "description": "Feature coming soon message"
+  },
+  "patientNumber": "Patient #{number}",
+  "@patientNumber": {
+    "description": "Patient number label",
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "labName": "Lab Name",
+  "@labName": {
+    "description": "Lab name field label"
+  },
+  "workItems": "Work Items",
+  "@workItems": {
+    "description": "Work items section label"
+  },
+  "addWorkItem": "Add Work Item",
+  "@addWorkItem": {
+    "description": "Add work item button"
+  },
+  "workItem": "Work Item",
+  "@workItem": {
+    "description": "Work item label"
+  },
+  "workType": "Work Type",
+  "@workType": {
+    "description": "Work type field label"
+  },
+  "quantity": "Quantity",
+  "@quantity": {
+    "description": "Quantity field label"
+  },
+  "material": "Material",
+  "@material": {
+    "description": "Material field label"
+  },
+  "shade": "Shade",
+  "@shade": {
+    "description": "Shade field label"
+  },
+  "noWorkItemsAdded": "No work items added yet",
+  "@noWorkItemsAdded": {
+    "description": "No work items message"
+  },
+  "addAtLeastOneWorkItem": "Please add at least one work item",
+  "@addAtLeastOneWorkItem": {
+    "description": "Add work item validation message"
+  },
+  "labOrderCreated": "Lab order created successfully",
+  "@labOrderCreated": {
+    "description": "Lab order created success message"
+  },
+  "currentPassword": "Current Password",
+  "@currentPassword": {
+    "description": "Current password field label"
+  },
+  "newPassword": "New Password",
+  "@newPassword": {
+    "description": "New password field label"
+  },
+  "confirmPassword": "Confirm Password",
+  "@confirmPassword": {
+    "description": "Confirm password field label"
+  },
+  "passwordTooShort": "Password must be at least 6 characters",
+  "@passwordTooShort": {
+    "description": "Password too short error message"
+  },
+  "passwordsDoNotMatch": "Passwords do not match",
+  "@passwordsDoNotMatch": {
+    "description": "Passwords do not match error message"
+  },
+  "passwordChanged": "Password changed successfully",
+  "@passwordChanged": {
+    "description": "Password changed success message"
+  },
+  "passwordChangeFailed": "Failed to change password",
+  "@passwordChangeFailed": {
+    "description": "Password change failed message"
+  },
+  "fullName": "Full Name",
+  "@fullName": {
+    "description": "Full name label"
+  },
+  "phone": "Phone Number",
+  "@phone": {
+    "description": "Phone number label"
+  },
+  "dateOfBirth": "Date of Birth",
+  "@dateOfBirth": {
+    "description": "Date of birth label"
+  },
+  "gender": "Gender",
+  "@gender": {
+    "description": "Gender label"
+  },
+  "address": "Address",
+  "@address": {
+    "description": "Address label"
+  },
+  "notes": "Notes",
+  "@notes": {
+    "description": "Notes label"
+  },
+  "save": "Save",
+  "@save": {
+    "description": "Save button"
+  },
+  "male": "Male",
+  "@male": {
+    "description": "Male gender option"
+  },
+  "female": "Female",
+  "@female": {
+    "description": "Female gender option"
+  },
+  "appointmentCreated": "Appointment created successfully",
+  "@appointmentCreated": {
+    "description": "Appointment created success message"
+  },
+  "noInfoAvailable": "No information available",
+  "@noInfoAvailable": {
+    "description": "No information available message"
+  }
+}
