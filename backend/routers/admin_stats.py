@@ -7,6 +7,7 @@ Split from admin_system.py (B3.1).
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException
+from backend.core.response import success_response
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timezone
@@ -74,7 +75,7 @@ def _get_admin_stats_logic(db: Session):
     for plan_name, count in plans:
         plan_distribution[plan_name or "trial"] = count
 
-    return {
+    return success_response({
         "total_tenants": total_tenants,
         "active_tenants": active_tenants,
         "expired_tenants": expired_tenants,
@@ -82,4 +83,4 @@ def _get_admin_stats_logic(db: Session):
         "monthly_revenue": {},
         "plan_distribution": plan_distribution,
         "recent_payments": recent_payments,
-    }
+    })

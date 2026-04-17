@@ -20,11 +20,19 @@ def log_frontend_error(
     Does NOT require authentication to prevent losing errors during login failures.
     We capture IP/UserAgent from request.
     """
-    db_error = models.SystemError(
-        **error.model_dump(),
-        ip_address=request.client.host,
-        user_agent=request.headers.get("user-agent"),
-    )
+    # Extract data to avoid duplicate key issues if schema already has keys
+    error_data = error.model_dump()
+    # Prioritize request context for security/reliability
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        error_data["ip_address"] = forwarded_for.split(",")[0].strip()
+    else:
+        error_data["ip_address"] = request.client.host if request.client else None
+
+    if not error_data.get("user_agent"):
+        error_data["user_agent"] = request.headers.get("user-agent")
+
+    db_error = models.SystemError(**error_data)
     db.add(db_error)
     db.commit()
     db.refresh(db_error)

@@ -29,6 +29,7 @@ from backend.cache import get_cache_stats, invalidate_cache
 from backend.middleware.security_headers import SecurityHeadersMiddleware
 from backend.middleware.tenant import TenantMiddleware
 from backend.middleware.error_logging import ErrorLoggingMiddleware
+from backend.core.response import success_response
 
 
 # sentry_sdk removed.
@@ -343,11 +344,11 @@ app.include_router(metrics.router, prefix=API_V1_STR)
 @app.get(f"{API_V1_STR}/global-settings")
 async def get_global_settings():
     """Return global application settings (banner, support info, etc.)."""
-    return {
+    return success_response({
         "banner": None,
         "support_email": os.getenv("SUPPORT_EMAIL", ""),
         "support_phone": os.getenv("SUPPORT_PHONE", ""),
-    }
+    })
 
 
 # --- Observability ---

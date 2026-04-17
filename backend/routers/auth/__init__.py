@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from .dependencies import get_current_user, get_db, oauth2_scheme, validate_password
-from . import login, register, users, security, settings, debug
+from . import login, register, security, settings, debug
 
 # Create Main Router
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -8,7 +8,6 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 # Include Sub-Routers
 router.include_router(login.router)
 router.include_router(register.router)
-router.include_router(users.router)
 router.include_router(security.router)
 router.include_router(settings.router)
 router.include_router(debug.router)
