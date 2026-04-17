@@ -25,9 +25,11 @@ load_dotenv(env_path)
 try:
     SQLALCHEMY_DATABASE_URL = os.environ["DATABASE_URL"]
 except KeyError:
-    # Allow fallback for testing/CI environments where .env might not be loaded
-    print(
-        "WARNING: DATABASE_URL is not set. Using sqlite:///:memory: for fallback/testing."
+    import warnings
+    warnings.warn(
+        "DATABASE_URL is not set. Using sqlite:///:memory: for fallback/testing.",
+        RuntimeWarning,
+        stacklevel=2,
     )
     SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
@@ -54,8 +56,10 @@ elif ASYNC_DATABASE_URL.startswith("sqlite"):
 connect_args = {}
 if "postgresql" in SQLALCHEMY_DATABASE_URL:
     connect_args["sslmode"] = os.getenv("DB_SSL_MODE", "require")
-    # Prevent Noisy Neighbor: max 30s per query
-    connect_args["options"] = f"-c statement_timeout={os.getenv('DB_STATEMENT_TIMEOUT', '30000')}"
+    # Prevent Noisy Neighbor: max 30s per query (Disable for PgBouncer/Neon Pooler)
+    stmt_timeout = os.getenv('DB_STATEMENT_TIMEOUT')
+    if stmt_timeout:
+        connect_args["options"] = f"-c statement_timeout={stmt_timeout}"
 elif "sqlite" in SQLALCHEMY_DATABASE_URL:
     connect_args["check_same_thread"] = False
 
@@ -111,3 +115,5 @@ async def get_async_db():
     """Dependency for asynchronous database sessions."""
     async with AsyncSessionLocal() as session:
         yield session
+
+# Register SQLAlchemy event listeners
