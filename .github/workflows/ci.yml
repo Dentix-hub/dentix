@@ -42,6 +42,7 @@ jobs:
           pip install pytest pytest-cov bandit safety
 
       - name: Run database migrations
+        working-directory: backend
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
           SECRET_KEY: test-secret-key-for-ci-only
@@ -81,6 +82,8 @@ jobs:
   frontend:
     name: Frontend Tests
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
 
     steps:
       - name: Checkout code
