@@ -23,7 +23,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from backend.core.config import get_cors_origins, API_V1_STR, get_allow_origin_regex
 from backend.core.limiter import limiter
-from backend import models, database, auth
+from backend import models, database
 from backend.core import migrations, seeding
 from backend.cache import get_cache_stats, invalidate_cache
 from backend.middleware.security_headers import SecurityHeadersMiddleware
@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifecycle manager for startup and shutdown events."""
-    print("[STARTUP] Server Starting...")
+    logger.info("[STARTUP] Server Starting...")
 
     # --- STAGING/DEV ONLY: AUTO-WIPE OPTION ---
     # To trigger: set RESET_DB_ON_STARTUP=true in environment
@@ -52,43 +52,43 @@ async def lifespan(app: FastAPI):
     if os.getenv("RESET_DB_ON_STARTUP", "false").lower() == "true":
         env = os.getenv("ENVIRONMENT", "development").lower()
         if env == "production":
-            print("⛔ [STARTUP] CRITICAL: DB WIPE BLOCKED IN PRODUCTION!")
+            logger.critical("[STARTUP] DB WIPE BLOCKED IN PRODUCTION!")
         else:
-            print("⚠️ [STARTUP] DEEP CLEAN DETECTED: Wiping Database...")
+            logger.warning("[STARTUP] DEEP CLEAN DETECTED: Wiping Database...")
             try:
                 models.Base.metadata.drop_all(bind=database.engine)
                 models.Base.metadata.create_all(bind=database.engine)
-                print("✅ [STARTUP] Database Wiped & Re-Created.")
+                logger.info("[STARTUP] Database Wiped & Re-Created.")
                 # Seeding will happen in step 3 below
-            except Exception as e:
-                print(f"❌ [STARTUP] Wipe failed: {e}")
+            except Exception:
+                logger.exception("[STARTUP] Wipe failed", exc_info=True)
     # --- END WIPE ---
 
     # 1. Create Database Tables
     try:
         models.Base.metadata.create_all(bind=database.engine)
-        print("[STARTUP] Database tables verified/created.")
-    except Exception as e:
-        print(f"[CRITICAL] Failed to create database tables: {e}")
+        logger.info("[STARTUP] Database tables verified/created.")
+    except Exception:
+        logger.exception("[STARTUP] Failed to create database tables", exc_info=True)
 
     # 2. Run Auto-Migrations
     try:
-        print("[STARTUP] Running schema migrations...")
+        logger.info("[STARTUP] Running schema migrations...")
         migrations.check_and_migrate_tables()
-    except Exception as e:
-        print(f"[WARNING] Schema migration failed: {e}")
+    except Exception:
+        logger.warning("[STARTUP] Schema migration failed", exc_info=True)
 
     # 3. Run Startup Schema Patches (extracted to core/startup.py)
     try:
         from backend.core.startup import run_startup_patches
 
         run_startup_patches()
-    except Exception as e:
-        print(f"[WARNING] Startup patches failed: {e}")
+    except Exception:
+        logger.warning("[STARTUP] Startup patches failed", exc_info=True)
 
     # 3. Seed Initial Data
     try:
-        print("[STARTUP] Seeding initial data...")
+        logger.info("[STARTUP] Seeding initial data...")
         seeding.seed_subscription_plans()
         seeding.create_first_admin()
 
@@ -100,28 +100,34 @@ async def lifespan(app: FastAPI):
             seed.seed_data(db)
         finally:
             db.close()
-    except Exception as e:
-        print(f"[ERROR] Startup seeding failed: {e}")
+    except Exception:
+        logger.error("[STARTUP] Seed failed", exc_info=True)
 
     # 4. FIX: Seed Global Procedures + Propagate to Tenants
     try:
-        # Step 1: Create global procedures (if not exist)
-        print("[STARTUP] Seeding Global Procedures...")
+        logger.info("[STARTUP] Seeding Global Procedures...")
         from backend.scripts.seed_procedures import seed_procedures
 
         seed_procedures()
-        print("[STARTUP] Global Procedures Seeded.")
+        logger.info("[STARTUP] Global Procedures Seeded.")
 
-        # Step 2: Propagate to all tenant price lists
-        print("[STARTUP] Running Global Procedure Propagation...")
+        logger.info("[STARTUP] Running Global Procedure Propagation...")
         from backend.scripts.fix_global_procedures import fix_global_procedures
 
         fix_global_procedures()
-        print("[STARTUP] Global Procedure Propagation Complete.")
-    except Exception as e:
-        print(f"[ERROR] Global Procedure Seeding/Propagation failed: {e}")
+        logger.info("[STARTUP] Global Procedure Propagation Complete.")
+    except Exception:
+        logger.error("[STARTUP] Global Procedure Seeding/Propagation failed", exc_info=True)
 
-    print("[STARTUP] System Ready.")
+    # 5. Initialize Firebase
+    try:
+        logger.info("[STARTUP] Initializing Firebase...")
+        from backend.utils.firebase_manager import firebase_manager
+        firebase_manager.initialize()
+    except Exception:
+        logger.error("[STARTUP] Firebase initialization failed", exc_info=True)
+
+    logger.info("[STARTUP] System Ready.")
 
     yield  # Application runs here
 
@@ -153,7 +159,7 @@ app.add_middleware(TenantMiddleware)
 
 # 5. CORS (Must be outermost to handle all requests)
 origins = get_cors_origins()
-print(f"[DEBUG] Loaded CORS Origins: {origins}", flush=True)
+logger.debug("[CONFIG] Loaded CORS Origins: %s", origins)
 # Add Middleware (Order matters: ErrorLogging should be high up to catch everything)
 app.add_middleware(ErrorLoggingMiddleware)
 app.add_middleware(
@@ -204,34 +210,8 @@ app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-# --- Google Drive Scheduler ---
-try:
-    backend_url = os.getenv("BACKEND_PUBLIC_URL", "http://localhost:8000")
-    if backend_url.endswith("/"):
-        backend_url = backend_url[:-1]
-
-    from backend import google_drive_client
-
-    # Fix: Ensure callback matches the actual router path mounted at /api/v1/settings
-    from backend.core.config import API_V1_STR
-
-    drive_client = google_drive_client.GoogleDriveClient(
-        redirect_uri=f"{backend_url}{API_V1_STR}/settings/backup/callback"
-    )
-except Exception as e:
-    print(f"WARNING: Could not initialize Google Drive Client: {e}")
-
-    class MockDriveClient:
-        def update_redirect_uri(self, *args):
-            pass
-
-        def get_auth_url(self, *args):
-            return "#"
-
-        def fetch_token(self, *args):
-            raise Exception("Google Drive not configured")
-
-    drive_client = MockDriveClient()
+from backend.core.startup import init_drive_client
+drive_client = init_drive_client()
 
 scheduler = BackgroundScheduler(timezone=pytz.utc)
 scheduler.start()
@@ -258,6 +238,8 @@ from backend.routers import (
     admin_tenants,
     admin_subscriptions,
     admin_system,  # New Modular Admin Routers
+    admin_audit,   # B3.1: Audit logs + system logs
+    admin_stats,   # B3.1: Dashboard stats
     admin_security,
     admin_features,
     repair,
@@ -293,12 +275,13 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     """Log validation errors nicely for debugging."""
     try:
         body = await request.json()
-    except:
+    except Exception:
         body = "Could not parse body"
 
-    print(f"\n[VALIDATION ERROR] {request.method} {request.url}")
-    print(f"Body: {body}")
-    print(f"Errors: {exc.errors()}\n")
+    logger.warning(
+        "[VALIDATION ERROR] %s %s | Body: %s | Errors: %s",
+        request.method, request.url, body, exc.errors()
+    )
 
     return JSONResponse(
         status_code=422,
@@ -322,6 +305,8 @@ app.include_router(notifications.router, prefix=API_V1_STR)
 app.include_router(admin_tenants.router, prefix=API_V1_STR)
 app.include_router(admin_subscriptions.router, prefix=API_V1_STR)
 app.include_router(admin_system.router, prefix=API_V1_STR)
+app.include_router(admin_audit.router, prefix=API_V1_STR)   # B3.1: Audit & system logs
+app.include_router(admin_stats.router, prefix=API_V1_STR)   # B3.1: Dashboard stats
 app.include_router(admin_security.router, prefix=API_V1_STR)
 app.include_router(admin_features.router, prefix=API_V1_STR)
 # app.include_router(admin_subscriptions.router, prefix=API_V1_STR) # Already included above
@@ -431,13 +416,7 @@ async def catch_all(full_path: str):
 
 @app.on_event("startup")
 async def startup_event():
-    print("--- 🚀 BACKEND V3 LOADING (VERIFYING UPDATE) 🚀 ---")
-    print(f"Current Working Directory: {os.getcwd()}")
-    print("--- REGISTERED ROUTES ---")
-    for route in app.routes:
-        if hasattr(route, "path"):
-            print(f"Route: {route.path}")
-    print("--- END REGISTERED ROUTES ---")
+    logger.info("BACKEND V3 LOADED | CWD: %s | Routes: %d", os.getcwd(), len(app.routes))
 
 
 # --- Protected Admin Endpoints ---
