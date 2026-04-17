@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python *)",
+      "Bash(pip install *)",
+      "Bash(c:\\users\\es\\appdata\\local\\programs\\python\\python311\\python.exe *)",
+      "Bash(findstr *)",
+      "Bash(del *)",
+      "Bash(bandit *)",
+      "Bash(safety *)",
+      "Bash(npm test)",
+      "Bash(npx *)",
+      "Bash(npm install *)",
+      "Bash(timeout *)",
+      "Bash(mkdir *)"
+    ]
+  },
+  "$version": 3
+}

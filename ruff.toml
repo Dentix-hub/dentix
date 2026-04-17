@@ -1,0 +1,30 @@
+# Global Ruff Configuration for Dentix
+# Focused on production-ready code in backend/
+
+# Exclude non-production directories
+extend-exclude = [
+    "tests",
+    "scripts",
+    "frontend",
+    "dentix_mobile",
+    "alembic",
+    "htmlcov",
+    "static",
+    "uploads",
+    "data",
+    "fix_prints_and_tracebacks.py",
+    "fix_prints_ast.py",
+    "fix_prints_regex.py",
+    "wrap_response.py",
+    "gunicorn_conf.py",
+]
+
+[lint]
+# Enable standard rules
+select = ["E", "F", "W", "I"]
+# Ignore pragmatic lints
+ignore = ["E402", "E501", "I001", "F401", "E711", "E712"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
