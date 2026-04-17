@@ -17,7 +17,7 @@ export const useTenantStore = create((set, get) => ({
         set({ loading: true });
         try {
             // Fetching from /users/me is safer as it guarantees context
-            const res = await api.get('/users/me/');
+            const res = await api.get('/api/v1/users/me');
             const tenantData = res.data.tenant;
 
             // PRIORITY: Check for DB-configured features first

@@ -84,7 +84,34 @@ const processQueue = (error, token = null) => {
 };
 
 api.interceptors.response.use(
-    response => response,
+    response => {
+        // 1. Handle Blobs (Backups/Exports)
+        if (response.data instanceof Blob) {
+            return response;
+        }
+
+        // 2. Detect and unwrap StandardResponse envelope
+        // Unwrap success_response: { success, data, message } → return data directly
+        if (response.data && 'success' in response.data && 'data' in response.data) {
+            // Attach pagination metadata if it exists
+            if (response.data.pagination && response.data.data !== null && typeof response.data.data === 'object') {
+                try {
+                    Object.defineProperty(response.data.data, '_pagination', {
+                        value: response.data.pagination,
+                        writable: true,
+                        enumerable: false, // Don't show in loops
+                        configurable: true
+                    });
+                } catch (e) {
+                    response.data.data._pagination = response.data.pagination;
+                }
+            }
+            // Mutate in-place to avoid breaking references
+            response.data = response.data.data;
+        }
+
+        return response;
+    },
     async error => {
         const originalRequest = error.config;
 
