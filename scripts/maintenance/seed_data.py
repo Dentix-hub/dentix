@@ -54,15 +54,15 @@ safe_commit()
 log("Checking User & Tenant...")
 tenant_obj = db.query(tenant.Tenant).filter_by(id=TENANT_ID).first()
 if not tenant_obj:
-    tenant_obj = tenant.Tenant(id=TENANT_ID, name="Smart Clinic Demo", plan="PRO")
+    tenant_obj = tenant.Tenant(id=TENANT_ID, name="Dentix Demo", plan="PRO")
     db.add(tenant_obj)
     safe_commit()
 
-doctor = db.query(user.User).filter(user.User.email == "doctor@smartclinic.com").first()
+doctor = db.query(user.User).filter(user.User.email == "doctor@smartdentalclinicapp.com").first()
 if not doctor:
     doctor = user.User(
-        email="doctor@smartclinic.com",
-        username="Dr. Smart",
+        email="doctor@smartdentalclinicapp.com",
+        username="Dr. Dentix",
         hashed_password=get_password_hash("123456"),
         role="doctor",
         tenant_id=TENANT_ID,
@@ -70,7 +70,7 @@ if not doctor:
     )
     db.add(doctor)
     safe_commit()
-    doctor = db.query(user.User).filter(user.User.email == "doctor@smartclinic.com").first()
+    doctor = db.query(user.User).filter(user.User.email == "doctor@smartdentalclinicapp.com").first()
 
 log(f"Doctor ID: {doctor.id}")
 

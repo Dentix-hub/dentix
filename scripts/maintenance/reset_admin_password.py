@@ -9,17 +9,17 @@ from backend.database import SessionLocal
 from backend.models.user import User
 from backend.auth import get_password_hash
 
-def reset_eslam():
+def reset_admin():
     db = SessionLocal()
     try:
-        username = "eslam"
+        username = "admin"
         user = db.query(User).filter(User.username == username).first()
         
         if not user:
             print(f"User '{username}' NOT FOUND. Creating new admin user...")
             new_user = User(
                 username=username,
-                email="eslam@smartclinic.com",
+                email="admin@smartdentalclinicapp.com",
                 hashed_password=get_password_hash("password123"),
                 role="admin",
                 tenant_id=1,
@@ -40,4 +40,4 @@ def reset_eslam():
         db.close()
 
 if __name__ == "__main__":
-    reset_eslam()
+    reset_admin()

@@ -27,8 +27,8 @@ if not admin_user:
 print(f"Acting as Admin: {admin_user.username}")
 
 # Inputs from failed request
-username = "eslam"
-password = "1234567e"
+username = "admin"
+password = "password123"
 role = "doctor"
 permissions = '["view_patients","edit_patients","view_treatments","view_financials","manage_lab","edit_treatments"]'
 

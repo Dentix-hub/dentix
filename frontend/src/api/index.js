@@ -29,7 +29,7 @@ const getApiUrl = () => {
         return 'http://localhost:8000';
     }
     // 5. Fallback to Staging / Production Default
-    return 'https://smartclinic-smart-clinic-v2.hf.space';
+    return 'https://dentix-dentix.hf.space';
 };
 
 export const API_URL = getApiUrl();

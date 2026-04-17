@@ -10,7 +10,7 @@ TENANT_ID = 1
 def login():
     print("Logging in...")
     # Try Super Admin credentials (from seeding.py)
-    creds = {"username": "eslamemara1312@gmail.com", "password": "ESLAMomara11##"}
+    creds = {"username": "smartdentalclinicapp@gmail.com", "password": "AdminPassword123!"}
     try:
         r = requests.post(f"{API_URL}/token", data=creds)
         if r.status_code == 200:

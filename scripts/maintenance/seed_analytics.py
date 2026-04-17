@@ -18,10 +18,10 @@ DOCTOR_ID = 0   # Will resolve dynamically
 def setup_users():
     global DOCTOR_ID
     print("Setting up User...")
-    user = db.query(models.User).filter(models.User.email == "doctor@smartclinic.com").first()
+    user = db.query(models.User).filter(models.User.email == "doctor@smartdentalclinicapp.com").first()
     if not user:
         user = models.User(
-            email="doctor@smartclinic.com",
+            email="doctor@smartdentalclinicapp.com",
             username="Dr. Test User",
             hashed_password=get_password_hash("123456"),
             role="super_admin",

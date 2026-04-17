@@ -12,7 +12,7 @@ def login():
     print("Logging in...")
     try:
         resp = requests.post(f"{BASE_URL}/token", data={
-            "username": "eslam",
+            "username": "admin",
             "password": "password123"
         })
         if resp.status_code != 200:
