@@ -65,7 +65,7 @@ def export_tenant_data(db: Session, tenant_id: int) -> Dict:
     # 1. Users (tenant staff)
     users = (
         db.query(models.User)
-        .filter(models.User.tenant_id == tenant_id, models.User.is_deleted == False)
+        .filter(models.User.tenant_id == tenant_id, not models.User.is_deleted)
         .all()
     )
     export_data["data"]["users"] = [
@@ -155,7 +155,7 @@ def export_tenant_data(db: Session, tenant_id: int) -> Dict:
         .filter(models.Laboratory.tenant_id == tenant_id)
         .all()
     )
-    export_data["data"]["laboratories"] = [model_to_dict(l) for l in laboratories]
+    export_data["data"]["laboratories"] = [model_to_dict(lab) for lab in laboratories]
 
     # 12. LabOrders
     lab_orders = (

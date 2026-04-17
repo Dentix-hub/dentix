@@ -55,7 +55,7 @@ def register_default_tools(registry: "ToolRegistry"):
     registry.register(
         Tool(
             name="create_patient",
-            description="""⭐ تسجيل مريض جديد / فتح ملف جديد. 
+            description="""⭐ تسجيل مريض جديد / فتح ملف جديد.
         استخدم هذه الأداة عندما يقول المستخدم: "سجل مريض"، "ضيف مريض"، "مريض جديد"، "افتح ملف"، "أضف مريض".
         ⚠️ لا تستدعي الأداة إذا كانت البيانات ناقصة (الاسم، السن، التليفون) - اسأل المستخدم أولاً باستخدام response.""",
             parameters={
@@ -168,7 +168,7 @@ def register_default_tools(registry: "ToolRegistry"):
     registry.register(
         Tool(
             name="add_treatment_voice",
-            description="""إضافة علاج للمريض بالصوت. استخدم عندما يذكر الدكتور إجراء محدد مع تفاصيل. 
+            description="""إضافة علاج للمريض بالصوت. استخدم عندما يذكر الدكتور إجراء محدد مع تفاصيل.
         أمثلة: "عملنا حشو كومبوزيت للضرس 6"، "خلعنا ضرس العقل"، "عملنا تنظيف جير"
         """,
             parameters={

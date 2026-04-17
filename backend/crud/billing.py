@@ -1,8 +1,11 @@
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, date
 from backend import models, schemas
 from .patient import get_patient
+
+logger = logging.getLogger(__name__)
 
 
 # --- Treatment CRUD ---
@@ -160,7 +163,7 @@ def get_treatments(db: Session, patient_id: int, tenant_id: int):
                     movements_map[t_id][mat_id] = qty
 
             except Exception:
-                # print(f"Error parsing movement {m.id}: {e}")
+                # logger.info(f"Error parsing movement {m.id}: {e}")
                 continue
 
         # Attach list to treatment objects
@@ -183,7 +186,7 @@ def get_treatments(db: Session, patient_id: int, tenant_id: int):
                 t.consumedMaterials = []
 
     except Exception as e:
-        print(f"Error reconstruction consumed materials: {e}")
+        logger.error("Error reconstructing consumed materials: %s", e)
         # Return treatments anyway to avoid crashing listing
         pass
 
@@ -307,7 +310,7 @@ def get_all_payments(db: Session, tenant_id: int, skip: int = 0, limit: int = 10
         db.query(models.Payment, models.Patient.name)
         .join(models.Patient, models.Payment.patient_id == models.Patient.id)
         .filter(
-            models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False
+        models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False
         )
         # Payment soft delete if implemented, otherwise just rely on Patient
         # .filter(models.Payment.is_deleted == False)
@@ -383,7 +386,7 @@ def get_financial_stats(db: Session, tenant_id: int, doctor_id: int = None):
         db.query(func.sum(models.Treatment.cost))
         .join(models.Patient)
         .filter(
-            models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False
+        models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False
         )
     )
 
@@ -397,7 +400,7 @@ def get_financial_stats(db: Session, tenant_id: int, doctor_id: int = None):
         db.query(func.sum(models.Treatment.discount))
         .join(models.Patient)
         .filter(
-            models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False
+        models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False
         )
     )
 
@@ -434,7 +437,7 @@ def get_financial_stats(db: Session, tenant_id: int, doctor_id: int = None):
         db.query(func.sum(models.Payment.amount))
         .join(models.Patient)
         .filter(
-            models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False
+        models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False
         )
     )
 
@@ -472,7 +475,7 @@ def get_financial_stats(db: Session, tenant_id: int, doctor_id: int = None):
         db.query(func.sum(models.LabOrder.cost))
         .join(models.Patient)
         .filter(
-            models.LabOrder.tenant_id == tenant_id, models.Patient.is_deleted == False
+            models.LabOrder.tenant_id == tenant_id, not models.Patient.is_deleted
         )
     )
 
@@ -557,7 +560,7 @@ def get_dashboard_stats(db: Session, tenant_id: int, doctor_id: int = None):
     # Or count only Assigned?
 
     patients_query = db.query(func.count(models.Patient.id)).filter(
-        models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False
+        models.Patient.tenant_id == tenant_id, not models.Patient.is_deleted
     )
     if doctor_id:
         # Strict mode: Only assigned patients

@@ -1,4 +1,3 @@
-import pytest
 
 def test_bom_flow(client, admin_headers):
     """
@@ -19,23 +18,21 @@ def test_bom_flow(client, admin_headers):
     # Check if exists first
     resp = client.get("/api/v1/inventory/materials", headers=admin_headers)
     assert resp.status_code == 200
-    mats = resp.json()
+    body = resp.json()
+    mats = body.get("data", body) if isinstance(body, dict) else body
     mat = next((m for m in mats if m["name"] == "Test Composite"), None)
 
     if not mat:
         resp = client.post("/api/v1/inventory/materials", json=mat_data, headers=admin_headers)
-        if resp.status_code == 201:
-             mat = resp.json()
-        elif resp.status_code == 200:
-             mat = resp.json()
-        else:
-             # Ensure we fail if cannot create
-             assert resp.status_code in [200, 201]
+        assert resp.status_code in [200, 201]
+        body = resp.json()
+        mat = body.get("data", body) if isinstance(body, dict) and "data" in body else body
 
     # 2. Create Procedure (if not exists)
     resp = client.get("/api/v1/procedures/", headers=admin_headers)
     assert resp.status_code == 200
-    procs = resp.json()
+    body = resp.json()
+    procs = body.get("data", body) if isinstance(body, dict) and "data" in body else body
     proc = next((p for p in procs if p["name"] == "Test Filling"), None)
 
     if not proc:
@@ -45,7 +42,8 @@ def test_bom_flow(client, admin_headers):
             headers=admin_headers,
         )
         assert resp.status_code in [200, 201]
-        proc = resp.json()
+        body = resp.json()
+        proc = body.get("data", body) if isinstance(body, dict) and "data" in body else body
 
     # 3. Link them (Set Weight)
     weight_data = {
@@ -65,7 +63,9 @@ def test_bom_flow(client, admin_headers):
         headers=admin_headers,
     )
     assert resp.status_code == 200
-    weights = resp.json()
+    body = resp.json()
+    weights = body.get("data", body) if isinstance(body, dict) and "data" in body else body
 
     found = any(w["material_id"] == mat["id"] and w["weight"] == 2.5 for w in weights)
     assert found, "BOM link not found in response"
+

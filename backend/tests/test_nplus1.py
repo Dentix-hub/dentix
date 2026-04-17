@@ -1,6 +1,5 @@
-import pytest
-from backend.routers import admin
-from backend import models, schemas
+from backend.routers import admin_system
+from backend import models
 
 def test_admin_users_query_count(db_session):
     """
@@ -32,15 +31,15 @@ def test_admin_users_query_count(db_session):
     try:
         # Mocking current_user logic if needed, but get_global_users just needs an object with role="super_admin"
         super_admin = models.User(role="super_admin")
-        
-        users = admin.get_global_users(
+
+        users = admin_system.get_global_users(
             db=db_session, limit=10, current_user=super_admin
         )
 
         # 4. Verify
         # We should find at least the 5 users we created (plus potentially others from other tests)
         assert len(users) >= 5
-        
+
         # Check that the joined/hybrid property 'tenant_name' is populated
         # (This confirms that the query fetched tenant info)
         found_our_user = False
@@ -50,14 +49,14 @@ def test_admin_users_query_count(db_session):
             # Let's check what the function returns.
             # admin.get_global_users returns a list of models or dicts?
             # It usually returns a list of User objects.
-            
+
             if user_schema.username.startswith("nplus1_user_"):
                 found_our_user = True
                 # Accessing tenant_name should not trigger a lazy load if it was joined,
                 # but with an in-memory DB and sync session it's hard to strict prove N+1 without query counting.
                 # However, we verify the field is accessible.
                 assert user_schema.tenant_name == "N+1 Test Tenant"
-        
+
         assert found_our_user, "Did not find the created test users"
 
     finally:

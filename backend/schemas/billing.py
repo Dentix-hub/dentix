@@ -14,7 +14,17 @@ class PaymentBase(BaseModel):
 
 
 class PaymentCreate(PaymentBase):
-    pass
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "patient_id": 1,
+                    "amount": 250.0,
+                    "notes": "Payment for composite filling",
+                }
+            ]
+        }
+    )
 
 
 class Payment(PaymentBase):
@@ -34,7 +44,19 @@ class ExpenseBase(BaseModel):
 
 
 class ExpenseCreate(ExpenseBase):
-    pass
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "item_name": "Dental composite material",
+                    "cost": 1200.0,
+                    "category": "Materials",
+                    "date": "2026-04-14",
+                    "notes": "Monthly restock",
+                }
+            ]
+        }
+    )
 
 
 class Expense(ExpenseBase):

@@ -1,8 +1,11 @@
+import logging
 from sqlalchemy.orm import Session, joinedload
 from typing import Dict, Any, List
 
 from backend.models.inventory import ProcedureMaterialWeight, Batch, StockItem, Material
 from backend.models.clinical import Procedure
+
+logger = logging.getLogger(__name__)
 
 
 class CostEngine:
@@ -100,7 +103,7 @@ class CostEngine:
                 continue
 
             unit_cost = self.get_material_average_cost(w.material_id)
-            material_cost = w.weight * unit_cost
+            w.weight * unit_cost
 
             # AI / Actual Usage Logic
             # current_average_usage holds the learned "Actual Grams"
@@ -207,10 +210,7 @@ class CostEngine:
                         }
                     )
             except Exception as e:
-                print(f"[COST_ENGINE ERROR] Procedure {proc.id}: {e}")
-                import traceback
-
-                traceback.print_exc()
+                logger.error("[COST_ENGINE] Procedure %s: %s", proc.id, e, exc_info=True)
                 continue
 
         # Sort by lowest margin percent by default to highlight issues

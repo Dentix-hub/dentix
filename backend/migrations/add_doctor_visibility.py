@@ -60,8 +60,8 @@ def check_column_exists(conn, table: str, column: str) -> bool:
     try:
         result = conn.execute(
             text("""
-            SELECT column_name 
-            FROM information_schema.columns 
+            SELECT column_name
+            FROM information_schema.columns
             WHERE table_name = :table AND column_name = :column
         """),
             {"table": table, "column": column},

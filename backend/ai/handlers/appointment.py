@@ -314,7 +314,7 @@ class AppointmentHandler(BaseHandler):
                     target_date = (datetime.now() + timedelta(days=days)).date()
                 else:
                     target_date = datetime.now().date()
-            except:
+            except Exception:
                 target_date = datetime.now().date()
         else:
             try:

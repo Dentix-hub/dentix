@@ -69,6 +69,13 @@ def client(db_session):
 
     app.dependency_overrides[get_db] = override_get_db
 
+    # Reset rate limiter state so tests don't get 429 from previous runs
+    try:
+        from backend.core.limiter import limiter
+        limiter.reset()
+    except Exception:
+        pass
+
     with TestClient(app) as test_client:
         yield test_client
 
@@ -147,15 +154,15 @@ def super_admin_user(db_session):
 
 
 @pytest.fixture
-def test_patient(db_session, test_tenant):
-    """Create a test patient."""
+def test_patient(db_session, test_tenant, test_user):
+    """Create a test patient assigned to the test doctor."""
     patient = models.Patient(
         name="Test Patient",
         phone="01234567890",
         email="patient@test.com",
         age=30,
-        gender="male",
         tenant_id=test_tenant.id,
+        assigned_doctor_id=test_user.id,
     )
     db_session.add(patient)
     db_session.commit()

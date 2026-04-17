@@ -45,26 +45,7 @@ class AuditLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
-class AIUsageLog(Base):
-    __tablename__ = "ai_usage_logs"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), index=True)
-    username = Column(String)
-    query = Column(Text)
-    response_tool = Column(String, nullable=True)
-    model = Column(String, nullable=True)
-    response_time_ms = Column(Float, default=0.0)
-    tokens_used = Column(Integer, default=0)
-    success = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
-
-    # Traceability & Observability
-    trace_id = Column(String, index=True, nullable=True)
-    trace_details = Column(Text, nullable=True)  # JSON store for full context
-
-    user = relationship("User")
 
 
 class SupportMessage(Base):

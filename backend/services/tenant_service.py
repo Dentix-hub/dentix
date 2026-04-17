@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Optional
 from backend import models, schemas
 from backend.utils.audit_logger import log_admin_action
-from backend.constants import ROLES
+from backend.core.permissions import Role
 
 
 class TenantService:
@@ -126,7 +126,7 @@ class TenantService:
             self.db.query(models.User)
             .filter(
                 models.User.tenant_id == tenant.id,
-                models.User.role.in_([ROLES.ADMIN, ROLES.MANAGER]),
+                models.User.role.in_([Role.ADMIN.value, Role.MANAGER.value]),
             )
             .first()
         )

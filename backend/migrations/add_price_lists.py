@@ -180,7 +180,7 @@ def create_default_price_lists():
             # Check if default exists
             existing = conn.execute(
                 text("""
-                SELECT id FROM price_lists 
+                SELECT id FROM price_lists
                 WHERE tenant_id = :tid AND is_default = TRUE
             """),
                 {"tid": tenant_id},
@@ -206,8 +206,8 @@ def migrate_procedure_prices():
         # Get procedures with prices
         procedures = conn.execute(
             text("""
-            SELECT p.id, p.price, p.tenant_id 
-            FROM procedures p 
+            SELECT p.id, p.price, p.tenant_id
+            FROM procedures p
             WHERE p.price IS NOT NULL AND p.price > 0
         """)
         ).fetchall()
@@ -218,7 +218,7 @@ def migrate_procedure_prices():
             # Get default price list for tenant
             price_list = conn.execute(
                 text("""
-                SELECT id FROM price_lists 
+                SELECT id FROM price_lists
                 WHERE tenant_id = :tid AND is_default = TRUE
             """),
                 {"tid": tenant_id},
@@ -228,7 +228,7 @@ def migrate_procedure_prices():
                 # Check if item exists
                 existing = conn.execute(
                     text("""
-                    SELECT id FROM price_list_items 
+                    SELECT id FROM price_list_items
                     WHERE price_list_id = :plid AND procedure_id = :pid
                 """),
                     {"plid": price_list[0], "pid": proc_id},
@@ -256,4 +256,4 @@ if __name__ == "__main__":
         migrate_procedure_prices()
     else:
         run_migration()
-        print("\nTo create default price lists: python add_price_lists.py --full")
+        logger.info("\nTo create default price lists: python add_price_lists.py --full")

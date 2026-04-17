@@ -105,7 +105,7 @@ class TestHealthChecks:
 
     def test_basic_health_returns_healthy(self, client):
         """Test basic health endpoint returns healthy."""
-        response = client.get("/health")
+        response = client.get("/api/v1/health")
 
         assert response.status_code == 200
         data = response.json()
@@ -114,7 +114,7 @@ class TestHealthChecks:
 
     def test_liveness_probe_returns_alive(self, client):
         """Test liveness probe endpoint."""
-        response = client.get("/health/live")
+        response = client.get("/api/v1/health/live")
 
         assert response.status_code == 200
         assert response.json()["status"] == "alive"

@@ -51,7 +51,7 @@ class AuthService:
             db.query(models.UserSession)
             .filter(
                 models.UserSession.token_hash == token_hash,
-                models.UserSession.is_active == True,
+                models.UserSession.is_active,
                 models.UserSession.expires_at > datetime.now(timezone.utc),
             )
             .first()
@@ -83,7 +83,7 @@ class AuthService:
             db.query(models.UserSession)
             .filter(
                 models.UserSession.user_id == user_id,
-                models.UserSession.is_active == True,
+                models.UserSession.is_active,
                 models.UserSession.expires_at > datetime.now(timezone.utc),
             )
             .all()

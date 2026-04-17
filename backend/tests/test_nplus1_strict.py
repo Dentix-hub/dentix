@@ -1,8 +1,7 @@
 import pytest
 from sqlalchemy import event
-from sqlalchemy.orm import Session
 from backend import models, schemas
-from backend.routers import admin
+from backend.routers import admin_system
 from backend.services.patient_service import patient_service
 
 @pytest.fixture
@@ -55,9 +54,9 @@ def test_admin_users_nplus1(db_session, query_counter):
     admin_user = models.User(role="super_admin")
     
     with query_counter as qc:
-        results = admin.get_global_users(db=db_session, limit=100, current_user=admin_user)
+        results = admin_system.get_global_users(db=db_session, limit=100, current_user=admin_user)
         # Access tenant_name to trigger lazy load if any
-        names = [r.tenant_name for r in results if isinstance(r, (models.User, schemas.UserAdminView)) or hasattr(r, 'tenant_name')]
+        [r.tenant_name for r in results if isinstance(r, (models.User, schemas.UserAdminView)) or hasattr(r, 'tenant_name')]
     
     # We expect 1 query to fetch users + joined tenants
     # Maybe 1 extra for count?
@@ -90,7 +89,7 @@ def test_patients_balance_nplus1(db_session, query_counter):
     # 2. Test get_patients_with_balance
     # Should eager load treatments and payments
     with query_counter as qc:
-        debtors = patient_service.get_patients_with_balance(db=db_session, tenant_id=t.id)
+        patient_service.get_patients_with_balance(db=db_session, tenant_id=t.id)
         # Logic already ran inside service, so just check count
     
     print(f"Queries count: {qc.count}")

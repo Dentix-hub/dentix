@@ -5,13 +5,16 @@ Handles tenant management, user administration, and super admin operations.
 Extracted from routers/admin.py to follow service layer pattern.
 """
 
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
 from backend import models
-from backend.constants import ROLES
+from backend.core.permissions import Role
+
+logger = logging.getLogger(__name__)
 
 
 class AdminService:
@@ -67,7 +70,7 @@ class AdminService:
         manager = (
             self.db.query(models.User)
             .filter(
-                models.User.tenant_id == tenant.id, models.User.role == ROLES.MANAGER
+                models.User.tenant_id == tenant.id, models.User.role == Role.MANAGER.value
             )
             .first()
         )
@@ -90,7 +93,7 @@ class AdminService:
 
         user_count = (
             self.db.query(func.count(models.User.id))
-            .filter(models.User.tenant_id == tenant_id, models.User.is_deleted == False)
+            .filter(models.User.tenant_id == tenant_id, not models.User.is_deleted)
             .scalar()
             or 0
         )
@@ -104,7 +107,7 @@ class AdminService:
         """Get all users belonging to a tenant."""
         return (
             self.db.query(models.User)
-            .filter(models.User.tenant_id == tenant_id, models.User.is_deleted == False)
+            .filter(models.User.tenant_id == tenant_id, not models.User.is_deleted)
             .all()
         )
 
@@ -146,7 +149,7 @@ class AdminService:
         manager = (
             self.db.query(models.User)
             .filter(
-                models.User.tenant_id == tenant.id, models.User.role == ROLES.MANAGER
+                models.User.tenant_id == tenant.id, models.User.role == Role.MANAGER.value
             )
             .first()
         )
@@ -219,7 +222,7 @@ class AdminService:
                                 model_class.user_id.in_(user_ids)
                             ).delete(synchronize_session=False)
                     except Exception as e:
-                        print(f"[WARN] Failed to clean {model_class.__name__} (user): {e}")
+                        logger.warning("Failed to clean %s (user): %s", model_class.__name__, e)
 
             # 4. Delete from patient-linked tables (no tenant_id)
             if patient_ids:
@@ -230,7 +233,7 @@ class AdminService:
                                 model_class.patient_id.in_(patient_ids)
                             ).delete(synchronize_session=False)
                     except Exception as e:
-                        print(f"[WARN] Failed to clean {model_class.__name__} (patient): {e}")
+                        logger.warning("Failed to clean %s (patient): %s", model_class.__name__, e)
 
             # 5. Delete ALL tenant-scoped tables (multiple passes for FK ordering)
             #    Repeat until no more deletions needed, handles any FK depth
@@ -247,7 +250,7 @@ class AdminService:
                     except Exception as e:
                         still_remaining.append(model_class)
                         if pass_num == max_passes - 1:
-                            print(f"[WARN] Could not clean {model_class.__name__} after {max_passes} passes: {e}")
+                            logger.warning("Could not clean %s after %d passes: %s", model_class.__name__, max_passes, e)
                 remaining = still_remaining
                 if not remaining:
                     break
@@ -259,7 +262,7 @@ class AdminService:
                         models.Patient.tenant_id == tenant.id
                     ).delete(synchronize_session=False)
             except Exception as e:
-                print(f"[WARN] Patient deletion error: {e}")
+                logger.warning("Patient deletion error: %s", e)
 
             # 7. Delete users
             try:
@@ -268,7 +271,7 @@ class AdminService:
                         models.User.tenant_id == tenant.id
                     ).delete(synchronize_session=False)
             except Exception as e:
-                print(f"[WARN] User deletion error: {e}")
+                logger.warning("User deletion error: %s", e)
 
             # 8. Finally, delete the tenant itself
             self.db.delete(tenant)
@@ -277,6 +280,6 @@ class AdminService:
 
         except Exception as e:
             self.db.rollback()
-            print(f"[PERMANENT DELETE ERROR] {e}")
+            logger.exception("[PERMANENT DELETE ERROR]", exc_info=True)
             raise e
 

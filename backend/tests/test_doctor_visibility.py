@@ -36,7 +36,7 @@ class TestPatientVisibilityService:
         mock_query.filter.return_value = mock_query
 
         service = PatientVisibilityService(mock_db, mock_user, tenant_id=1)
-        query = service.get_visible_patient_query()
+        service.get_visible_patient_query()
 
         # Admin query should not filter by doctor_id
         assert mock_db.query.called

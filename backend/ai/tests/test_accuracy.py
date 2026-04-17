@@ -60,7 +60,7 @@ async def run_evals():
 
             # Check correctness
             tool_match = tool_used == expected_tool
-            risk_match = (risk_level == expected_risk) if expected_risk else True
+            _risk_match = (risk_level == expected_risk) if expected_risk else True
 
             if tool_match:
                 print(f"✅ PASS ({tool_used})")

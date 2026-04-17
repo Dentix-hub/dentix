@@ -188,9 +188,9 @@ class FinanceHandler(BaseHandler):
         # 2. History Search (Implicit) if not found in catalog
         if not found_prices:
             history_query = text("""
-                SELECT procedure, cost 
-                FROM treatments 
-                WHERE tenant_id = :tenant_id 
+                SELECT procedure, cost
+                FROM treatments
+                WHERE tenant_id = :tenant_id
                 AND procedure LIKE :proc
                 ORDER BY date DESC LIMIT 5
             """)

@@ -4,13 +4,14 @@ from sqlalchemy.orm import Session
 from backend.database import get_db  # Fixed import path
 from backend import models
 from backend.schemas import system_log as schemas
-from backend.routers.auth import get_current_user
+from backend.core.permissions import Permission, require_permission
+from backend.core.response import success_response, StandardResponse
 
 router = APIRouter()
 
 
 # --- Public Endpoint for Frontend Errors ---
-@router.post("", response_model=schemas.SystemError)
+@router.post("", response_model=StandardResponse[schemas.SystemError])
 def log_frontend_error(
     error: schemas.SystemErrorCreate, request: Request, db: Session = Depends(get_db)
 ):
@@ -27,11 +28,11 @@ def log_frontend_error(
     db.add(db_error)
     db.commit()
     db.refresh(db_error)
-    return db_error
+    return success_response(data=db_error)
 
 
 # --- Admin Endpoint for Viewing Errors ---
-@router.get("", response_model=List[schemas.SystemError])
+@router.get("", response_model=StandardResponse[List[schemas.SystemError]])
 def get_system_errors(
     skip: int = 0,
     limit: int = 100,
@@ -39,8 +40,8 @@ def get_system_errors(
     source: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user=Depends(
-        get_current_user
-    ),  # Only admins should see this, refined later
+        require_permission(Permission.SYSTEM_CONFIG)
+    ),
 ):
     query = db.query(models.SystemError)
 
@@ -49,9 +50,10 @@ def get_system_errors(
     if source:
         query = query.filter(models.SystemError.source == source)
 
-    return (
+    results = (
         query.order_by(models.SystemError.created_at.desc())
         .offset(skip)
         .limit(limit)
         .all()
     )
+    return success_response(data=results)

@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import List, Dict, Any
 
 from backend import models
-from backend.constants import ROLES
+from backend.core.permissions import Role, DOCTOR_ROLES
 from backend.utils.audit_logger import log_admin_action
 
 
@@ -35,7 +35,7 @@ class AccountingService:
     def get_relevant_users(self, roles: List[str] = None) -> List[models.User]:
         """Get all users with specified roles for the tenant."""
         if roles is None:
-            roles = ROLES.DOCTOR_ROLES
+            roles = DOCTOR_ROLES
         return (
             self.db.query(models.User)
             .filter(
@@ -219,7 +219,7 @@ class AccountingService:
         """
         # 1. Get ALL relevant users (Doctors + Admins)
         relevant_users = self.get_relevant_users(
-            ROLES.DOCTOR_ROLES + ["admin", "super_admin"]
+            DOCTOR_ROLES + ["admin", "super_admin"]
         )
         relevant_user_ids = [u.id for u in relevant_users]
 
@@ -406,14 +406,14 @@ class AccountingService:
             ],
             "lab_orders": [
                 {
-                    "id": l.id,
-                    "date": l.order_date,
-                    "work_type": l.work_type,
-                    "cost": l.cost,
-                    "patient_id": l.patient_id,
+                    "id": lab.id,
+                    "date": lab.order_date,
+                    "work_type": lab.work_type,
+                    "cost": lab.cost,
+                    "patient_id": lab.patient_id,
                     "patient_name": patient_name,
                 }
-                for l, patient_name in lab_orders
+                for lab, patient_name in lab_orders
             ],
         }
 
@@ -467,7 +467,7 @@ class AccountingService:
             self.db.query(models.User)
             .filter(
                 models.User.tenant_id == self.tenant_id,
-                models.User.role.notin_(ROLES.DOCTOR_ROLES + ["super_admin", "admin"]),
+                models.User.role.notin_(DOCTOR_ROLES + ["super_admin", "admin"]),
             )
             .all()
         )
@@ -491,7 +491,7 @@ class AccountingService:
             self.db.query(models.User)
             .filter(
                 models.User.tenant_id == self.tenant_id,
-                models.User.role.notin_(ROLES.DOCTOR_ROLES + ["super_admin", "admin"]),
+                models.User.role.notin_(DOCTOR_ROLES + ["super_admin", "admin"]),
             )
             .all()
         )
@@ -528,7 +528,7 @@ class AccountingService:
         try:
             year, mon = map(int, month.split("-"))
             days_in_month = monthrange(year, mon)[1]
-        except:
+        except Exception:
             raise ValueError("Invalid month format")
 
         employees = (

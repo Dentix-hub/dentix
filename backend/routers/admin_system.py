@@ -1,16 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from ..core.response import success_response, error_response
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
 from typing import List
-from datetime import datetime, timezone
 import os
+import json
+from datetime import datetime
 
 from backend import models, schemas
 from backend.database import get_db
-from backend.routers.auth.dependencies import get_current_user
-from backend.constants import ROLES
+from backend.core.permissions import Role
 from backend.utils.audit_logger import log_admin_action
-from backend.services.cache_service import cached
+from backend.core.permissions import Permission, require_permission
+from backend.services.backup_service import run_backup_task
 
 router = APIRouter(
     prefix="/admin",
@@ -18,106 +20,24 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
+# Lazy import to avoid circular dependency with main.py
+_drive_client = None
+
+
+def get_drive_client():
+    global _drive_client
+    if _drive_client is None:
+        from backend.main import drive_client
+
+        _drive_client = drive_client
+    return _drive_client
+
 
 # Dependency
-def require_super_admin(current_user: models.User = Depends(get_current_user)):
-    if current_user.role != ROLES.SUPER_ADMIN:
+def require_super_admin(current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
     return current_user
-
-
-# --- Dashboard Stats ---
-@router.get("/stats", response_model=schemas.AdminDashboardStats)
-def get_admin_dashboard_stats(
-    current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
-):
-    """Get admin dashboard statistics (Cached 5 mins)."""
-    return _get_admin_stats_logic(db)
-
-@cached(key_prefix="admin_dashboard_stats", expire=300)
-def _get_admin_stats_logic(db: Session):
-    total_tenants = db.query(models.Tenant).count()
-    active_tenants = (
-        db.query(models.Tenant).filter(models.Tenant.is_active == True).count()
-    )
-    expired_tenants = (
-        db.query(models.Tenant)
-        .filter(models.Tenant.subscription_end_date < datetime.now(timezone.utc))
-        .count()
-    )
-
-    total_revenue = db.query(func.sum(models.SubscriptionPayment.amount)).scalar() or 0
-
-    recent_payments = (
-        db.query(models.SubscriptionPayment)
-        .order_by(models.SubscriptionPayment.payment_date.desc())
-        .limit(10)
-        .all()
-    )
-
-    plan_distribution = {}
-    plans = (
-        db.query(models.Tenant.plan, func.count(models.Tenant.id))
-        .group_by(models.Tenant.plan)
-        .all()
-    )
-    for plan_name, count in plans:
-        plan_distribution[plan_name or "trial"] = count
-
-    return {
-        "total_tenants": total_tenants,
-        "active_tenants": active_tenants,
-        "expired_tenants": expired_tenants,
-        "total_revenue": float(total_revenue),
-        "monthly_revenue": {},
-        "plan_distribution": plan_distribution,
-        "recent_payments": recent_payments,
-    }
-
-
-# --- Audit Logs ---
-@router.get("/audit-logs", response_model=List[schemas.AuditLog])
-def get_audit_logs(
-    skip: int = 0,
-    limit: int = 50,
-    tenant_id: int = None,
-    user_id: int = None,
-    action: str = None,
-    start_date: str = None,
-    end_date: str = None,
-    current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
-):
-    query = db.query(models.AuditLog)
-
-    if tenant_id:
-        query = query.filter(models.AuditLog.tenant_id == tenant_id)
-    if user_id:
-        query = query.filter(models.AuditLog.performed_by_id == user_id)
-    if action:
-        query = query.filter(models.AuditLog.action == action)
-    if start_date:
-        try:
-            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-            query = query.filter(models.AuditLog.created_at >= start_dt)
-        except ValueError:
-            pass
-    if end_date:
-        from datetime import timedelta
-
-        try:
-            end_dt = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
-            query = query.filter(models.AuditLog.created_at < end_dt)
-        except ValueError:
-            pass
-
-    return (
-        query.order_by(models.AuditLog.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
 
 
 # --- Global User Management ---
@@ -132,7 +52,7 @@ def get_global_users(
 ):
     query = (
         db.query(models.User)
-        .filter(models.User.is_deleted == False)
+        .filter(not models.User.is_deleted)
         .options(joinedload(models.User.tenant))
     )
 
@@ -227,13 +147,6 @@ def update_system_setting(
     return setting
 
 
-# --- Backup & Google Drive ---
-def get_drive_client():
-    from backend.main import drive_client
-
-    return drive_client
-
-
 @router.get("/system/backup/google-status")
 def get_google_drive_status(
     db: Session = Depends(get_db),
@@ -277,7 +190,7 @@ def get_system_google_auth_url(
     current_user: models.User = Depends(require_super_admin),
 ):
     auth_url = get_drive_client().get_auth_url(state="super_admin")
-    return {"url": auth_url}
+    return success_response(data={"url": auth_url})
 
 
 @router.post("/system/backup/google-upload", status_code=202)
@@ -298,8 +211,6 @@ def upload_to_google_drive(
 
     refresh_token = setting.value
     db_url = os.getenv("DATABASE_URL")
-
-    from backend.services.backup_service import run_backup_task
 
     background_tasks.add_task(run_backup_task, refresh_token, db_url)
 
@@ -324,9 +235,9 @@ def disconnect_google_drive(
     if setting:
         db.delete(setting)
         db.commit()
-        return {"success": True, "message": "Google Drive disconnected successfully"}
+        return success_response(data={"success": True, "message": "Google Drive disconnected successfully"})
     else:
-        return {"success": True, "message": "Google Drive was not connected"}
+        return success_response(data={"success": True, "message": "Google Drive was not connected"})
 
 
 @router.get("/backup")
@@ -335,9 +246,6 @@ def download_backup(
     db: Session = Depends(get_db),
 ):
     """Download system JSON backup."""
-    from fastapi.responses import StreamingResponse
-    import json
-
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"smart_clinic_json_backup_{timestamp}.json"
 
@@ -374,22 +282,4 @@ def download_backup(
         iter_json(db),
         media_type="application/json",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
-
-
-# --- System Logs ---
-@router.get("/system/logs", response_model=List[schemas.SystemError])
-def get_system_logs(
-    skip: int = 0,
-    limit: int = 50,
-    current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
-):
-    """Retrieve system error logs."""
-    return (
-        db.query(models.SystemError)
-        .order_by(models.SystemError.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
     )

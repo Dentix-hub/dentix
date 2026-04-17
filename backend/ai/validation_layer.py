@@ -95,7 +95,7 @@ class AIValidationLayer:
                 age_int = int(age)
                 if age_int < 0 or age_int > 120:
                     errors["age"] = "السن غير منطقي"
-            except:
+            except Exception:
                 errors["age"] = "السن يجب أن يكون رقم"
 
         return errors
