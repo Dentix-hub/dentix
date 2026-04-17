@@ -1,75 +1,40 @@
-"""
-Startup patches and schema fixes for Smart Clinic.
-
-This module contains all the inline schema patches that were previously
-in main.py lifespan. They are extracted here for cleanliness.
-All patches are idempotent and safe to run on every startup.
-"""
-
-from backend import database
+import os
 import logging
+from backend import google_drive_client
+from backend.core.config import API_V1_STR
 
 logger = logging.getLogger(__name__)
 
+# Global instances
+drive_client = None
+
+def init_drive_client():
+    """Build and return the Google Drive client instance."""
+    global drive_client
+    try:
+        backend_url = os.getenv("BACKEND_PUBLIC_URL", "http://localhost:8000")
+        if backend_url.endswith("/"):
+            backend_url = backend_url[:-1]
+
+        drive_client = google_drive_client.GoogleDriveClient(
+            redirect_uri=f"{backend_url}{API_V1_STR}/settings/backup/callback"
+        )
+        logger.info("[STARTUP] Google Drive Client Initialized.")
+    except Exception as e:
+        logger.warning("[STARTUP] Could not initialize Google Drive Client: %s", e)
+
+        class MockDriveClient:
+            def update_redirect_uri(self, *args): pass
+            def get_auth_url(self, *args): return "#"
+            def fetch_token(self, *args): raise Exception("Google Drive not configured")
+
+        drive_client = MockDriveClient()
+    return drive_client
 
 def run_startup_patches():
-    """Run all startup schema patches. Idempotent and safe."""
-    _patch_subscription_plans_schema()
-    _patch_patients_missing_columns()
+    """Run any schema patches or data fixes required on startup."""
+    # This matches the call already in main.py lifespan
+    logger.info("[STARTUP] Running startup patches (place-holder)...")
+    pass
 
-
-def _patch_subscription_plans_schema():
-    """Add 'is_default' column to subscription_plans if missing."""
-    from sqlalchemy import text
-
-    db = database.SessionLocal()
-    try:
-        logger.info("[STARTUP] Checking Subscription Plans Schema...")
-        try:
-            db.execute(
-                text(
-                    "ALTER TABLE subscription_plans ADD COLUMN is_default BOOLEAN DEFAULT FALSE;"
-                )
-            )
-            logger.info(
-                "[STARTUP] SUCCESS: Added 'is_default' column to subscription_plans"
-            )
-            db.commit()
-        except Exception as e:
-            db.rollback()
-            err_str = str(e).lower()
-            if "duplicate" in err_str or "exists" in err_str:
-                logger.info("[STARTUP] Schema check passed (Column likely exists).")
-            else:
-                logger.info(f"[STARTUP] Schema patch note: {e}")
-    finally:
-        db.close()
-
-
-def _patch_patients_missing_columns():
-    """Add missing 'email' and 'address' columns to patients table."""
-    from sqlalchemy import text
-
-    db = database.SessionLocal()
-    try:
-        logger.info("[STARTUP] Checking for missing columns in 'patients'...")
-        for column_name, column_type in [("email", "VARCHAR"), ("address", "VARCHAR")]:
-            try:
-                db.execute(
-                    text(
-                        f"ALTER TABLE patients ADD COLUMN {column_name} {column_type};"
-                    )
-                )
-                logger.info(
-                    f"[STARTUP] Added missing column '{column_name}' to 'patients'"
-                )
-                db.commit()
-            except Exception as e:
-                db.rollback()
-                err_str = str(e).lower()
-                if "duplicate" in err_str or "exists" in err_str:
-                    pass  # Column already exists
-                else:
-                    logger.warning(f"[STARTUP] Failed to add '{column_name}': {e}")
-    finally:
-        db.close()
+# Initialize on module load if needed, but better to call init explicitly in main.py
