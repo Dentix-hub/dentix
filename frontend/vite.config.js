@@ -40,5 +40,6 @@ export default defineConfig({
         environment: 'jsdom',
         setupFiles: './src/setupTests.js',
         include: ['src/**/*.test.{js,jsx,ts,tsx}'],
+        threads: false,
     }
 })
