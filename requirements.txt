@@ -39,5 +39,5 @@ alembic>=1.13.0
 pyotp>=2.9.0
 qrcode>=7.4.2
 psutil>=5.9.0
-zxcvbn-python>=4.4.28
+zxcvbn-python>=4.4.24
 firebase-admin>=6.5.0
