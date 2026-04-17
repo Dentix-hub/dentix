@@ -1,7 +1,7 @@
 {
     "name": "dentix-frontend",
     "private": true,
-    "version": "0.0.1-force-rebuild-v3",
+    "version": "0.0.1-force-rebuild-v4",
     "type": "module",
     "scripts": {
         "dev": "vite",
