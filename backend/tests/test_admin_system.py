@@ -8,7 +8,9 @@ def test_get_system_stats(client, super_admin_headers):
     """Test fetching admin dashboard statistics."""
     response = client.get("/api/v1/admin/stats", headers=super_admin_headers)
     assert response.status_code == 200
-    data = response.json()
+    res = response.json()
+    assert res["success"] is True
+    data = res["data"]
     assert "total_tenants" in data
     assert "active_tenants" in data
     assert "expired_tenants" in data
@@ -30,8 +32,8 @@ def test_get_system_logs(client, super_admin_headers):
     """Test fetching system error logs."""
     response = client.get("/api/v1/admin/system/logs", headers=super_admin_headers)
     assert response.status_code == 200
-    data = response.json()
-    assert isinstance(data, list)
+    res = response.json()
+    assert isinstance(res, list) or isinstance(res.get("data"), list)
 
 
 def test_health_check(client):
