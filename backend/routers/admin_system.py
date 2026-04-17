@@ -109,10 +109,10 @@ def toggle_user_status(
     )
 
     db.commit()
-    return {
+    return success_response({
         "message": f"User {'enabled' if new_status else 'disabled'} successfully",
         "is_active": new_status,
-    }
+    })
 
 
 # --- System Settings ---
@@ -175,14 +175,14 @@ def get_google_drive_status(
         .first()
     )
 
-    return {
+    return success_response({
         "connected": bool(setting and setting.value),
         "last_backup": {
             "status": last_status.value if last_status else None,
             "message": last_message.value if last_message else None,
             "date": last_run.value if last_run else None,
         },
-    }
+    })
 
 
 @router.get("/system/backup/google-auth")
@@ -214,11 +214,11 @@ def upload_to_google_drive(
 
     background_tasks.add_task(run_backup_task, refresh_token, db_url)
 
-    return {
+    return success_response({
         "success": True,
         "message": "Backup started in background.",
         "status": "processing",
-    }
+    })
 
 
 @router.delete("/system/backup/google-auth")

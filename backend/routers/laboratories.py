@@ -461,7 +461,7 @@ def get_lab_orders_stats(
         .count()
     )
 
-    return {
+    return success_response({
         "total_orders": total_orders,
         "pending_orders": pending_orders,
         "in_progress_orders": in_progress_orders,
@@ -470,7 +470,7 @@ def get_lab_orders_stats(
         "total_revenue": total_revenue,
         "profit": total_revenue - total_cost,
         "total_labs": total_labs,
-    }
+    })
 
 
 # ==================== Lab Financials & Stats ====================

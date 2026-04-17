@@ -13,7 +13,7 @@ export const logger = {
                 user_agent: navigator.userAgent
             };
             // Use fetch to avoid axios interceptor loops if axios is broken
-            await fetch(`${API_URL}${LOG_ENDPOINT} `, {
+            await fetch(`${API_URL}${LOG_ENDPOINT}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

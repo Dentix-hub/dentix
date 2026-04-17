@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Form, Request
 from sqlalchemy.orm import Session
-from backend import models, crud, auth
+from backend import models, crud, schemas
+from backend import auth as auth_utils
 from backend.core.limiter import limiter
+from backend.core.response import success_response, StandardResponse
 from .dependencies import get_db, validate_password
 import logging
 
@@ -11,7 +13,7 @@ router = APIRouter()
 
 
 # --- Clinic Registration ---
-@router.post("/register_clinic", status_code=status.HTTP_201_CREATED)
+@router.post("/register_clinic", status_code=status.HTTP_201_CREATED, response_model=StandardResponse[schemas.Token])
 @limiter.limit("3/minute")
 def register_clinic(
     request: Request,
@@ -47,10 +49,7 @@ def register_clinic(
         # 1. Create Tenant
         import uuid
 
-        domain_slug = (
-            clinic_name.lower().replace(" ", "-") + "-" + str(uuid.uuid4())[:8]
-        )
-
+        # 1. Create Tenant (domain_slug removed as it was unused)
         # Get Default Plan (Basic)
         default_plan = (
             db.query(models.SubscriptionPlan)
@@ -72,7 +71,7 @@ def register_clinic(
         db.flush()  # Get ID
 
         # 2. Create Admin User
-        hashed_password = auth.get_password_hash(admin_password)
+        hashed_password = auth_utils.get_password_hash(admin_password)
         new_user = models.User(
             username=admin_username,
             email=admin_email,
@@ -86,7 +85,7 @@ def register_clinic(
         db.refresh(new_user)
 
         # Generate Token for immediate login
-        access_token = auth.create_access_token(
+        access_token = auth_utils.create_access_token(
             data={
                 "sub": new_user.username,
                 "role": new_user.role,
@@ -94,13 +93,15 @@ def register_clinic(
             }
         )
 
-        return {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "username": new_user.username,
-            "role": new_user.role,
-            "message": "Clinic registered successfully",
-        }
+        return success_response(
+            data={
+                "access_token": access_token,
+                "token_type": "bearer",
+                "username": new_user.username,
+                "role": new_user.role,
+            },
+            message="Clinic registered successfully"
+        )
 
     except Exception as e:
         db.rollback()
