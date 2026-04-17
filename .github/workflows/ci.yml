@@ -53,6 +53,7 @@ jobs:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
           SECRET_KEY: test-secret-key-for-ci-only
           ENVIRONMENT: test
+          PYTHONPATH: .
         run: |
           pytest backend/tests/ \
             --cov=backend \
