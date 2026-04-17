@@ -41,11 +41,12 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-cov bandit safety
 
-      - name: Run database migrations
+      - name: Initialize Database
         working-directory: .
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
           SECRET_KEY: test-secret-key-for-ci-only
+          PYTHONPATH: .
         run: python backend/scripts/init_db.py
 
       - name: Run tests with coverage

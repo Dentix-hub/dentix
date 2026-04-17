@@ -44,14 +44,14 @@ def test_account_lockout(db_session, client, test_tenant):
     # --- Phase 1: 5 wrong attempts should all return 401 ---
     for i in range(5):
         resp = client.post(
-            "/api/v1/token",
+            "/api/v1/auth/token",
             data={"username": "lockout_user", "password": "WrongPasswordX"},
         )
         assert resp.status_code == 401, f"Attempt {i+1}: expected 401, got {resp.status_code} — {resp.text[:200]}"
 
     # --- Phase 2: 6th attempt should be 403 (account locked) ---
     resp_locked = client.post(
-        "/api/v1/token",
+        "/api/v1/auth/token",
         data={"username": "lockout_user", "password": "WrongPasswordX"},
     )
     assert resp_locked.status_code == 403, f"Expected 403 lockout, got {resp_locked.status_code} — {resp_locked.text[:200]}"
@@ -62,7 +62,7 @@ def test_account_lockout(db_session, client, test_tenant):
 
     # --- Phase 3: Even correct password should be rejected during lockout ---
     resp_correct = client.post(
-        "/api/v1/token",
+        "/api/v1/auth/token",
         data={"username": "lockout_user", "password": "ValidPass1!"},
     )
     assert resp_correct.status_code == 403
@@ -75,7 +75,7 @@ def test_account_lockout(db_session, client, test_tenant):
 
     # Now login should succeed
     resp_success = client.post(
-        "/api/v1/token",
+        "/api/v1/auth/token",
         data={"username": "lockout_user", "password": "ValidPass1!"},
     )
     assert resp_success.status_code == 200, f"Expected 200 after lockout expiry, got {resp_success.status_code} — {resp_success.text[:200]}"
@@ -103,7 +103,7 @@ def test_refresh_token_rotation(db_session, client, test_tenant):
 
     # Login to get initial tokens
     resp = client.post(
-        "/api/v1/token",
+        "/api/v1/auth/token",
         data={"username": "rotate_user", "password": "ValidPass1!"},
     )
     assert resp.status_code == 200, f"Login failed: {resp.text[:200]}"
@@ -111,7 +111,7 @@ def test_refresh_token_rotation(db_session, client, test_tenant):
 
     # Use refresh token to get new tokens
     refresh_resp = client.post(
-        "/api/v1/refresh",
+        "/api/v1/auth/refresh",
         data={"refresh_token": original_refresh},
     )
     assert refresh_resp.status_code == 200, f"Refresh failed: {refresh_resp.text[:200]}"
@@ -120,7 +120,7 @@ def test_refresh_token_rotation(db_session, client, test_tenant):
 
     # Old refresh token should now be invalid
     fail_resp = client.post(
-        "/api/v1/refresh",
+        "/api/v1/auth/refresh",
         data={"refresh_token": original_refresh},
     )
     assert fail_resp.status_code == 401, f"Old token should be rejected, got {fail_resp.status_code} — {fail_resp.text[:200]}"
@@ -148,7 +148,7 @@ def test_single_session_second_login_invalidates_first_token(
     db_session.commit()
 
     r1 = client.post(
-        "/api/v1/token",
+        "/api/v1/auth/token",
         data={"username": uname, "password": "ValidPass1!"},
     )
     assert r1.status_code == 200
@@ -161,7 +161,7 @@ def test_single_session_second_login_invalidates_first_token(
     assert me1.status_code == 200
 
     r2 = client.post(
-        "/api/v1/token",
+        "/api/v1/auth/token",
         data={"username": uname, "password": "ValidPass1!"},
     )
     assert r2.status_code == 200
@@ -205,7 +205,7 @@ def test_2fa_wrong_code_then_correct(db_session, client, test_tenant):
     db_session.commit()
 
     step1 = client.post(
-        "/api/v1/token",
+        "/api/v1/auth/token",
         data={"username": uname, "password": "ValidPass1!"},
     )
     assert step1.status_code == 200
@@ -215,7 +215,7 @@ def test_2fa_wrong_code_then_correct(db_session, client, test_tenant):
     assert body.get("refresh_token") in (None, "")
 
     bad = client.post(
-        "/api/v1/login/2fa",
+        "/api/v1/auth/login/2fa",
         data={"code": "000000"},
         headers={"Authorization": f"Bearer {temp}"},
     )
@@ -223,7 +223,7 @@ def test_2fa_wrong_code_then_correct(db_session, client, test_tenant):
 
     code = pyotp.TOTP(otp_secret).now()
     good = client.post(
-        "/api/v1/login/2fa",
+        "/api/v1/auth/login/2fa",
         data={"code": code},
         headers={"Authorization": f"Bearer {temp}"},
     )
@@ -236,7 +236,7 @@ def test_register_clinic_rejects_weak_password(client):
     """Clinic registration must apply the same password policy as other flows."""
     uid = uuid.uuid4().hex[:10]
     resp = client.post(
-        "/api/v1/register_clinic",
+        "/api/v1/auth/register_clinic",
         data={
             "clinic_name": f"Clinic {uid}",
             "admin_username": f"adm_{uid}",
