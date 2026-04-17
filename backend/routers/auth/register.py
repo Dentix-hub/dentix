@@ -65,9 +65,8 @@ def register_clinic(
 
         new_tenant = models.Tenant(
             name=clinic_name,
-            domain=domain_slug,
             is_active=True,
-            subscription_plan_id=plan_id,
+            plan_id=plan_id,
         )
         db.add(new_tenant)
         db.flush()  # Get ID

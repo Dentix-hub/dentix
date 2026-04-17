@@ -37,11 +37,13 @@ def init_db():
             logger.info("Successfully stamped Alembic to head.")
         else:
             logger.error(f"Failed to stamp Alembic: {result.stderr}")
+            sys.exit(1)
             
         logger.info("Database Initialization Complete.")
         
     except Exception as e:
         logger.exception(f"Critical error during database initialization: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     init_db()

@@ -10,7 +10,7 @@ def test_auth_login_and_access(client, super_admin_user, super_admin_headers):
     """Test login returns valid tokens and protected route works."""
     # 1. Login
     login_payload = {"username": "superadmin", "password": "superpass123"}
-    response = client.post("/api/v1/token", data=login_payload)
+    response = client.post("/api/v1/auth/token", data=login_payload)
     assert response.status_code == 200, f"Login failed: {response.text}"
 
     tokens = response.json()
@@ -30,7 +30,7 @@ def test_auth_refresh_token(client, super_admin_user):
     """Test token refresh flow."""
     # 1. Login first
     login_payload = {"username": "superadmin", "password": "superpass123"}
-    response = client.post("/api/v1/token", data=login_payload)
+    response = client.post("/api/v1/auth/token", data=login_payload)
     assert response.status_code == 200
     refresh_token = response.json()["refresh_token"]
 
@@ -60,5 +60,5 @@ def test_auth_invalid_refresh_token(client, super_admin_user):
 def test_auth_invalid_credentials(client):
     """Test login with wrong credentials fails."""
     login_payload = {"username": "nonexistent", "password": "wrongpass"}
-    response = client.post("/api/v1/token", data=login_payload)
+    response = client.post("/api/v1/auth/token", data=login_payload)
     assert response.status_code == 401

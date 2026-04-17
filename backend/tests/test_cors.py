@@ -11,7 +11,7 @@ def test_cors_options_request(client):
         "Access-Control-Request-Method": "POST",
         "Access-Control-Request-Headers": "content-type",
     }
-    response = client.options("/api/v1/token", headers=headers)
+    response = client.options("/api/v1/auth/token", headers=headers)
     assert response.status_code == 200
     assert "access-control-allow-origin" in response.headers
 
