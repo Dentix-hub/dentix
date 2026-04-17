@@ -5,7 +5,7 @@ This module provides secure encryption/decryption services following
 best practices for key management, rotation, and validation.
 
 IMPORTANT: ENCRYPTION_KEY must be set in environment for production.
-Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+Generate with: python -c "from cryptography.fernet import Fernet; logger.info(Fernet.generate_key().decode())"
 """
 
 from cryptography.fernet import Fernet, InvalidToken

@@ -19,7 +19,7 @@ sys.path.insert(0, project_root)
 load_dotenv(os.path.join(project_root, ".env"))
 
 # Import Base from your models
-from backend.models.base import Base
+from backend.models.base import Base  # noqa: E402
 # Import all models to ensure they are registered in metadata
 # Import all models to ensure they are registered in metadata
 # from backend.models import system_log # Removed incorrect import

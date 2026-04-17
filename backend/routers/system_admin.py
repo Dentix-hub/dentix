@@ -1,23 +1,31 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
-from sqlalchemy.orm import Session
-from .. import models
-from ..auth import get_password_hash
-from .auth import get_current_user
-from ..database import get_db
-from ..constants import ROLES
+import logging
 import os
 import datetime
+import json
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from backend.core.permissions import Permission, require_permission, Role
+from backend.core.startup import drive_client
+from ..database import get_db
+from .. import models
+from ..schemas import system_log as schema_system
+from .auth import get_password_hash
+import subprocess
+import shutil
+from ..services.backup_service import run_backup_task
+from ..services.admin_service import AdminService
+from .auth.dependencies import validate_password
+from backend.core.response import success_response, StandardResponse
 
 
-def get_drive_client():
-    """Lazy import to avoid circular dependency."""
-    from ..main import drive_client
-
-    return drive_client
+logger = logging.getLogger(__name__)
 
 
 # Valid Log Levels
-from pydantic import BaseModel
 
 router = APIRouter(
     prefix="/admin/system",
@@ -33,7 +41,7 @@ class LogEntry(BaseModel):
     timestamp: str = None
 
 
-@router.post("/logs")
+@router.post("/logs", response_model=StandardResponse[dict])
 def submit_frontend_log(
     log: LogEntry,
     db: Session = Depends(get_db),
@@ -59,25 +67,24 @@ def submit_frontend_log(
         db.add(new_log)
         db.commit()
 
-        return {"status": "ok"}
+        return success_response(data={"status": "ok"})
     except Exception as e:
-        # Fallback to print if DB fails
-        print(f"[LOG_FAIL] Could not save log to DB: {e}")
-        return {"status": "error", "message": str(e)}
+        # Fallback to logger if DB fails
+        logger.error("[LOG_FAIL] Could not save log to DB: %s", e)
+        return success_response(success=False, message=str(e))
 
 
-from typing import List
-from ..schemas import system_log as schema_system
 
 
-@router.get("/logs", response_model=List[schema_system.SystemError])
+@router.get("/logs", response_model=StandardResponse[List[schema_system.SystemError]])
 def get_system_logs(
     skip: int = 0,
     limit: int = 50,
-    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Retrieve system logs from Database."""
-    if current_user.role != ROLES.SUPER_ADMIN:
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     logs = (
@@ -88,16 +95,16 @@ def get_system_logs(
         .all()
     )
 
-    return logs
+    return success_response(data=logs)
 
 
-@router.put("/profile")
+@router.put("/profile", response_model=StandardResponse[dict])
 def update_profile(
     profile_data: dict,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    if current_user.role != ROLES.SUPER_ADMIN:
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Query fresh user from THIS session to avoid detached instance error
@@ -114,28 +121,24 @@ def update_profile(
         user.hashed_password = get_password_hash(profile_data["password"])
 
     db.commit()
-    return {
-        "message": "Profile updated successfully",
-        "user": {
+    return success_response(
+        data={
             "id": user.id,
             "username": user.username,
             "email": user.email,
             "role": user.role,
         },
-    }
+        message="Profile updated successfully",
+    )
 
 
 @router.get("/backup")
-def download_backup(current_user: models.User = Depends(get_current_user)):
-    if current_user.role != ROLES.SUPER_ADMIN:
+def download_backup(current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Implementation of JSON Backup (Fallback for environments without pg_dump)
-    from datetime import datetime
-    import json
-    from fastapi.responses import StreamingResponse
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"smart_clinic_json_backup_{timestamp}.json"
 
     def iter_json(db_session: Session):
@@ -182,9 +185,9 @@ def download_backup(current_user: models.User = Depends(get_current_user)):
 
 @router.post("/restore")
 async def restore_backup(
-    file: UploadFile = File(...), current_user: models.User = Depends(get_current_user)
+    file: UploadFile = File(...), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
 ):
-    if current_user.role != ROLES.SUPER_ADMIN:
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     raise HTTPException(
@@ -196,11 +199,11 @@ async def restore_backup(
 # --- Google Drive Backup (Super Admin) ---
 
 
-@router.get("/backup/google-status")
+@router.get("/backup/google-status", response_model=StandardResponse[dict])
 def get_google_drive_status(
-    db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
 ):
-    if current_user.role != ROLES.SUPER_ADMIN:
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     setting = (
@@ -226,34 +229,35 @@ def get_google_drive_status(
         .first()
     )
 
-    return {
-        "connected": bool(setting and setting.value),
-        "last_backup": {
-            "status": last_status.value if last_status else None,
-            "message": last_message.value if last_message else None,
-            "date": last_run.value if last_run else None,
-        },
-    }
+    return success_response(
+        data={
+            "connected": bool(setting and setting.value),
+            "last_backup": {
+                "status": last_status.value if last_status else None,
+                "message": last_message.value if last_message else None,
+                "date": last_run.value if last_run else None,
+            },
+        }
+    )
 
 
-@router.get("/backup/google-auth")
-def get_google_auth_url(current_user: models.User = Depends(get_current_user)):
-    if current_user.role != ROLES.SUPER_ADMIN:
+@router.get("/backup/google-auth", response_model=StandardResponse[dict])
+def get_google_auth_url(current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Pass state='super_admin' to identify this flow in the callback
-    drive_client = get_drive_client()
     auth_url = drive_client.get_auth_url(state="super_admin")
-    return {"url": auth_url}
+    return success_response(data={"url": auth_url})
 
 
-@router.post("/backup/google-upload", status_code=202)
+@router.post("/backup/google-upload", status_code=202, response_model=StandardResponse[dict])
 def upload_to_google_drive(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    if current_user.role != ROLES.SUPER_ADMIN:
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # 1. Check if Google Drive is connected
@@ -271,8 +275,6 @@ def upload_to_google_drive(
 
     # 2. Check pg_dump availability (Fast check)
     try:
-        import subprocess
-
         check_process = subprocess.run(
             ["which", "pg_dump"], capture_output=True, timeout=5
         )
@@ -284,14 +286,12 @@ def upload_to_google_drive(
     except FileNotFoundError:
         # On Windows or systems without 'which', try a different approach
         try:
-            import shutil
-
             if not shutil.which("pg_dump"):
                 raise HTTPException(
                     status_code=503,
                     detail="System tools (pg_dump) are not available on this system.",
                 )
-        except:
+        except Exception:
             # If shutil.which is also not available, assume tools are not available
             raise HTTPException(
                 status_code=503,
@@ -306,23 +306,20 @@ def upload_to_google_drive(
         )
 
     # 4. Dispatch Background Task
-    from ..services.backup_service import run_backup_task
-
     background_tasks.add_task(run_backup_task, refresh_token, db_url)
 
-    return {
-        "success": True,
-        "message": "Backup started in background. Please check Google Drive in a few minutes.",
-        "status": "processing",
-    }
+    return success_response(
+        data={"status": "processing"},
+        message="Backup started in background. Please check Google Drive in a few minutes.",
+    )
 
 
-@router.delete("/backup/google-auth")
+@router.delete("/backup/google-auth", response_model=StandardResponse[dict])
 def disconnect_google_drive(
-    db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
 ):
     """Disconnect the Google Drive account."""
-    if current_user.role != ROLES.SUPER_ADMIN:
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Find and delete the token setting
@@ -334,63 +331,57 @@ def disconnect_google_drive(
     if setting:
         db.delete(setting)
         db.commit()
-        return {"success": True, "message": "Google Drive disconnected successfully"}
+        return success_response(message="Google Drive disconnected successfully")
     else:
         # If already undefined, considering it success
-        return {"success": True, "message": "Google Drive was not connected"}
+        return success_response(message="Google Drive was not connected")
 
 
 # --- Tenant Management Endpoints ---
 
 
-@router.delete("/tenants/{tenant_id}")
+@router.delete("/tenants/{tenant_id}", response_model=StandardResponse[dict])
 def archive_tenant(
     tenant_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    if current_user.role != ROLES.SUPER_ADMIN:
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
-
-    from ..services.admin_service import AdminService
 
     service = AdminService(db)
     tenant = service.archive_tenant(tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    return {"success": True, "message": "Tenant archived successfully"}
+    return success_response(message="Tenant archived successfully")
 
 
-@router.post("/tenants/{tenant_id}/restore")
+@router.post("/tenants/{tenant_id}/restore", response_model=StandardResponse[dict])
 def restore_tenant(
     tenant_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    if current_user.role != ROLES.SUPER_ADMIN:
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
-
-    from ..services.admin_service import AdminService
 
     service = AdminService(db)
     tenant = service.restore_tenant(tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    return {"success": True, "message": "Tenant restored successfully"}
+    return success_response(message="Tenant restored successfully")
 
 
-@router.delete("/tenants/{tenant_id}/permanent")
+@router.delete("/tenants/{tenant_id}/permanent", response_model=StandardResponse[dict])
 def permanently_delete_tenant(
     tenant_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    if current_user.role != ROLES.SUPER_ADMIN:
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
-
-    from ..services.admin_service import AdminService
 
     service = AdminService(db)
     try:
@@ -398,25 +389,21 @@ def permanently_delete_tenant(
         if not success:
             raise HTTPException(status_code=404, detail="Tenant not found")
     except Exception as e:
-        import logging
-
-        logging.error(f"Delete failed: {e}")
+        logger.error("Delete failed: %s", e)
         raise HTTPException(status_code=400, detail=f"Cannot delete tenant: {str(e)}")
 
-    return {"success": True, "message": "Tenant permanently deleted"}
+    return success_response(message="Tenant permanently deleted")
 
 
-@router.post("/tenants/{tenant_id}/assign-plan")
+@router.post("/tenants/{tenant_id}/assign-plan", response_model=StandardResponse[dict])
 def assign_tenant_plan(
     tenant_id: int,
     plan_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    if current_user.role != ROLES.SUPER_ADMIN:
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
-
-    from ..services.admin_service import AdminService
 
     service = AdminService(db)
 
@@ -433,32 +420,28 @@ def assign_tenant_plan(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    return {
-        "success": True,
-        "message": "Plan updated successfully",
-        "tenant": tenant.name,
-    }
+    return success_response(
+        data={"tenant": tenant.name}, message="Plan updated successfully"
+    )
 
 
 # --- User Management (Super Admin) ---
-@router.get("/tenants/{tenant_id}/users")
+@router.get("/tenants/{tenant_id}/users", response_model=StandardResponse[dict])
 def get_tenant_users(
     tenant_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Get all users for a specific tenant (Super Admin only)."""
-    print(
-        f"[DEBUG get_tenant_users] Called with tenant_id={tenant_id}, current_user.role={current_user.role}"
-    )
+    logger.debug("[get_tenant_users] tenant_id=%d, role=%s", tenant_id, current_user.role)
 
-    if current_user.role != ROLES.SUPER_ADMIN:
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Check if tenant exists first
     tenant = (
         db.query(models.Tenant)
-        .filter(models.Tenant.id == tenant_id, models.Tenant.is_deleted == False)
+        .filter(models.Tenant.id == tenant_id, not models.Tenant.is_deleted)
         .first()
     )
 
@@ -470,15 +453,11 @@ def get_tenant_users(
 
     users = (
         db.query(models.User)
-        .filter(models.User.tenant_id == tenant_id, models.User.is_deleted == False)
+        .filter(models.User.tenant_id == tenant_id, not models.User.is_deleted)
         .all()
     )
 
-    print(f"[DEBUG get_tenant_users] Found {len(users)} users for tenant {tenant_id}")
-    for u in users:
-        print(
-            f"[DEBUG get_tenant_users] User id={u.id}, username='{u.username}', email='{u.email}'"
-        )
+    logger.debug("[get_tenant_users] Found %d users for tenant %d", len(users), tenant_id)
 
     result = {
         "users": [
@@ -497,26 +476,24 @@ def get_tenant_users(
             for u in users
         ]
     }
-    print(f"[DEBUG get_tenant_users] Returning: {result}")
-    return result
+    return success_response(data=result)
 
 
-@router.post("/users/{user_id}/reset-password")
+@router.post("/users/{user_id}/reset-password", response_model=StandardResponse[dict])
 def reset_user_password(
     user_id: int,
     password_data: dict,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Reset password for any user (Super Admin only)."""
-    if current_user.role != ROLES.SUPER_ADMIN:
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
-
     new_password = password_data.get("new_password")
-    if not new_password or len(new_password) < 6:
-        raise HTTPException(
-            status_code=400, detail="Password must be at least 6 characters"
-        )
+    if not new_password:
+        raise HTTPException(status_code=400, detail="Password is required")
+
+    validate_password(new_password)
 
     # Get user
     user = db.query(models.User).filter(models.User.id == user_id).first()
@@ -536,13 +513,12 @@ def reset_user_password(
 
     db.commit()
 
-    return {
-        "success": True,
-        "message": f"Password reset successfully for user: {user.username}",
-        "user": {
+    return success_response(
+        data={
             "id": user.id,
             "username": user.username,
             "email": user.email,
             "tenant_id": user.tenant_id,
         },
-    }
+        message=f"Password reset successfully for user: {user.username}",
+    )

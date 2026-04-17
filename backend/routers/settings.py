@@ -3,6 +3,13 @@ Settings Router
 Handles backup and settings endpoints.
 """
 
+import logging
+import os
+import shutil
+import subprocess
+import tempfile
+from datetime import datetime
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -12,58 +19,70 @@ from fastapi import (
     Form,
     BackgroundTasks,
 )
-from fastapi.responses import FileResponse, RedirectResponse
-
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from sqlalchemy.orm import Session
-import os
-import shutil
-from datetime import datetime
 
 from .. import schemas, database, models
-from .auth import get_current_user, get_db
-from backend.core.permissions import Permission, require_permission
+from ..core.permissions import Permission, Role, require_permission
+from ..core.response import success_response, StandardResponse
+from ..services.backup_service import run_backup_task
+from ..services.import_service import restore_tenant_from_json
+from ..services.export_service import export_tenant_to_json
+from .auth import get_db
+
+logger = logging.getLogger(__name__)
+
+# Lazy import to avoid circular dependency with main.py
+_drive_client = None
 
 
 def get_drive_client():
-    """Lazy import to avoid circular dependency."""
-    from ..main import drive_client
+    """Get drive client via lazy initialization."""
+    global _drive_client
+    if _drive_client is None:
+        from ..main import drive_client
 
-    return drive_client
+        _drive_client = drive_client
+    return _drive_client
 
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
 
-@router.get("/backup/status")
+@router.get("/backup/status", response_model=StandardResponse[dict])
 def get_backup_status(
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
     Get backup status for the current tenant.
     """
     if not current_user.tenant:
-        return {
-            "connected": False,
-            "frequency": "weekly",
-            "last_backup": None,
-            "message": "User has no tenant assigned",
-        }
+        return success_response(
+            data={
+                "connected": False,
+                "frequency": "weekly",
+                "last_backup": None,
+            },
+            message="User has no tenant assigned",
+        )
 
     tenant = current_user.tenant
     is_connected = bool(tenant.google_refresh_token)
 
-    return {
-        "connected": is_connected,
-        "frequency": tenant.backup_frequency,
-        "last_backup": tenant.last_backup_at,
-        "message": "Google Drive connected" if is_connected else "Not connected",
-    }
+    return success_response(
+        data={
+            "connected": is_connected,
+            "frequency": tenant.backup_frequency,
+            "last_backup": tenant.last_backup_at,
+        },
+        message="Google Drive connected" if is_connected else "Not connected",
+    )
 
 
-@router.get("/backup/auth")
+@router.get("/backup/auth", response_model=StandardResponse[dict])
 def get_backup_auth_url(
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
     Get Google Drive authentication URL.
@@ -71,14 +90,14 @@ def get_backup_auth_url(
     """
     state = f"user_{current_user.id}"
     auth_url = get_drive_client().get_auth_url(state=state)
-    return {"url": auth_url, "message": "Redirecting..."}
+    return success_response(data={"url": auth_url}, message="Redirecting...")
 
 
-@router.post("/backup/callback")
+@router.post("/backup/callback", response_model=StandardResponse[dict])
 def backup_auth_callback_post(
     code: str = Form(...),
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
     Handle Google OAuth callback (POST from frontend).
@@ -92,15 +111,15 @@ def backup_auth_callback_post(
         if token_data.get("refresh_token"):
             tenant.google_refresh_token = token_data["refresh_token"]
             db.commit()
-            return {"success": True, "message": "تم ربط Google Drive بنجاح"}
+            return success_response(message="تم ربط Google Drive بنجاح")
         else:
-            return {
-                "success": False,
-                "message": "لم يتم استلام refresh token. يرجى إعادة المحاولة.",
-            }
+            return success_response(
+                success=False,
+                message="لم يتم استلام refresh token. يرجى إعادة المحاولة.",
+            )
 
     except Exception as e:
-        print(f"Auth Error: {e}")
+        logger.error("Auth Error: %s", e, exc_info=True)
         raise HTTPException(status_code=400, detail=str(e))
 
 
@@ -116,16 +135,14 @@ def backup_auth_callback_get(
     """
     try:
         # 1. Exchange Code
-        print(
-            f"DEBUG: Processing OAuth Callback with code={code[:10]}... State={state}"
-        )
+        logger.debug("Processing OAuth Callback code=%.10s... state=%s", code, state)
         token_data = get_drive_client().fetch_token(code=code)
 
         status = "success"
         refresh_token = token_data.get("refresh_token")
 
         if not refresh_token:
-            print("DEBUG: No refresh token in response.")
+            logger.warning("No refresh token in OAuth response.")
             status = "no_refresh_token"
 
         # 2. Decode user from state and save token
@@ -189,15 +206,12 @@ def backup_auth_callback_get(
         return RedirectResponse(url=target_url)
 
     except Exception as e:
-        print(f"Auth Callback Error: {e}")
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("Auth Callback Error", exc_info=True)
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
         return RedirectResponse(url=f"{frontend_url}/settings?error={str(e)}")
 
 
-@router.post("/backup/now")
+@router.post("/backup/now", response_model=StandardResponse[dict])
 def trigger_manual_backup(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
@@ -218,8 +232,6 @@ def trigger_manual_backup(
         )
 
     # Get DB URL
-    import os
-
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         raise HTTPException(
@@ -227,20 +239,16 @@ def trigger_manual_backup(
         )
 
     # Dispatch background task for backup with tenant info
-    from ..services.backup_service import run_backup_task
-
     background_tasks.add_task(
         run_backup_task, tenant.google_refresh_token, db_url, tenant.id, tenant.name
     )
 
-    return {
-        "success": True,
-        "message": "Manual backup started in background. Please check Google Drive in a few minutes.",
-        "status": "processing",
-    }
+    return success_response(
+        message="Manual backup started in background. Please check Google Drive in a few minutes.",
+    )
 
 
-@router.put("/backup/schedule")
+@router.put("/backup/schedule", response_model=StandardResponse[dict])
 def update_backup_schedule(
     frequency: str = Form(...),
     db: Session = Depends(get_db),
@@ -253,26 +261,23 @@ def update_backup_schedule(
     tenant.backup_frequency = frequency
     db.commit()
 
-    return {
-        "success": True,
-        "frequency": frequency,
-        "message": f"تم تحديث جدول النسخ الاحتياطي إلى: {frequency}",
-    }
+    return success_response(
+        data={"frequency": frequency},
+        message=f"تم تحديث جدول النسخ الاحتياطي إلى: {frequency}",
+    )
 
 
 @router.get("/backup/download")
 def download_backup(
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
     Download full database backup (SQL format).
     Restricted to Super Admin only.
     For tenant backup, use /backup/export instead.
     """
-    from ..constants import ROLES
-
     # Only Super Admin can download full SQL backup
-    if current_user.role != ROLES.SUPER_ADMIN:
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(
             status_code=403,
             detail="Only Super Admin can download full SQL backup. Use /settings/backup/export for tenant JSON backup.",
@@ -313,8 +318,6 @@ def download_backup(
             dump_url = db_url.replace("postgresql://", "postgres://", 1)
 
             # Execute pg_dump
-            import subprocess
-
             process = subprocess.Popen(
                 ["pg_dump", "--dbname", dump_url, "-f", filepath],
                 stdout=subprocess.PIPE,
@@ -338,20 +341,17 @@ def download_backup(
         raise HTTPException(status_code=500, detail="Unsupported database type")
 
 
-@router.post("/backup/upload")
+@router.post("/backup/upload", response_model=StandardResponse[dict])
 async def upload_backup(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
     Restore database from backup.
     - Super Admin: Full SQL restore (pg_dump format)
     - Tenant Admin: JSON restore (tenant data only)
     """
-    from ..constants import ROLES
-    from ..services.import_service import restore_tenant_from_json
-
     db_url = database.SQLALCHEMY_DATABASE_URL
 
     # Check file extension to determine restore type
@@ -373,16 +373,18 @@ async def upload_backup(
         if not result["success"]:
             raise HTTPException(status_code=400, detail=result["error"])
 
-        return {
-            "message": "Tenant data restored successfully",
-            "deleted": result["deleted"],
-            "imported": result["imported"],
-            "backup_date": result["backup_date"],
-        }
+        return success_response(
+            data={
+                "deleted": result["deleted"],
+                "imported": result["imported"],
+                "backup_date": result["backup_date"],
+            },
+            message="Tenant data restored successfully",
+        )
 
     # SQL restore for Super Admin only
     if filename.endswith(".sql"):
-        if current_user.role != ROLES.SUPER_ADMIN:
+        if current_user.role != Role.SUPER_ADMIN.value:
             raise HTTPException(
                 status_code=403,
                 detail="Only Super Admin can restore SQL backups. Use JSON backup for tenant restore.",
@@ -390,9 +392,6 @@ async def upload_backup(
 
         # PostgreSQL restore using psql
         if "postgres" in db_url:
-            import subprocess
-            import tempfile
-
             # Save uploaded file to temp
             with tempfile.NamedTemporaryFile(delete=False, suffix=".sql") as tmp:
                 content = await file.read()
@@ -417,7 +416,7 @@ async def upload_backup(
                         status_code=500, detail=f"Restore failed: {error_msg}"
                     )
 
-                return {"message": "Database restored successfully from SQL backup."}
+                return success_response(message="Database restored successfully from SQL backup.")
             finally:
                 # Cleanup temp file
                 if os.path.exists(tmp_path):
@@ -440,9 +439,9 @@ async def upload_backup(
                 shutil.copy(db_path, backup_path)
                 shutil.move(temp_path, db_path)
 
-                return {
-                    "message": "Backup restored successfully. Please restart server if needed."
-                }
+                return success_response(
+                    message="Backup restored successfully. Please restart server if needed."
+                )
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Restore failed: {str(e)}")
 
@@ -455,15 +454,12 @@ async def upload_backup(
 @router.get("/backup/export")
 def export_tenant_backup(
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
     Export tenant data as JSON.
     This exports only the current tenant's data for backup purposes.
     """
-    from fastapi.responses import Response
-    from ..services.export_service import export_tenant_to_json
-
     if not current_user.tenant:
         raise HTTPException(status_code=400, detail="No tenant associated with user")
 
@@ -482,19 +478,19 @@ def export_tenant_backup(
     )
 
 
-@router.get("/tenant")
+@router.get("/tenant", response_model=StandardResponse[dict])
 def get_tenant_settings(
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
     Get current tenant settings.
     """
     if not current_user.tenant:
-        return {}
-    return current_user.tenant
+        return success_response(data={})
+    return success_response(data=current_user.tenant)
 
 
-@router.put("/tenant")
+@router.put("/tenant", response_model=StandardResponse[dict])
 def update_tenant_settings(
     config: schemas.TenantUpdate,
     db: Session = Depends(get_db),
@@ -522,4 +518,4 @@ def update_tenant_settings(
 
     db.commit()
     db.refresh(tenant)
-    return tenant
+    return success_response(data=tenant, message="Tenant settings updated")

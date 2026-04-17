@@ -1,60 +1,49 @@
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from jose import jwt, JWTError  # noqa: F401 - JWTError used by routers via auth.JWTError
-from passlib.context import CryptContext
-
-# Configure password hashing context to support both bcrypt (legacy) and pbkdf2_sha256 (new)
-# bcrypt__truncate_error=False suppresses "password too long" error by truncating input to 72 bytes
-pwd_context = CryptContext(
-    schemes=["pbkdf2_sha256", "bcrypt"], deprecated="auto", bcrypt__truncate_error=False
-)
-
-import os
-
-# Secret key for JWT - MUST be set in production
-SECRET_KEY = os.getenv("SECRET_KEY")
-if not SECRET_KEY:
-    # Allow fallback only in development
-    if os.getenv("ENVIRONMENT", "development") == "production":
-        raise RuntimeError(
-            "CRITICAL: SECRET_KEY environment variable must be set in production!"
-        )
-    SECRET_KEY = "dev_only_secret_key_not_for_production"
-
+from jose import jwt, JWTError
+import bcrypt
+# Configuration
+SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-change-in-prod")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 480
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
+# Password Hashing
 
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a plain password against its hash."""
+    try:
+        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+    except ValueError:
+        return False
 
+def get_password_hash(password: str) -> str:
+    """Generate a hash for the given password."""
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
-def get_password_hash(password):
-    return pwd_context.hash(password)
-
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Create a new JWT access token."""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(
-            minutes=ACCESS_TOKEN_EXPIRE_MINUTES
-        )
-    to_encode.update({"exp": expire, "type": "access"})
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+
+    to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
+import uuid
 
-def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None):
+def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Create a new JWT refresh token."""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    import uuid
 
-    to_encode.update({"exp": expire, "type": "refresh", "jti": str(uuid.uuid4())})
+    to_encode.update({"exp": expire, "jti": str(uuid.uuid4())})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

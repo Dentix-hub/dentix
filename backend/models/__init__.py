@@ -1,8 +1,13 @@
 from .base import Base
 
-from .ai_audit import AILog  # Phase 0: Unified AI Logs
+# Phase 0: Unified AI Logs — AILog is the canonical model
+from .ai_audit import AILog
 
-# from .audit_log import AuditLog <-- REMOVED
+# A2.4: AIUsageLog is now a type alias for AILog.
+# All legacy code using models.AIUsageLog continues to work unchanged.
+# New code should use models.AILog directly.
+AIUsageLog = AILog
+
 from .security_event import SecurityEvent  # Phase 3: Security Hardening
 from .tenant import Tenant, SubscriptionPlan, SubscriptionPayment
 from .user import User, PasswordResetToken, LoginHistory, UserSession
@@ -17,11 +22,10 @@ from .clinical import (
     LabOrder,
     Procedure,
 )
-from .financial import Payment, Expense, SalaryPayment
+from .financial import Payment, Expense, SalaryPayment, LabPayment
 from .price_list import PriceList, PriceListItem, InsuranceProvider, PriceListType
 from .system import (
-    AuditLog,  # <-- ADDED
-    AIUsageLog,
+    AuditLog,
     SystemError,
     SupportMessage,
     Notification,

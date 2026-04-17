@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 
 from ..database import get_db
-from ..routers.auth import get_current_user
 from ..schemas import User
+from ..core.permissions import require_permission, Permission
 from ..services.inventory_learning_service import InventoryLearningService
 from ..models import inventory as inv_models
 
@@ -17,7 +17,7 @@ def get_material_suggestions(
     patient_age: Optional[int] = None,
     doctor_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
     """
     Get smart material suggestions for a procedure.
@@ -41,7 +41,7 @@ def get_material_suggestions(
 def check_availability(
     materials: List[Dict[str, Any]],  # [{material_id, quantity}]
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
     """
     Pre-flight check for materials availability.

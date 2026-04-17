@@ -15,7 +15,19 @@ class AppointmentBase(BaseModel):
 
 
 class AppointmentCreate(AppointmentBase):
-    pass
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "patient_id": 1,
+                    "date_time": "2026-04-15T10:00:00",
+                    "status": "Scheduled",
+                    "notes": "Regular checkup",
+                    "doctor_id": 2,
+                }
+            ]
+        }
+    )
 
 
 class Appointment(AppointmentBase):
@@ -64,6 +76,25 @@ class ConsumedMaterialItem(BaseModel):
 
 class TreatmentCreate(TreatmentBase):
     consumedMaterials: Optional[list[ConsumedMaterialItem]] = None
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "patient_id": 1,
+                    "procedure": "Composite Filling",
+                    "cost": 500.0,
+                    "diagnosis": "Dental Caries",
+                    "tooth_number": 14,
+                    "doctor_id": 2,
+                    "notes": "Mesial surface",
+                    "consumedMaterials": [
+                        {"material_id": 1, "quantity": 1.0}
+                    ],
+                }
+            ]
+        }
+    )
 
 
 class Treatment(TreatmentBase):

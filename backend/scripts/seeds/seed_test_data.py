@@ -89,7 +89,7 @@ def seed_data():
             num_patients = random.randint(10, 15)
 
             for i in range(num_patients):
-                p_name = f"Patient {random.randint(1, 9999)} details"
+                f"Patient {random.randint(1, 9999)} details"
                 patient = models.Patient(
                     name=f"Patient_{doctor.id}_{i + 1}_{random.randint(100, 999)}",
                     age=random.randint(18, 70),

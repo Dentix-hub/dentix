@@ -1,4 +1,3 @@
-import pytest
 from datetime import datetime
 from backend.services.patient_service import PatientService
 from backend import models

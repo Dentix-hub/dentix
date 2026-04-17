@@ -494,21 +494,8 @@ class AIService:
         last_entity,
         scribe_mode=False,
     ):
-        """Log AI usage to DB."""
+        """Log AI usage to DB (unified AILog table)."""
         try:
-            trace_details = {
-                "input_context": context,
-                "last_entity": last_entity,
-                "agent_response_raw": ai_result,
-                "tool_executed": response_data.get("tool"),
-                "tool_params": ai_result.get("parameters", {}) if ai_result else {},
-                "final_response": response_data,
-                "scribe_mode": scribe_mode,
-            }
-
-            # GOVERNANCE: Unified AI Log (Rule 10 + Phase 0)
-            from backend.models.ai_audit import AILog
-
             # Extract Metrics
             tokens_in = ai_result.get("usage", {}).get("prompt_tokens", 0)
             tokens_out = ai_result.get("usage", {}).get("completion_tokens", 0)
@@ -517,12 +504,14 @@ class AIService:
                 response_data.get("error") if not response_data.get("success") else None
             )
 
-            log_entry = AILog(
+            log_entry = models.AILog(
                 trace_id=trace_id,
                 tenant_id=self.user.tenant_id,
                 user_id=self.user.id,
+                # Backward-compat: cache username so old queries work
+                username=self.user.username,
                 # Context
-                intent=ai_result.get("tool") or "chat",  # TODO: Better intent tracking
+                intent=ai_result.get("tool") or "chat",
                 tool=response_data.get("tool"),
                 model=model_used,
                 # Payload
@@ -531,10 +520,10 @@ class AIService:
                 tool_params=json.dumps(ai_result.get("parameters", {}), default=str),
                 tool_result=json.dumps(response_data.get("data", {}), default=str),
                 # Metrics
-                execution_time_ms=duration,
+                execution_time_ms=int(duration),
                 tokens_in=tokens_in,
                 tokens_out=tokens_out,
-                confidence=1.0,  # Placeholder for Phase 2
+                confidence=1.0,
                 # Status
                 status="SUCCESS" if response_data.get("success") else "FAILURE",
                 error_type=str(error_type) if error_type else None,
@@ -545,4 +534,5 @@ class AIService:
             self.db.add(log_entry)
             self.db.commit()
         except Exception as e:
-            logger.error(f"Failed to log AI usage: {e}")
+            logger.error("Failed to log AI usage: %s", e)
+

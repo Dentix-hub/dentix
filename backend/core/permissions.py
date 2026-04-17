@@ -14,6 +14,14 @@ class Role(str, Enum):
     ACCOUNTANT = "accountant"
     PATIENT = "patient"
     GUEST = "guest"
+    SUPER_ADMIN = "super_admin"
+    MANAGER = "manager"
+    ASSISTANT = "assistant"
+
+# Role groups
+DOCTOR_ROLES = [Role.DOCTOR.value, Role.ADMIN.value, Role.SUPER_ADMIN.value]
+STAFF_ROLES = [Role.RECEPTIONIST.value, Role.ASSISTANT.value, Role.NURSE.value]
+ADMIN_ROLES = [Role.ADMIN.value, Role.SUPER_ADMIN.value]
 
 
 class PatientVisibilityMode(str, Enum):
@@ -54,6 +62,10 @@ class Permission(str, Enum):
     FINANCIAL_READ = "financial:read"
     FINANCIAL_WRITE = "financial:write"  # Payments, invoices
 
+    # Inventory
+    INVENTORY_READ = "inventory:read"
+    INVENTORY_MANAGE = "inventory:manage"
+
     # System
     SYSTEM_CONFIG = "system:config"
     AUDIT_READ = "audit:read"
@@ -66,7 +78,32 @@ class Permission(str, Enum):
 # RBAC Matrix: Defines which permissions each role holds.
 # This is the Source of Truth for "Who can do What".
 ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
+    Role.SUPER_ADMIN: {p for p in Permission},  # Super Admin has all permissions
     Role.ADMIN: {p for p in Permission},  # Admin has all permissions
+    Role.MANAGER: {
+        Permission.PATIENT_CREATE,
+        Permission.PATIENT_READ,
+        Permission.PATIENT_UPDATE,
+        Permission.PATIENT_SEARCH,
+        Permission.APPOINTMENT_READ,
+        Permission.APPOINTMENT_CREATE,
+        Permission.APPOINTMENT_UPDATE,
+        Permission.APPOINTMENT_CANCEL,
+        Permission.FINANCIAL_READ,
+        Permission.FINANCIAL_WRITE,
+        Permission.INVENTORY_READ,
+        Permission.INVENTORY_MANAGE,
+        Permission.SYSTEM_CONFIG,
+        Permission.AI_CHAT,
+    },
+    Role.ASSISTANT: {
+        Permission.PATIENT_READ,
+        Permission.PATIENT_SEARCH,
+        Permission.APPOINTMENT_READ,
+        Permission.CLINICAL_READ,
+        Permission.INVENTORY_READ,
+        Permission.AI_CHAT,
+    },
     Role.DOCTOR: {
         Permission.PATIENT_CREATE,
         Permission.PATIENT_READ,
@@ -77,6 +114,7 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
         Permission.TREATMENT_PLAN_WRITE,
         Permission.APPOINTMENT_READ,
         Permission.APPOINTMENT_CREATE,
+        Permission.INVENTORY_READ,
         Permission.AI_CHAT,
     },
     Role.RECEPTIONIST: {
@@ -90,6 +128,7 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
         Permission.APPOINTMENT_CANCEL,
         Permission.FINANCIAL_READ,  # View balance
         Permission.FINANCIAL_WRITE,  # Collect payment
+        Permission.INVENTORY_READ,
         Permission.AI_CHAT,
     },
     Role.NURSE: {
@@ -98,6 +137,8 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
         Permission.CLINICAL_READ,
         Permission.CLINICAL_WRITE,  # Vitals, basic notes
         Permission.APPOINTMENT_READ,
+        Permission.INVENTORY_READ,
+        Permission.INVENTORY_MANAGE,
         Permission.AI_CHAT,
     },
     Role.ACCOUNTANT: {

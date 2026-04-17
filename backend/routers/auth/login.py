@@ -3,27 +3,34 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from backend import models, schemas, crud, auth
 from backend.services.auth_service import AuthService
-from backend.constants import ROLES
+from backend.core.permissions import Role
 from backend.core.limiter import limiter
 from .dependencies import get_db, get_current_user, oauth2_scheme
 import uuid
 import logging
+from datetime import datetime, timedelta
 
 logger = logging.getLogger("smart_clinic")
 
 router = APIRouter()
 
 
+def _request_client_ip(request: Request | None) -> str | None:
+    if request is None or request.client is None:
+        return None
+    return request.client.host
+
+
 # --- Login ---
 @router.post("/token", response_model=schemas.Token)
-@limiter.limit("5/minute")
+@limiter.limit("20/minute")
 def login_for_access_token(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
+    """Authenticate user and return JWT token."""
     try:
-        """Authenticate user and return JWT token."""
         # 1. Fetch User safely
         try:
             user = crud.get_user(db, form_data.username)
@@ -31,7 +38,20 @@ def login_for_access_token(
             logger.error(f"DB Error fetching user: {db_err}")
             raise HTTPException(status_code=500, detail="Database connection error")
 
-        # 2. Verify Credentials
+        # 2. Check Lockout Status
+        if user and user.account_locked_until:
+            if user.account_locked_until > datetime.utcnow():
+                raise HTTPException(
+                    status_code=403,
+                    detail="تم قفل الحساب مؤقتاً بسبب كثرة المحاولات الخاطئة. يرجى المحاولة بعد 15 دقيقة."
+                )
+            else:
+                # Lockout expired, reset it
+                user.account_locked_until = None
+                user.failed_login_attempts = 0
+                db.commit()
+
+        # 3. Verify Credentials
         # Use explicit check to distinguish generic errors from bad password
         is_valid = False
         try:
@@ -45,18 +65,21 @@ def login_for_access_token(
             is_valid = False
 
         if not user or not is_valid:
-            # OPTIONAL: Differentiate for debugging if needed, but security best practice is generic.
-            # However, user asked for "Wrong Password".
-            # We will stick to the standard message but ensure it's reached.
             logger.warning(f"Login failed for: {form_data.username}")
+            if user:
+                user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+                if user.failed_login_attempts >= 5:
+                    user.account_locked_until = datetime.utcnow() + timedelta(minutes=15)
+                db.commit()
+
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="اسم المستخدم أو كلمة الصفحة غير صحيحة",  # Translated to Arabic for better UX
+                detail="اسم المستخدم أو كلمة المرور غير صحيحة",  # Translated to Arabic for better UX
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
         # Check for Global Maintenance Mode
-        if user.role != ROLES.SUPER_ADMIN:
+        if user.role != Role.SUPER_ADMIN.value:
             maintenance_mode = (
                 db.query(models.SystemSetting)
                 .filter(models.SystemSetting.key == "maintenance_mode")
@@ -77,7 +100,7 @@ def login_for_access_token(
 
         # SECURITY: Check Tenant Status (Soft Delete / Inactive)
         # Fixes issue where deleted tenants could still login
-        if user.role != ROLES.SUPER_ADMIN:
+        if user.role != Role.SUPER_ADMIN.value:
             if not user.tenant:
                 # Clean up orphan users or just block them
                 raise HTTPException(
@@ -115,6 +138,8 @@ def login_for_access_token(
 
         # SINGLE SESSION POLICY: Update user with new session ID
         user.active_session_id = session_id
+        user.failed_login_attempts = 0
+        user.account_locked_until = None
         db.commit()
 
         access_token = auth.create_access_token(
@@ -134,7 +159,7 @@ def login_for_access_token(
             # This prevents the same account from being used on multiple devices simultaneously
             db.query(models.UserSession).filter(
                 models.UserSession.user_id == user.id,
-                models.UserSession.is_active == True,
+                models.UserSession.is_active,
             ).update({"is_active": False})
 
             # Record Session (with Refresh Token)
@@ -142,7 +167,7 @@ def login_for_access_token(
                 db,
                 user.id,
                 refresh_token,
-                ip_address=request.client.host,
+                ip_address=_request_client_ip(request),
                 user_agent=request.headers.get("user-agent"),
                 device_info=session_id,  # Store session ID in device info for tracking
             )
@@ -167,9 +192,9 @@ def login_for_access_token(
 @router.post("/refresh", response_model=schemas.Token)
 @limiter.limit("10/minute")
 def refresh_token(
+    request: Request,
     refresh_token: str = Form(...),
     db: Session = Depends(get_db),
-    request: Request = None,
 ):
     """
     Exchange refresh token for new access token.
@@ -226,17 +251,38 @@ def refresh_token(
             }
         )
 
-        # Keep the same refresh token? Or rotate?
-        # For now, keep same refresh token to avoid complicatons with client storage
-        # Ideally, we should rotate refresh tokens too, but that requires updating DB
+        # REFRESH TOKEN ROTATION
+        # 1. Invalidate old session
+        db_session.is_active = False
+        db.commit()
+
+        # 2. Generate new refresh token
+        new_refresh_token = auth.create_refresh_token(
+            data={"sub": user.username, "sid": sid}
+        )
+
+        # 3. Create new session DB record
+        try:
+            AuthService.create_session(
+                db,
+                user.id,
+                new_refresh_token,
+                ip_address=_request_client_ip(request),
+                user_agent=request.headers.get("user-agent") if request else None,
+                device_info=db_session.device_info or sid,
+            )
+        except Exception as e:
+            logger.error(f"Failed to save rotated session: {e}")
 
         return {
             "access_token": access_token,
             "token_type": "bearer",
-            "refresh_token": refresh_token,  # Return same refresh token
+            "refresh_token": new_refresh_token,  # Return NEW refresh token
             "role": user.role,
             "username": user.username,
         }
+    except HTTPException:
+        raise
     except auth.JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -244,8 +290,8 @@ def refresh_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
     except Exception as e:
-        logger.error(f"Token refresh error: {e}")
-        return {"status": "error", "detail": str(e)}
+        logger.error(f"Token refresh error: {e}", exc_info=True)
+        raise e
 
 
 @router.get("/sessions")
@@ -270,10 +316,10 @@ def revoke_session(
 # --- 2FA Endpoints ---
 @router.post("/login/2fa", response_model=schemas.Token)
 def login_2fa(
+    request: Request,
     code: str = Form(...),
     token: str = Depends(oauth2_scheme),  # Temp token from first step
     db: Session = Depends(get_db),
-    request: Request = None,
 ):
     try:
         # Decode temp token
@@ -319,11 +365,11 @@ def login_2fa(
                 db,
                 user.id,
                 refresh_token,
-                ip_address=request.client.host if request else "unknown",
+                ip_address=_request_client_ip(request) or "unknown",
                 user_agent=request.headers.get("user-agent") if request else "unknown",
                 device_info="2FA Session",
             )
-        except:
+        except Exception:
             pass
 
         return {

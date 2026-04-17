@@ -47,7 +47,7 @@ def seed_inventory():
 
     # Get IDs
     wh_main = db.query(Warehouse).filter(Warehouse.name == "Main Warehouse").first()
-    wh_clinic = db.query(Warehouse).filter(Warehouse.name == "Clinic Cabinet 1").first()
+    db.query(Warehouse).filter(Warehouse.name == "Clinic Cabinet 1").first()
 
     # 2. Define Materials
     materials = [

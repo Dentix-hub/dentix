@@ -4,13 +4,14 @@ Router for Laboratory and Lab Order management
 """
 
 from fastapi import APIRouter, Depends, HTTPException
+from backend.core.response import success_response
 from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy import func
 from datetime import datetime
 
 from .. import models, schemas
 from ..cache import cache_response, invalidate_cache
-from .auth import get_current_user, get_db
+from .auth import get_db
 from backend.core.permissions import Permission, require_permission
 
 router = APIRouter()
@@ -40,15 +41,15 @@ def _get_cached_laboratories(db: Session, tenant_id: int):
 # ==================== Laboratory Endpoints ====================
 
 
-@router.get("/laboratories/", response_model=List[schemas.Laboratory])
+@router.get("/laboratories/")
 def get_laboratories(
-    db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ))
 ):
     """Get all laboratories for current tenant (Cached for 5 min)"""
-    return _get_cached_laboratories(db, current_user.tenant_id)
+    return success_response(_get_cached_laboratories(db, current_user.tenant_id))
 
 
-@router.post("/laboratories/", response_model=schemas.Laboratory)
+@router.post("/laboratories/")
 def create_laboratory(
     lab: schemas.LaboratoryCreate,
     db: Session = Depends(get_db),
@@ -61,14 +62,14 @@ def create_laboratory(
     db.refresh(db_lab)
     # Invalidate cache
     invalidate_cache("_get_cached_laboratories")
-    return db_lab
+    return success_response(db_lab)
 
 
-@router.get("/laboratories/{lab_id}", response_model=schemas.Laboratory)
+@router.get("/laboratories/{lab_id}")
 def get_laboratory(
     lab_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
 ):
     """Get a single laboratory by ID"""
     lab = (
@@ -81,15 +82,15 @@ def get_laboratory(
     )
     if not lab:
         raise HTTPException(status_code=404, detail="Laboratory not found")
-    return lab
+    return success_response(lab)
 
 
-@router.put("/laboratories/{lab_id}", response_model=schemas.Laboratory)
+@router.put("/laboratories/{lab_id}")
 def update_laboratory(
     lab_id: int,
     lab_update: schemas.LaboratoryUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     """Update a laboratory"""
     lab = (
@@ -110,7 +111,7 @@ def update_laboratory(
     db.commit()
     db.refresh(lab)
     invalidate_cache("_get_cached_laboratories")
-    return lab
+    return success_response(lab)
 
 
 @router.delete("/laboratories/{lab_id}")
@@ -134,18 +135,18 @@ def delete_laboratory(
     db.delete(lab)
     db.commit()
     invalidate_cache("_get_cached_laboratories")
-    return {"message": "Laboratory deleted successfully"}
+    return success_response(message="Laboratory deleted successfully")
 
 
 # ==================== Lab Order Endpoints ====================
 
 
-@router.get("/lab-orders/", response_model=List[schemas.LabOrder])
+@router.get("/lab-orders/")
 def get_lab_orders(
     laboratory_id: int = None,
     status: str = None,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
 ):
     """Get all lab orders for current tenant with optional filtering"""
     query = db.query(models.LabOrder).filter(
@@ -169,10 +170,10 @@ def get_lab_orders(
             order.laboratory.name if order.laboratory else None
         )
         result.append(order_dict)
-    return result
+    return success_response(result)
 
 
-@router.post("/lab-orders/", response_model=schemas.LabOrder)
+@router.post("/lab-orders/")
 def create_lab_order(
     order: schemas.LabOrderCreate,
     db: Session = Depends(get_db),
@@ -241,14 +242,14 @@ def create_lab_order(
     result = schemas.LabOrder.model_validate(db_order).model_dump()
     result["patient_name"] = patient.name
     result["laboratory_name"] = lab.name
-    return result
+    return success_response(result)
 
 
-@router.get("/lab-orders/{order_id}", response_model=schemas.LabOrder)
+@router.get("/lab-orders/{order_id}")
 def get_lab_order(
     order_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
 ):
     """Get a single lab order by ID"""
     order = (
@@ -265,15 +266,15 @@ def get_lab_order(
     result = schemas.LabOrder.model_validate(order).model_dump()
     result["patient_name"] = order.patient.name if order.patient else None
     result["laboratory_name"] = order.laboratory.name if order.laboratory else None
-    return result
+    return success_response(result)
 
 
-@router.put("/lab-orders/{order_id}", response_model=schemas.LabOrder)
+@router.put("/lab-orders/{order_id}")
 def update_lab_order(
     order_id: int,
     order_update: schemas.LabOrderUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     """Update a lab order and sync linked treatment"""
     order = (
@@ -348,7 +349,7 @@ def update_lab_order(
     result = schemas.LabOrder.model_validate(order).model_dump()
     result["patient_name"] = order.patient.name if order.patient else None
     result["laboratory_name"] = order.laboratory.name if order.laboratory else None
-    return result
+    return success_response(result)
 
 
 @router.delete("/lab-orders/{order_id}")
@@ -381,14 +382,14 @@ def delete_lab_order(
 
     db.delete(order)
     db.commit()
-    return {"message": "Lab order deleted successfully"}
+    return success_response(message="Lab order deleted successfully")
 
 
-@router.get("/patients/{patient_id}/lab_orders", response_model=List[schemas.LabOrder])
+@router.get("/patients/{patient_id}/lab_orders")
 def get_patient_lab_orders(
     patient_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
 ):
     """Get all lab orders for a specific patient"""
     # Verify patient exists and belongs to tenant
@@ -418,16 +419,14 @@ def get_patient_lab_orders(
             order.laboratory.name if order.laboratory else None
         )
         result.append(order_dict)
-    return result
+    return success_response(result)
 
 
 @router.get("/lab-orders/stats/summary")
 def get_lab_orders_stats(
-    db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.FINANCIAL_READ))
 ):
     """Get lab orders statistics"""
-    from sqlalchemy import func
-
     base_query = db.query(models.LabOrder).filter(
         models.LabOrder.tenant_id == current_user.tenant_id
     )
@@ -457,7 +456,7 @@ def get_lab_orders_stats(
         db.query(models.Laboratory)
         .filter(
             models.Laboratory.tenant_id == current_user.tenant_id,
-            models.Laboratory.is_active == True,
+            models.Laboratory.is_active,
         )
         .count()
     )
@@ -481,11 +480,9 @@ def get_lab_orders_stats(
 def get_lab_stats(
     lab_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """Get detailed statistics for a specific laboratory including balance"""
-    from sqlalchemy import func
-
     # Verify lab exists
     lab = (
         db.query(models.Laboratory)
@@ -557,7 +554,7 @@ def get_lab_stats(
     }
 
 
-@router.post("/laboratories/{lab_id}/payments", response_model=schemas.LabPayment)
+@router.post("/laboratories/{lab_id}/payments")
 def create_lab_payment(
     lab_id: int,
     payment: schemas.LabPaymentCreate,
@@ -586,14 +583,14 @@ def create_lab_payment(
     db.add(db_payment)
     db.commit()
     db.refresh(db_payment)
-    return db_payment
+    return success_response(db_payment)
 
 
-@router.get("/laboratories/{lab_id}/payments", response_model=List[schemas.LabPayment])
+@router.get("/laboratories/{lab_id}/payments")
 def get_lab_payments(
     lab_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """Get payment history for a laboratory"""
     payments = (
@@ -605,4 +602,4 @@ def get_lab_payments(
         .order_by(models.LabPayment.date.desc())
         .all()
     )
-    return payments
+    return success_response(payments)

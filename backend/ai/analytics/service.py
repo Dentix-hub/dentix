@@ -42,8 +42,8 @@ class AIAnalyticsService:
 
         # 3. Aggregations
         total_requests = query.count()
-        success_count = query.filter(models.AIUsageLog.success == True).count()
-        error_rate = 1 - (success_count / total_requests) if total_requests > 0 else 0
+        success_count = query.filter(models.AIUsageLog.success).count()
+        _error_rate = 1 - (success_count / total_requests) if total_requests > 0 else 0
 
         # 4. Cost Calculation (Token-based)
         # Assuming we track 'tokens_used' and potentially 'model_used' in future schema updates

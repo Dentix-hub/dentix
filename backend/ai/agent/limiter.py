@@ -4,7 +4,7 @@ Manages usage quotas per tenant/user.
 """
 
 import time
-from typing import Dict
+from typing import Dict, List
 from collections import defaultdict
 from ..config import QUOTA_LIMITS
 

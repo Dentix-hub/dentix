@@ -1,7 +1,10 @@
 from datetime import datetime, timedelta
+import logging
 from sqlalchemy.orm import Session
 from backend import models
 from fastapi import HTTPException
+
+logger = logging.getLogger(__name__)
 
 
 class SecurityService:
@@ -123,13 +126,11 @@ class SecurityService:
     @staticmethod
     def get_security_stats(db: Session):
         """Get overview stats for dashboard."""
-        print("DEBUG: Accessing Security Stats...")
+        logger.debug("Accessing Security Stats...")
         try:
-            print("DEBUG: Querying BlockedIP...")
             blocked_ips = db.query(models.BlockedIP).count()
-            print(f"DEBUG: BlockedIP Count: {blocked_ips}")
+            logger.debug("BlockedIP Count: %d", blocked_ips)
 
-            print("DEBUG: Querying LoginHistory...")
             recent_failures_rows = (
                 db.query(models.LoginHistory)
                 .filter(models.LoginHistory.status == "failed")
@@ -148,9 +149,8 @@ class SecurityService:
                 }
                 for row in recent_failures_rows
             ]
-            print(f"DEBUG: Recent Failures: {len(recent_failures)}")
+            logger.debug("Recent Failures: %d", len(recent_failures))
 
-            print("DEBUG: Querying Locked Users...")
             locked_user_rows = (
                 db.query(models.User)
                 .filter(models.User.account_locked_until > datetime.utcnow())
@@ -167,7 +167,7 @@ class SecurityService:
                 }
                 for user in locked_user_rows
             ]
-            print(f"DEBUG: Locked Users: {len(locked_users)}")
+            logger.debug("Locked Users: %d", len(locked_users))
 
             return {
                 "blocked_ips_count": blocked_ips,
@@ -175,8 +175,5 @@ class SecurityService:
                 "locked_users": locked_users,
             }
         except Exception as e:
-            print(f"CRITICAL ERROR in get_security_stats: {e}")
-            import traceback
-
-            traceback.print_exc()
+            logger.exception("CRITICAL ERROR in get_security_stats", exc_info=True)
             raise e

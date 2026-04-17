@@ -5,21 +5,7 @@ Centralizes magic strings and values for maintainability.
 """
 
 
-class ROLES:
-    """User role constants."""
 
-    SUPER_ADMIN = "super_admin"
-    ADMIN = "admin"
-    DOCTOR = "doctor"
-    MANAGER = "manager"
-    RECEPTIONIST = "receptionist"
-    ASSISTANT = "assistant"
-    NURSE = "nurse"
-
-    # Role groups
-    DOCTOR_ROLES = ["doctor", "admin", "super_admin"]
-    STAFF_ROLES = ["receptionist", "assistant", "nurse"]
-    ADMIN_ROLES = ["admin", "super_admin"]
 
 
 class MESSAGES:

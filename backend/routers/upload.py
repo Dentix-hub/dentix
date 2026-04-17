@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 import os
@@ -5,9 +6,12 @@ import shutil
 import uuid
 
 from .. import schemas, crud
-from .auth import get_current_user, get_db
+from .auth import get_db
+from backend.core.permissions import Permission, require_permission
 
 import cloudinary
+
+logger = logging.getLogger(__name__)
 import cloudinary.uploader
 
 # Cloudinary Configuration
@@ -30,7 +34,7 @@ def upload_file(
     file: UploadFile = File(...),
     note: str = Query(None),
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.PATIENT_UPDATE)),
 ):
     """
     Upload a file for a patient.
@@ -51,12 +55,12 @@ def upload_file(
                 file.file, folder="smart_clinic_uploads", resource_type="auto"
             )
             file_path_db = upload_result.get("secure_url")
-            print(f"☁️ Uploaded to Cloudinary: {file_path_db}")
+            logger.info("Uploaded to Cloudinary: %s", file_path_db)
         else:
             raise Exception("Cloudinary not configured")
 
     except Exception as e:
-        print(f"⚠️ Cloudinary failed/skipped: {e}. Falling back to local storage.")
+        logger.warning("Cloudinary failed/skipped: %s — falling back to local storage.", e)
 
         # 3. Fallback: Local Save
         file_ext = os.path.splitext(file.filename)[1]

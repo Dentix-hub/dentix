@@ -5,13 +5,15 @@ Handles appointment scheduling and management.
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import StaleDataError
 from typing import List
 import logging
 
 from .. import schemas, crud
-from .auth import get_current_user, get_db
+from .auth import get_db
 from backend.core.permissions import Permission, require_permission
 from backend.core.limiter import limiter
+from backend.core.response import success_response, StandardResponse
 from ..utils.audit_logger import log_admin_action
 
 logger = logging.getLogger("smart_clinic")
@@ -21,7 +23,7 @@ router = APIRouter(prefix="/appointments", tags=["Appointments"])
 
 @router.post(
     "/",
-    response_model=schemas.Appointment,
+    response_model=StandardResponse[schemas.Appointment],
     summary="Create appointment",
     description="Schedule a new appointment for a patient. Validates patient existence.",
 )
@@ -36,12 +38,12 @@ def create_appointment(
     patient = crud.get_patient(db, appointment.patient_id, current_user.tenant_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    return crud.create_appointment(db=db, appointment=appointment)
+    return success_response(data=crud.create_appointment(db=db, appointment=appointment), message="Appointment created successfully")
 
 
 @router.get(
     "/",
-    response_model=List[schemas.Appointment],
+    response_model=StandardResponse[List[schemas.Appointment]],
     summary="List appointments",
     description="Get all appointments for the current tenant. Doctors see only their own.",
 )
@@ -49,20 +51,25 @@ def read_appointments(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.APPOINTMENT_READ)),
 ):
     """Get all appointments for current tenant."""
     try:
         doctor_id = current_user.id if current_user.role == "doctor" else None
-        return crud.get_appointments(
+        results = crud.get_appointments(
             db, current_user.tenant_id, skip=skip, limit=limit, doctor_id=doctor_id
         )
+        return success_response(data=results, message="Appointments retrieved successfully")
     except Exception as e:
         logger.error(f"Failed to fetch appointments: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to retrieve appointments")
 
 
-@router.put("/{appointment_id}/status")
+@router.put(
+    "/{appointment_id}/status",
+    summary="Update appointment status",
+    description="Change appointment status (e.g. Scheduled → Completed/Cancelled). Requires APPOINTMENT_UPDATE permission.",
+)
 def update_appointment_status(
     appointment_id: int,
     status: str,
@@ -70,8 +77,6 @@ def update_appointment_status(
     current_user: schemas.User = Depends(require_permission(Permission.APPOINTMENT_UPDATE)),
 ):
     """Update appointment status."""
-    from sqlalchemy.orm.exc import StaleDataError
-
     log_admin_action(
         db=db,
         admin_user=current_user,
@@ -81,8 +86,12 @@ def update_appointment_status(
         details=f"Status changed to '{status}'",
     )
     try:
-        return crud.update_appointment_status(
+        crud.update_appointment_status(
             db, appointment_id, status, current_user.tenant_id
+        )
+        return success_response(
+            data={"appointment_id": appointment_id, "status": status},
+            message="Appointment status updated successfully",
         )
     except StaleDataError:
         db.rollback()
@@ -92,7 +101,11 @@ def update_appointment_status(
         )
 
 
-@router.delete("/{appointment_id}")
+@router.delete(
+    "/{appointment_id}",
+    summary="Delete appointment",
+    description="Delete an appointment. Logs the action for audit trail. Requires APPOINTMENT_CANCEL permission.",
+)
 def delete_appointment(
     appointment_id: int,
     db: Session = Depends(get_db),
@@ -107,4 +120,8 @@ def delete_appointment(
         entity_id=appointment_id,
         details=f"Deleted appointment #{appointment_id}",
     )
-    return crud.delete_appointment(db, appointment_id, current_user.tenant_id)
+    crud.delete_appointment(db, appointment_id, current_user.tenant_id)
+    return success_response(
+        data={"appointment_id": appointment_id},
+        message="Appointment deleted successfully",
+    )

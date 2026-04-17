@@ -54,7 +54,7 @@ class TestGovernanceRegression(unittest.IsolatedAsyncioTestCase):
             )
         except PermissionError:
             self.fail("Doctor should be allowed to create patient")
-        except:
+        except Exception:
             # Ignore other errors (DB mock)
             pass
 

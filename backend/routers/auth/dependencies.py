@@ -1,25 +1,49 @@
+import logging
+logger = logging.getLogger(__name__)
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from backend import schemas, crud, auth
 from backend.database import get_db
-from backend.constants import ROLES
+from backend.core.permissions import Role
 from datetime import datetime, timezone
 
 # OAuth Scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
-def validate_password(password: str) -> bool:
+import string
+import zxcvbn
+
+def validate_password(password: str) -> None:
     """
-    Validate password strength.
-    Requirements: min 6 chars, at least one letter AND one number.
+    Validate password strength using complex rules and zxcvbn scoring.
+    Raises HTTPException if validation fails.
     """
-    if len(password) < 6:
-        return False
-    has_letter = any(c.isalpha() for c in password)
-    has_number = any(c.isdigit() for c in password)
-    return has_letter and has_number
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="كلمة المرور يجب أن تتكون من 8 أحرف على الأقل")
+
+    has_upper = any(c.isupper() for c in password)
+    has_lower = any(c.islower() for c in password)
+    has_digit = any(c.isdigit() for c in password)
+    has_special = any(c in string.punctuation for c in password)
+
+    if not (has_upper and has_lower and has_digit and has_special):
+        raise HTTPException(
+            status_code=400,
+            detail="كلمة المرور يجب أن تحتوي على الأقل على حرف كبير، حرف صغير، رقم، ورمز خاص"
+        )
+
+    # ZXCVBN Score: 0 (weakest) to 4 (strongest)
+    result = zxcvbn.zxcvbn(password)
+    score = result.get('score', 0)
+    if score < 3:
+        feedback = result.get('feedback', {}).get('warning', "")
+        details = f"كلمة المرور ضعيفة: {feedback}" if feedback else "كلمة المرور ضعيفة جداً ويمكن تخمينها بسهولة"
+        raise HTTPException(
+            status_code=400,
+            detail=details
+        )
 
 
 def get_current_user(
@@ -33,17 +57,17 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        # print(f"DEBUG: Decoding token: {token[:10]}...")
+        # logger.info(f"DEBUG: Decoding token: {token[:10]}...")
         payload = auth.jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
-        # print(f"DEBUG: Payload decoded: {payload}")
+        # logger.info(f"DEBUG: Payload decoded: {payload}")
         username: str = payload.get("sub")
         tenant_id: int = payload.get("tenant_id")
         if username is None:
-            # print("DEBUG: Username is None")
+            # logger.info("DEBUG: Username is None")
             raise credentials_exception
         token_data = schemas.TokenData(username=username, tenant_id=tenant_id)
     except auth.JWTError as e:
-        # print(f"DEBUG: JWT Decode Error: {e}")
+        # logger.info(f"DEBUG: JWT Decode Error: {e}")
         # DEBUG: Add server time and token exp to error details
         try:
             # Decode without verification to get claims
@@ -66,7 +90,7 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     except Exception as e:
-        # print(f"DEBUG: Unexpected Auth Error: {e}")
+        # logger.info(f"DEBUG: Unexpected Auth Error: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Auth Error: {str(e)}",
@@ -76,7 +100,7 @@ def get_current_user(
     # Validated User
     user = crud.get_user(db, username=token_data.username)
     if user is None:
-        # print(f"DEBUG: User not found in DB for username: {token_data.username}")
+        # logger.info(f"DEBUG: User not found in DB for username: {token_data.username}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"User not found: {token_data.username}",
@@ -90,7 +114,7 @@ def get_current_user(
 
     if token_sid and active_session_val:
         if token_sid != active_session_val:
-            # print(f"DEBUG: Session Mismatch. Token: {token_sid}, DB: {active_session_val}")
+            # logger.info(f"DEBUG: Session Mismatch. Token: {token_sid}, DB: {active_session_val}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="تم تسجيل الدخول من جهاز آخر. يرجى إعادة تسجيل الدخول.",
@@ -98,7 +122,7 @@ def get_current_user(
             )
 
     # Check Tenant Subscription
-    if user.tenant and user.role != ROLES.SUPER_ADMIN:
+    if user.tenant and user.role != Role.SUPER_ADMIN.value:
         if not user.tenant.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -112,5 +136,14 @@ def get_current_user(
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Subscription expired"
             )
+
+    # SECURE: Inject tenant explicitly into Request Context for automatic SQLAlchemy scoping
+    from backend.core.tenant_scope import set_current_tenant, set_super_admin_bypass
+
+    if user.role == Role.SUPER_ADMIN.value:
+        set_super_admin_bypass(True)
+    elif user.tenant_id:
+        set_current_tenant(user.tenant_id)
+        set_super_admin_bypass(False)
 
     return user

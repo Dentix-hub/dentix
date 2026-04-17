@@ -1,7 +1,10 @@
+import logging
 import os
 import json
 from typing import Dict, Any, List
 from groq import Groq
+
+logger = logging.getLogger(__name__)
 
 
 class ScribeService:
@@ -56,5 +59,5 @@ RULES:
             return parsed.get("procedures", [])
 
         except Exception as e:
-            print(f"Scribe LLM Error: {e}")
+            logger.error("Scribe LLM Error: %s", e, exc_info=True)
             raise e
