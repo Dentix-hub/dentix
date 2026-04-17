@@ -42,11 +42,11 @@ jobs:
           pip install pytest pytest-cov bandit safety
 
       - name: Run database migrations
-        working-directory: backend
+        working-directory: .
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
           SECRET_KEY: test-secret-key-for-ci-only
-        run: alembic upgrade head
+        run: python backend/scripts/init_db.py
 
       - name: Run tests with coverage
         env:
