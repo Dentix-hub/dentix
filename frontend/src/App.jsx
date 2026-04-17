@@ -38,6 +38,7 @@ const Terms = lazy(() => import('./pages/Terms'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const SmartDashboard = lazy(() => import('@/features/analytics/SmartDashboard'));
+const Inventory = lazy(() => import('./pages/Inventory'));
 // New Admin Pages
 const AdminOverview = lazy(() => import('./pages/admin/Overview'));
 const AdminTenants = lazy(() => import('./pages/admin/TenantsPage'));
