@@ -45,7 +45,7 @@ export const login = (username, password) => {
     const formData = new FormData();
     formData.append('username', username);
     formData.append('password', password);
-    return api.post('/api/v1/token', formData);
+    return api.post('/api/v1/auth/token', formData);
 };
 
 export const registerClinic = (data) => api.post('/api/v1/auth/register_clinic', data);
