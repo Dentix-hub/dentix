@@ -9,8 +9,8 @@ import subprocess
 
 # Configuration
 REPOS = {
-    "1": {"name": "Staging", "url": "https://huggingface.co/spaces/SmartClinic/smart-clinic-staging", "dir": ".hf-deploy-staging"},
-    "2": {"name": "Production", "url": "https://huggingface.co/spaces/SmartClinic/smart-clinic-v2", "dir": ".hf-deploy-production"},
+    "1": {"name": "Staging", "url": "https://huggingface.co/spaces/dentix/dentix-staging", "dir": ".hf-deploy-staging"},
+    "2": {"name": "Production", "url": "https://huggingface.co/spaces/dentix/dentix", "dir": ".hf-deploy-production"},
 }
 
 IGNORE_PATTERNS = shutil.ignore_patterns(
@@ -42,7 +42,7 @@ def clear_screen():
 def main():
     while True:
         clear_screen()
-        print("🤖 Smart Clinic - Git Deployment Manager")
+        print("🤖 Dentix - Git Deployment Manager")
         print("========================================")
         print("Use this when HF API (Standard/Clean Deploy) is failing.")
         print("\nSelect Target Environment:")

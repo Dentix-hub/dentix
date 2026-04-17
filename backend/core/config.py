@@ -14,9 +14,6 @@ def get_cors_origins():
         "http://localhost:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
-        "https://smart-dental-clinic-kappa.vercel.app",
-        "https://smartclinic-v2plus.vercel.app",
-        "https://smartclinic-v2plus-git-ff1c75-eslamemara1312-gmailcoms-projects.vercel.app",
     ]
 
 

@@ -1,7 +1,7 @@
-# برومت شامل لتطبيق التحسينات على Smart Clinic Backend
+# برومت شامل لتطبيق التحسينات على Dentix Backend
 
 ## 🎯 نظرة عامة
-هذا البرومت يحتوي على تعليمات تفصيلية لتطبيق جميع التحسينات المقترحة على مشروع Smart Clinic Backend بطريقة منهجية ومنظمة.
+هذا البرومت يحتوي على تعليمات تفصيلية لتطبيق جميع التحسينات المقترحة على مشروع Dentix Backend بطريقة منهجية ومنظمة.
 
 ---
 
@@ -886,7 +886,7 @@ def client(db_session):
 @pytest.fixture
 def test_tenant(db_session):
     tenant = Tenant(
-        name="Test Clinic",
+        name="Dentix Clinic",
         subdomain="test",
         is_active=True
     )
@@ -1493,13 +1493,13 @@ jobs:
           context: .
           file: ./backend/Dockerfile
           push: false
-          tags: smart-clinic-backend:${{ github.sha }}
+          tags: dentix-backend:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       
       - name: Test Docker image
         run: |
-          docker run --rm smart-clinic-backend:${{ github.sha }} python -c "import backend; print('OK')"
+          docker run --rm dentix-backend:${{ github.sha }} python -c "import backend; print('OK')"
 ```
 
 ## B. Continuous Deployment (.github/workflows/cd.yml)
@@ -1520,7 +1520,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     environment:
       name: staging
-      url: https://staging.smartclinic.com
+      url: https://dentix-dentix-staging.hf.space
     
     steps:
       - uses: actions/checkout@v3
@@ -1539,7 +1539,7 @@ jobs:
       - name: Build, tag, and push image to ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: smart-clinic-backend
+          ECR_REPOSITORY: dentix-backend
           IMAGE_TAG: staging-${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f backend/Dockerfile .
@@ -1548,19 +1548,19 @@ jobs:
       - name: Deploy to ECS
         run: |
           aws ecs update-service \
-            --cluster smart-clinic-staging \
+            --cluster dentix-staging \
             --service backend \
             --force-new-deployment
       
       - name: Wait for deployment
         run: |
           aws ecs wait services-stable \
-            --cluster smart-clinic-staging \
+            --cluster dentix-staging \
             --services backend
       
       - name: Run smoke tests
         run: |
-          curl -f https://staging.smartclinic.com/health || exit 1
+          curl -f https://dentix-dentix-staging.hf.space/health || exit 1
       
       - name: Notify Slack
         uses: 8398a7/action-slack@v3
@@ -1576,7 +1576,7 @@ jobs:
     needs: [deploy-staging]
     environment:
       name: production
-      url: https://smartclinic.com
+      url: https://dentix-dentix.hf.space
     
     steps:
       - uses: actions/checkout@v3
@@ -1598,7 +1598,7 @@ jobs:
       
       - name: Run production smoke tests
         run: |
-          curl -f https://smartclinic.com/health || exit 1
+          curl -f https://dentix-dentix.hf.space/health || exit 1
       
       - name: Rollback on failure
         if: failure()

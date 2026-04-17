@@ -1,6 +1,6 @@
 # 🧠 AI GOVERNANCE RULES
 
-> **System**: SmartClinic Backend AI Agent
+> **System**: Dentix Backend AI Agent
 > **Priority**: CRITICAL
 
 ## 1️⃣ CORE GOVERNANCE RULES (Non-Negotiable)

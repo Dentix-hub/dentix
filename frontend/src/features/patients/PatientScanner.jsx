@@ -134,8 +134,8 @@ export default function PatientScanner({ onScanComplete, onClose }) {
         const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         // Filter out clinic headers to reduce noise
         const cleanLines = lines.filter(l =>
-            !l.includes('إسلام عمارة') &&
-            !l.includes('Eslam Emara') &&
+            !l.includes('عيادة دنتيكس') &&
+            !l.includes('Dentix Clinic') &&
             !l.includes('عيادة') &&
             !l.includes('دكتور') &&
             !l.includes('مركز')

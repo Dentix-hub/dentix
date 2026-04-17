@@ -4,7 +4,7 @@ import requests
 def debug_login():
     url = "http://localhost:8000/token"
     # Try the credentials we expect
-    payload = {"username": "eslamemara1312@gmail.com", "password": "ESLAMomara11##"}
+    payload = {"username": "smartdentalclinicapp@gmail.com", "password": "AdminPassword123!"}
 
     try:
         print(f"Attempting login to {url}...")

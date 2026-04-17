@@ -8,7 +8,7 @@ from huggingface_hub import HfApi, login
 from pathlib import Path
 
 # Configuration
-REPO_ID = "SmartClinic/smart-clinic-staging"
+REPO_ID = "Dentix/smart-clinic-staging"
     
 def get_token():
     token = os.getenv("HF_TOKEN")

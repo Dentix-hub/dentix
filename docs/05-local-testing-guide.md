@@ -77,7 +77,7 @@ SMTP_HOST=smtp.mailtrap.io
 SMTP_PORT=2525
 SMTP_USER=your-mailtrap-user
 SMTP_PASSWORD=your-mailtrap-password
-SMTP_FROM=test@smartclinic.local
+SMTP_FROM=test@dentix.local
 
 # File Storage
 UPLOAD_DIR=./uploads
@@ -800,7 +800,7 @@ pip install locust
 from locust import HttpUser, task, between
 import random
 
-class SmartClinicUser(HttpUser):
+class DentixUser(HttpUser):
     wait_time = between(1, 3)
     
     def on_start(self):

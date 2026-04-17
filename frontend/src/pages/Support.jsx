@@ -11,7 +11,7 @@ export default function Support() {
     const [supportInfo, setSupportInfo] = useState({
         phone: '+20 120 130 1415',
         whatsapp: '201201301415',
-        email: 'support@smartclinic.com',
+        email: 'support@smartdentalclinicapp.com',
         working_hours: '9:00 AM - 10:00 PM'
     });
     useEffect(() => {
@@ -23,7 +23,7 @@ export default function Support() {
                     setSupportInfo({
                         phone: data.support_phone || '+20 120 130 1415',
                         whatsapp: data.support_whatsapp || '201201301415',
-                        email: data.support_email || 'support@smartclinic.com',
+                        email: data.support_email || 'support@smartdentalclinicapp.com',
                         working_hours: data.support_working_hours || (i18n.language === 'ar' ? '9:00 ص - 10:00 م' : '9:00 AM - 10:00 PM')
                     });
                 }

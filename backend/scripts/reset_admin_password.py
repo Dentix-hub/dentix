@@ -14,12 +14,12 @@ def reset_passwords():
         print("Resetting admin passwords...")
 
         # 1. Reset Super Admin (Email)
-        username_email = "eslamemara1312@gmail.com"
+        username_email = "smartdentalclinicapp@gmail.com"
         user = (
             db.query(models.User).filter(models.User.username == username_email).first()
         )
         if user:
-            new_hash = auth.get_password_hash("ESLAMomara11##")
+            new_hash = auth.get_password_hash("AdminPassword123!")
             user.hashed_password = new_hash
             db.commit()
             print(f"Updated password for {username_email} (Hash: {new_hash[:10]}...)")
@@ -27,12 +27,12 @@ def reset_passwords():
             print(f"User {username_email} not found.")
 
         # 2. Reset Default Admin (username)
-        username_admin = "eslam"
+        username_admin = "admin"
         user_admin = (
             db.query(models.User).filter(models.User.username == username_admin).first()
         )
         if user_admin:
-            new_hash_admin = auth.get_password_hash("1111")
+            new_hash_admin = auth.get_password_hash("admin1111")
             user_admin.hashed_password = new_hash_admin
             db.commit()
             print(
