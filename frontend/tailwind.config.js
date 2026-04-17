@@ -13,13 +13,24 @@ export default {
             },
             colors: {
                 primary: {
-                    DEFAULT: '#0ea5e9',
-                    50: '#f0f9ff',
-                    100: '#e0f2fe',
-                    500: '#0ea5e9',
-                    600: '#0284c7',
-                    700: '#0369a1',
+                    DEFAULT: '#0891B2',
+                    50: '#F0FDFA',
+                    100: '#E0F2FE',
+                    500: '#0891B2',
+                    600: '#0E7490',
+                    700: '#155E75',
                 },
+                medical: {
+                    light: '#E0F2FE',
+                    DEFAULT: '#0891B2',
+                    dark: '#155E75',
+                },
+                health: {
+                    light: '#DCFCE7',
+                    DEFAULT: '#22C55E',
+                    dark: '#166534',
+                },
+                'mint-tint': '#F0FDFA',
                 // Semantic Colors
                 background: "var(--background)",
                 surface: "var(--surface)",

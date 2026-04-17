@@ -37,8 +37,6 @@ const UserProfile = lazy(() => import('./pages/UserProfile'));
 const Terms = lazy(() => import('./pages/Terms'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const NotFound = lazy(() => import('./pages/NotFound'));
-const DentalChartPrototype = lazy(() => import('./pages/DentalChartPrototype'));
-const Inventory = lazy(() => import('./pages/Inventory'));
 const SmartDashboard = lazy(() => import('@/features/analytics/SmartDashboard'));
 // New Admin Pages
 const AdminOverview = lazy(() => import('./pages/admin/Overview'));
@@ -79,6 +77,8 @@ function AppRoutes() {
                 <BackgroundWrapper />
                 <Suspense fallback={<LoadingSpinner />}>
                     <Routes>
+                        <Route path="/" element={<Login isDarkMode={darkMode} toggleDarkMode={toggleDarkMode} />} />
+                        <Route path="/login" element={<Login isDarkMode={darkMode} toggleDarkMode={toggleDarkMode} />} />
                         <Route path="/register" element={<RegisterClinic isDarkMode={darkMode} />} />
                         <Route path="/forgot-password" element={<ForgotPassword />} />
                         <Route path="/reset-password" element={<ResetPassword />} />
@@ -99,8 +99,6 @@ function AppRoutes() {
                         {/* Print Routes (No Layout) */}
                         <Route path="/print/invoice/:id" element={<PrintInvoice />} />
                         <Route path="/print/rx/:id" element={<PrintRx />} />
-                        {/* Prototype Route - Temporary */}
-                        <Route path="/dental-prototype" element={<DentalChartPrototype />} />
                         {/* App Routes */}
                         <Route path="*" element={
                             <Layout>
