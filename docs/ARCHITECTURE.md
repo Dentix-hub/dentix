@@ -1,184 +1,41 @@
-# 🏗️ Smart Clinic Architecture
+# Dentix — Architecture Guide
 
-> **Document Version**: 1.0  
-> **Last Updated**: January 2026
-
----
-
-## Overview
-
-Smart Clinic is a multi-tenant SaaS application for clinic management with AI-powered features.
+## Layer Map
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Frontend (React)                      │
-│                    Deployed on Vercel                        │
-└─────────────────────────────┬───────────────────────────────┘
-                              │ HTTPS
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Backend (FastAPI)                         │
-│                 Deployed on HuggingFace                      │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
-│  │   Routers   │  │  Services   │  │   AI Module         │ │
-│  │  (30+ APIs) │  │  (Business) │  │  (Groq + RAG)       │ │
-│  └──────┬──────┘  └──────┬──────┘  └──────────┬──────────┘ │
-│         │                │                     │            │
-│         └────────────────┼─────────────────────┘            │
-│                          │                                  │
-│  ┌───────────────────────┴───────────────────────────────┐ │
-│  │                    CRUD Layer                          │ │
-│  │              (SQLAlchemy Models)                       │ │
-│  └───────────────────────┬───────────────────────────────┘ │
-└──────────────────────────┼──────────────────────────────────┘
-                           │
-           ┌───────────────┼───────────────┐
-           ▼               ▼               ▼
-      ┌─────────┐    ┌─────────┐    ┌─────────┐
-      │PostgreSQL│   │  Redis  │    │ChromaDB │
-      │ (Data)   │   │ (Cache) │    │ (RAG)   │
-      └─────────┘    └─────────┘    └─────────┘
+HTTP Request
+    ↓
+FastAPI Router (routers/)          ← validation only, ≤15 lines/endpoint
+    ↓
+Service Layer (services/)          ← all business logic
+    ↓
+CRUD Layer (crud/)                 ← raw DB operations
+    ↓
+SQLAlchemy Models (models/)        ← schema + relationships
+    ↓
+PostgreSQL Database
 ```
 
----
+## Multi-Tenancy Strategy
 
-## Layer Architecture
+Every request carries a `tenant_id` (set by `TenantMiddleware`).
+The `tenant_scope.py` event listener auto-injects
+`.filter(Model.tenant_id == current_tenant_id)` on every ORM query.
 
-### 1. Routers Layer (`backend/routers/`)
-- HTTP endpoints definition
-- Request validation
-- Response formatting
-- **No business logic**
+Super Admin bypasses this via `set_super_admin_bypass(True)`.
 
-### 2. Services Layer (`backend/services/`)
-- Business logic
-- Complex operations
-- Cross-module coordination
+## RBAC Matrix
 
-### 3. CRUD Layer (`backend/crud/`)
-- Database operations
-- Simple queries
+| Permission | admin | manager | doctor | receptionist | nurse | accountant | assistant |
+|-----------|:-----:|:-------:|:------:|:------------:|:-----:|:----------:|:--------:|
+| PATIENT_CREATE | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| CLINICAL_WRITE | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ |
+| FINANCIAL_WRITE | ✅ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
+| SYSTEM_CONFIG | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
-### 4. Models Layer (`backend/models/`)
-- SQLAlchemy ORM models
-- Database schema
+## Key Design Decisions
 
----
-
-## Key Modules
-
-| Module | Purpose |
-|--------|---------|
-| `auth` | Authentication, JWT, 2FA |
-| `patients` | Patient management |
-| `appointments` | Scheduling |
-| `payments` | Billing, invoices |
-| `ai` | AI assistant, RAG |
-| `admin` | Clinic administration |
-| `system_admin` | Super admin functions |
-
----
-
-## Multi-Tenancy
-
-```
-┌─────────────────────────────────────────┐
-│              System Admin               │
-│         (Cross-tenant access)           │
-└─────────────────────────────────────────┘
-                    │
-    ┌───────────────┼───────────────┐
-    ▼               ▼               ▼
-┌─────────┐   ┌─────────┐   ┌─────────┐
-│Clinic A │   │Clinic B │   │Clinic C │
-│(Tenant) │   │(Tenant) │   │(Tenant) │
-├─────────┤   ├─────────┤   ├─────────┤
-│ Users   │   │ Users   │   │ Users   │
-│Patients │   │Patients │   │Patients │
-│  Data   │   │  Data   │   │  Data   │
-└─────────┘   └─────────┘   └─────────┘
-```
-
-- Each tenant has isolated data
-- `tenant_id` on all models
-- Automatic filtering via middleware
-
----
-
-## Security Layers
-
-1. **Authentication**: JWT tokens with refresh
-2. **Authorization**: RBAC (6 roles)
-3. **Encryption**: Fernet for sensitive data
-4. **Rate Limiting**: SlowAPI
-5. **Security Headers**: HSTS, CSP, XSS protection
-
----
-
-## AI Module
-
-```
-User Message
-    │
-    ▼
-┌─────────────────┐
-│ Intent Detection │
-└────────┬────────┘
-         │
-    ┌────┴────┐
-    ▼         ▼
-┌───────┐ ┌───────┐
-│ Tools │ │  RAG  │
-│Execute│ │Search │
-└───────┘ └───────┘
-    │         │
-    └────┬────┘
-         ▼
-┌─────────────────┐
-│ Response Gen    │
-└─────────────────┘
-```
-
-**AI Governance Rules:**
-- Read-only by default
-- Confirmation for write actions
-- Intent confidence threshold
-- Audit logging
-
----
-
-## Technology Stack
-
-| Layer | Technology |
-|-------|------------|
-| Frontend | React 18, Vite, TailwindCSS |
-| Backend | FastAPI, Python 3.11 |
-| Database | PostgreSQL |
-| Cache | Redis |
-| AI | Groq API, ChromaDB |
-| Auth | JWT (python-jose) |
-| Monitoring | Prometheus |
-
----
-
-## File Structure
-
-```
-smart-clinic/
-├── backend/
-│   ├── main.py           # App entry
-│   ├── database.py       # DB config
-│   ├── models/           # SQLAlchemy models
-│   ├── routers/          # API endpoints
-│   ├── services/         # Business logic
-│   ├── core/             # Config, security
-│   └── middleware/       # Custom middleware
-├── frontend/
-│   ├── src/
-│   │   ├── api/          # API client
-│   │   ├── features/     # Feature modules
-│   │   ├── shared/       # Shared components
-│   │   └── pages/        # Route pages
-└── docs/                  # Documentation
-```
+- **async-first**: FastAPI routes are sync wrappers where needed; services are sync SQLAlchemy
+- **tenant_scope**: uses SQLAlchemy `do_orm_execute` event — auto, not manual
+- **auth.py**: canonical JWT utilities — used by tests, scripts, and routers
+- **AIUsageLog**: type alias for AILog in models/__init__.py — legacy code works unchanged

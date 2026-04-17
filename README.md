@@ -1,5 +1,5 @@
 ---
-title: Smart Clinic V2
+title: Dentix — Smart Clinic Management
 emoji: 🏥
 colorFrom: blue
 colorTo: green
@@ -8,165 +8,192 @@ pinned: false
 app_port: 7860
 ---
 
-# Smart Clinic Management System
+# Dentix — Smart Clinic Management System
 
-A comprehensive, open-source clinic management solution built with modern technologies for scalability and performance.
-
-## 🚀 Features
-
-- **Multi-tenant Architecture**: Isolated data for each clinic
-- **Role-based Access Control**: Super admin, admin, doctor, receptionist roles
-- **AI-powered Assistant**: Natural language processing for common tasks
-- **Real-time Dashboard**: Live analytics and clinic metrics
-- **Patient Management**: Complete patient records and treatment history
-- **Appointment Scheduling**: Smart booking and calendar integration
-- **Financial Tracking**: Revenue, expenses, and payment tracking
-- **Security First**: Enterprise-grade security and compliance
+A comprehensive, multi-tenant dental clinic management platform with AI-powered features, built for scalability and security.
 
 ## 🛠 Tech Stack
 
-### Backend
-- **Framework**: FastAPI (Python)
-- **Database**: PostgreSQL with SQLAlchemy ORM
-- **Authentication**: JWT with refresh tokens
-- **AI Integration**: Groq API for natural language processing
-- **Caching**: Redis for performance optimization
-- **Background Jobs**: Celery for async tasks
-
-### Frontend
-- **Framework**: React 18 with Vite
-- **Styling**: Tailwind CSS with custom dark/light themes
-- **State Management**: React Context API
-- **Routing**: React Router v6
-- **UI Components**: Custom-built reusable components
+| Layer | Technology |
+|-------|------------|
+| **Backend** | FastAPI (Python 3.11+), SQLAlchemy ORM, Alembic |
+| **Frontend** | React 18 + Vite, TailwindCSS |
+| **Database** | PostgreSQL (Neon Serverless) |
+| **Cache** | Redis (optional, falls back to in-memory) |
+| **AI** | Groq API (LLaMA 3), ChromaDB (RAG) |
+| **Auth** | JWT with refresh token rotation |
+| **Monitoring** | Sentry, Prometheus metrics |
+| **CI/CD** | GitHub Actions |
 
 ## 🏗 Architecture
 
 ```
-backend/
-├── ai/                 # AI agent and tools
-├── core/              # Core utilities and configurations
-├── crud/              # Database operations
-├── middleware/        # Request processing middleware
-├── models/            # Database models
-├── routers/           # API endpoints
-├── services/          # Business logic
-├── tasks/             # Background job definitions
-├── tests/             # Unit and integration tests
-└── utils/             # Helper functions
-
-frontend/
-├── src/
-│   ├── components/    # Reusable UI components
-│   ├── pages/         # Route-specific components
-│   ├── hooks/         # Custom React hooks
-│   ├── utils/         # Utility functions
-│   ├── api/           # API client and requests
-│   └── contexts/      # React context providers
+Request → Middleware → Router → Service → CRUD → Database
+                        ↓
+                    RBAC Check
+                  (permissions.py)
 ```
+
+### Layer Responsibilities
+
+| Layer | Path | Purpose |
+|-------|------|---------|
+| **Routers** | `backend/routers/` | HTTP endpoints, request validation, response formatting |
+| **Services** | `backend/services/` | Business logic, cross-module coordination |
+| **CRUD** | `backend/crud/` | Database operations, simple queries |
+| **Models** | `backend/models/` | SQLAlchemy ORM definitions |
+| **Schemas** | `backend/schemas/` | Pydantic request/response models |
+| **Core** | `backend/core/` | Config, security, permissions, caching |
+
+> Full architecture documentation: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+
+## 🚀 Features
+
+- **Multi-tenant Architecture**: Complete data isolation per clinic via `tenant_scope.py`
+- **RBAC (10 Roles)**: Super Admin, Admin, Manager, Doctor, Receptionist, Nurse, Accountant, Assistant, Patient, Guest
+- **AI-powered Assistant**: Natural language clinical queries via Groq + tool execution
+- **Patient Management**: Full records, dental charts, attachments, prescriptions
+- **Appointment Scheduling**: Conflict detection, doctor-based filtering
+- **Treatment Tracking**: Price snapshots, automatic stock deduction
+- **Financial Module**: Payments, expenses, salaries, invoices, insurance pricing
+- **Inventory System**: Smart material learning, batch tracking, stock movements
+- **Laboratory Management**: Order lifecycle (create → send → receive → complete)
+- **Insurance & Pricing**: Multiple price lists, copay calculations, coverage limits
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.9+
+- Python 3.11+
 - Node.js 18+
-- PostgreSQL
-- Redis (for caching)
+- PostgreSQL (or Neon DB URL)
 
-### Installation
-
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd smart-clinic
-```
-
-2. Backend setup:
+### Backend Setup
 ```bash
 cd backend
 pip install -r requirements.txt
 
-# Create environment file
+# Configure environment
 cp .env.example .env
-# Edit .env with your configuration
+# Edit .env with your DATABASE_URL, SECRET_KEY, etc.
 
 # Run database migrations
 python -m alembic upgrade head
 
 # Start the server
-uvicorn main:app --reload
+uvicorn backend.main:app --reload --port 7860
 ```
 
-3. Frontend setup:
+### Frontend Setup
 ```bash
 cd frontend
 npm install
 
-# Create environment file
+# Configure environment
 cp .env.example .env
-# Edit .env with your configuration
 
 # Start development server
 npm run dev
 ```
 
+### Environment Variables
+
+See `.env.example` for the complete list. Key variables:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | ✅ | PostgreSQL connection string |
+| `SECRET_KEY` | ✅ | JWT signing key |
+| `GROQ_API_KEY` | ❌ | AI assistant (optional) |
+| `REDIS_URL` | ❌ | Cache (falls back to memory) |
+| `FRONTEND_URL` | ✅ | CORS origin |
+| `CLOUDINARY_URL` | ❌ | File uploads |
+
 ## 🛡️ Security
 
-- JWT authentication with refresh token rotation
-- Role-based access control
-- Input validation and sanitization
-- SQL injection prevention
-- XSS protection
-- Rate limiting
-- Audit logging
+- **Authentication**: JWT with refresh token rotation + account lockout
+- **Authorization**: Granular RBAC with 20+ permissions
+- **Multi-tenancy**: Automatic query filtering via SQLAlchemy event listener
+- **Password Policy**: zxcvbn strength check + complexity requirements
+- **Rate Limiting**: SlowAPI on sensitive endpoints
+- **Audit Logging**: All write operations logged
+- **Input Validation**: Pydantic V2 schemas on all endpoints
 
 ## 🧪 Testing
 
-### Backend Testing
-The backend uses **pytest**.
+### Backend
 ```bash
 cd backend
+
 # Run all tests
-pytest
-# Run detailed tests with coverage
-pytest --cov=backend
+python -m pytest
+
+# Run with coverage
+python -m pytest --cov=backend --cov-report=html
+
+# Run specific test suite
+python -m pytest tests/test_rbac_complete.py -v
+python -m pytest tests/services/ -v
 ```
 
-### Frontend Testing
-The frontend uses **Vitest** and **React Testing Library**.
-```bash
-cd frontend
-# Run tests
-npm test
-# Run tests with UI
-npm run test:ui
+### Test Suites
+
+| Suite | File | Coverage |
+|-------|------|----------|
+| RBAC (112 scenarios) | `test_rbac_complete.py` | Permissions matrix |
+| Tenant Isolation | `test_tenant_isolation_complete.py` | Cross-tenant leaks |
+| Tenant Scope | `test_tenant_scope_verification.py` | Model audit |
+| Treatment Service | `tests/services/test_treatment_service.py` | Business logic |
+| Appointment Service | `tests/services/test_appointment_service.py` | Scheduling |
+| Insurance Pricing | `tests/services/test_pricing_insurance.py` | Copay/coverage |
+
+### CI Pipeline
+On every push to `main`:
+- `pytest` with coverage threshold (70%)
+- `bandit` security scan (no HIGH findings)
+- `safety` dependency check
+
+## 📖 API Documentation
+
+- **Interactive Docs**: `http://localhost:7860/docs` (Swagger UI)
+- **ReDoc**: `http://localhost:7860/redoc`
+- **OpenAPI Spec**: [`docs/api-spec.json`](docs/api-spec.json)
+
+## 📁 Project Structure
+
 ```
-
-### CI/CD Pipeline
-- **Validation**: On every PR/Push to `main`.
-- **Jobs**:
-    - `backend-tests`: Postgres Service + Pytest.
-    - `frontend-tests`: Node.js + Vitest.
-    - `security-scan`: Local security audit.
-- **Deployment**: Automatic deployment to production only if checks pass.
-
-## 🛡️ Monitoring & Security
-- **Error Tracking**: Integrated with **Sentry** (Backend & Frontend).
-- **Health Checks**:
-    - Basic: `/health` (Liveness)
-    - Detailed: `/health/detailed` (DB, Redis, Disk, AI status)
-- **Security**:
-    - Rate Limiting (200 req/min global).
-    - Strict CORS Policy.
-    - Automated Vulnerability Scanning.
+dentix/
+├── backend/
+│   ├── main.py              # FastAPI app entry point
+│   ├── database.py          # DB engine & session
+│   ├── ai/                  # AI agent, tools, RAG
+│   ├── core/                # Config, permissions, cache, response
+│   ├── crud/                # Database operations
+│   ├── middleware/           # Auth, logging, tenant
+│   ├── models/              # SQLAlchemy ORM models
+│   ├── routers/             # API endpoints (30+ routers)
+│   ├── schemas/             # Pydantic validation models
+│   ├── services/            # Business logic layer (25+ services)
+│   ├── tasks/               # Background jobs
+│   ├── tests/               # pytest test suites
+│   └── utils/               # Helpers (audit, encryption)
+├── frontend/
+│   ├── src/
+│   │   ├── api/             # API client (Axios)
+│   │   ├── components/      # Reusable UI
+│   │   ├── contexts/        # React context (Auth, Theme)
+│   │   ├── features/        # Feature modules
+│   │   ├── hooks/           # Custom hooks
+│   │   ├── pages/           # Route pages
+│   │   └── shared/          # Shared UI components
+│   └── vite.config.js
+├── docs/                    # Architecture & API docs
+├── .github/workflows/       # CI pipeline
+└── .env.example             # Environment template
+```
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please read our contributing guidelines before submitting pull requests.
+This project is licensed under the MIT License.
 
 ## 📞 Support
 
