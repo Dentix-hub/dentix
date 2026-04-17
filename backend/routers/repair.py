@@ -1,13 +1,24 @@
-from fastapi import APIRouter, Depends
+import logging
+from fastapi import APIRouter, Depends, HTTPException
+from ..core.response import success_response, error_response
+from sqlalchemy import text, inspect
 from sqlalchemy.orm import Session
-from .. import database
+from .. import database, schemas, crud, models, auth
 from ..core import migrations
+from .auth.dependencies import validate_password, get_current_user, get_db
+from ..core.permissions import Permission, require_permission
+from ..services.auth_service import AuthService
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/repair", tags=["Repair"])
 
 
 @router.get("/schema")
-def repair_schema_verbose():
+def repair_schema_verbose(
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+):
+    if current_user.role != "super_admin":
+        raise HTTPException(status_code=403, detail="Super Admin only")
     """Manually trigger schema migration with verbose output."""
     logs = []
 
@@ -15,8 +26,6 @@ def repair_schema_verbose():
         logs.append(str(msg))
 
     try:
-        from sqlalchemy import text, inspect
-
         inspector = inspect(database.engine)
 
         schema_changes = []
@@ -24,7 +33,7 @@ def repair_schema_verbose():
         # 1. Inspect Users Table
         columns = [c["name"] for c in inspector.get_columns("users")]
         log(f"Current 'users' columns: {columns}")
-        print(f"[REPAIR] Current 'users' columns: {columns}")
+        logger.info("[REPAIR] Current 'users' columns: %s", columns)
 
         if "failed_login_attempts" not in columns:
             schema_changes.append(
@@ -132,7 +141,7 @@ def repair_schema_verbose():
 
         if not schema_changes:
             log("No missing columns detected via inspection.")
-            print("[REPAIR] No missing columns detected.")
+            logger.info("[REPAIR] No missing columns detected.")
 
         # 2. Add them
         with database.engine.connect() as conn:
@@ -142,33 +151,37 @@ def repair_schema_verbose():
                     col_def = change["def"]
 
                     log(f"Attempting to add to {table_name}: {col_def}")
-                    print(f"[REPAIR] Adding to {table_name}: {col_def}")
+                    logger.debug("[REPAIR] Adding to %s: %s", table_name, col_def)
                     conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_def}"))
                     conn.commit()
                     log("SUCCESS")
                 except Exception as e:
                     log(f"ERROR: {e}")
-                    print(f"[REPAIR ERROR] {e}")
+                    logger.error("[REPAIR ERROR] %s", e)
 
             # 3. Force auto-migration check as well
             log("Running standard auto-migration...")
-            print("[REPAIR] Triggering standard migrations...")
+            logger.info("[REPAIR] Triggering standard migrations...")
             migrations.check_and_migrate_tables()
             log("Auto-migration finished (check console for silent errors).")
 
-        return {"status": "completed", "logs": logs}
+        return success_response(data={"status": "completed", "logs": logs})
 
     except Exception as e:
-        print(f"[REPAIR CRITICAL] {e}")
-        return {"status": "critical_error", "message": str(e), "logs": logs}
+        logger.exception("[REPAIR CRITICAL]", exc_info=True)
+        return success_response(data={"status": "critical_error", "message": str(e), "logs": logs})
 
 
 @router.get("/debug-login")
-def debug_login(username: str, password: str, db: Session = Depends(database.get_db)):
+def debug_login(
+    username: str,
+    password: str,
+    db: Session = Depends(database.get_db),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+):
+    if current_user.role != "super_admin":
+        raise HTTPException(status_code=403, detail="Super Admin only")
     """Try to replicate login logic and capture specific errors."""
-    from .. import crud, models, auth
-    from ..services.auth_service import AuthService
-
     logs = []
 
     def log(msg):
@@ -246,19 +259,24 @@ def debug_login(username: str, password: str, db: Session = Depends(database.get
         }
 
     except Exception as e:
-        return {"status": "critical_error", "error": str(e), "logs": logs}
+        return success_response(data={"status": "critical_error", "error": str(e), "logs": logs})
 
 
 @router.get("/reset-password")
 def reset_password(
-    username: str, new_password: str, db: Session = Depends(database.get_db)
+    username: str,
+    new_password: str,
+    db: Session = Depends(database.get_db),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
 ):
+    if current_user.role != "super_admin":
+        raise HTTPException(status_code=403, detail="Super Admin only")
     """Force reset password for a user."""
-    from .. import crud, auth
-
     user = crud.get_user(db, username)
     if not user:
-        return {"status": "error", "message": "User not found"}
+        return success_response(data={"status": "error", "message": "User not found"})
+
+    validate_password(new_password)
 
     try:
         hashed_pw = auth.get_password_hash(new_password)
@@ -278,4 +296,4 @@ def reset_password(
             "message": f"Password reset successfully for {username}",
         }
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        return success_response(data={"status": "error", "message": str(e)})

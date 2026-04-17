@@ -7,9 +7,6 @@ Validates that:
 3. Permission matrix matches expectations
 """
 
-import pytest
-from unittest.mock import MagicMock
-from fastapi import HTTPException
 
 from backend.core.permissions import (
     Permission,

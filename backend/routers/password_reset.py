@@ -12,17 +12,15 @@ import secrets
 from .. import models, database
 from ..email_service import send_password_reset_email
 from ..auth import get_password_hash
+from .auth.dependencies import validate_password
+from backend.core.response import success_response
+import os
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
-def get_db():
-    db = database.SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+from ..database import get_db
 
 
 @router.post(
@@ -44,9 +42,9 @@ def forgot_password(
 
     if not user:
         # Don't reveal if email exists or not (security)
-        return {
-            "message": "إذا كان البريد الإلكتروني مسجلاً لدينا، ستصلك رسالة لإعادة تعيين كلمة المرور"
-        }
+        return success_response(
+            message="إذا كان البريد الإلكتروني مسجلاً لدينا، ستصلك رسالة لإعادة تعيين كلمة المرور"
+        )
 
     # Generate secure token
     token = secrets.token_urlsafe(32)
@@ -55,7 +53,7 @@ def forgot_password(
     # Invalidate any existing tokens for this user
     db.query(models.PasswordResetToken).filter(
         models.PasswordResetToken.user_id == user.id,
-        models.PasswordResetToken.used == False,
+        not models.PasswordResetToken.used,
     ).update({"used": True})
 
     # Create new token
@@ -70,20 +68,17 @@ def forgot_password(
 
     if not email_sent:
         # Only return token in development (NEVER in production)
-        import os
-
         if os.getenv("ENVIRONMENT") == "production":
-            return {
-                "message": "إذا كان البريد الإلكتروني مسجلاً لدينا، ستصلك رسالة لإعادة تعيين كلمة المرور"
-            }
+            return success_response(
+                message="إذا كان البريد الإلكتروني مسجلاً لدينا، ستصلك رسالة لإعادة تعيين كلمة المرور"
+            )
         # Development only - for testing without SMTP
-        return {
-            "message": "تم إنشاء رابط إعادة التعيين (SMTP غير مُفعّل)",
-            "dev_token": token,
-            "dev_note": "في بيئة الإنتاج، سيُرسل الرابط للبريد الإلكتروني",
-        }
+        return success_response(
+            data={"dev_token": token},
+            message="تم إنشاء رابط إعادة التعيين (SMTP غير مُفعّل). في بيئة الإنتاج، سيُرسل الرابط للبريد الإلكتروني",
+        )
 
-    return {"message": "تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني"}
+    return success_response(message="تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني")
 
 
 @router.post(
@@ -106,7 +101,7 @@ def reset_password(
         db.query(models.PasswordResetToken)
         .filter(
             models.PasswordResetToken.token == token,
-            models.PasswordResetToken.used == False,
+            not models.PasswordResetToken.used,
         )
         .first()
     )
@@ -127,16 +122,8 @@ def reset_password(
     if not user:
         raise HTTPException(status_code=400, detail="المستخدم غير موجود")
 
-    # Validate new password strength
-    if (
-        len(new_password) < 6
-        or not any(c.isalpha() for c in new_password)
-        or not any(c.isdigit() for c in new_password)
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail="كلمة المرور يجب أن تحتوي على 6 أحرف على الأقل، مع حرف ورقم",
-        )
+    # Validate new password strength using central logic
+    validate_password(new_password)
 
     # Update password
     user.hashed_password = get_password_hash(new_password)
@@ -146,7 +133,7 @@ def reset_password(
 
     db.commit()
 
-    return {"message": "تم تغيير كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول"}
+    return success_response(message="تم تغيير كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول")
 
 
 @router.get("/verify-reset-token")
@@ -161,15 +148,15 @@ def verify_reset_token(
         db.query(models.PasswordResetToken)
         .filter(
             models.PasswordResetToken.token == token,
-            models.PasswordResetToken.used == False,
+            not models.PasswordResetToken.used,
         )
         .first()
     )
 
     if not reset_token:
-        return {"valid": False, "message": "رابط غير صالح"}
+        return success_response(success=False, data={"valid": False}, message="رابط غير صالح")
 
     if datetime.utcnow() > reset_token.expires_at:
-        return {"valid": False, "message": "انتهت صلاحية الرابط"}
+        return success_response(success=False, data={"valid": False}, message="انتهت صلاحية الرابط")
 
-    return {"valid": True, "message": "الرابط صالح"}
+    return success_response(data={"valid": True}, message="الرابط صالح")

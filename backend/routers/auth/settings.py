@@ -14,7 +14,7 @@ def get_public_settings(db: Session = Depends(get_db)):
     """Fetch public system settings (e.g. Banner)."""
     settings = (
         db.query(models.SystemSetting)
-        .filter(models.SystemSetting.is_public == True)
+        .filter(models.SystemSetting.is_public)
         .all()
     )
 

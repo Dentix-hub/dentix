@@ -4,8 +4,9 @@ from typing import List
 from backend import models, schemas
 from backend.database import get_db
 from backend.services.feature_service import FeatureFlagService
-from backend.routers.auth import get_current_user
-from backend.constants import ROLES
+from backend.core.permissions import Role
+from backend.core.permissions import Permission, require_permission
+
 
 router = APIRouter(
     prefix="/admin/features",
@@ -15,12 +16,12 @@ router = APIRouter(
 
 
 # Dependency to check for super admin (Reuse from security router or move to common)
-def get_super_admin(current_user: models.User = Depends(get_current_user)):
+def get_super_admin(current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
     # Allow 'super_admin' OR 'admin' with no tenant
-    if current_user.role == ROLES.SUPER_ADMIN:
+    if current_user.role == Role.SUPER_ADMIN.value:
         return current_user
 
-    if current_user.role == ROLES.ADMIN and current_user.tenant_id is None:
+    if current_user.role == Role.ADMIN.value and current_user.tenant_id is None:
         return current_user
 
     raise HTTPException(status_code=403, detail="Not authorized")

@@ -3,31 +3,34 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from backend import models, schemas
-from backend.routers.auth import get_current_user, get_db
+from backend.routers.auth import get_db
+from backend.core.permissions import Permission, require_permission
+from backend.core.response import success_response, StandardResponse
 
 router = APIRouter(prefix="/medications", tags=["Medications"])
 
 
-@router.get("/saved", response_model=List[schemas.SavedMedication])
+@router.get("/saved", response_model=StandardResponse[List[schemas.SavedMedication]])
 def get_saved_medications(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
 ):
     if not current_user.tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
 
-    return (
+    data = (
         db.query(models.SavedMedication)
         .filter(models.SavedMedication.tenant_id == current_user.tenant_id)
         .all()
     )
+    return success_response(data=data)
 
 
-@router.post("/saved", response_model=schemas.SavedMedication)
+@router.post("/saved", response_model=StandardResponse[schemas.SavedMedication])
 def create_saved_medication(
     medication: schemas.SavedMedicationCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     if not current_user.tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
@@ -38,14 +41,14 @@ def create_saved_medication(
     db.add(db_med)
     db.commit()
     db.refresh(db_med)
-    return db_med
+    return success_response(data=db_med, message="Medication saved")
 
 
-@router.delete("/saved/{med_id}")
+@router.delete("/saved/{med_id}", response_model=StandardResponse[dict])
 def delete_saved_medication(
     med_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     if not current_user.tenant_id:
         raise HTTPException(status_code=400, detail="User not associated with a tenant")
@@ -64,4 +67,4 @@ def delete_saved_medication(
 
     db.delete(med)
     db.commit()
-    return {"message": "Deleted successfully"}
+    return success_response(message="Deleted successfully")

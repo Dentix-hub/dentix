@@ -1,32 +1,33 @@
 from fastapi import APIRouter, Depends, HTTPException
+from backend.core.permissions import Permission, require_permission
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
+from backend.core.response import success_response, StandardResponse
 
 from .. import models, schemas
-from .auth import get_current_user, get_db
-from ..constants import ROLES
+from .auth import get_db
+from ..core.permissions import Role
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 
-def require_super_admin(current_user: models.User = Depends(get_current_user)):
-    if current_user.role != ROLES.SUPER_ADMIN:
+def require_super_admin(current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+    if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
     return current_user
 
 
-@router.get("/", response_model=List[schemas.Notification])
+@router.get("/", response_model=StandardResponse[List[schemas.Notification]])
 def get_notifications(
-    db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.PATIENT_READ))
 ):
-    """Fetch notifications for the current user's tenant or global ones."""
     """Fetch notifications for the current user's tenant or global ones."""
     # Get all potential notifications
     notifications = (
         db.query(models.Notification)
         .filter(
-            (models.Notification.is_global == True)
+            (models.Notification.is_global)
             | (models.Notification.tenant_id == current_user.tenant_id)
         )
         .order_by(models.Notification.created_at.desc())
@@ -54,14 +55,14 @@ def get_notifications(
         n_dict.is_read = n.id in read_ids
         result.append(n_dict)
 
-    return result
+    return success_response(data=result)
 
 
-@router.post("/{notification_id}/read")
+@router.post("/{notification_id}/read", response_model=StandardResponse[dict])
 def mark_as_read(
     notification_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.PATIENT_READ)),
 ):
     """Mark a notification as read for the current user."""
     existing = (
@@ -80,14 +81,14 @@ def mark_as_read(
         db.add(read_record)
         db.commit()
 
-    return {"message": "Marked as read"}
+    return success_response(message="Marked as read")
 
 
-@router.post("/{notification_id}/dismiss")
+@router.post("/{notification_id}/dismiss", response_model=StandardResponse[dict])
 def dismiss_notification(
     notification_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.PATIENT_READ)),
 ):
     """Dismiss (hide) a notification for the current user."""
     existing = (
@@ -114,10 +115,10 @@ def dismiss_notification(
         db.add(new_record)
 
     db.commit()
-    return {"message": "Notification dismissed"}
+    return success_response(message="Notification dismissed")
 
 
-@router.post("/broadcast", response_model=schemas.Notification)
+@router.post("/broadcast", response_model=StandardResponse[schemas.Notification])
 def broadcast_notification(
     notification: schemas.NotificationCreate,
     db: Session = Depends(get_db),
@@ -130,10 +131,11 @@ def broadcast_notification(
     db.add(db_notification)
     db.commit()
     db.refresh(db_notification)
-    return db_notification
+    db.refresh(db_notification)
+    return success_response(data=db_notification, message="Notification broadcasted")
 
 
-@router.delete("/{notification_id}")
+@router.delete("/{notification_id}", response_model=StandardResponse[dict])
 def delete_notification(
     notification_id: int,
     db: Session = Depends(get_db),
@@ -150,4 +152,5 @@ def delete_notification(
 
     db.delete(db_notification)
     db.commit()
-    return {"message": "Notification deleted"}
+    db.commit()
+    return success_response(message="Notification deleted")

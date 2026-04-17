@@ -5,13 +5,14 @@ CRUD for insurance companies/providers.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
+from backend.core.response import success_response, StandardResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 
 from ..models import InsuranceProvider, PriceList, User
-from ..constants import ROLES
-from .auth import get_current_user, get_db
+from ..core.permissions import Permission, require_permission
+from .auth import get_db
 
 router = APIRouter(prefix="/insurance-providers", tags=["Insurance"])
 
@@ -42,17 +43,17 @@ class InsuranceProviderResponse(BaseModel):
 # --- Endpoints ---
 
 
-@router.get("/")
+@router.get("/", response_model=StandardResponse[list])
 def get_insurance_providers(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """Get all insurance providers for tenant."""
     providers = (
         db.query(InsuranceProvider)
         .filter(
             InsuranceProvider.tenant_id == current_user.tenant_id,
-            InsuranceProvider.is_active == True,
+            InsuranceProvider.is_active,
         )
         .all()
     )
@@ -76,14 +77,14 @@ def get_insurance_providers(
             }
         )
 
-    return result
+    return success_response(result)
 
 
-@router.get("/{provider_id}")
+@router.get("/{provider_id}", response_model=StandardResponse[dict])
 def get_insurance_provider(
     provider_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """Get a specific insurance provider."""
     provider = (
@@ -103,31 +104,31 @@ def get_insurance_provider(
         db.query(PriceList).filter(PriceList.insurance_provider_id == provider_id).all()
     )
 
-    return {
-        "id": provider.id,
-        "name": provider.name,
-        "code": provider.code,
-        "contact_email": provider.contact_email,
-        "contact_phone": provider.contact_phone,
-        "address": provider.address,
-        "notes": provider.notes,
-        "is_active": provider.is_active,
-        "price_lists": [
-            {"id": pl.id, "name": pl.name, "is_active": pl.is_active}
-            for pl in price_lists
-        ],
-    }
+    return success_response(
+        {
+            "id": provider.id,
+            "name": provider.name,
+            "code": provider.code,
+            "contact_email": provider.contact_email,
+            "contact_phone": provider.contact_phone,
+            "address": provider.address,
+            "notes": provider.notes,
+            "is_active": provider.is_active,
+            "price_lists": [
+                {"id": pl.id, "name": pl.name, "is_active": pl.is_active}
+                for pl in price_lists
+            ],
+        }
+    )
 
 
-@router.post("/")
+@router.post("/", response_model=StandardResponse[dict])
 def create_insurance_provider(
     data: InsuranceProviderCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Create insurance provider and a default price list for it (Admin only)."""
-    if current_user.role not in ROLES.ADMIN_ROLES:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    """Create insurance provider and a default price list for it."""
 
     provider = InsuranceProvider(
         tenant_id=current_user.tenant_id,
@@ -160,24 +161,24 @@ def create_insurance_provider(
     db.refresh(provider)
     db.refresh(price_list)
 
-    return {
-        "id": provider.id,
-        "name": provider.name,
-        "price_list_id": price_list.id,
-        "message": "Created",
-    }
+    return success_response(
+        {
+            "id": provider.id,
+            "name": provider.name,
+            "price_list_id": price_list.id,
+        },
+        message="Created",
+    )
 
 
-@router.put("/{provider_id}")
+@router.put("/{provider_id}", response_model=StandardResponse[dict])
 def update_insurance_provider(
     provider_id: int,
     data: InsuranceProviderCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Update insurance provider (Admin only)."""
-    if current_user.role not in ROLES.ADMIN_ROLES:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    """Update insurance provider."""
 
     provider = (
         db.query(InsuranceProvider)
@@ -200,18 +201,16 @@ def update_insurance_provider(
 
     db.commit()
 
-    return {"id": provider.id, "message": "Updated"}
+    return success_response({"id": provider.id}, message="Updated")
 
 
-@router.delete("/{provider_id}")
+@router.delete("/{provider_id}", response_model=StandardResponse[dict])
 def deactivate_insurance_provider(
     provider_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Deactivate insurance provider (Admin only)."""
-    if current_user.role not in ROLES.ADMIN_ROLES:
-        raise HTTPException(status_code=403, detail="Admin access required")
+    """Deactivate insurance provider."""
 
     provider = (
         db.query(InsuranceProvider)
@@ -231,7 +230,7 @@ def deactivate_insurance_provider(
         .filter(
             PriceList.tenant_id == current_user.tenant_id,
             PriceList.insurance_provider_id == provider_id,
-            PriceList.is_active == True,
+            PriceList.is_active,
         )
         .update({"is_active": False})
     )
@@ -239,4 +238,4 @@ def deactivate_insurance_provider(
     provider.is_active = False
     db.commit()
 
-    return {"message": "Deactivated", "deactivated_price_lists": deactivated_lists}
+    return success_response(data={"deactivated_price_lists": deactivated_lists}, message="Deactivated")

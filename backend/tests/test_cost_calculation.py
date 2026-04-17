@@ -102,7 +102,6 @@ def test_calculate_bom_cost():
 
     # Execution
     # Mock the internal method to return known costs
-    original_get_avg = engine.get_material_average_cost
 
     def mock_get_avg(material_id):
         if material_id == 1:

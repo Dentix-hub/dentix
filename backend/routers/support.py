@@ -1,12 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import logging
+from fastapi import APIRouter, Depends, HTTPException
+from ..core.response import success_response, error_response
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
 
+logger = logging.getLogger(__name__)
+
 from .. import models, schemas
 from ..tasks.email_tasks import send_connection_email
 from .auth import get_current_user, get_db
-from ..constants import ROLES
+from ..core.permissions import Permission, require_permission
 
 router = APIRouter(prefix="/support", tags=["Support & Feedback"])
 
@@ -49,21 +53,17 @@ def create_feedback(
         )
     except Exception as e:
         # Don't fail the request if Celery is down, just log it
-        print(f"[WARNING] Failed to trigger background email: {e}")
+        logger.warning("Failed to trigger background email: %s", e)
 
     return db_message
 
 
 @router.get("/messages", response_model=List[schemas.SupportMessage])
 def get_feedback_messages(
-    db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
 ):
-    """Retrieve feedback messages (Super Admin only)."""
-    if current_user.role != ROLES.SUPER_ADMIN:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only super admins can view feedback messages",
-        )
+    """Retrieve feedback messages (Admin+ only)."""
 
     messages = (
         db.query(models.SupportMessage)
@@ -88,11 +88,9 @@ def update_message_status(
     msg_id: int,
     status: str,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Update message status (read/archived)."""
-    if current_user.role != "super_admin":
-        raise HTTPException(status_code=403, detail="Unauthorized")
 
     db_msg = (
         db.query(models.SupportMessage)
@@ -104,18 +102,16 @@ def update_message_status(
 
     db_msg.status = status
     db.commit()
-    return {"message": "Status updated"}
+    return success_response(data={"message": "Status updated"})
 
 
 @router.delete("/messages/{msg_id}")
 def delete_support_message(
     msg_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Delete a support message (Super Admin only)."""
-    if current_user.role != "super_admin":
-        raise HTTPException(status_code=403, detail="Unauthorized")
+    """Delete a support message (Admin+ only)."""
 
     db_msg = (
         db.query(models.SupportMessage)
@@ -127,4 +123,4 @@ def delete_support_message(
 
     db.delete(db_msg)
     db.commit()
-    return {"message": "Message deleted"}
+    return success_response(data={"message": "Message deleted"})

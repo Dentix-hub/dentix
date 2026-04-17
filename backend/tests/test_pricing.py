@@ -111,8 +111,8 @@ class TestAIPriceContext:
         user = MagicMock(role="admin", id=1)
 
         context = AIPriceContext.from_user(mock_db, user, 1)
-        assert context.can_compare_prices == True
-        assert context.can_access_price_list(999) == True
+        assert context.can_compare_prices
+        assert context.can_access_price_list(999)
 
     def test_doctor_restricted_access(self):
         """Doctor should verify allowed lists."""
@@ -129,9 +129,9 @@ class TestAIPriceContext:
         ):
             context = AIPriceContext.from_user(mock_db, user, 1)
 
-            assert context.can_compare_prices == False
-            assert context.can_access_price_list(10) == True
-            assert context.can_access_price_list(99) == False
+            assert not context.can_compare_prices
+            assert context.can_access_price_list(10)
+            assert not context.can_access_price_list(99)
 
     def test_system_prompt_injection(self):
         """System prompt should contain mandatory rules."""

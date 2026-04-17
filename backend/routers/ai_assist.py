@@ -5,10 +5,10 @@ from typing import List, Dict, Any
 import logging
 
 from backend import database, models
-from backend.routers.auth import get_current_user
 from backend.schemas import User
 from backend.core.tenancy import get_current_tenant_id
 from backend.ai.agent.state_manager import state_manager
+from backend.core.permissions import Permission, require_permission
 
 router = APIRouter(prefix="/ai", tags=["AI Assist"])
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ def ai_autocomplete(
     q: str = Query(..., min_length=1),
     context: str = Query(None),  # e.g., 'registration', 'search'
     db: Session = Depends(database.get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(Permission.AI_CHAT)),
     tenant_id: int = Depends(get_current_tenant_id),
 ) -> Dict[str, List[Dict[str, Any]]]:
     """

@@ -14,6 +14,7 @@ Usage:
 """
 
 from fastapi import APIRouter, Depends, HTTPException
+from ..core.response import success_response, error_response
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
@@ -23,9 +24,10 @@ import asyncio
 import time
 import os
 import logging
+import shutil
 import psutil
 from backend.database import get_db, engine
-from backend.routers.auth import get_current_user
+from backend.core.permissions import Permission, require_permission
 from backend import models
 
 logger = logging.getLogger(__name__)
@@ -149,8 +151,6 @@ async def check_ai_service() -> ComponentHealth:
 async def check_disk_space() -> ComponentHealth:
     """Check available disk space."""
     try:
-        import shutil
-
         total, used, free = shutil.disk_usage("/")
         free_gb = free / (1024**3)
         total_gb = total / (1024**3)
@@ -214,7 +214,7 @@ async def health_check():
 
 @router.get("/detailed", response_model=DetailedHealthResponse)
 async def detailed_health_check(
-    db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
 ):
     """
     Detailed health check with component status.
@@ -325,7 +325,7 @@ def get_stress_metrics():
         return metrics
     except Exception as e:
         logger.error(f"Error fetching stress metrics: {e}")
-        return {"error": str(e)}
+        return success_response(data={"error": str(e)})
 
 
 @router.get("/debug/procedures")
@@ -354,4 +354,4 @@ def debug_procedures(db: Session = Depends(get_db)):
         }
     except Exception as e:
         logger.error(f"Error in debug/procedures: {e}")
-        return {"error": str(e)}
+        return success_response(data={"error": str(e)})

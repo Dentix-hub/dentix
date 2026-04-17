@@ -97,7 +97,7 @@ class SubscriptionService:
         """List all active subscription plans."""
         return (
             db.query(models.SubscriptionPlan)
-            .filter(models.SubscriptionPlan.is_active == True)
+            .filter(models.SubscriptionPlan.is_active)
             .all()
         )
 

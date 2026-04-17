@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from .. import schemas, crud
-from .auth import get_current_user, get_db
+from .auth import get_db
+from backend.core.permissions import Permission, require_permission
 
 router = APIRouter(prefix="/attachments", tags=["Attachments"])
 
@@ -10,7 +11,7 @@ router = APIRouter(prefix="/attachments", tags=["Attachments"])
 def delete_attachment(
     attachment_id: int,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.PATIENT_UPDATE)),
 ):
     """
     Delete an attachment.

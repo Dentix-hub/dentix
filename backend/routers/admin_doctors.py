@@ -10,8 +10,10 @@ from pydantic import BaseModel
 from typing import Optional
 
 from ..models import User
-from .auth import get_current_user, get_db
+from .auth import get_db
 from ..core.permissions import PatientVisibilityMode
+from backend.core.permissions import Permission, require_permission
+
 
 router = APIRouter(prefix="/admin/doctors", tags=["Admin - Doctors"])
 
@@ -38,7 +40,7 @@ class DoctorVisibilityResponse(BaseModel):
 @router.get("/visibility")
 def get_all_doctors_visibility(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Get visibility settings for all doctors (Admin only)."""
     if current_user.role != "admin":
@@ -49,7 +51,7 @@ def get_all_doctors_visibility(
         .filter(
             User.tenant_id == current_user.tenant_id,
             User.role == "doctor",
-            User.is_active == True,
+            User.is_active,
         )
         .all()
     )
@@ -70,7 +72,7 @@ def update_doctor_visibility(
     doctor_id: int,
     settings: DoctorVisibilityUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Update visibility settings for a doctor (Admin only)."""
     if current_user.role != "admin":
@@ -116,7 +118,7 @@ def update_doctor_visibility(
 
 @router.get("/visibility-modes")
 def get_visibility_modes(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Get available visibility modes."""
     return {

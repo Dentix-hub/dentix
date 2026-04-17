@@ -165,7 +165,7 @@ class TestBillingServiceCreatePayment:
     def test_create_payment_wrong_tenant(self):
         """Verify ValueError when patient belongs to different tenant."""
         # Patient exists but with different tenant_id
-        wrong_tenant_patient = models.Patient(id=1, tenant_id=999)  # Different tenant
+        models.Patient(id=1, tenant_id=999)  # Different tenant
         self.mock_db.query.return_value.filter.return_value.first.return_value = (
             None  # Filter blocks it
         )

@@ -5,13 +5,13 @@ Exposes application metrics for monitoring dashboards.
 """
 
 from fastapi import APIRouter, Depends
+from backend.core.permissions import Permission, require_permission
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timedelta
 
 from backend.core.monitoring import metrics
-from backend.routers.auth import get_current_user
 from backend.models import User
 from backend import models
 from backend.database import get_db
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/metrics", tags=["Metrics"])
 
 @router.get("/stats")
 async def get_metrics_stats(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ) -> Dict[str, Any]:
     """
     Get application metrics and statistics.
@@ -37,7 +37,7 @@ async def get_metrics_stats(
 
 @router.get("/alerts")
 async def get_active_alerts(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ) -> Dict[str, Any]:
     """
     Get current active alerts.
@@ -53,7 +53,7 @@ async def get_active_alerts(
 
 @router.get("/business")
 async def get_business_metrics(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ) -> Dict[str, Any]:
     """
     Get business-specific metrics.
@@ -74,7 +74,7 @@ async def get_business_metrics(
 def get_profitability(
     period: str = "30d",
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """
     Get Net Profit Breakdown (Revenue - Expenses - Labs - Materials).

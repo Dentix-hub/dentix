@@ -12,7 +12,7 @@ def test_soft_delete_patient(db_session):
     p_data = schemas.PatientCreate(name="Soft Delete Test", age=30, phone="ENCRYPTED")
     patient = crud.create_patient(db_session, p_data, tenant_id)
     assert patient.id is not None
-    assert patient.is_deleted == False
+    assert not patient.is_deleted
 
     # 2. Soft Delete
     crud.delete_patient(db_session, patient.id, tenant_id)
@@ -26,7 +26,7 @@ def test_soft_delete_patient(db_session):
     raw_patient = (
         db_session.query(models.Patient).filter(models.Patient.id == patient.id).first()
     )
-    assert raw_patient.is_deleted == True
+    assert raw_patient.is_deleted
     assert raw_patient.deleted_at is not None
 
 
@@ -60,7 +60,7 @@ def test_soft_delete_appointment(db_session):
     raw_appt = (
         db_session.query(models.Appointment).filter(models.Appointment.id == appt.id).first()
     )
-    assert raw_appt.is_deleted == True
+    assert raw_appt.is_deleted
 
 
 def test_double_booking_prevention(db_session):

@@ -30,7 +30,7 @@ def migrate_lab_payments():
         print("Creating table 'lab_payments'...")
         # Define table using SQLAlchemy Core for direct creation
         metadata = MetaData()
-        lab_payments = Table(
+        Table(
             "lab_payments",
             metadata,
             Column("id", Integer, primary_key=True, index=True),

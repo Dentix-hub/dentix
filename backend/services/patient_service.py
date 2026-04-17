@@ -190,7 +190,7 @@ class PatientService:
             .all()
         )
 
-        total_cost = sum(
+        sum(
             t.cost for t in treatments
         )  # Note: this only sums *recent* treatments from details?
         # NO, details['treatments'] is limited to 5. We need FULL treatment history for balance.

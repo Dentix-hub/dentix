@@ -248,7 +248,7 @@ class AIAgent:
 
             # Extract useful info for a note
             params = result.get("parameters", {})
-            patient_name = params.get("patient_name", "")
+            _patient_name = params.get("patient_name", "")
             procedure = params.get("procedure", params.get("procedure_name", ""))
             cost = params.get("cost", "")
             paid = params.get("paid_amount", params.get("amount", ""))

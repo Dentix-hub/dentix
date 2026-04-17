@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from backend import models, schemas, auth  # auth needed for password hash
-from .dependencies import get_db, get_current_user
+from .dependencies import get_db, get_current_user, validate_password
 
 router = APIRouter()
 
@@ -22,6 +22,7 @@ def update_user_me(
         user.email = user_update.email
 
     if user_update.password:
+        validate_password(user_update.password)
         user.hashed_password = auth.get_password_hash(user_update.password)
 
     db.commit()

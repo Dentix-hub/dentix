@@ -156,7 +156,6 @@ def seed_stress_data():
 
             # Batch size for commits to avoid memory issues
             batch_size = 50
-            patients_buffer = []
 
             for p in range(PATIENTS_PER_CLINIC):
                 name = f"{random.choice(FIRST_NAMES)} {random.choice(LAST_NAMES)} {random.randint(1, 9999)}"

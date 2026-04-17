@@ -19,7 +19,22 @@ class PatientBase(BaseModel):
 
 
 class PatientCreate(PatientBase):
-    pass
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "Ahmed Ali",
+                    "gender": "male",
+                    "age": 35,
+                    "phone": "+201012345678",
+                    "email": "ahmed@example.com",
+                    "address": "Cairo, Egypt",
+                    "medical_history": "No known allergies",
+                    "notes": "Referred by Dr. Khaled",
+                }
+            ]
+        }
+    )
 
 
 class PatientUpdate(BaseModel):
@@ -32,6 +47,17 @@ class PatientUpdate(BaseModel):
     notes: Optional[str] = None
     default_price_list_id: Optional[int] = None
     assigned_doctor_id: Optional[int] = None
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "phone": "+201098765432",
+                    "notes": "Updated contact info",
+                }
+            ]
+        }
+    )
 
 
 class Patient(PatientBase):

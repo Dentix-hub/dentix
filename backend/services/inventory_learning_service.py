@@ -1,9 +1,13 @@
+import logging
+import json
 from datetime import datetime
+from typing import List, Dict
+
 from sqlalchemy.orm import Session, joinedload
 from ..models import inventory as inv_models
 from ..models import clinical as clinical_models
-from typing import List, Dict
-import json
+
+logger = logging.getLogger(__name__)
 
 
 class InventoryLearningService:
@@ -201,9 +205,7 @@ class InventoryLearningService:
         try:
             self.db.commit()
         except Exception as e:
-            import traceback
-
-            traceback.print_exc()
+            logger.exception("An exception occurred", exc_info=True)
             self.db.rollback()
             raise ValueError(f"Transaction failed: {str(e)}")
 

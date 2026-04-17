@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from ..core.response import success_response, error_response
 from sqlalchemy.orm import Session
 from typing import List
 from backend import models, schemas
 from backend.database import get_db
 from backend.services.security_service import SecurityService
 from backend.services.job_service import JobService
-from backend.routers.auth import get_current_user
-from backend.constants import ROLES
+from backend.core.permissions import Role
+from backend.core.permissions import Permission, require_permission
+
 
 router = APIRouter(
     prefix="/admin/security",
@@ -18,14 +20,14 @@ router = APIRouter(
 
 
 def get_super_admin(
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ) -> models.User:
     """Validate that the current user is a Super Admin (No Tenant ID)."""
     # Allow 'super_admin' OR 'admin' with no tenant (legacy compatibility)
-    if current_user.role == ROLES.SUPER_ADMIN:
+    if current_user.role == Role.SUPER_ADMIN.value:
         return current_user
 
-    if current_user.role == ROLES.ADMIN and current_user.tenant_id is None:
+    if current_user.role == Role.ADMIN.value and current_user.tenant_id is None:
         return current_user
 
     raise HTTPException(
@@ -69,7 +71,7 @@ def unblock_ip(
     _: models.User = Depends(get_super_admin),
 ):
     SecurityService.unblock_ip(db, ip_address)
-    return {"message": "IP unblocked successfully"}
+    return success_response(data={"message": "IP unblocked successfully"})
 
 
 # --- System Health & Jobs ---
@@ -99,4 +101,4 @@ async def trigger_test_job(
     # For now, we instantly complete it to avoid complexity
     JobService.complete_job(db, job.id, status="success")
 
-    return {"message": "Test job executed successfully", "job_id": job.id}
+    return success_response(data={"message": "Test job executed successfully", "job_id": job.id})

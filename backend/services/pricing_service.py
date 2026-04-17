@@ -36,8 +36,8 @@ class PricingService:
             self.db.query(PriceList)
             .filter(
                 PriceList.tenant_id == self.tenant_id,
-                PriceList.is_default == True,
-                PriceList.is_active == True,
+                PriceList.is_default,
+                PriceList.is_active,
             )
             .first()
         )
@@ -59,7 +59,7 @@ class PricingService:
         query = self.db.query(PriceList).filter(PriceList.tenant_id == self.tenant_id)
 
         if not include_inactive:
-            query = query.filter(PriceList.is_active == True)
+            query = query.filter(PriceList.is_active)
 
         # Admin sees all
         if user.role == Role.ADMIN.value:
@@ -130,7 +130,7 @@ class PricingService:
             .filter(
                 PriceListItem.procedure_id == procedure_id,
                 PriceList.tenant_id == self.tenant_id,
-                PriceList.is_active == True,
+                PriceList.is_active,
             )
             .all()
         )
@@ -224,7 +224,7 @@ class PricingService:
             }
 
         # Calculate based on coverage
-        coverage_amount = total * (price_list.coverage_percent / 100)
+        total * (price_list.coverage_percent / 100)
 
         # Apply copay
         if price_list.copay_fixed > 0:

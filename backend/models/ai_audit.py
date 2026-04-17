@@ -10,13 +10,20 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from backend.database import Base
+from .base import Base
 
 
 class AILog(Base):
     """
     Unified AI Log (v2) - Enforces Rule 10 & Phase 0 of AI Analytics Engine.
     Consolidates Audit + Usage + Performance metrics.
+
+    Backward-compat aliases for legacy code that used AIUsageLog columns:
+    - response_tool  → tool
+    - success        → computed from status
+    - response_time_ms → execution_time_ms
+    - username       → resolved via user relationship
+    - query          → input_text
     """
 
     __tablename__ = "ai_logs"
@@ -58,7 +65,32 @@ class AILog(Base):
     policy_check = Column(Boolean, default=True)
     scribe_mode = Column(Boolean, default=False)  # Was Medical Scribe Mode active?
 
+    # Legacy compat columns stored for backward-compat queries (AIUsageLog fields)
+    username = Column(String, nullable=True)        # cached username at log time
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)  # alias for timestamp
+
     timestamp = Column(DateTime, default=datetime.utcnow, index=True)
 
     # Relationships
     user = relationship("User")
+
+    # --------------- Backward-compat properties ---------------
+    @property
+    def response_tool(self) -> str:
+        """Compat alias for legacy AIUsageLog.response_tool → AILog.tool."""
+        return self.tool
+
+    @property
+    def query(self) -> str:
+        """Compat alias for legacy AIUsageLog.query → AILog.input_text."""
+        return self.input_text
+
+    @property
+    def success(self) -> bool:
+        """Compat alias: True when status == SUCCESS."""
+        return self.status == "SUCCESS"
+
+    @property
+    def response_time_ms(self) -> float:
+        """Compat alias for legacy AIUsageLog.response_time_ms → execution_time_ms."""
+        return float(self.execution_time_ms or 0)

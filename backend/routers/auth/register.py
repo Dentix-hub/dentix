@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Form, Request
 from sqlalchemy.orm import Session
 from backend import models, crud, auth
 from backend.core.limiter import limiter
-from .dependencies import get_db
+from .dependencies import get_db, validate_password
 import logging
 
 logger = logging.getLogger("smart_clinic")
@@ -40,6 +40,8 @@ def register_clinic(
     if existing_email:
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    validate_password(admin_password)
+
     # Start Transaction
     try:
         # 1. Create Tenant
@@ -52,7 +54,7 @@ def register_clinic(
         # Get Default Plan (Basic)
         default_plan = (
             db.query(models.SubscriptionPlan)
-            .filter(models.SubscriptionPlan.is_default == True)
+            .filter(models.SubscriptionPlan.is_default)
             .first()
         )
         # Fallback if no default plan

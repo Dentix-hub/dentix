@@ -1,23 +1,26 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException
-
-logger = logging.getLogger(__name__)
-from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, case
-from typing import Optional
 from datetime import datetime, timedelta
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from ..core.response import success_response, error_response
+from sqlalchemy import func, desc, case
+from sqlalchemy.orm import Session
 
 from ..database import get_db
 from .. import models
-from .auth import get_current_user
-from ..constants import ROLES
+from ..core.permissions import Permission, Role, require_permission
 from backend.services.cost_engine import CostEngine
+from backend.services.ai_learning_service import get_ai_learning_service
+from backend.models.inventory import Material
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin/ai", tags=["AI Analytics"])
 
 
 def ensure_super_admin(user: models.User):
-    if user.role != ROLES.SUPER_ADMIN:
+    if user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
 
@@ -25,7 +28,7 @@ def ensure_super_admin(user: models.User):
 def get_ai_stats(
     period: str = "24h",
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
 ):
     """
     Get generic health stats for AI services.
@@ -77,7 +80,7 @@ def get_ai_stats(
 
 @router.get("/intents")
 def get_intent_analytics(
-    db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.AI_CHAT))
 ):
     """
     Group performance by Intent/Tool.
@@ -125,7 +128,7 @@ def get_intent_analytics(
 
 @router.get("/failures")
 def get_failure_analytics(
-    db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.AI_CHAT))
 ):
     """
     Phase 2: Failure Analysis Engine.
@@ -159,7 +162,7 @@ def get_failure_analytics(
 
 @router.get("/heatmap")
 def get_confidence_heatmap(
-    db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.AI_CHAT))
 ):
     """
     Phase 2: Confidence Heatmap.
@@ -212,7 +215,7 @@ def get_confidence_heatmap(
 def get_cost_analytics(
     period: str = "30d",
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
 ):
     """
     Phase 3: Cost & ROI Intelligence.
@@ -249,7 +252,6 @@ def get_cost_analytics(
 
     total_in = usage_stats.total_in or 0
     total_out = usage_stats.total_out or 0
-    total_reqs = usage_stats.total_reqs or 0
 
     estimated_cost = ((total_in / 1_000_000) * INPUT_COST_PER_1M) + (
         (total_out / 1_000_000) * OUTPUT_COST_PER_1M
@@ -303,7 +305,7 @@ def get_cost_analytics(
 
 @router.get("/suggestions")
 def get_ai_suggestions(
-    db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.AI_CHAT))
 ):
     """
     Phase 4: AI Improvement Suggestions Engine.
@@ -311,106 +313,17 @@ def get_ai_suggestions(
     """
     ensure_super_admin(current_user)
 
-    suggestions = []
-
-    # 1. Analyze High Failure Rates
-    # Find tools with > 15% failure rate
-    tool_stats = (
-        db.query(
-            models.AILog.tool,
-            func.count(models.AILog.id).label("total"),
-            func.sum(case((models.AILog.status != "SUCCESS", 1), else_=0)).label(
-                "failures"
-            ),
-        )
-        .group_by(models.AILog.tool)
-        .having(func.count(models.AILog.id) > 5)
-        .all()
-    )  # Min 5 requests
-
-    for tool, total, failures in tool_stats:
-        fail_rate = (failures / total) * 100
-        if fail_rate > 15:
-            suggestions.append(
-                {
-                    "type": "CRITICAL",
-                    "tool": tool,
-                    "message": f"High failure rate detected for '{tool}' ({int(fail_rate)}%).",
-                    "action": "Check input schema validation or prompt examples.",
-                    "impact": "Reliability",
-                }
-            )
-
-    # 2. Analyze Latency Bottlenecks
-    # Find tools taking > 4000ms on average
-    slow_tools = (
-        db.query(
-            models.AILog.tool,
-            func.avg(models.AILog.execution_time_ms).label("avg_time"),
-        )
-        .group_by(models.AILog.tool)
-        .having(func.avg(models.AILog.execution_time_ms) > 4000)
-        .all()
-    )
-
-    for tool, avg_time in slow_tools:
-        suggestions.append(
-            {
-                "type": "WARNING",
-                "tool": tool,
-                "message": f"Slow response time for '{tool}' (~{int(avg_time / 1000)}s).",
-                "action": "Consider simplifying the prompt or moving to async processing.",
-                "impact": "User Experience",
-            }
-        )
-
-    # 3. Analyze Low Confidence (Ambiguity)
-    # If > 20% of requests have low confidence (< 0.6)
-    low_conf_tools = (
-        db.query(
-            models.AILog.tool,
-            func.count(models.AILog.id).label("total"),
-            func.sum(case((models.AILog.confidence < 0.6, 1), else_=0)).label(
-                "low_conf_count"
-            ),
-        )
-        .group_by(models.AILog.tool)
-        .having(func.count(models.AILog.id) > 10)
-        .all()
-    )
-
-    for tool, total, low_conf in low_conf_tools:
-        low_conf_val = low_conf if low_conf else 0
-        low_rate = (low_conf_val / total) * 100 if total > 0 else 0
-        if low_rate > 20:
-            suggestions.append(
-                {
-                    "type": "OPTIMIZATION",
-                    "tool": tool,
-                    "message": f"AI is uncertain about '{tool}' ({int(low_rate)}% Low Confidence).",
-                    "action": "Add more Few-Shot examples to the system prompt.",
-                    "impact": "Accuracy",
-                }
-            )
-
-    # 4. Global Suggestion (If generic)
-    if not suggestions:
-        suggestions.append(
-            {
-                "type": "INFO",
-                "tool": "System",
-                "message": "System is performing well. No critical issues detected.",
-                "action": "Monitor usage trends for future scaling.",
-                "impact": "Maintenance",
-            }
-        )
+    # Using service with generic metrics (no tenant_id filters) since this is a super admin endpoint
+    # that currently analyzes system-wide behavior
+    ai_learning_service = get_ai_learning_service(db)
+    suggestions = ai_learning_service.generate_suggestions(days=30)
 
     return suggestions
 
 
 @router.get("/governance")
 def get_ai_governance(
-    db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)
+    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.AI_CHAT))
 ):
     """
     Phase 5: AI Governance & Safety.
@@ -441,7 +354,7 @@ def get_ai_governance(
 def update_ai_governance(
     settings: dict,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
 ):
     """
     Phase 5: Update AI Safety Policies.
@@ -474,7 +387,7 @@ def update_ai_governance(
             updated[key] = str(value)
 
     db.commit()
-    return {"status": "success", "updated": updated}
+    return success_response(data={"status": "success", "updated": updated})
 
 
 @router.get("/logs")
@@ -484,7 +397,7 @@ def get_ai_logs(
     trace_id: Optional[str] = None,
     status: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
 ):
     """
     Detailed Log Explorer.
@@ -533,7 +446,7 @@ def get_ai_logs(
 def get_log_details(
     log_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
 ):
     """
     Deep dive into a specific log entry (Payloads).
@@ -661,8 +574,6 @@ def get_detailed_analytics(db: Session, tenant_id: int, days: int = 30) -> str:
 
     # 3. Low Stock Alerts for Critical Materials
     try:
-        from backend.models.inventory import Material
-
         low_stock = (
             db.query(Material.name)
             .filter(Material.tenant_id == tenant_id)
@@ -685,11 +596,11 @@ def get_detailed_analytics(db: Session, tenant_id: int, days: int = 30) -> str:
 
     if lab_by_doctor:
         details += "\n**Lab Spend by Doctor:**\n"
-        for l in lab_by_doctor:
+        for item in lab_by_doctor:
             try:
                 # SAFE ACCESS: Use username if available
-                doc_name = getattr(l, "username", "Unknown Doctor")
-                val = getattr(l, "lab_total", 0.0) or 0.0
+                doc_name = getattr(item, "username", "Unknown Doctor")
+                val = getattr(item, "lab_total", 0.0) or 0.0
                 details += f"- {doc_name}: ${val:,.0f}\n"
             except Exception as e_inner:
                 logger.warning(f"Skipping doctor row: {e_inner}")
@@ -705,7 +616,7 @@ def get_detailed_analytics(db: Session, tenant_id: int, days: int = 30) -> str:
 async def analyze_clinic(
     stats: ClinicStats,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
 ):
     """
     Generate AI insights based on financial stats.
@@ -731,7 +642,7 @@ async def analyze_clinic(
 
     prompt = f"""
     Act as a senior CLINIC STRATEGIST & CFO. Analyze the following data for the last 30 days:
-    
+
     [TOP LEVEL STATS]
     - Revenue: ${rev:,.0f}
     - Expenses (Rent/Staff): ${exp:,.0f}
@@ -741,9 +652,9 @@ async def analyze_clinic(
 
     {detailed_context}
 
-    Your goal is to increase NET PROFIT by at least 15%. 
+    Your goal is to increase NET PROFIT by at least 15%.
     Be direct, pragmatic, and harsh if numbers look bad.
-    
+
     REQUIRED OUTPUT STRUCTURE:
     1. **Strategic Flaw**: One major problem detected in the numbers.
     2. **High-Value Target**: Which procedure/doctor to push based on margins?
@@ -755,4 +666,4 @@ async def analyze_clinic(
 
     response = await service.analyze_direct(prompt)
 
-    return {"insights": response.message}
+    return success_response(data={"insights": response.message})

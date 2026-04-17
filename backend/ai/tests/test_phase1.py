@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import os
 from pathlib import Path
@@ -91,7 +92,6 @@ def test_schema_validation():
         assert "time" in str(e)
 
 
-import asyncio
 
 
 def test_integration():

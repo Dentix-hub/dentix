@@ -1,7 +1,10 @@
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
 from backend import models, schemas, crud
+
+logger = logging.getLogger(__name__)
 
 
 class ClinicalService:
@@ -74,8 +77,8 @@ class ClinicalService:
         lab_ids = [o.laboratory_id for o in orders if o.laboratory_id]
         labs = (
             {
-                l.id: l.name
-                for l in self.db.query(models.Laboratory)
+                lab.id: lab.name
+                for lab in self.db.query(models.Laboratory)
                 .filter(models.Laboratory.id.in_(lab_ids))
                 .all()
             }
@@ -181,7 +184,7 @@ class ClinicalService:
                         patient, tooth_str, condition, f"Auto: {procedure}"
                     )
             except Exception as e:
-                print(f"Auto-tooth update failed: {e}")
+                logger.warning("Auto-tooth update failed: %s", e)
 
         return treatment
 

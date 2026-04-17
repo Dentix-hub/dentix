@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+logger = logging.getLogger(__name__)
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from backend import models, schemas, crud, auth
-from .dependencies import get_db, get_current_user
+from .dependencies import get_db
 from sqlalchemy import text
+from backend.core.permissions import Permission, require_permission
 import traceback
 
 router = APIRouter()
@@ -10,10 +13,10 @@ router = APIRouter()
 
 # --- Debug Endpoints ---
 @router.get("/debug-token")
-def debug_token_validation(token: str, db: Session = Depends(get_db)):
+def debug_token_validation(token: str, db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
     """Debug endpoint to validate a token manually and see the error."""
     try:
-        print(f"DEBUG: Validating token: {token}")
+        logger.info(f"DEBUG: Validating token: {token}")
         payload = auth.jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
         username = payload.get("sub")
 
@@ -33,7 +36,7 @@ def debug_token_validation(token: str, db: Session = Depends(get_db)):
 
 
 @router.get("/debug-auth-info")
-def debug_auth_info(db: Session = Depends(get_db)):
+def debug_auth_info(db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
     """Debug endpoint to check DB and Schema status."""
     try:
         # Check connection
@@ -47,7 +50,7 @@ def debug_auth_info(db: Session = Depends(get_db)):
                 text("SELECT name FROM sqlite_master WHERE type='table'")
             )
             tables = [row[0] for row in result]
-        except:
+        except Exception:
             # Postgres
             result = db.execute(
                 text(
@@ -86,7 +89,7 @@ def debug_ping():
 
 
 @router.get("/debug/manual-db")
-def debug_manual_db():
+def debug_manual_db(current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
     """Manually create session to test DB connection without Depends()."""
     try:
         from backend.database import SessionLocal
@@ -105,11 +108,9 @@ def debug_manual_db():
 @router.get("/auth/debug/fix-schema")
 def fix_staging_schema(
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Force run schema fixes for staging (GET for easy browser access)."""
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
 
     results = []
     try:

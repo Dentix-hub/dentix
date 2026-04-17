@@ -308,7 +308,6 @@ class InventoryService:
         )
 
         # Check Material Type
-        mat_type = mat.type if mat else "NON_DIVISIBLE"
 
         # FIX: If ANY material has an active session, it's available for consumption
         # This applies to both DIVISIBLE and NON_DIVISIBLE materials

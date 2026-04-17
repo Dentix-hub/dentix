@@ -1,14 +1,19 @@
+import logging
 from sqlalchemy.orm import Session, load_only, joinedload
 from backend import models, schemas
 from backend.core.tenancy import get_current_tenant_id
+
+logger = logging.getLogger(__name__)
 
 
 def _validate_tenant(tenant_id: int):
     ctx_id = get_current_tenant_id()
     if ctx_id is not None and ctx_id != tenant_id:
         # Log this critical security event
-        print(
-            f"SECURITY ALERT: Tenant Isolation Violation! Context: {ctx_id}, Requested: {tenant_id}"
+        logger.critical(
+            "SECURITY ALERT: Tenant Isolation Violation! Context: %s, Requested: %s",
+            ctx_id,
+            tenant_id,
         )
         raise ValueError("Access Denied: Tenant Isolation Violation")
 

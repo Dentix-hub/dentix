@@ -111,7 +111,7 @@ def test_update_patient_success(patient_service, mock_db_session, mock_policy_en
     )
 
     # Act
-    result = patient_service.update_patient(
+    patient_service.update_patient(
         patient_id=1, updates=update_data, updater_role="doctor"
     )
 

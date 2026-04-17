@@ -3,9 +3,12 @@ AI Tool Registry
 Manages valid tools and handles lookup.
 """
 
+import logging
 from typing import Dict, List, Optional
 from .base import Tool
 from .definitions import register_default_tools
+
+logger = logging.getLogger(__name__)
 
 
 class ToolRegistry:
@@ -43,12 +46,10 @@ class ToolRegistry:
                     if hasattr(module, "TOOLS"):
                         for tool in module.TOOLS:
                             if isinstance(tool, Tool):
-                                print(
-                                    f"[EXTENSION] Loaded tool: {tool.name} from {filename}"
-                                )
+                                logger.info("[EXTENSION] Loaded tool: %s from %s", tool.name, filename)
                                 self.register(tool)
                 except Exception as e:
-                    print(f"[EXTENSION] Failed to load {filename}: {e}")
+                    logger.warning("[EXTENSION] Failed to load %s: %s", filename, e)
 
     def register(self, tool: Tool):
         """Register a new tool."""

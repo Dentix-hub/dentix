@@ -8,11 +8,12 @@ from sqlalchemy.orm import Session
 import logging
 
 from backend import models
-from backend.routers.auth import get_current_user, get_db
+from backend.routers.auth import get_db
 from backend.services.ai_service import AIService
 from backend.schemas.ai import AIQueryRequest, AIQueryResponse
 from backend.ai.tools.registry import tool_registry
 from backend.core.limiter import limiter
+from backend.core.permissions import Permission, require_permission
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ async def ai_query(
     query_data: AIQueryRequest,
     request: Request,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
 ):
     """
     Process AI queries using the Smart Agent Service.
@@ -44,7 +45,7 @@ async def ai_query(
 
 @router.get("/tools")
 async def list_tools(
-    current_user: models.User = Depends(get_current_user),
+    current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
 ):
     """List all available AI tools."""
     tools = tool_registry.all()

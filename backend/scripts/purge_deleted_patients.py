@@ -29,7 +29,7 @@ def purge_deleted_patients():
 
         total_patients = db.query(models.Patient).count()
         deleted_patients = (
-            db.query(models.Patient).filter(models.Patient.is_deleted == True).all()
+            db.query(models.Patient).filter(models.Patient.is_deleted).all()
         )
 
         print(f"Total Patients in DB: {total_patients}")

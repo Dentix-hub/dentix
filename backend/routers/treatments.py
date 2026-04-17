@@ -1,26 +1,32 @@
 """
 Treatments Router
 Handles dental treatments and tooth status.
+
+Thin router layer - all business logic delegated to TreatmentService.
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
 
-from .. import schemas, crud, models
-from .auth import get_current_user, get_db
+from .. import schemas, crud
+from .auth import get_db
 from backend.core.permissions import Permission, require_permission
 from backend.core.limiter import limiter
-from ..services.inventory_service import inventory_service
-from ..utils.audit_logger import log_admin_action
-import logging
+from backend.services.treatment_service import get_treatment_service
+from backend.core.response import StandardResponse, success_response
 
 logger = logging.getLogger("smart_clinic")
 
 router = APIRouter(prefix="/treatments", tags=["Treatments"])
 
 
-@router.post("/", response_model=schemas.Treatment)
+@router.post(
+    "/",
+    response_model=StandardResponse[schemas.Treatment],
+    summary="Create treatment",
+    description="Create a new dental treatment record. Auto-calculates price from price list and deducts stock for consumed materials. Requires TREATMENT_PLAN_WRITE permission.",
+)
 @limiter.limit("10/minute")
 def create_treatment(
     request: Request,
@@ -29,150 +35,16 @@ def create_treatment(
     current_user: schemas.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
 ):
     """Create a new treatment record."""
-    patient = crud.get_patient(db, treatment.patient_id, current_user.tenant_id)
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
-
-    # 0. Stock Validation (Pre-Check)
-    # 0. Stock Validation (Pre-Check)
-    if treatment.consumedMaterials:
-        try:
-            errors = []
-            for item in treatment.consumedMaterials:
-                is_valid, available, mat_name = inventory_service.validate_stock(
-                    material_id=item.material_id,
-                    quantity=item.quantity,
-                    tenant_id=current_user.tenant_id,
-                    db=db,
-                )
-                if not is_valid:
-                    errors.append(
-                        f"{mat_name} (Need: {item.quantity}, Available: {available})"
-                    )
-
-            if errors:
-                raise HTTPException(
-                    status_code=400,
-                    detail="فشل حفظ العلاج بسبب نقص المخزون: " + " | ".join(errors),
-                )
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.error(f"Stock Validation Error: {e}", exc_info=True)
-            raise HTTPException(
-                status_code=500, detail=f"Stock Validation Error: {str(e)}"
-            )
-
-    # Auto-assign doctor if not provided (use current_user.id as default)
-    doctor_id = treatment.doctor_id if treatment.doctor_id else current_user.id
-
-    # --- Multi Price List Logic ---
-    from ..services.pricing_service import get_pricing_service
-
-    pricing = get_pricing_service(db, current_user.tenant_id)
-
-    # 1. Determine price list (from Appointment or Patient default)
-    price_list_id = getattr(treatment, "price_list_id", None)
-    if not price_list_id:
-        patient_obj = crud.get_patient(db, treatment.patient_id, current_user.tenant_id)
-        price_list_id = patient_obj.default_price_list_id if patient_obj else None
-
-    # 2. Calculate Price
-    procedure_name = treatment.procedure
-    procedure_obj = (
-        db.query(models.Procedure)
-        .filter(
-            models.Procedure.name == procedure_name,
-            or_(
-                models.Procedure.tenant_id == current_user.tenant_id,
-                models.Procedure.tenant_id == None,
-            ),
-        )
-        .first()
-    )
-
-    unit_price = 0.0
-    price_snapshot = None
-
-    if procedure_obj:
-        unit_price = pricing.get_procedure_price(procedure_obj.id, price_list_id)
-
-        # Create snapshot manually or via service helper
-        import json
-        from datetime import date
-
-        pl = pricing.get_price_list(price_list_id)
-        snapshot = {
-            "list_id": price_list_id,
-            "list_name": pl.name if pl else "Standard",
-            "unit_price": unit_price,
-            "date": date.today().isoformat(),
-        }
-        price_snapshot = json.dumps(snapshot)
-
-    # 3. Create
-    created_treatment = crud.create_treatment(
-        db=db,
-        treatment=treatment,
-        tenant_id=current_user.tenant_id,
-        doctor_id=doctor_id,
-        price_list_id=price_list_id,
-        unit_price=unit_price,
-        price_snapshot=price_snapshot,
-        commit=False,  # Defer commit until stock is consumed
-    )
-
-    # 4. Consume Stock (Post-Creation)
-    # Since commit=False, if this block raises an exception, the transaction will rollback (or not be committed)
-    if treatment.consumedMaterials:
-        try:
-            for item in treatment.consumedMaterials:
-                inventory_service.consume_stock(
-                    material_id=item.material_id,
-                    quantity=item.quantity,
-                    tenant_id=current_user.tenant_id,
-                    user_id=current_user.id,
-                    reference_id=f"TREATMENT:{created_treatment.id}",  # Link usage to treatment
-                    db=db,
-                )
-        except Exception as e:
-            logger.error(f"Stock Consumption Error: {e}", exc_info=True)
-            error_msg = str(e)
-
-            # Handle CONFIRM_OPEN_REQUIRED as business logic error (409), not server error (500)
-            if error_msg.startswith("CONFIRM_OPEN_REQUIRED:"):
-                parts = error_msg.split(":", 2)
-                stock_item_id = int(parts[1]) if len(parts) > 1 else None
-                material_info = parts[2] if len(parts) > 2 else "Unknown"
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "code": "CONFIRM_OPEN_REQUIRED",
-                        "stock_item_id": stock_item_id,
-                        "material_info": material_info,
-                        "message": f"يجب فتح عبوة جديدة قبل الاستخدام: {material_info}",
-                    },
-                )
-
-            raise HTTPException(status_code=500, detail=f"Stock Error: {error_msg}")
-
-    # If we got here, verification/consumption passed (or there were no materials)
-    db.commit()
-    db.refresh(created_treatment)
-
-    log_admin_action(
-        db=db,
-        admin_user=current_user,
-        action="create",
-        entity_type="treatment",
-        entity_id=created_treatment.id,
-        details=f"Treatment '{treatment.procedure}' for patient {treatment.patient_id}",
-    )
-
-    return created_treatment
+    treatment_svc = get_treatment_service(db, current_user.tenant_id, current_user)
+    return success_response(data=treatment_svc.create_treatment(treatment), message="Treatment created successfully")
 
 
-@router.put("/{treatment_id}", response_model=schemas.Treatment)
+@router.put(
+    "/{treatment_id}",
+    response_model=StandardResponse[schemas.Treatment],
+    summary="Update treatment",
+    description="Update an existing treatment. Re-validates stock and re-consumes materials. Requires TREATMENT_PLAN_WRITE permission.",
+)
 def update_treatment(
     treatment_id: int,
     treatment: schemas.TreatmentCreate,
@@ -180,98 +52,40 @@ def update_treatment(
     current_user: schemas.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
 ):
     """Update a treatment record."""
-    # 0. Stock Validation (Pre-Check)
-    if treatment.consumedMaterials:
-        errors = []
-        for item in treatment.consumedMaterials:
-            is_valid, available, mat_name = inventory_service.validate_stock(
-                material_id=item.material_id,
-                quantity=item.quantity,
-                tenant_id=current_user.tenant_id,
-                db=db,
-            )
-            if not is_valid:
-                errors.append(
-                    f"{mat_name} (Need: {item.quantity}, Available: {available})"
-                )
-
-        if errors:
-            raise HTTPException(
-                status_code=400,
-                detail="فشل حفظ العلاج بسبب نقص المخزون: " + " | ".join(errors),
-            )
-
-    updated_treatment = crud.update_treatment(
-        db, treatment_id, treatment, current_user.tenant_id, commit=False
-    )
-
-    # Post-Update Consume
-    if treatment.consumedMaterials:
-        try:
-            for item in treatment.consumedMaterials:
-                inventory_service.consume_stock(
-                    material_id=item.material_id,
-                    quantity=item.quantity,
-                    tenant_id=current_user.tenant_id,
-                    user_id=current_user.id,
-                    reference_id=f"TREATMENT:{treatment_id}",  # Link usage to treatment
-                    db=db,
-                )
-        except Exception as e:
-            logger.error(f"Stock Consumption Error during update: {e}", exc_info=True)
-            error_msg = str(e)
-
-            # Handle CONFIRM_OPEN_REQUIRED as business logic error (409), not server error (500)
-            if error_msg.startswith("CONFIRM_OPEN_REQUIRED:"):
-                parts = error_msg.split(":", 2)
-                stock_item_id = int(parts[1]) if len(parts) > 1 else None
-                material_info = parts[2] if len(parts) > 2 else "Unknown"
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "code": "CONFIRM_OPEN_REQUIRED",
-                        "stock_item_id": stock_item_id,
-                        "material_info": material_info,
-                        "message": f"يجب فتح عبوة جديدة قبل الاستخدام: {material_info}",
-                    },
-                )
-
-            raise HTTPException(status_code=500, detail=f"Stock Error: {error_msg}")
-
-    # Commit after stock consumption
-    db.commit()
-    db.refresh(updated_treatment)
-
-    return updated_treatment
+    treatment_svc = get_treatment_service(db, current_user.tenant_id, current_user)
+    return success_response(data=treatment_svc.update_treatment(treatment_id, treatment), message="Treatment updated successfully")
 
 
-@router.delete("/{treatment_id}")
+@router.delete(
+    "/{treatment_id}",
+    response_model=StandardResponse[schemas.Treatment],
+    summary="Delete treatment",
+    description="Delete a treatment record. Logs the action for audit trail. Requires CLINICAL_WRITE permission.",
+)
 def delete_treatment(
     treatment_id: int,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     """Delete a treatment record."""
-    log_admin_action(
-        db=db,
-        admin_user=current_user,
-        action="delete",
-        entity_type="treatment",
-        entity_id=treatment_id,
-        details=f"Deleted treatment #{treatment_id}",
-    )
-    return crud.delete_treatment(db, treatment_id, current_user.tenant_id)
+    treatment_svc = get_treatment_service(db, current_user.tenant_id, current_user)
+    return success_response(data=treatment_svc.delete_treatment(treatment_id), message="Treatment deleted successfully")
 
 
 # --- Tooth Status ---
-@router.post("/tooth_status/", response_model=schemas.ToothStatus)
+@router.post(
+    "/tooth_status/",
+    response_model=StandardResponse[schemas.ToothStatus],
+    summary="Update tooth status",
+    description="Update or create a tooth status entry in the dental chart. Requires CLINICAL_WRITE permission.",
+)
 def update_tooth_status(
     status: schemas.ToothStatusCreate,
     db: Session = Depends(get_db),
-    current_user: schemas.User = Depends(get_current_user),
+    current_user: schemas.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     """Update tooth status in dental chart."""
     patient = crud.get_patient(db, status.patient_id, current_user.tenant_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    return crud.update_tooth_status(db, status, current_user.tenant_id)
+    return success_response(data=crud.update_tooth_status(db, status, current_user.tenant_id), message="Tooth status updated")

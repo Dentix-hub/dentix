@@ -11,9 +11,10 @@ if TYPE_CHECKING:
 class Token(BaseModel):
     access_token: str
     token_type: str
-    refresh_token: str
+    refresh_token: Optional[str] = None
     role: Optional[str] = None
     username: Optional[str] = None
+    user_status: Optional[str] = None
 
 
 class TokenData(BaseModel):

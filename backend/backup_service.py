@@ -1,8 +1,11 @@
+import logging
 # import sqlite3 (removed for production)
 from sqlalchemy.orm import Session
 from sqlalchemy import DateTime, Date
 from datetime import datetime, date
 from . import models
+
+logger = logging.getLogger(__name__)
 
 # Map table name to Model
 TABLE_MODEL_MAP = {
@@ -54,7 +57,7 @@ def parse_value(model, key, value):
                 if "T" in value:
                     return datetime.fromisoformat(value).date()
                 return datetime.strptime(value, "%Y-%m-%d").date()
-    except:
+    except Exception:
         # On parse failure, return None instead of original string to avoid DB TypeErrors
         return None
     return value
@@ -138,7 +141,7 @@ def import_from_json(db: Session, json_data: dict):
 
             db.flush()
         except Exception as e:
-            print(f"Bulk Error in {table_name}: {e}")
+            logger.error("Bulk restore error in table '%s': %s", table_name, e)
             stats[table_name]["errors"] += len(clean_records)
             db.rollback()  # Rollback this table, try next
 

@@ -7,14 +7,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import schemas, crud
-from .auth import get_current_user, get_db
+from .auth import get_db
 from backend.core.permissions import Permission, require_permission
+from backend.core.response import success_response, StandardResponse
 from ..utils.audit_logger import log_admin_action
 
 router = APIRouter(prefix="/prescriptions", tags=["Prescriptions"])
 
 
-@router.post("/", response_model=schemas.Prescription)
+@router.post("/", response_model=StandardResponse[schemas.Prescription])
 def create_prescription(
     prescription: schemas.PrescriptionCreate,
     db: Session = Depends(get_db),
@@ -33,10 +34,10 @@ def create_prescription(
         entity_id=result.id if hasattr(result, 'id') else None,
         details=f"Prescription for patient {prescription.patient_id}",
     )
-    return result
+    return success_response(data=result, message="Prescription created")
 
 
-@router.delete("/{prescription_id}")
+@router.delete("/{prescription_id}", response_model=StandardResponse[dict])
 def delete_prescription(
     prescription_id: int,
     db: Session = Depends(get_db),
@@ -51,4 +52,5 @@ def delete_prescription(
         entity_id=prescription_id,
         details=f"Deleted prescription #{prescription_id}",
     )
-    return crud.delete_prescription(db, prescription_id, current_user.tenant_id)
+    result = crud.delete_prescription(db, prescription_id, current_user.tenant_id)
+    return success_response(data=result, message="Prescription deleted")
