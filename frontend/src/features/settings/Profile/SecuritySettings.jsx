@@ -17,7 +17,7 @@ export default function SecuritySettings() {
         try {
             setLoading(true);
             const [userRes, sessionRes] = await Promise.all([
-                api.get('/users/me'),
+                api.get('/api/v1/users/me'),
                 api.get('/api/v1/auth/sessions')
             ]);
             setUser(userRes.data);
