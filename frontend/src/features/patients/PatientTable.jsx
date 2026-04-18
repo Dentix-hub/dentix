@@ -1,4 +1,6 @@
 import React, { memo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Trash2, Phone, MapPin, Calendar, Users } from 'lucide-react';
 import { Button, SkeletonBox, SkeletonCard, EmptyState } from '@/shared/ui';
 
@@ -10,12 +12,13 @@ const CARD_COLORS = [
     { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', accent: 'bg-rose-100' },
 ];
 
-function PatientCard({ patient, onDelete, index }) {
+function PatientCard({ patient, onDelete, onNavigate, index, t }) {
     const colorTheme = CARD_COLORS[index % CARD_COLORS.length];
 
     return (
         <div
-            className={`relative rounded-xl border ${colorTheme.border} ${colorTheme.bg} p-5 shadow-sm hover:shadow-md transition-shadow group`}
+            onClick={() => onNavigate(patient.id)}
+            className={`relative rounded-xl border ${colorTheme.border} ${colorTheme.bg} p-5 shadow-sm hover:shadow-md transition-shadow group cursor-pointer`}
         >
             <div className="flex items-start gap-4">
                 <div className={`flex items-center justify-center w-12 h-12 rounded-full ${colorTheme.accent} ${colorTheme.text} font-bold text-lg shrink-0`}>
@@ -31,7 +34,7 @@ function PatientCard({ patient, onDelete, index }) {
                         {patient.age && (
                             <div className="flex items-center gap-2">
                                 <Calendar className="w-4 h-4" />
-                                <span>{patient.age} years</span>
+                                <span>{t('patientDetails.info_card.age_years', { age: patient.age })}</span>
                             </div>
                         )}
                         {patient.phone && (
@@ -53,7 +56,10 @@ function PatientCard({ patient, onDelete, index }) {
                     variant="ghost"
                     size="sm"
                     className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 hover:bg-red-50"
-                    onClick={() => onDelete(patient.id, patient.name)}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(patient.id, patient.name);
+                    }}
                 >
                     <Trash2 className="w-4 h-4" />
                 </Button>
@@ -63,6 +69,13 @@ function PatientCard({ patient, onDelete, index }) {
 }
 
 export default memo(function PatientTable({ patients, isLoading, onDelete }) {
+    const navigate = useNavigate();
+    const { t } = useTranslation();
+
+    const handleNavigate = (id) => {
+        navigate(`/patients/${id}`);
+    };
+
     if (isLoading) {
         return (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -77,8 +90,8 @@ export default memo(function PatientTable({ patients, isLoading, onDelete }) {
         return (
             <EmptyState
                 icon={Users}
-                title="No patients found"
-                description="Add a new patient to get started"
+                title={t('patients.empty_state.title')}
+                description={t('patients.empty_state.desc')}
             />
         );
     }
@@ -91,6 +104,8 @@ export default memo(function PatientTable({ patients, isLoading, onDelete }) {
                     patient={patient}
                     index={index}
                     onDelete={onDelete}
+                    onNavigate={handleNavigate}
+                    t={t}
                 />
             ))}
         </div>
