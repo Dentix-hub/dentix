@@ -1,3 +1,4 @@
+import { isValidElement } from 'react';
 
 const StatCard = ({ icon: Icon, title, value, subtext, label, color = "indigo", onClick }) => (
     <div
@@ -16,10 +17,10 @@ const StatCard = ({ icon: Icon, title, value, subtext, label, color = "indigo", 
                 {subtext && <p className={`text-xs font-medium px-2 py-1 rounded-full bg-${color}-50 dark:bg-${color}-900/30 text-${color}-600 dark:text-${color}-400 inline-block`}>{subtext}</p>}
             </div>
             <div className={`p-3 bg-${color}-100 dark:bg-${color}-900/50 rounded-2xl text-${color}-600 dark:text-${color}-400 group-hover:rotate-12 transition-transform`}>
-                {typeof Icon === 'function' ? (
-                    <Icon size={28} strokeWidth={2} />
-                ) : (
+                {isValidElement(Icon) ? (
                     Icon
+                ) : (
+                    <Icon size={28} strokeWidth={2} />
                 )}
             </div>
         </div>
