@@ -1,4 +1,5 @@
 import React, { memo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, Users, UserPlus, Activity } from 'lucide-react';
 import { Button, SkeletonBox } from '@/shared/ui';
 
@@ -29,6 +30,8 @@ function StatCard({ icon: Icon, label, value, isLoading }) {
 }
 
 export default memo(function PatientQuickActions({ stats, isLoading, onAddClick }) {
+    const { t } = useTranslation();
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -36,13 +39,13 @@ export default memo(function PatientQuickActions({ stats, isLoading, onAddClick 
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
                         <Users className="w-6 h-6" />
-                        Patients
+                        {t('patients.title')}
                     </h1>
-                    <p className="text-slate-500 mt-1">Manage your patient records</p>
+                    <p className="text-slate-500 mt-1">{t('patients.subtitle')}</p>
                 </div>
                 <Button onClick={onAddClick} size="lg">
                     <Plus className="w-4 h-4 mr-2" />
-                    Add New
+                    {t('patients.add_new')}
                 </Button>
             </div>
 
@@ -50,19 +53,19 @@ export default memo(function PatientQuickActions({ stats, isLoading, onAddClick 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatCard
                     icon={Users}
-                    label="Total Patients"
+                    label={t('patients.stats_total')}
                     value={stats?.total || 0}
                     isLoading={isLoading}
                 />
                 <StatCard
                     icon={UserPlus}
-                    label="New This Month"
+                    label={t('patients.stats_new_month')}
                     value={stats?.newThisMonth || 0}
                     isLoading={isLoading}
                 />
                 <StatCard
                     icon={Activity}
-                    label="Active Patients"
+                    label={t('patients.stats_active')}
                     value={stats?.active || 0}
                     isLoading={isLoading}
                 />
