@@ -10,7 +10,7 @@ export default memo(function PatientFilters({ search, onSearchChange }) {
                 placeholder="Search by name or phone..."
                 value={search}
                 onChange={(e) => onSearchChange(e.target.value)}
-                icon={<Search className="w-4 h-4 text-slate-400" />}
+                icon={Search}
                 containerClassName="max-w-md"
                 dir="auto"
             />
