@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { Trash2, Phone, MapPin, Calendar } from 'lucide-react';
+import { Trash2, Phone, MapPin, Calendar, Users } from 'lucide-react';
 import { Button, SkeletonBox, SkeletonCard, EmptyState } from '@/shared/ui';
 
 const CARD_COLORS = [
@@ -76,7 +76,7 @@ export default memo(function PatientTable({ patients, isLoading, onDelete }) {
     if (!patients || patients.length === 0) {
         return (
             <EmptyState
-                icon="users"
+                icon={Users}
                 title="No patients found"
                 description="Add a new patient to get started"
             />

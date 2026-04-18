@@ -19,7 +19,7 @@ const Input = ({
             <div className="relative group">
                 {Icon && (
                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
-                        <Icon size={18} />
+                        {typeof Icon === 'function' ? <Icon size={18} /> : Icon}
                     </div>
                 )}
 
