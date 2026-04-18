@@ -2,11 +2,11 @@ import { useState, useMemo, memo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Users, Calendar, Activity, Clock,
-    TrendingUp, Wallet, Stethoscope, ChevronLeft, Banknote
+    TrendingUp, Wallet, Stethoscope, ChevronLeft, Banknote, BarChart as BarChartIcon
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
-    AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart
+    AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer
 } from 'recharts';
 import { getTodayPayments, getTodayDebtors } from '@/api';
 import { useDashboardStats } from '@/hooks/useDashboard';
@@ -210,7 +210,7 @@ export default function Dashboard() {
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-text-secondary gap-4">
                                     <div className="w-16 h-16 bg-surface-hover rounded-full flex items-center justify-center">
-                                        <BarChart size={32} className="text-slate-400" />
+                                        <BarChartIcon size={32} className="text-slate-400" />
                                     </div>
                                     <p>{t('dashboard.no_financial_data')}</p>
                                 </div>
@@ -290,9 +290,9 @@ export default function Dashboard() {
                 <div className="space-y-3">
                     {modalLoading ? (
                         <div className="flex flex-col gap-3">
-                            <Skeleton.Box height="4rem" />
-                            <Skeleton.Box height="4rem" />
-                            <Skeleton.Box height="4rem" />
+                            <div className="animate-pulse bg-slate-200 dark:bg-slate-700/50 rounded-xl h-[4rem] w-full" />
+                            <div className="animate-pulse bg-slate-200 dark:bg-slate-700/50 rounded-xl h-[4rem] w-full" />
+                            <div className="animate-pulse bg-slate-200 dark:bg-slate-700/50 rounded-xl h-[4rem] w-full" />
                         </div>
                     ) : modalData.length > 0 ? modalData.map((item, idx) => (
                         <div key={idx} className="flex justify-between items-center p-4 bg-surface-hover rounded-2xl border border-border">
