@@ -465,3 +465,19 @@ if os.getenv("ENVIRONMENT", "development").lower() != "production":
             }
         except Exception:
             return {"error": "Database inspection failed"}
+
+    @app.get("/debug/static-files")
+    def debug_static_files():
+        """Debug: list files in static directory."""
+        import os
+        paths = [
+            os.path.join(base_dir, "static"),
+            os.path.join(base_dir, "static", "assets"),
+        ]
+        result = {}
+        for p in paths:
+            if os.path.exists(p):
+                result[p] = os.listdir(p)
+            else:
+                result[p] = "Not found"
+        return result
