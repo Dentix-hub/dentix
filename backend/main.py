@@ -208,7 +208,8 @@ os.makedirs(upload_dir, exist_ok=True)
 os.makedirs("static/logos", exist_ok=True)
 
 app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=os.path.join(base_dir, "static")), name="static")
+app.mount("/assets", StaticFiles(directory=os.path.join(base_dir, "static", "assets")), name="assets")
 
 
 from backend.core.startup import init_drive_client
@@ -392,6 +393,7 @@ async def catch_all(full_path: str):
     if (
         full_path.startswith("api")
         or full_path.startswith("static")
+        or full_path.startswith("assets")
         or full_path.startswith("uploads")
         or full_path.startswith("auth")
     ):
