@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, DollarSign, Calendar } from 'lucide-react';
-import { Button, Input, Skeleton, Badge } from '@/shared/ui';
+import { Button, Input, SkeletonBox, Badge } from '@/shared/ui';
 import { getDoctorDetails, updateStaffCompensation } from '@/api';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -107,8 +107,8 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                 <div className="flex-1 overflow-y-auto bg-slate-50/30 dark:bg-black/20 p-6 relative">
                     {loading ? (
                         <div className="space-y-4">
-                            <Skeleton.Box className="h-20 w-full" />
-                            <Skeleton.Box className="h-64 w-full" />
+                            <SkeletonBox className="h-20 w-full" />
+                            <SkeletonBox className="h-64 w-full" />
                         </div>
                     ) : (
                         <>

@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Trash2, Phone, MapPin, Calendar } from 'lucide-react';
-import { Button, Skeleton, EmptyState } from '@/shared/ui';
+import { Button, SkeletonBox, SkeletonCard, EmptyState } from '@/shared/ui';
 
 const CARD_COLORS = [
     { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', accent: 'bg-blue-100' },
@@ -67,15 +67,7 @@ export default memo(function PatientTable({ patients, isLoading, onDelete }) {
         return (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {Array.from({ length: 6 }).map((_, i) => (
-                    <Skeleton.Card key={i}>
-                        <div className="flex items-center gap-3">
-                            <Skeleton.Box className="w-12 h-12 rounded-full" />
-                            <div className="flex-1 space-y-2">
-                                <Skeleton.Box className="w-3/4 h-4" />
-                                <Skeleton.Box className="w-1/2 h-3" />
-                            </div>
-                        </div>
-                    </Skeleton.Card>
+                    <SkeletonCard key={i} />
                 ))}
             </div>
         );

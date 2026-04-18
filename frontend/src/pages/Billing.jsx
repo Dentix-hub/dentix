@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import DoctorRevenue from '@/features/billing/DoctorRevenue';
 import { getFinancialStats, getAllPayments, getExpenses, createExpense, deleteExpense, getStaffRevenue, updateStaffCompensation, getComprehensiveStats, getSalariesStatus, recordSalaryPayment, deleteSalaryPayment, updateHireDate, getLabOrders } from '@/api';
 import { getTodayStr } from '@/utils/toothUtils';
-import { Skeleton, Button } from '@/shared/ui';
+import { Card, Button, DataTable, SkeletonBox } from '@/shared/ui';
 // Import extracted components
 import ExpensesTab from '@/features/billing/BillingTabs/ExpensesTab';
 import ExpenseModal from '@/features/billing/BillingTabs/ExpenseModal';
@@ -175,10 +175,10 @@ export default function Billing() {
     if (loading) return (
         <div className="space-y-6">
             <div className="flex gap-4">
-                <Skeleton.Box className="h-10 w-32" />
-                <Skeleton.Box className="h-10 w-32" />
+                <SkeletonBox className="h-10 w-32" />
+                <SkeletonBox className="h-10 w-32" />
             </div>
-            <Skeleton.Box className="h-[400px] w-full rounded-2xl" />
+            <SkeletonBox className="h-[400px] w-full rounded-2xl" />
         </div>
     );
     const tabs = [

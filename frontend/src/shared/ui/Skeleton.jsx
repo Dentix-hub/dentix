@@ -86,10 +86,5 @@ export const SkeletonStatCard = memo(function SkeletonStatCard() {
         </div>
     );
 });
-export default {
-    Box: SkeletonBox,
-    Text: SkeletonText,
-    Card: SkeletonCard,
-    Table: SkeletonTable,
-    StatCard: SkeletonStatCard,
-};
+export { SkeletonBox, SkeletonText, SkeletonCard, SkeletonTable, SkeletonStatCard };
+export default SkeletonBox;

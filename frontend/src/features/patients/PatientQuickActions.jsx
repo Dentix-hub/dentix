@@ -1,16 +1,16 @@
 import React, { memo } from 'react';
 import { Plus, Users, UserPlus, Activity } from 'lucide-react';
-import { Button, Skeleton } from '@/shared/ui';
+import { Button, SkeletonBox } from '@/shared/ui';
 
 function StatCard({ icon: Icon, label, value, isLoading }) {
     if (isLoading) {
         return (
             <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
                 <div className="flex items-center justify-between">
-                    <Skeleton.Box className="w-10 h-10 rounded-lg" />
-                    <Skeleton.Box className="w-16 h-8" />
+                    <SkeletonBox className="w-10 h-10 rounded-lg" />
+                    <SkeletonBox className="w-16 h-8" />
                 </div>
-                <Skeleton.Box className="w-24 h-4 mt-3" />
+                <SkeletonBox className="w-24 h-4 mt-3" />
             </div>
         );
     }
