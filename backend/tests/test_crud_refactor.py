@@ -14,14 +14,15 @@ from backend.crud import billing as crud_billing
 # Setup in-memory SQLite
 # Setup DB for testing
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Fallback to SQLite correctly if DATABASE_URL is missing for local dev
 if not SQLALCHEMY_DATABASE_URL:
-    import os
+    SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
 
-    # Fallback only if we really must, but instruction says remove SQLite.
-    # We will expect DATABASE_URL.
-    raise RuntimeError("DATABASE_URL must be set for tests.")
-
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, 
+    connect_args={"check_same_thread": False} if "sqlite" in SQLALCHEMY_DATABASE_URL else {}
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

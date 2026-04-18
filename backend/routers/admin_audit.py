@@ -12,6 +12,7 @@ from typing import List
 from datetime import datetime, timedelta
 
 from backend import models, schemas
+from backend.core.response import success_response, StandardResponse
 from backend.database import get_db
 from backend.core.permissions import Role, Permission, require_permission
 
@@ -34,7 +35,7 @@ def require_super_admin(
 
 
 # --- Audit Logs ---
-@router.get("/audit-logs", response_model=List[schemas.AuditLog])
+@router.get("/audit-logs", response_model=StandardResponse[List[schemas.AuditLog]])
 def get_audit_logs(
     skip: int = 0,
     limit: int = 50,
@@ -68,16 +69,17 @@ def get_audit_logs(
         except ValueError:
             pass
 
-    return (
+    results = (
         query.order_by(models.AuditLog.created_at.desc())
         .offset(skip)
         .limit(limit)
         .all()
     )
+    return success_response(results)
 
 
 # --- System Error Logs ---
-@router.get("/system/logs", response_model=List[schemas.SystemError])
+@router.get("/system/logs", response_model=StandardResponse[List[schemas.SystemError]])
 def get_system_logs(
     skip: int = 0,
     limit: int = 50,
@@ -85,10 +87,11 @@ def get_system_logs(
     db: Session = Depends(get_db),
 ):
     """Retrieve system error logs (Super Admin only)."""
-    return (
+    results = (
         db.query(models.SystemError)
         .order_by(models.SystemError.created_at.desc())
         .offset(skip)
         .limit(limit)
         .all()
     )
+    return success_response(results)

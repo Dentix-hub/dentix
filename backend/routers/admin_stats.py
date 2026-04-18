@@ -7,7 +7,7 @@ Split from admin_system.py (B3.1).
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException
-from backend.core.response import success_response
+from backend.core.response import success_response, StandardResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timezone
@@ -36,7 +36,7 @@ def require_super_admin(
 
 
 # --- Dashboard Stats ---
-@router.get("/stats", response_model=schemas.AdminDashboardStats)
+@router.get("/stats", response_model=StandardResponse[schemas.AdminDashboardStats])
 def get_admin_dashboard_stats(
     current_user: models.User = Depends(require_super_admin),
     db: Session = Depends(get_db),

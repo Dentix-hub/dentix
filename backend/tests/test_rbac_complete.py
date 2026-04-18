@@ -7,8 +7,9 @@ Verifies both ALLOW and DENY paths across the entire permission matrix.
 
 import pytest
 from unittest.mock import MagicMock
+from types import SimpleNamespace
 from backend.routers.auth import get_current_user
-from backend import models
+from backend import models, schemas
 from backend.core.permissions import (
     Role,
     Permission,
@@ -16,6 +17,13 @@ from backend.core.permissions import (
     has_permission,
     get_role_permissions,
 )
+
+
+class AttrDict(dict):
+    """A dictionary that allows attribute-style access."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__dict__ = self
 
 
 # ============================================
@@ -147,6 +155,22 @@ def _make_mock_user(role: str, tenant_id: int = 1, user_id: int = 1):
     mock.username = f"test_{role}"
     mock.email = f"{role}@test.com"
     mock.is_active = True
+    
+    # Use AttrDict so it behaves like an object (dot access) 
+    # and a dict (Pydantic validation for StandardResponse[dict])
+    mock.tenant = AttrDict({
+        "id": tenant_id,
+        "name": "Test Clinic",
+        "doctor_name": "Test Doctor",
+        "doctor_title": "Dr.",
+        "clinic_address": "123 Test St",
+        "clinic_phone": "555-1234",
+        "google_refresh_token": None,
+        "backup_frequency": "weekly",
+        "last_backup_at": None,
+        "print_header_image": None,
+        "print_footer_image": None
+    })
     return mock
 
 

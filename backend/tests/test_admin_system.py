@@ -24,7 +24,9 @@ def test_get_audit_logs(client, super_admin_headers):
     """Test fetching audit logs."""
     response = client.get("/api/v1/admin/audit-logs", headers=super_admin_headers)
     assert response.status_code == 200
-    data = response.json()
+    res = response.json()
+    assert res["success"] is True
+    data = res["data"]
     assert isinstance(data, list)
 
 

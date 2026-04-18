@@ -15,7 +15,9 @@ def test_delete_empty_material(client, admin_headers):
     }
     resp = client.post("/api/v1/inventory/materials", json=mat_data, headers=admin_headers)
     assert resp.status_code == 200 or resp.status_code == 201
-    mat = resp.json()
+    res = resp.json()
+    assert res["success"] is True
+    mat = res["data"]
 
     # 2. Delete it (Should succeed)
     del_resp = client.delete(f"/api/v1/inventory/materials/{mat['id']}", headers=admin_headers)
@@ -32,15 +34,26 @@ def test_delete_material_with_stock_blocked(client, admin_headers):
     }
     resp = client.post("/api/v1/inventory/materials", json=mat_data, headers=admin_headers)
     assert resp.status_code == 200 or resp.status_code == 201
-    mat = resp.json()
+    res = resp.json()
+    assert res["success"] is True
+    mat = res["data"]
 
     # 2. Get warehouse
     wh_resp = client.get("/api/v1/inventory/warehouses", headers=admin_headers)
     if wh_resp.status_code != 200 or not wh_resp.json():
         # No warehouses available, skip stock test
         return
+    
+    wh_res = wh_resp.json()
+    if isinstance(wh_res, dict) and "data" in wh_res:
+        wh_list = wh_res["data"]
+    else:
+        wh_list = wh_res
 
-    wh = wh_resp.json()[0]
+    if not wh_list:
+        return
+
+    wh = wh_list[0]
 
     # 3. Add Stock
     stock_data = {
