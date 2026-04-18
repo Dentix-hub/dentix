@@ -6,7 +6,7 @@ import { createAppointment, updateAppointmentStatus, deleteAppointment } from '@
 import { useAppointments } from '@/hooks/useAppointments';
 import { usePatients } from '@/hooks/usePatients';
 import { getTodayDateTimeStr } from '@/utils/toothUtils';
-import { Button, Input, Modal, Badge, Skeleton, EmptyState, toast } from '@/shared/ui';
+import { Button, Input, Modal, Badge, SkeletonBox, EmptyState, toast } from '@/shared/ui';
 export default function Appointments() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { t } = useTranslation();
@@ -133,9 +133,9 @@ export default function Appointments() {
             </div>
             {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <Skeleton.Box className="h-96 w-full rounded-3xl" />
-                    <Skeleton.Box className="h-96 w-full rounded-3xl" />
-                    <Skeleton.Box className="h-96 w-full rounded-3xl" />
+                    <SkeletonBox className="h-96 w-full rounded-3xl" />
+                    <SkeletonBox className="h-96 w-full rounded-3xl" />
+                    <SkeletonBox className="h-96 w-full rounded-3xl" />
                 </div>
             ) : appointments.length === 0 ? (
                 <EmptyState

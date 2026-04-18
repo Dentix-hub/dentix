@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
-import { Card, Button, DataTable, Skeleton } from '@/shared/ui';
+import { Card, Button, DataTable, SkeletonBox } from '@/shared/ui';
 import { AlertTriangle, RefreshCw, Smartphone, Server } from 'lucide-react';
 export default function SystemLogs() {
     const [page, setPage] = useState(0);
@@ -72,9 +72,9 @@ export default function SystemLogs() {
             <Card>
                 {isLoading ? (
                     <div className="space-y-4">
-                        <Skeleton.Box height="3rem" />
-                        <Skeleton.Box height="3rem" />
-                        <Skeleton.Box height="3rem" />
+                        <SkeletonBox height="3rem" />
+                        <SkeletonBox height="3rem" />
+                        <SkeletonBox height="3rem" />
                     </div>
                 ) : (
                     <DataTable

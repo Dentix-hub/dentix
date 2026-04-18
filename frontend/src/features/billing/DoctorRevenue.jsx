@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Calendar, Calculator } from 'lucide-react';
 import { getDoctorRevenue, getDoctorDetails, updateStaffCompensation } from '@/api';
-import { Button, Card, Skeleton, EmptyState, toast } from '@/shared/ui';
+import { Button, Card, SkeletonBox, EmptyState, toast } from '@/shared/ui';
 import DoctorRevenueDetails from './DoctorRevenueDetails';
 import { useTranslation } from 'react-i18next';
 export default function DoctorRevenue() {
@@ -117,7 +117,7 @@ export default function DoctorRevenue() {
             <div className="overflow-x-auto">
                 {loading ? (
                     <div className="p-6 space-y-4">
-                        {[1, 2, 3].map(i => <Skeleton.Box key={i} className="h-16 w-full rounded-xl" />)}
+                        {[1, 2, 3].map(i => <SkeletonBox key={i} className="h-16 w-full rounded-xl" />)}
                     </div>
                 ) : (
                     <table className="w-full text-right text-sm">

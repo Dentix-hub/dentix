@@ -1,5 +1,5 @@
 import { Check, Trash2 } from 'lucide-react';
-import { Button, Card, Badge, Skeleton, EmptyState } from '@/shared/ui';
+import { Button, Card, Badge, SkeletonBox, EmptyState } from '@/shared/ui';
 
 import { useTranslation } from 'react-i18next';
 
@@ -27,7 +27,7 @@ const SalariesTab = ({ salaryMonth, setSalaryMonth, salariesData, salariesLoadin
                 <div className="overflow-x-auto">
                     {salariesLoading ? (
                         <div className="p-6 space-y-4">
-                            {[1, 2, 3].map(i => <Skeleton.Box key={i} className="h-12 w-full rounded-xl" />)}
+                            {[1, 2, 3].map(i => <SkeletonBox key={i} className="h-12 w-full rounded-xl" />)}
                         </div>
                     ) : salariesData.length > 0 ? (
                         <table className="w-full text-right text-sm">
