@@ -5,8 +5,10 @@ from .ai_audit import AILog
 
 # A2.4: AIUsageLog is now a type alias for AILog.
 # All legacy code using models.AIUsageLog continues to work unchanged.
+# AIAuditLog is also aliased for backward compat.
 # New code should use models.AILog directly.
 AIUsageLog = AILog
+AIAuditLog = AILog
 
 from .security_event import SecurityEvent  # Phase 3: Security Hardening
 from .tenant import Tenant, SubscriptionPlan, SubscriptionPayment

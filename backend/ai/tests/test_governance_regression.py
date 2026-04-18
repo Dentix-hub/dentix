@@ -118,7 +118,7 @@ class TestGovernanceRegression(unittest.IsolatedAsyncioTestCase):
     async def test_audit_log_persistence(self):
         """Regression: Verify Audit Log is created."""
         from backend.services.ai_service import AIService
-        from backend.models.ai_audit import AIAuditLog
+        from backend.models.ai_audit import AILog as AIAuditLog
 
         # Setup
         mock_db = MagicMock()

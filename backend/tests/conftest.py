@@ -18,6 +18,10 @@ from unittest.mock import MagicMock
 import sys
 import os
 
+# Force SQLite and Test Mode for all backend imports
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["ENVIRONMENT"] = "testing"
+
 # Add backend to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -76,8 +80,8 @@ def client(db_session):
     except Exception:
         pass
 
-    with TestClient(app) as test_client:
-        yield test_client
+    test_client = TestClient(app)
+    yield test_client
 
     app.dependency_overrides.clear()
 

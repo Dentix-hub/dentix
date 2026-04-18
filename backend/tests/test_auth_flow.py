@@ -22,7 +22,9 @@ def test_auth_login_and_access(client, super_admin_user, super_admin_headers):
     headers = {"Authorization": f"Bearer {access_token}"}
     response = client.get("/api/v1/users/me", headers=headers)
     assert response.status_code == 200
-    assert response.json()["username"] == "superadmin"
+    res = response.json()
+    assert res["success"] is True
+    assert res["data"]["username"] == "superadmin"
 
 
 @pytest.mark.skip(reason="Refresh endpoint requires UserSession tracking (request.client.host unavailable in TestClient)")

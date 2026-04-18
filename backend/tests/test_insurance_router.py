@@ -1,17 +1,19 @@
 import pytest
 from backend.models import InsuranceProvider, PriceList
 
-def test_create_insurance_provider(client, super_admin_headers, db_session):
+def test_create_insurance_provider(client, admin_headers, db_session):
     """Test creating an insurance provider and verify default price list creation."""
     payload = {
         "name": "Global Health Insurance",
         "code": "GHI-001",
         "contact_email": "contact@ghi.com"
     }
-    response = client.post("/api/v1/insurance-providers/", json=payload, headers=super_admin_headers)
+    response = client.post("/api/v1/insurance-providers/", json=payload, headers=admin_headers)
     
     assert response.status_code == 200
-    data = response.json()["data"]
+    res = response.json()
+    assert res["success"] is True
+    data = res["data"]
     assert data["name"] == "Global Health Insurance"
     
     # Verify DB state
@@ -24,31 +26,33 @@ def test_create_insurance_provider(client, super_admin_headers, db_session):
     assert price_list is not None
     assert price_list.type == "insurance"
 
-def test_get_insurance_providers(client, super_admin_headers, db_session):
+def test_get_insurance_providers(client, admin_headers, db_session):
     # Seed a provider
     provider = InsuranceProvider(name="AXA", tenant_id=1, is_active=True)
     db_session.add(provider)
     db_session.commit()
     
-    response = client.get("/api/v1/insurance-providers/", headers=super_admin_headers)
+    response = client.get("/api/v1/insurance-providers/", headers=admin_headers)
     assert response.status_code == 200
-    data = response.json()["data"]
+    res = response.json()
+    assert res["success"] is True
+    data = res["data"]
     assert len(data) >= 1
     assert any(p["name"] == "AXA" for p in data)
 
-def test_update_insurance_provider(client, super_admin_headers, db_session):
+def test_update_insurance_provider(client, admin_headers, db_session):
     provider = InsuranceProvider(name="Old Name", tenant_id=1, is_active=True)
     db_session.add(provider)
     db_session.commit()
     
     payload = {"name": "New Name"}
-    response = client.put(f"/api/v1/insurance-providers/{provider.id}", json=payload, headers=super_admin_headers)
+    response = client.put(f"/api/v1/insurance-providers/{provider.id}", json=payload, headers=admin_headers)
     
     assert response.status_code == 200
     db_session.refresh(provider)
     assert provider.name == "New Name"
 
-def test_deactivate_insurance_provider(client, super_admin_headers, db_session):
+def test_deactivate_insurance_provider(client, admin_headers, db_session):
     provider = InsuranceProvider(name="To Deactivate", tenant_id=1, is_active=True)
     db_session.add(provider)
     db_session.flush()
@@ -58,7 +62,7 @@ def test_deactivate_insurance_provider(client, super_admin_headers, db_session):
     db_session.add(pl)
     db_session.commit()
     
-    response = client.delete(f"/api/v1/insurance-providers/{provider.id}", headers=super_admin_headers)
+    response = client.delete(f"/api/v1/insurance-providers/{provider.id}", headers=admin_headers)
     assert response.status_code == 200
     
     db_session.refresh(provider)

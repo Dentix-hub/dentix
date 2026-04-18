@@ -6,7 +6,9 @@ to prevent N+1 query issues on key endpoints.
 """
 
 import pytest
+from datetime import datetime
 from sqlalchemy import event
+from sqlalchemy.orm import joinedload
 from backend import models
 
 
@@ -16,16 +18,17 @@ def query_counter(db_session):
     class QueryCounter:
         def __init__(self):
             self.count = 0
+            self._connection = db_session.get_bind()
+
+        def _receive_event(self, *args, **kwargs):
+            self.count += 1
 
         def __enter__(self):
-            @event.listens_for(db_session, "before_cursor_execute")
-            def receive_event(*args):
-                self.count += 1
-            self._count = 0
+            event.listen(self._connection, "before_cursor_execute", self._receive_event)
             return self
 
         def __exit__(self, *args):
-            event.remove(db_session, "before_cursor_execute", receive_event)
+            event.remove(self._connection, "before_cursor_execute", self._receive_event)
 
     return QueryCounter()
 
@@ -150,9 +153,8 @@ def test_appointments_with_patient_nplus1(db_session, query_counter):
     for i in range(4):
         db_session.add(models.Appointment(
             patient_id=patients_data[i % 2].id,
-            appointment_date="2026-04-14",
+            date_time=datetime(2026, 4, 14),
             status="Scheduled",
-            tenant_id=t.id,
         ))
     db_session.commit()
 
@@ -160,8 +162,8 @@ def test_appointments_with_patient_nplus1(db_session, query_counter):
     with query_counter as qc:
         results = db_session.query(models.Appointment).options(
             joinedload(models.Appointment.patient)
-        ).filter(
-            models.Appointment.tenant_id == t.id
+        ).join(models.Patient).filter(
+            models.Patient.tenant_id == t.id
         ).all()
 
         # Access patient name - should NOT trigger additional queries
