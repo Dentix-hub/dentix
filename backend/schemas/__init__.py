@@ -64,6 +64,7 @@ from .auth import (
     UserAdminView,
     LoginHistory,
     BlockedIP,
+    FCMTokenUpdate,
 )
 
 # Tenant
@@ -192,6 +193,7 @@ __all__ = [
     "UserAdminView",
     "LoginHistory",
     "BlockedIP",
+    "FCMTokenUpdate",
     # Tenant
     "TenantBase",
     "TenantCreate",

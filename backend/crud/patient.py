@@ -26,7 +26,7 @@ def get_patient(db: Session, patient_id: int, tenant_id: int):
         .filter(
             models.Patient.id == patient_id,
             models.Patient.tenant_id == tenant_id,
-            not models.Patient.is_deleted,
+            models.Patient.is_deleted == False,  # noqa: E712
         )
         .first()
     )
@@ -37,7 +37,7 @@ def get_patients(db: Session, tenant_id: int, skip: int = 0, limit: int = 100):
     return (
         db.query(models.Patient)
         .filter(
-            models.Patient.tenant_id == tenant_id, not models.Patient.is_deleted
+            models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False  # noqa: E712
         )
         # Defer heavy encrypted fields for list view
         .options(
@@ -66,7 +66,7 @@ def search_patients(db: Session, query: str, tenant_id: int):
         db.query(models.Patient)
         .filter(
             models.Patient.tenant_id == tenant_id,
-            not models.Patient.is_deleted,
+            models.Patient.is_deleted == False,  # noqa: E712
             models.Patient.name.ilike(search),
         )
         .limit(5)
@@ -89,7 +89,7 @@ def create_patient(db: Session, patient: schemas.PatientCreate, tenant_id: int):
         .filter(
             models.Patient.tenant_id == tenant_id,
             models.Patient.name == patient.name,
-            not models.Patient.is_deleted,
+            models.Patient.is_deleted == False,  # noqa: E712
         )
         .first()
     )

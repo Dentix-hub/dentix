@@ -65,7 +65,7 @@ def export_tenant_data(db: Session, tenant_id: int) -> Dict:
     # 1. Users (tenant staff)
     users = (
         db.query(models.User)
-        .filter(models.User.tenant_id == tenant_id, not models.User.is_deleted)
+        .filter(models.User.tenant_id == tenant_id, models.User.is_deleted == False)  # noqa: E712
         .all()
     )
     export_data["data"]["users"] = [
@@ -76,7 +76,7 @@ def export_tenant_data(db: Session, tenant_id: int) -> Dict:
     patients = (
         db.query(models.Patient)
         .filter(
-            models.Patient.tenant_id == tenant_id, not models.Patient.is_deleted
+            models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False  # noqa: E712
         )
         .all()
     )
@@ -88,7 +88,7 @@ def export_tenant_data(db: Session, tenant_id: int) -> Dict:
         .join(models.Patient)
         .filter(
             models.Patient.tenant_id == tenant_id,
-            not models.Appointment.is_deleted,
+            models.Appointment.is_deleted == False,  # noqa: E712
         )
         .all()
     )

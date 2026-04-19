@@ -1,4 +1,4 @@
-import sys
+﻿import sys
 import os
 import unittest
 from datetime import datetime
@@ -20,6 +20,8 @@ from backend.services.knowledge_service import KnowledgeService
 class TestAllAIServices(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        from backend.database import engine, Base
+        Base.metadata.create_all(bind=engine)
         cls.db = SessionLocal()
         cls.tenant_id = 1
         cls.user_id = 1
@@ -92,99 +94,99 @@ class TestAllAIServices(unittest.TestCase):
         cls.db.close()
 
     def test_analytics_service(self):
-        print("\n🔹 Testing AnalyticsService...")
+        print("\nTesting AnalyticsService...")
         svc = AnalyticsService(self.db, self.tenant_id)
 
         # 1. Dashboard
         res = svc.get_dashboard_summary("month")
         self.assertIn("period_revenue", res)
-        print("   ✅ get_dashboard_summary")
+        print("   âœ… get_dashboard_summary")
 
         # 2. Clinic Info
         res = svc.get_clinic_summary()
         self.assertIn("name", res)
-        print("   ✅ get_clinic_summary")
+        print("   âœ… get_clinic_summary")
 
         # 3. Doctor Ranking
         res = svc.get_doctor_ranking("month", "revenue")
         self.assertIsInstance(res.get("ranking"), list)
-        print("   ✅ get_doctor_ranking")
+        print("   âœ… get_doctor_ranking")
 
         # 4. Top Procedures
         res = svc.get_top_procedures("month")
         self.assertIsInstance(res.get("top_procedures"), list)
-        print("   ✅ get_top_procedures")
+        print("   âœ… get_top_procedures")
 
         # 5. Revenue Trend
         res = svc.get_revenue_trend("year")
         self.assertIsInstance(res.get("trend"), list)
-        print("   ✅ get_revenue_trend")
+        print("   âœ… get_revenue_trend")
 
     def test_clinical_service(self):
-        print("\n🔹 Testing ClinicalService...")
+        print("\nTesting ClinicalService...")
         svc = ClinicalService(self.db, self.tenant_id, self.user_id)
 
         # 1. Recent Treatments
         res = svc.get_recent_treatments()
         self.assertTrue(len(res) >= 0)
-        print("   ✅ get_recent_treatments")
+        print("   âœ… get_recent_treatments")
 
         # 2. Add Treatment
         t = svc.add_treatment(self.patient, "New Proc", 200.0)
         self.assertTrue(t.id > 0)
-        print("   ✅ add_treatment")
+        print("   âœ… add_treatment")
 
         # 3. Update Tooth
         try:
             res = svc.update_tooth_status(self.patient, "11", "Decayed", "Test Note")
             self.assertEqual(res["fdi"], 11)
-            print("   ✅ update_tooth_status")
+            print("   âœ… update_tooth_status")
         except Exception as e:
             self.fail(f"update_tooth_status failed: {e}")
 
     def test_finance_service(self):
-        print("\n🔹 Testing FinanceService...")
+        print("\nTesting FinanceService...")
         svc = FinanceService(self.db, self.tenant_id)
 
         # 1. Daily Revenue
         res = svc.get_daily_revenue()
         self.assertIn("total_revenue", res)
-        print("   ✅ get_daily_revenue")
+        print("   âœ… get_daily_revenue")
 
         # 2. Create Payment
         res = svc.create_payment("AI Test Patient", 100.0, self.user_id)
         self.assertTrue(res["success"])
-        print("   ✅ create_payment")
+        print("   âœ… create_payment")
 
     def test_subscription_service(self):
-        print("\n🔹 Testing SubscriptionService...")
+        print("\nTesting SubscriptionService...")
 
         # 1. Get Details
         res = SubscriptionService.get_subscription_details(self.db, self.tenant_id)
         self.assertIn("plan_name", res)
-        print("   ✅ get_subscription_details")
+        print("   âœ… get_subscription_details")
 
     def test_knowledge_service(self):
-        print("\n🔹 Testing KnowledgeService...")
+        print("\nTesting KnowledgeService...")
         svc = KnowledgeService(self.tenant_id)
 
         # 1. Learn
         doc_id = svc.learn_info("Test Info", "test")
         self.assertTrue(len(doc_id) > 0)
-        print("   ✅ learn_info")
+        print("   âœ… learn_info")
 
         # 2. List
         res = svc.list_knowledge()
         self.assertTrue(len(res) > 0)
-        print("   ✅ list_knowledge")
+        print("   âœ… list_knowledge")
 
         # 3. Forget
         # Note: Might fail if RAG store is persistent/mocked differently, but interface check is key
         try:
             svc.forget_info(doc_id)
-            print("   ✅ forget_info")
+            print("   âœ… forget_info")
         except Exception as e:
-            print(f"   ⚠️ forget_info warning: {e}")
+            print(f"   âš ï¸ forget_info warning: {e}")
 
 
 if __name__ == "__main__":

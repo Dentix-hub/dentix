@@ -41,7 +41,7 @@ class BillingService:
             .filter(
                 models.Patient.id == payment.patient_id,
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
             )
             .first()
         )
@@ -67,7 +67,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
             )
         )
 
@@ -83,7 +83,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
             )
         )
 
@@ -94,7 +94,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
             )
         )
 
@@ -109,7 +109,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
                 models.Treatment.date >= month_start,
             )
         )
@@ -127,7 +127,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
             )
         )
 
@@ -226,7 +226,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
             )
         )
 
@@ -236,7 +236,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
             )
         )
 
@@ -260,7 +260,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
                 models.Payment.date >= self._today_start,
             )
             .order_by(models.Payment.date.desc())
@@ -286,7 +286,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
                 models.Treatment.date >= self._today_start,
             )
             .all()

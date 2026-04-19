@@ -71,7 +71,7 @@ def update_backup_status(status: str, message: str, tenant_id: int = None):
 
 
 def run_backup_task(
-    refresh_token: str, db_url: str, tenant_id: int = None, tenant_name: str = None
+    refresh_token: str = None, db_url: str = None, tenant_id: int = None, tenant_name: str = None
 ):
     """
     Executes the database backup and google drive upload in the background.
@@ -138,10 +138,11 @@ def run_backup_task(
             logger.warning("Authentication failed. Disconnecting Google Drive.")
             try:
                 db = SessionLocal()
-                # Auto-disconnect
-                db.query(models.SystemSetting).filter(
-                    models.SystemSetting.key == "google_refresh_token_super_admin"
-                ).delete()
+                # Only auto-disconnect if it was a refresh token based auth
+                if refresh_token:
+                    db.query(models.SystemSetting).filter(
+                        models.SystemSetting.key == "google_refresh_token_super_admin"
+                    ).delete()
                 # Reset status
                 db.query(models.SystemSetting).filter(
                     models.SystemSetting.key.in_(

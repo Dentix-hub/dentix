@@ -37,6 +37,7 @@ class User(Base):
     role = Column(String, default="doctor")
     permissions = Column(Text, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
+    fcm_token = Column(String, nullable=True)
 
     # Doctor Visibility Settings (Multi-Doctor Support)
     # ALL_ASSIGNED = see assigned patients only
