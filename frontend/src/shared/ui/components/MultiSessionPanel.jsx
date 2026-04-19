@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, Calendar, User, FileText, CheckCircle2, Clock } from 'lucide-react';
-import { Button } from '../Button';
+import Button from '../Button';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
