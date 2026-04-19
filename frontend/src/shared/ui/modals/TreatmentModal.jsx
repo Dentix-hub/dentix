@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { X, Package, Plus, Trash2 } from 'lucide-react';
+import { X, Package, Plus, Trash2, Clock, FileText } from 'lucide-react';
 import { getMaterials, getProcedureWeights, getActiveSessions } from '@/api/inventory';
 import TrackSessionModal from '@/features/inventory/components/TrackSessionModal';
 import { EnhancedMaterialConsumption } from '@/features/inventory/components/EnhancedMaterialConsumption';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { addTreatmentSession } from '@/api';
+import { MultiSessionPanel } from '../components/MultiSessionPanel';
 export default function TreatmentModal({
     isOpen,
     onClose,
@@ -68,7 +70,36 @@ export default function TreatmentModal({
             }
         }
     }, [isOpen, initialData, isEditing]);
-    const [confirmOpenMaterial, setConfirmOpenMaterial] = useState(null); // { materialId, stockItemId }
+    const queryClient = useQueryClient();
+
+    const addSessionMutation = useMutation({
+        mutationFn: (data) => addTreatmentSession(treatment.id, data),
+        onSuccess: () => {
+            queryClient.invalidateQueries(['patient-details', treatment.patient_id]);
+            // Also update local state to show the new session without a full refetch if possible
+            setTreatment(prev => ({
+                ...prev,
+                treatment_sessions: [...(prev.treatment_sessions || []), { 
+                    ...prev.last_added_session, // mock or wait for refresh
+                    created_at: new Date().toISOString() 
+                }]
+            }));
+        }
+    });
+
+    const handleAddSession = async (sessionData) => {
+        try {
+            await addSessionMutation.mutateAsync({
+                ...sessionData,
+                treatment_id: treatment.id,
+                tenant_id: treatment.tenant_id
+            });
+            return true;
+        } catch (error) {
+            console.error("Failed to add session:", error);
+            return false;
+        }
+    };
     if (!isOpen) return null;
     const handleSave = async (e) => {
         if (e) e.preventDefault();

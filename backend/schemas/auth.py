@@ -33,6 +33,7 @@ class User(BaseModel):
     last_failed_login: Optional[datetime] = None
     is_2fa_enabled: bool = False
     patient_visibility_mode: Optional[str] = "all_assigned"
+    fcm_token: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -56,6 +57,7 @@ class UserAdminView(BaseModel):
     tenant_id: Optional[int] = None
     tenant_name: Optional[str] = None
     last_login: Optional[datetime] = None
+    fcm_token: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -80,3 +82,7 @@ class BlockedIP(BaseModel):
     expires_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class FCMTokenUpdate(BaseModel):
+    token: str

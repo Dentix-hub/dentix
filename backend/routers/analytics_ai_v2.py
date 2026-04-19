@@ -505,7 +505,7 @@ def get_detailed_analytics(db: Session, tenant_id: int, days: int = 30) -> str:
 
         if has_deleted_col:
             top_procs_query = top_procs_query.filter(
-                not models.Treatment.is_deleted
+                models.Treatment.is_deleted == False  # noqa: E712
             )
 
         top_procs = (

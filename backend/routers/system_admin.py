@@ -441,7 +441,7 @@ def get_tenant_users(
     # Check if tenant exists first
     tenant = (
         db.query(models.Tenant)
-        .filter(models.Tenant.id == tenant_id, not models.Tenant.is_deleted)
+        .filter(models.Tenant.id == tenant_id, models.Tenant.is_deleted == False)  # noqa: E712
         .first()
     )
 
@@ -453,7 +453,7 @@ def get_tenant_users(
 
     users = (
         db.query(models.User)
-        .filter(models.User.tenant_id == tenant_id, not models.User.is_deleted)
+        .filter(models.User.tenant_id == tenant_id, models.User.is_deleted == False)  # noqa: E712
         .all()
     )
 

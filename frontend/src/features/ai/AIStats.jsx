@@ -50,7 +50,7 @@ const OverviewTab = ({ stats, costs, suggestions }) => {
                 <KPICard title="إجمالي الطلبات" value={stats?.total_requests} icon={MessageSquare} color="blue" suffix="طلب" />
                 <KPICard title="نسبة النجاح" value={stats?.success_rate} icon={CheckCircle} color="emerald" suffix="%" />
                 <KPICard title="متوسط التأخير" value={stats?.avg_latency_ms} icon={Clock} color="amber" suffix="ms" />
-                <KPICard title="التوكنز المستهلكة" value={stats?.total_tokens?.toLocaleString()} icon={Activity} color="purple" suffix="T" />
+                <KPICard title="التوكنز المستهلكة" value={stats?.total_tokens?.toLocaleString()} icon={Activity} color="teal" suffix="T" />
             </div>
             {/* Suggestions Panel */}
             {suggestions?.length > 0 && (
@@ -492,7 +492,7 @@ const KPICard = ({ title, value, icon: Icon, color, suffix }) => {
         blue: "bg-blue-50 text-blue-600",
         emerald: "bg-emerald-50 text-emerald-600",
         amber: "bg-amber-50 text-amber-600",
-        purple: "bg-teal-50 text-teal-600",
+        teal: "bg-teal-50 text-teal-600",
     };
     return (
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center justify-between group hover:shadow-md transition-all">
