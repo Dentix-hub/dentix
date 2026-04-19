@@ -122,3 +122,4 @@ describe('Login Component', () => {
         expect(screen.getByText('auth.login.privacy')).toBeInTheDocument();
     });
 });
+

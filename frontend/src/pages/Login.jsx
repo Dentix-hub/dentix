@@ -141,3 +141,4 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
         </div>
     );
 }
+

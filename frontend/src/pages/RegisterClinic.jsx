@@ -35,13 +35,15 @@ const RegisterClinic = ({ isDarkMode }) => {
             setError(t('auth.register.errors.username_short'));
             return;
         }
-        if (formData.admin_password.length < 6) {
+        if (formData.admin_password.length < 8) {
             setError(t('auth.register.errors.password_min_length'));
             return;
         }
-        const hasLetter = /[a-zA-Z]/.test(formData.admin_password);
+        const hasUpper = /[A-Z]/.test(formData.admin_password);
+        const hasLower = /[a-z]/.test(formData.admin_password);
         const hasNumber = /[0-9]/.test(formData.admin_password);
-        if (!hasLetter || !hasNumber) {
+        const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(formData.admin_password);
+        if (!hasUpper || !hasLower || !hasNumber || !hasSpecial) {
             setError(t('auth.register.errors.password_weak'));
             return;
         }
@@ -202,3 +204,4 @@ const RegisterClinic = ({ isDarkMode }) => {
     );
 };
 export default RegisterClinic;
+

@@ -84,7 +84,7 @@ const LabOrdersTab = ({ patientId }) => {
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
                     <p className="text-xs text-slate-500 font-bold uppercase mb-1">{t('patientDetails.lab_orders.stats.prosthetics_cost')}</p>
-                    <p className="text-2xl font-bold text-purple-600">
+                    <p className="text-2xl font-bold text-teal-600">
                         {labOrders.reduce((acc, curr) => acc + (curr.price_to_patient || 0), 0)}
                     </p>
                 </div>
@@ -99,7 +99,7 @@ const LabOrdersTab = ({ patientId }) => {
             <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
                 <div className="p-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
                     <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                        <FlaskConical size={20} className="text-purple-600" />
+                        <FlaskConical size={20} className="text-teal-600" />
                         {t('patientDetails.lab_orders.title')}
                     </h3>
                     <button
@@ -108,7 +108,7 @@ const LabOrdersTab = ({ patientId }) => {
                             setNewLabOrder(initialLabOrder);
                             setIsLabOrderModalOpen(true);
                         }}
-                        className="flex items-center gap-2 text-purple-600 text-sm font-bold hover:underline"
+                        className="flex items-center gap-2 text-teal-600 text-sm font-bold hover:underline"
                     >
                         <Plus size={16} /> {t('patientDetails.lab_orders.add_order')}
                     </button>
@@ -133,7 +133,7 @@ const LabOrdersTab = ({ patientId }) => {
                                     <td className="p-4 whitespace-nowrap">{new Date(order.order_date).toLocaleDateString()}</td>
                                     <td className="p-4 font-bold text-slate-700 whitespace-nowrap">{order.laboratory_name}</td>
                                     <td className="p-4 whitespace-nowrap">
-                                        <span className="bg-purple-50 text-purple-700 px-2 py-1 rounded-lg text-sm font-medium">{order.work_type}</span>
+                                        <span className="bg-teal-50 text-teal-700 px-2 py-1 rounded-lg text-sm font-medium">{order.work_type}</span>
                                         {order.material && <span className="text-slate-400 text-xs ml-1">({order.material})</span>}
                                     </td>
                                     <td className="p-4 font-bold text-slate-600 whitespace-nowrap">{order.tooth_number || '-'}</td>
@@ -152,7 +152,7 @@ const LabOrdersTab = ({ patientId }) => {
                                             {order.status === 'cancelled' && <><AlertCircle size={12} /> {t('patientDetails.lab_orders.status.cancelled')}</>}
                                         </span>
                                     </td>
-                                    <td className="p-4 font-bold text-purple-600 whitespace-nowrap">{order.price_to_patient}</td>
+                                    <td className="p-4 font-bold text-teal-600 whitespace-nowrap">{order.price_to_patient}</td>
                                     <td className="p-4 flex gap-2 whitespace-nowrap">
                                         <button
                                             onClick={() => {
@@ -196,7 +196,7 @@ const LabOrdersTab = ({ patientId }) => {
                                 setNewLabOrder(initialLabOrder);
                                 setIsLabOrderModalOpen(true);
                             }}
-                            className="mt-4 text-purple-600 font-bold hover:underline"
+                            className="mt-4 text-teal-600 font-bold hover:underline"
                         >
                             {t('patientDetails.lab_orders.add_empty')}
                         </button>
@@ -209,7 +209,7 @@ const LabOrdersTab = ({ patientId }) => {
                     <div className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                                <FlaskConical className="text-purple-600" size={24} />
+                                <FlaskConical className="text-teal-600" size={24} />
                                 {editingLabOrder ? t('patientDetails.lab_orders.modal.title_edit') : t('patientDetails.lab_orders.modal.title_add')}
                             </h3>
                             <button onClick={() => setIsLabOrderModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-lg">
@@ -224,7 +224,7 @@ const LabOrdersTab = ({ patientId }) => {
                                 <select
                                     value={newLabOrder.laboratory_id}
                                     onChange={e => setNewLabOrder({ ...newLabOrder, laboratory_id: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 border border-transparent focus:border-purple-500"
+                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
                                     required
                                 >
                                     <option value="">{t('patientDetails.lab_orders.modal.lab_placeholder')}</option>
@@ -240,7 +240,7 @@ const LabOrdersTab = ({ patientId }) => {
                                 <select
                                     value={newLabOrder.work_type}
                                     onChange={e => setNewLabOrder({ ...newLabOrder, work_type: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 border border-transparent focus:border-purple-500"
+                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
                                     required
                                 >
                                     <option value="">{t('patientDetails.lab_orders.modal.work_type_placeholder')}</option>
@@ -262,7 +262,7 @@ const LabOrdersTab = ({ patientId }) => {
                                         type="text"
                                         value={newLabOrder.tooth_number}
                                         onChange={e => setNewLabOrder({ ...newLabOrder, tooth_number: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 border border-transparent focus:border-purple-500"
+                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
                                         placeholder={t('patientDetails.lab_orders.modal.tooth_placeholder')}
                                     />
                                 </div>
@@ -272,7 +272,7 @@ const LabOrdersTab = ({ patientId }) => {
                                         type="text"
                                         value={newLabOrder.shade}
                                         onChange={e => setNewLabOrder({ ...newLabOrder, shade: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 border border-transparent focus:border-purple-500"
+                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
                                         placeholder={t('patientDetails.lab_orders.modal.shade_placeholder')}
                                     />
                                 </div>
@@ -282,7 +282,7 @@ const LabOrdersTab = ({ patientId }) => {
                                 <select
                                     value={newLabOrder.material}
                                     onChange={e => setNewLabOrder({ ...newLabOrder, material: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 border border-transparent focus:border-purple-500"
+                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
                                 >
                                     <option value="">{t('patientDetails.lab_orders.modal.material_placeholder')}</option>
                                     <option value="Zirconia">{t('patientDetails.lab_orders.modal.materials.zirconia')}</option>
@@ -301,7 +301,7 @@ const LabOrdersTab = ({ patientId }) => {
                                         type="number"
                                         value={newLabOrder.cost}
                                         onChange={e => setNewLabOrder({ ...newLabOrder, cost: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 border border-transparent focus:border-purple-500"
+                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
                                         placeholder="0"
                                     />
                                 </div>
@@ -311,7 +311,7 @@ const LabOrdersTab = ({ patientId }) => {
                                         type="number"
                                         value={newLabOrder.price_to_patient}
                                         onChange={e => setNewLabOrder({ ...newLabOrder, price_to_patient: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 border border-transparent focus:border-purple-500"
+                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
                                         placeholder="0"
                                     />
                                 </div>
@@ -322,7 +322,7 @@ const LabOrdersTab = ({ patientId }) => {
                                     <select
                                         value={newLabOrder.status}
                                         onChange={e => setNewLabOrder({ ...newLabOrder, status: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 border border-transparent focus:border-purple-500"
+                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
                                     >
                                         <option value="pending">{t('patientDetails.lab_orders.status.pending')}</option>
                                         <option value="in_progress">{t('patientDetails.lab_orders.status.in_progress')}</option>
@@ -337,7 +337,7 @@ const LabOrdersTab = ({ patientId }) => {
                                 <textarea
                                     value={newLabOrder.notes}
                                     onChange={e => setNewLabOrder({ ...newLabOrder, notes: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 border border-transparent focus:border-purple-500 h-20 resize-none"
+                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500 h-20 resize-none"
                                     placeholder={t('patientDetails.lab_orders.modal.notes_placeholder')}
                                 />
                             </div>
@@ -350,7 +350,7 @@ const LabOrdersTab = ({ patientId }) => {
                                 </button>
                                 <button
                                     onClick={handleSaveLabOrder}
-                                    className="flex-1 px-4 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-bold shadow-lg shadow-purple-500/20"
+                                    className="flex-1 px-4 py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-colors font-bold shadow-lg shadow-teal-500/20"
                                 >
                                     {editingLabOrder ? t('patientDetails.lab_orders.modal.save_edit') : t('patientDetails.lab_orders.modal.save_add')}
                                 </button>
@@ -363,3 +363,4 @@ const LabOrdersTab = ({ patientId }) => {
     );
 };
 export default LabOrdersTab;
+

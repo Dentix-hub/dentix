@@ -7,7 +7,7 @@ import TreatmentModal from '@/shared/ui/modals/TreatmentModal';
 import PrescriptionModal from '@/shared/ui/modals/PrescriptionModal';
 import PaymentModal from '@/shared/ui/modals/PaymentModal';
 import EditPatientModal from '@/features/patients/modals/EditPatientModal';
-import { Skeleton } from '@/shared/ui';
+import { SkeletonBox } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
 // Hooks for lazy data loading
 import {
@@ -37,9 +37,9 @@ const LabOrdersTab = lazy(() => import('@/features/lab/LabOrdersTab'));
 // Tab skeleton component
 const TabSkeleton = memo(() => (
     <div className="space-y-4 p-4">
-        <Skeleton.Box height="4rem" className="rounded-xl" />
-        <Skeleton.Box height="4rem" className="rounded-xl" />
-        <Skeleton.Box height="4rem" className="rounded-xl" />
+        <SkeletonBox height="4rem" className="rounded-xl" />
+        <SkeletonBox height="4rem" className="rounded-xl" />
+        <SkeletonBox height="4rem" className="rounded-xl" />
     </div>
 ));
 TabSkeleton.displayName = 'TabSkeleton';
@@ -466,3 +466,4 @@ export default function PatientDetails() {
         </div>
     );
 }
+

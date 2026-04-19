@@ -22,7 +22,7 @@ export default function Overview() {
     return (
         <div className="space-y-6 animate-fade-in-up">
             <div className="flex items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
-                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-4 rounded-2xl shadow-lg shadow-indigo-500/20 text-white">
+                <div className="bg-gradient-to-br from-indigo-500 to-teal-600 p-4 rounded-2xl shadow-lg shadow-indigo-500/20 text-white">
                     <ShieldCheck size={32} />
                 </div>
                 <div>
@@ -38,3 +38,4 @@ export default function Overview() {
         </div>
     );
 }
+

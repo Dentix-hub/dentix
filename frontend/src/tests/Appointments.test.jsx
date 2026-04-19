@@ -93,3 +93,4 @@ describe('Appointments Page', () => {
         // expect(screen.queryByText('Patient B')).not.toBeInTheDocument(); // If pure client filter
     });
 });
+

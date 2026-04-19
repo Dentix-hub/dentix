@@ -111,3 +111,4 @@ const UsersManager = ({ users, onSearch, onToggleStatus, loading }) => {
 };
 
 export default UsersManager;
+

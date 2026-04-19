@@ -142,7 +142,10 @@ const Layout = ({ children }) => {
                             className="h-full w-full object-contain drop-shadow-md scale-[2.5] translate-x-4"
                         />
                     </div>
-                    <h1 className="text-base font-black bg-gradient-to-r from-primary-600 to-blue-800 dark:from-sky-400 dark:to-blue-500 bg-clip-text text-transparent text-center tracking-tight">
+                    <h1 
+                        id="sidebar-clinic-name"
+                        className="text-base font-black bg-gradient-to-r from-primary-600 to-blue-800 dark:from-sky-400 dark:to-blue-500 bg-clip-text text-transparent text-center tracking-tight"
+                    >
                         {isSuperAdmin ? t('sidebar.system_admin') : (tenant?.name || t('common.default_clinic_name'))}
                     </h1>
                     {/* Subscription Badge */}
@@ -170,6 +173,7 @@ const Layout = ({ children }) => {
                         return (
                             <Link
                                 key={item.path}
+                                id={`nav-${item.path.replace(/\//g, '') || 'dashboard'}`}
                                 to={item.path}
                                 onClick={() => setSidebarOpen(false)}
                                 onMouseEnter={() => handlePrefetch(item.path)}
@@ -182,7 +186,7 @@ const Layout = ({ children }) => {
                                 `}
                             >
                                 {isActive && (
-                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 h-8 w-1 bg-primary rounded-l-full" />
+                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 bg-primary rounded-r-full" />
                                 )}
                                 <Icon size={22} className={`transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
                                 <span className="text-sm">{item.label}</span>
@@ -274,3 +278,4 @@ const Layout = ({ children }) => {
     );
 };
 export default Layout;
+

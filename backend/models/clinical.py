@@ -93,6 +93,19 @@ class Treatment(Base):
     )  # JSON: {"list_name", "price", "discount"}
 
     patient = relationship("Patient", back_populates="treatments")
+    treatment_sessions = relationship("TreatmentSession", back_populates="treatment", cascade="all, delete-orphan")
+
+
+class TreatmentSession(Base):
+    __tablename__ = "treatment_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    treatment_id = Column(Integer, ForeignKey("treatments.id"), index=True)
+    session_date = Column(DateTime, default=datetime.utcnow)
+    notes = Column(Text, nullable=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+
+    treatment = relationship("Treatment", back_populates="treatment_sessions")
 
 
 class Prescription(Base):

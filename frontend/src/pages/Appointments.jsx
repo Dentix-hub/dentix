@@ -6,7 +6,7 @@ import { createAppointment, updateAppointmentStatus, deleteAppointment } from '@
 import { useAppointments } from '@/hooks/useAppointments';
 import { usePatients } from '@/hooks/usePatients';
 import { getTodayDateTimeStr } from '@/utils/toothUtils';
-import { Button, Input, Modal, Badge, Skeleton, EmptyState, toast } from '@/shared/ui';
+import { Button, Input, Modal, Badge, SkeletonBox, EmptyState, toast } from '@/shared/ui';
 export default function Appointments() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { t } = useTranslation();
@@ -69,7 +69,7 @@ export default function Appointments() {
     const columns = useMemo(() => [
         { id: 'Scheduled', title: t('appointments.status.scheduled'), icon: Calendar, color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800' },
         { id: 'Waiting', title: t('appointments.status.waiting'), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-200 dark:border-amber-800' },
-        { id: 'In-Chair', title: t('appointments.status.in_chair'), icon: User, color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20', border: 'border-purple-200 dark:border-purple-800' },
+        { id: 'In-Chair', title: t('appointments.status.in_chair'), icon: User, color: 'text-teal-600', bg: 'bg-teal-50 dark:bg-teal-900/20', border: 'border-teal-200 dark:border-teal-800' },
         { id: 'Completed', title: t('appointments.status.completed'), icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20', border: 'border-emerald-200 dark:border-emerald-800' },
         { id: 'Cancelled', title: t('appointments.status.cancelled_noshow'), icon: XCircle, color: 'text-slate-600', bg: 'bg-slate-50 dark:bg-slate-800', border: 'border-slate-200 dark:border-slate-700' },
     ], [t]);
@@ -133,9 +133,9 @@ export default function Appointments() {
             </div>
             {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <Skeleton.Box className="h-96 w-full rounded-3xl" />
-                    <Skeleton.Box className="h-96 w-full rounded-3xl" />
-                    <Skeleton.Box className="h-96 w-full rounded-3xl" />
+                    <SkeletonBox className="h-96 w-full rounded-3xl" />
+                    <SkeletonBox className="h-96 w-full rounded-3xl" />
+                    <SkeletonBox className="h-96 w-full rounded-3xl" />
                 </div>
             ) : appointments.length === 0 ? (
                 <EmptyState
@@ -343,3 +343,4 @@ export default function Appointments() {
         </div>
     );
 }
+

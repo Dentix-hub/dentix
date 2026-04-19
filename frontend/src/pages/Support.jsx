@@ -88,7 +88,7 @@ export default function Support() {
                             </div>
                         </div>
                     </div>
-                    <div className="bg-gradient-to-br from-violet-600 to-indigo-600 rounded-3xl p-6 text-white shadow-xl shadow-indigo-500/20">
+                    <div className="bg-gradient-to-br from-cyan-600 to-indigo-600 rounded-3xl p-6 text-white shadow-xl shadow-indigo-500/20">
                         <Clock size={32} className="mb-4 opacity-80" />
                         <h3 className="text-xl font-bold mb-2">{t('static.support.working_hours')}</h3>
                         <p className="opacity-90 leading-relaxed mb-4">
@@ -160,7 +160,7 @@ export default function Support() {
                                         <button
                                             type="submit"
                                             disabled={loading}
-                                            className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-2xl font-bold flex items-center gap-3 shadow-xl shadow-indigo-500/20 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100 w-full md:w-auto justify-center"
+                                            className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-teal-600 hover:from-indigo-700 hover:to-teal-700 text-white rounded-2xl font-bold flex items-center gap-3 shadow-xl shadow-indigo-500/20 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:scale-100 w-full md:w-auto justify-center"
                                         >
                                             {loading ? (
                                                 <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -181,3 +181,4 @@ export default function Support() {
         </div>
     );
 }
+

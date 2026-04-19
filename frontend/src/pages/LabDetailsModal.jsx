@@ -72,7 +72,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                 {/* Header */}
                 <div className="p-6 bg-slate-50 border-b flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-purple-100 rounded-xl text-purple-600">
+                        <div className="p-3 bg-teal-100 rounded-xl text-teal-600">
                             <FlaskConical size={24} />
                         </div>
                         <div>
@@ -91,19 +91,19 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                 <div className="flex border-b px-6 bg-white shrink-0">
                     <button
                         onClick={() => setActiveTab('overview')}
-                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'overview' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'overview' ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                     >
                         {t('labs.details.tabs.overview')}
                     </button>
                     <button
                         onClick={() => setActiveTab('orders')}
-                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'orders' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'orders' ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                     >
                         {t('labs.details.tabs.orders')} ({stats?.total_orders || 0})
                     </button>
                     <button
                         onClick={() => setActiveTab('payments')}
-                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'payments' ? 'border-purple-600 text-purple-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'payments' ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                     >
                         {t('labs.details.tabs.payments')}
                     </button>
@@ -111,7 +111,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
                     {loading && !stats ? (
-                        <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div></div>
+                        <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div></div>
                     ) : (
                         <>
                             {/* OVERVIEW TAB */}
@@ -290,3 +290,4 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
     );
 };
 export default LabDetailsModal;
+

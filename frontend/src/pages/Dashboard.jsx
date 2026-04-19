@@ -2,17 +2,17 @@ import { useState, useMemo, memo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Users, Calendar, Activity, Clock,
-    TrendingUp, Wallet, Stethoscope, ChevronLeft, Banknote
+    TrendingUp, Wallet, Stethoscope, ChevronLeft
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
-    AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart
+    AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer
 } from 'recharts';
 import { getTodayPayments, getTodayDebtors } from '@/api';
 import { useDashboardStats } from '@/hooks/useDashboard';
 import { useAppointments } from '@/hooks/useAppointments';
 import { useAuth } from '@/auth/useAuth';
-import { Skeleton, Card, Button, Modal } from '@/shared/ui';
+import { Card, Button, Modal } from '@/shared/ui';
 // Memoized Gradient Card - prevents re-renders when parent state changes
 const GradientCard = memo(({ title, value, subtext, icon: Icon, gradient, onClick }) => (
     <div
@@ -97,12 +97,15 @@ export default function Dashboard() {
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-surface/50 backdrop-blur-sm p-6 rounded-[2rem] border border-border">
                 <div className="flex items-center gap-4 w-full md:w-auto">
-                    <div className="w-14 h-14 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
+                    <div className="w-14 h-14 bg-gradient-to-tr from-indigo-500 to-teal-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
                         <Stethoscope size={28} />
                     </div>
                     <div>
                         {loading ? (
-                            <Skeleton.Text lines={2} className="w-48" />
+                            <div className="space-y-2 w-48">
+                                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-full animate-pulse"></div>
+                                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 animate-pulse"></div>
+                            </div>
                         ) : (
                             <>
                                 <h1 className="text-2xl font-black text-text-primary tracking-tight">
@@ -125,7 +128,15 @@ export default function Dashboard() {
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {loading ? (
-                    Array.from({ length: 4 }).map((_, i) => <Skeleton.StatCard key={i} />)
+                    Array.from({ length: 4 }).map((_, i) => (
+                        <div key={i} className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
+                            <div className="w-14 h-14 bg-slate-200 rounded-xl animate-pulse"></div>
+                            <div className="flex-1 space-y-2">
+                                <div className="h-3 bg-slate-200 rounded w-1/2 animate-pulse"></div>
+                                <div className="h-5 bg-slate-200 rounded w-3/4 animate-pulse"></div>
+                            </div>
+                        </div>
+                    ))
                 ) : (
                     <>
                         <GradientCard
@@ -141,7 +152,7 @@ export default function Dashboard() {
                             value={stats.appointments}
                             subtext={t('dashboard.confirmed_booking')}
                             icon={Calendar}
-                            gradient="bg-gradient-to-br from-purple-500 to-purple-600"
+                            gradient="bg-gradient-to-br from-teal-500 to-teal-600"
                             onClick={() => navigate('/appointments')}
                         />
                         <GradientCard
@@ -178,7 +189,7 @@ export default function Dashboard() {
                         </div>
                         <div className="h-[300px] w-full" style={{ direction: 'ltr' }}>
                             {loading ? (
-                                <Skeleton.Box height="100%" width="100%" />
+                                <div className="h-full w-full bg-slate-100 rounded-2xl animate-pulse"></div>
                             ) : stats.chartData.length > 0 ? (
                                 <ResponsiveContainer width="100%" height="100%">
                                     <AreaChart data={stats.chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -209,8 +220,8 @@ export default function Dashboard() {
                                 </ResponsiveContainer>
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-text-secondary gap-4">
-                                    <div className="w-16 h-16 bg-surface-hover rounded-full flex items-center justify-center">
-                                        <BarChart size={32} className="text-slate-400" />
+                                    <div className="w-16 h-16 bg-surface-hover rounded-full flex items-center justify-center text-3xl">
+                                        📊
                                     </div>
                                     <p>{t('dashboard.no_financial_data')}</p>
                                 </div>
@@ -232,7 +243,11 @@ export default function Dashboard() {
                         </div>
                         <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                             {loading ? (
-                                <Skeleton.Text lines={5} />
+                                <div className="space-y-3">
+                                    {Array.from({length: 5}).map((_, i) => (
+                                        <div key={i} className="h-10 bg-slate-100 rounded-lg animate-pulse w-full"></div>
+                                    ))}
+                                </div>
                             ) : todaysAppointments.length > 0 ? todaysAppointments.map((appt) => (
                                 <div
                                     key={appt.id}
@@ -290,15 +305,17 @@ export default function Dashboard() {
                 <div className="space-y-3">
                     {modalLoading ? (
                         <div className="flex flex-col gap-3">
-                            <Skeleton.Box height="4rem" />
-                            <Skeleton.Box height="4rem" />
-                            <Skeleton.Box height="4rem" />
+                            <div className="animate-pulse bg-slate-200 dark:bg-slate-700/50 rounded-xl h-[4rem] w-full" />
+                            <div className="animate-pulse bg-slate-200 dark:bg-slate-700/50 rounded-xl h-[4rem] w-full" />
+                            <div className="animate-pulse bg-slate-200 dark:bg-slate-700/50 rounded-xl h-[4rem] w-full" />
                         </div>
                     ) : modalData.length > 0 ? modalData.map((item, idx) => (
                         <div key={idx} className="flex justify-between items-center p-4 bg-surface-hover rounded-2xl border border-border">
                             <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-xl ${modalType === 'payments' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                                    {modalType === 'payments' ? <Banknote size={20} /> : <Activity size={20} />}
+                                <div className={`p-2 rounded-xl flex items-center justify-center w-10 h-10 ${modalType === 'payments' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                                    <span className="text-xl leading-none">
+                                        {modalType === 'payments' ? '💰' : '📈'}
+                                    </span>
                                 </div>
                                 <div>
                                     <p className="font-bold text-text-primary">{item.patient_name || item.name}</p>
@@ -328,3 +345,4 @@ const ActionButton = ({ icon: Icon, label, color, onClick }) => (
         <span className="font-bold text-sm whitespace-nowrap">{label}</span>
     </button>
 );
+

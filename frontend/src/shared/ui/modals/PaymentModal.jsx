@@ -48,3 +48,4 @@ export default function PaymentModal({ isOpen, onClose, onAdd }) {
         </div>
     );
 }
+

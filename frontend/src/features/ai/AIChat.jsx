@@ -176,13 +176,13 @@ export default function AIChat() {
             {isOpen && (
                 <div className="fixed bottom-24 z-50 w-96 max-w-[calc(100vw-3rem)] h-[500px] max-h-[70vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300 ltr:right-6 rtl:left-6">
                     {/* Header */}
-                    <div className="bg-gradient-to-r from-violet-600 to-indigo-600 p-4 flex items-center gap-3">
+                    <div className="bg-gradient-to-r from-cyan-600 to-indigo-600 p-4 flex items-center gap-3">
                         <div className="bg-white/10 rounded-full border border-white/20 w-12 h-12 flex items-center justify-center overflow-hidden shrink-0">
                             <img src={aiAvatar} alt="AI" className="w-full h-full object-cover" />
                         </div>
                         <div className="flex-1">
                             <h3 className="text-white font-bold">{t('ai_chat.title')}</h3>
-                            <p className="text-violet-200 text-xs">{t('ai_chat.subtitle')}</p>
+                            <p className="text-cyan-200 text-xs">{t('ai_chat.subtitle')}</p>
                         </div>
                         {isListening && (
                             <div className="flex items-center gap-1 bg-red-500 text-white px-2 py-1 rounded-full text-xs animate-pulse">
@@ -203,7 +203,7 @@ export default function AIChat() {
                     <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700 flex gap-2 overflow-x-auto">
                         <button
                             onClick={() => handleQuickAction(t('ai_chat.quick_actions.appointments'), t('ai_chat.quick_queries.appointments'))}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-full text-xs whitespace-nowrap hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-all"
+                            className="flex items-center gap-1 px-3 py-1.5 bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 rounded-full text-xs whitespace-nowrap hover:bg-cyan-200 dark:hover:bg-cyan-900/50 transition-all"
                         >
                             <Calendar size={12} />
                             <span>{t('ai_chat.quick_actions.appointments')}</span>
@@ -259,11 +259,11 @@ export default function AIChat() {
                         {messages.map((msg, idx) => (
                             <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-[85%] ${msg.role === 'user'
-                                    ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-2xl rounded-br-sm'
+                                    ? 'bg-gradient-to-r from-cyan-600 to-indigo-600 text-white rounded-2xl rounded-br-sm'
                                     : `${getMessageStyle(msg.type)} border rounded-2xl rounded-bl-sm`
                                     } p-3 shadow-sm`}>
                                     {msg.role === 'assistant' && (
-                                        <div className="flex items-center gap-2 mb-2 text-violet-600 dark:text-violet-400">
+                                        <div className="flex items-center gap-2 mb-2 text-cyan-600 dark:text-cyan-400">
                                             <Bot size={16} />
                                             <span className="text-xs font-bold">{t('ai_chat.chat.assistant_label')}</span>
                                         </div>
@@ -280,7 +280,7 @@ export default function AIChat() {
                                                 <button
                                                     key={si}
                                                     onClick={() => handleQuickAction(suggestion, suggestion)}
-                                                    className="text-xs px-2 py-1 bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 rounded-full hover:bg-violet-200 dark:hover:bg-violet-900/50 transition-all"
+                                                    className="text-xs px-2 py-1 bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 rounded-full hover:bg-cyan-200 dark:hover:bg-cyan-900/50 transition-all"
                                                 >
                                                     💡 {suggestion}
                                                 </button>
@@ -293,7 +293,7 @@ export default function AIChat() {
                         {isLoading && (
                             <div className="flex justify-start">
                                 <div className="bg-slate-100 dark:bg-slate-800 rounded-2xl rounded-bl-sm p-4 flex items-center gap-2">
-                                    <Loader2 size={16} className="animate-spin text-violet-600" />
+                                    <Loader2 size={16} className="animate-spin text-cyan-600" />
                                     <span className="text-sm text-slate-500">{t('ai_chat.processing')}</span>
                                 </div>
                             </div>
@@ -323,14 +323,14 @@ export default function AIChat() {
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyPress={handleKeyPress}
                                 placeholder={isListening ? t('ai_chat.chat.input_listening') : t('ai_chat.chat.input_placeholder')}
-                                className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-50"
+                                className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50"
                                 disabled={isLoading}
                                 dir="auto"
                             />
                             <button
                                 onClick={handleSend}
                                 disabled={!input.trim() || isLoading}
-                                className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-4 py-3 rounded-xl hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100 md:w-auto"
+                                className="bg-gradient-to-r from-cyan-600 to-indigo-600 text-white px-4 py-3 rounded-xl hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100 md:w-auto"
                             >
                                 <Send size={20} />
                             </button>
@@ -346,3 +346,4 @@ export default function AIChat() {
         </>
     );
 }
+

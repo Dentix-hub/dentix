@@ -38,6 +38,9 @@ from .clinical import (
     SavedMedicationBase,
     SavedMedicationCreate,
     SavedMedication,
+    TreatmentSessionBase,
+    TreatmentSessionCreate,
+    TreatmentSession,
 )
 
 # Billing
@@ -252,4 +255,8 @@ __all__ = [
     "ConsumptionItem",
     "WarehouseType",
     "MaterialType",
+    # Treatment Sessions
+    "TreatmentSessionBase",
+    "TreatmentSessionCreate",
+    "TreatmentSession",
 ]

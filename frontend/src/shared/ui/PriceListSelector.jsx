@@ -49,3 +49,4 @@ const PriceListSelector = ({ value, onChange }) => {
 };
 
 export default PriceListSelector;
+

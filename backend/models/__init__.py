@@ -23,6 +23,7 @@ from .clinical import (
     Laboratory,
     LabOrder,
     Procedure,
+    TreatmentSession,
 )
 from .financial import Payment, Expense, SalaryPayment, LabPayment
 from .price_list import PriceList, PriceListItem, InsuranceProvider, PriceListType

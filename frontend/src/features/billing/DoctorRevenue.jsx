@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Calendar, Calculator } from 'lucide-react';
 import { getDoctorRevenue, getDoctorDetails, updateStaffCompensation } from '@/api';
-import { Button, Card, Skeleton, EmptyState, toast } from '@/shared/ui';
+import { Button, Card, SkeletonBox, EmptyState, toast } from '@/shared/ui';
 import DoctorRevenueDetails from './DoctorRevenueDetails';
 import { useTranslation } from 'react-i18next';
 export default function DoctorRevenue() {
@@ -117,7 +117,7 @@ export default function DoctorRevenue() {
             <div className="overflow-x-auto">
                 {loading ? (
                     <div className="p-6 space-y-4">
-                        {[1, 2, 3].map(i => <Skeleton.Box key={i} className="h-16 w-full rounded-xl" />)}
+                        {[1, 2, 3].map(i => <SkeletonBox key={i} className="h-16 w-full rounded-xl" />)}
                     </div>
                 ) : (
                     <table className="w-full text-right text-sm">
@@ -129,7 +129,7 @@ export default function DoctorRevenue() {
                                 <th className="p-4 text-orange-500">{t('billing.doctor_revenue.table.patient_discount')}</th>
                                 <th className="p-4 text-rose-500">{t('billing.doctor_revenue.table.lab_cost')}</th>
                                 <th className="p-4 text-emerald-600">{t('billing.doctor_revenue.table.net_profit')}</th>
-                                <th className="p-4 text-purple-600">{t('billing.doctor_revenue.table.doctor_dues')}</th>
+                                <th className="p-4 text-teal-600">{t('billing.doctor_revenue.table.doctor_dues')}</th>
                                 <th className="p-4 w-10"></th>
                             </tr>
                         </thead>
@@ -209,3 +209,4 @@ export default function DoctorRevenue() {
         </Card>
     );
 }
+

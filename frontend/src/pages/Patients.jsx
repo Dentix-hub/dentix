@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { createPatient, deletePatient, searchPatients, getUsers } from '@/api';
+import { createPatient, deletePatient, searchPatients, getDoctors } from '@/api';
 import { usePatients } from '@/hooks/usePatients';
 import { useAuth } from '@/auth/useAuth';
 import PatientScanner from '@/features/patients/PatientScanner';
@@ -37,7 +37,7 @@ export default function Patients() {
     React.useEffect(() => {
         const fetchDoctors = async () => {
             try {
-                const res = await getUsers({ role: 'doctor' });
+                const res = await getDoctors();
                 setDoctors(res.data);
                 if (user?.role === 'doctor') {
                     setNewPatient(prev => ({ ...prev, assigned_doctor_id: user.id }));
@@ -238,7 +238,7 @@ export default function Patients() {
                                 <option value="">{t('patients.form.doctor_select')}</option>
                                 {doctors.map(doc => (
                                     <option key={doc.id} value={doc.id}>
-                                        د. {doc.username}
+                                        د. {doc.full_name || doc.username}
                                     </option>
                                 ))}
                             </select>
@@ -330,3 +330,4 @@ export default function Patients() {
         </div>
     );
 }
+

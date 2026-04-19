@@ -102,6 +102,26 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                                 </div>
                             ))}
                         </div>
+
+                        {/* Color Legend */}
+                        <div className="mt-8 pt-6 border-t border-slate-200">
+                            <h4 className="text-[10px] uppercase tracking-widest font-black text-slate-400 mb-4">Color Mapping Guide</h4>
+                            <div className="grid grid-cols-1 gap-4">
+                                {['restorative', 'endo', 'surgery', 'perio'].map(cat => (
+                                    <div key={cat} className="space-y-2">
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase">{cat}</div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {Object.values(PROCEDURE_TYPES).filter(p => p.category === cat).map(p => (
+                                                <div key={p.id} className="flex items-center gap-2">
+                                                    <div className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: p.color }} />
+                                                    <span className="text-[10px] text-slate-600 truncate">{p.label}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 )}
                 {/* MODE: WIZARD STEP 1 (TYPE) */}
@@ -196,3 +216,4 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
         </div>
     );
 }
+

@@ -38,7 +38,7 @@ const GlobalLabOrdersModal = ({ isOpen, onClose, initialStatus = '', title = '' 
                 {/* Header */}
                 <div className="p-6 bg-slate-50 border-b flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-purple-100 rounded-xl text-purple-600">
+                        <div className="p-3 bg-teal-100 rounded-xl text-teal-600">
                             <FlaskConical size={24} />
                         </div>
                         <div>
@@ -61,11 +61,11 @@ const GlobalLabOrdersModal = ({ isOpen, onClose, initialStatus = '', title = '' 
                             placeholder="بحث باسم المريض أو المعمل..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pr-10 pl-4 py-2 bg-slate-50 rounded-lg border outline-none focus:ring-2 focus:ring-purple-500/20"
+                            className="w-full pr-10 pl-4 py-2 bg-slate-50 rounded-lg border outline-none focus:ring-2 focus:ring-teal-500/20"
                         />
                     </div>
                     <select
-                        className="p-2 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-purple-500/20"
+                        className="p-2 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-2 focus:ring-teal-500/20"
                         value={statusFilter}
                         onChange={(e) => handleFilterChange(e.target.value)}
                     >
@@ -78,7 +78,7 @@ const GlobalLabOrdersModal = ({ isOpen, onClose, initialStatus = '', title = '' 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
                     {loading ? (
-                        <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div></div>
+                        <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div></div>
                     ) : (
                         <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
                             <table className="w-full text-sm text-right">
@@ -128,3 +128,4 @@ const GlobalLabOrdersModal = ({ isOpen, onClose, initialStatus = '', title = '' 
     );
 };
 export default GlobalLabOrdersModal;
+

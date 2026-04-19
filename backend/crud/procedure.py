@@ -10,7 +10,7 @@ def get_procedures(db: Session, tenant_id: int, skip: int = 0, limit: int = 100)
         .filter(
             or_(
                 models.Procedure.tenant_id == tenant_id,
-                models.Procedure.tenant_id == None,
+                models.Procedure.tenant_id is None,
             )
         )
         .offset(skip)
@@ -36,7 +36,7 @@ def update_procedure(
             models.Procedure.id == procedure_id,
             or_(
                 models.Procedure.tenant_id == tenant_id,
-                models.Procedure.tenant_id == None,
+                models.Procedure.tenant_id is None,
             ),
         )
         .first()
@@ -58,7 +58,7 @@ def delete_procedure(db: Session, procedure_id: int, tenant_id: int):
             models.Procedure.id == procedure_id,
             or_(
                 models.Procedure.tenant_id == tenant_id,
-                models.Procedure.tenant_id == None,
+                models.Procedure.tenant_id is None,
             ),
         )
         .first()

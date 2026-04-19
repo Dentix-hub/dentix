@@ -11,7 +11,7 @@ export { default as NotificationBell } from './NotificationBell';
 export { default as GlobalBanner } from './GlobalBanner';
 export { default as StatCard } from './StatCard';
 export { default as DataTable } from './DataTable';
-export { default as Skeleton } from './Skeleton';
+export { default as Skeleton, SkeletonBox, SkeletonText, SkeletonCard, SkeletonTable, SkeletonStatCard } from './Skeleton';
 export { default as ToastProvider, toast } from './ToastProvider';
 export { default as EmptyState } from './EmptyState';
 export { default as Alert } from './Alert';

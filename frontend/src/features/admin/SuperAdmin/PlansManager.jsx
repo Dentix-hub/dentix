@@ -163,7 +163,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                         </div>
                     ) : (
                         <>
-                            <div className="absolute top-0 left-0 w-full h-[140px] bg-gradient-to-br from-indigo-500 to-purple-600 rounded-t-[2.5rem] opacity-10 group-hover:opacity-15 transition-opacity" />
+                            <div className="absolute top-0 left-0 w-full h-[140px] bg-gradient-to-br from-indigo-500 to-teal-600 rounded-t-[2.5rem] opacity-10 group-hover:opacity-15 transition-opacity" />
                             <div className="relative pt-4">
                                 <div className="flex justify-between items-start mb-6">
                                     <div>
@@ -394,3 +394,4 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
 };
 
 export default PlansManager;
+

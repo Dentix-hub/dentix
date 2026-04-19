@@ -109,3 +109,4 @@ describe('PatientInfoCard', () => {
         expect(screen.getByText('Basic')).toBeInTheDocument();
     });
 });
+
