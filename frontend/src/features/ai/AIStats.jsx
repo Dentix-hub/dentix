@@ -15,24 +15,24 @@ const OverviewTab = ({ stats, costs, suggestions }) => {
     return (
         <div className="space-y-6 animate-fade-in">
             {/* ROI Card */}
-            <div className="bg-gradient-to-r from-indigo-600 to-teal-700 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
+            <div className="bg-gradient-to-r from-teal-600 to-emerald-700 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
                 <div className="relative z-10 grid grid-cols-1 md:grid-cols-4 gap-8">
                     <div>
-                        <p className="text-indigo-100 text-sm font-bold mb-1">إجمالي العائد (توفير)</p>
+                        <p className="text-teal-100 text-sm font-bold mb-1">إجمالي العائد (توفير)</p>
                         <h3 className="text-4xl font-black">${costs?.roi?.money_saved_usd || 0}</h3>
-                        <p className="text-xs text-indigo-200 mt-2">بناءً على {costs?.roi?.hours_saved || 0} ساعة عمل تم توفيرها</p>
+                        <p className="text-xs text-teal-200 mt-2">بناءً على {costs?.roi?.hours_saved || 0} ساعة عمل تم توفيرها</p>
                     </div>
                     <div>
-                        <p className="text-indigo-100 text-sm font-bold mb-1">تكلفة الذكاء الاصطناعي</p>
+                        <p className="text-teal-100 text-sm font-bold mb-1">تكلفة الذكاء الاصطناعي</p>
                         <h3 className="text-4xl font-black text-white/90">${costs?.estimated_cost_usd || 0}</h3>
-                        <p className="text-xs text-indigo-200 mt-2">{costs?.total_tokens?.toLocaleString() || 0} توكن</p>
+                        <p className="text-xs text-teal-200 mt-2">{costs?.total_tokens?.toLocaleString() || 0} توكن</p>
                     </div>
                     <div>
-                        <p className="text-indigo-100 text-sm font-bold mb-1">صافي الفائدة</p>
+                        <p className="text-teal-100 text-sm font-bold mb-1">صافي الفائدة</p>
                         <h3 className="text-4xl font-black text-emerald-300">
                             ${costs?.roi?.net_benefit_usd || 0}
                         </h3>
-                        <p className="text-xs text-indigo-200 mt-2">القيمة المضافة الحقيقية</p>
+                        <p className="text-xs text-teal-200 mt-2">القيمة المضافة الحقيقية</p>
                     </div>
                     <div className="flex flex-col justify-center items-end">
                         <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm text-center min-w-[120px]">
@@ -109,7 +109,7 @@ const AnalyticsTab = ({ failures, heatmap, intents }) => {
                 </div>
                 {/* Confidence Heatmap */}
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm">
-                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-indigo-500">
+                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2 text-teal-500">
                         <Activity size={18} />
                         خريطة الثقة
                     </h3>
@@ -187,7 +187,7 @@ const LogsTab = ({ logs, page, setPage, fetchLogDetails, selectedLog, setSelecte
                 </div>
                 <div className="space-y-3">
                     {logs.map(log => (
-                        <div key={log.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-indigo-200 transition-colors cursor-pointer" onClick={() => fetchLogDetails(log.id)}>
+                        <div key={log.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-teal-200 transition-colors cursor-pointer" onClick={() => fetchLogDetails(log.id)}>
                             <div className="flex items-center gap-4">
                                 <div className={`p-3 rounded-full ${log.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
                                     {log.status === 'SUCCESS' ? <CheckCircle size={18} /> : <XCircle size={18} />}
@@ -217,7 +217,7 @@ const LogsTab = ({ logs, page, setPage, fetchLogDetails, selectedLog, setSelecte
                         <div className="flex justify-between items-center mb-6">
                             <div>
                                 <h3 className="text-xl font-bold flex items-center gap-2">
-                                    <Search className="text-indigo-500" />
+                                    <Search className="text-teal-500" />
                                     تفاصيل العملية
                                 </h3>
                                 <p className="font-mono text-sm text-slate-500 mt-1">{selectedLog.trace_id}</p>
@@ -231,8 +231,8 @@ const LogsTab = ({ logs, page, setPage, fetchLogDetails, selectedLog, setSelecte
                                 <label className="block text-xs font-black text-slate-400 uppercase mb-3 tracking-wider">مدخلات المستخدم</label>
                                 <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{selectedLog.input_text || "لا توجد نصوص (تسجيل صوتي أو أمر نظام)"}</p>
                             </div>
-                            <div className="bg-indigo-50 dark:bg-indigo-900/20 p-5 rounded-2xl border border-indigo-100">
-                                <label className="block text-xs font-black text-indigo-400 uppercase mb-3 tracking-wider">رد الذكاء الاصطناعي</label>
+                            <div className="bg-teal-50 dark:bg-teal-900/20 p-5 rounded-2xl border border-teal-100">
+                                <label className="block text-xs font-black text-teal-400 uppercase mb-3 tracking-wider">رد الذكاء الاصطناعي</label>
                                 <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{selectedLog.output_text}</p>
                             </div>
                             <div className="col-span-2">
@@ -307,7 +307,7 @@ const GovernanceTab = ({ governance, updateGovernance, saving }) => {
                                     step="0.1"
                                     defaultValue={governance?.ai_max_daily_cost}
                                     onBlur={(e) => updateGovernance('ai_max_daily_cost', e.target.value)}
-                                    className="text-5xl font-black bg-transparent border-b-4 border-slate-200 focus:border-indigo-500 outline-none w-full pb-2 ltr pl-6 transition-colors"
+                                    className="text-5xl font-black bg-transparent border-b-4 border-slate-200 focus:border-teal-500 outline-none w-full pb-2 ltr pl-6 transition-colors"
                                 />
                             </div>
                         </div>
@@ -419,8 +419,8 @@ const AIStats = () => {
     if (loading && !stats) return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50">
             <div className="flex flex-col items-center gap-4">
-                <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-                <p className="text-indigo-600 font-bold animate-pulse">جاري تهيئة النظام الذكي...</p>
+                <div className="w-16 h-16 border-4 border-teal-200 border-t-teal-600 rounded-full animate-spin"></div>
+                <p className="text-teal-600 font-bold animate-pulse">جاري تهيئة النظام الذكي...</p>
             </div>
         </div>
     );
@@ -430,7 +430,7 @@ const AIStats = () => {
             <div className="bg-white sticky top-0 z-30 shadow-sm border-b border-slate-100 px-8 py-4 mb-8">
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-gradient-to-br from-indigo-500 to-teal-600 rounded-xl shadow-lg shadow-indigo-200">
+                        <div className="p-3 bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl shadow-lg shadow-teal-200">
                             <Brain className="text-white" size={24} />
                         </div>
                         <div>
@@ -445,7 +445,7 @@ const AIStats = () => {
                                 key={p}
                                 onClick={() => setPeriod(p)}
                                 className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${period === p
-                                    ? 'bg-white text-indigo-700 shadow-sm'
+                                    ? 'bg-white text-teal-700 shadow-sm'
                                     : 'text-slate-500 hover:text-slate-700'
                                     }`}
                             >
@@ -479,7 +479,7 @@ const TabButton = ({ active, id, label, icon: Icon, onClick }) => (
     <button
         onClick={() => onClick(id)}
         className={`flex items-center gap-2 px-6 py-3 rounded-2xl transition-all duration-300 font-bold text-sm whitespace-nowrap ${active === id
-            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 scale-105'
+            ? 'bg-teal-600 text-white shadow-lg shadow-teal-200 scale-105'
             : 'bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700 border border-slate-100'
             }`}
     >
@@ -514,12 +514,12 @@ function tryFormatJSON(str) {
 const ToggleSetting = ({ label, desc, enabled, onToggle }) => (
     <div className="flex items-center justify-between group">
         <div>
-            <h4 className="font-bold text-slate-700 text-sm mb-1 group-hover:text-indigo-600 transition-colors">{label}</h4>
+            <h4 className="font-bold text-slate-700 text-sm mb-1 group-hover:text-teal-600 transition-colors">{label}</h4>
             <p className="text-xs text-slate-400 max-w-sm leading-relaxed">{desc}</p>
         </div>
         <button
             onClick={() => onToggle(!enabled)}
-            className={`w-14 h-8 rounded-full p-1 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-indigo-100 ${enabled ? 'bg-indigo-600' : 'bg-slate-200'}`}
+            className={`w-14 h-8 rounded-full p-1 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-teal-100 ${enabled ? 'bg-teal-600' : 'bg-slate-200'}`}
         >
             <div className={`w-6 h-6 rounded-full bg-white shadow-sm transition-all duration-300 ${enabled ? 'translate-x-[24px]' : 'translate-x-0'}`}></div>
         </button>
