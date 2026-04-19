@@ -142,12 +142,12 @@ const Layout = ({ children }) => {
                             className="h-full w-full object-contain drop-shadow-md scale-[2.5] translate-x-4"
                         />
                     </div>
-                    <h1 
+                    <p
                         id="sidebar-clinic-name"
                         className="text-base font-black bg-gradient-to-r from-primary-600 to-blue-800 dark:from-sky-400 dark:to-blue-500 bg-clip-text text-transparent text-center tracking-tight"
                     >
                         {isSuperAdmin ? t('sidebar.system_admin') : (tenant?.name || t('common.default_clinic_name'))}
-                    </h1>
+                    </p>
                     {/* Subscription Badge */}
                     {tenant && (
                         <div className="mt-2 text-center text-xs">
@@ -249,9 +249,9 @@ const Layout = ({ children }) => {
                         >
                             <Menu size={24} />
                         </button>
-                        <h1 className={`font-bold text-lg text-text-primary`}>
+                        <p className={`font-bold text-lg text-text-primary`}>
                             {currentUser?.tenant?.name || t('common.default_clinic_name')}
-                        </h1>
+                        </p>
                     </div>
                     <div className="flex-1 flex max-w-xl mx-auto gap-4 items-center">
                         <GlobalSearch />

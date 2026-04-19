@@ -61,7 +61,7 @@ class AccountingService:
             .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
                 models.Treatment.date >= start,
                 models.Treatment.date <= end,
                 models.Treatment.doctor_id.in_(doctor_ids) if doctor_ids else True,
@@ -108,7 +108,7 @@ class AccountingService:
             .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
                 models.Treatment.date >= start,
                 models.Treatment.date <= end,
             )
@@ -123,7 +123,7 @@ class AccountingService:
             .join(models.Patient, models.Payment.patient_id == models.Patient.id)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
                 models.Payment.date >= start,
                 models.Payment.date <= end,
             )
@@ -239,7 +239,7 @@ class AccountingService:
             .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
                 models.Treatment.date >= start,
                 models.Treatment.date <= end,
                 models.Treatment.doctor_id.in_(relevant_user_ids)
@@ -269,7 +269,7 @@ class AccountingService:
             .join(models.Patient, models.Payment.patient_id == models.Patient.id)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
                 models.Payment.date >= start,
                 models.Payment.date <= end,
                 models.Payment.doctor_id.isnot(None),
@@ -289,7 +289,7 @@ class AccountingService:
             .join(models.Patient, models.Payment.patient_id == models.Patient.id)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
                 models.Payment.date >= start,
                 models.Payment.date <= end,
             )
@@ -371,7 +371,7 @@ class AccountingService:
                 models.Treatment.date >= start,
                 models.Treatment.date <= end,
                 models.Patient.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
             )
             .all()
         )
@@ -384,7 +384,7 @@ class AccountingService:
                 models.LabOrder.order_date >= start,
                 models.LabOrder.order_date <= end,
                 models.LabOrder.tenant_id == self.tenant_id,
-                not models.Patient.is_deleted,
+                models.Patient.is_deleted == False,  # noqa: E712
             )
             .all()
         )

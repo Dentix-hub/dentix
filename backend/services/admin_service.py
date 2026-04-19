@@ -93,7 +93,7 @@ class AdminService:
 
         user_count = (
             self.db.query(func.count(models.User.id))
-            .filter(models.User.tenant_id == tenant_id, not models.User.is_deleted)
+            .filter(models.User.tenant_id == tenant_id, models.User.is_deleted == False)  # noqa: E712
             .scalar()
             or 0
         )
@@ -107,7 +107,7 @@ class AdminService:
         """Get all users belonging to a tenant."""
         return (
             self.db.query(models.User)
-            .filter(models.User.tenant_id == tenant_id, not models.User.is_deleted)
+            .filter(models.User.tenant_id == tenant_id, models.User.is_deleted == False)  # noqa: E712
             .all()
         )
 

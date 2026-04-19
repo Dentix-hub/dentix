@@ -42,6 +42,18 @@ def update_user_me(
     )
 
 
+@router.post("/me/fcm-token", response_model=StandardResponse[dict])
+def update_fcm_token(
+    token_data: schemas.FCMTokenUpdate,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Register/Update FCM token for push notifications."""
+    current_user.fcm_token = token_data.token
+    db.commit()
+    return success_response(message="FCM token updated successfully")
+
+
 @router.get("/me", response_model=StandardResponse[schemas.User])
 def get_user_me(current_user: models.User = Depends(get_current_user)):
     """Get current user details."""

@@ -47,10 +47,10 @@ APP_URL = os.getenv("APP_URL", "http://localhost:5173")
 SMTP_TIMEOUT = int(os.getenv("SMTP_TIMEOUT", "30"))
 
 
-def send_password_reset_email(to_email: str, reset_token: str, username: str) -> bool:
+def send_password_reset_email(to_email: str, reset_token_or_link: str, username: str, is_firebase_link: bool = False) -> bool:
     """
     Send password reset email with reset link.
-    Returns True if email sent successfully, False otherwise.
+    Supports both legacy tokens and direct Firebase reset links.
     """
     if not SMTP_USER or not SMTP_PASSWORD:
         # Detailed Debugging
@@ -61,11 +61,14 @@ def send_password_reset_email(to_email: str, reset_token: str, username: str) ->
         # Development fallback
         if os.getenv("DEBUG", "").lower() == "true":
             logger.info(
-                f"DEBUG Reset link: {APP_URL}/reset-password?token={reset_token}"
+                f"DEBUG Reset link: {APP_URL}/reset-password?token={reset_token_or_link}"
             )
         return False
 
-    reset_link = f"{APP_URL}/reset-password?token={reset_token}"
+    if is_firebase_link:
+        reset_link = reset_token_or_link
+    else:
+        reset_link = f"{APP_URL}/reset-password?token={reset_token_or_link}"
 
     # Create email message with multipart/alternative for HTML + plaintext
     msg = MIMEMultipart("alternative")

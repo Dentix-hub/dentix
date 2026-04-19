@@ -126,7 +126,7 @@ export default function Dashboard() {
                 </div>
             </div>
             {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 stats-grid">
                 {loading ? (
                     Array.from({ length: 4 }).map((_, i) => (
                         <div key={i} className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
