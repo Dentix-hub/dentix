@@ -21,7 +21,7 @@ const AiAdvisor = ({ stats }) => {
         }
     };
     return (
-        <div className="bg-gradient-to-br from-indigo-50/50 to-purple-50/50 backdrop-blur-sm p-6 rounded-2xl border border-indigo-100/50 shadow-sm relative overflow-hidden h-full min-h-[400px]">
+        <div className="bg-gradient-to-br from-indigo-50/50 to-teal-50/50 backdrop-blur-sm p-6 rounded-2xl border border-indigo-100/50 shadow-sm relative overflow-hidden h-full min-h-[400px]">
             {/* Header */}
             <div className="flex justify-between items-center mb-6 relative z-10">
                 <div className="flex items-center gap-3">
@@ -64,9 +64,10 @@ const AiAdvisor = ({ stats }) => {
                 )}
             </div>
             {/* Background Decoration */}
-            <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-purple-200 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
+            <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-teal-200 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-64 h-64 bg-indigo-200 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
         </div>
     );
 };
 export default AiAdvisor;
+

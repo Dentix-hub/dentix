@@ -72,7 +72,7 @@ export default function SystemHealth() {
                     </div>
                 </div>
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 flex items-center gap-4">
-                    <div className="p-4 bg-purple-100 text-purple-600 rounded-xl">
+                    <div className="p-4 bg-teal-100 text-teal-600 rounded-xl">
                         <Clock size={32} />
                     </div>
                     <div>
@@ -128,3 +128,4 @@ export default function SystemHealth() {
         </div>
     );
 }
+

@@ -97,10 +97,28 @@ class TreatmentCreate(TreatmentBase):
     )
 
 
+class TreatmentSessionBase(BaseModel):
+    treatment_id: int
+    notes: Optional[str] = None
+    session_date: Optional[datetime] = None
+
+
+class TreatmentSessionCreate(TreatmentSessionBase):
+    pass
+
+
+class TreatmentSession(TreatmentSessionBase):
+    id: int
+    session_date: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class Treatment(TreatmentBase):
     id: int
     date: Optional[datetime] = None
     consumedMaterials: Optional[list[ConsumedMaterialItem]] = None
+    treatment_sessions: Optional[list[TreatmentSession]] = None
 
     model_config = ConfigDict(from_attributes=True)
 

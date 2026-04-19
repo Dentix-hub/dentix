@@ -117,8 +117,8 @@ export default function Labs() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-                        <div className="p-2 bg-purple-100 rounded-xl">
-                            <FlaskConical className="text-purple-600" size={24} />
+                        <div className="p-2 bg-teal-100 rounded-xl">
+                            <FlaskConical className="text-teal-600" size={24} />
                         </div>
                         {t('labs.title')}
                     </h1>
@@ -126,7 +126,7 @@ export default function Labs() {
                 </div>
                 <button
                     onClick={() => handleOpenModal()}
-                    className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 shadow-lg shadow-purple-500/20 transition-all"
+                    className="flex items-center gap-2 px-6 py-3 bg-teal-600 text-white font-bold rounded-xl hover:bg-teal-700 shadow-lg shadow-teal-500/20 transition-all"
                 >
                     <Plus size={20} />
                     {t('labs.actions.add_lab')}
@@ -137,8 +137,8 @@ export default function Labs() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-purple-100 rounded-lg">
-                                <Building2 className="text-purple-600" size={20} />
+                            <div className="p-2 bg-teal-100 rounded-lg">
+                                <Building2 className="text-teal-600" size={20} />
                             </div>
                             <div>
                                 <p className="text-xs text-slate-500 font-bold">{t('labs.stats.total_labs')}</p>
@@ -203,7 +203,7 @@ export default function Labs() {
                     placeholder={t('labs.search_placeholder')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pr-12 pl-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                    className="w-full pr-12 pl-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
                 />
             </div>
             {/* Labs Grid */}
@@ -217,11 +217,11 @@ export default function Labs() {
                             setSelectedLab(lab);
                             setIsDetailsModalOpen(true);
                         }}
-                        className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-purple-300 group"
+                        className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-teal-300 group"
                     >
                         <div className="flex justify-between items-start mb-4">
                             <div className="flex items-center gap-3">
-                                <div className="p-3 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl text-white">
+                                <div className="p-3 bg-gradient-to-br from-teal-500 to-indigo-600 rounded-xl text-white">
                                     <FlaskConical size={24} />
                                 </div>
                                 <div>
@@ -261,7 +261,7 @@ export default function Labs() {
                         {lab.specialties && (
                             <div className="flex flex-wrap gap-1 mb-3">
                                 {lab.specialties.split(',').map((s, i) => (
-                                    <span key={i} className="px-2 py-0.5 bg-purple-50 text-purple-700 text-xs rounded-full font-medium">
+                                    <span key={i} className="px-2 py-0.5 bg-teal-50 text-teal-700 text-xs rounded-full font-medium">
                                         {s.trim()}
                                     </span>
                                 ))}
@@ -297,7 +297,7 @@ export default function Labs() {
                         <p className="text-slate-500">{t('labs.empty')}</p>
                         <button
                             onClick={() => handleOpenModal()}
-                            className="mt-4 text-purple-600 font-bold hover:underline"
+                            className="mt-4 text-teal-600 font-bold hover:underline"
                         >
                             {t('labs.add_new_empty')}
                         </button>
@@ -328,7 +328,7 @@ export default function Labs() {
                                     type="text"
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 border border-transparent focus:border-purple-500"
+                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
                                     placeholder={t('labs.form.placeholders.name')}
                                     required
                                 />
@@ -340,7 +340,7 @@ export default function Labs() {
                                         type="tel"
                                         value={formData.phone}
                                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 border border-transparent focus:border-purple-500"
+                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
                                         placeholder={t('labs.form.placeholders.phone')}
                                         dir="ltr"
                                     />
@@ -351,7 +351,7 @@ export default function Labs() {
                                         type="email"
                                         value={formData.email}
                                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 border border-transparent focus:border-purple-500"
+                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
                                         placeholder={t('labs.form.placeholders.email')}
                                         dir="ltr"
                                     />
@@ -363,7 +363,7 @@ export default function Labs() {
                                     type="text"
                                     value={formData.address}
                                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 border border-transparent focus:border-purple-500"
+                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
                                     placeholder={t('labs.form.placeholders.address')}
                                 />
                             </div>
@@ -373,7 +373,7 @@ export default function Labs() {
                                     type="text"
                                     value={formData.contact_person}
                                     onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 border border-transparent focus:border-purple-500"
+                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
                                     placeholder={t('labs.form.placeholders.contact_person')}
                                 />
                             </div>
@@ -383,7 +383,7 @@ export default function Labs() {
                                     type="text"
                                     value={formData.specialties}
                                     onChange={(e) => setFormData({ ...formData, specialties: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 border border-transparent focus:border-purple-500"
+                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
                                     placeholder={t('labs.form.placeholders.specialties')}
                                 />
                                 <p className="text-xs text-slate-400 mt-1">{t('labs.form.specialties_hint')}</p>
@@ -393,7 +393,7 @@ export default function Labs() {
                                 <textarea
                                     value={formData.notes}
                                     onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-purple-500/20 border border-transparent focus:border-purple-500 h-24 resize-none"
+                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500 h-24 resize-none"
                                     placeholder={t('labs.form.placeholders.notes')}
                                 />
                             </div>
@@ -407,7 +407,7 @@ export default function Labs() {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 px-4 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-bold shadow-lg shadow-purple-500/20"
+                                    className="flex-1 px-4 py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-colors font-bold shadow-lg shadow-teal-500/20"
                                 >
                                     {editingLab ? t('labs.actions.save') : t('labs.actions.add')}
                                 </button>
@@ -432,3 +432,4 @@ export default function Labs() {
         </div>
     );
 }
+

@@ -193,3 +193,4 @@ const SettingsManager = ({ settings, fetchData }) => {
 };
 
 export default SettingsManager;
+

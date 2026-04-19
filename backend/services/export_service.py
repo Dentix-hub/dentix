@@ -76,7 +76,7 @@ def export_tenant_data(db: Session, tenant_id: int) -> Dict:
     patients = (
         db.query(models.Patient)
         .filter(
-            models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False
+            models.Patient.tenant_id == tenant_id, not models.Patient.is_deleted
         )
         .all()
     )
@@ -88,7 +88,7 @@ def export_tenant_data(db: Session, tenant_id: int) -> Dict:
         .join(models.Patient)
         .filter(
             models.Patient.tenant_id == tenant_id,
-            models.Appointment.is_deleted == False,
+            not models.Appointment.is_deleted,
         )
         .all()
     )

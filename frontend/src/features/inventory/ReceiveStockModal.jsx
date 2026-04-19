@@ -237,3 +237,4 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
     );
 };
 export default ReceiveStockModal;
+

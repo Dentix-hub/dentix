@@ -199,3 +199,4 @@ export default memo(function DentalChartSVG({ teethStatus, onToothClick, isPedia
         </div>
     );
 });
+

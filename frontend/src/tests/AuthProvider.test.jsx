@@ -103,3 +103,4 @@ describe('AuthContext', () => {
         expect(authData.user.role).toBe('admin');
     });
 });
+

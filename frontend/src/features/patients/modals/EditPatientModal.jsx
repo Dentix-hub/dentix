@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getUsers } from '@/api';
+import { getDoctors } from '@/api';
 import PriceListSelector from '@/shared/ui/PriceListSelector';
 
 export default function EditPatientModal({ isOpen, onClose, onSave, initialData }) {
@@ -24,7 +24,7 @@ export default function EditPatientModal({ isOpen, onClose, onSave, initialData 
     // Fetch doctors for the edit modal
     useEffect(() => {
         if (isOpen) {
-            getUsers({ role: 'doctor' })
+            getDoctors()
                 .then(res => setDoctors(res.data))
                 .catch(err => console.error("Failed to fetch doctors", err));
         }
@@ -90,7 +90,7 @@ export default function EditPatientModal({ isOpen, onClose, onSave, initialData 
                             <option value="">{t('patient_details.edit_modal.doctor_select')}</option>
                             {doctors.map(doc => (
                                 <option key={doc.id} value={doc.id}>
-                                    د. {doc.username}
+                                    د. {doc.full_name || doc.username}
                                 </option>
                             ))}
                         </select>
@@ -106,3 +106,4 @@ export default function EditPatientModal({ isOpen, onClose, onSave, initialData 
         </div>
     );
 }
+

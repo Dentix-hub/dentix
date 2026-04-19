@@ -130,3 +130,4 @@ const TenantsManager = ({ tenants, plans, handlePlanChange, setShowPaymentModal,
 };
 
 export default TenantsManager;
+

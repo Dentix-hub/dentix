@@ -36,9 +36,9 @@ from backend.auth import create_access_token
 # ============================================
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="session")
 def engine():
-    """Create a fresh in-memory SQLite engine for each test."""
+    """Create a persistent in-memory SQLite engine for the whole session."""
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -46,7 +46,7 @@ def engine():
     )
     Base.metadata.create_all(bind=engine)
     yield engine
-    Base.metadata.drop_all(bind=engine)
+    # No drop_all here to avoid race conditions at session end
 
 
 @pytest.fixture(scope="function")

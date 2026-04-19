@@ -121,7 +121,7 @@ export default function UsersManager() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {users && users.length > 0 && users.map((user, index) => {
                     const roleConfig = {
-                        admin: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600', label: `🔐 ${t('users.roles.admin')}`, icon: <Shield size={24} /> },
+                        admin: { bg: 'bg-teal-100 dark:bg-teal-900/30', text: 'text-teal-600', label: `🔐 ${t('users.roles.admin')}`, icon: <Shield size={24} /> },
                         doctor: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600', label: `👨‍⚕️ ${t('users.roles.doctor')}`, icon: <User size={24} /> },
                         assistant: { bg: 'bg-teal-100 dark:bg-teal-900/30', text: 'text-teal-600', label: `👩‍⚕️ ${t('users.roles.assistant')}`, icon: <User size={24} /> },
                         receptionist: { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-600', label: `📋 ${t('users.roles.receptionist')}`, icon: <User size={24} /> },
@@ -272,3 +272,4 @@ export default function UsersManager() {
         </div>
     );
 }
+

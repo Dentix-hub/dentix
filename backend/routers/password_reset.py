@@ -53,7 +53,7 @@ def forgot_password(
     # Invalidate any existing tokens for this user
     db.query(models.PasswordResetToken).filter(
         models.PasswordResetToken.user_id == user.id,
-        not models.PasswordResetToken.used,
+        models.PasswordResetToken.used == False,  # noqa: E712
     ).update({"used": True})
 
     # Create new token
@@ -78,7 +78,9 @@ def forgot_password(
             message="تم إنشاء رابط إعادة التعيين (SMTP غير مُفعّل). في بيئة الإنتاج، سيُرسل الرابط للبريد الإلكتروني",
         )
 
-    return success_response(message="تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني")
+    return success_response(
+        message="تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني"
+    )
 
 
 @router.post(
@@ -101,7 +103,7 @@ def reset_password(
         db.query(models.PasswordResetToken)
         .filter(
             models.PasswordResetToken.token == token,
-            not models.PasswordResetToken.used,
+            models.PasswordResetToken.used == False,  # noqa: E712
         )
         .first()
     )
@@ -133,7 +135,9 @@ def reset_password(
 
     db.commit()
 
-    return success_response(message="تم تغيير كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول")
+    return success_response(
+        message="تم تغيير كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول"
+    )
 
 
 @router.get("/verify-reset-token")
@@ -148,15 +152,19 @@ def verify_reset_token(
         db.query(models.PasswordResetToken)
         .filter(
             models.PasswordResetToken.token == token,
-            not models.PasswordResetToken.used,
+            models.PasswordResetToken.used == False,  # noqa: E712
         )
         .first()
     )
 
     if not reset_token:
-        return success_response(success=False, data={"valid": False}, message="رابط غير صالح")
+        return success_response(
+            success=False, data={"valid": False}, message="رابط غير صالح"
+        )
 
     if datetime.utcnow() > reset_token.expires_at:
-        return success_response(success=False, data={"valid": False}, message="انتهت صلاحية الرابط")
+        return success_response(
+            success=False, data={"valid": False}, message="انتهت صلاحية الرابط"
+        )
 
     return success_response(data={"valid": True}, message="الرابط صالح")

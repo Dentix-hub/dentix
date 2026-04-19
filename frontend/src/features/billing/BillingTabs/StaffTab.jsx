@@ -8,7 +8,7 @@ const StaffTab = ({ staff, roleLabels, openStaffProfile }) => {
     return (
         <Card className="overflow-hidden">
             <div className="p-6 border-b border-border flex items-center gap-4 bg-surface">
-                <div className="w-1.5 h-8 bg-purple-500 rounded-full"></div>
+                <div className="w-1.5 h-8 bg-teal-500 rounded-full"></div>
                 <h3 className="font-black text-xl text-text-primary">{t('billing.staff.title')}</h3>
             </div>
             <div className="overflow-x-auto">
@@ -37,7 +37,7 @@ const StaffTab = ({ staff, roleLabels, openStaffProfile }) => {
                                             variant="ghost"
                                             size="sm"
                                             onClick={() => openStaffProfile(s)}
-                                            className="text-text-secondary hover:text-purple-500"
+                                            className="text-text-secondary hover:text-teal-500"
                                         >
                                             <Briefcase size={16} />
                                         </Button>

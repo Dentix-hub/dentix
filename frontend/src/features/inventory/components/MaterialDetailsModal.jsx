@@ -274,3 +274,4 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
     );
 };
 export default MaterialDetailsModal;
+

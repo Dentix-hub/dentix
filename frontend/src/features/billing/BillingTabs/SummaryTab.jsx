@@ -81,15 +81,15 @@ const SummaryTab = ({ startDate, setStartDate, endDate, setEndDate, comprehensiv
                 </div>
                 <div className="p-6 space-y-4">
                     {/* Doctor Dues */}
-                    <div className="p-4 bg-purple-50 dark:bg-purple-900/10 rounded-xl border border-purple-100 dark:border-purple-900/20">
+                    <div className="p-4 bg-teal-50 dark:bg-teal-900/10 rounded-xl border border-teal-100 dark:border-teal-900/20">
                         <div className="flex items-center justify-between mb-3">
-                            <h4 className="font-bold text-purple-700 dark:text-purple-400">{t('billing.summary.doctor_dues')}</h4>
-                            <span className="font-black text-xl text-purple-600">-{(comprehensiveStats?.deductions?.doctor_dues?.total || 0).toLocaleString()}</span>
+                            <h4 className="font-bold text-teal-700 dark:text-teal-400">{t('billing.summary.doctor_dues')}</h4>
+                            <span className="font-black text-xl text-teal-600">-{(comprehensiveStats?.deductions?.doctor_dues?.total || 0).toLocaleString()}</span>
                         </div>
                         {comprehensiveStats?.deductions?.doctor_dues?.details?.map(doc => (
-                            <div key={doc.id} className="flex items-center justify-between text-sm py-1 border-t border-purple-100 dark:border-purple-900/20">
+                            <div key={doc.id} className="flex items-center justify-between text-sm py-1 border-t border-teal-100 dark:border-teal-900/20">
                                 <span className="text-text-secondary">{doc.name} - {t('billing.summary.commission')} {doc.commission_percent}% + {t('billing.summary.salary')} {doc.fixed_salary}</span>
-                                <span className="font-bold text-purple-600">{doc.total_due.toLocaleString()}</span>
+                                <span className="font-bold text-teal-600">{doc.total_due.toLocaleString()}</span>
                             </div>
                         ))}
                     </div>

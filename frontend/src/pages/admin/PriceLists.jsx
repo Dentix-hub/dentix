@@ -287,7 +287,7 @@ export default function PriceLists() {
                 {priceLists.map((list) => (
                     <div key={list.id} className={`p-6 rounded-xl shadow-sm border transition-shadow ${list.is_default ? 'border-green-300 bg-green-50/50' : 'border-gray-100 bg-white hover:shadow-md'}`}>
                         <div className="flex justify-between items-start mb-4">
-                            <div className={`p-3 rounded-lg ${list.type === 'insurance' ? 'bg-purple-50 text-purple-600' : 'bg-green-50 text-green-600'}`}>
+                            <div className={`p-3 rounded-lg ${list.type === 'insurance' ? 'bg-teal-50 text-teal-600' : 'bg-green-50 text-green-600'}`}>
                                 {list.type === 'insurance' ? <ShieldCheckIcon className="w-8 h-8" /> : <CurrencyDollarIcon className="w-8 h-8" />}
                             </div>
                             <div className="flex gap-2">
@@ -384,7 +384,7 @@ export default function PriceLists() {
                                 )}
                             </div>
                             {formData.type === 'insurance' && (
-                                <div className="grid grid-cols-2 gap-4 bg-purple-50 p-4 rounded-lg">
+                                <div className="grid grid-cols-2 gap-4 bg-teal-50 p-4 rounded-lg">
                                     <div>
                                         <label className="block text-xs font-bold text-gray-600 mb-1">{t('settings.price_lists.coverage_percent')}</label>
                                         <input
@@ -436,3 +436,4 @@ export default function PriceLists() {
         </div>
     );
 }
+
