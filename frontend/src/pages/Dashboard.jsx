@@ -97,7 +97,7 @@ export default function Dashboard() {
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-surface/50 backdrop-blur-sm p-6 rounded-[2rem] border border-border">
                 <div className="flex items-center gap-4 w-full md:w-auto">
-                    <div className="w-14 h-14 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
+                    <div className="w-14 h-14 bg-gradient-to-tr from-indigo-500 to-teal-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
                         <Stethoscope size={28} />
                     </div>
                     <div>
@@ -152,7 +152,7 @@ export default function Dashboard() {
                             value={stats.appointments}
                             subtext={t('dashboard.confirmed_booking')}
                             icon={Calendar}
-                            gradient="bg-gradient-to-br from-purple-500 to-purple-600"
+                            gradient="bg-gradient-to-br from-teal-500 to-teal-600"
                             onClick={() => navigate('/appointments')}
                         />
                         <GradientCard
@@ -345,3 +345,4 @@ const ActionButton = ({ icon: Icon, label, color, onClick }) => (
         <span className="font-bold text-sm whitespace-nowrap">{label}</span>
     </button>
 );
+

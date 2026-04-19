@@ -65,7 +65,7 @@ export default function CommunicationsPage() {
         <div className="space-y-6 animate-fade-in-up">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-4">
-                    <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-2xl text-purple-600 dark:text-purple-400">
+                    <div className="bg-teal-50 dark:bg-teal-900/20 p-4 rounded-2xl text-teal-600 dark:text-teal-400">
                         <MessageSquare size={32} />
                     </div>
                     <div>
@@ -76,13 +76,13 @@ export default function CommunicationsPage() {
                 <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
                     <button
                         onClick={() => setActiveTab('messages')}
-                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'messages' ? 'bg-white dark:bg-slate-700 shadow text-purple-600' : 'text-slate-500'}`}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'messages' ? 'bg-white dark:bg-slate-700 shadow text-teal-600' : 'text-slate-500'}`}
                     >
                         الرسائل
                     </button>
                     <button
                         onClick={() => setActiveTab('notifications')}
-                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'notifications' ? 'bg-white dark:bg-slate-700 shadow text-purple-600' : 'text-slate-500'}`}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'notifications' ? 'bg-white dark:bg-slate-700 shadow text-teal-600' : 'text-slate-500'}`}
                     >
                         الإشعارات
                     </button>
@@ -108,3 +108,4 @@ export default function CommunicationsPage() {
         </div>
     );
 }
+

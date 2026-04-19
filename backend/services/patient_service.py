@@ -132,7 +132,7 @@ class PatientService:
             _db.query(models.Patient)
             .filter(
                 models.Patient.tenant_id == _tid,
-                models.Patient.is_deleted == False,  # Exclude soft-deleted patients
+                not models.Patient.is_deleted,  # Exclude soft-deleted patients
             )
             .options(
                 joinedload(models.Patient.treatments),

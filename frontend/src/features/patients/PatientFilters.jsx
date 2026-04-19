@@ -20,3 +20,4 @@ export default memo(function PatientFilters({ search, onSearchChange }) {
         </div>
     );
 });
+

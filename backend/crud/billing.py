@@ -86,7 +86,7 @@ def get_doctor_revenue(
         models.Treatment.doctor_id == doctor_id,
         models.Treatment.date >= start_date,
         models.Treatment.date <= end_date,
-        models.Patient.is_deleted == False,
+        not models.Patient.is_deleted,
     )
     result = query.first()
     return {
@@ -103,7 +103,7 @@ def get_treatments(db: Session, patient_id: int, tenant_id: int):
         .filter(
             models.Treatment.patient_id == patient_id,
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,
+            not models.Patient.is_deleted,
         )
         .all()
     )
@@ -299,7 +299,7 @@ def get_payments(db: Session, patient_id: int, tenant_id: int):
         .filter(
             models.Payment.patient_id == patient_id,
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,
+            not models.Patient.is_deleted,
         )
         .all()
     )
@@ -310,7 +310,7 @@ def get_all_payments(db: Session, tenant_id: int, skip: int = 0, limit: int = 10
         db.query(models.Payment, models.Patient.name)
         .join(models.Patient, models.Payment.patient_id == models.Patient.id)
         .filter(
-        models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False
+            models.Patient.tenant_id == tenant_id, not models.Patient.is_deleted
         )
         # Payment soft delete if implemented, otherwise just rely on Patient
         # .filter(models.Payment.is_deleted == False)
@@ -386,7 +386,7 @@ def get_financial_stats(db: Session, tenant_id: int, doctor_id: int = None):
         db.query(func.sum(models.Treatment.cost))
         .join(models.Patient)
         .filter(
-        models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False
+            models.Patient.tenant_id == tenant_id, not models.Patient.is_deleted
         )
     )
 
@@ -400,7 +400,7 @@ def get_financial_stats(db: Session, tenant_id: int, doctor_id: int = None):
         db.query(func.sum(models.Treatment.discount))
         .join(models.Patient)
         .filter(
-        models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False
+            models.Patient.tenant_id == tenant_id, not models.Patient.is_deleted
         )
     )
 
@@ -419,7 +419,7 @@ def get_financial_stats(db: Session, tenant_id: int, doctor_id: int = None):
         .join(models.Patient)
         .filter(
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,
+            not models.Patient.is_deleted,
             models.Treatment.date >= today_start,
         )
     )
@@ -437,7 +437,7 @@ def get_financial_stats(db: Session, tenant_id: int, doctor_id: int = None):
         db.query(func.sum(models.Payment.amount))
         .join(models.Patient)
         .filter(
-        models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False
+            models.Patient.tenant_id == tenant_id, not models.Patient.is_deleted
         )
     )
 
@@ -454,7 +454,7 @@ def get_financial_stats(db: Session, tenant_id: int, doctor_id: int = None):
         .join(models.Patient)
         .filter(
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,
+            not models.Patient.is_deleted,
             models.Payment.date >= today_start,
         )
     )
@@ -474,9 +474,7 @@ def get_financial_stats(db: Session, tenant_id: int, doctor_id: int = None):
     lab_costs_query = (
         db.query(func.sum(models.LabOrder.cost))
         .join(models.Patient)
-        .filter(
-            models.LabOrder.tenant_id == tenant_id, not models.Patient.is_deleted
-        )
+        .filter(models.LabOrder.tenant_id == tenant_id, models.Patient.is_deleted == False)  # noqa: E712
     )
 
     if doctor_id:
@@ -493,7 +491,7 @@ def get_financial_stats(db: Session, tenant_id: int, doctor_id: int = None):
         .filter(
             models.LabOrder.tenant_id == tenant_id,
             models.LabOrder.order_date >= today_start,
-            models.Patient.is_deleted == False,
+            not models.Patient.is_deleted,
         )
     )
 
@@ -560,7 +558,8 @@ def get_dashboard_stats(db: Session, tenant_id: int, doctor_id: int = None):
     # Or count only Assigned?
 
     patients_query = db.query(func.count(models.Patient.id)).filter(
-        models.Patient.tenant_id == tenant_id, not models.Patient.is_deleted
+        models.Patient.tenant_id == tenant_id,
+        models.Patient.is_deleted == False,  # noqa: E712
     )
     if doctor_id:
         # Strict mode: Only assigned patients
@@ -576,7 +575,7 @@ def get_dashboard_stats(db: Session, tenant_id: int, doctor_id: int = None):
     # 2. New Patients Today
     new_patients_query = db.query(func.count(models.Patient.id)).filter(
         models.Patient.tenant_id == tenant_id,
-        models.Patient.is_deleted == False,
+        not models.Patient.is_deleted,
         func.date(models.Patient.created_at) == func.date(today_start),
     )
 
@@ -593,8 +592,8 @@ def get_dashboard_stats(db: Session, tenant_id: int, doctor_id: int = None):
         .join(models.Patient)
         .filter(
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,
-            models.Appointment.is_deleted == False,
+            not models.Patient.is_deleted,
+            not models.Appointment.is_deleted,
             models.Appointment.status != "Cancelled",  # FIX: Exclude cancelled
             func.date(models.Appointment.date_time) == func.date(today_start),
         )
@@ -620,7 +619,7 @@ def get_dashboard_stats(db: Session, tenant_id: int, doctor_id: int = None):
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == tenant_id,
-                models.Patient.is_deleted == False,
+                not models.Patient.is_deleted,
                 models.Payment.date >= day,
                 models.Payment.date < next_day,
             )

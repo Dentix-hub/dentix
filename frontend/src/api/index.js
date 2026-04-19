@@ -277,6 +277,7 @@ export const deleteExpense = (id) => api.delete(`/api/v1/expenses/${id}`);
 
 // Users (Admin)
 export const getUsers = (params = {}) => api.get('/api/v1/users/', { params });
+export const getDoctors = () => api.get('/api/v1/users/doctors');
 export const registerUser = (data) => api.post('/api/v1/users/register/', null, { params: { username: data.username, password: data.password, role: data.role || 'doctor', permissions: data.permissions || '' } });
 export const updateUser = (id, data) => api.put(`/api/v1/users/${id}`, data);
 export const deleteUser = (id) => api.delete(`/api/v1/users/${id}`);

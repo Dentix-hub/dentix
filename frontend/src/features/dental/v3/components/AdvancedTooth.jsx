@@ -124,7 +124,7 @@ const AdvancedTooth = memo(function AdvancedTooth({
                 )}
             </svg>
             {/* Status Dot for generic states */}
-            {status === 'Impacted' && <div className="w-2 h-2 rounded-full bg-purple-500 mt-1" />}
+            {status === 'Impacted' && <div className="w-2 h-2 rounded-full bg-teal-500 mt-1" />}
         </div>
     );
 });
@@ -132,3 +132,4 @@ const AdvancedTooth = memo(function AdvancedTooth({
 AdvancedTooth.displayName = 'AdvancedTooth';
 
 export default AdvancedTooth;
+

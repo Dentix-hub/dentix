@@ -38,7 +38,7 @@ const PaymentsManager = ({ payments, tenants, plans, onDelete }) => {
                             <td className="p-6">
                                 <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold ${payment.payment_method === 'cash' ? 'bg-green-100 text-green-700' :
                                     payment.payment_method === 'bank_transfer' ? 'bg-blue-100 text-blue-700' :
-                                        'bg-purple-100 text-purple-700'
+                                        'bg-teal-100 text-teal-700'
                                     }`}>
                                     {payment.payment_method === 'cash' && <Banknote size={14} />}
                                     {payment.payment_method === 'bank_transfer' && <Landmark size={14} />}
@@ -76,3 +76,4 @@ const PaymentsManager = ({ payments, tenants, plans, onDelete }) => {
 };
 
 export default PaymentsManager;
+

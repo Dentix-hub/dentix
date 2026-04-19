@@ -40,3 +40,4 @@ describe('StatCard Component', () => {
         expect(screen.getByTestId('mock-icon')).toBeInTheDocument();
     });
 });
+
