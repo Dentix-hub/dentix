@@ -218,6 +218,7 @@ export const getPatientTreatments = (patientId) => api.get(`/api/v1/patients/${p
 export const createTreatment = (data) => api.post('/api/v1/treatments/', data);
 export const updateTreatment = (id, data) => api.put(`/api/v1/treatments/${id}`, data);
 export const deleteTreatment = (id) => api.delete(`/api/v1/treatments/${id}`);
+export const addTreatmentSession = (treatmentId, sessionData) => api.post(`/api/v1/treatments/${treatmentId}/sessions`, sessionData);
 
 // Billing
 export const createPayment = (data) => api.post('/api/v1/payments/', data);
@@ -276,7 +277,8 @@ export const createExpense = (data) => api.post('/api/v1/expenses/', data);
 export const deleteExpense = (id) => api.delete(`/api/v1/expenses/${id}`);
 
 // Users (Admin)
-export const getUsers = (params = {}) => api.get('/api/v1/users/', { params });
+export const updateProfile = (data) => api.put('/api/v1/users/me', data);
+export const updateFcmToken = (token) => api.post('/api/v1/users/me/fcm-token', { token });
 export const getDoctors = () => api.get('/api/v1/users/doctors');
 export const registerUser = (data) => api.post('/api/v1/users/register/', null, { params: { username: data.username, password: data.password, role: data.role || 'doctor', permissions: data.permissions || '' } });
 export const updateUser = (id, data) => api.put(`/api/v1/users/${id}`, data);

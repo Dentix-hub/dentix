@@ -11,7 +11,7 @@ const DashboardStats = ({ stats }) => {
                 <StatCard icon={Building2} title="إجمالي العيادات" value={stats.total_tenants} subtext="المسجلة في النظام" color="indigo" />
                 <StatCard icon={TrendingUp} title="اشتراكات نشطة" value={stats.active_tenants} subtext="تعمل حالياً" color="emerald" />
                 <StatCard icon={AlertCircle} title="اشتراكات منتهية" value={stats.expired_tenants} subtext="تحتاج تجديد" color="rose" />
-                <StatCard icon={DollarSign} title="الإيرادات الكلية" value={`${(stats.total_revenue || 0).toLocaleString()} ج.م`} subtext="منذ البداية" color="violet" />
+                <StatCard icon={DollarSign} title="الإيرادات الكلية" value={`${(stats.total_revenue || 0).toLocaleString()} ج.م`} subtext="منذ البداية" color="amber" />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

@@ -1,8 +1,4 @@
-"""
-Password Reset Router
-Handles forgot password and reset password endpoints.
-"""
-
+﻿import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from backend.core.limiter import limiter
 from sqlalchemy.orm import Session
@@ -11,11 +7,13 @@ import secrets
 
 from .. import models, database
 from ..email_service import send_password_reset_email
+from ..core.firebase_client import firebase_client
 from ..auth import get_password_hash
 from .auth.dependencies import validate_password
 from backend.core.response import success_response
 import os
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -43,44 +41,40 @@ def forgot_password(
     if not user:
         # Don't reveal if email exists or not (security)
         return success_response(
-            message="إذا كان البريد الإلكتروني مسجلاً لدينا، ستصلك رسالة لإعادة تعيين كلمة المرور"
+            message="Ø¥Ø°Ø§ ÙƒØ§Ù† Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ Ù…Ø³Ø¬Ù„Ø§Ù‹ Ù„Ø¯ÙŠÙ†Ø§ØŒ Ø³ØªØµÙ„Ùƒ Ø±Ø³Ø§Ù„Ø© Ù„Ø¥Ø¹Ø§Ø¯Ø© ØªØ¹ÙŠÙŠÙ† ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±"
         )
 
-    # Generate secure token
+    # 1. Generate Firebase Reset Link
+    firebase_link = firebase_client.generate_password_reset_link(email)
+
+    if firebase_link:
+        # Send via our email service with the Firebase link
+        email_sent = send_password_reset_email(email, firebase_link, user.username, is_firebase_link=True)
+        if email_sent:
+            return success_response(
+                message="ØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ø±Ø§Ø¨Ø· Ø¥Ø¹Ø§Ø¯Ø© ØªØ¹ÙŠÙŠÙ† ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ø¥Ù„Ù‰ Ø¨Ø±ÙŠØ¯Ùƒ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ Ø¹Ø¨Ø± Firebase"
+            )
+
+    # Fallback to legacy system if Firebase is not ready or fails
+    logger.warning(f"Firebase link generation failed for {email}, falling back to legacy SMTP")
+
+    # Legacy logic: save token to DB and send via SMTP
     token = secrets.token_urlsafe(32)
     expires_at = datetime.utcnow() + timedelta(minutes=15)
 
-    # Invalidate any existing tokens for this user
-    db.query(models.PasswordResetToken).filter(
-        models.PasswordResetToken.user_id == user.id,
-        models.PasswordResetToken.used == False,  # noqa: E712
-    ).update({"used": True})
-
-    # Create new token
     reset_token = models.PasswordResetToken(
-        token=token, user_id=user.id, expires_at=expires_at
+        token=token,
+        user_id=user.id,
+        expires_at=expires_at
     )
     db.add(reset_token)
     db.commit()
 
-    # Send email
     email_sent = send_password_reset_email(email, token, user.username)
+    if email_sent:
+        return success_response(message="ØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ø±Ø§Ø¨Ø· Ø¥Ø¹Ø§Ø¯Ø© ØªØ¹ÙŠÙŠÙ† ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± (Legacy SMTP)")
 
-    if not email_sent:
-        # Only return token in development (NEVER in production)
-        if os.getenv("ENVIRONMENT") == "production":
-            return success_response(
-                message="إذا كان البريد الإلكتروني مسجلاً لدينا، ستصلك رسالة لإعادة تعيين كلمة المرور"
-            )
-        # Development only - for testing without SMTP
-        return success_response(
-            data={"dev_token": token},
-            message="تم إنشاء رابط إعادة التعيين (SMTP غير مُفعّل). في بيئة الإنتاج، سيُرسل الرابط للبريد الإلكتروني",
-        )
-
-    return success_response(
-        message="تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني"
-    )
+    raise HTTPException(status_code=500, detail="ÙØ´Ù„ Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ")
 
 
 @router.post(
@@ -109,20 +103,20 @@ def reset_password(
     )
 
     if not reset_token:
-        raise HTTPException(status_code=400, detail="رابط غير صالح أو منتهي الصلاحية")
+        raise HTTPException(status_code=400, detail="Ø±Ø§Ø¨Ø· ØºÙŠØ± ØµØ§Ù„Ø­ Ø£Ùˆ Ù…Ù†ØªÙ‡ÙŠ Ø§Ù„ØµÙ„Ø§Ø­ÙŠØ©")
 
     # Check expiration
     if datetime.utcnow() > reset_token.expires_at:
         reset_token.used = True
         db.commit()
         raise HTTPException(
-            status_code=400, detail="انتهت صلاحية الرابط. يرجى طلب رابط جديد"
+            status_code=400, detail="Ø§Ù†ØªÙ‡Øª ØµÙ„Ø§Ø­ÙŠØ© Ø§Ù„Ø±Ø§Ø¨Ø·. ÙŠØ±Ø¬Ù‰ Ø·Ù„Ø¨ Ø±Ø§Ø¨Ø· Ø¬Ø¯ÙŠØ¯"
         )
 
     # Get user and update password
     user = db.query(models.User).filter(models.User.id == reset_token.user_id).first()
     if not user:
-        raise HTTPException(status_code=400, detail="المستخدم غير موجود")
+        raise HTTPException(status_code=400, detail="Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯")
 
     # Validate new password strength using central logic
     validate_password(new_password)
@@ -136,7 +130,7 @@ def reset_password(
     db.commit()
 
     return success_response(
-        message="تم تغيير كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول"
+        message="ØªÙ… ØªØºÙŠÙŠØ± ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ø¨Ù†Ø¬Ø§Ø­. ÙŠÙ…ÙƒÙ†Ùƒ Ø§Ù„Ø¢Ù† ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„"
     )
 
 
@@ -159,12 +153,12 @@ def verify_reset_token(
 
     if not reset_token:
         return success_response(
-            success=False, data={"valid": False}, message="رابط غير صالح"
+            success=False, data={"valid": False}, message="Ø±Ø§Ø¨Ø· ØºÙŠØ± ØµØ§Ù„Ø­"
         )
 
     if datetime.utcnow() > reset_token.expires_at:
         return success_response(
-            success=False, data={"valid": False}, message="انتهت صلاحية الرابط"
+            success=False, data={"valid": False}, message="Ø§Ù†ØªÙ‡Øª ØµÙ„Ø§Ø­ÙŠØ© Ø§Ù„Ø±Ø§Ø¨Ø·"
         )
 
-    return success_response(data={"valid": True}, message="الرابط صالح")
+    return success_response(data={"valid": True}, message="Ø§Ù„Ø±Ø§Ø¨Ø· ØµØ§Ù„Ø­")

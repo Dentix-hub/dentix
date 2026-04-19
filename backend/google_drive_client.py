@@ -11,6 +11,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+from google.oauth2 import service_account
 
 # Added: HttpError for proper API error handling
 from googleapiclient.errors import HttpError
@@ -169,22 +170,36 @@ class GoogleDriveClient:
             FileNotFoundError: If file_path doesn't exist
             HttpError: If Google API request fails
         """
-        if not refresh_token:
-            raise ValueError("No refresh token provided for Google Drive upload")
+        # Support Service Account as priority for background tasks
+        service_account_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON")
+        if service_account_json:
+            try:
+                import json
+                if service_account_json.startswith("{"):
+                    info = json.loads(service_account_json)
+                    creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
+                else:
+                    creds = service_account.Credentials.from_service_account_file(service_account_json, scopes=SCOPES)
+                logger.info("Using Google Service Account for upload.")
+            except Exception as e:
+                logger.error(f"Failed to load Service Account: {e}")
+                creds = None
+        else:
+            creds = None
 
-        # Validate file exists before attempting upload
-        if not os.path.isfile(file_path):
-            raise FileNotFoundError(f"Backup file not found: {file_path}")
+        if not creds:
+            if not refresh_token:
+                raise ValueError("No refresh token or Service Account provided for Google Drive upload")
 
-        config = get_client_config()
-        creds = Credentials(
-            None,  # access_token (will be auto-refreshed)
-            refresh_token=refresh_token,
-            token_uri=config["web"]["token_uri"],
-            client_id=config["web"]["client_id"],
-            client_secret=config["web"]["client_secret"],
-            scopes=SCOPES,
-        )
+            config = get_client_config()
+            creds = Credentials(
+                None,  # access_token (will be auto-refreshed)
+                refresh_token=refresh_token,
+                token_uri=config["web"]["token_uri"],
+                client_id=config["web"]["client_id"],
+                client_secret=config["web"]["client_secret"],
+                scopes=SCOPES,
+            )
 
         # Build service with timeout for HuggingFace compatibility
         service = build("drive", "v3", credentials=creds)
