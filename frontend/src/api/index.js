@@ -2,6 +2,8 @@ import axios from 'axios';
 import { getToken, getRefreshToken, setToken, removeToken } from '../utils';
 
 // Dynamically determine API URL
+// Dynamically determine API URL
+// Build Version: 1.0.5 (Force Refresh)
 const getApiUrl = () => {
     // 1. Environment Variable (Production) - Recommended for Vercel
     if (import.meta.env.VITE_API_BASE_URL) {
@@ -277,6 +279,7 @@ export const createExpense = (data) => api.post('/api/v1/expenses/', data);
 export const deleteExpense = (id) => api.delete(`/api/v1/expenses/${id}`);
 
 // Users (Admin)
+export const getUsers = () => api.get('/api/v1/users/');
 export const updateFcmToken = (token) => api.post('/api/v1/users/me/fcm-token', { token });
 export const getDoctors = () => api.get('/api/v1/users/doctors');
 export const registerUser = (data) => api.post('/api/v1/users/register/', null, { params: { username: data.username, password: data.password, role: data.role || 'doctor', permissions: data.permissions || '' } });
