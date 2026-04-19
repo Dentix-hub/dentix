@@ -126,3 +126,4 @@ const SupportInbox = ({ messages, setMessages, handleDeleteMessage, fetchData })
 };
 
 export default SupportInbox;
+

@@ -326,3 +326,4 @@ export default function PatientScanner({ onScanComplete, onClose }) {
         </div>
     );
 }
+

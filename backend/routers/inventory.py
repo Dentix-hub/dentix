@@ -377,7 +377,7 @@ def set_procedure_weight(
         .filter(
             clinical_models.Procedure.name == data.procedure_name,
             (clinical_models.Procedure.tenant_id == tenant_id)
-            | (clinical_models.Procedure.tenant_id == None),
+            | (clinical_models.Procedure.tenant_id is None),
         )
         .first()
     )

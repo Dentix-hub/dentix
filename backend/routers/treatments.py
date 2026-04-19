@@ -72,6 +72,25 @@ def delete_treatment(
     return success_response(data=treatment_svc.delete_treatment(treatment_id), message="Treatment deleted successfully")
 
 
+@router.post(
+    "/{treatment_id}/sessions",
+    response_model=StandardResponse[schemas.TreatmentSession],
+    summary="Add treatment session",
+    description="Add a new session log to an existing treatment (e.g., RCT visit). Requires TREATMENT_PLAN_WRITE permission.",
+)
+def add_treatment_session(
+    treatment_id: int,
+    session: schemas.TreatmentSessionCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
+):
+    """Add a session to a treatment."""
+    if session.treatment_id != treatment_id:
+        raise HTTPException(status_code=400, detail="Treatment ID mismatch")
+    treatment_svc = get_treatment_service(db, current_user.tenant_id, current_user)
+    return success_response(data=treatment_svc.add_session(session), message="Session added successfully")
+
+
 # --- Tooth Status ---
 @router.post(
     "/tooth_status/",

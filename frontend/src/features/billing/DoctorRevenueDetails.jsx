@@ -243,3 +243,4 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
         document.body
     );
 }
+

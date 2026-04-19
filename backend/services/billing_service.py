@@ -41,7 +41,7 @@ class BillingService:
             .filter(
                 models.Patient.id == payment.patient_id,
                 models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
+                not models.Patient.is_deleted,
             )
             .first()
         )
@@ -67,7 +67,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
+                not models.Patient.is_deleted,
             )
         )
 
@@ -83,7 +83,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
+                not models.Patient.is_deleted,
             )
         )
 
@@ -94,7 +94,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
+                not models.Patient.is_deleted,
             )
         )
 
@@ -109,7 +109,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
+                not models.Patient.is_deleted,
                 models.Treatment.date >= month_start,
             )
         )
@@ -127,7 +127,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
+                not models.Patient.is_deleted,
             )
         )
 
@@ -226,7 +226,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
+                not models.Patient.is_deleted,
             )
         )
 
@@ -236,7 +236,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
+                not models.Patient.is_deleted,
             )
         )
 
@@ -260,7 +260,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
+                not models.Patient.is_deleted,
                 models.Payment.date >= self._today_start,
             )
             .order_by(models.Payment.date.desc())
@@ -286,7 +286,7 @@ class BillingService:
             .join(models.Patient)
             .filter(
                 models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
+                not models.Patient.is_deleted,
                 models.Treatment.date >= self._today_start,
             )
             .all()

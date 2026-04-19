@@ -101,7 +101,7 @@ export default function Settings() {
             <div className="flex-1">
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-white/5 min-h-[600px] relative overflow-hidden">
                     {/* Header Banner */}
-                    <div className="h-32 bg-gradient-to-r from-indigo-500 to-violet-600 relative overflow-hidden">
+                    <div className="h-32 bg-gradient-to-r from-indigo-500 to-cyan-600 relative overflow-hidden">
                         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
                         <div className="absolute -bottom-6 right-8">
                             <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-lg border-4 border-white dark:border-slate-800">
@@ -171,3 +171,4 @@ export default function Settings() {
         </div>
     );
 }
+

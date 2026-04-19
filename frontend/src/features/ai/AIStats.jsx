@@ -15,7 +15,7 @@ const OverviewTab = ({ stats, costs, suggestions }) => {
     return (
         <div className="space-y-6 animate-fade-in">
             {/* ROI Card */}
-            <div className="bg-gradient-to-r from-indigo-600 to-purple-700 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
+            <div className="bg-gradient-to-r from-indigo-600 to-teal-700 rounded-3xl p-8 text-white shadow-xl relative overflow-hidden">
                 <div className="relative z-10 grid grid-cols-1 md:grid-cols-4 gap-8">
                     <div>
                         <p className="text-indigo-100 text-sm font-bold mb-1">إجمالي العائد (توفير)</p>
@@ -43,7 +43,7 @@ const OverviewTab = ({ stats, costs, suggestions }) => {
                 </div>
                 {/* Decoration */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-                <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/30 rounded-full -ml-10 -mb-10 blur-xl"></div>
+                <div className="absolute bottom-0 left-0 w-48 h-48 bg-teal-500/30 rounded-full -ml-10 -mb-10 blur-xl"></div>
             </div>
             {/* KPI Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -430,7 +430,7 @@ const AIStats = () => {
             <div className="bg-white sticky top-0 z-30 shadow-sm border-b border-slate-100 px-8 py-4 mb-8">
                 <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl shadow-lg shadow-indigo-200">
+                        <div className="p-3 bg-gradient-to-br from-indigo-500 to-teal-600 rounded-xl shadow-lg shadow-indigo-200">
                             <Brain className="text-white" size={24} />
                         </div>
                         <div>
@@ -492,7 +492,7 @@ const KPICard = ({ title, value, icon: Icon, color, suffix }) => {
         blue: "bg-blue-50 text-blue-600",
         emerald: "bg-emerald-50 text-emerald-600",
         amber: "bg-amber-50 text-amber-600",
-        purple: "bg-purple-50 text-purple-600",
+        purple: "bg-teal-50 text-teal-600",
     };
     return (
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center justify-between group hover:shadow-md transition-all">
@@ -526,3 +526,4 @@ const ToggleSetting = ({ label, desc, enabled, onToggle }) => (
     </div>
 );
 export default AIStats;
+

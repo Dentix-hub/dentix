@@ -73,3 +73,4 @@ export default memo(function PatientQuickActions({ stats, isLoading, onAddClick 
         </div>
     );
 });
+

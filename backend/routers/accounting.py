@@ -137,7 +137,7 @@ def get_comprehensive_stats(
         .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
         .filter(
             models.Patient.tenant_id == current_user.tenant_id,
-            models.Patient.is_deleted == False,
+            not models.Patient.is_deleted,
             models.Treatment.date >= start,
             models.Treatment.date <= end,
         )
@@ -150,7 +150,7 @@ def get_comprehensive_stats(
         .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
         .filter(
             models.Patient.tenant_id == current_user.tenant_id,
-            models.Patient.is_deleted == False,
+            not models.Patient.is_deleted,
             models.Treatment.date >= start,
             models.Treatment.date <= end,
         )

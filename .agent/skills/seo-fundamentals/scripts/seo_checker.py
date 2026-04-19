@@ -33,15 +33,16 @@ except:
 # Directories to skip
 SKIP_DIRS = {
     'node_modules', '.next', 'dist', 'build', '.git', '.github',
-    '__pycache__', '.vscode', '.idea', 'coverage', 'test', 'tests',
-    '__tests__', 'spec', 'docs', 'documentation', 'examples'
+    '__pycache__', '.vscode', '.idea', 'coverage', 'htmlcov', 'test', 'tests',
+    '__tests__', 'spec', 'docs', 'documentation', 'examples', 'playwright-report', 'test-results',
+    '.kilo', '.venv', 'dist', '.venv_backend'
 }
 
 # Files to skip (not pages)
 SKIP_PATTERNS = [
     'config', 'setup', 'util', 'helper', 'hook', 'context', 'store',
     'service', 'api', 'lib', 'constant', 'type', 'interface', 'mock',
-    '.test.', '.spec.', '_test.', '_spec.'
+    '.test.', '.spec.', '_test.', '_spec.', 'concept', 'prototype', 'mockup'
 ]
 
 

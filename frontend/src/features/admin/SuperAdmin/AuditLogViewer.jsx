@@ -199,3 +199,4 @@ const AuditLogViewer = ({ logs, tenants = [], users = [], onFilter }) => {
 };
 
 export default AuditLogViewer;
+

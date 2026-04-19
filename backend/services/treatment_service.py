@@ -291,6 +291,34 @@ class TreatmentService:
         )
         return crud.delete_treatment(self.db, treatment_id, self.tenant_id)
 
+    def add_session(self, session_data: schemas.clinical.TreatmentSessionCreate) -> models.TreatmentSession:
+        """Add a treatment session."""
+        from fastapi import HTTPException
+        from datetime import datetime
+
+        # Verify treatment exists and belongs to tenant
+        treatment = (
+            self.db.query(models.Treatment)
+            .filter(
+                models.Treatment.id == session_data.treatment_id,
+                models.Treatment.tenant_id == self.tenant_id,
+            )
+            .first()
+        )
+        if not treatment:
+            raise HTTPException(status_code=404, detail="Treatment not found")
+
+        session = models.TreatmentSession(
+            treatment_id=session_data.treatment_id,
+            notes=session_data.notes,
+            session_date=session_data.session_date or datetime.utcnow(),
+            tenant_id=self.tenant_id
+        )
+        self.db.add(session)
+        self.db.commit()
+        self.db.refresh(session)
+        return session
+
 
 # Factory function
 def get_treatment_service(db: Session, tenant_id: int, current_user: models.User) -> TreatmentService:

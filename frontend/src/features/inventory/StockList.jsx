@@ -287,3 +287,4 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
     );
 };
 export default StockList;
+

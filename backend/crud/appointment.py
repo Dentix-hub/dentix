@@ -10,8 +10,8 @@ def get_appointments(
         .join(models.Patient)
         .filter(
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,
-            models.Appointment.is_deleted == False,
+            not models.Patient.is_deleted,
+            not models.Appointment.is_deleted,
         )
     )
 
@@ -37,7 +37,7 @@ def create_appointment(db: Session, appointment: schemas.AppointmentCreate):
             .filter(
                 models.Appointment.doctor_id == appointment.doctor_id,
                 models.Appointment.date_time == appointment.date_time,
-                models.Appointment.is_deleted == False,
+                not models.Appointment.is_deleted,
                 models.Appointment.status != "Cancelled",
             )
             .first()
@@ -62,7 +62,7 @@ def update_appointment_status(
         .filter(
             models.Appointment.id == appointment_id,
             models.Patient.tenant_id == tenant_id,
-            models.Appointment.is_deleted == False,
+            not models.Appointment.is_deleted,
         )
         .first()
     )
@@ -83,7 +83,7 @@ def delete_appointment(db: Session, appointment_id: int, tenant_id: int):
         .filter(
             models.Appointment.id == appointment_id,
             models.Patient.tenant_id == tenant_id,
-            models.Appointment.is_deleted == False,
+            not models.Appointment.is_deleted,
         )
         .first()
     )

@@ -202,14 +202,19 @@ async def add_correlation_id(request: Request, call_next):
 
 
 # --- Static Files ---
-base_dir = os.path.dirname(os.path.abspath(__file__))
-upload_dir = os.path.join(base_dir, "uploads")
-os.makedirs(upload_dir, exist_ok=True)
-os.makedirs("static/logos", exist_ok=True)
+import pathlib
+project_root = pathlib.Path(__file__).resolve().parent.parent
+base_dir = project_root / "backend"
+upload_dir = project_root / "uploads"
+static_dir = project_root / "static"
 
-app.mount("/uploads", StaticFiles(directory=upload_dir), name="uploads")
-app.mount("/static", StaticFiles(directory=os.path.join(base_dir, "static")), name="static")
-app.mount("/assets", StaticFiles(directory=os.path.join(base_dir, "static", "assets")), name="assets")
+os.makedirs(upload_dir, exist_ok=True)
+os.makedirs(static_dir / "logos", exist_ok=True)
+os.makedirs(static_dir / "assets", exist_ok=True)
+
+app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
 
 
 from backend.core.startup import init_drive_client

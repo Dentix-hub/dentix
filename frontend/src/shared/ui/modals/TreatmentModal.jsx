@@ -529,3 +529,4 @@ export default function TreatmentModal({
         </div>
     );
 }
+

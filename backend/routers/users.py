@@ -37,7 +37,9 @@ def update_user_me(
 
     db.commit()
     db.refresh(user)
-    return success_response(data=schemas.User.model_validate(user), message="Profile updated")
+    return success_response(
+        data=schemas.User.model_validate(user), message="Profile updated"
+    )
 
 
 @router.get("/me", response_model=StandardResponse[schemas.User])
@@ -64,6 +66,26 @@ def get_users(
     )
     data = [schemas.User.model_validate(u) for u in users]
     return success_response(data=data)
+
+
+@router.get("/doctors", response_model=StandardResponse[List[dict]])
+def list_doctors(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Get active doctors for dropdowns. Available to all authenticated users."""
+    doctors = (
+        db.query(models.User)
+        .filter(
+            models.User.tenant_id == current_user.tenant_id,
+            models.User.role == "doctor",
+            models.User.is_active == True,  # noqa: E712
+        )
+        .all()
+    )
+    return success_response(
+        data=[{"id": d.id, "full_name": d.full_name or d.username} for d in doctors]
+    )
 
 
 @router.post("/register/", response_model=StandardResponse[schemas.User])
@@ -126,7 +148,9 @@ def update_user(
         raise HTTPException(status_code=404, detail="User not found")
 
     updated_user = crud.update_user(db, user_id, user_update, current_user.tenant_id)
-    return success_response(data=schemas.User.model_validate(updated_user), message="User updated")
+    return success_response(
+        data=schemas.User.model_validate(updated_user), message="User updated"
+    )
 
 
 @router.delete("/{user_id}", response_model=StandardResponse[dict])
@@ -138,4 +162,3 @@ def delete_user(
     """Delete a user (admin only)."""
     crud.delete_user(db, user_id, current_user.tenant_id)
     return success_response(message="User deleted")
-

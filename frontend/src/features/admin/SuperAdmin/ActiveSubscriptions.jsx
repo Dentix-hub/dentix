@@ -74,3 +74,4 @@ const ActiveSubscriptions = ({ tenants, plans, getDaysRemaining }) => {
 };
 
 export default ActiveSubscriptions;
+

@@ -52,7 +52,7 @@ def get_global_users(
 ):
     query = (
         db.query(models.User)
-        .filter(models.User.is_deleted == False)
+        .filter(not models.User.is_deleted)
         .options(joinedload(models.User.tenant))
     )
 

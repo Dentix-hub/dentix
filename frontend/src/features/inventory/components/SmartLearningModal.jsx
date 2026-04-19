@@ -224,3 +224,4 @@ const SmartLearningModal = ({ isOpen, onClose, material }) => {
     );
 };
 export default SmartLearningModal;
+

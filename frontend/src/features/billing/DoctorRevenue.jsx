@@ -129,7 +129,7 @@ export default function DoctorRevenue() {
                                 <th className="p-4 text-orange-500">{t('billing.doctor_revenue.table.patient_discount')}</th>
                                 <th className="p-4 text-rose-500">{t('billing.doctor_revenue.table.lab_cost')}</th>
                                 <th className="p-4 text-emerald-600">{t('billing.doctor_revenue.table.net_profit')}</th>
-                                <th className="p-4 text-purple-600">{t('billing.doctor_revenue.table.doctor_dues')}</th>
+                                <th className="p-4 text-teal-600">{t('billing.doctor_revenue.table.doctor_dues')}</th>
                                 <th className="p-4 w-10"></th>
                             </tr>
                         </thead>
@@ -209,3 +209,4 @@ export default function DoctorRevenue() {
         </Card>
     );
 }
+

@@ -44,7 +44,7 @@ class PatientVisibilityService:
             SQLAlchemy Query filtered to only visible patients
         """
         base_query = self.db.query(Patient).filter(
-            Patient.tenant_id == self.tenant_id, Patient.is_deleted == False
+            Patient.tenant_id == self.tenant_id, not Patient.is_deleted
         )
 
         # Admin sees all

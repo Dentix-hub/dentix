@@ -7,7 +7,7 @@ import { Button, SkeletonBox, SkeletonCard, EmptyState } from '@/shared/ui';
 const CARD_COLORS = [
     { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', accent: 'bg-blue-100' },
     { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', accent: 'bg-emerald-100' },
-    { bg: 'bg-violet-50', border: 'border-violet-200', text: 'text-violet-700', accent: 'bg-violet-100' },
+    { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700', accent: 'bg-cyan-100' },
     { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', accent: 'bg-amber-100' },
     { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', accent: 'bg-rose-100' },
 ];
@@ -55,7 +55,7 @@ function PatientCard({ patient, onDelete, onNavigate, index, t }) {
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 hover:bg-red-50"
+                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 hover:bg-red-50"
                     onClick={(e) => {
                         e.stopPropagation();
                         onDelete(patient.id, patient.name);
@@ -111,3 +111,4 @@ export default memo(function PatientTable({ patients, isLoading, onDelete }) {
         </div>
     );
 });
+

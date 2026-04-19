@@ -13,8 +13,8 @@ const StaffModal = ({ isOpen, onClose, selectedStaff, roleLabels, editStaffSalar
             size="md"
         >
             <div className="space-y-4">
-                <div className="p-4 bg-purple-50 dark:bg-purple-500/10 rounded-xl border border-purple-100 dark:border-purple-500/20">
-                    <p className="text-sm text-purple-600 dark:text-purple-400 mb-2 flex items-center gap-2">
+                <div className="p-4 bg-teal-50 dark:bg-teal-500/10 rounded-xl border border-teal-100 dark:border-teal-500/20">
+                    <p className="text-sm text-teal-600 dark:text-teal-400 mb-2 flex items-center gap-2">
                         <Briefcase size={16} />
                         {t('billing.staff.role')}: <span className="font-bold">{roleLabels[selectedStaff?.role] || selectedStaff?.role}</span>
                     </p>

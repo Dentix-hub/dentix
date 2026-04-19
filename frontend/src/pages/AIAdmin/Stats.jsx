@@ -31,7 +31,7 @@ export default function AIStats() {
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20" dir="rtl">
             {/* Header Section */}
-            <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-violet-600 rounded-3xl p-8 text-white shadow-xl shadow-indigo-500/20">
+            <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-cyan-600 rounded-3xl p-8 text-white shadow-xl shadow-indigo-500/20">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
                 <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full -ml-8 -mb-8 blur-2xl"></div>
                 <div className="relative z-10">
@@ -187,3 +187,4 @@ function MetricCard({ title, value, icon: Icon, color, subtext, trend }) {
         </div>
     );
 }
+

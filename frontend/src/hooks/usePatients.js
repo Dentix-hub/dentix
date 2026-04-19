@@ -90,8 +90,23 @@ export function useDeletePatient() {
 
     return useMutation({
         mutationFn: deletePatient,
-        onSuccess: () => {
+        onMutate: async () => {
+            await queryClient.cancelQueries({ queryKey: queryKeys.dashboardStats });
+            const prev = queryClient.getQueryData(queryKeys.dashboardStats);
+            queryClient.setQueryData(queryKeys.dashboardStats, (old) => {
+                if (!old) return old;
+                return { ...old, total_patients: Math.max(0, (old.total_patients ?? 0) - 1) };
+            });
+            return { prev };
+        },
+        onError: (_err, _vars, ctx) => {
+            if (ctx?.prev) queryClient.setQueryData(queryKeys.dashboardStats, ctx.prev);
+        },
+        onSettled: () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.patients });
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+            queryClient.invalidateQueries({ queryKey: queryKeys.todayPayments });
+            queryClient.invalidateQueries({ queryKey: queryKeys.todayDebtors });
         },
     });
 }
