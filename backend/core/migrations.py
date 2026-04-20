@@ -127,6 +127,7 @@ def check_and_migrate_tables():
     add_column_safe('users',
         'can_view_other_doctors_history BOOLEAN DEFAULT FALSE')
     add_column_safe('users', 'active_session_id VARCHAR')
+    add_column_safe('users', 'fcm_token VARCHAR')
     try:
         with database.engine.connect() as conn:
             conn.execute(text(
