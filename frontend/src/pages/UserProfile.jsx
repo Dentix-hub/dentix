@@ -60,7 +60,7 @@ export default function UserProfile() {
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-white/5 min-h-[600px] relative overflow-hidden">
                     {/* Header Banner */}
                     <div className="h-32 bg-gradient-to-r from-emerald-500 to-teal-600 relative overflow-hidden">
-                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                        <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'linear-gradient(45deg, currentColor 25%, transparent 25%), linear-gradient(-45deg, currentColor 25%, transparent 25%), linear-gradient(45deg, transparent 75%, currentColor 75%), linear-gradient(-45deg, transparent 75%, currentColor 75%)', backgroundSize: '20px 20px', backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px'}}></div>
                         <div className="absolute -bottom-6 right-8">
                             <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-lg border-4 border-white dark:border-slate-800">
                                 {activeTab === 'general' && <User size={32} className="text-emerald-600" />}

@@ -57,7 +57,7 @@ export default function SystemPage() {
         e.preventDefault();
         if (!window.confirm("هل أنت متأكد من تحديث بيانات الدخول؟")) return;
         try {
-            await api.put('/admin/system/profile', profileForm);
+            await api.put('/api/v1/admin/system/profile', profileForm);
             alert("تم تحديث الملف الشخصي بنجاح");
             setProfileForm({ username: '', email: '', password: '' }); // Reset or keep? 
         } catch (error) {
@@ -341,7 +341,7 @@ export default function SystemPage() {
                                     if (filters.action) params.append('action', filters.action);
                                     if (filters.start_date) params.append('start_date', filters.start_date);
                                     if (filters.end_date) params.append('end_date', filters.end_date);
-                                    const res = await api.get(`/admin/audit-logs?${params.toString()}`);
+                                    const res = await api.get(`/api/v1/admin/audit-logs?${params.toString()}`);
                                     setAuditLogs(Array.isArray(res.data) ? res.data : []);
                                 } catch (err) {
                                     console.error('Filter error:', err);
