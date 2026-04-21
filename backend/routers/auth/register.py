@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Form, Request
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import OperationalError
 from backend import models, crud, schemas
 from backend import auth as auth_utils
 from backend.core.limiter import limiter
@@ -36,28 +37,28 @@ def register_clinic(
     admin_username = admin_username.strip()
     admin_email = admin_email.strip().lower()
 
-    # Check if username exists globally
-    existing_user = crud.get_user(db, admin_username)
-    if existing_user:
-        logger.warning(f"Registration failed: Username taken: {admin_username}")
-        raise HTTPException(status_code=400, detail="Username already taken")
-
-    # Check if email exists globally (optional but recommended)
-    existing_email = (
-        db.query(models.User).filter(models.User.email == admin_email).first()
-    )
-    if existing_email:
-        logger.warning(f"Registration failed: Email already registered: {admin_email}")
-        raise HTTPException(status_code=400, detail="Email already registered")
-
     try:
         validate_password(admin_password)
     except HTTPException as e:
         logger.warning(f"Registration failed: Password strength fail for user {admin_username}: {e.detail}")
         raise e
 
-    # Start Transaction
+    # Start Transaction (all DB operations inside try/except for OperationalError)
     try:
+        # Check if username exists globally
+        existing_user = crud.get_user(db, admin_username)
+        if existing_user:
+            logger.warning(f"Registration failed: Username taken: {admin_username}")
+            raise HTTPException(status_code=400, detail="Username already taken")
+
+        # Check if email exists globally
+        existing_email = (
+            db.query(models.User).filter(models.User.email == admin_email).first()
+        )
+        if existing_email:
+            logger.warning(f"Registration failed: Email already registered: {admin_email}")
+            raise HTTPException(status_code=400, detail="Email already registered")
+
         # 1. Create Tenant
         import uuid
 
@@ -115,6 +116,13 @@ def register_clinic(
             message="Clinic registered successfully"
         )
 
+    except OperationalError as e:
+        db.rollback()
+        logger.error(f"Registration DB error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=503,
+            detail="Database temporarily unavailable. Please try again in a moment.",
+        )
     except Exception as e:
         db.rollback()
         logger.error(f"Registration error: {e}", exc_info=True)
