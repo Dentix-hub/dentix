@@ -63,9 +63,18 @@ const RegisterClinic = ({ isDarkMode }) => {
         } catch (err) {
             console.error(err);
             const serverDetail = err.response?.data?.detail;
+            
             if (serverDetail) {
-                // Backend returns specific Arabic messages now
-                setError(serverDetail);
+                if (typeof serverDetail === 'string') {
+                    setError(serverDetail);
+                } else if (Array.isArray(serverDetail)) {
+                    const messages = serverDetail.map(d => d.msg || d.message || JSON.stringify(d)).join(' | ');
+                    setError(messages);
+                } else if (typeof serverDetail === 'object') {
+                    setError(JSON.stringify(serverDetail));
+                } else {
+                    setError(t('auth.register.errors.generic'));
+                }
             } else if (err.code === 'ERR_NETWORK' || !err.response) {
                 setError(t('auth.register.errors.connection'));
             } else {
