@@ -9,7 +9,7 @@ export default function SystemLogs() {
     const { data: logs = [], isLoading, refetch } = useQuery({
         queryKey: ['system-logs', page],
         queryFn: async () => {
-            const res = await api.get(`/admin/system/logs?skip=${page * limit}&limit=${limit}`);
+            const res = await api.get(`/api/v1/admin/system/logs?skip=${page * limit}&limit=${limit}`);
             // Ensure we always return an array, even if API returns unexpected data
             return Array.isArray(res.data) ? res.data : [];
         },

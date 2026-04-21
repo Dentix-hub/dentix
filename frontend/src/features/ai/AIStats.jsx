@@ -361,9 +361,9 @@ const AIStats = () => {
     const fetchDashboard = async () => {
         try {
             const [s, c, sug] = await Promise.all([
-                api.get(`/admin/ai/stats?period=${period}`),
-                api.get(`/admin/ai/costs?period=${period}`),
-                api.get('/admin/ai/suggestions')
+                api.get(`/api/v1/admin/ai/stats?period=${period}`),
+                api.get(`/api/v1/admin/ai/costs?period=${period}`),
+                api.get('/api/v1/admin/ai/suggestions')
             ]);
             setStats(s.data);
             setCosts(c.data);

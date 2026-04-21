@@ -30,7 +30,7 @@ export default function FinancePage() {
         setLoading(true);
         try {
             const [payRes, tenRes, planRes] = await Promise.all([
-                api.get('/api/v1/admin/payments'),
+                api.get('/api/v1/payments'),
                 api.get('/api/v1/admin/tenants'), // Needed for filtering payments
                 api.get('/api/v1/admin/plans')
             ]);
@@ -48,7 +48,7 @@ export default function FinancePage() {
     }, []);
     const handleSavePlan = async (planId) => {
         try {
-            await api.put(`/admin/plans/${planId}`, editedPlanData);
+            await api.put(`/api/v1/admin/plans/${planId}`, editedPlanData);
             setEditingPlan(null);
             setEditedPlanData({});
             fetchData();
@@ -63,7 +63,7 @@ export default function FinancePage() {
             return;
         }
         try {
-            const res = await api.get(`/admin/system/tenants/${tenantId}/users`);
+            const res = await api.get(`/api/v1/admin/system/tenants/${tenantId}/users`);
             // Ensure we always set an array, even if API returns unexpected data
             setTenantUsers(Array.isArray(res.data.users) ? res.data.users : []);
         } catch (err) {
@@ -78,7 +78,7 @@ export default function FinancePage() {
         }
         setProcessing(true);
         try {
-            await api.post('/api/v1/admin/payments', paymentForm);
+            await api.post('/api/v1/payments', paymentForm);
             setShowPaymentModal(false);
             setPaymentForm({
                 tenant_id: '',
@@ -156,7 +156,7 @@ export default function FinancePage() {
                     onDelete={async (id) => {
                         if (!window.confirm('هل أنت متأكد من حذف هذه الدفعة؟')) return;
                         try {
-                            await api.delete(`/admin/payments/${id}`);
+                            await api.delete(`/api/v1/payments/${id}`);
                             fetchData();
                             alert('تم حذف الدفعة بنجاح');
                         } catch (err) {

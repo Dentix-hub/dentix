@@ -2,6 +2,14 @@
  * Format AI API response into chat message structure
  */
 export const formatAIResponse = (data) => {
+    // Guard: Handle null/undefined response data
+    if (!data) {
+        return {
+            role: 'assistant',
+            content: '❌ **خطأ في الاتصال**\n\nلم يتم استلام رد من الخادم. يرجى المحاولة مرة أخرى.',
+            type: 'error'
+        };
+    }
     // 1. Handle Errors
     if (!data.success) {
         const errorCode = data.error || data.error_code;

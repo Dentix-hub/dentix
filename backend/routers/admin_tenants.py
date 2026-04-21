@@ -160,3 +160,36 @@ def get_tenant_users(
             ]
         }
     )
+
+
+@router.delete("/{tenant_id}/purge-deleted-patients", response_model=StandardResponse[dict])
+def purge_deleted_patients(
+    tenant_id: int,
+    current_user: models.User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """Permanently remove soft-deleted patients for a specific tenant."""
+    tenant = db.query(models.Tenant).filter(
+        models.Tenant.id == tenant_id,
+        models.Tenant.is_deleted == False,  # noqa: E712
+    ).first()
+
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    deleted_patients = db.query(models.Patient).filter(
+        models.Patient.tenant_id == tenant_id,
+        models.Patient.is_deleted == True,  # noqa: E712
+    ).all()
+
+    count = len(deleted_patients)
+    for patient in deleted_patients:
+        db.delete(patient)
+
+    db.commit()
+
+    return success_response(
+        data={"purged_count": count},
+        message=f"تم حذف {count} مريض نهائياً"
+    )
+

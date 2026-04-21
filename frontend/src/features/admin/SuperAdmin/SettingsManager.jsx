@@ -29,7 +29,7 @@ const SettingsManager = ({ settings, fetchData }) => {
     const updateSetting = async (key, value) => {
         setLoading(true);
         try {
-            await api.put(`/admin/settings/${key}`, { key, value, updated_at: new Date().toISOString() });
+            await api.put(`/api/v1/admin/settings/${key}`, { key, value, updated_at: new Date().toISOString() });
 
             // Update local state
             setLocalSettings(prev => prev.map(s => s.key === key ? { ...s, value } : s));
