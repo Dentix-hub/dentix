@@ -2,16 +2,17 @@ name: Deploy to HuggingFace
 
 on:
   workflow_run:
-    workflows: ["CI Pipeline"]
+    workflows: ["Dentix CI"]
     types:
       - completed
     branches:
       - main
+      - staging
   workflow_dispatch:
 
 jobs:
-  deploy-backend:
-    name: Deploy Backend to HuggingFace
+  deploy:
+    name: Deploy to HuggingFace
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
@@ -25,19 +26,35 @@ jobs:
           git config --global user.email "deploy@smartclinic.com"
           git config --global user.name "Smart Clinic Deploy Bot"
 
+      - name: Determine Environment
+        id: env_check
+        run: |
+          if [[ "${{ github.event.workflow_run.head_branch }}" == "main" ]]; then
+            echo "space=${{ secrets.HF_SPACE }}" >> $GITHUB_OUTPUT
+            echo "branch=main" >> $GITHUB_OUTPUT
+          else
+            echo "space=${{ secrets.HF_STAGING_SPACE }}" >> $GITHUB_OUTPUT
+            echo "branch=staging" >> $GITHUB_OUTPUT
+          fi
+
       - name: Push to HuggingFace
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_SPACE: ${{ secrets.HF_SPACE }}
+          HF_SPACE: ${{ steps.env_check.outputs.space }}
+          TARGET_BRANCH: ${{ steps.env_check.outputs.branch }}
         run: |
           git remote add hf https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}
-          git push hf main --force
+          git push hf ${TARGET_BRANCH}:main --force
 
       - name: Wait for deployment
         run: sleep 60
 
       - name: Health check
         env:
-          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          BACKEND_URL: ${{ steps.env_check.outputs.branch == 'main' && secrets.BACKEND_URL || secrets.STAGING_BACKEND_URL }}
         run: |
-          curl -f ${BACKEND_URL}/health || exit 1
+          if [ -n "$BACKEND_URL" ]; then
+            curl -f ${BACKEND_URL}/health || exit 1
+          else
+            echo "No health check URL configured for this environment, skipping."
+          fi
