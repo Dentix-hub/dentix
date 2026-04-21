@@ -28,11 +28,18 @@ def register_clinic(
     Transactions are atomic: either both tenant and user are created, or neither.
     """
     if not clinic_name or not admin_username or not admin_password:
+        logger.warning(f"Registration failed: Missing fields. clinic_name={bool(clinic_name)}, user={bool(admin_username)}, pass={bool(admin_password)}")
         raise HTTPException(status_code=400, detail="Missing required fields")
+    
+    # Clean inputs
+    clinic_name = clinic_name.strip()
+    admin_username = admin_username.strip()
+    admin_email = admin_email.strip().lower()
 
     # Check if username exists globally
     existing_user = crud.get_user(db, admin_username)
     if existing_user:
+        logger.warning(f"Registration failed: Username taken: {admin_username}")
         raise HTTPException(status_code=400, detail="Username already taken")
 
     # Check if email exists globally (optional but recommended)
@@ -40,9 +47,14 @@ def register_clinic(
         db.query(models.User).filter(models.User.email == admin_email).first()
     )
     if existing_email:
+        logger.warning(f"Registration failed: Email already registered: {admin_email}")
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    validate_password(admin_password)
+    try:
+        validate_password(admin_password)
+    except HTTPException as e:
+        logger.warning(f"Registration failed: Password strength fail for user {admin_username}: {e.detail}")
+        raise e
 
     # Start Transaction
     try:
