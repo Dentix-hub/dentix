@@ -102,7 +102,8 @@ export default function AIChat() {
                 scribe_mode: scribeMode
             });
             // Format response based on tool
-            let assistantMessage = formatAIResponse(response.data);
+            const responseData = response?.data;
+            let assistantMessage = formatAIResponse(responseData);
             setMessages(prev => [...prev, assistantMessage]);
             // Text-to-Speech
             if (ttsEnabled && assistantMessage.content) {

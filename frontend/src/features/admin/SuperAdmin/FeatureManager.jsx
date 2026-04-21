@@ -61,7 +61,7 @@ export default function FeatureManager({ tenants }) {
         // Let's implement UI logic to call PUT /admin/features/{key} 
 
         try {
-            await api.put(`/admin/features/${key}`, { is_global_enabled: !currentStatus });
+            await api.put(`/api/v1/admin/features/${key}`, { is_global_enabled: !currentStatus });
             fetchFlags();
         } catch (err) {
             alert("غير مدعوم حالياً (API Update Missing)");

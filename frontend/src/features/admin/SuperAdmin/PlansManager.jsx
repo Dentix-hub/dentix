@@ -190,7 +190,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                             onClick={() => {
                                                 if (window.confirm(`هل أنت متأكد من حذف خطة "${plan.display_name_ar}"؟`)) {
                                                     import('@/api').then(({ default: api }) => {
-                                                        api.delete(`/admin/subscriptions/plans/${plan.id}`)
+                                                        api.delete(`/api/v1/admin/subscriptions/plans/${plan.id}`)
                                                             .then(() => {
                                                                 alert('تم حذف الخطة بنجاح');
                                                                 if (onRefresh) onRefresh();
