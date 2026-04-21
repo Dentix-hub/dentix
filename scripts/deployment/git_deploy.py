@@ -1,6 +1,3 @@
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 import os
 import sys
 import time
@@ -33,7 +30,7 @@ def run_command(command, cwd=None):
         # print(result.stdout)
         return True, result.stdout
     except subprocess.CalledProcessError as e:
-        print(f"❌ Error: {e.stderr}")
+        print(f" Error: {e.stderr}")
         return False, e.stderr
 
 def clear_screen():
@@ -42,18 +39,18 @@ def clear_screen():
 def main():
     while True:
         clear_screen()
-        print("🤖 Dentix - Git Deployment Manager")
+        print("Dentix - Git Deployment Manager")
         print("========================================")
         print("Use this when HF API (Standard/Clean Deploy) is failing.")
         print("\nSelect Target Environment:")
-        print("  1. Deploy to Staging 🚀")
-        print("  2. Deploy to Production 🚀")
+        print("  1. Deploy to Staging [STAGING]")
+        print("  2. Deploy to Production [PRODUCTION]")
         print("  0. Exit")
         
-        choice = input("\n👉 Choose (1-2): ").strip()
+        choice = input("\nChoose (1-2): ").strip()
         
         if choice == '0':
-            print("Bye! 👋")
+            print("Bye! ")
             break
             
         if choice in REPOS:
@@ -68,32 +65,32 @@ def deploy(target):
     clone_dir = target['dir']
     source_dir = os.getcwd()
     
-    print(f"\n🚀 Starting Git Deployment to [{target['name']}]...")
+    print(f"\nStarting Git Deployment to [{target['name']}]...")
     print(f"Repo: {repo_url}")
     
     # 1. Clone or Update
     if os.path.exists(clone_dir):
-        print("\n📥 Updating existing clone...")
+        print("\n Updating existing clone...")
         # Reset any local changes in clone just in case
         run_command("git reset --hard HEAD", cwd=clone_dir)
         run_command("git pull --rebase", cwd=clone_dir)
     else:
-        print("\n📥 Cloning repository...")
+        print("\n Cloning repository...")
         run_command(f"git clone {repo_url} {clone_dir}")
         
     if not os.path.exists(clone_dir):
-        print("❌ Clone failed. Check internet/credentials.")
+        print(" Clone failed. Check internet/credentials.")
         return
 
     # 2. Clean Destination (Backend/Frontend)
-    print("\n🧹 Cleaning destination...")
+    print("\n Cleaning destination...")
     for folder in ["backend", "frontend"]:
         dest_path = os.path.join(clone_dir, folder)
         if os.path.exists(dest_path):
             shutil.rmtree(dest_path)
             
     # 3. Copy Files
-    print("\n📂 Copying files...")
+    print("\n Copying files...")
     
     # Helper to copy with ignore
     def copy_tree(src, dst):
@@ -116,7 +113,7 @@ def deploy(target):
             shutil.copy2(src, dst)
             
     # 4. Commit and Push
-    print("\n📤 Committing changes...")
+    print("\n Committing changes...")
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     
     run_command("git add -A", cwd=clone_dir)
@@ -124,23 +121,23 @@ def deploy(target):
     # Check if anything to commit
     status_ok, status_out = run_command("git status --porcelain", cwd=clone_dir)
     if not status_out.strip():
-        print("⚠️  No changes to deploy (already up to date).")
+        print("  No changes to deploy (already up to date).")
         return
 
     commit_ok, _ = run_command(f'git commit -m "Deploy: {timestamp}"', cwd=clone_dir)
     
     if commit_ok:
-        print("⬆️  Pushing to Hugging Face...")
+        print("  Pushing to Hugging Face...")
         push_ok, push_err = run_command("git push origin main", cwd=clone_dir)
         
         if push_ok:
-            print("\n✅ SUCCESS! Deployment complete.")
-            print(f"🔗 Monitor: {repo_url}")
+            print("\nSUCCESS! Deployment complete.")
+            print(f" Monitor: {repo_url}")
         else:
-            print("\n❌ Push failed.")
+            print("\n Push failed.")
             print("Tip: If it's credential error, run 'git credential-manager configure' or Check HF Token.")
     else:
-         print("❌ Commit failed.")
+         print(" Commit failed.")
 
 if __name__ == "__main__":
     main()

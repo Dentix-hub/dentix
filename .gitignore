@@ -32,3 +32,17 @@ deploy_manager.py
 # Large Files
 k6.exe
 stress_results_v3.txt
+
+# Coverage and Logs
+.coverage
+.FullName
+app.log
+pytest_output.txt
+changed_files.txt
+
+# Deployment Artifacts
+.hf-deploy-production/
+.hf-deploy-staging/
+.hf-deploy-production.old/
+backend.zip
+frontend.zip
