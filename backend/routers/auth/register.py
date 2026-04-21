@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Form, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from sqlalchemy.exc import OperationalError
 from backend import models, crud, schemas
 from backend import auth as auth_utils
@@ -45,16 +46,18 @@ def register_clinic(
 
     # Start Transaction (all DB operations inside try/except for OperationalError)
     try:
-        # Check if username exists globally
-        existing_user = crud.get_user(db, admin_username)
-        if existing_user:
+        # Check if username exists globally (username only, NOT email)
+        existing_username = (
+            db.query(models.User)
+            .filter(func.lower(models.User.username) == admin_username.lower())
+            .first()
+        )
+        if existing_username:
             logger.warning(f"Registration failed: Username taken: {admin_username}")
             raise HTTPException(status_code=400, detail="Username already taken")
 
         # Check if email exists globally
-        existing_email = (
-            db.query(models.User).filter(models.User.email == admin_email).first()
-        )
+        existing_email = crud.get_user_by_email(db, admin_email)
         if existing_email:
             logger.warning(f"Registration failed: Email already registered: {admin_email}")
             raise HTTPException(status_code=400, detail="Email already registered")
