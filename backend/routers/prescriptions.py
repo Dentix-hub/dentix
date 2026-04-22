@@ -15,7 +15,7 @@ from ..utils.audit_logger import log_admin_action
 router = APIRouter(prefix="/prescriptions", tags=["Prescriptions"])
 
 
-@router.post("/", response_model=StandardResponse[schemas.Prescription])
+@router.post("", response_model=StandardResponse[schemas.Prescription])
 def create_prescription(
     prescription: schemas.PrescriptionCreate,
     db: Session = Depends(get_db),
