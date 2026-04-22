@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.permissions import Permission, require_permission, Role
-from backend.core.startup import drive_client
+from backend.core import startup
 from ..database import get_db
 from .. import models
 from ..schemas import system_log as schema_system
@@ -247,7 +247,7 @@ def get_google_auth_url(current_user: models.User = Depends(require_permission(P
         raise HTTPException(status_code=403, detail="Not authorized")
 
     # Pass state='super_admin' to identify this flow in the callback
-    auth_url = drive_client.get_auth_url(state="super_admin")
+    auth_url = startup.drive_client.get_auth_url(state="super_admin")
     return success_response(data={"url": auth_url})
 
 

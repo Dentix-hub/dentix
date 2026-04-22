@@ -245,6 +245,7 @@ from backend.routers import (
     admin_tenants,
     admin_subscriptions,
     admin_system,  # New Modular Admin Routers
+    system_admin,  # Compatibility Layer for Super Admin
     admin_audit,   # B3.1: Audit logs + system logs
     admin_stats,   # B3.1: Dashboard stats
     admin_security,
@@ -312,6 +313,7 @@ app.include_router(notifications.router, prefix=API_V1_STR)
 app.include_router(admin_tenants.router, prefix=API_V1_STR)
 app.include_router(admin_subscriptions.router, prefix=API_V1_STR)
 app.include_router(admin_system.router, prefix=API_V1_STR)
+app.include_router(system_admin.router, prefix=API_V1_STR)
 app.include_router(admin_audit.router, prefix=API_V1_STR)   # B3.1: Audit & system logs
 app.include_router(admin_stats.router, prefix=API_V1_STR)   # B3.1: Dashboard stats
 app.include_router(admin_security.router, prefix=API_V1_STR)
