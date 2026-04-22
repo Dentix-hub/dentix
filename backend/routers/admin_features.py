@@ -27,14 +27,14 @@ def get_super_admin(current_user: models.User = Depends(require_permission(Permi
     raise HTTPException(status_code=403, detail="Not authorized")
 
 
-@router.get("/", response_model=List[schemas.FeatureFlag])
+@router.get("", response_model=List[schemas.FeatureFlag])
 def get_all_flags(
     db: Session = Depends(get_db), current_user: models.User = Depends(get_super_admin)
 ):
     return FeatureFlagService.get_all_flags(db)
 
 
-@router.post("/", response_model=schemas.FeatureFlag)
+@router.post("", response_model=schemas.FeatureFlag)
 def create_flag(
     flag: schemas.FeatureFlagCreate,
     db: Session = Depends(get_db),
