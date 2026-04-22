@@ -13,13 +13,23 @@ const getApiUrl = () => {
     const hostname = window.location.hostname;
     const protocol = window.location.protocol;
 
-    // 2. Localhost or IP
+    // 2. Vercel Smart Detection (Fallback if env var is missing)
+    if (hostname.includes('vercel.app')) {
+        // If the URL contains 'staging' or 'preview', point to staging backend
+        if (hostname.toLowerCase().includes('staging') || hostname.toLowerCase().includes('preview')) {
+            // Note: Replace with your actual staging HF URL if different
+            return 'https://dentix-staging.hf.space';
+        }
+        // Default Production HF URL
+        return 'https://dentix-dentix.hf.space';
+    }
+
+    // 3. Localhost or IP
     if (hostname === 'localhost' || hostname === '127.0.0.1' || /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) {
         return `${protocol}//${hostname}:8000`;
     }
 
-    // 3. Same Origin (Hugging Face Spaces, Vercel, or Custom Domains)
-    // Using relative URL ensures the frontend hits the backend on the same origin
+    // 4. Same Origin (Hugging Face Spaces or Custom Domains)
     return '';
 };
 
