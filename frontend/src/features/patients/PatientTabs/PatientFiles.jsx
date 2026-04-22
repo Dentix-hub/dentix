@@ -1,5 +1,6 @@
 import { Upload, RefreshCw, Edit2, Trash2, FileText, File as FileIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { API_URL } from '@/api';
 
 const PatientFiles = ({
     attachments,
@@ -42,14 +43,14 @@ const PatientFiles = ({
                                     if (!file.file_path) return '';
                                     if (file.file_path.startsWith('http')) return file.file_path;
                                     if (file.file_path.includes('http')) return file.file_path.substring(file.file_path.indexOf('http'));
-                                    return `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/${file.file_path}`;
+                                    return `${API_URL || ''}/${file.file_path}`.replace('//', '/');
                                 })()}
                                 alt={file.filename}
                                 className="w-full h-full object-cover transition-transform group-hover:scale-105"
                                 onClick={() => {
                                     const url = file.file_path.startsWith('http') ? file.file_path :
                                         (file.file_path.includes('http') ? file.file_path.substring(file.file_path.indexOf('http')) :
-                                            `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/${file.file_path}`);
+                                            `${API_URL || ''}/${file.file_path}`.replace('//', '/'));
                                     window.open(url, '_blank');
                                 }}
                             />
@@ -62,7 +63,7 @@ const PatientFiles = ({
 
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                             <button
-                                onClick={() => window.open(file.file_path.startsWith('http') ? file.file_path : `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/${file.file_path}`, '_blank')}
+                                onClick={() => window.open(file.file_path.startsWith('http') ? file.file_path : `${API_URL || ''}/${file.file_path}`.replace('//', '/'), '_blank')}
                                 className="p-2 bg-white rounded-full text-slate-700 hover:text-primary hover:scale-110 transition-all"
                             >
                                 <Edit2 size={16} />
