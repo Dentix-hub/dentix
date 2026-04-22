@@ -17,8 +17,7 @@ const getApiUrl = () => {
     if (hostname.includes('vercel.app')) {
         // If the URL contains 'staging' or 'preview', point to staging backend
         if (hostname.toLowerCase().includes('staging') || hostname.toLowerCase().includes('preview')) {
-            // Note: Replace with your actual staging HF URL if different
-            return 'https://dentix-staging.hf.space';
+            return 'https://dentix-dentix-staging.hf.space';
         }
         // Default Production HF URL
         return 'https://dentix-dentix.hf.space';
