@@ -478,7 +478,7 @@ def export_tenant_backup(
     )
 
 
-@router.get("/tenant", response_model=StandardResponse[dict])
+@router.get("/tenant", response_model=StandardResponse[schemas.Tenant])
 def get_tenant_settings(
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
@@ -486,11 +486,11 @@ def get_tenant_settings(
     Get current tenant settings.
     """
     if not current_user.tenant:
-        return success_response(data={})
+        return success_response(data=None)
     return success_response(data=current_user.tenant)
 
 
-@router.put("/tenant", response_model=StandardResponse[dict])
+@router.put("/tenant", response_model=StandardResponse[schemas.Tenant])
 def update_tenant_settings(
     config: schemas.TenantUpdate,
     db: Session = Depends(get_db),
