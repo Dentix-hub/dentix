@@ -11,27 +11,16 @@ const getApiUrl = () => {
     }
 
     const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
 
     // 2. Localhost or IP
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return 'http://127.0.0.1:8000';
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) {
+        return `${protocol}//${hostname}:8000`;
     }
 
-    if (/^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) {
-        return `http://${hostname}:8000`;
-    }
-
-    // 3. Hugging Face Spaces (Same Origin)
-    if (hostname.includes('hf.space')) {
-        return '';
-    }
-
-    // 4. Localhost
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        return 'http://localhost:8000';
-    }
-    // 5. Fallback to Staging / Production Default
-    return 'https://dentix-dentix.hf.space';
+    // 3. Same Origin (Hugging Face Spaces, Vercel, or Custom Domains)
+    // Using relative URL ensures the frontend hits the backend on the same origin
+    return '';
 };
 
 export const API_URL = getApiUrl();
