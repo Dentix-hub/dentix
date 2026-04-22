@@ -22,7 +22,7 @@ router = APIRouter(prefix="/treatments", tags=["Treatments"])
 
 
 @router.post(
-    "/",
+    "",
     response_model=StandardResponse[schemas.Treatment],
     summary="Create treatment",
     description="Create a new dental treatment record. Auto-calculates price from price list and deducts stock for consumed materials. Requires TREATMENT_PLAN_WRITE permission.",
@@ -93,7 +93,7 @@ def add_treatment_session(
 
 # --- Tooth Status ---
 @router.post(
-    "/tooth_status/",
+    "/tooth_status",
     response_model=StandardResponse[schemas.ToothStatus],
     summary="Update tooth status",
     description="Update or create a tooth status entry in the dental chart. Requires CLINICAL_WRITE permission.",

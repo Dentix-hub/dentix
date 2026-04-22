@@ -28,7 +28,7 @@ UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
-@router.post("/", response_model=schemas.Attachment)
+@router.post("", response_model=schemas.Attachment)
 def upload_file(
     patient_id: int,
     file: UploadFile = File(...),

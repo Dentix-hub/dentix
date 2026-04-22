@@ -60,7 +60,7 @@ def get_user_me(current_user: models.User = Depends(get_current_user)):
     return success_response(data=schemas.User.model_validate(current_user))
 
 
-@router.get("/", response_model=StandardResponse[List[schemas.User]])
+@router.get("", response_model=StandardResponse[List[schemas.User]])
 def get_users(
     skip: int = 0,
     limit: int = 100,
@@ -100,7 +100,7 @@ def list_doctors(
     )
 
 
-@router.post("/register/", response_model=StandardResponse[schemas.User])
+@router.post("/register", response_model=StandardResponse[schemas.User])
 def register_user(
     username: str,
     password: str,

@@ -269,7 +269,7 @@ export const deleteProcedure = (id) => api.delete(`/api/v1/procedures/${id}`);
 export const uploadAttachment = (patientId, file) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post(`/upload/?patient_id=${patientId}`, formData, {
+    return api.post(`/api/v1/upload?patient_id=${patientId}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
     });
 };
