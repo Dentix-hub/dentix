@@ -13,7 +13,7 @@ from backend.core import startup
 from ..database import get_db
 from .. import models
 from ..schemas import system_log as schema_system
-from .auth import get_password_hash
+from ..auth import get_password_hash
 import subprocess
 import shutil
 from ..services.backup_service import run_backup_task
