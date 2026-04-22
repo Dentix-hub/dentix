@@ -35,7 +35,7 @@ def register_clinic(
 
     # Clean inputs
     clinic_name = clinic_name.strip()
-    admin_username = admin_username.strip()
+    admin_username = crud.normalize_username(admin_username)
     admin_email = admin_email.strip().lower()
 
     try:
@@ -49,7 +49,7 @@ def register_clinic(
         # Check if username exists globally (username only, NOT email)
         existing_username = (
             db.query(models.User)
-            .filter(func.lower(models.User.username) == admin_username.lower())
+            .filter(func.lower(models.User.username) == admin_username)
             .first()
         )
         if existing_username:
