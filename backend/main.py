@@ -296,8 +296,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 
-app.include_router(auth.router, prefix=API_V1_STR)
-app.include_router(password_reset.router, prefix=API_V1_STR)
+app.include_router(auth.router, prefix=f"{API_V1_STR}/auth")
+app.include_router(password_reset.router, prefix=f"{API_V1_STR}/auth")
 app.include_router(patients.router, prefix=API_V1_STR)
 app.include_router(treatments.router, prefix=API_V1_STR)
 app.include_router(appointments.router, prefix=API_V1_STR)

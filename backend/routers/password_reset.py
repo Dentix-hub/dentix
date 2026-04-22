@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from backend.core.limiter import limiter
 from sqlalchemy.orm import Session
@@ -15,7 +15,7 @@ import os
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+router = APIRouter(tags=["Authentication"])
 
 
 from ..database import get_db
