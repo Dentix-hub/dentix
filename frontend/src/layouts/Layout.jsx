@@ -20,6 +20,8 @@ import { usePrefetchDashboard } from '@/hooks/useDashboard';
 const AIChat = lazy(() => import('@/features/ai/AIChat'));
 import { useUIStore } from '@/store/ui.store';
 import { useTenantStore } from '@/store/tenant.store';
+import { API_URL } from '@/api';
+
 const Layout = ({ children }) => {
     const { t, i18n } = useTranslation();
     const { sidebarOpen, setSidebarOpen, darkMode: isDarkMode, toggleDarkMode } = useUIStore();
@@ -137,7 +139,7 @@ const Layout = ({ children }) => {
                 <div className={`flex flex-col items-center justify-center border-b border-border p-4`}>
                     <div className="h-28 w-full overflow-hidden flex items-center justify-center mb-4">
                         <img
-                            src={tenant?.logo ? `${import.meta.env.VITE_API_BASE_URL}/${tenant.logo}` : logo}
+                            src={tenant?.logo ? `${API_URL}/${tenant.logo}` : logo}
                             alt={t('common.logo')}
                             className="h-full w-full object-contain drop-shadow-md scale-[2.5] translate-x-4"
                         />
