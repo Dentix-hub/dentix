@@ -23,16 +23,31 @@ def validate_password(password: str) -> None:
     if len(password) < 8:
         raise HTTPException(status_code=400, detail="كلمة المرور يجب أن تتكون من 8 أحرف على الأقل")
 
-    has_upper = any(c.isupper() for c in password)
-    has_lower = any(c.islower() for c in password)
-    has_digit = any(c.isdigit() for c in password)
-    has_special = any(c in string.punctuation for c in password)
+    # For Unicode scripts like Arabic, isupper/islower might not apply.
+    # We check for general categories: letters, numbers, special chars.
+    import re
 
-    if not (has_upper and has_lower and has_digit and has_special):
+    has_letter = any(c.isalpha() for c in password)
+    has_digit = any(c.isdigit() for c in password)
+    # Special characters: anything that is not alphanumeric and not a whitespace
+    has_special = any(not c.isalnum() and not c.isspace() for c in password)
+
+    if not (has_letter and has_digit and has_special):
         raise HTTPException(
             status_code=400,
-            detail="كلمة المرور يجب أن تحتوي على الأقل على حرف كبير، حرف صغير، رقم، ورمز خاص"
+            detail="كلمة المرور يجب أن تحتوي على حروف، أرقام، ورمز خاص واحد على الأقل"
         )
+
+    # Optional: If English letters ARE present, we can still encourage case mix
+    has_en_upper = any('A' <= c <= 'Z' for c in password)
+    has_en_lower = any('a' <= c <= 'z' for c in password)
+    has_en_letters = any(('A' <= c <= 'Z') or ('a' <= c <= 'z') for c in password)
+
+    if has_en_letters and not (has_en_upper and has_en_lower):
+        # We don't block, but if you're using English, you should mix cases.
+        # However, to be safe and compatible with Arabic users, we won't raise error here
+        # unless we strictly want to enforce it for English-only passwords.
+        pass
 
     # ZXCVBN Score: 0 (weakest) to 4 (strongest)
     result = zxcvbn.zxcvbn(password)

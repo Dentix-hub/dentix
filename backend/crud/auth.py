@@ -2,6 +2,16 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from backend import models, schemas
 
+def normalize_username(username: str) -> str:
+    """Normalize username: trim, lowercase, and basic Arabic normalization."""
+    if not username:
+        return ""
+    u = username.strip().lower()
+    # Basic Arabic normalization (Alef variants, Teh Marbuta, Yeh)
+    u = u.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا")
+    u = u.replace("ة", "ه").replace("ى", "ي")
+    return u
+
 
 # --- Tenant CRUD ---
 def get_tenant_by_name(db: Session, name: str):
@@ -23,11 +33,12 @@ def create_tenant(db: Session, tenant: schemas.TenantCreate):
 # --- User CRUD ---
 def get_user(db: Session, username: str):
     """Search by Email (Priority) OR Username."""
+    clean_username = normalize_username(username)
     return (
         db.query(models.User)
         .filter(
-            (func.lower(models.User.email) == username.lower())
-            | (func.lower(models.User.username) == username.lower())
+            (func.lower(models.User.email) == clean_username)
+            | (func.lower(models.User.username) == clean_username)
         )
         .first()
     )

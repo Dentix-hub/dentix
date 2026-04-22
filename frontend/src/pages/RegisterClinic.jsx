@@ -39,11 +39,10 @@ const RegisterClinic = ({ isDarkMode }) => {
             setError(t('auth.register.errors.password_min_length'));
             return;
         }
-        const hasUpper = /[A-Z]/.test(formData.admin_password);
-        const hasLower = /[a-z]/.test(formData.admin_password);
+        const hasLetter = /\p{L}/u.test(formData.admin_password);
         const hasNumber = /[0-9]/.test(formData.admin_password);
-        const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(formData.admin_password);
-        if (!hasUpper || !hasLower || !hasNumber || !hasSpecial) {
+        const hasSpecial = /[^\p{L}0-9]/u.test(formData.admin_password);
+        if (!hasLetter || !hasNumber || !hasSpecial) {
             setError(t('auth.register.errors.password_weak'));
             return;
         }
