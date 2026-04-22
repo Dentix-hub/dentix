@@ -18,7 +18,7 @@ def require_super_admin(current_user: models.User = Depends(require_permission(P
     return current_user
 
 
-@router.get("/", response_model=StandardResponse[List[schemas.Notification]])
+@router.get("", response_model=StandardResponse[List[schemas.Notification]])
 def get_notifications(
     db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.PATIENT_READ))
 ):
