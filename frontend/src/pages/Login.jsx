@@ -14,7 +14,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
-            const { data } = await login(username, password);
+            const { data } = await login(username.trim(), password);
             // Save token based on rememberMe
             if (rememberMe) {
                 localStorage.setItem('token', data.access_token);

@@ -8,6 +8,7 @@ from .auth import (
     delete_user,
     update_user,
     get_user_by_id,
+    normalize_username,
 )
 from .patient import (
     get_patient,
