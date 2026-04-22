@@ -32,7 +32,7 @@ def register_clinic(
     if not clinic_name or not admin_username or not admin_password:
         logger.warning(f"Registration failed: Missing fields. clinic_name={bool(clinic_name)}, user={bool(admin_username)}, pass={bool(admin_password)}")
         raise HTTPException(status_code=400, detail="Missing required fields")
-    
+
     # Clean inputs
     clinic_name = clinic_name.strip()
     admin_username = admin_username.strip()

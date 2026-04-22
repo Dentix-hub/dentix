@@ -21,7 +21,7 @@ def _get_cached_procedures(db: Session, tenant_id: int, skip: int, limit: int):
     return crud.get_procedures(db, tenant_id, skip=skip, limit=limit)
 
 
-@router.get("/")
+@router.get("")
 def get_procedures(
     skip: int = 0,
     limit: int = 100,
@@ -32,7 +32,7 @@ def get_procedures(
     return _get_cached_procedures(db, current_user.tenant_id or 1, skip, limit)
 
 
-@router.post("/")
+@router.post("")
 def create_procedure(
     procedure: schemas.ProcedureCreate,
     db: Session = Depends(get_db),

@@ -9,7 +9,7 @@ from backend.core.response import success_response, StandardResponse
 
 
 router = APIRouter(
-    prefix="/admin",
+    prefix="/admin/subscriptions",
     tags=["Admin Subscriptions"],
     responses={404: {"description": "Not found"}},
 )

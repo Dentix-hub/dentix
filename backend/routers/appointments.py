@@ -22,7 +22,7 @@ router = APIRouter(prefix="/appointments", tags=["Appointments"])
 
 
 @router.post(
-    "/",
+    "",
     response_model=StandardResponse[schemas.Appointment],
     summary="Create appointment",
     description="Schedule a new appointment for a patient. Validates patient existence.",
@@ -42,7 +42,7 @@ def create_appointment(
 
 
 @router.get(
-    "/",
+    "",
     response_model=StandardResponse[List[schemas.Appointment]],
     summary="List appointments",
     description="Get all appointments for the current tenant. Doctors see only their own.",
