@@ -25,7 +25,7 @@ router = APIRouter(prefix="/payments", tags=["Payments"])
 
 
 @router.post(
-    "/",
+    "",
     response_model=StandardResponse[schemas.Payment],
     summary="Record a payment",
     description="Record a new payment for a patient. Auto-assigns doctor if not provided. Audit logged.",
@@ -59,7 +59,7 @@ def create_payment(
 
 
 @router.get(
-    "/",
+    "",
     response_model=StandardResponse[List[schemas.Payment]],
     summary="List payments",
     description="Get payments visible to the current user based on their role.",

@@ -23,7 +23,7 @@ router = APIRouter(prefix="/patients", tags=["Patients"])
 
 
 @router.post(
-    "/",
+    "",
     response_model=StandardResponse[schemas.Patient],
     summary="Create a new patient",
     description="Register a new patient into the current tenant. Requires authentication.",
@@ -90,7 +90,7 @@ def search_patients(
 
 
 @router.get(
-    "/",
+    "",
     response_model=StandardResponse[List[schemas.PatientSummary]],
     summary="List patients",
     description="Get all patients visible to the current user. Doctors see only their assigned patients.",

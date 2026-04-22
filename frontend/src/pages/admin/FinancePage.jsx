@@ -32,7 +32,7 @@ export default function FinancePage() {
             const [payRes, tenRes, planRes] = await Promise.all([
                 api.get('/api/v1/payments'),
                 api.get('/api/v1/admin/tenants'), // Needed for filtering payments
-                api.get('/api/v1/admin/plans')
+                api.get('/api/v1/admin/subscriptions/plans')
             ]);
             setPayments(Array.isArray(payRes.data) ? payRes.data : []);
             setTenants(Array.isArray(tenRes.data) ? tenRes.data : []);
@@ -48,7 +48,7 @@ export default function FinancePage() {
     }, []);
     const handleSavePlan = async (planId) => {
         try {
-            await api.put(`/api/v1/admin/plans/${planId}`, editedPlanData);
+            await api.put(`/api/v1/admin/subscriptions/plans/${planId}`, editedPlanData);
             setEditingPlan(null);
             setEditedPlanData({});
             fetchData();

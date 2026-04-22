@@ -15,7 +15,7 @@ from backend.core.response import success_response
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
 
-@router.get("/")
+@router.get("")
 def get_expenses(
     skip: int = 0,
     limit: int = 100,
@@ -26,7 +26,7 @@ def get_expenses(
     return success_response(crud.get_expenses(db, current_user.tenant_id, skip=skip, limit=limit))
 
 
-@router.post("/")
+@router.post("")
 def create_expense(
     expense: schemas.ExpenseCreate,
     db: Session = Depends(get_db),
