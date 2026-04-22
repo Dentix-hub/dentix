@@ -20,7 +20,7 @@ export default function TenantsPage() {
         try {
             const [tRes, pRes] = await Promise.all([
                 api.get('/api/v1/admin/tenants'),
-                api.get('/api/v1/admin/plans')
+                api.get('/api/v1/admin/subscriptions/plans')
             ]);
             // Ensure we have arrays, even if the API returns unexpected data
             setTenants(Array.isArray(tRes.data) ? tRes.data : []);
