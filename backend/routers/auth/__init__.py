@@ -3,7 +3,7 @@ from .dependencies import get_current_user, get_db, oauth2_scheme, validate_pass
 from . import login, register, security, settings, debug
 
 # Create Main Router
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+router = APIRouter(tags=["Authentication"])
 
 # Include Sub-Routers
 router.include_router(login.router)
