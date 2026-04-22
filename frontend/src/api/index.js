@@ -34,6 +34,11 @@ const getApiUrl = () => {
 
 export const API_URL = getApiUrl();
 
+// Diagnostic logging for developers
+if (import.meta.env.DEV || window.location.hostname.includes('vercel.app') || window.location.hostname.includes('hf.space')) {
+    console.log(`%c[API_DIAGNOSTIC] Active API URL: ${API_URL || 'Same Origin (' + window.location.origin + ')'}`, 'color: #00ff00; font-weight: bold;');
+}
+
 // Increase timeout to 30 seconds for uploads
 export const api = axios.create({
     baseURL: API_URL,
