@@ -24,6 +24,12 @@ load_dotenv(env_path)
 # STRICT PRODUCTION ENFORCEMENT: raise error if missing
 try:
     SQLALCHEMY_DATABASE_URL = os.environ["DATABASE_URL"]
+    # Diagnostic logging (Masked for security)
+    try:
+        host_part = SQLALCHEMY_DATABASE_URL.split("@")[-1].split("/")[0]
+        print(f"[DB_DIAGNOSTIC] Connecting to host: {host_part}")
+    except Exception:
+        print("[DB_DIAGNOSTIC] Database URL format recognized but host could not be parsed.")
 except KeyError:
     import warnings
     warnings.warn(
