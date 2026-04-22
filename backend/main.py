@@ -138,7 +138,7 @@ async def lifespan(app: FastAPI):
 # Initialize FastAPI app with lifespan
 app = FastAPI(
     title="Smart Clinic API",
-    version="2.0.5",
+    version="2.0.6",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
