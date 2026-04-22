@@ -27,9 +27,12 @@ try:
     # Diagnostic logging (Masked for security)
     try:
         host_part = SQLALCHEMY_DATABASE_URL.split("@")[-1].split("/")[0]
-        print(f"[DB_DIAGNOSTIC] Connecting to host: {host_part}")
-    except Exception:
-        print("[DB_DIAGNOSTIC] Database URL format recognized but host could not be parsed.")
+        # Extract Project ID (e.g. postgres.project_id:password)
+        project_id = SQLALCHEMY_DATABASE_URL.split("@")[0].split(":")[-2].split(".")[-1]
+        print(f"[DB_DIAGNOSTIC] Host: {host_part}")
+        print(f"[DB_DIAGNOSTIC] Project ID: {project_id}")
+    except Exception as e:
+        print(f"[DB_DIAGNOSTIC] Could not parse DB URL for diagnosis: {e}")
 except KeyError:
     import warnings
     warnings.warn(
