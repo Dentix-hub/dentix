@@ -41,7 +41,7 @@ def _get_cached_laboratories(db: Session, tenant_id: int):
 # ==================== Laboratory Endpoints ====================
 
 
-@router.get("/laboratories/")
+@router.get("/laboratories")
 def get_laboratories(
     db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ))
 ):
@@ -49,7 +49,7 @@ def get_laboratories(
     return success_response(_get_cached_laboratories(db, current_user.tenant_id))
 
 
-@router.post("/laboratories/")
+@router.post("/laboratories")
 def create_laboratory(
     lab: schemas.LaboratoryCreate,
     db: Session = Depends(get_db),
@@ -141,7 +141,7 @@ def delete_laboratory(
 # ==================== Lab Order Endpoints ====================
 
 
-@router.get("/lab-orders/")
+@router.get("/lab-orders")
 def get_lab_orders(
     laboratory_id: int = None,
     status: str = None,
@@ -173,7 +173,7 @@ def get_lab_orders(
     return success_response(result)
 
 
-@router.post("/lab-orders/")
+@router.post("/lab-orders")
 def create_lab_order(
     order: schemas.LabOrderCreate,
     db: Session = Depends(get_db),

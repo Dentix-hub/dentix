@@ -62,7 +62,7 @@ class PriceListResponse(BaseModel):
 # --- Endpoints ---
 
 
-@router.get("/", response_model=StandardResponse[list])
+@router.get("", response_model=StandardResponse[list])
 def get_price_lists(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
@@ -183,7 +183,7 @@ def get_procedure_prices(
 # --- Admin Endpoints ---
 
 
-@router.post("/", response_model=StandardResponse[dict])
+@router.post("", response_model=StandardResponse[dict])
 def create_price_list(
     data: PriceListCreate,
     db: Session = Depends(get_db),

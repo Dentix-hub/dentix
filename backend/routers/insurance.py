@@ -43,7 +43,7 @@ class InsuranceProviderResponse(BaseModel):
 # --- Endpoints ---
 
 
-@router.get("/", response_model=StandardResponse[list])
+@router.get("", response_model=StandardResponse[list])
 def get_insurance_providers(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
@@ -122,7 +122,7 @@ def get_insurance_provider(
     )
 
 
-@router.post("/", response_model=StandardResponse[dict])
+@router.post("", response_model=StandardResponse[dict])
 def create_insurance_provider(
     data: InsuranceProviderCreate,
     db: Session = Depends(get_db),
