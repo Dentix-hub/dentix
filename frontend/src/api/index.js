@@ -202,32 +202,32 @@ api.interceptors.response.use(
 
 // Patients
 export const searchPatients = (query) => api.get(`/api/v1/patients/search?q=${query}`);
-export const getPatients = () => api.get('/api/v1/patients/');
+export const getPatients = () => api.get('/api/v1/patients');
 export const getPatient = (id) => api.get(`/api/v1/patients/${id}`);
-export const createPatient = (data) => api.post('/api/v1/patients/', data);
+export const createPatient = (data) => api.post('/api/v1/patients', data);
 export const updatePatient = (id, data) => api.put(`/api/v1/patients/${id}`, data);
 export const deletePatient = (id) => api.delete(`/api/v1/patients/${id}`);
 
 // Appointments
-export const getAppointments = () => api.get('/api/v1/appointments/');
-export const createAppointment = (data) => api.post('/api/v1/appointments/', data);
+export const getAppointments = () => api.get('/api/v1/appointments');
+export const createAppointment = (data) => api.post('/api/v1/appointments', data);
 export const updateAppointmentStatus = (id, status) => api.put(`/api/v1/appointments/${id}/status?status=${status}`);
 export const deleteAppointment = (id) => api.delete(`/api/v1/appointments/${id}`);
 
 // Dental Chart
 export const getPatientTeeth = (patientId) => api.get(`/api/v1/patients/${patientId}/tooth_status`);
-export const updateToothStatus = (data) => api.post('/api/v1/treatments/tooth_status/', data);
+export const updateToothStatus = (data) => api.post('/api/v1/treatments/tooth_status', data);
 
 // Treatments
 export const getPatientTreatments = (patientId) => api.get(`/api/v1/patients/${patientId}/treatments`);
-export const createTreatment = (data) => api.post('/api/v1/treatments/', data);
+export const createTreatment = (data) => api.post('/api/v1/treatments', data);
 export const updateTreatment = (id, data) => api.put(`/api/v1/treatments/${id}`, data);
 export const deleteTreatment = (id) => api.delete(`/api/v1/treatments/${id}`);
 export const addTreatmentSession = (treatmentId, sessionData) => api.post(`/api/v1/treatments/${treatmentId}/sessions`, sessionData);
 
 // Billing
-export const createPayment = (data) => api.post('/api/v1/payments/', data);
-export const getAllPayments = () => api.get('/api/v1/payments/');
+export const createPayment = (data) => api.post('/api/v1/payments', data);
+export const getAllPayments = () => api.get('/api/v1/payments');
 export const getPatientPayments = (patientId) => api.get(`/api/v1/patients/${patientId}/payments`);
 export const getFinancialStats = () => api.get('/api/v1/expenses/stats');
 export const getDashboardStats = () => api.get('/api/v1/stats/dashboard');
@@ -260,8 +260,8 @@ export const triggerManualBackup = () => api.post('/api/v1/settings/backup/now')
 export const purgeDeletedPatients = (tenantId) => api.delete(`/api/v1/admin/tenants/${tenantId}/purge-deleted-patients`);
 
 // Procedures
-export const getProcedures = () => api.get('/api/v1/procedures/');
-export const createProcedure = (data) => api.post('/api/v1/procedures/', data);
+export const getProcedures = () => api.get('/api/v1/procedures');
+export const createProcedure = (data) => api.post('/api/v1/procedures', data);
 export const updateProcedure = (id, data) => api.put(`/api/v1/procedures/${id}`, data);
 export const deleteProcedure = (id) => api.delete(`/api/v1/procedures/${id}`);
 
@@ -277,15 +277,15 @@ export const getAttachments = (patientId) => api.get(`/patients/${patientId}/att
 export const deleteAttachment = (id) => api.delete(`/api/v1/attachments/${id}`);
 
 // Expenses
-export const getExpenses = () => api.get('/api/v1/expenses/');
-export const createExpense = (data) => api.post('/api/v1/expenses/', data);
+export const getExpenses = () => api.get('/api/v1/expenses');
+export const createExpense = (data) => api.post('/api/v1/expenses', data);
 export const deleteExpense = (id) => api.delete(`/api/v1/expenses/${id}`);
 
 // Users (Admin)
-export const getUsers = () => api.get('/api/v1/users/');
+export const getUsers = () => api.get('/api/v1/users');
 export const updateFcmToken = (token) => api.post('/api/v1/users/me/fcm-token', { token });
 export const getDoctors = () => api.get('/api/v1/users/doctors');
-export const registerUser = (data) => api.post('/api/v1/users/register/', null, { params: { username: data.username, password: data.password, role: data.role || 'doctor', permissions: data.permissions || '' } });
+export const registerUser = (data) => api.post('/api/v1/users/register', null, { params: { username: data.username, password: data.password, role: data.role || 'doctor', permissions: data.permissions || '' } });
 export const updateUser = (id, data) => api.put(`/api/v1/users/${id}`, data);
 export const deleteUser = (id) => api.delete(`/api/v1/users/${id}`);
 
@@ -297,22 +297,22 @@ export const deleteSubscriptionPlan = (id) => api.delete(`/api/v1/admin/subscrip
 
 // Prescriptions
 export const getPrescriptions = (patientId) => api.get(`/api/v1/patients/${patientId}/prescriptions`);
-export const createPrescription = (data) => api.post('/api/v1/prescriptions/', data);
+export const createPrescription = (data) => api.post('/api/v1/prescriptions', data);
 export const deletePrescription = (id) => api.delete(`/api/v1/prescriptions/${id}`);
 
 // OCR
-export const performOCR = (base64Image) => api.post('/api/v1/ocr/', { base64Image }, { timeout: 60000 });
+export const performOCR = (base64Image) => api.post('/api/v1/ocr', { base64Image }, { timeout: 60000 });
 
 // Laboratories
-export const getLaboratories = () => api.get('/api/v1/laboratories/');
-export const createLaboratory = (data) => api.post('/api/v1/laboratories/', data);
+export const getLaboratories = () => api.get('/api/v1/laboratories');
+export const createLaboratory = (data) => api.post('/api/v1/laboratories', data);
 export const updateLaboratory = (id, data) => api.put(`/api/v1/laboratories/${id}`, data);
 export const deleteLaboratory = (id) => api.delete(`/api/v1/laboratories/${id}`);
 
 // Lab Orders
-export const getLabOrders = (params = {}) => api.get('/api/v1/lab-orders/', { params });
+export const getLabOrders = (params = {}) => api.get('/api/v1/lab-orders', { params });
 export const getPatientLabOrders = (patientId) => api.get(`/api/v1/patients/${patientId}/lab_orders`);
-export const createLabOrder = (data) => api.post('/api/v1/lab-orders/', data);
+export const createLabOrder = (data) => api.post('/api/v1/lab-orders', data);
 export const updateLabOrder = (id, data) => api.put(`/api/v1/lab-orders/${id}`, data);
 export const deleteLabOrder = (id) => api.delete(`/api/v1/lab-orders/${id}`);
 export const getLabOrdersStats = () => api.get('/api/v1/lab-orders/stats/summary');
@@ -376,7 +376,7 @@ export const getAIStats = (period = 'month') => api.get(`/api/v1/ai/admin/stats?
 export const getAILogs = (skip = 0, limit = 20) => api.get(`/api/v1/ai/admin/logs?skip=${skip}&limit=${limit}`);
 
 // Notifications
-export const getNotifications = () => api.get('/api/v1/notifications/');
+export const getNotifications = () => api.get('/api/v1/notifications');
 export const markNotificationRead = (id) => api.post(`/api/v1/notifications/${id}/read`);
 export const dismissNotification = (id) => api.post(`/api/v1/notifications/${id}/dismiss`);
 export const broadcastNotification = (data) => api.post('/api/v1/notifications/broadcast', data);
@@ -401,19 +401,19 @@ export const updateTenantSettings = (data) => api.put('/api/v1/settings/tenant',
 // --- Multi Price List & Insurance ---
 
 // Price Lists
-export const getPriceLists = () => api.get('/api/v1/price-lists/');
+export const getPriceLists = () => api.get('/api/v1/price-lists');
 export const getDefaultPriceList = () => api.get('/api/v1/price-lists/default');
 export const getPriceList = (id) => api.get(`/api/v1/price-lists/${id}`);
-export const createPriceList = (data) => api.post('/api/v1/price-lists/', data);
+export const createPriceList = (data) => api.post('/api/v1/price-lists', data);
 export const updatePriceList = (id, data) => api.put(`/api/v1/price-lists/${id}`, data);
 export const deactivatePriceList = (id) => api.delete(`/api/v1/price-lists/${id}`);
 export const addPriceListItem = (listId, data) => api.post(`/api/v1/price-lists/${listId}/items`, data);
 export const getProcedurePrices = (procedureId) => api.get(`/api/v1/price-lists/procedure/${procedureId}/prices`);
 
 // Insurance Providers
-export const getInsuranceProviders = () => api.get('/api/v1/insurance-providers/');
+export const getInsuranceProviders = () => api.get('/api/v1/insurance-providers');
 export const getInsuranceProvider = (id) => api.get(`/api/v1/insurance-providers/${id}`);
-export const createInsuranceProvider = (data) => api.post('/api/v1/insurance-providers/', data);
+export const createInsuranceProvider = (data) => api.post('/api/v1/insurance-providers', data);
 export const updateInsuranceProvider = (id, data) => api.put(`/api/v1/insurance-providers/${id}`, data);
 export const deactivateInsuranceProvider = (id) => api.delete(`/api/v1/insurance-providers/${id}`);
 // --- Smart Session APIs ---

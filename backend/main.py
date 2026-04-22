@@ -404,8 +404,11 @@ async def catch_all(full_path: str):
         or full_path.startswith("uploads")
         or full_path.startswith("auth")
     ):
-        from fastapi import HTTPException
+        if full_path.endswith("/"):
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=f"/{full_path.rstrip('/')}", status_code=307)
 
+        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Not Found")
 
     # Serve index.html

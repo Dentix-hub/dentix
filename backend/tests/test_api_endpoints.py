@@ -12,7 +12,7 @@ class TestPatientsAPI:
     def test_create_patient(self, client, auth_headers, test_tenant):
         """Create a new patient via API."""
         response = client.post(
-            "/api/v1/patients/",
+            "/api/v1/patients",
             json={
                 "name": "New Patient",
                 "phone": "01112223344",
@@ -25,12 +25,12 @@ class TestPatientsAPI:
 
     def test_create_patient_unauthenticated(self, client):
         """Reject patient creation without auth."""
-        response = client.post("/api/v1/patients/", json={"name": "Bad"})
+        response = client.post("/api/v1/patients", json={"name": "Bad"})
         assert response.status_code in (401, 403, 422)
 
     def test_get_patients_list(self, client, auth_headers, test_patient):
         """List patients for authenticated user's tenant."""
-        response = client.get("/api/v1/patients/", headers=auth_headers)
+        response = client.get("/api/v1/patients", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         # Response may be wrapped in StandardResponse or direct list
@@ -81,7 +81,7 @@ class TestAppointmentsAPI:
     def test_create_appointment(self, client, auth_headers, test_patient):
         """Create an appointment."""
         response = client.post(
-            "/api/v1/appointments/",
+            "/api/v1/appointments",
             json={
                 "patient_id": test_patient.id,
                 "date_time": datetime.now().isoformat(),
@@ -94,7 +94,7 @@ class TestAppointmentsAPI:
 
     def test_list_appointments(self, client, auth_headers):
         """List appointments for tenant."""
-        response = client.get("/api/v1/appointments/", headers=auth_headers)
+        response = client.get("/api/v1/appointments", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         # Response may be wrapped in StandardResponse or direct list
@@ -120,7 +120,7 @@ class TestPaymentsAPI:
 
     def test_list_payments(self, client, auth_headers):
         """List payments for tenant."""
-        response = client.get("/api/v1/payments/", headers=auth_headers)
+        response = client.get("/api/v1/payments", headers=auth_headers)
         assert response.status_code in (200, 403)
         if response.status_code == 200:
             data = response.json()
@@ -133,13 +133,13 @@ class TestPaymentsAPI:
 
     def test_list_payments_unauthenticated(self, client):
         """Reject without auth."""
-        response = client.get("/api/v1/payments/")
+        response = client.get("/api/v1/payments")
         assert response.status_code in (401, 403)
 
     def test_create_payment_missing_data(self, client, auth_headers):
         """Reject payment creation with missing fields."""
         response = client.post(
-            "/api/v1/payments/",
+            "/api/v1/payments",
             json={},
             headers=auth_headers,
         )
@@ -166,7 +166,7 @@ class TestPermissions:
 
     def test_unauthenticated_access_denied(self, client):
         """All protected endpoints reject unauthenticated requests."""
-        endpoints = ["/api/v1/patients/", "/api/v1/appointments/", "/api/v1/payments/"]
+        endpoints = ["/api/v1/patients", "/api/v1/appointments", "/api/v1/payments"]
         for endpoint in endpoints:
             response = client.get(endpoint)
             assert response.status_code in (
@@ -177,6 +177,6 @@ class TestPermissions:
     def test_invalid_token_rejected(self, client):
         """Invalid JWT token is rejected."""
         response = client.get(
-            "/api/v1/patients/", headers={"Authorization": "Bearer invalid-token-123"}
+            "/api/v1/patients", headers={"Authorization": "Bearer invalid-token-123"}
         )
         assert response.status_code in (401, 403)
