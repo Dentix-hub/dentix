@@ -57,13 +57,15 @@ class MaterialResolutionService:
         # Fetch all active sessions for this tenant once to avoid N+1 queries
         active_sessions = (
             self.db.query(inv_models.MaterialSession)
-            .join(inv_models.StockItem)
-            .join(inv_models.Batch)
+            .join(inv_models.MaterialSession.stock_item)
             .filter(
-                inv_models.MaterialSession.tenant_id == tenant_id,
+                inv_models.StockItem.tenant_id == tenant_id,
                 inv_models.MaterialSession.status == "ACTIVE"
             )
-            .options(joinedload(inv_models.MaterialSession.stock_item).joinedload(inv_models.StockItem.batch))
+            .options(
+                joinedload(inv_models.MaterialSession.stock_item)
+                .joinedload(inv_models.StockItem.batch)
+            )
             .all()
         )
         # Map material_id -> active_session

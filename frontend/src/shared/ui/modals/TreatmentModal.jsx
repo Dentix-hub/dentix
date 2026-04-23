@@ -389,7 +389,7 @@ export default function TreatmentModal({
                                 >
                                     <option value="">اختر الإجراء العلاجي...</option>
                                     <option value="MANUAL_ENTRY_OPTION" className="font-bold text-primary bg-blue-50">✍️ كتابة إجراء يدوي (غير مضاف)</option>
-                                    {procedures.map(p => (
+                                    {Array.isArray(procedures) && procedures.map(p => (
                                         <option key={p.id} value={p.name}>{p.name}</option>
                                     ))}
                                 </select>
@@ -441,19 +441,19 @@ export default function TreatmentModal({
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1">تفاصيل القنوات</label>
-                                {treatment.canals.map((canal, idx) => (
+                                {treatment.canals?.map((canal, idx) => (
                                     <div key={idx} className="flex gap-2 mb-2">
                                         <input value={canal.name} onChange={e => {
-                                            const newCanals = treatment.canals.map((c, i) => i === idx ? { ...c, name: e.target.value } : c);
+                                            const newCanals = (treatment.canals || []).map((c, i) => i === idx ? { ...c, name: e.target.value } : c);
                                             setTreatment({ ...treatment, canals: newCanals });
                                         }} placeholder="الاسم" className="flex-1 p-2 bg-white rounded-lg border border-slate-100" />
                                         <input value={canal.length} onChange={e => {
-                                            const newCanals = treatment.canals.map((c, i) => i === idx ? { ...c, length: e.target.value } : c);
+                                            const newCanals = (treatment.canals || []).map((c, i) => i === idx ? { ...c, length: e.target.value } : c);
                                             setTreatment({ ...treatment, canals: newCanals });
                                         }} placeholder="مم" className="w-20 p-2 bg-white rounded-lg border border-slate-100" />
                                     </div>
                                 ))}
-                                <button onClick={() => setTreatment({ ...treatment, canals: [...treatment.canals, { name: '', length: '' }] })} className="text-xs text-primary">+ إضافة قناة</button>
+                                <button onClick={() => setTreatment({ ...treatment, canals: [...(treatment.canals || []), { name: '', length: '' }] })} className="text-xs text-primary">+ إضافة قناة</button>
                             </div>
                             <textarea value={treatment.sessions} onChange={e => setTreatment({ ...treatment, sessions: e.target.value })} placeholder="جلسات" className="w-full p-3 bg-white rounded-xl border border-slate-100 h-20" />
                             <textarea value={treatment.complications} onChange={e => setTreatment({ ...treatment, complications: e.target.value })} placeholder="المضاعفات" className="w-full p-3 bg-white rounded-xl border border-red-100 text-red-600 h-20" />
