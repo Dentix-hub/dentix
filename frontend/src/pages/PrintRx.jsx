@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { getTenantSettings } from '../api';
 import { Stethoscope, MapPin, Phone } from 'lucide-react';
 export default function PrintRx() {
     const { id } = useParams();
+    const navigate = useNavigate();
     const [patient, setPatient] = useState(null);
     const [prescription, setPrescription] = useState(null);
     const [headerInfo, setHeaderInfo] = useState({
@@ -118,10 +119,16 @@ export default function PrintRx() {
                         إعادة طباعة
                     </button>
                     <button
-                        onClick={() => window.close()}
+                        onClick={() => {
+                            if (window.opener) {
+                                window.close();
+                            } else {
+                                navigate(-1);
+                            }
+                        }}
                         className="bg-slate-100 text-slate-600 px-8 py-3 rounded-xl font-bold hover:bg-slate-200 transition-all"
                     >
-                        إغلاق النافذة
+                        {window.opener ? 'إغلاق النافذة' : 'العودة للمريض'}
                     </button>
                 </div>
             </div>

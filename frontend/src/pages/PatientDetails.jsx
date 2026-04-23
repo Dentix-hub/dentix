@@ -254,7 +254,7 @@ export default function PatientDetails() {
                 prescription: res.data
             }));
             setIsRxModalOpen(false);
-            navigate(`/print/rx/${id}`);
+            window.open(`/print/rx/${id}`, '_blank');
         } catch (err) {
             showToast('error', err.response?.data?.detail || t('patient_details.alerts.rx_fail'));
         }
