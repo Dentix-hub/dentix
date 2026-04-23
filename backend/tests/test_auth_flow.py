@@ -38,7 +38,7 @@ def test_auth_refresh_token(client, super_admin_user):
 
     # 2. Refresh Token
     refresh_payload = {"refresh_token": refresh_token}
-    response = client.post("/api/v1/refresh", data=refresh_payload)
+    response = client.post("/api/v1/auth/refresh", data=refresh_payload)
     assert response.status_code == 200
 
     new_tokens = response.json()
@@ -54,7 +54,7 @@ def test_auth_refresh_token(client, super_admin_user):
 def test_auth_invalid_refresh_token(client, super_admin_user):
     """Test that invalid refresh token is rejected."""
     response = client.post(
-        "/api/v1/refresh", data={"refresh_token": "invalid_token"}
+        "/api/v1/auth/refresh", data={"refresh_token": "invalid_token"}
     )
     assert response.status_code == 401
 

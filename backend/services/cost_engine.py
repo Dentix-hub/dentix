@@ -2,7 +2,8 @@ import logging
 from sqlalchemy.orm import Session, joinedload
 from typing import Dict, Any, List
 
-from backend.models.inventory import ProcedureMaterialWeight, Batch, StockItem, Material
+from sqlalchemy import func
+from backend.models.inventory import ProcedureMaterialWeight, Batch, StockItem, Material, TreatmentMaterialUsage
 from backend.models.clinical import Procedure
 
 logger = logging.getLogger(__name__)
@@ -106,9 +107,23 @@ class CostEngine:
             w.weight * unit_cost
 
             # AI / Actual Usage Logic
-            # current_average_usage holds the learned "Actual Grams"
-            # Defensive access for potentially missing column
+            # 1. Try learned average from ProcedureMaterialWeight
             current_avg = getattr(w, "current_average_usage", 0.0)
+
+            # 2. Fallback: Calculate from actual TreatmentMaterialUsage records if no learning data
+            if not current_avg or current_avg == 0:
+                actual_usage_stats = (
+                    self.db.query(func.avg(TreatmentMaterialUsage.quantity_used))
+                    .filter(
+                        TreatmentMaterialUsage.material_id == w.material_id,
+                        TreatmentMaterialUsage.tenant_id == self.tenant_id,
+                        TreatmentMaterialUsage.quantity_used.isnot(None),
+                    )
+                    .scalar()
+                )
+                if actual_usage_stats:
+                    current_avg = float(actual_usage_stats)
+
             actual_usage = current_avg if current_avg and current_avg > 0 else 0.0
             actual_material_cost = actual_usage * unit_cost
 
@@ -146,6 +161,7 @@ class CostEngine:
                     "actual_usage": round(actual_usage, 4),
                     "actual_cost": round(actual_material_cost, 2),
                     "sample_size": w.sample_size or 0,
+                    "source": "learning" if (getattr(w, "current_average_usage", 0.0) and w.current_average_usage > 0) else ("actual_usage" if actual_usage > 0 else "estimated"),
                     # Coverage Info
                     "pack_size": pkg_ratio,
                     "cost_per_pack": round(cost_per_pack, 2),

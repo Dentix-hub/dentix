@@ -55,6 +55,36 @@ def delete_warehouse(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# --- MATERIAL CATEGORIES ---
+@router.get("/categories", response_model=StandardResponse[List[schemas.inventory.MaterialCategoryOut]])
+def get_material_categories(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_READ)),
+):
+    """Get all material categories (global list)"""
+    categories = db.query(inv_models.MaterialCategory).all()
+    return success_response(data=categories)
+
+
+@router.get("/categories/{category_id}/materials", response_model=StandardResponse[List[schemas.inventory.MaterialRead]])
+def get_category_materials(
+    category_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_READ)),
+):
+    """Get clinic materials in a specific category"""
+    tenant_id = current_user.tenant_id or 1
+    materials = (
+        db.query(inv_models.Material)
+        .filter(
+            inv_models.Material.category_id == category_id,
+            inv_models.Material.tenant_id == tenant_id,
+        )
+        .all()
+    )
+    return success_response(data=materials)
+
+
 # --- MATERIALS ---
 @router.post("/materials", response_model=StandardResponse[schemas.inventory.MaterialRead])
 def create_material(
@@ -424,8 +454,12 @@ def get_procedure_weights(
     """Get all procedure weights (filter by material OR procedure)"""
     tenant_id = current_user.tenant_id or 1  # Safe-dev fallback
 
+    from sqlalchemy import or_
     query = db.query(inv_models.ProcedureMaterialWeight).filter(
-        inv_models.ProcedureMaterialWeight.tenant_id == tenant_id
+        or_(
+            inv_models.ProcedureMaterialWeight.tenant_id == tenant_id,
+            inv_models.ProcedureMaterialWeight.tenant_id.is_(None),  # Global defaults
+        )
     )
 
     if material_id:

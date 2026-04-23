@@ -8,7 +8,7 @@ def test_create_insurance_provider(client, admin_headers, db_session):
         "code": "GHI-001",
         "contact_email": "contact@ghi.com"
     }
-    response = client.post("/api/v1/insurance-providers/", json=payload, headers=admin_headers)
+    response = client.post("/api/v1/insurance-providers", json=payload, headers=admin_headers)
     
     assert response.status_code == 200
     res = response.json()
@@ -26,13 +26,13 @@ def test_create_insurance_provider(client, admin_headers, db_session):
     assert price_list is not None
     assert price_list.type == "insurance"
 
-def test_get_insurance_providers(client, admin_headers, db_session):
+def test_get_insurance_providers(client, admin_headers, db_session, test_tenant):
     # Seed a provider
-    provider = InsuranceProvider(name="AXA", tenant_id=1, is_active=True)
+    provider = InsuranceProvider(name="AXA", tenant_id=test_tenant.id, is_active=True)
     db_session.add(provider)
     db_session.commit()
     
-    response = client.get("/api/v1/insurance-providers/", headers=admin_headers)
+    response = client.get("/api/v1/insurance-providers", headers=admin_headers)
     assert response.status_code == 200
     res = response.json()
     assert res["success"] is True
@@ -40,8 +40,8 @@ def test_get_insurance_providers(client, admin_headers, db_session):
     assert len(data) >= 1
     assert any(p["name"] == "AXA" for p in data)
 
-def test_update_insurance_provider(client, admin_headers, db_session):
-    provider = InsuranceProvider(name="Old Name", tenant_id=1, is_active=True)
+def test_update_insurance_provider(client, admin_headers, db_session, test_tenant):
+    provider = InsuranceProvider(name="Old Name", tenant_id=test_tenant.id, is_active=True)
     db_session.add(provider)
     db_session.commit()
     
@@ -52,13 +52,13 @@ def test_update_insurance_provider(client, admin_headers, db_session):
     db_session.refresh(provider)
     assert provider.name == "New Name"
 
-def test_deactivate_insurance_provider(client, admin_headers, db_session):
-    provider = InsuranceProvider(name="To Deactivate", tenant_id=1, is_active=True)
+def test_deactivate_insurance_provider(client, admin_headers, db_session, test_tenant):
+    provider = InsuranceProvider(name="To Deactivate", tenant_id=test_tenant.id, is_active=True)
     db_session.add(provider)
     db_session.flush()
     
     # Add a price list
-    pl = PriceList(name="Test PL", insurance_provider_id=provider.id, tenant_id=1, is_active=True)
+    pl = PriceList(name="Test PL", insurance_provider_id=provider.id, tenant_id=test_tenant.id, is_active=True)
     db_session.add(pl)
     db_session.commit()
     

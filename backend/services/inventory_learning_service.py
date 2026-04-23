@@ -132,6 +132,20 @@ class InventoryLearningService:
         total_weight_score = 0
         distribution_log = []
 
+        # Build treatment-based weight map from TreatmentMaterialUsage records
+        # These were saved when the treatment was created
+        treatment_usages = (
+            self.db.query(inv_models.TreatmentMaterialUsage)
+            .filter(
+                inv_models.TreatmentMaterialUsage.session_id == session_id,
+                inv_models.TreatmentMaterialUsage.material_id == material_id,
+            )
+            .all()
+        )
+
+        # Map: treatment_id -> TreatmentMaterialUsage
+        usage_map = {u.treatment_id: u for u in treatment_usages}
+
         for t in treatments:
             if not t.procedure:
                 continue
@@ -140,10 +154,13 @@ class InventoryLearningService:
             if not pid:
                 continue  # Procedure not configured in DB?
 
-            w_obj = weight_map.get(pid)
-            weight_val = (
-                w_obj.weight if w_obj else 1.0
-            )  # Default weight 1.0 if not defined
+            # Get weight from TreatmentMaterialUsage if exists, else from ProcedureMaterialWeight
+            usage_rec = usage_map.get(t.id)
+            if usage_rec and usage_rec.weight_score:
+                weight_val = usage_rec.weight_score
+            else:
+                w_obj = weight_map.get(pid)
+                weight_val = w_obj.weight if w_obj else 1.0
 
             total_weight_score += weight_val
             distribution_log.append(
@@ -160,15 +177,56 @@ class InventoryLearningService:
         # Calculate "Unit Weight Value" (How much material per 1.0 weight)
         unit_weight_value = total_consumed / total_weight_score
 
-        # 4. Learning Update (Smoothing)
+        # 4. Update TreatmentMaterialUsage records with actual quantity and cost
+        # Also update ProcedureMaterialWeight learning
         learning_updates = {}
+        usage_updates = []
 
-        for pid, w_obj in weight_map.items():
+        # Get unit cost from batch for cost calculation
+        unit_cost = session.stock_item.batch.cost_per_unit or 0.0
+
+        for t in treatments:
+            if not t.procedure:
+                continue
+            pid = proc_map.get(t.procedure)
+            if not pid:
+                continue
+
+            # Get the TreatmentMaterialUsage record
+            usage_rec = usage_map.get(t.id)
+            if not usage_rec:
+                continue
+
+            # Calculate actual quantity used based on weight proportion
+            weight_val = usage_rec.weight_score or 1.0
+            actual_quantity = weight_val * unit_weight_value
+
+            # Update usage record
+            usage_rec.quantity_used = actual_quantity
+            usage_rec.cost_calculated = actual_quantity * unit_cost
+            usage_updates.append({
+                "treatment_id": t.id,
+                "quantity": actual_quantity,
+                "cost": usage_rec.cost_calculated
+            })
+
+        # 5. Update ProcedureMaterialWeight learning (by category for global defaults)
+        # Find weights by category for this material
+        category_weights = (
+            self.db.query(inv_models.ProcedureMaterialWeight)
+            .join(inv_models.Material, inv_models.ProcedureMaterialWeight.category_id == inv_models.Material.category_id)
+            .filter(
+                inv_models.Material.id == material_id,
+                inv_models.ProcedureMaterialWeight.procedure_id.in_(proc_map.values()),
+            )
+            .all()
+        )
+
+        for w_obj in category_weights:
             # Observed Usage for this procedure type = Weight * Unit Weight Value
             observed_usage = w_obj.weight * unit_weight_value
 
             # Weighted Moving Average
-            # New = (Old * 0.7) + (Observed * 0.3)
             old_avg = w_obj.current_average_usage or 0.0
             if old_avg == 0:
                 new_avg = observed_usage
@@ -178,19 +236,20 @@ class InventoryLearningService:
             w_obj.current_average_usage = new_avg
             w_obj.sample_size += 1
 
-            learning_updates[pid] = {
+            learning_updates[w_obj.procedure_id] = {
                 "old": old_avg,
                 "observed": observed_usage,
                 "new": new_avg,
             }
 
-        # 5. Log EVERYTHING
+        # 6. Log EVERYTHING
         log_data = {
             "treatments_count": len(treatments),
             "total_weight_score": total_weight_score,
             "unit_weight_value": unit_weight_value,
-            "dist_log": distribution_log,  # Detailed list of treatments included
-            "updates": learning_updates,
+            "dist_log": distribution_log,
+            "usage_updates": usage_updates,
+            "learning_updates": learning_updates,
         }
 
         self._log_learning(session, total_consumed, log_data)

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Date, Float, DateTime, Text
+from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, Date, Float, DateTime, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .base import Base
@@ -16,6 +16,18 @@ class Warehouse(Base):
     tenant = relationship("Tenant")
 
 
+class MaterialCategory(Base):
+    __tablename__ = "material_categories"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name_en = Column(String, nullable=False, unique=True)
+    name_ar = Column(String, nullable=False)
+    default_type = Column(String, default="DIVISIBLE")  # DIVISIBLE / NON_DIVISIBLE
+    default_unit = Column(String, default="g")
+
+    materials = relationship("Material", back_populates="category")
+
+
 class Material(Base):
     __tablename__ = "materials"
 
@@ -29,9 +41,13 @@ class Material(Base):
         Float, default=0.0, nullable=True
     )  # Reference Cost (Market Price)
 
+    category_id = Column(Integer, ForeignKey("material_categories.id"), nullable=True)
+    brand = Column(String, nullable=True)  # e.g. "3M Filtek Z350"
+
     # Optional: packaging info for UI conversions (e.g. 1 Box = 50 Ampoules)
     packaging_ratio = Column(Float, default=1.0)
 
+    category = relationship("MaterialCategory", back_populates="materials")
     batches = relationship("Batch", back_populates="material")
     tenant = relationship("Tenant")
 
@@ -133,9 +149,12 @@ class ProcedureMaterialWeight(Base):
         Integer, ForeignKey("procedures.id"), nullable=False, index=True
     )
     material_id = Column(
-        Integer, ForeignKey("materials.id"), nullable=False, index=True
+        Integer, ForeignKey("materials.id"), nullable=True, index=True
     )
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
+    category_id = Column(
+        Integer, ForeignKey("material_categories.id"), nullable=True
+    )
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)  # NULL = global default
 
     weight = Column(Float, default=1.0)
     current_average_usage = Column(Float, default=0.0)  # Learned average (e.g. 0.23g)
@@ -145,6 +164,7 @@ class ProcedureMaterialWeight(Base):
 
     # Relationships
     material = relationship("Material")
+    category = relationship("MaterialCategory")
     procedure = relationship("Procedure")
 
 
@@ -172,3 +192,27 @@ class MaterialLearningLog(Base):
     # }
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class TreatmentMaterialUsage(Base):
+    """Links each treatment to the materials used."""
+
+    __tablename__ = "treatment_material_usages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    treatment_id = Column(Integer, ForeignKey("treatments.id"), nullable=False, index=True)
+    material_id = Column(Integer, ForeignKey("materials.id"), nullable=False)
+    session_id = Column(Integer, ForeignKey("material_sessions.id"), nullable=True)
+
+    weight_score = Column(Float, default=1.0)       # Relative weight for this procedure
+    quantity_used = Column(Float, nullable=True)     # Calculated AFTER session closes (for DIVISIBLE)
+    cost_calculated = Column(Float, nullable=True)   # Back-calculated cost
+
+    is_manual_override = Column(Boolean, default=False)  # Doctor adjusted manually
+
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    treatment = relationship("Treatment")
+    material = relationship("Material")
+    session = relationship("MaterialSession")

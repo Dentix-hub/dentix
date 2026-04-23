@@ -94,10 +94,12 @@ def client(db_session):
 @pytest.fixture
 def test_tenant(db_session):
     """Create a test tenant."""
-    tenant = models.Tenant(name="Test Clinic", is_active=True)
-    db_session.add(tenant)
-    db_session.commit()
-    db_session.refresh(tenant)
+    tenant = db_session.query(models.Tenant).filter(models.Tenant.name == "Test Clinic").first()
+    if not tenant:
+        tenant = models.Tenant(name="Test Clinic", is_active=True)
+        db_session.add(tenant)
+        db_session.commit()
+        db_session.refresh(tenant)
     return tenant
 
 
@@ -106,17 +108,19 @@ def test_user(db_session, test_tenant):
     """Create a test user with doctor role."""
     from backend.auth import get_password_hash
 
-    user = models.User(
-        username="testdoctor",
-        email="doctor@test.com",
-        hashed_password=get_password_hash("testpass123"),
-        role="doctor",
-        tenant_id=test_tenant.id,
-        is_active=True,
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
+    user = db_session.query(models.User).filter(models.User.username == "testdoctor").first()
+    if not user:
+        user = models.User(
+            username="testdoctor",
+            email="doctor@test.com",
+            hashed_password=get_password_hash("testpass123"),
+            role="doctor",
+            tenant_id=test_tenant.id,
+            is_active=True,
+        )
+        db_session.add(user)
+        db_session.commit()
+        db_session.refresh(user)
     return user
 
 
@@ -125,17 +129,19 @@ def admin_user(db_session, test_tenant):
     """Create a test admin user."""
     from backend.auth import get_password_hash
 
-    user = models.User(
-        username="testadmin",
-        email="admin@test.com",
-        hashed_password=get_password_hash("adminpass123"),
-        role="admin",
-        tenant_id=test_tenant.id,
-        is_active=True,
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
+    user = db_session.query(models.User).filter(models.User.username == "testadmin").first()
+    if not user:
+        user = models.User(
+            username="testadmin",
+            email="admin@test.com",
+            hashed_password=get_password_hash("adminpass123"),
+            role="admin",
+            tenant_id=test_tenant.id,
+            is_active=True,
+        )
+        db_session.add(user)
+        db_session.commit()
+        db_session.refresh(user)
     return user
 
 
@@ -144,16 +150,18 @@ def super_admin_user(db_session):
     """Create a super admin user (no tenant)."""
     from backend.auth import get_password_hash
 
-    user = models.User(
-        username="superadmin",
-        email="super@test.com",
-        hashed_password=get_password_hash("superpass123"),
-        role="super_admin",
-        is_active=True,
-    )
-    db_session.add(user)
-    db_session.commit()
-    db_session.refresh(user)
+    user = db_session.query(models.User).filter(models.User.username == "superadmin").first()
+    if not user:
+        user = models.User(
+            username="superadmin",
+            email="super@test.com",
+            hashed_password=get_password_hash("superpass123"),
+            role="super_admin",
+            is_active=True,
+        )
+        db_session.add(user)
+        db_session.commit()
+        db_session.refresh(user)
     return user
 
 

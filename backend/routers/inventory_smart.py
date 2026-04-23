@@ -6,7 +6,9 @@ from ..database import get_db
 from ..schemas import User
 from ..core.permissions import require_permission, Permission
 from ..services.inventory_learning_service import InventoryLearningService
+from ..services.material_resolution_service import MaterialResolutionService
 from ..models import inventory as inv_models
+from backend.core.response import StandardResponse, success_response
 
 router = APIRouter(prefix="/inventory/smart", tags=["Inventory Smart"])
 
@@ -35,6 +37,33 @@ def get_material_suggestions(
         patient_age=patient_age,
     )
     return {"data": suggestions, "success": True}
+
+
+@router.get("/suggestions-categories/{procedure_id}", response_model=StandardResponse[List[Dict]])
+def get_category_based_suggestions(
+    procedure_id: int,
+    doctor_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission(Permission.INVENTORY_READ)),
+):
+    """
+    Get category-based material suggestions for a procedure.
+    Returns materials grouped by category with active session status.
+    """
+    service = MaterialResolutionService(db)
+    tenant_id = current_user.tenant_id or 1
+
+    # Use current doctor if not specified and user is a doctor
+    effective_doctor_id = doctor_id
+    if not effective_doctor_id and current_user.role == "doctor":
+        effective_doctor_id = current_user.id
+
+    suggestions = service.resolve_materials_for_procedure(
+        procedure_id=procedure_id,
+        tenant_id=tenant_id,
+        doctor_id=effective_doctor_id,
+    )
+    return success_response(data=suggestions)
 
 
 @router.post("/check-availability")

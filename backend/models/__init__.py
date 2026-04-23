@@ -42,10 +42,12 @@ from .system import (
 )
 from .inventory import (
     Warehouse,
+    MaterialCategory,
     Material,
     Batch,
     StockItem,
     MaterialSession,
     StockMovement,
     ProcedureMaterialWeight,
+    TreatmentMaterialUsage,
 )

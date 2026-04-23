@@ -777,7 +777,22 @@
             "fail_edit": "فشل التعديل: ",
             "saving": "جارٍ الحفظ...",
             "save_changes": "حفظ التعديلات",
-            "save_new": "حفظ المادة"
+            "save_new": "حفظ المادة",
+            "category_label": "الفئة",
+            "category_placeholder": "-- اختر الفئة --",
+            "brand_label": "العلامة التجارية (Brand)",
+            "brand_placeholder": "مثال: 3M Filtek Z350",
+            "suggested_materials": "المواد المقترحة",
+            "loading_suggestions": "جاري تحميل المواد المقترحة...",
+            "error_suggestions": "فشل تحميل المواد المقترحة",
+            "no_suggestions": "لا توجد مواد مقترحة لهذا الإجراء",
+            "active_session": "جلسة مفتوحة",
+            "session_linked": "مرتبط بالجلسة",
+            "select_material": "اختر المادة",
+            "no_materials_in_category": "لا توجد مواد في هذه الفئة — أضف مادة أولاً",
+            "weight_score": "الوزن النسبي",
+            "quantity": "الكمية",
+            "manual_override": "تعديل يدوي"
         },
         "receive": {
             "title": "استلام شحنة جديدة",

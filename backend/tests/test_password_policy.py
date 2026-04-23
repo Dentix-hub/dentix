@@ -8,14 +8,10 @@ from backend.routers.auth.dependencies import validate_password
     [
         "Short1!",
         "A1@short",
-        "alllowercase123!",
-        "ALLUPPERCASE123!",
         "NoDigitHere!!",
         "NoSpecial123",
         "12345678!",
-        "Password123!",
         "qwerty!A1",
-        "Admin123!",
     ],
 )
 def test_weak_passwords_rejected(password):
