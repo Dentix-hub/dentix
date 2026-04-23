@@ -28,6 +28,18 @@ class MaterialResolutionService:
     def __init__(self, db: Session):
         self.db = db
 
+    def _normalize_name(self, name: str) -> str:
+        if not name:
+            return ""
+        # 1. Standardize dashes (replace em-dash, en-dash, double-hyphen with single hyphen)
+        import re
+        n = re.sub(r'[–—]|--', '-', name)
+        # 2. Split by dash and sort parts (to handle reversed "Arabic - English" vs "English - Arabic")
+        parts = [p.strip().lower() for p in n.split('-')]
+        parts.sort()
+        # 3. Join back with a single space
+        return " ".join(parts).strip()
+
     def resolve_materials_for_procedure(
         self,
         procedure_id: int,
@@ -35,26 +47,24 @@ class MaterialResolutionService:
     ) -> List[Dict]:
         """
         Returns list of suggested materials with confidence levels.
-        Each item contains: category info, suggested material, alternatives, active session status.
         """
         suggestions = []
 
-        # 1. Resolve Procedure (Get Name to allow name-based weight matching)
+        # 1. Resolve Procedure
         proc = self.db.query(clinical_models.Procedure).filter(clinical_models.Procedure.id == procedure_id).first()
         if not proc:
             return suggestions
 
-        # 2. Get weights: Check by ID first, then by Name (for copies/tenant procedures)
-        # We look for global weights (tenant_id is NULL) and tenant-specific weights
-        all_weights = (
+        proc_norm = self._normalize_name(proc.name)
+
+        # 2. Get all potential weights (Global + Tenant)
+        # We fetch all global weights and tenant weights once
+        # and then filter by normalized name in Python for maximum robustness
+        all_potential_weights = (
             self.db.query(inv_models.ProcedureMaterialWeight)
             .options(joinedload(inv_models.ProcedureMaterialWeight.category))
             .join(clinical_models.Procedure)
             .filter(
-                or_(
-                    inv_models.ProcedureMaterialWeight.procedure_id == procedure_id,
-                    clinical_models.Procedure.name == proc.name
-                ),
                 or_(
                     inv_models.ProcedureMaterialWeight.tenant_id == tenant_id,
                     inv_models.ProcedureMaterialWeight.tenant_id.is_(None)
@@ -64,18 +74,22 @@ class MaterialResolutionService:
             .all()
         )
 
-        if not all_weights:
-            return suggestions
-
-        # Merge weights by category (Tenant weight overrides global weight)
+        # Filter and deduplicate (Tenant overrides Global)
+        # weight_key = (category_id, normalized_proc_name)
         weights_by_cat = {}
-        for w in all_weights:
-            cat_id = w.category_id
-            # If we don't have this category yet, or this is a tenant-specific weight
-            if cat_id not in weights_by_cat or w.tenant_id is not None:
-                weights_by_cat[cat_id] = w
         
+        for w in all_potential_weights:
+            w_proc_name = w.procedure.name if w.procedure else ""
+            if w.procedure_id == procedure_id or self._normalize_name(w_proc_name) == proc_norm:
+                cat_id = w.category_id
+                # Priority: Tenant-specific weight > Global weight
+                if cat_id not in weights_by_cat or w.tenant_id is not None:
+                    weights_by_cat[cat_id] = w
+
         final_weights = list(weights_by_cat.values())
+
+        if not final_weights:
+            return suggestions
 
         # Fetch all active sessions for this tenant once to avoid N+1 queries
         active_sessions = (
