@@ -57,6 +57,13 @@ class MaterialResolutionService:
 
         proc_norm = self._normalize_name(proc.name)
 
+        # DEBUG LOGGING
+        try:
+            with open("suggestion_debug.log", "a", encoding="utf-8") as f:
+                import datetime
+                f.write(f"[{datetime.datetime.now()}] RESOLVE: id={procedure_id} name='{proc.name}' norm='{proc_norm}'\n")
+        except: pass
+
         # 2. Get all potential weights (Global + Tenant)
         # We fetch all global weights and tenant weights once
         # and then filter by normalized name in Python for maximum robustness
@@ -80,13 +87,22 @@ class MaterialResolutionService:
         # weight_key = (category_id, normalized_proc_name)
         weights_by_cat = {}
         
+        matches_found = 0
         for w in all_potential_weights:
             w_proc_name = w.procedure.name if w.procedure else ""
-            if w.procedure_id == procedure_id or self._normalize_name(w_proc_name) == proc_norm:
+            w_norm = self._normalize_name(w_proc_name)
+            
+            if w.procedure_id == procedure_id or w_norm == proc_norm:
+                matches_found += 1
                 cat_id = w.category_id
                 # Priority: Tenant-specific weight > Global weight
                 if cat_id not in weights_by_cat or w.tenant_id is not None:
                     weights_by_cat[cat_id] = w
+        
+        try:
+            with open("suggestion_debug.log", "a", encoding="utf-8") as f:
+                f.write(f"  -> Matches Found: {matches_found}, Unique Categories: {len(weights_by_cat)}\n")
+        except: pass
 
         final_weights = list(weights_by_cat.values())
 
