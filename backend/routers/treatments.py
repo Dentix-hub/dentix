@@ -27,8 +27,7 @@ router = APIRouter(prefix="/treatments", tags=["Treatments"])
     summary="Create treatment",
     description="Create a new dental treatment record. Auto-calculates price from price list and deducts stock for consumed materials. Requires TREATMENT_PLAN_WRITE permission.",
 )
-@limiter.limit("10/minute")
-def create_treatment(
+async def create_treatment(
     request: Request,
     treatment: schemas.TreatmentCreate,
     db: Session = Depends(get_db),
