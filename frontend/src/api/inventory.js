@@ -32,3 +32,17 @@ export const getProcedureWeights = (arg) => {
 };
 export const setProcedureWeight = (data) => api.post('/api/v1/inventory/weights', data);
 export const deleteProcedureWeight = (id) => api.delete(`/api/v1/inventory/weights/${id}`);
+
+// Material Categories (Phase 3)
+export const getCategories = () => api.get('/api/v1/inventory/categories');
+export const getCategoryMaterials = (categoryId) => api.get(`/api/v1/inventory/categories/${categoryId}/materials`);
+
+// Category-based Suggestions (Phase 3)
+export const getSuggestedMaterials = (procedureId, doctorId = null) => {
+    const params = doctorId ? { doctor_id: doctorId } : {};
+    return api.get(`/api/v1/inventory/smart/suggestions-categories/${procedureId}`, { params });
+};
+
+// Treatment Material Usage (Phase 3)
+export const getTreatmentMaterials = (treatmentId) => api.get(`/api/v1/treatments/${treatmentId}/materials`);
+export const saveTreatmentMaterials = (treatmentId, materials) => api.post(`/api/v1/treatments/${treatmentId}/materials`, materials);

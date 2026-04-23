@@ -41,6 +41,7 @@ PROCEDURES_LIST = [
     "تنظيف جير – Scaling",
     "كشف – Examination",
     "جلسة متابعة – Follow-up Session",
+    "بوست وبناء لب – Post and Core Buildup",
 ]
 
 

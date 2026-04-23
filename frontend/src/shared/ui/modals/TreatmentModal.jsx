@@ -3,6 +3,7 @@ import { X, Package, Plus, Trash2, Clock, FileText } from 'lucide-react';
 import { getMaterials, getProcedureWeights, getActiveSessions } from '@/api/inventory';
 import TrackSessionModal from '@/features/inventory/components/TrackSessionModal';
 import { EnhancedMaterialConsumption } from '@/features/inventory/components/EnhancedMaterialConsumption';
+import MaterialConsumptionPanel from '@/features/inventory/MaterialConsumptionPanel';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { addTreatmentSession } from '@/api';
 import { MultiSessionPanel } from '../components/MultiSessionPanel';
@@ -475,6 +476,30 @@ export default function TreatmentModal({
                                 <Plus size={14} /> إضافة
                             </button>
                         </div>
+
+                        {/* Material Consumption Panel - shows suggested materials */}
+                        {treatment.procedure && (
+                            <div className="p-3 bg-white border-b border-slate-100">
+                                <MaterialConsumptionPanel
+                                    procedureId={procedures.find(p => p.name === treatment.procedure)?.id}
+                                    doctorId={treatment.doctor_id}
+                                    initialMaterials={consumedMaterials}
+                                    onMaterialsChange={(materials) => {
+                                        // Convert to consumedMaterials format
+                                        const formatted = materials.map(m => ({
+                                            material_id: m.material_id,
+                                            quantity: m.material_type === 'NON_DIVISIBLE' ? m.quantity : m.weight,
+                                            unit: m.base_unit,
+                                            weight_score: m.weight,
+                                            is_manual_override: m.is_manual_override,
+                                            session_id: m.session_id
+                                        }));
+                                        setConsumedMaterials(formatted);
+                                    }}
+                                />
+                            </div>
+                        )}
+
                         {consumedMaterials.length > 0 ? (
                             <div className="p-3 bg-white space-y-2">
                                 {consumedMaterials.map((item, idx) => {

@@ -14,6 +14,18 @@ class MaterialType(str, Enum):
     NON_DIVISIBLE = "NON_DIVISIBLE"
 
 
+# --- MATERIAL CATEGORY ---
+class MaterialCategoryOut(BaseModel):
+    id: int
+    name_en: str
+    name_ar: str
+    default_type: str = "DIVISIBLE"
+    default_unit: str = "g"
+
+    class Config:
+        from_attributes = True
+
+
 # --- WAREHOUSE ---
 class WarehouseBase(BaseModel):
     name: str = Field(..., title="Warehouse Name")
@@ -40,6 +52,8 @@ class MaterialBase(BaseModel):
     alert_threshold: int = 10
     packaging_ratio: float = 1.0
     standard_price: Optional[float] = 0.0
+    category_id: Optional[int] = None
+    brand: Optional[str] = None
 
 
 class MaterialCreate(MaterialBase):
@@ -53,11 +67,14 @@ class MaterialUpdate(BaseModel):
     alert_threshold: Optional[int] = None
     packaging_ratio: Optional[float] = None
     standard_price: Optional[float] = None
+    category_id: Optional[int] = None
+    brand: Optional[str] = None
 
 
 class MaterialRead(MaterialBase):
     id: int
     tenant_id: int
+    category: Optional[MaterialCategoryOut] = None
 
     class Config:
         from_attributes = True
@@ -179,13 +196,15 @@ class SessionCloseRequest(BaseModel):
 
 class ProcedureWeightBase(BaseModel):
     procedure_id: int
-    material_id: int
+    material_id: Optional[int] = None
+    category_id: Optional[int] = None
     weight: float = 1.0
 
 
 class ProcedureWeightUpdate(BaseModel):
     procedure_name: str  # Use name for easier UI mapping
-    material_id: int
+    material_id: Optional[int] = None
+    category_id: Optional[int] = None
     weight: float
 
 
@@ -201,6 +220,49 @@ class ProcedureWeightRead(ProcedureWeightBase):
     current_average_usage: float
     sample_size: int
     procedure: Optional[ProcedureName] = None
+    category: Optional[MaterialCategoryOut] = None
 
     class Config:
         from_attributes = True
+
+
+# --- TREATMENT MATERIAL USAGE ---
+class TreatmentMaterialUsageCreate(BaseModel):
+    material_id: int
+    session_id: Optional[int] = None
+    weight_score: float = 1.0
+    quantity_used: Optional[float] = None
+    is_manual_override: bool = False
+
+
+class TreatmentMaterialUsageOut(BaseModel):
+    id: int
+    treatment_id: int
+    material_id: int
+    session_id: Optional[int] = None
+    weight_score: float
+    quantity_used: Optional[float] = None
+    cost_calculated: Optional[float] = None
+    is_manual_override: bool
+    tenant_id: int
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# --- SUGGESTED MATERIAL (Resolution Engine Response) ---
+class SuggestedMaterial(BaseModel):
+    category_id: int
+    category_name_en: str
+    category_name_ar: str
+    material_id: Optional[int] = None
+    material_name: Optional[str] = None
+    material_type: str  # DIVISIBLE / NON_DIVISIBLE
+    base_unit: str
+    weight: float = 1.0
+    suggested_quantity: Optional[float] = None
+    confidence: float = 0.8
+    reason: str = "Standard Protocol"
+    has_active_session: bool = False
+    session_id: Optional[int] = None
