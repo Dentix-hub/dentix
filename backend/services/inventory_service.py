@@ -127,6 +127,7 @@ class InventoryService:
                 Material.id,
                 Material.name,
                 Material.type,
+                Material.brand,
                 Material.base_unit,
                 Material.alert_threshold,
                 Material.packaging_ratio,
@@ -142,7 +143,7 @@ class InventoryService:
         if warehouse_id:
             query = query.filter(StockItem.warehouse_id == warehouse_id)
 
-        results = query.group_by(Material.id, Material.standard_price).all()
+        results = query.group_by(Material.id, Material.brand, Material.standard_price).all()
 
         summary = []
         for r in results:
@@ -158,6 +159,7 @@ class InventoryService:
                     material_id=r.id,
                     material_name=r.name,
                     material_type=r.type,
+                    brand=r.brand,
                     unit=r.base_unit,
                     total_quantity=qty,
                     alert_status=status,

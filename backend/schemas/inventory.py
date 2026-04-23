@@ -147,6 +147,7 @@ class MaterialStockSummary(BaseModel):
     material_id: int
     material_name: str
     material_type: str
+    brand: Optional[str] = None
     total_quantity: float
     unit: str
     alert_status: str  # OK, LOW, CRITICAL
