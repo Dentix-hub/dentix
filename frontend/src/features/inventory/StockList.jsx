@@ -166,6 +166,7 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                                                 title={t('inventory.table.details_tooltip')}
                                             >
                                                 {item.material_name}
+                                                {item.brand && <span className="text-xs text-text-secondary block font-normal">{item.brand}</span>}
                                             </td>
                                             <td className="px-6 py-4 text-sm text-text-secondary">
                                                 {item.material_type === 'DIVISIBLE' ? t('inventory.types.divisible') : t('inventory.types.indivisible')}

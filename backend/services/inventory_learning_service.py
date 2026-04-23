@@ -282,20 +282,24 @@ class InventoryLearningService:
         # Note: We do not commit here to keep it within the transaction of close_session
 
     def get_suggested_materials(
-        self, procedure_id: int, doctor_id: int = None, patient_age: int = None
+        self, procedure_id: int, tenant_id: int, doctor_id: int = None
     ) -> List[Dict]:
         """
         Get suggested materials for a procedure based on:
-        1. Defined Weights (ProcedureMaterialWeight) - Primary Source
-        2. Learning History (MaterialLearningLog) - Adaptive Adjustment
+        1. Defined Weights (ProcedureMaterialWeight) - Primary Source (Specific Material or Category)
+        2. Clinic Inventory (Tenant's Materials matching the Category)
+        3. Learning History (Adaptive Adjustment)
         """
-        # 1. Get Base Weights (only those with a specific material assigned)
+        # 1. Get Base Weights for this procedure (Global or Tenant-specific)
+        from sqlalchemy import or_
         weights = (
             self.db.query(inv_models.ProcedureMaterialWeight)
-            .options(joinedload(inv_models.ProcedureMaterialWeight.material))
             .filter(
                 inv_models.ProcedureMaterialWeight.procedure_id == procedure_id,
-                inv_models.ProcedureMaterialWeight.material_id.isnot(None),
+                or_(
+                    inv_models.ProcedureMaterialWeight.tenant_id == tenant_id,
+                    inv_models.ProcedureMaterialWeight.tenant_id.is_(None)
+                )
             )
             .all()
         )
@@ -303,39 +307,68 @@ class InventoryLearningService:
         suggestions = []
 
         for w in weights:
-            # Skip if material relationship is None (data integrity guard)
-            if not w.material:
-                logger.warning(
-                    f"ProcedureMaterialWeight {w.id} has material_id={w.material_id} but material is None"
+            resolved_materials = []
+            
+            # CASE A: Specific Material assigned to this weight
+            if w.material_id:
+                mat = self.db.query(inv_models.Material).filter(inv_models.Material.id == w.material_id).first()
+                if mat:
+                    resolved_materials.append(mat)
+            
+            # CASE B: Category assigned - Find materials in this category for this tenant
+            elif w.category_id:
+                mats = (
+                    self.db.query(inv_models.Material)
+                    .filter(
+                        inv_models.Material.category_id == w.category_id,
+                        inv_models.Material.tenant_id == tenant_id
+                    )
+                    .all()
                 )
+                resolved_materials.extend(mats)
+
+            # If no materials found for this weight/category in this tenant, return category placeholder
+            if not resolved_materials:
+                suggestions.append({
+                    "material_id": None,
+                    "category_id": w.category_id,
+                    "material": None,
+                    "suggested_quantity": round(w.weight, 2),
+                    "default_quantity": round(w.weight, 2),
+                    "confidence": 0.3,
+                    "reason": "لا توجد مواد في هذه الفئة بالعيادة",
+                })
                 continue
 
-            # Base quantity from weight
-            quantity = w.weight
-            confidence = 0.8
-            reason = "Standard Protocol"
+            for mat in resolved_materials:
+                # Base quantity from weight
+                quantity = w.weight
+                confidence = 0.8
+                reason = "Standard Protocol"
 
-            # 2. Adjust based on history (Smart Learning)
-            if w.current_average_usage and w.sample_size and w.sample_size > 5:
-                # If we have enough data, lean towards the average usage
-                quantity = w.current_average_usage
-                confidence = 0.95
-                reason = f"Based on {w.sample_size} previous cases"
+                # Adjust based on history (Smart Learning)
+                if w.current_average_usage and w.sample_size and w.sample_size > 5:
+                    # If we have enough data, lean towards the average usage
+                    quantity = w.current_average_usage
+                    confidence = 0.95
+                    reason = f"Based on {w.sample_size} previous cases"
 
-            suggestions.append(
-                {
-                    "material_id": w.material_id,
-                    "material": {
-                        "id": w.material.id,
-                        "name": w.material.name,
-                        "base_unit": w.material.base_unit,
-                        "type": w.material.type,
-                    },
-                    "suggested_quantity": round(quantity, 2),
-                    "default_quantity": round(w.weight, 2),
-                    "confidence": confidence,
-                    "reason": reason,
-                }
-            )
+                suggestions.append(
+                    {
+                        "material_id": mat.id,
+                        "material": {
+                            "id": mat.id,
+                            "name": mat.name,
+                            "brand": mat.brand,
+                            "base_unit": mat.base_unit,
+                            "type": mat.type,
+                            "category_id": mat.category_id,
+                        },
+                        "suggested_quantity": round(quantity, 2),
+                        "default_quantity": round(w.weight, 2),
+                        "confidence": confidence,
+                        "reason": reason,
+                    }
+                )
 
         return suggestions
