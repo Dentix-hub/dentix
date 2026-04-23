@@ -161,10 +161,8 @@ def check_availability(
 
     return {"data": results, "success": True}
 @router.get("/debug/logs", tags=["debug"])
-def get_suggestion_logs(current_user=Depends(get_current_user)):
+def get_suggestion_logs():
     """Debug endpoint to see what's happening with suggestions."""
-    if getattr(current_user, "role", None) != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
     
     import os
     if not os.path.exists("suggestion_debug.log"):
