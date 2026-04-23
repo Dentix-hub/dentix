@@ -98,6 +98,41 @@ async def check_database(db: Session) -> ComponentHealth:
         return ComponentHealth(status="down", message=f"Database error: {str(e)}")
 
 
+async def check_migrations(db: Session) -> ComponentHealth:
+    """Check if database migrations are up to date."""
+    try:
+        # Check for required columns from latest migration
+        required_columns = [
+            ("materials", "category_id"),
+            ("materials", "brand"),
+            ("procedure_material_weights", "category_id"),
+            ("treatment_material_usages", "id"),
+            ("material_categories", "id"),
+        ]
+
+        missing = []
+        for table, column in required_columns:
+            try:
+                db.execute(text(f"SELECT {column} FROM {table} LIMIT 1"))
+            except Exception:
+                missing.append(f"{table}.{column}")
+
+        if missing:
+            return ComponentHealth(
+                status="down",
+                message=f"Migration pending: missing columns {', '.join(missing)}",
+                details={"missing_columns": missing},
+            )
+
+        return ComponentHealth(
+            status="up",
+            message="All migrations applied",
+        )
+    except Exception as e:
+        logger.error(f"Migration check failed: {e}")
+        return ComponentHealth(status="degraded", message=f"Migration check error: {str(e)}")
+
+
 async def check_redis() -> ComponentHealth:
     """Check Redis connectivity."""
     try:
@@ -221,8 +256,9 @@ async def detailed_health_check(
     Requires authentication (admin access recommended).
     """
     # Run all checks concurrently
-    database_check, redis_check, ai_check, disk_check = await asyncio.gather(
+    database_check, migration_check, redis_check, ai_check, disk_check = await asyncio.gather(
         check_database(db),
+        check_migrations(db),
         check_redis(),
         check_ai_service(),
         check_disk_space(),
@@ -238,6 +274,7 @@ async def detailed_health_check(
 
     checks = {
         "database": safe_result(database_check, "Database"),
+        "migrations": safe_result(migration_check, "Migrations"),
         "redis": safe_result(redis_check, "Redis"),
         "ai_service": safe_result(ai_check, "AI Service"),
         "disk_space": safe_result(disk_check, "Disk Space"),
