@@ -95,6 +95,7 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
         Permission.INVENTORY_MANAGE,
         Permission.SYSTEM_CONFIG,
         Permission.AI_CHAT,
+        Permission.CLINICAL_READ,
     },
     Role.ASSISTANT: {
         Permission.PATIENT_READ,
@@ -130,6 +131,7 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
         Permission.FINANCIAL_WRITE,  # Collect payment
         Permission.INVENTORY_READ,
         Permission.AI_CHAT,
+        Permission.CLINICAL_READ,
     },
     Role.NURSE: {
         Permission.PATIENT_READ,
@@ -147,6 +149,7 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
         Permission.PATIENT_READ,  # Needs to see who paid
         Permission.APPOINTMENT_READ,
         Permission.AI_CHAT,
+        Permission.CLINICAL_READ,
     },
     Role.GUEST: set(),
 }

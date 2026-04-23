@@ -165,10 +165,13 @@ def get_tenant_users(
 @router.delete("/{tenant_id}/purge-deleted-patients", response_model=StandardResponse[dict])
 def purge_deleted_patients(
     tenant_id: int,
-    current_user: models.User = Depends(require_super_admin),
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Permanently remove soft-deleted patients for a specific tenant."""
+    # Security: If not super_admin, must belong to the tenant
+    if current_user.role != Role.SUPER_ADMIN.value and current_user.tenant_id != tenant_id:
+        raise HTTPException(status_code=403, detail="Not authorized to purge another tenant's data")
     tenant = db.query(models.Tenant).filter(
         models.Tenant.id == tenant_id,
         models.Tenant.is_deleted == False,  # noqa: E712
