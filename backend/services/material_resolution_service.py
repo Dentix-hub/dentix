@@ -39,20 +39,43 @@ class MaterialResolutionService:
         """
         suggestions = []
 
-        # 1. Get global defaults (category-level weights) for this procedure
-        global_weights = (
+        # 1. Resolve Procedure (Get Name to allow name-based weight matching)
+        proc = self.db.query(clinical_models.Procedure).filter(clinical_models.Procedure.id == procedure_id).first()
+        if not proc:
+            return suggestions
+
+        # 2. Get weights: Check by ID first, then by Name (for copies/tenant procedures)
+        # We look for global weights (tenant_id is NULL) and tenant-specific weights
+        all_weights = (
             self.db.query(inv_models.ProcedureMaterialWeight)
             .options(joinedload(inv_models.ProcedureMaterialWeight.category))
+            .join(clinical_models.Procedure)
             .filter(
-                inv_models.ProcedureMaterialWeight.procedure_id == procedure_id,
-                inv_models.ProcedureMaterialWeight.tenant_id.is_(None),  # Global
+                or_(
+                    inv_models.ProcedureMaterialWeight.procedure_id == procedure_id,
+                    clinical_models.Procedure.name == proc.name
+                ),
+                or_(
+                    inv_models.ProcedureMaterialWeight.tenant_id == tenant_id,
+                    inv_models.ProcedureMaterialWeight.tenant_id.is_(None)
+                ),
                 inv_models.ProcedureMaterialWeight.category_id.isnot(None),
             )
             .all()
         )
 
-        if not global_weights:
+        if not all_weights:
             return suggestions
+
+        # Merge weights by category (Tenant weight overrides global weight)
+        weights_by_cat = {}
+        for w in all_weights:
+            cat_id = w.category_id
+            # If we don't have this category yet, or this is a tenant-specific weight
+            if cat_id not in weights_by_cat or w.tenant_id is not None:
+                weights_by_cat[cat_id] = w
+        
+        final_weights = list(weights_by_cat.values())
 
         # Fetch all active sessions for this tenant once to avoid N+1 queries
         active_sessions = (
@@ -71,8 +94,8 @@ class MaterialResolutionService:
         # Map material_id -> active_session
         session_map = {s.stock_item.batch.material_id: s for s in active_sessions}
 
-        # 2. For each category default, find clinic's materials
-        for weight_record in global_weights:
+        # 3. For each category weight, resolve actual materials
+        for weight_record in final_weights:
             category = weight_record.category
             if not category:
                 continue

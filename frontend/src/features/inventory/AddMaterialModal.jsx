@@ -34,11 +34,12 @@ const AddMaterialModal = ({ isOpen, onClose, initialData = null }) => {
             setFormData(prev => ({
                 ...prev,
                 category_id: parseInt(categoryId),
+                name: category.name_ar, // Auto-fill name from category
                 type: category.default_type,
                 base_unit: category.default_unit
             }));
         } else {
-            setFormData(prev => ({ ...prev, category_id: null }));
+            setFormData(prev => ({ ...prev, category_id: null, name: '' }));
         }
     };
 
@@ -100,11 +101,12 @@ const AddMaterialModal = ({ isOpen, onClose, initialData = null }) => {
                             value={formData.category_id || ''}
                             onChange={e => handleCategoryChange(e.target.value)}
                             className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20"
+                            required
                         >
                             <option value="">{t('inventory.materials.category_placeholder')}</option>
                             {categories.map(cat => (
                                 <option key={cat.id} value={cat.id}>
-                                    {cat.name_ar} — {cat.name_en}
+                                    {cat.name_ar}
                                 </option>
                             ))}
                         </select>
@@ -112,7 +114,7 @@ const AddMaterialModal = ({ isOpen, onClose, initialData = null }) => {
 
                     {/* Brand */}
                     <div>
-                        <label className="block text-sm font-medium text-text-secondary mb-1">{t('inventory.materials.brand_label')}</label>
+                        <label className="block text-sm font-medium text-text-secondary mb-1">{t('inventory.materials.brand_label')} (Brand)</label>
                         <input
                             type="text"
                             value={formData.brand}
@@ -122,18 +124,8 @@ const AddMaterialModal = ({ isOpen, onClose, initialData = null }) => {
                         />
                     </div>
 
-                    {/* Name */}
-                    <div>
-                        <label className="block text-sm font-medium text-text-secondary mb-1">{t('inventory.materials.name_label')}</label>
-                        <input
-                            type="text"
-                            required
-                            value={formData.name}
-                            onChange={e => setFormData({ ...formData, name: e.target.value })}
-                            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-                            placeholder={t('inventory.materials.name_placeholder')}
-                        />
-                    </div>
+                    {/* Hidden Name field (auto-filled from category) */}
+                    <input type="hidden" name="name" value={formData.name} />
                     {/* Type & Unit Grid */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
