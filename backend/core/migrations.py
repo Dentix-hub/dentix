@@ -473,3 +473,86 @@ def check_and_migrate_tables():
     add_column_safe('materials', 'packaging_ratio FLOAT DEFAULT 1.0')
     add_column_safe('procedure_material_weights',
         'current_average_usage FLOAT DEFAULT 0.0')
+
+    # --- INVENTORY PHASE 2: Category System & Treatment Material Tracking ---
+    # Safety net for Alembic migration f1a2b3c4d5e6
+    try:
+        with database.engine.connect() as conn:
+            conn.execute(text(
+                f"""
+                CREATE TABLE IF NOT EXISTS material_categories (
+                    id {auto_inc},
+                    name_en VARCHAR NOT NULL UNIQUE,
+                    name_ar VARCHAR NOT NULL,
+                    default_type VARCHAR DEFAULT 'DIVISIBLE',
+                    default_unit VARCHAR DEFAULT 'g'
+                )
+            """
+                ))
+            conn.execute(text(
+                'CREATE INDEX IF NOT EXISTS ix_material_categories_id ON material_categories(id)'
+                ))
+            conn.commit()
+            logger.info("[MIGRATION] Verified table 'material_categories'")
+    except Exception as e:
+        logger.info(
+            f"[MIGRATION ERROR] Failed to create table 'material_categories': {e}"
+            )
+
+    add_column_safe('materials', 'category_id INTEGER REFERENCES material_categories(id)')
+    add_column_safe('materials', 'brand VARCHAR')
+    add_column_safe('procedure_material_weights', 'category_id INTEGER REFERENCES material_categories(id)')
+    add_column_safe('procedure_material_weights', 'sample_size INTEGER DEFAULT 0')
+
+    # Make material_id and tenant_id nullable in procedure_material_weights
+    # (required for global category-level defaults)
+    try:
+        with database.engine.connect() as conn:
+            if not is_sqlite:
+                conn.execute(text(
+                    'ALTER TABLE procedure_material_weights ALTER COLUMN material_id DROP NOT NULL'
+                ))
+                conn.execute(text(
+                    'ALTER TABLE procedure_material_weights ALTER COLUMN tenant_id DROP NOT NULL'
+                ))
+                conn.commit()
+                logger.info("[MIGRATION] Made material_id/tenant_id nullable in procedure_material_weights")
+    except Exception as e:
+        msg = str(e).lower()
+        if 'already' in msg or 'nullable' in msg:
+            pass
+        else:
+            logger.info(f"[MIGRATION] procedure_material_weights nullable fix: {e}")
+
+    try:
+        with database.engine.connect() as conn:
+            conn.execute(text(
+                f"""
+                CREATE TABLE IF NOT EXISTS treatment_material_usages (
+                    id {auto_inc},
+                    treatment_id INTEGER NOT NULL REFERENCES treatments(id),
+                    material_id INTEGER NOT NULL REFERENCES materials(id),
+                    session_id INTEGER REFERENCES material_sessions(id),
+                    weight_score FLOAT DEFAULT 1.0,
+                    quantity_used FLOAT,
+                    cost_calculated FLOAT,
+                    is_manual_override BOOLEAN DEFAULT FALSE,
+                    tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """
+                ))
+            conn.execute(text(
+                'CREATE INDEX IF NOT EXISTS ix_treatment_material_usages_id ON treatment_material_usages(id)'
+                ))
+            conn.execute(text(
+                'CREATE INDEX IF NOT EXISTS ix_treatment_material_usages_treatment_id ON treatment_material_usages(treatment_id)'
+                ))
+            conn.commit()
+            logger.info("[MIGRATION] Verified table 'treatment_material_usages'")
+    except Exception as e:
+        logger.info(
+            f"[MIGRATION ERROR] Failed to create table 'treatment_material_usages': {e}"
+            )
+
+    logger.info('[MIGRATION] Inventory Phase 2 schema checks completed.')

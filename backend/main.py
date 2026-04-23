@@ -120,6 +120,15 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.error("[STARTUP] Global Procedure Seeding/Propagation failed", exc_info=True)
 
+    # 4b. Seed Material Categories (Inventory Phase 2)
+    try:
+        logger.info("[STARTUP] Seeding Material Categories...")
+        from backend.scripts.seed_material_categories import seed_material_categories
+        seed_material_categories()
+        logger.info("[STARTUP] Material Categories Seeded.")
+    except Exception:
+        logger.error("[STARTUP] Material Categories Seeding failed", exc_info=True)
+
     # 5. Initialize Firebase
     try:
         logger.info("[STARTUP] Initializing Firebase...")

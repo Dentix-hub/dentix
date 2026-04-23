@@ -215,8 +215,9 @@ class ProcedureName(BaseModel):
 
 class ProcedureWeightRead(ProcedureWeightBase):
     id: int
-    current_average_usage: float
-    sample_size: int
+    tenant_id: Optional[int] = None
+    current_average_usage: float = 0.0
+    sample_size: int = 0
     procedure: Optional[ProcedureName] = None
     category: Optional[MaterialCategoryOut] = None
 
