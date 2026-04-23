@@ -1,7 +1,7 @@
 """Add material_categories, treatment_material_usages, and update materials/weights
 
 Revision ID: f1a2b3c4d5e6
-Revises: e146e0d57b66
+Revises: 4326f6d2f707
 Create Date: 2026-04-23
 
 """
@@ -77,6 +77,8 @@ def downgrade() -> None:
     op.drop_table("treatment_material_usages")
 
     # Revert procedure_material_weights: material_id back to NOT NULL, drop category_id
+    # Data sanitation: ensure no NULLs exist before altering columns to nullable=False
+    op.execute("DELETE FROM procedure_material_weights WHERE tenant_id IS NULL OR material_id IS NULL")
     op.alter_column("procedure_material_weights", "tenant_id", nullable=False)
     op.alter_column("procedure_material_weights", "material_id", nullable=False)
     op.drop_constraint("fk_proc_weights_category_id", "procedure_material_weights", type_="foreignkey")

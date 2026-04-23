@@ -19,7 +19,6 @@ class InventoryLearningService:
         Closes a material session and triggers the smart learning algorithm
         to distribute consumption based on procedure weights.
         """
-        from sqlalchemy.orm import joinedload
 
         try:
             session = (

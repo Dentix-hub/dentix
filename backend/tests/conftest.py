@@ -93,55 +93,53 @@ def client(db_session):
 
 @pytest.fixture
 def test_tenant(db_session):
-    """Create a test tenant."""
-    tenant = db_session.query(models.Tenant).filter(models.Tenant.name == "Test Clinic").first()
-    if not tenant:
-        tenant = models.Tenant(name="Test Clinic", is_active=True)
-        db_session.add(tenant)
-        db_session.commit()
-        db_session.refresh(tenant)
+    """Create a test tenant with unique name."""
+    import uuid
+    uid = str(uuid.uuid4())[:8]
+    tenant = models.Tenant(name=f"Test Clinic {uid}", is_active=True)
+    db_session.add(tenant)
+    db_session.commit()
+    db_session.refresh(tenant)
     return tenant
 
 
 @pytest.fixture
 def test_user(db_session, test_tenant):
-    """Create a test user with doctor role."""
+    """Create a test user with unique username."""
     from backend.auth import get_password_hash
-
-    user = db_session.query(models.User).filter(models.User.username == "testdoctor").first()
-    if not user:
-        user = models.User(
-            username="testdoctor",
-            email="doctor@test.com",
-            hashed_password=get_password_hash("testpass123"),
-            role="doctor",
-            tenant_id=test_tenant.id,
-            is_active=True,
-        )
-        db_session.add(user)
-        db_session.commit()
-        db_session.refresh(user)
+    import uuid
+    uid = str(uuid.uuid4())[:8]
+    user = models.User(
+        username=f"doctor_{uid}",
+        email=f"doctor_{uid}@test.com",
+        hashed_password=get_password_hash("testpass123"),
+        role="doctor",
+        tenant_id=test_tenant.id,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
     return user
 
 
 @pytest.fixture
 def admin_user(db_session, test_tenant):
-    """Create a test admin user."""
+    """Create a test admin user with unique username."""
     from backend.auth import get_password_hash
-
-    user = db_session.query(models.User).filter(models.User.username == "testadmin").first()
-    if not user:
-        user = models.User(
-            username="testadmin",
-            email="admin@test.com",
-            hashed_password=get_password_hash("adminpass123"),
-            role="admin",
-            tenant_id=test_tenant.id,
-            is_active=True,
-        )
-        db_session.add(user)
-        db_session.commit()
-        db_session.refresh(user)
+    import uuid
+    uid = str(uuid.uuid4())[:8]
+    user = models.User(
+        username=f"admin_{uid}",
+        email=f"admin_{uid}@test.com",
+        hashed_password=get_password_hash("adminpass123"),
+        role="admin",
+        tenant_id=test_tenant.id,
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
     return user
 
 

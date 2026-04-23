@@ -3,6 +3,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_
 from typing import List
 
 from .. import schemas, models
@@ -453,8 +454,6 @@ def get_procedure_weights(
 ):
     """Get all procedure weights (filter by material OR procedure)"""
     tenant_id = current_user.tenant_id or 1  # Safe-dev fallback
-
-    from sqlalchemy import or_
     query = db.query(inv_models.ProcedureMaterialWeight).filter(
         or_(
             inv_models.ProcedureMaterialWeight.tenant_id == tenant_id,

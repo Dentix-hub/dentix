@@ -201,7 +201,7 @@ class TreatmentMaterialUsage(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     treatment_id = Column(Integer, ForeignKey("treatments.id"), nullable=False, index=True)
-    material_id = Column(Integer, ForeignKey("materials.id"), nullable=False)
+    material_id = Column(Integer, ForeignKey("materials.id"), nullable=False, index=True)
     session_id = Column(Integer, ForeignKey("material_sessions.id"), nullable=True)
 
     weight_score = Column(Float, default=1.0)       # Relative weight for this procedure

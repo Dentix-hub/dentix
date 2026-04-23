@@ -225,7 +225,7 @@ def seed_procedure_material_defaults():
 
         # Build procedure lookup: name → id
         procedures = db.query(Procedure).filter(
-            or_(Procedure.tenant_id.is_(None),)
+            Procedure.tenant_id.is_(None)
         ).all()
         proc_map = {p.name: p.id for p in procedures}
 
