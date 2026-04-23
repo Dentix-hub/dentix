@@ -20,12 +20,13 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
     const [manualOverrides, setManualOverrides] = useState({});
 
     // Fetch suggested materials from resolution engine
-    const { data: suggestions = [], isLoading, error } = useQuery({
+    const { data: rawSuggestions, isLoading, error } = useQuery({
         queryKey: ['material-suggestions', procedureId, doctorId],
         queryFn: () => getSuggestedMaterials(procedureId, doctorId).then(r => r.data),
         enabled: !!procedureId,
         staleTime: 30 * 1000
     });
+    const suggestions = Array.isArray(rawSuggestions) ? rawSuggestions : [];
 
     // Initialize selected materials from suggestions
     useEffect(() => {
