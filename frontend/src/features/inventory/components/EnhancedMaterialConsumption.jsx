@@ -47,7 +47,7 @@ export function EnhancedMaterialConsumption({
             return;
         }
         // Case 3: Modal is open and we have data to initialize with
-        if (isOpen && !hasInitializedRef.current && Array.isArray(availableMaterials) && availableMaterials.length > 0 && Array.isArray(initialMaterials)) {
+        if (isOpen && !hasInitializedRef.current && Array.isArray(availableMaterials) && Array.isArray(initialMaterials)) {
             const mapped = initialMaterials.map(m => {
                 const matInfo = availableMaterials.find(am => am.id === parseInt(m.material_id)) || {};
                 return {

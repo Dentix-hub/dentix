@@ -20,6 +20,7 @@ export default function TreatmentModal({
     const [treatment, setTreatment] = useState(initialData);
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [isManualProcedure, setIsManualProcedure] = useState(false);
+    const safeProcedures = Array.isArray(procedures) ? procedures : [];
     // Modal Tabs
     const [toothModalTab, setToothModalTab] = useState('Status');
     const [selectedPathologies, setSelectedPathologies] = useState([]);
@@ -202,7 +203,7 @@ export default function TreatmentModal({
                                                     onClick={() => {
                                                         setSelectedToothCondition(status);
                                                         // Auto-fill logic
-                                                        const foundProc = procedures.find(p => p.name.toLowerCase() === status.toLowerCase());
+                                                        const foundProc = safeProcedures.find(p => p.name.toLowerCase() === status.toLowerCase());
                                                         setTreatment(prev => ({
                                                             ...prev,
                                                             diagnosis: status,
@@ -328,7 +329,7 @@ export default function TreatmentModal({
                                             return;
                                         }
                                         // Find generic procedure info
-                                        const foundProc = procedures.find(p => p.name === val);
+                                        const foundProc = safeProcedures.find(p => p.name === val);
                                         const baseProcedurePrice = foundProc?.price || 0; // Fallback value
                                         let calculatedPrice = baseProcedurePrice;
                                         let activePriceListId = treatment.price_list_id;
@@ -389,7 +390,7 @@ export default function TreatmentModal({
                                 >
                                     <option value="">اختر الإجراء العلاجي...</option>
                                     <option value="MANUAL_ENTRY_OPTION" className="font-bold text-primary bg-blue-50">✍️ كتابة إجراء يدوي (غير مضاف)</option>
-                                    {Array.isArray(procedures) && procedures.map(p => (
+                                    {safeProcedures.map(p => (
                                         <option key={p.id} value={p.name}>{p.name}</option>
                                     ))}
                                 </select>
@@ -441,19 +442,26 @@ export default function TreatmentModal({
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 mb-1">تفاصيل القنوات</label>
-                                {treatment.canals?.map((canal, idx) => (
-                                    <div key={idx} className="flex gap-2 mb-2">
-                                        <input value={canal.name} onChange={e => {
-                                            const newCanals = (treatment.canals || []).map((c, i) => i === idx ? { ...c, name: e.target.value } : c);
-                                            setTreatment({ ...treatment, canals: newCanals });
-                                        }} placeholder="الاسم" className="flex-1 p-2 bg-white rounded-lg border border-slate-100" />
-                                        <input value={canal.length} onChange={e => {
-                                            const newCanals = (treatment.canals || []).map((c, i) => i === idx ? { ...c, length: e.target.value } : c);
-                                            setTreatment({ ...treatment, canals: newCanals });
-                                        }} placeholder="مم" className="w-20 p-2 bg-white rounded-lg border border-slate-100" />
-                                    </div>
-                                ))}
-                                <button onClick={() => setTreatment({ ...treatment, canals: [...(treatment.canals || []), { name: '', length: '' }] })} className="text-xs text-primary">+ إضافة قناة</button>
+                                {(() => {
+                                    const normalizedCanals = Array.isArray(treatment.canals) ? treatment.canals : [];
+                                    return (
+                                        <>
+                                            {normalizedCanals.map((canal, idx) => (
+                                                <div key={idx} className="flex gap-2 mb-2">
+                                                    <input value={canal.name} onChange={e => {
+                                                        const newCanals = normalizedCanals.map((c, i) => i === idx ? { ...c, name: e.target.value } : c);
+                                                        setTreatment({ ...treatment, canals: newCanals });
+                                                    }} placeholder="الاسم" className="flex-1 p-2 bg-white rounded-lg border border-slate-100" />
+                                                    <input value={canal.length} onChange={e => {
+                                                        const newCanals = normalizedCanals.map((c, i) => i === idx ? { ...c, length: e.target.value } : c);
+                                                        setTreatment({ ...treatment, canals: newCanals });
+                                                    }} placeholder="مم" className="w-20 p-2 bg-white rounded-lg border border-slate-100" />
+                                                </div>
+                                            ))}
+                                            <button onClick={() => setTreatment({ ...treatment, canals: [...normalizedCanals, { name: '', length: '' }] })} className="text-xs text-primary">+ إضافة قناة</button>
+                                        </>
+                                    );
+                                })()}
                             </div>
                             <textarea value={treatment.sessions} onChange={e => setTreatment({ ...treatment, sessions: e.target.value })} placeholder="جلسات" className="w-full p-3 bg-white rounded-xl border border-slate-100 h-20" />
                             <textarea value={treatment.complications} onChange={e => setTreatment({ ...treatment, complications: e.target.value })} placeholder="المضاعفات" className="w-full p-3 bg-white rounded-xl border border-red-100 text-red-600 h-20" />
@@ -481,7 +489,7 @@ export default function TreatmentModal({
                         {treatment.procedure && (
                             <div className="p-3 bg-white border-b border-slate-100">
                                 <MaterialConsumptionPanel
-                                    procedureId={procedures.find(p => p.name === treatment.procedure)?.id}
+                                    procedureId={safeProcedures.find(p => p.name === treatment.procedure)?.id}
                                     doctorId={treatment.doctor_id}
                                     initialMaterials={consumedMaterials}
                                     onMaterialsChange={(materials) => {
@@ -548,7 +556,7 @@ export default function TreatmentModal({
             <EnhancedMaterialConsumption
                 isOpen={isSmartConsumptionOpen}
                 onClose={() => setIsSmartConsumptionOpen(false)}
-                procedure={procedures.find(p => p.name === treatment.procedure)}
+                procedure={safeProcedures.find(p => p.name === treatment.procedure)}
                 patientAge={null} // Add logic if needed
                 availableMaterials={availableMaterials}
                 initialMaterials={consumedMaterials} // Pass existing materials
