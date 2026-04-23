@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+import logging
 from sqlalchemy.orm import Session
 from typing import List, Optional, Dict, Any
 
@@ -52,7 +53,9 @@ def get_category_based_suggestions(
     """
     try:
         service = MaterialResolutionService(db)
-        tenant_id = current_user.tenant_id or 1
+        if not current_user.tenant_id:
+            raise HTTPException(status_code=403, detail="Tenant access required")
+        tenant_id = current_user.tenant_id
 
         # Use current doctor if not specified and user is a doctor
         effective_doctor_id = doctor_id
@@ -64,13 +67,11 @@ def get_category_based_suggestions(
             tenant_id=tenant_id,
         )
         return success_response(data=suggestions)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
+    except Exception:
+        logging.exception("Failed to resolve materials")
         return error_response(
-            message=f"Failed to resolve materials: {str(e)}",
-            status_code=500,
-            details=str(e)
+            message="Failed to resolve materials",
+            status_code=500
         )
 
 
