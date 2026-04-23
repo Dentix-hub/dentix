@@ -44,6 +44,7 @@ class TestPermissionMatrix:
         assert has_permission("receptionist", Permission.APPOINTMENT_READ)
         assert has_permission("receptionist", Permission.APPOINTMENT_UPDATE)
         assert has_permission("receptionist", Permission.APPOINTMENT_CANCEL)
+        assert has_permission("receptionist", Permission.CLINICAL_READ)
 
     def test_receptionist_can_collect_payments(self):
         """Receptionists should be able to collect payments."""
@@ -66,6 +67,12 @@ class TestPermissionMatrix:
         """Accountants should have FINANCIAL_READ and FINANCIAL_WRITE."""
         assert has_permission("accountant", Permission.FINANCIAL_READ)
         assert has_permission("accountant", Permission.FINANCIAL_WRITE)
+        assert has_permission("accountant", Permission.CLINICAL_READ)
+
+    def test_manager_can_read_clinical(self):
+        """Managers should have CLINICAL_READ and SYSTEM_CONFIG."""
+        assert has_permission("manager", Permission.CLINICAL_READ)
+        assert has_permission("manager", Permission.SYSTEM_CONFIG)
 
     def test_guest_has_no_permissions(self):
         """Guest role should have zero permissions."""
