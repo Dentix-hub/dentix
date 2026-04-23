@@ -779,7 +779,22 @@
             "fail_edit": "Failed to update: ",
             "saving": "Saving...",
             "save_changes": "Save Changes",
-            "save_new": "Save Material"
+            "save_new": "Save Material",
+            "category_label": "Category",
+            "category_placeholder": "-- Select Category --",
+            "brand_label": "Brand",
+            "brand_placeholder": "Ex: 3M Filtek Z350",
+            "suggested_materials": "Suggested Materials",
+            "loading_suggestions": "Loading suggested materials...",
+            "error_suggestions": "Failed to load suggested materials",
+            "no_suggestions": "No suggested materials for this procedure",
+            "active_session": "Active Session",
+            "session_linked": "Session Linked",
+            "select_material": "Select Material",
+            "no_materials_in_category": "No materials in this category — add a material first",
+            "weight_score": "Weight Score",
+            "quantity": "Quantity",
+            "manual_override": "Manual Override"
         },
         "receive": {
             "title": "Receive New Stock",

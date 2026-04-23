@@ -29,7 +29,7 @@ def test_bom_flow(client, admin_headers):
         mat = body.get("data", body) if isinstance(body, dict) and "data" in body else body
 
     # 2. Create Procedure (if not exists)
-    resp = client.get("/api/v1/procedures/", headers=admin_headers)
+    resp = client.get("/api/v1/procedures", headers=admin_headers)
     assert resp.status_code == 200
     body = resp.json()
     procs = body.get("data", body) if isinstance(body, dict) and "data" in body else body
@@ -37,7 +37,7 @@ def test_bom_flow(client, admin_headers):
 
     if not proc:
         resp = client.post(
-            "/api/v1/procedures/",
+            "/api/v1/procedures",
             json={"name": "Test Filling", "price": 500},
             headers=admin_headers,
         )

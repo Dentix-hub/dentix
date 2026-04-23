@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
-import { createMaterial, updateMaterial } from '@/api/inventory';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { createMaterial, updateMaterial, getCategories } from '@/api/inventory';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { showToast } from '@/shared/ui/Toast';
 import { useTranslation } from 'react-i18next';
 const AddMaterialModal = ({ isOpen, onClose, initialData = null }) => {
@@ -12,8 +12,33 @@ const AddMaterialModal = ({ isOpen, onClose, initialData = null }) => {
         type: 'NON_DIVISIBLE', // DIVISIBLE, NON_DIVISIBLE
         base_unit: 'Tablet',
         alert_threshold: 10,
-        packaging_ratio: 1.0
+        packaging_ratio: 1.0,
+        category_id: null,
+        brand: ''
     });
+    // Fetch categories
+    const { data: categories = [] } = useQuery({
+        queryKey: ['material-categories'],
+        queryFn: getCategories,
+        enabled: isOpen,
+        staleTime: 5 * 60 * 1000
+    });
+
+    // Auto-fill type and base_unit when category changes
+    const handleCategoryChange = (categoryId) => {
+        const category = categories.find(c => c.id === parseInt(categoryId));
+        if (category) {
+            setFormData(prev => ({
+                ...prev,
+                category_id: parseInt(categoryId),
+                type: category.default_type,
+                base_unit: category.default_unit
+            }));
+        } else {
+            setFormData(prev => ({ ...prev, category_id: null }));
+        }
+    };
+
     useEffect(() => {
         if (isOpen && initialData) {
             setFormData({
@@ -22,7 +47,8 @@ const AddMaterialModal = ({ isOpen, onClose, initialData = null }) => {
                 base_unit: initialData.unit || initialData.base_unit || 'Tablet',
                 alert_threshold: initialData.alert_status === 'LOW' ? 10 : (initialData.alert_threshold || 5),
                 packaging_ratio: initialData.packaging_ratio || 1.0,
-                // standard_price removed
+                category_id: initialData.category_id || null,
+                brand: initialData.brand || ''
             });
         } else if (isOpen) {
             setFormData({
@@ -30,7 +56,9 @@ const AddMaterialModal = ({ isOpen, onClose, initialData = null }) => {
                 type: 'NON_DIVISIBLE',
                 base_unit: 'Tablet',
                 alert_threshold: 10,
-                packaging_ratio: 1.0
+                packaging_ratio: 1.0,
+                category_id: null,
+                brand: ''
             });
         }
     }, [isOpen, initialData]);
@@ -62,6 +90,35 @@ const AddMaterialModal = ({ isOpen, onClose, initialData = null }) => {
                 </div>
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    {/* Category */}
+                    <div>
+                        <label className="block text-sm font-medium text-text-secondary mb-1">{t('inventory.materials.category_label')}</label>
+                        <select
+                            value={formData.category_id || ''}
+                            onChange={e => handleCategoryChange(e.target.value)}
+                            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20"
+                        >
+                            <option value="">{t('inventory.materials.category_placeholder')}</option>
+                            {categories.map(cat => (
+                                <option key={cat.id} value={cat.id}>
+                                    {cat.name_ar} — {cat.name_en}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Brand */}
+                    <div>
+                        <label className="block text-sm font-medium text-text-secondary mb-1">{t('inventory.materials.brand_label')}</label>
+                        <input
+                            type="text"
+                            value={formData.brand}
+                            onChange={e => setFormData({ ...formData, brand: e.target.value })}
+                            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                            placeholder={t('inventory.materials.brand_placeholder')}
+                        />
+                    </div>
+
                     {/* Name */}
                     <div>
                         <label className="block text-sm font-medium text-text-secondary mb-1">{t('inventory.materials.name_label')}</label>

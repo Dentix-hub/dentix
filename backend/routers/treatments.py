@@ -6,11 +6,13 @@ Thin router layer - all business logic delegated to TreatmentService.
 """
 
 import logging
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from .. import schemas, crud
+from .. import schemas, crud, models
 from .auth import get_db
+from backend.models import inventory as inv_models
 from backend.core.permissions import Permission, require_permission
 from backend.core.limiter import limiter
 from backend.services.treatment_service import get_treatment_service
@@ -107,3 +109,100 @@ def update_tooth_status(
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
     return success_response(data=crud.update_tooth_status(db, status, current_user.tenant_id), message="Tooth status updated")
+
+
+# --- Treatment Material Usage ---
+@router.get(
+    "/{treatment_id}/materials",
+    response_model=StandardResponse[List[schemas.inventory.TreatmentMaterialUsageOut]],
+    summary="Get treatment materials",
+    description="Get all material usage records for a treatment. Requires TREATMENT_PLAN_READ permission.",
+)
+def get_treatment_materials(
+    treatment_id: int,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
+):
+    """Get material usage for a treatment."""
+    usages = (
+        db.query(inv_models.TreatmentMaterialUsage)
+        .filter(
+            inv_models.TreatmentMaterialUsage.treatment_id == treatment_id,
+            inv_models.TreatmentMaterialUsage.tenant_id == (current_user.tenant_id or 1),
+        )
+        .all()
+    )
+    return success_response(data=usages)
+
+
+@router.post(
+    "/{treatment_id}/materials",
+    response_model=StandardResponse[List[schemas.inventory.TreatmentMaterialUsageOut]],
+    summary="Save treatment materials",
+    description="Save material usage for a treatment. For DIVISIBLE materials: links to active session with weight. For NON_DIVISIBLE: deducts stock immediately. Requires TREATMENT_PLAN_WRITE permission.",
+)
+def save_treatment_materials(
+    treatment_id: int,
+    materials: List[schemas.inventory.TreatmentMaterialUsageCreate],
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
+):
+    """Save material usage for a treatment."""
+    tenant_id = current_user.tenant_id or 1
+    results = []
+
+    # Verify treatment exists
+    treatment = db.query(models.Treatment).filter(
+        models.Treatment.id == treatment_id,
+        models.Treatment.tenant_id == tenant_id,
+    ).first()
+    if not treatment:
+        raise HTTPException(status_code=404, detail="Treatment not found")
+
+    # Clear existing materials for this treatment
+    db.query(inv_models.TreatmentMaterialUsage).filter(
+        inv_models.TreatmentMaterialUsage.treatment_id == treatment_id,
+        inv_models.TreatmentMaterialUsage.tenant_id == tenant_id,
+    ).delete()
+
+    for item in materials:
+        # Get material details
+        material = db.query(inv_models.Material).filter(
+            inv_models.Material.id == item.material_id,
+            inv_models.Material.tenant_id == tenant_id,
+        ).first()
+        if not material:
+            continue
+
+        # For NON_DIVISIBLE: deduct stock immediately
+        if material.type == "NON_DIVISIBLE" and item.quantity_used:
+            from backend.services.inventory_service import inventory_service
+            try:
+                inventory_service.consume_stock(
+                    material_id=item.material_id,
+                    quantity=item.quantity_used,
+                    tenant_id=tenant_id,
+                    user_id=current_user.id,
+                    db=db,
+                )
+            except ValueError as e:
+                logger.warning(f"Could not consume stock for material {item.material_id}: {e}")
+
+        # Create usage record
+        usage = inv_models.TreatmentMaterialUsage(
+            treatment_id=treatment_id,
+            material_id=item.material_id,
+            session_id=item.session_id,
+            weight_score=item.weight_score,
+            quantity_used=item.quantity_used,
+            is_manual_override=item.is_manual_override,
+            tenant_id=tenant_id,
+        )
+        db.add(usage)
+        results.append(usage)
+
+    db.commit()
+    for r in results:
+        db.refresh(r)
+
+    return success_response(data=results, message="Materials saved successfully")

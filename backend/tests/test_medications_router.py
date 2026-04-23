@@ -1,9 +1,9 @@
 import pytest
 from backend.models import SavedMedication
 
-def test_get_saved_medications(client, admin_headers, db_session):
+def test_get_saved_medications(client, admin_headers, db_session, test_tenant):
     # Seed a medication
-    med = SavedMedication(name="Panadol", strength="500mg", frequency="3 times daily", tenant_id=1)
+    med = SavedMedication(name="Panadol", strength="500mg", frequency="3 times daily", tenant_id=test_tenant.id)
     db_session.add(med)
     db_session.commit()
     
@@ -33,8 +33,8 @@ def test_create_saved_medication(client, admin_headers, db_session):
     assert db_med is not None
     assert db_med.strength == "250mg"
 
-def test_delete_saved_medication(client, admin_headers, db_session):
-    med = SavedMedication(name="To Delete", tenant_id=1)
+def test_delete_saved_medication(client, admin_headers, db_session, test_tenant):
+    med = SavedMedication(name="To Delete", tenant_id=test_tenant.id)
     db_session.add(med)
     db_session.commit()
     
