@@ -104,7 +104,6 @@ class CostEngine:
                 continue
 
             unit_cost = self.get_material_average_cost(w.material_id)
-            w.weight * unit_cost
 
             # AI / Actual Usage Logic
             # 1. Try learned average from ProcedureMaterialWeight
@@ -161,7 +160,7 @@ class CostEngine:
                     "actual_usage": round(actual_usage, 4),
                     "actual_cost": round(actual_material_cost, 2),
                     "sample_size": w.sample_size or 0,
-                    "source": "learning" if (getattr(w, "current_average_usage", 0.0) and w.current_average_usage > 0) else ("actual_usage" if actual_usage > 0 else "estimated"),
+                    "source": "learning" if (w.current_average_usage or 0) > 0 else ("actual_usage" if actual_usage > 0 else "estimated"),
                     # Coverage Info
                     "pack_size": pkg_ratio,
                     "cost_per_pack": round(cost_per_pack, 2),
