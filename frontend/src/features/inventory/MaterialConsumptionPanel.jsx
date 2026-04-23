@@ -22,14 +22,14 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
     // Fetch suggested materials from resolution engine
     const { data: suggestions = [], isLoading, error } = useQuery({
         queryKey: ['material-suggestions', procedureId, doctorId],
-        queryFn: () => getSuggestedMaterials(procedureId, doctorId).then(r => r.data.data),
+        queryFn: () => getSuggestedMaterials(procedureId, doctorId).then(r => r.data),
         enabled: !!procedureId,
         staleTime: 30 * 1000
     });
 
     // Initialize selected materials from suggestions
     useEffect(() => {
-        if (suggestions.length > 0 && Object.keys(selectedMaterials).length === 0) {
+        if (Array.isArray(suggestions) && suggestions.length > 0 && Object.keys(selectedMaterials).length === 0) {
             const initial = {};
             suggestions.forEach(sugg => {
                 // If there's an active session, use it; otherwise use first alternative
@@ -113,7 +113,7 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
         );
     }
 
-    if (suggestions.length === 0) {
+    if (!Array.isArray(suggestions) || suggestions.length === 0) {
         return (
             <div className="p-4 text-center text-text-secondary bg-surface rounded-lg">
                 <AlertCircle className="mx-auto mb-2" size={24} />
