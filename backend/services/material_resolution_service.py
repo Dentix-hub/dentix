@@ -62,8 +62,10 @@ class MaterialResolutionService:
         # and then filter by normalized name in Python for maximum robustness
         all_potential_weights = (
             self.db.query(inv_models.ProcedureMaterialWeight)
-            .options(joinedload(inv_models.ProcedureMaterialWeight.category))
-            .join(clinical_models.Procedure)
+            .options(
+                joinedload(inv_models.ProcedureMaterialWeight.category),
+                joinedload(inv_models.ProcedureMaterialWeight.procedure)
+            )
             .filter(
                 or_(
                     inv_models.ProcedureMaterialWeight.tenant_id == tenant_id,
