@@ -15,8 +15,10 @@ const getApiUrl = () => {
 
     // 2. Vercel Smart Detection (Fallback if env var is missing)
     if (hostname.includes('vercel.app')) {
-        // If the URL contains 'staging' or 'preview', point to staging backend
-        if (hostname.toLowerCase().includes('staging') || hostname.toLowerCase().includes('preview')) {
+        // If it's a preview deployment (contains git, staging, or preview)
+        if (hostname.toLowerCase().includes('staging') || 
+            hostname.toLowerCase().includes('preview') || 
+            hostname.toLowerCase().includes('-git-')) {
             return 'https://dentix-dentix-staging.hf.space';
         }
         // Default Production HF URL
