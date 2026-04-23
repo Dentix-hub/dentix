@@ -31,14 +31,15 @@ class MaterialResolutionService:
     def _normalize_name(self, name: str) -> str:
         if not name:
             return ""
-        # 1. Standardize dashes (replace em-dash, en-dash, double-hyphen with single hyphen)
         import re
-        n = re.sub(r'[–—]|--', '-', name)
-        # 2. Split by dash and sort parts (to handle reversed "Arabic - English" vs "English - Arabic")
-        parts = [p.strip().lower() for p in n.split('-')]
+        # 1. Standardize all separators (dashes, underscores, multiple spaces) to a single space
+        n = re.sub(r'[\s\-_–—]+', ' ', name).lower()
+        # 2. Split into individual words/parts
+        parts = [p.strip() for p in n.split()]
+        # 3. Sort parts to handle "Arabic - English" vs "English - Arabic" or any other order
         parts.sort()
-        # 3. Join back with a single space
-        return " ".join(parts).strip()
+        # 4. Join back with no spaces for a canonical comparison string
+        return "".join(parts)
 
     def resolve_materials_for_procedure(
         self,
@@ -61,7 +62,8 @@ class MaterialResolutionService:
         try:
             with open("suggestion_debug.log", "a", encoding="utf-8") as f:
                 import datetime
-                f.write(f"[{datetime.datetime.now()}] RESOLVE: id={procedure_id} name='{proc.name}' norm='{proc_norm}'\n")
+                f.write(f"[{datetime.datetime.now()}] RESOLVE: id={procedure_id} name='{proc.name}'\n")
+                f.write(f"  -> Normalized Request: '{proc_norm}'\n")
         except: pass
 
         # 2. Get all potential weights (Global + Tenant)
@@ -102,6 +104,11 @@ class MaterialResolutionService:
         try:
             with open("suggestion_debug.log", "a", encoding="utf-8") as f:
                 f.write(f"  -> Matches Found: {matches_found}, Unique Categories: {len(weights_by_cat)}\n")
+                if matches_found == 0 and all_potential_weights:
+                    f.write("  -> NO MATCHES. Sample weights names:\n")
+                    for w in all_potential_weights[:5]:
+                        name = w.procedure.name if w.procedure else "N/A"
+                        f.write(f"     - '{name}' -> '{self._normalize_name(name)}'\n")
         except: pass
 
         final_weights = list(weights_by_cat.values())
