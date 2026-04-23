@@ -10,7 +10,7 @@ Resolves which materials should be used for a given procedure based on:
 
 from typing import List, Dict, Optional
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 from backend.models import inventory as inv_models
 from backend.models import clinical as clinical_models
@@ -32,7 +32,6 @@ class MaterialResolutionService:
         self,
         procedure_id: int,
         tenant_id: int,
-        doctor_id: Optional[int] = None,
     ) -> List[Dict]:
         """
         Returns list of suggested materials with confidence levels.
@@ -55,6 +54,21 @@ class MaterialResolutionService:
         if not global_weights:
             return suggestions
 
+        # Fetch all active sessions for this tenant once to avoid N+1 queries
+        active_sessions = (
+            self.db.query(inv_models.MaterialSession)
+            .join(inv_models.StockItem)
+            .join(inv_models.Batch)
+            .filter(
+                inv_models.MaterialSession.tenant_id == tenant_id,
+                inv_models.MaterialSession.status == "ACTIVE"
+            )
+            .options(joinedload(inv_models.MaterialSession.stock_item).joinedload(inv_models.StockItem.batch))
+            .all()
+        )
+        # Map material_id -> active_session
+        session_map = {s.stock_item.batch.material_id: s for s in active_sessions}
+
         # 2. For each category default, find clinic's materials
         for weight_record in global_weights:
             category = weight_record.category
@@ -76,18 +90,9 @@ class MaterialResolutionService:
             session_material = None
 
             if category.default_type == "DIVISIBLE" and clinic_materials:
-                # Look for active sessions for any material in this category
+                # Look for active sessions in pre-fetched map
                 for material in clinic_materials:
-                    session = (
-                        self.db.query(inv_models.MaterialSession)
-                        .join(inv_models.StockItem)
-                        .join(inv_models.Batch)
-                        .filter(
-                            inv_models.Batch.material_id == material.id,
-                            inv_models.MaterialSession.status == "ACTIVE",
-                        )
-                        .first()
-                    )
+                    session = session_map.get(material.id)
                     if session:
                         active_session = session
                         session_material = material
@@ -144,7 +149,6 @@ class MaterialResolutionService:
         """
         Get the material this doctor used most frequently in this category.
         """
-        from sqlalchemy import func
 
         # Query TreatmentMaterialUsage joined to Material to find most used
         result = (

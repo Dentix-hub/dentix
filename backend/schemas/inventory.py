@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import date, datetime
 from enum import Enum
 
@@ -167,8 +167,6 @@ class StockReceiveRequest(BaseModel):
     quantity: float
     batch: BatchBase
 
-    batch: BatchBase
-
 
 class StockTransferRequest(BaseModel):
     stock_item_id: int
@@ -266,3 +264,12 @@ class SuggestedMaterial(BaseModel):
     reason: str = "Standard Protocol"
     has_active_session: bool = False
     session_id: Optional[int] = None
+    brand: Optional[str] = None
+    alternatives: List["SuggestedMaterialAlternative"] = []
+
+
+class SuggestedMaterialAlternative(BaseModel):
+    id: int
+    name: str
+    brand: Optional[str] = None
+    in_stock: bool = True

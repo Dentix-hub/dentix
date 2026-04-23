@@ -16,6 +16,7 @@ from backend.models import inventory as inv_models
 from backend.core.permissions import Permission, require_permission
 from backend.core.limiter import limiter
 from backend.services.treatment_service import get_treatment_service
+from backend.services.inventory_service import inventory_service
 from backend.core.response import StandardResponse, success_response
 
 logger = logging.getLogger("smart_clinic")
@@ -27,7 +28,7 @@ router = APIRouter(prefix="/treatments", tags=["Treatments"])
     "",
     response_model=StandardResponse[schemas.Treatment],
     summary="Create treatment",
-    description="Create a new dental treatment record. Auto-calculates price from price list and deducts stock for consumed materials. Requires TREATMENT_PLAN_WRITE permission.",
+    description="Create a new dental treatment record. Auto-calculates price from price list and deducts stock for consumed materials. Requires TREATMENT_PLAN_WRITE permission. Field 'cost' represents total before discount; 'tooth_number' is mandatory for dental procedures.",
 )
 async def create_treatment(
     request: Request,
@@ -176,7 +177,6 @@ def save_treatment_materials(
 
         # For NON_DIVISIBLE: deduct stock immediately
         if material.type == "NON_DIVISIBLE" and item.quantity_used:
-            from backend.services.inventory_service import inventory_service
             try:
                 inventory_service.consume_stock(
                     material_id=item.material_id,
@@ -186,7 +186,8 @@ def save_treatment_materials(
                     db=db,
                 )
             except ValueError as e:
-                logger.warning(f"Could not consume stock for material {item.material_id}: {e}")
+                logger.error(f"Stock consumption failed: {e}")
+                raise HTTPException(status_code=400, detail=str(e))
 
         # Create usage record
         usage = inv_models.TreatmentMaterialUsage(
