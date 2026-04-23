@@ -19,7 +19,10 @@ const AddMaterialModal = ({ isOpen, onClose, initialData = null }) => {
     // Fetch categories
     const { data: categories = [] } = useQuery({
         queryKey: ['material-categories'],
-        queryFn: getCategories,
+        queryFn: async () => {
+            const res = await getCategories();
+            return Array.isArray(res.data) ? res.data : [];
+        },
         enabled: isOpen,
         staleTime: 5 * 60 * 1000
     });

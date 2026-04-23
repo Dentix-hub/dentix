@@ -10,8 +10,20 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
     const queryClient = useQueryClient();
     const [isAddWarehouseOpen, setIsAddWarehouseOpen] = useState(false);
     // Data Fetching
-    const { data: materials } = useQuery({ queryKey: ['inventory-materials'], queryFn: async () => (await getMaterials()).data });
-    const { data: warehouses } = useQuery({ queryKey: ['inventory-warehouses'], queryFn: async () => (await getWarehouses()).data });
+    const { data: materials = [] } = useQuery({
+        queryKey: ['inventory-materials'],
+        queryFn: async () => {
+            const res = await getMaterials();
+            return Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
+        }
+    });
+    const { data: warehouses = [] } = useQuery({
+        queryKey: ['inventory-warehouses'],
+        queryFn: async () => {
+            const res = await getWarehouses();
+            return Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
+        }
+    });
     // Helper to get today's date in YYYY-MM-DD format
     const getToday = () => new Date().toISOString().split('T')[0];
     const [formData, setFormData] = useState({
