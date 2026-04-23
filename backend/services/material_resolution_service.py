@@ -54,6 +54,12 @@ class MaterialResolutionService:
         # 1. Resolve Procedure
         proc = self.db.query(clinical_models.Procedure).filter(clinical_models.Procedure.id == procedure_id).first()
         if not proc:
+            # LOG THE FAILURE
+            try:
+                with open("suggestion_debug.log", "a", encoding="utf-8") as f:
+                    from datetime import datetime
+                    f.write(f"[{datetime.now()}] !!! PROCEDURE NOT FOUND IN DB: ID={procedure_id}\n")
+            except: pass
             return suggestions
 
         proc_norm = self._normalize_name(proc.name)

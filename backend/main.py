@@ -106,10 +106,18 @@ async def lifespan(app: FastAPI):
 
     # 4. FIX: Seed Global Procedures + Propagate to Tenants
     try:
-        logger.info("[STARTUP] Seeding Global Procedures...")
         from backend.scripts.seed_procedures import seed_procedures
+        from backend.scripts.seed_material_categories import seed_material_categories
+        from backend.scripts.seed_procedure_material_defaults import seed_procedure_material_defaults
 
+        logger.info("[STARTUP] Seeding Global Procedures...")
         seed_procedures()
+        
+        logger.info("[STARTUP] Seeding Material Categories...")
+        seed_material_categories()
+        
+        logger.info("[STARTUP] Seeding Procedure-Material Defaults...")
+        seed_procedure_material_defaults()
         logger.info("[STARTUP] Global Procedures Seeded.")
 
         logger.info("[STARTUP] Running Global Procedure Propagation...")
