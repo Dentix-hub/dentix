@@ -61,7 +61,6 @@ def get_category_based_suggestions(
     suggestions = service.resolve_materials_for_procedure(
         procedure_id=procedure_id,
         tenant_id=tenant_id,
-        doctor_id=effective_doctor_id,
     )
     return success_response(data=suggestions)
 
