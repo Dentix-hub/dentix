@@ -289,24 +289,34 @@ class InventoryLearningService:
         1. Defined Weights (ProcedureMaterialWeight) - Primary Source
         2. Learning History (MaterialLearningLog) - Adaptive Adjustment
         """
-        # 1. Get Base Weights
+        # 1. Get Base Weights (only those with a specific material assigned)
         weights = (
             self.db.query(inv_models.ProcedureMaterialWeight)
             .options(joinedload(inv_models.ProcedureMaterialWeight.material))
-            .filter(inv_models.ProcedureMaterialWeight.procedure_id == procedure_id)
+            .filter(
+                inv_models.ProcedureMaterialWeight.procedure_id == procedure_id,
+                inv_models.ProcedureMaterialWeight.material_id.isnot(None),
+            )
             .all()
         )
 
         suggestions = []
 
         for w in weights:
+            # Skip if material relationship is None (data integrity guard)
+            if not w.material:
+                logger.warning(
+                    f"ProcedureMaterialWeight {w.id} has material_id={w.material_id} but material is None"
+                )
+                continue
+
             # Base quantity from weight
             quantity = w.weight
             confidence = 0.8
             reason = "Standard Protocol"
 
             # 2. Adjust based on history (Smart Learning)
-            if w.current_average_usage and w.sample_size > 5:
+            if w.current_average_usage and w.sample_size and w.sample_size > 5:
                 # If we have enough data, lean towards the average usage
                 quantity = w.current_average_usage
                 confidence = 0.95
