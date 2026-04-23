@@ -10,9 +10,12 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
     const [selectedStockId, setSelectedStockId] = useState(stockItem?.id || '');
     const [isSubmitting, setIsSubmitting] = useState(false);
     // Fetch batches if we don't have a specific stock item but have material
-    const { data: batches, isLoading: isLoadingBatches } = useQuery({
+    const { data: batches = [], isLoading: isLoadingBatches } = useQuery({
         queryKey: ['material-stock', material?.id],
-        queryFn: () => getMaterialStock(material?.id),
+        queryFn: async () => {
+            const res = await getMaterialStock(material?.id);
+            return Array.isArray(res.data) ? res.data : [];
+        },
         enabled: isOpen && mode === 'OPEN' && !stockItem && !!material?.id,
     });
     useEffect(() => {
@@ -109,14 +112,14 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
                                             onChange={e => setSelectedStockId(e.target.value)}
                                         >
                                             <option value="">{t('inventory.track_session.select_placeholder')}</option>
-                                            {batches?.data?.map(b => (
+                                            {batches.map(b => (
                                                 <option key={b.id} value={b.id}>
                                                     {b.warehouse?.name || 'مخزن'} - Batch: {b.batch?.batch_number} (Exp: {b.batch?.expiry_date}) - Qty: {b.quantity}
                                                 </option>
                                             ))}
                                         </select>
                                     )}
-                                    {batches?.data?.length === 0 && (
+                                    {batches.length === 0 && (
                                         <p className="text-red-500 text-sm mt-1">{t('inventory.track_session.empty_stock')}</p>
                                     )}
                                 </div>
