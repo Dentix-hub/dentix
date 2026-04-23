@@ -10,6 +10,7 @@ from ..services.inventory_learning_service import InventoryLearningService
 from ..services.material_resolution_service import MaterialResolutionService
 from ..models import inventory as inv_models
 from backend.core.response import StandardResponse, success_response, error_response
+from .auth import get_current_user
 
 router = APIRouter(prefix="/inventory/smart", tags=["Inventory Smart"])
 
