@@ -182,6 +182,13 @@ async def add_process_time_header(request: Request, call_next):
     process_time = time.time() - start_time
     response.headers["X-Process-Time"] = f"{process_time:.3f}"
 
+    # DIAGNOSTIC: Log 405 Method Not Allowed errors
+    if response.status_code == 405:
+        logger.error(
+            f"[API_ROUTING_CONFLICT] 405 Method Not Allowed: {request.method} {request.url.path} "
+            f"| Headers: {dict(request.headers)}"
+        )
+
     if process_time > 1.0:
         logger.warning(
             f"SLOW REQUEST: {request.method} {request.url.path} took {process_time:.2f}s"
@@ -297,10 +304,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 
+app.include_router(treatments.router, prefix=API_V1_STR)
+app.include_router(patients.router, prefix=API_V1_STR)
 app.include_router(auth.router, prefix=f"{API_V1_STR}/auth")
 app.include_router(password_reset.router, prefix=f"{API_V1_STR}/auth")
-app.include_router(patients.router, prefix=API_V1_STR)
-app.include_router(treatments.router, prefix=API_V1_STR)
 app.include_router(appointments.router, prefix=API_V1_STR)
 app.include_router(users.router, prefix=API_V1_STR)
 app.include_router(payments.router, prefix=API_V1_STR)
