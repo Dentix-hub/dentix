@@ -47,7 +47,7 @@ export function EnhancedMaterialConsumption({
             return;
         }
         // Case 3: Modal is open and we have data to initialize with
-        if (isOpen && !hasInitializedRef.current && availableMaterials.length > 0) {
+        if (isOpen && !hasInitializedRef.current && Array.isArray(availableMaterials) && availableMaterials.length > 0 && Array.isArray(initialMaterials)) {
             const mapped = initialMaterials.map(m => {
                 const matInfo = availableMaterials.find(am => am.id === parseInt(m.material_id)) || {};
                 return {
@@ -64,16 +64,18 @@ export function EnhancedMaterialConsumption({
         }
     }, [isOpen, availableMaterials, initialMaterials]);
     // Pre-flight Stock Check
-    const { data: stockCheckData } = useQuery({
+    const { data: rawStockCheckData } = useQuery({
         queryKey: ['stock-check', materials],
         queryFn: async () => {
             if (materials.length === 0) return [];
             const payload = materials.map(m => ({ material_id: m.materialId, quantity: m.quantity }));
             const res = await api.post('/api/v1/inventory/smart/check-availability', payload);
-            return res.data?.data || [];
+            const rawData = res.data?.data;
+            return Array.isArray(rawData) ? rawData : [];
         },
         enabled: materials.length > 0
     });
+    const stockCheckData = Array.isArray(rawStockCheckData) ? rawStockCheckData : [];
     const addManualMaterial = (materialId) => {
         const mat = availableMaterials.find(m => m.id === parseInt(materialId));
         if (!mat) return;
@@ -197,7 +199,7 @@ export function EnhancedMaterialConsumption({
                                         value=""
                                     >
                                         <option value="">-- اختر مادة --</option>
-                                        {availableMaterials.map(m => (
+                                        {Array.isArray(availableMaterials) && availableMaterials.map(m => (
                                             <option key={m.id} value={m.id}>{m.name} ({m.quantity} {m.base_unit})</option>
                                         ))}
                                     </select>

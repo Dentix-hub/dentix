@@ -8,7 +8,7 @@ from ..core.permissions import require_permission, Permission
 from ..services.inventory_learning_service import InventoryLearningService
 from ..services.material_resolution_service import MaterialResolutionService
 from ..models import inventory as inv_models
-from backend.core.response import StandardResponse, success_response
+from backend.core.response import StandardResponse, success_response, error_response
 
 router = APIRouter(prefix="/inventory/smart", tags=["Inventory Smart"])
 
@@ -50,19 +50,28 @@ def get_category_based_suggestions(
     Get category-based material suggestions for a procedure.
     Returns materials grouped by category with active session status.
     """
-    service = MaterialResolutionService(db)
-    tenant_id = current_user.tenant_id or 1
+    try:
+        service = MaterialResolutionService(db)
+        tenant_id = current_user.tenant_id or 1
 
-    # Use current doctor if not specified and user is a doctor
-    effective_doctor_id = doctor_id
-    if not effective_doctor_id and current_user.role == "doctor":
-        effective_doctor_id = current_user.id
+        # Use current doctor if not specified and user is a doctor
+        effective_doctor_id = doctor_id
+        if not effective_doctor_id and current_user.role == "doctor":
+            effective_doctor_id = current_user.id
 
-    suggestions = service.resolve_materials_for_procedure(
-        procedure_id=procedure_id,
-        tenant_id=tenant_id,
-    )
-    return success_response(data=suggestions)
+        suggestions = service.resolve_materials_for_procedure(
+            procedure_id=procedure_id,
+            tenant_id=tenant_id,
+        )
+        return success_response(data=suggestions)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return error_response(
+            message=f"Failed to resolve materials: {str(e)}",
+            status_code=500,
+            details=str(e)
+        )
 
 
 @router.post("/check-availability")
