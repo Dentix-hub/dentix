@@ -51,7 +51,10 @@ def create_appointment(db: Session, appointment: schemas.AppointmentCreate):
     db.add(db_appointment)
     db.commit()
     db.refresh(db_appointment)
-    invalidate_dashboard_cache(db_appointment.tenant_id)
+    # Fetch tenant_id from patient for cache invalidation
+    patient = db.query(models.Patient).filter(models.Patient.id == db_appointment.patient_id).first()
+    if patient:
+        invalidate_dashboard_cache(patient.tenant_id)
     return db_appointment
 
 

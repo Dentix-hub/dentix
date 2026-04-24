@@ -313,7 +313,10 @@ async def readiness_probe(db: AsyncSession = Depends(get_async_db)):
         # Quick database check
         result = (await db.execute(text("SELECT 1"))).fetchone()
         if result:
-            return {"status": "ready"}
+            return {
+                "status": "ready",
+                "checks": {"database": {"status": "up"}}
+            }
         else:
             raise HTTPException(status_code=503, detail="Database not ready")
     except Exception as e:
