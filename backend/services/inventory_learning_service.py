@@ -308,13 +308,13 @@ class InventoryLearningService:
 
         for w in weights:
             resolved_materials = []
-            
+
             # CASE A: Specific Material assigned to this weight
             if w.material_id:
                 mat = self.db.query(inv_models.Material).filter(inv_models.Material.id == w.material_id).first()
                 if mat:
                     resolved_materials.append(mat)
-            
+
             # CASE B: Category assigned - Find materials in this category for this tenant
             elif w.category_id:
                 mats = (

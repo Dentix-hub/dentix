@@ -294,7 +294,6 @@ class TreatmentService:
     def add_session(self, session_data: schemas.clinical.TreatmentSessionCreate) -> models.TreatmentSession:
         """Add a treatment session."""
         from fastapi import HTTPException
-        from datetime import datetime
 
         # Verify treatment exists and belongs to tenant
         treatment = (

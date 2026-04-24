@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
-from datetime import datetime
 from .base import Base
+from datetime import datetime, timezone
 
 
 class SecurityEvent(Base):

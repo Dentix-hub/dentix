@@ -96,7 +96,7 @@ def get_current_user(
             # logger.info("DEBUG: Username is None")
             raise credentials_exception
         token_data = schemas.TokenData(username=username, tenant_id=tenant_id)
-    except auth.JWTError as e:
+    except auth.JWTError:
         logger.debug("JWT error for user: %s", username if 'username' in locals() else "unknown")
         raise credentials_exception
     except Exception as e:
