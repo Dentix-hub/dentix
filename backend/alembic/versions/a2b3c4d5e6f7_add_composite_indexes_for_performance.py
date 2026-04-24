@@ -19,81 +19,38 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # Use inspector to check for existence
+    from sqlalchemy.engine.reflection import Inspector
+    conn = op.get_bind()
+    inspector = Inspector.from_engine(conn)
+    
+    # Helper to create index if not exists
+    def create_idx_safe(idx_name, table_name, columns):
+        existing_indexes = [idx["name"] for idx in inspector.get_indexes(table_name)]
+        if idx_name not in existing_indexes:
+            op.create_index(idx_name, table_name, columns, unique=False)
+
     # Patient composite indexes
-    op.create_index(
-        "idx_patient_tenant_active",
-        "patients",
-        ["tenant_id", "is_active"],
-        unique=False,
-    )
-    op.create_index(
-        "idx_patient_tenant_deleted",
-        "patients",
-        ["tenant_id", "is_deleted"],
-        unique=False,
-    )
-    op.create_index(
-        "idx_patient_name_search",
-        "patients",
-        ["name", "tenant_id"],
-        unique=False,
-    )
-    op.create_index(
-        "idx_patient_phone",
-        "patients",
-        ["phone", "tenant_id"],
-        unique=False,
-    )
-    op.create_index(
-        "idx_patient_created",
-        "patients",
-        ["tenant_id", "created_at"],
-        unique=False,
-    )
+    create_idx_safe("idx_patient_tenant_active", "patients", ["tenant_id", "is_active"])
+    create_idx_safe("idx_patient_tenant_deleted", "patients", ["tenant_id", "is_deleted"])
+    create_idx_safe("idx_patient_name_search", "patients", ["name", "tenant_id"])
+    create_idx_safe("idx_patient_phone", "patients", ["phone", "tenant_id"])
+    create_idx_safe("idx_patient_created", "patients", ["tenant_id", "created_at"])
 
     # Appointment composite index
-    op.create_index(
-        "idx_appointment_tenant_status_date",
-        "appointments",
-        ["tenant_id", "status", "date_time"],
-        unique=False,
-    )
+    create_idx_safe("idx_appointment_tenant_status_date", "appointments", ["tenant_id", "status", "date_time"])
 
     # Payment composite indexes
-    op.create_index(
-        "idx_payment_tenant_date",
-        "payments",
-        ["tenant_id", "date"],
-        unique=False,
-    )
-    op.create_index(
-        "idx_payment_patient",
-        "payments",
-        ["patient_id", "date"],
-        unique=False,
-    )
+    create_idx_safe("idx_payment_tenant_date", "payments", ["tenant_id", "date"])
+    create_idx_safe("idx_payment_patient", "payments", ["patient_id", "date"])
 
     # User composite index
-    op.create_index(
-        "idx_user_tenant_role",
-        "users",
-        ["tenant_id", "role", "is_active"],
-        unique=False,
-    )
+    create_idx_safe("idx_user_tenant_role", "users", ["tenant_id", "role", "is_active"])
 
     # Treatment composite indexes
-    op.create_index(
-        "idx_treatment_patient",
-        "treatments",
-        ["patient_id", "created_at"],
-        unique=False,
-    )
-    op.create_index(
-        "idx_treatment_appointment",
-        "treatments",
-        ["appointment_id"],
-        unique=False,
-    )
+    create_idx_safe("idx_treatment_patient", "treatments", ["patient_id", "created_at"])
+    create_idx_safe("idx_treatment_appointment", "treatments", ["appointment_id"])
+
 
 
 def downgrade() -> None:
