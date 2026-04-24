@@ -7,7 +7,7 @@ Follows Single Responsibility Principle with extracted helper methods.
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime, date, timezone
+from datetime import datetime, date
 from typing import Optional
 from backend import models, schemas
 from backend.crud import billing as billing_crud
@@ -19,7 +19,7 @@ class BillingService:
     def __init__(self, db: Session, tenant_id: int):
         self.db = db
         self.tenant_id = tenant_id
-        self._today_start = datetime.now(timezone.utc).replace(
+        self._today_start = datetime.utcnow().replace(
             hour=0, minute=0, second=0, microsecond=0
         )
 
@@ -101,7 +101,7 @@ class BillingService:
     def _calculate_monthly_revenue(self) -> float:
         """Calculate revenue for the current month."""
         # Get first day of current month
-        today = datetime.now(timezone.utc)
+        today = datetime.utcnow()
         month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
         return self._scalar(

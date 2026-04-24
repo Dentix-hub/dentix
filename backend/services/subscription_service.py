@@ -28,11 +28,16 @@ class SubscriptionService:
 
         now = datetime.now(timezone.utc)
 
-        if now <= tenant.subscription_end_date:
+        sub_end = tenant.subscription_end_date
+        if sub_end and sub_end.tzinfo is None:
+            sub_end = sub_end.replace(tzinfo=timezone.utc)
+        if now <= sub_end:
             return "active"
 
         # 3. Check Grace Period
         grace_end = tenant.grace_period_until
+        if grace_end and grace_end.tzinfo is None:
+            grace_end = grace_end.replace(tzinfo=timezone.utc)
 
         if grace_end and now <= grace_end:
             return "grace_period"
@@ -220,11 +225,15 @@ class SubscriptionService:
         db.add(payment)
 
         # Update tenant subscription
+        now = datetime.now(timezone.utc)
+        sub_end = tenant.subscription_end_date
+        if sub_end and sub_end.tzinfo is None:
+            sub_end = sub_end.replace(tzinfo=timezone.utc)
         target_date = (
             tenant.subscription_end_date
             if tenant.subscription_end_date
-            and tenant.subscription_end_date > datetime.now(timezone.utc)
-            else datetime.now(timezone.utc)
+            and sub_end > now
+            else now
         )
         tenant.subscription_end_date = target_date + timedelta(days=plan.duration_days)
         tenant.plan = plan.name

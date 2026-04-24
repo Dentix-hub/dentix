@@ -35,7 +35,7 @@ class RequestMetric:
     method: str
     status_code: int
     duration_ms: float
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=datetime.utcnow)
 
 
 class MetricsCollector:
