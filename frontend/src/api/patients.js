@@ -8,9 +8,7 @@ export const updatePatient = (id, data) => api.put(`/api/v1/patients/${id}`, dat
 export const deletePatient = (id) => api.delete(`/api/v1/patients/${id}`);
 
 export const getPatientTeeth = (patientId) => api.get(`/api/v1/patients/${patientId}/tooth_status`);
-export const updateToothStatus = (data) => api.post('/api/v1/treatments/tooth_status', data);
 
-export const getPatientTreatments = (patientId) => api.get(`/api/v1/patients/${patientId}/treatments`);
 export const getPatientPayments = (patientId) => api.get(`/api/v1/patients/${patientId}/payments`);
 export const getPatientLabOrders = (patientId) => api.get(`/api/v1/patients/${patientId}/lab_orders`);
 
