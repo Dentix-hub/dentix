@@ -21,23 +21,23 @@ if not os.path.exists(env_path):
 load_dotenv(env_path)
 
 # --- DATABASE CONFIGURATION ---
-# STRICT PRODUCTION ENFORCEMENT: raise error if missing
+SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not SQLALCHEMY_DATABASE_URL:
+    print("❌ [CRITICAL] DATABASE_URL environment variable is missing!")
+    print("👉 Please add it to your environment variables or HuggingFace Secrets.")
+    raise RuntimeError("DATABASE_URL is required but not set.")
+
+# Diagnostic logging (Masked for security)
 try:
-    SQLALCHEMY_DATABASE_URL = os.environ["DATABASE_URL"]
-    # Diagnostic logging (Masked for security)
-    try:
+    if "@" in SQLALCHEMY_DATABASE_URL:
         host_part = SQLALCHEMY_DATABASE_URL.split("@")[-1].split("/")[0]
-        # Extract Project ID (e.g. postgres.project_id:password)
-        project_id = SQLALCHEMY_DATABASE_URL.split("@")[0].split(":")[-2].split(".")[-1]
-        print(f"[DB_DIAGNOSTIC] Host: {host_part}")
-        print(f"[DB_DIAGNOSTIC] Project ID: {project_id}")
-    except Exception as e:
-        print(f"[DB_DIAGNOSTIC] Could not parse DB URL for diagnosis: {e}")
-except KeyError:
-    raise RuntimeError(
-        "DATABASE_URL environment variable is required and not set. "
-        "For tests, set DATABASE_URL=sqlite:///:memory: explicitly."
-    )
+        print(f"ℹ️ [DB_DIAGNOSTIC] Connecting to host: {host_part}")
+    else:
+        print("ℹ️ [DB_DIAGNOSTIC] Connecting to local/sqlite database")
+except Exception as e:
+    print(f"⚠️ [DB_DIAGNOSTIC] Could not parse DB URL for diagnosis: {e}")
+
 
 # Normalize PostgreSQL URL format
 if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
