@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
@@ -323,7 +323,7 @@ def close_material_session(
         else:
             # NON_DIVISIBLE: Just close session, keep remaining quantity
             session.status = "CLOSED"
-            session.closed_at = datetime.utcnow()
+            session.closed_at = datetime.now(timezone.utc)
 
             remaining = session.stock_item.quantity if session.stock_item else 0
             db.commit()

@@ -48,7 +48,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         )
         response.headers["Content-Security-Policy"] = csp_policy
 
-        # 6. Referrer-Policy
+        # 6. Permissions-Policy
+        # Restrict browser APIs for a medical application
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        )
+
+        # 7. Referrer-Policy
         # Control how much referrer info is sent
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 

@@ -8,7 +8,7 @@ Tests for authentication hardening features:
 import uuid
 
 import pyotp
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from backend.models.user import User
 
@@ -70,7 +70,7 @@ def test_account_lockout(db_session, client, test_tenant):
     # --- Phase 4: Simulate lockout expiry (set locked_until to the past) ---
     db_session.expire_all()
     user = db_session.query(User).filter(User.username == "lockout_user").first()
-    user.account_locked_until = datetime.utcnow() - timedelta(minutes=1)
+    user.account_locked_until = datetime.now(timezone.utc) - timedelta(minutes=1)
     db_session.commit()
 
     # Now login should succeed

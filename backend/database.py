@@ -34,13 +34,10 @@ try:
     except Exception as e:
         print(f"[DB_DIAGNOSTIC] Could not parse DB URL for diagnosis: {e}")
 except KeyError:
-    import warnings
-    warnings.warn(
-        "DATABASE_URL is not set. Using sqlite:///:memory: for fallback/testing.",
-        RuntimeWarning,
-        stacklevel=2,
+    raise RuntimeError(
+        "DATABASE_URL environment variable is required and not set. "
+        "For tests, set DATABASE_URL=sqlite:///:memory: explicitly."
     )
-    SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 # Normalize PostgreSQL URL format
 if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):

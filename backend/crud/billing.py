@@ -1,8 +1,8 @@
 import logging
-from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime, date
+from sqlalchemy.orm import Session, joinedload
 from backend import models, schemas
+from backend.services.cache_service import invalidate_dashboard_cache
 from .patient import get_patient
 
 logger = logging.getLogger(__name__)
@@ -289,6 +289,7 @@ def create_payment(
     db.add(db_payment)
     db.commit()
     db.refresh(db_payment)
+    invalidate_dashboard_cache(tenant_id)
     return db_payment
 
 
@@ -379,7 +380,7 @@ def get_financial_stats(db: Session, tenant_id: int, doctor_id: int = None):
     Get financial statistics for a tenant.
     """
 
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
     # Treatments - all time
     treatments_query = (
@@ -570,7 +571,7 @@ def get_dashboard_stats(db: Session, tenant_id: int, doctor_id: int = None):
     total_patients = patients_query.scalar() or 0
 
     # 2. Today's Appointments Count
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
     # 2. New Patients Today
     new_patients_query = db.query(func.count(models.Patient.id)).filter(
@@ -607,7 +608,7 @@ def get_dashboard_stats(db: Session, tenant_id: int, doctor_id: int = None):
     total_appointments_today = appointments_query.scalar() or 0
 
     # 4. Revenue Chart (Last 7 Days)
-    from datetime import timedelta
+    from datetime import timedelta, timezone
 
     chart_data = []
     for i in range(6, -1, -1):

@@ -19,14 +19,14 @@ from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 import time
 import os
 import logging
 import shutil
 import psutil
-from backend.database import get_db, engine
+from backend.database import get_async_db, engine
 from backend.core.permissions import Permission, require_permission
 from backend import models
 
@@ -76,11 +76,11 @@ class DetailedHealthResponse(BaseModel):
 # ============================================
 
 
-async def check_database(db: Session) -> ComponentHealth:
+async def check_database(db: AsyncSession) -> ComponentHealth:
     """Check database connectivity and latency."""
     try:
         start = time.time()
-        result = db.execute(text("SELECT 1")).fetchone()
+        result = (await db.execute(text("SELECT 1"))).fetchone()
         latency = (time.time() - start) * 1000
 
         if result:
@@ -98,7 +98,7 @@ async def check_database(db: Session) -> ComponentHealth:
         return ComponentHealth(status="down", message=f"Database error: {str(e)}")
 
 
-async def check_migrations(db: Session) -> ComponentHealth:
+async def check_migrations(db: AsyncSession) -> ComponentHealth:
     """Check if database migrations are up to date."""
     try:
         # Check for required columns from latest migration
@@ -113,7 +113,7 @@ async def check_migrations(db: Session) -> ComponentHealth:
         missing = []
         for table, column in required_columns:
             try:
-                db.execute(text(f"SELECT {column} FROM {table} LIMIT 1"))
+                await db.execute(text(f"SELECT {column} FROM {table} LIMIT 1"))
             except Exception:
                 missing.append(f"{table}.{column}")
 
@@ -249,7 +249,7 @@ async def health_check():
 
 @router.get("/detailed", response_model=DetailedHealthResponse)
 async def detailed_health_check(
-    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+    db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
 ):
     """
     Detailed health check with component status.
@@ -303,7 +303,7 @@ async def liveness_probe():
 
 
 @router.get("/ready")
-async def readiness_probe(db: Session = Depends(get_db)):
+async def readiness_probe(db: AsyncSession = Depends(get_async_db)):
     """
     Kubernetes readiness probe.
     Returns 200 if the application is ready to receive traffic.
@@ -311,7 +311,7 @@ async def readiness_probe(db: Session = Depends(get_db)):
     """
     try:
         # Quick database check
-        result = db.execute(text("SELECT 1")).fetchone()
+        result = (await db.execute(text("SELECT 1"))).fetchone()
         if result:
             return {"status": "ready"}
         else:
@@ -335,8 +335,14 @@ async def startup_check():
     }
 
 
+def _ensure_not_production():
+    if os.getenv("ENVIRONMENT", "development").lower() == "production":
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
 @router.get("/stress-metrics")
 def get_stress_metrics():
+    _ensure_not_production()
     """
     Real-time metrics for stress testing monitoring.
     Returns DB pool stats, CPU, and Memory usage.
@@ -366,21 +372,22 @@ def get_stress_metrics():
 
 
 @router.get("/debug/procedures")
-def debug_procedures(db: Session = Depends(get_db)):
+async def debug_procedures(db: AsyncSession = Depends(get_async_db)):
+    _ensure_not_production()
     """
     Debug endpoint to check procedure seeding status.
     Public - no auth required for debugging.
     """
     try:
-        total_procs = db.execute(text("SELECT COUNT(*) FROM procedures")).scalar()
-        global_procs = db.execute(
+        total_procs = (await db.execute(text("SELECT COUNT(*) FROM procedures"))).scalar()
+        global_procs = (await db.execute(
             text("SELECT COUNT(*) FROM procedures WHERE tenant_id IS NULL")
-        ).scalar()
-        tenant_count = db.execute(text("SELECT COUNT(*) FROM tenants")).scalar()
-        price_list_count = db.execute(text("SELECT COUNT(*) FROM price_lists")).scalar()
-        price_list_item_count = db.execute(
+        )).scalar()
+        tenant_count = (await db.execute(text("SELECT COUNT(*) FROM tenants"))).scalar()
+        price_list_count = (await db.execute(text("SELECT COUNT(*) FROM price_lists"))).scalar()
+        price_list_item_count = (await db.execute(
             text("SELECT COUNT(*) FROM price_list_items")
-        ).scalar()
+        )).scalar()
 
         return {
             "total_procedures": total_procs,

@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, ConfigDict
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class LaboratoryBase(BaseModel):
@@ -83,7 +83,7 @@ class LabOrder(LabOrderBase):
 class LabPaymentBase(BaseModel):
     laboratory_id: int
     amount: float
-    date: datetime = datetime.utcnow()
+    date: datetime = datetime.now(timezone.utc)
     notes: Optional[str] = None
     method: str = "Cash"
 

@@ -30,7 +30,7 @@ router = APIRouter(prefix="/treatments", tags=["Treatments"])
     summary="Create treatment",
     description="Create a new dental treatment record. Auto-calculates price from price list and deducts stock for consumed materials. Requires TREATMENT_PLAN_WRITE permission. Field 'cost' represents total before discount; 'tooth_number' is mandatory for dental procedures.",
 )
-async def create_treatment(
+def create_treatment(
     request: Request,
     treatment: schemas.TreatmentCreate,
     db: Session = Depends(get_db),

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import logging
 import sys
@@ -75,7 +75,7 @@ def log_admin_action(
             performed_by_id=admin_user.id,
             performed_by_username=admin_user.username,
             details=details,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
 
         if old_value:

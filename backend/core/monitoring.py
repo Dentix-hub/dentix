@@ -17,7 +17,7 @@ Usage:
     stats = metrics.get_stats()
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -35,7 +35,7 @@ class RequestMetric:
     method: str
     status_code: int
     duration_ms: float
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class MetricsCollector:
@@ -95,13 +95,13 @@ class MetricsCollector:
 
     def _cleanup(self) -> None:
         """Remove metrics older than retention period."""
-        cutoff = datetime.utcnow() - self._retention
+        cutoff = datetime.now(timezone.utc) - self._retention
         self._requests = [r for r in self._requests if r.timestamp > cutoff]
 
     def get_stats(self) -> Dict[str, Any]:
         """Get aggregated statistics."""
         with self._lock:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             last_minute = now - timedelta(minutes=1)
             last_5_minutes = now - timedelta(minutes=5)
 

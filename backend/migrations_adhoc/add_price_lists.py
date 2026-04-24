@@ -11,7 +11,7 @@ Adds columns:
 - appointments.price_list_id
 - treatments.price_list_id, unit_price, price_snapshot
 
-Run with: python backend/migrations/add_price_lists.py
+Run with: python backend/migrations_adhoc/add_price_lists.py
 """
 
 from sqlalchemy import text

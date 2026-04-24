@@ -153,7 +153,7 @@ def get_price_list(
         raise
     except Exception as e:
         logger.exception("An exception occurred", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"DEBUG ERROR: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/procedure/{procedure_id}/prices", response_model=StandardResponse[dict])

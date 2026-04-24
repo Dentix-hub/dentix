@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from typing import List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import func
 
 from backend import schemas
@@ -387,7 +387,7 @@ class InventoryService:
         # Create Session
         session = MaterialSession(
             stock_item_id=stock_item_id,
-            opened_at=datetime.utcnow(),
+            opened_at=datetime.now(timezone.utc),
             status="ACTIVE",
             remaining_est=1.0,  # 100%
             doctor_id=user_id,  # Initial opener
@@ -435,7 +435,7 @@ class InventoryService:
                 StockMovement.stock_item_id == session.stock_item_id,
                 StockMovement.change_amount < 0,
                 StockMovement.created_at >= session.opened_at,
-                StockMovement.created_at <= (session.closed_at or datetime.utcnow()),
+                StockMovement.created_at <= (session.closed_at or datetime.now(timezone.utc)),
             )
             .scalar()
             or 0.0

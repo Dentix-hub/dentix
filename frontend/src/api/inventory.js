@@ -1,4 +1,4 @@
-import api from './index';
+import { api } from './apiClient';
 
 // Warehouses
 export const getWarehouses = () => api.get('/api/v1/inventory/warehouses');

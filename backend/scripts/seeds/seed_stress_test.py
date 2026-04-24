@@ -11,7 +11,7 @@ import sys
 import os
 import random
 import codecs
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Add project root to path (parent of backend)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -71,7 +71,7 @@ PROCEDURES = [
 
 
 def get_random_date(days_back=365):
-    return datetime.utcnow() - timedelta(days=random.randint(0, days_back))
+    return datetime.now(timezone.utc) - timedelta(days=random.randint(0, days_back))
 
 
 def seed_stress_data():
@@ -97,7 +97,7 @@ def seed_stress_data():
                 tenant = models.Tenant(
                     name=clinic_name,
                     plan="enterprise",
-                    subscription_end_date=datetime.utcnow() + timedelta(days=365),
+                    subscription_end_date=datetime.now(timezone.utc) + timedelta(days=365),
                 )
                 db.add(tenant)
                 db.commit()

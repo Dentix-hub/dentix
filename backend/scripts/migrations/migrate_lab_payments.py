@@ -36,7 +36,7 @@ def migrate_lab_payments():
             Column("id", Integer, primary_key=True, index=True),
             Column("laboratory_id", Integer, ForeignKey("laboratories.id"), index=True),
             Column("amount", Float),
-            Column("date", DateTime, default=datetime.utcnow, index=True),
+            Column("date", DateTime, default=lambda: datetime.now(timezone.utc), index=True),
             Column("notes", Text, nullable=True),
             Column("method", String, default="Cash"),
             Column(

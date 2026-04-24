@@ -61,7 +61,7 @@ def submit_frontend_log(
             stack_trace=log.context.get("stack_trace"),
             path=log.context.get("path"),
             user_agent=log.context.get("user_agent"),
-            created_at=datetime.datetime.utcnow(),
+            created_at=datetime.datetime.now(timezone.utc),
         )
 
         db.add(new_log)

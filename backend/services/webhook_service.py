@@ -9,7 +9,7 @@ from typing import Dict, Any
 import hashlib
 import hmac
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class WebhookService:
@@ -25,7 +25,7 @@ class WebhookService:
 
     def prepare_payload(self, event: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Prepare stamped payload with signature."""
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
         payload = {"event": event, "data": data, "timestamp": timestamp}
 
         signature = self.generate_signature(payload, timestamp)

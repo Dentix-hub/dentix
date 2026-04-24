@@ -118,3 +118,12 @@ class TestHealthChecks:
 
         assert response.status_code == 200
         assert response.json()["status"] == "alive"
+
+    def test_readiness_probe_returns_ready(self, client):
+        """Test Kubernetes readiness probe."""
+        response = client.get("/api/v1/health/ready")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ready"
+        assert "checks" in data

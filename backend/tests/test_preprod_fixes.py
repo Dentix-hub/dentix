@@ -1,6 +1,6 @@
 import pytest
 from backend import crud, schemas, models
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Using db fixture from conftest.py implicitly
 
@@ -38,7 +38,7 @@ def test_soft_delete_appointment(db_session):
     patient = crud.create_patient(db_session, p_data, tenant_id)
 
     # 1. Create Appointment
-    appt_time = datetime.utcnow() + timedelta(days=1)
+    appt_time = datetime.now(timezone.utc) + timedelta(days=1)
     a_data = schemas.AppointmentCreate(
         patient_id=patient.id,
         date_time=appt_time,
@@ -66,7 +66,7 @@ def test_soft_delete_appointment(db_session):
 def test_double_booking_prevention(db_session):
     tenant_id = 999999
     doctor_id = 500
-    slot_time = datetime.utcnow() + timedelta(days=2)
+    slot_time = datetime.now(timezone.utc) + timedelta(days=2)
 
     p_data = schemas.PatientCreate(name="Double Book Test", age=40, phone="ENC3")
     patient = crud.create_patient(db_session, p_data, tenant_id)
