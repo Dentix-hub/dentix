@@ -17,9 +17,13 @@ depends_on = None
 
 
 def upgrade():
-    # Only add if it doesn't already exist (Alembic doesn't natively support IF NOT EXISTS in op.add_column easily without raw SQL or custom logic)
-    # But for a clean new migration, we use op.add_column
-    op.add_column('users', sa.Column('fcm_token', sa.String(), nullable=True))
+    from sqlalchemy.engine.reflection import Inspector
+    conn = op.get_bind()
+    inspector = Inspector.from_engine(conn)
+    columns = [c["name"] for c in inspector.get_columns("users")]
+    if "fcm_token" not in columns:
+        op.add_column('users', sa.Column('fcm_token', sa.String(), nullable=True))
+
 
 
 def downgrade():
