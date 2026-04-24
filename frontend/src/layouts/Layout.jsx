@@ -4,9 +4,9 @@ import {
     Home, Users, Banknote, Calendar, Menu, Settings as SettingsIcon, Package, LineChart, Globe,
     LogOut, Shield, Sun, Moon, FlaskConical, Brain, HelpCircle, AlertTriangle
 } from 'lucide-react';
+import logo from '@/assets/logo.png';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/auth/useAuth';
-const logo = '/logo.png';
 // Components
 import GlobalSearch from '@/shared/ui/GlobalSearch';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
