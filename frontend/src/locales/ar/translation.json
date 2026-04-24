@@ -706,11 +706,19 @@
             "search_placeholder": "بحث عن مادة...",
             "receive_stock": "استلام شحنة",
             "new_material": "مادة جديدة",
+            "add_category": "إضافة فئة",
             "smart_settings": "إعدادات التعلم الذكي",
             "edit": "تعديل",
             "delete": "حذف",
             "open_package": "فتح عبوة جديدة",
             "close_package": "إنهاء العبوة الحالية"
+        },
+        "categories": {
+            "add_new": "فئة جديدة",
+            "name_ar": "الاسم (بالعربية)",
+            "name_en": "الاسم (بالإنجليزي)",
+            "success_add": "تم إضافة الفئة بنجاح",
+            "fail_add": "فشل إضافة الفئة"
         },
         "filters": {
             "all": "الكل",
