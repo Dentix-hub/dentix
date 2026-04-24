@@ -47,12 +47,13 @@ class AuthService:
     def get_session_by_token(db: Session, refresh_token: str):
         """Find session by refresh token hash."""
         token_hash = AuthService.generate_token_hash(refresh_token)
+        now = datetime.now(timezone.utc)
         return (
             db.query(models.UserSession)
             .filter(
                 models.UserSession.token_hash == token_hash,
                 models.UserSession.is_active,
-                models.UserSession.expires_at > datetime.now(timezone.utc),
+                models.UserSession.expires_at > now,
             )
             .first()
         )
@@ -79,12 +80,13 @@ class AuthService:
     @staticmethod
     def get_user_sessions(db: Session, user_id: int):
         """Get all active sessions for a user."""
+        now = datetime.now(timezone.utc)
         return (
             db.query(models.UserSession)
             .filter(
                 models.UserSession.user_id == user_id,
                 models.UserSession.is_active,
-                models.UserSession.expires_at > datetime.now(timezone.utc),
+                models.UserSession.expires_at > now,
             )
             .all()
         )
