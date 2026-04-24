@@ -19,27 +19,45 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # Use inspector to check for existence
+    from sqlalchemy.engine.reflection import Inspector
+    conn = op.get_bind()
+    inspector = Inspector.from_engine(conn)
+    existing_tables = inspector.get_table_names()
+
     # 1. Create material_categories table
-    op.create_table(
-        "material_categories",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name_en", sa.String(), nullable=False),
-        sa.Column("name_ar", sa.String(), nullable=False),
-        sa.Column("default_type", sa.String(), server_default="DIVISIBLE", nullable=True),
-        sa.Column("default_unit", sa.String(), server_default="g", nullable=True),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("name_en"),
-    )
-    op.create_index(op.f("ix_material_categories_id"), "material_categories", ["id"], unique=False)
+    if "material_categories" not in existing_tables:
+        op.create_table(
+            "material_categories",
+            sa.Column("id", sa.Integer(), nullable=False),
+            sa.Column("name_en", sa.String(), nullable=False),
+            sa.Column("name_ar", sa.String(), nullable=False),
+            sa.Column("default_type", sa.String(), server_default="DIVISIBLE", nullable=True),
+            sa.Column("default_unit", sa.String(), server_default="g", nullable=True),
+            sa.PrimaryKeyConstraint("id"),
+            sa.UniqueConstraint("name_en"),
+        )
+        op.create_index(op.f("ix_material_categories_id"), "material_categories", ["id"], unique=False)
 
     # 2. Add category_id and brand to materials
-    op.add_column("materials", sa.Column("category_id", sa.Integer(), nullable=True))
-    op.add_column("materials", sa.Column("brand", sa.String(), nullable=True))
-    op.create_foreign_key("fk_materials_category_id", "materials", "material_categories", ["category_id"], ["id"])
+    material_columns = [c["name"] for c in inspector.get_columns("materials")]
+    if "category_id" not in material_columns:
+        op.add_column("materials", sa.Column("category_id", sa.Integer(), nullable=True))
+    if "brand" not in material_columns:
+        op.add_column("materials", sa.Column("brand", sa.String(), nullable=True))
+    
+    material_fks = inspector.get_foreign_keys("materials")
+    if not any(fk["name"] == "fk_materials_category_id" for fk in material_fks):
+        op.create_foreign_key("fk_materials_category_id", "materials", "material_categories", ["category_id"], ["id"])
 
     # 3. Add category_id to procedure_material_weights + make material_id nullable
-    op.add_column("procedure_material_weights", sa.Column("category_id", sa.Integer(), nullable=True))
-    op.create_foreign_key("fk_proc_weights_category_id", "procedure_material_weights", "material_categories", ["category_id"], ["id"])
+    weight_columns = [c["name"] for c in inspector.get_columns("procedure_material_weights")]
+    if "category_id" not in weight_columns:
+        op.add_column("procedure_material_weights", sa.Column("category_id", sa.Integer(), nullable=True))
+    
+    weight_fks = inspector.get_foreign_keys("procedure_material_weights")
+    if not any(fk["name"] == "fk_proc_weights_category_id" for fk in weight_fks):
+        op.create_foreign_key("fk_proc_weights_category_id", "procedure_material_weights", "material_categories", ["category_id"], ["id"])
 
     # Make material_id nullable (was NOT NULL)
     op.alter_column("procedure_material_weights", "material_id", nullable=True)
@@ -48,26 +66,28 @@ def upgrade() -> None:
     op.alter_column("procedure_material_weights", "tenant_id", nullable=True)
 
     # 4. Create treatment_material_usages table
-    op.create_table(
-        "treatment_material_usages",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("treatment_id", sa.Integer(), nullable=False),
-        sa.Column("material_id", sa.Integer(), nullable=False),
-        sa.Column("session_id", sa.Integer(), nullable=True),
-        sa.Column("weight_score", sa.Float(), server_default="1.0", nullable=True),
-        sa.Column("quantity_used", sa.Float(), nullable=True),
-        sa.Column("cost_calculated", sa.Float(), nullable=True),
-        sa.Column("is_manual_override", sa.Boolean(), server_default=sa.text("false"), nullable=True),
-        sa.Column("tenant_id", sa.Integer(), nullable=False),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=True),
-        sa.ForeignKeyConstraint(["treatment_id"], ["treatments.id"]),
-        sa.ForeignKeyConstraint(["material_id"], ["materials.id"]),
-        sa.ForeignKeyConstraint(["session_id"], ["material_sessions.id"]),
-        sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"]),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(op.f("ix_treatment_material_usages_id"), "treatment_material_usages", ["id"], unique=False)
-    op.create_index(op.f("ix_treatment_material_usages_treatment_id"), "treatment_material_usages", ["treatment_id"], unique=False)
+    if "treatment_material_usages" not in existing_tables:
+        op.create_table(
+            "treatment_material_usages",
+            sa.Column("id", sa.Integer(), nullable=False),
+            sa.Column("treatment_id", sa.Integer(), nullable=False),
+            sa.Column("material_id", sa.Integer(), nullable=False),
+            sa.Column("session_id", sa.Integer(), nullable=True),
+            sa.Column("weight_score", sa.Float(), server_default="1.0", nullable=True),
+            sa.Column("quantity_used", sa.Float(), nullable=True),
+            sa.Column("cost_calculated", sa.Float(), nullable=True),
+            sa.Column("is_manual_override", sa.Boolean(), server_default=sa.text("false"), nullable=True),
+            sa.Column("tenant_id", sa.Integer(), nullable=False),
+            sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=True),
+            sa.ForeignKeyConstraint(["treatment_id"], ["treatments.id"]),
+            sa.ForeignKeyConstraint(["material_id"], ["materials.id"]),
+            sa.ForeignKeyConstraint(["session_id"], ["material_sessions.id"]),
+            sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"]),
+            sa.PrimaryKeyConstraint("id"),
+        )
+        op.create_index(op.f("ix_treatment_material_usages_id"), "treatment_material_usages", ["id"], unique=False)
+        op.create_index(op.f("ix_treatment_material_usages_treatment_id"), "treatment_material_usages", ["treatment_id"], unique=False)
+
 
 
 def downgrade() -> None:
