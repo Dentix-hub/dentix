@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from backend.services.patient_service import PatientService
 from backend import models
 
@@ -32,7 +32,7 @@ def test_service_fixes(db_session):
             patient_id=p.id,
             procedure="Test Procedure",
             cost=500.0,
-            date=datetime.utcnow(),
+            date=datetime.now(timezone.utc),
             tenant_id=tenant_id,
             doctor_id=doctor.id
         )

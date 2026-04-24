@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session, joinedload
 from backend import models, schemas
+from backend.services.cache_service import invalidate_dashboard_cache
 
 
 def get_appointments(
@@ -50,6 +51,7 @@ def create_appointment(db: Session, appointment: schemas.AppointmentCreate):
     db.add(db_appointment)
     db.commit()
     db.refresh(db_appointment)
+    invalidate_dashboard_cache(db_appointment.tenant_id)
     return db_appointment
 
 
@@ -70,6 +72,7 @@ def update_appointment_status(
         db_appt.status = status
         db.commit()
         db.refresh(db_appt)
+        invalidate_dashboard_cache(tenant_id)
     return db_appt
 
 
@@ -89,7 +92,9 @@ def delete_appointment(db: Session, appointment_id: int, tenant_id: int):
     )
     if db_appt:
         db_appt.is_deleted = True
-        db_appt.deleted_at = datetime.utcnow()
+        from datetime import timezone
+        db_appt.deleted_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(db_appt)
+        invalidate_dashboard_cache(tenant_id)
     return db_appt

@@ -3,6 +3,7 @@ import { login as apiLogin, registerClinic, getMe } from '@/api';
 import { getToken, setToken, removeToken, parseJwt } from '@/utils';
 import AuthContext from './useAuth';
 import { useTenantStore } from '@/store/tenant.store';
+import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 export default function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -42,12 +43,12 @@ export default function AuthProvider({ children }) {
         };
         initAuth();
     }, []);
-    const login = async (username, password, remember = true) => {
+    const login = async (username, password) => {
         setLoading(true);
         try {
             const res = await apiLogin(username, password);
             const { access_token, refresh_token, role } = res.data;
-            setToken(access_token, refresh_token, remember);
+            setToken(access_token, refresh_token);
             // Decoded User
             const decoded = parseJwt(access_token);
             setUser({
@@ -78,9 +79,12 @@ export default function AuthProvider({ children }) {
         register,
         isAuthenticated: !!user
     };
+    if (loading) {
+        return <LoadingSpinner />;
+    }
     return (
         <AuthContext.Provider value={value}>
-            {!loading && children}
+            {children}
         </AuthContext.Provider>
     );
 }

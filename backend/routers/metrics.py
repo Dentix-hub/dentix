@@ -9,7 +9,7 @@ from backend.core.permissions import Permission, require_permission
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from backend.core.monitoring import metrics
 from backend.models import User
@@ -83,7 +83,7 @@ def get_profitability(
         return {"error": "Insufficient permissions"}
 
     # Calculate Dates
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if period == "24h":
         start_date = now - timedelta(hours=24)
     elif period == "7d":

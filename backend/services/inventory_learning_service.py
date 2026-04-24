@@ -1,6 +1,6 @@
 import logging
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict
 
 from sqlalchemy.orm import Session, joinedload
@@ -56,7 +56,7 @@ class InventoryLearningService:
 
         # 1. Update Session Status
         session.status = "CLOSED"
-        session.closed_at = datetime.utcnow()
+        session.closed_at = datetime.now(timezone.utc)
         session.total_amount_consumed = total_consumed
 
         # 2. Find Relevant Treatments (Since session open until now)

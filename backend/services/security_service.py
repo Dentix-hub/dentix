@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 from sqlalchemy.orm import Session
 from backend import models
@@ -23,7 +23,7 @@ class SecurityService:
             # Check expiry
             if (
                 blocked_entry.expires_at
-                and blocked_entry.expires_at < datetime.utcnow()
+                and blocked_entry.expires_at < datetime.now(timezone.utc)
             ):
                 # Expired, unblock
                 db.delete(blocked_entry)
@@ -47,7 +47,7 @@ class SecurityService:
             user_id=user.id if user else None,
             ip_address=ip_address,
             status="success" if success else "failed",
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
         db.add(history)
 
@@ -65,11 +65,11 @@ class SecurityService:
         else:
             # Handle Failure
             user.failed_login_attempts += 1
-            user.last_failed_login = datetime.utcnow()
+            user.last_failed_login = datetime.now(timezone.utc)
 
             # Check for Lockout
             if user.failed_login_attempts >= SecurityService.MAX_FAILED_ATTEMPTS:
-                user.account_locked_until = datetime.utcnow() + timedelta(
+                user.account_locked_until = datetime.now(timezone.utc) + timedelta(
                     minutes=SecurityService.LOCKOUT_DURATION_MINUTES
                 )
                 # Optional: Log a separate "blocked" status or event
@@ -78,7 +78,7 @@ class SecurityService:
 
     @staticmethod
     def is_account_locked(user: models.User) -> bool:
-        if user.account_locked_until and user.account_locked_until > datetime.utcnow():
+        if user.account_locked_until and user.account_locked_until > datetime.now(timezone.utc):
             return True
         return False
 
@@ -98,7 +98,7 @@ class SecurityService:
         if existing:
             raise HTTPException(status_code=400, detail="IP already blocked")
 
-        expires_at = datetime.utcnow() + timedelta(minutes=minutes) if minutes else None
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=minutes) if minutes else None
 
         new_block = models.BlockedIP(
             ip_address=ip_address,
@@ -153,7 +153,7 @@ class SecurityService:
 
             locked_user_rows = (
                 db.query(models.User)
-                .filter(models.User.account_locked_until > datetime.utcnow())
+                .filter(models.User.account_locked_until > datetime.now(timezone.utc))
                 .order_by(models.User.account_locked_until.desc())
                 .all()
             )

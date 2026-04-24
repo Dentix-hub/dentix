@@ -11,7 +11,7 @@ Extracts insights to suggest improvements to prompts, tools, or UI.
 
 import logging
 from typing import List, Dict, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case
@@ -34,7 +34,7 @@ class AILearningService:
         Phase 4: AI Improvement Suggestions Engine.
         """
         suggestions = []
-        start_time = datetime.utcnow() - timedelta(days=days)
+        start_time = datetime.now(timezone.utc) - timedelta(days=days)
 
         try:
             # 1. Analyze High Failure Rates (> 15% failure rate, min 5 requests)

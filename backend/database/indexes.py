@@ -15,19 +15,29 @@ from sqlalchemy import text
 from backend.database import engine
 import logging
 logger = logging.getLogger(__name__)
-INDEX_DEFINITIONS = {'patients': [('idx_patient_tenant_active', [
-    'tenant_id', 'is_active']), ('idx_patient_name_search', ['name',
-    'tenant_id']), ('idx_patient_phone', ['phone', 'tenant_id']), (
-    'idx_patient_created', ['tenant_id', 'created_at'])], 'appointments': [
-    ('idx_appt_doctor_date', ['doctor_id', 'appointment_date']), (
-    'idx_appt_patient_date', ['patient_id', 'appointment_date']), (
-    'idx_appt_tenant_status', ['tenant_id', 'status', 'appointment_date'])],
-    'payments': [('idx_payment_tenant_date', ['tenant_id', 'payment_date']),
-    ('idx_payment_patient', ['patient_id', 'payment_date'])], 'users': [(
-    'idx_user_tenant_role', ['tenant_id', 'role', 'is_active']), (
-    'idx_user_last_login', ['tenant_id', 'last_login'])], 'treatments': [(
-    'idx_treatment_patient', ['patient_id', 'created_at']), (
-    'idx_treatment_appointment', ['appointment_id'])]}
+INDEX_DEFINITIONS = {
+    'patients': [
+        ('idx_patient_tenant_active', ['tenant_id', 'is_active']),
+        ('idx_patient_tenant_deleted', ['tenant_id', 'is_deleted']),
+        ('idx_patient_name_search', ['name', 'tenant_id']),
+        ('idx_patient_phone', ['phone', 'tenant_id']),
+        ('idx_patient_created', ['tenant_id', 'created_at']),
+    ],
+    'appointments': [
+        ('idx_appointment_tenant_status_date', ['tenant_id', 'status', 'date_time']),
+    ],
+    'payments': [
+        ('idx_payment_tenant_date', ['tenant_id', 'date']),
+        ('idx_payment_patient', ['patient_id', 'date']),
+    ],
+    'users': [
+        ('idx_user_tenant_role', ['tenant_id', 'role', 'is_active']),
+    ],
+    'treatments': [
+        ('idx_treatment_patient', ['patient_id', 'created_at']),
+        ('idx_treatment_appointment', ['appointment_id']),
+    ]
+}
 
 
 def apply_indexes():

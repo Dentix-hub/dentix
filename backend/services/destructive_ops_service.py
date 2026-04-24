@@ -6,7 +6,7 @@ approval from two different users before execution.
 """
 
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets
 import hashlib
 from backend import models
@@ -30,7 +30,7 @@ class DestructiveOperationRequest:
         self.target_id = target_id
         self.requestor_id = requestor_id
         self.reason = reason
-        self.created_at = datetime.utcnow()
+        self.created_at = datetime.now(timezone.utc)
         self.expires_at = self.created_at + timedelta(hours=expires_in_hours)
         self.confirmation_token = secrets.token_urlsafe(32)
         self.status = "pending"
@@ -137,7 +137,7 @@ class DestructiveOpsService:
             return {"success": False, "error": "طلب غير موجود أو منتهي الصلاحية"}
 
         # Check expiry
-        if datetime.utcnow() > request.expires_at:
+        if datetime.now(timezone.utc) > request.expires_at:
             del self._pending_requests[token_hash]
             return {"success": False, "error": "انتهت صلاحية الطلب"}
 
@@ -158,7 +158,7 @@ class DestructiveOpsService:
         # Mark as approved
         request.status = "approved"
         request.approver_id = approver.id
-        request.approved_at = datetime.utcnow()
+        request.approved_at = datetime.now(timezone.utc)
 
         # Log the approval
         log_admin_action(

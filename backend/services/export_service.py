@@ -6,7 +6,7 @@ This is separate from the full pg_dump which is reserved for Super Admin only.
 """
 
 import json
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
 from sqlalchemy.inspection import inspect
@@ -57,7 +57,7 @@ def export_tenant_data(db: Session, tenant_id: int) -> Dict:
     """
     export_data = {
         "version": "1.0",
-        "exported_at": datetime.utcnow().isoformat(),
+        "exported_at": datetime.now(timezone.utc).isoformat(),
         "tenant_id": tenant_id,
         "data": {},
     }

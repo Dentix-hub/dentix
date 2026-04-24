@@ -22,7 +22,7 @@ def update_backup_status(status: str, message: str, tenant_id: int = None):
             )
             if tenant:
                 if status == "success":
-                    tenant.last_backup_at = datetime.datetime.utcnow()
+                    tenant.last_backup_at = datetime.datetime.now(timezone.utc)
                 db.commit()
 
         # 1. Update Status

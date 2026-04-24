@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -37,7 +37,7 @@ def get_ai_stats(
     ensure_super_admin(current_user)
 
     # Calculate time range
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if period == "24h":
         start_time = now - timedelta(hours=24)
     elif period == "7d":
@@ -224,7 +224,7 @@ def get_cost_analytics(
     ensure_super_admin(current_user)
 
     # Calculate time range
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if period == "24h":
         start_time = now - timedelta(hours=24)
     elif period == "7d":
@@ -487,7 +487,7 @@ class ClinicStats(BaseModel):
 def get_detailed_analytics(db: Session, tenant_id: int, days: int = 30) -> str:
     """Fetch deep KPIs: Margins, High-Cost procedures, and Efficiency."""
     # Ensure dependencies are available locally if needed, but they are imported at top
-    start_date = datetime.utcnow() - timedelta(days=days)
+    start_date = datetime.now(timezone.utc) - timedelta(days=days)
     cost_engine = CostEngine(db, tenant_id)
 
     # 1. Top Procedures by Volume and Net Profitability
@@ -613,7 +613,7 @@ def get_detailed_analytics(db: Session, tenant_id: int, days: int = 30) -> str:
 
 
 @router.post("/analyze-clinic")
-async def analyze_clinic(
+def analyze_clinic(
     stats: ClinicStats,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),

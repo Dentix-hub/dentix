@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/auth/useAuth';
-import { logoBase64 as logo } from '@/assets/logoBase64';
+const logo = '/logo.png';
 // Components
 import GlobalSearch from '@/shared/ui/GlobalSearch';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';

@@ -14,25 +14,26 @@ export function parseJwt(token) {
 }
 
 
+// SECURITY: Tokens are stored only in sessionStorage (cleared on tab close)
+// Backend also sets httpOnly cookies for automatic transmission.
+// Avoid localStorage to prevent XSS token theft.
+
 export function getToken() {
-    return localStorage.getItem('token') || sessionStorage.getItem('token');
+    return sessionStorage.getItem('token');
 }
 
 export function getRefreshToken() {
-    return localStorage.getItem('refresh_token') || sessionStorage.getItem('refresh_token');
+    return sessionStorage.getItem('refresh_token');
 }
 
-export function setToken(token, refreshToken = null, remember = true) {
-    const storage = remember ? localStorage : sessionStorage;
-    storage.setItem('token', token);
+export function setToken(token, refreshToken = null) {
+    sessionStorage.setItem('token', token);
     if (refreshToken) {
-        storage.setItem('refresh_token', refreshToken);
+        sessionStorage.setItem('refresh_token', refreshToken);
     }
 }
 
 export function removeToken() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('refresh_token');
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('refresh_token');
 }

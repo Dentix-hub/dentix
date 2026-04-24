@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from backend.core.response import success_response
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .. import models, schemas
 from ..cache import cache_response, invalidate_cache
@@ -292,7 +292,7 @@ def update_lab_order(
 
     # If status is changing to completed, set received_date
     if update_data.get("status") == "completed" and order.status != "completed":
-        update_data["received_date"] = datetime.utcnow()
+        update_data["received_date"] = datetime.now(timezone.utc)
 
     for key, value in update_data.items():
         setattr(order, key, value)

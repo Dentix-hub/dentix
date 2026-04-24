@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Depends, HTTPException
 import logging
 from sqlalchemy.orm import Session
@@ -13,6 +14,11 @@ from backend.core.response import StandardResponse, success_response, error_resp
 from .auth import get_current_user
 
 router = APIRouter(prefix="/inventory/smart", tags=["Inventory Smart"])
+
+
+def _ensure_not_production():
+    if os.getenv("ENVIRONMENT", "development").lower() == "production":
+        raise HTTPException(status_code=404, detail="Not Found")
 
 
 @router.get("/suggestions/{procedure_id}")
@@ -162,6 +168,7 @@ def check_availability(
     return {"data": results, "success": True}
 @router.get("/debug/logs", tags=["debug"])
 def get_suggestion_logs():
+    _ensure_not_production()
     """Debug endpoint to see what's happening with suggestions."""
     
     import os

@@ -1,3 +1,4 @@
+from datetime import timezone
 from .base import (
     Base,
     Column,
@@ -75,7 +76,7 @@ class Treatment(Base):
     doctor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     cost = Column(Float, default=0.0)  # Legacy: final cost after discount
     discount = Column(Float, default=0.0)
-    date = Column(DateTime, default=datetime.utcnow, index=True)
+    date = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     canal_count = Column(Integer, nullable=True)
     canal_lengths = Column(String, nullable=True)
     sessions = Column(Text, nullable=True)
@@ -101,7 +102,7 @@ class TreatmentSession(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     treatment_id = Column(Integer, ForeignKey("treatments.id"), index=True)
-    session_date = Column(DateTime, default=datetime.utcnow)
+    session_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     notes = Column(Text, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
@@ -115,7 +116,7 @@ class Prescription(Base):
     patient_id = Column(Integer, ForeignKey("patients.id"))
     medications = Column(Text)
     notes = Column(Text, nullable=True)
-    date = Column(DateTime, default=datetime.utcnow)
+    date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     patient = relationship("Patient", back_populates="prescriptions")
 
@@ -133,7 +134,7 @@ class Laboratory(Base):
     notes = Column(Text, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     lab_orders = relationship("LabOrder", back_populates="laboratory")
     payments = relationship("LabPayment", back_populates="laboratory")
@@ -157,7 +158,7 @@ class LabOrder(Base):
     price_to_patient = Column(Float, default=0.0)
     status = Column(String, default="pending")
     notes = Column(Text, nullable=True)
-    order_date = Column(DateTime, default=datetime.utcnow, index=True)
+    order_date = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
     delivery_date = Column(DateTime, nullable=True)
     received_date = Column(DateTime, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)

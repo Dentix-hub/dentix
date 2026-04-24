@@ -34,7 +34,7 @@ class SubscriptionPlan(Base):
 
     is_default = Column(Boolean, default=False)  # New Default Feature
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     tenants = relationship("Tenant", back_populates="subscription_plan")
     payments = relationship("SubscriptionPayment", back_populates="plan")
@@ -48,7 +48,7 @@ class SubscriptionPayment(Base):
     plan_id = Column(Integer, ForeignKey("subscription_plans.id"))
     amount = Column(Float)
     payment_method = Column(String)
-    payment_date = Column(DateTime, default=datetime.utcnow)
+    payment_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     notes = Column(Text, nullable=True)
     created_by = Column(String, nullable=True)
     paid_by = Column(String, nullable=True)
@@ -76,7 +76,7 @@ class Tenant(Base):
     plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=True)
 
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     total_revenue = Column(Float, default=0.0)
 
     # Backup Settings

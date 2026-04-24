@@ -6,7 +6,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, X, Bot, Loader2, Mic, MicOff, Calendar, Users, DollarSign, Building2, Volume2, VolumeX, FileEdit } from 'lucide-react';
 import { sendAIQuery } from '@/api';
-import { dentalAiAvatarBase64 as aiAvatar } from '@/assets/dentalAiAvatarBase64';
+const aiAvatar = '/dental-ai-avatar.png';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import { formatAIResponse } from '@/utils/aiResponseFormatter';
@@ -169,6 +169,7 @@ export default function AIChat() {
                     <img
                         src={aiAvatar}
                         alt="AI Assistant"
+                        loading="lazy"
                         className="w-16 h-16 md:w-24 md:h-24 drop-shadow-2xl filter hover:brightness-110 transition-all transform hover:scale-105"
                     />
                 )}
@@ -179,7 +180,7 @@ export default function AIChat() {
                     {/* Header */}
                     <div className="bg-gradient-to-r from-cyan-600 to-indigo-600 p-4 flex items-center gap-3">
                         <div className="bg-white/10 rounded-full border border-white/20 w-12 h-12 flex items-center justify-center overflow-hidden shrink-0">
-                            <img src={aiAvatar} alt="AI" className="w-full h-full object-cover" />
+                            <img src={aiAvatar} alt="AI" loading="lazy" className="w-full h-full object-cover" />
                         </div>
                         <div className="flex-1">
                             <h3 className="text-white font-bold">{t('ai_chat.title')}</h3>

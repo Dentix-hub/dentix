@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from backend.core.permissions import Permission, require_permission
 from sqlalchemy.orm import Session
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 from backend.core.response import success_response, StandardResponse
 
 from .. import models, schemas
@@ -104,13 +104,13 @@ def dismiss_notification(
         existing.is_deleted = True
         # Ensure it's marked as read too if we dismiss it
         if not existing.read_at:
-            existing.read_at = datetime.utcnow()
+            existing.read_at = datetime.now(timezone.utc)
     else:
         new_record = models.NotificationRead(
             user_id=current_user.id,
             notification_id=notification_id,
             is_deleted=True,
-            read_at=datetime.utcnow(),
+            read_at=datetime.now(timezone.utc),
         )
         db.add(new_record)
 

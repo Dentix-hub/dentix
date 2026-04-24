@@ -9,7 +9,7 @@ from sqlalchemy import (
     Float,
 )
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 from .base import Base
 
 
@@ -67,9 +67,9 @@ class AILog(Base):
 
     # Legacy compat columns stored for backward-compat queries (AIUsageLog fields)
     username = Column(String, nullable=True)        # cached username at log time
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)  # alias for timestamp
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)  # alias for timestamp
 
-    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     # Relationships
     user = relationship("User")

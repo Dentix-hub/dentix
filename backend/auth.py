@@ -4,7 +4,9 @@ from typing import Optional
 from jose import jwt, JWTError
 import bcrypt
 # Configuration
-SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-change-in-prod")
+SECRET_KEY = os.environ["SECRET_KEY"]
+if len(SECRET_KEY) < 32:
+    raise RuntimeError("SECRET_KEY must be at least 32 characters long")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))

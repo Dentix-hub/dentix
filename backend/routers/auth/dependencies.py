@@ -1,15 +1,28 @@
 import logging
 logger = logging.getLogger(__name__)
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, status, Cookie
+from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from backend import schemas, crud, auth
 from backend.database import get_db
 from backend.core.permissions import Role
 from datetime import datetime, timezone
 
-# OAuth Scheme
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+# OAuth Scheme (for Swagger UI / OpenAPI docs)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
+
+# Bearer scheme with auto_error=False to allow cookie fallback
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def get_token_from_header_or_cookie(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    access_token: str | None = Cookie(None),
+) -> str | None:
+    """Extract JWT from Authorization header or httpOnly cookie."""
+    if credentials:
+        return credentials.credentials
+    return access_token
 
 
 import string
@@ -62,7 +75,7 @@ def validate_password(password: str) -> None:
 
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+    token: str | None = Depends(get_token_from_header_or_cookie), db: Session = Depends(get_db)
 ):
     """Validate JWT token and return current user."""
 
@@ -71,6 +84,8 @@ def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if not token:
+        raise credentials_exception
     try:
         # logger.info(f"DEBUG: Decoding token: {token[:10]}...")
         payload = auth.jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
@@ -82,45 +97,17 @@ def get_current_user(
             raise credentials_exception
         token_data = schemas.TokenData(username=username, tenant_id=tenant_id)
     except auth.JWTError as e:
-        # logger.info(f"DEBUG: JWT Decode Error: {e}")
-        # DEBUG: Add server time and token exp to error details
-        try:
-            # Decode without verification to get claims
-            unsafe_payload = auth.jwt.decode(
-                token,
-                auth.SECRET_KEY,
-                algorithms=[auth.ALGORITHM],
-                options={"verify_signature": False, "verify_exp": False},
-            )
-            exp_claim = unsafe_payload.get("exp")
-            server_time_utc = datetime.now(timezone.utc)
-            server_time_ts = server_time_utc.timestamp()
-            debug_info = f" | Server Time: {server_time_utc} ({server_time_ts}) | Token Exp: {exp_claim} | Diff: {float(exp_claim) - server_time_ts if exp_claim else 'N/A'}"
-        except Exception:
-            debug_info = " | Could not extract debug info"
-
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"JWT Error: {str(e)}{debug_info}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        logger.debug("JWT error for user: %s", username if 'username' in locals() else "unknown")
+        raise credentials_exception
     except Exception as e:
-        # logger.info(f"DEBUG: Unexpected Auth Error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Auth Error: {str(e)}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        logger.error("Unexpected authentication error: %s", e, exc_info=True)
+        raise credentials_exception
 
     # Validated User
     user = crud.get_user(db, username=token_data.username)
     if user is None:
-        # logger.info(f"DEBUG: User not found in DB for username: {token_data.username}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"User not found: {token_data.username}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        logger.debug("User not found in DB for authenticated username: %s", token_data.username)
+        raise credentials_exception
 
     # SINGLE SESSION POLICY: Validate Session ID
     token_sid = payload.get("sid")
@@ -146,7 +133,7 @@ def get_current_user(
 
         if (
             user.tenant.subscription_end_date
-            and user.tenant.subscription_end_date < datetime.utcnow()
+            and user.tenant.subscription_end_date < datetime.now(timezone.utc)
         ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Subscription expired"

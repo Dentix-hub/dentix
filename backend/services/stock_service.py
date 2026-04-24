@@ -6,7 +6,7 @@ Handles: stock consume, validate, movement recording.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Tuple, Optional, List
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -205,7 +205,7 @@ class StockService:
                     session = MaterialSession(
                         stock_item_id=stock_item.id,
                         user_id=user_id,
-                        opened_at=datetime.utcnow(),
+                        opened_at=datetime.now(timezone.utc),
                         remaining_amount=stock_item.quantity,
                         status="ACTIVE",
                     )
@@ -229,7 +229,7 @@ class StockService:
                     session = MaterialSession(
                         stock_item_id=stock_item.id,
                         user_id=user_id,
-                        opened_at=datetime.utcnow(),
+                        opened_at=datetime.now(timezone.utc),
                         remaining_amount=stock_item.quantity,
                         status="ACTIVE",
                     )
@@ -264,7 +264,7 @@ class StockService:
             movement_type=movement_type,
             quantity=quantity,
             reference_id=reference_id,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
 
     # --- Stock Summary ---

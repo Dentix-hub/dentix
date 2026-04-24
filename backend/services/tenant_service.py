@@ -6,7 +6,7 @@ Follows Clean Architecture: Router → Service → CRUD/Models
 """
 
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from backend import models, schemas
 from backend.utils.audit_logger import log_admin_action
@@ -117,7 +117,7 @@ class TenantService:
 
         # Soft delete tenant
         tenant.is_deleted = True
-        tenant.deleted_at = datetime.utcnow()
+        tenant.deleted_at = datetime.now(timezone.utc)
         tenant.is_active = False  # Block login immediately
 
         # Cascade soft delete to manager/admin

@@ -72,7 +72,7 @@ class PasswordResetToken(Base):
     user_id = Column(Integer, ForeignKey("users.id"), index=True)
     expires_at = Column(DateTime)
     used = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", back_populates="password_reset_tokens")
 
@@ -85,7 +85,7 @@ class LoginHistory(Base):
     ip_address = Column(String, index=True)
     user_agent = Column(String, nullable=True)
     status = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User")
 
@@ -99,9 +99,9 @@ class UserSession(Base):
     ip_address = Column(String, nullable=True)
     user_agent = Column(String, nullable=True)
     device_info = Column(String, nullable=True)
-    last_active_at = Column(DateTime, default=datetime.utcnow)
+    last_active_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime)
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", backref="sessions")

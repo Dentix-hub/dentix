@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Form, Request
+import os
+from fastapi import APIRouter, Depends, HTTPException, status, Form, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from backend import models, schemas, crud, auth
@@ -8,11 +9,41 @@ from backend.core.limiter import limiter
 from .dependencies import get_db, get_current_user, oauth2_scheme
 import uuid
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger("smart_clinic")
 
 router = APIRouter()
+
+
+# Cookie security settings
+_COOKIE_SECURE = os.getenv("ENVIRONMENT", "development").lower() == "production"
+_COOKIE_SAMESITE = "strict" if _COOKIE_SECURE else "lax"
+
+
+def _set_auth_cookies(
+    response: Response, access_token: str, refresh_token: str | None = None
+) -> None:
+    """Set httpOnly cookies for JWT tokens."""
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
+        path="/",
+        max_age=60 * 60 * 24 * 7,  # 7 days
+    )
+    if refresh_token:
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=_COOKIE_SECURE,
+            samesite=_COOKIE_SAMESITE,
+            path="/",
+            max_age=60 * 60 * 24 * 30,  # 30 days
+        )
 
 
 def _request_client_ip(request: Request | None) -> str | None:
@@ -25,6 +56,7 @@ def _request_client_ip(request: Request | None) -> str | None:
 @router.post("/token", response_model=schemas.Token)
 @limiter.limit("20/minute")
 def login_for_access_token(
+    response: Response,
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
@@ -40,7 +72,7 @@ def login_for_access_token(
 
         # 2. Check Lockout Status
         if user and user.account_locked_until:
-            if user.account_locked_until > datetime.utcnow():
+            if user.account_locked_until > datetime.now(timezone.utc):
                 raise HTTPException(
                     status_code=403,
                     detail="تم قفل الحساب مؤقتاً بسبب كثرة المحاولات الخاطئة. يرجى المحاولة بعد 15 دقيقة."
@@ -69,7 +101,7 @@ def login_for_access_token(
             if user:
                 user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
                 if user.failed_login_attempts >= 5:
-                    user.account_locked_until = datetime.utcnow() + timedelta(minutes=15)
+                    user.account_locked_until = datetime.now(timezone.utc) + timedelta(minutes=15)
                 db.commit()
 
             raise HTTPException(
@@ -175,6 +207,8 @@ def login_for_access_token(
             # Fallback if UserSessions table doesn't exist or other DB error
             logger.error(f"Session Management Failed: {session_error}")
 
+        _set_auth_cookies(response, access_token, refresh_token)
+
         return {
             "access_token": access_token,
             "token_type": "bearer",
@@ -192,8 +226,10 @@ def login_for_access_token(
 @router.post("/refresh", response_model=schemas.Token)
 @limiter.limit("10/minute")
 def refresh_token(
+    response: Response,
     request: Request,
-    refresh_token: str = Form(...),
+    refresh_token: str = Form(""),
+    refresh_token_cookie: str | None = Cookie(None, alias="refresh_token"),
     db: Session = Depends(get_db),
 ):
     """
@@ -201,9 +237,14 @@ def refresh_token(
     Validates token against DB session to allow revocation.
     """
     try:
+        # Prefer cookie over form data for refresh token
+        effective_refresh_token = refresh_token or refresh_token_cookie
+        if not effective_refresh_token:
+            raise HTTPException(status_code=401, detail="Refresh token missing")
+
         # Decode token
         payload = auth.jwt.decode(
-            refresh_token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM]
+            effective_refresh_token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM]
         )
         username: str = payload.get("sub")
         sid: str = payload.get("sid")
@@ -216,7 +257,7 @@ def refresh_token(
         # Looking up by refresh token is safer
 
         # For performance, maybe decoded SID is enough, but we should verify it exists in DB
-        db_session = AuthService.get_session_by_token(db, refresh_token)
+        db_session = AuthService.get_session_by_token(db, effective_refresh_token)
 
         if not db_session or not db_session.is_active:
             # Check if user has a newer session (Single session policy)
@@ -274,6 +315,8 @@ def refresh_token(
         except Exception as e:
             logger.error(f"Failed to save rotated session: {e}")
 
+        _set_auth_cookies(response, access_token, new_refresh_token)
+
         return {
             "access_token": access_token,
             "token_type": "bearer",
@@ -316,6 +359,7 @@ def revoke_session(
 # --- 2FA Endpoints ---
 @router.post("/login/2fa", response_model=schemas.Token)
 def login_2fa(
+    response: Response,
     request: Request,
     code: str = Form(...),
     token: str = Depends(oauth2_scheme),  # Temp token from first step
@@ -372,6 +416,8 @@ def login_2fa(
         except Exception:
             pass
 
+        _set_auth_cookies(response, access_token, refresh_token)
+
         return {
             "access_token": access_token,
             "token_type": "bearer",
@@ -380,4 +426,5 @@ def login_2fa(
             "username": user.username,
         }
     except Exception as e:
-        raise HTTPException(status_code=401, detail=f"2FA Error: {str(e)}")
+        logger.error("2FA Error for user %s: %s", payload.get("sub") if 'payload' in locals() else "unknown", e, exc_info=True)
+        raise HTTPException(status_code=401, detail="Invalid 2FA code or session expired")

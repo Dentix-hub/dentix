@@ -11,7 +11,7 @@ This removes business logic from the treatments router.
 
 import json
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
@@ -311,7 +311,7 @@ class TreatmentService:
         session = models.TreatmentSession(
             treatment_id=session_data.treatment_id,
             notes=session_data.notes,
-            session_date=session_data.session_date or datetime.utcnow(),
+            session_date=session_data.session_date or datetime.now(timezone.utc),
             tenant_id=self.tenant_id
         )
         self.db.add(session)

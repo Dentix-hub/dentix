@@ -2,25 +2,21 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../api';
+import { setToken } from '../utils';
 import { Sun, Moon, Globe } from 'lucide-react';
-import { logoBase64 as logo } from '@/assets/logoBase64';
+const logo = '/logo.png';
 export default function Login({ isDarkMode, toggleDarkMode }) {
     const { t, i18n } = useTranslation();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
-    const [rememberMe, setRememberMe] = useState(false);
     const [error, setError] = useState('');
     const navigate = useNavigate();
     const handleLogin = async (e) => {
         e.preventDefault();
         try {
             const { data } = await login(username.trim(), password);
-            // Save token based on rememberMe
-            if (rememberMe) {
-                localStorage.setItem('token', data.access_token);
-            } else {
-                sessionStorage.setItem('token', data.access_token);
-            }
+            // Store tokens in sessionStorage (backend also sets httpOnly cookies)
+            setToken(data.access_token, data.refresh_token);
             if (data.role === 'super_admin') {
                 window.location.href = '/admin';
             } else {
@@ -96,18 +92,6 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         >
                             {t('auth.login.forgot_password')}
                         </Link>
-                        <div className="flex items-center gap-3">
-                            <label htmlFor="rememberMe" className={`text-sm cursor-pointer select-none font-medium text-text-secondary hover:text-text-primary`}>
-                                {t('auth.login.remember_me')}
-                            </label>
-                            <input
-                                id="rememberMe"
-                                type="checkbox"
-                                className="w-5 h-5 rounded-lg border-slate-300 text-primary focus:ring-primary cursor-pointer transition-transform active:scale-90"
-                                checked={rememberMe}
-                                onChange={(e) => setRememberMe(e.target.checked)}
-                            />
-                        </div>
                     </div>
                     <button
                         type="submit"

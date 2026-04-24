@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from ..core.response import success_response, error_response
 from sqlalchemy.orm import Session
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ def create_feedback(
         message=message.message,
         priority=message.priority,
         status="unread",
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
     db.add(db_message)
     db.commit()

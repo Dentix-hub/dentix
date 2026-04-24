@@ -4,7 +4,7 @@ Use for data that doesn't change often (procedures, labs, etc.)
 """
 
 from functools import wraps
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Optional
 import hashlib
 import json
@@ -37,7 +37,7 @@ def cache_response(ttl_seconds: int = 60):
             # Check cache
             if cache_key in _cache:
                 cached = _cache[cache_key]
-                if datetime.utcnow() < cached["expires"]:
+                if datetime.now(timezone.utc) < cached["expires"]:
                     return cached["data"]
                 else:
                     # Expired, remove
@@ -47,7 +47,7 @@ def cache_response(ttl_seconds: int = 60):
             result = func(*args, **kwargs)
             _cache[cache_key] = {
                 "data": result,
-                "expires": datetime.utcnow() + timedelta(seconds=ttl_seconds),
+                "expires": datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds),
             }
             return result
 
@@ -75,7 +75,7 @@ def invalidate_cache(prefix: Optional[str] = None):
 
 def get_cache_stats() -> Dict[str, Any]:
     """Get cache statistics for debugging."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     valid_entries = sum(1 for v in _cache.values() if now < v["expires"])
     expired_entries = len(_cache) - valid_entries
 

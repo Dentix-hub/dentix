@@ -256,6 +256,18 @@ async def handle_app_exception(request: Request, exc: BaseAppException) -> JSONR
     )
 
 
+def _redact_sensitive(body: dict | Any) -> dict:
+    if not isinstance(body, dict):
+        return body
+    redacted = {}
+    for k, v in body.items():
+        if k.lower() in ("password", "token", "secret", "otp_secret", "refresh_token"):
+            redacted[k] = "[REDACTED]"
+        else:
+            redacted[k] = v
+    return redacted
+
+
 async def handle_validation_exception(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
@@ -274,8 +286,15 @@ async def handle_validation_exception(
             }
         )
 
-    logger.info(
-        f"Validation error on {request.url.path}", extra={"errors": formatted_errors}
+    # Log body safely with redaction
+    try:
+        body = await request.json()
+    except Exception:
+        body = "Could not parse body"
+
+    logger.warning(
+        "[VALIDATION ERROR] %s %s | Body: %s | Errors: %s",
+        request.method, request.url, _redact_sensitive(body), formatted_errors
     )
 
     return create_error_response(

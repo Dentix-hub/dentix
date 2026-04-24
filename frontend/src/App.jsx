@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { useEffect, Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
 // Auth
@@ -12,6 +12,7 @@ import { ProceduresProvider } from '@/shared/context/ProceduresContext';
 import Layout from '@/layouts/Layout';
 import BackgroundWrapper from '@/shared/ui/BackgroundWrapper';
 import ErrorBoundary from '@/shared/ui/ErrorBoundary';
+import GlobalErrorFallback from '@/shared/ui/GlobalErrorFallback';
 // React Query for data caching
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
@@ -74,7 +75,7 @@ function AppRoutes() {
     }
     if (!isAuthenticated) {
         return (
-            <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <>
                 <BackgroundWrapper />
                 <Suspense fallback={<LoadingSpinner />}>
                     <Routes>
@@ -88,12 +89,12 @@ function AppRoutes() {
                         <Route path="*" element={<Login isDarkMode={darkMode} toggleDarkMode={toggleDarkMode} />} />
                     </Routes>
                 </Suspense>
-            </Router>
+            </>
         );
     }
     return (
         <ProceduresProvider>
-            <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <>
                 <BackgroundWrapper />
                 <Suspense fallback={<LoadingSpinner />}>
                     <Routes>
@@ -102,106 +103,108 @@ function AppRoutes() {
                         <Route path="/print/rx/:id" element={<PrintRx />} />
                         {/* App Routes */}
                         <Route path="*" element={
-                            <Layout>
-                                <Routes>
-                                    <Route path="/" element={<Dashboard />} />
-                                    <Route path="/patients" element={<Patients />} />
-                                    <Route path="/patients/:id" element={<PatientDetails />} />
-                                    <Route path="/appointments" element={<Appointments />} />
-                                    <Route path="/inventory" element={<Inventory />} />
-                                    {/* Admin Protected Routes */}
-                                    <Route path="/billing" element={
-                                        <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
-                                            <Billing />
-                                        </ProtectedRoute>
-                                    } />
-                                    <Route path="/expenses" element={
-                                        <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
-                                            <Expenses />
-                                        </ProtectedRoute>
-                                    } />
-                                    <Route path="/labs" element={
-                                        <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
-                                            <Labs />
-                                        </ProtectedRoute>
-                                    } />
-                                    <Route path="/analytics" element={
-                                        <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
-                                            <SmartDashboard />
-                                        </ProtectedRoute>
-                                    } />
-                                    <Route path="/users" element={
-                                        <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
-                                            <UsersManager />
-                                        </ProtectedRoute>
-                                    } />
-                                    <Route path="/settings" element={
-                                        <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
-                                            <Settings />
-                                        </ProtectedRoute>
-                                    } />
-                                    <Route path="/settings/price-lists" element={
-                                        <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
-                                            <PriceLists />
-                                        </ProtectedRoute>
-                                    } />
-                                    <Route path="/settings/insurance" element={
-                                        <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
-                                            <InsuranceProviders />
-                                        </ProtectedRoute>
-                                    } />
-                                    {/* Super Admin Routes */}
-                                    <Route path="/admin" element={
-                                        <ProtectedRoute allowedRoles={['super_admin']}>
-                                            <AdminOverview />
-                                        </ProtectedRoute>
-                                    } />
-                                    <Route path="/admin/tenants" element={
-                                        <ProtectedRoute allowedRoles={['super_admin']}>
-                                            <AdminTenants />
-                                        </ProtectedRoute>
-                                    } />
-                                    <Route path="/admin/users" element={
-                                        <ProtectedRoute allowedRoles={['super_admin']}>
-                                            <AdminUsers />
-                                        </ProtectedRoute>
-                                    } />
-                                    <Route path="/admin/finance" element={
-                                        <ProtectedRoute allowedRoles={['super_admin']}>
-                                            <AdminFinance />
-                                        </ProtectedRoute>
-                                    } />
-                                    <Route path="/admin/messages" element={
-                                        <ProtectedRoute allowedRoles={['super_admin']}>
-                                            <AdminComms />
-                                        </ProtectedRoute>
-                                    } />
-                                    <Route path="/admin/settings" element={
-                                        <ProtectedRoute allowedRoles={['super_admin']}>
-                                            <AdminSystem />
-                                        </ProtectedRoute>
-                                    } />
-                                    <Route path="/admin/system/logs" element={
-                                        <ProtectedRoute allowedRoles={['super_admin']}>
-                                            <SystemLogs />
-                                        </ProtectedRoute>
-                                    } />
-                                    <Route path="/ai/stats" element={
-                                        <ProtectedRoute allowedRoles={['super_admin']}>
-                                            <AIStats />
-                                        </ProtectedRoute>
-                                    } />
-                                    <Route path="/terms" element={<Terms />} />
-                                    <Route path="/privacy" element={<Privacy />} />
-                                    <Route path="/support" element={<Support />} />
-                                    <Route path="/profile" element={<UserProfile />} />
-                                    <Route path="*" element={<NotFound />} />
-                                </Routes>
-                            </Layout>
+                            <ErrorBoundary fallback={<GlobalErrorFallback />}>
+                                <Layout>
+                                    <Routes>
+                                        <Route path="/" element={<Dashboard />} />
+                                        <Route path="/patients" element={<Patients />} />
+                                        <Route path="/patients/:id" element={<PatientDetails />} />
+                                        <Route path="/appointments" element={<Appointments />} />
+                                        <Route path="/inventory" element={<Inventory />} />
+                                        {/* Admin Protected Routes */}
+                                        <Route path="/billing" element={
+                                            <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+                                                <Billing />
+                                            </ProtectedRoute>
+                                        } />
+                                        <Route path="/expenses" element={
+                                            <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+                                                <Expenses />
+                                            </ProtectedRoute>
+                                        } />
+                                        <Route path="/labs" element={
+                                            <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+                                                <Labs />
+                                            </ProtectedRoute>
+                                        } />
+                                        <Route path="/analytics" element={
+                                            <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+                                                <SmartDashboard />
+                                            </ProtectedRoute>
+                                        } />
+                                        <Route path="/users" element={
+                                            <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+                                                <UsersManager />
+                                            </ProtectedRoute>
+                                        } />
+                                        <Route path="/settings" element={
+                                            <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+                                                <Settings />
+                                            </ProtectedRoute>
+                                        } />
+                                        <Route path="/settings/price-lists" element={
+                                            <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+                                                <PriceLists />
+                                            </ProtectedRoute>
+                                        } />
+                                        <Route path="/settings/insurance" element={
+                                            <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+                                                <InsuranceProviders />
+                                            </ProtectedRoute>
+                                        } />
+                                        {/* Super Admin Routes */}
+                                        <Route path="/admin" element={
+                                            <ProtectedRoute allowedRoles={['super_admin']}>
+                                                <AdminOverview />
+                                            </ProtectedRoute>
+                                        } />
+                                        <Route path="/admin/tenants" element={
+                                            <ProtectedRoute allowedRoles={['super_admin']}>
+                                                <AdminTenants />
+                                            </ProtectedRoute>
+                                        } />
+                                        <Route path="/admin/users" element={
+                                            <ProtectedRoute allowedRoles={['super_admin']}>
+                                                <AdminUsers />
+                                            </ProtectedRoute>
+                                        } />
+                                        <Route path="/admin/finance" element={
+                                            <ProtectedRoute allowedRoles={['super_admin']}>
+                                                <AdminFinance />
+                                            </ProtectedRoute>
+                                        } />
+                                        <Route path="/admin/messages" element={
+                                            <ProtectedRoute allowedRoles={['super_admin']}>
+                                                <AdminComms />
+                                            </ProtectedRoute>
+                                        } />
+                                        <Route path="/admin/settings" element={
+                                            <ProtectedRoute allowedRoles={['super_admin']}>
+                                                <AdminSystem />
+                                            </ProtectedRoute>
+                                        } />
+                                        <Route path="/admin/system/logs" element={
+                                            <ProtectedRoute allowedRoles={['super_admin']}>
+                                                <SystemLogs />
+                                            </ProtectedRoute>
+                                        } />
+                                        <Route path="/ai/stats" element={
+                                            <ProtectedRoute allowedRoles={['super_admin']}>
+                                                <AIStats />
+                                            </ProtectedRoute>
+                                        } />
+                                        <Route path="/terms" element={<Terms />} />
+                                        <Route path="/privacy" element={<Privacy />} />
+                                        <Route path="/support" element={<Support />} />
+                                        <Route path="/profile" element={<UserProfile />} />
+                                        <Route path="*" element={<NotFound />} />
+                                    </Routes>
+                                </Layout>
+                            </ErrorBoundary>
                         } />
                     </Routes>
                 </Suspense>
-            </Router>
+            </>
         </ProceduresProvider>
     );
 }

@@ -87,7 +87,7 @@ def get_background_jobs(
 
 
 @router.post("/jobs/trigger-test")
-async def trigger_test_job(
+def trigger_test_job(
     db: Session = Depends(get_db), current_user: models.User = Depends(get_super_admin)
 ):
     """Trigger a dummy job asynchronously."""

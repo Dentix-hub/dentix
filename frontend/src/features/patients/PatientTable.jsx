@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Trash2, Phone, MapPin, Calendar, Users } from 'lucide-react';
@@ -12,7 +12,7 @@ const CARD_COLORS = [
     { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', accent: 'bg-rose-100' },
 ];
 
-function PatientCard({ patient, onDelete, onNavigate, index, t }) {
+const PatientCard = memo(function PatientCard({ patient, onDelete, onNavigate, index, t }) {
     const colorTheme = CARD_COLORS[index % CARD_COLORS.length];
 
     return (
@@ -66,15 +66,15 @@ function PatientCard({ patient, onDelete, onNavigate, index, t }) {
             </div>
         </div>
     );
-}
+});
 
 export default memo(function PatientTable({ patients, isLoading, onDelete }) {
     const navigate = useNavigate();
     const { t } = useTranslation();
 
-    const handleNavigate = (id) => {
+    const handleNavigate = useCallback((id) => {
         navigate(`/patients/${id}`);
-    };
+    }, [navigate]);
 
     if (isLoading) {
         return (

@@ -16,10 +16,8 @@ from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from prometheus_fastapi_instrumentator import Instrumentator
-import pytz
 import time
 import uuid
-from apscheduler.schedulers.background import BackgroundScheduler
 
 from backend.core.config import get_cors_origins, API_V1_STR, get_allow_origin_regex
 from backend.core.limiter import limiter
@@ -128,15 +126,6 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.error("[STARTUP] Global Procedure Seeding/Propagation failed", exc_info=True)
 
-    # 4b. Seed Material Categories (Inventory Phase 2)
-    try:
-        logger.info("[STARTUP] Seeding Material Categories...")
-        from backend.scripts.seed_material_categories import seed_material_categories
-        seed_material_categories()
-        logger.info("[STARTUP] Material Categories Seeded.")
-    except Exception:
-        logger.error("[STARTUP] Material Categories Seeding failed", exc_info=True)
-
     # 5. Initialize Firebase
     try:
         logger.info("[STARTUP] Initializing Firebase...")
@@ -146,6 +135,7 @@ async def lifespan(app: FastAPI):
         logger.error("[STARTUP] Firebase initialization failed", exc_info=True)
 
     logger.info("[STARTUP] System Ready.")
+    logger.info("BACKEND V3 LOADED | CWD: %s | Routes: %d", os.getcwd(), len(app.routes))
 
     yield  # Application runs here
 
@@ -186,7 +176,7 @@ app.add_middleware(
     allow_origin_regex=get_allow_origin_regex(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type", "X-Trace-ID", "Accept"],
 )
 
 
@@ -244,10 +234,6 @@ app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="as
 from backend.core.startup import init_drive_client
 drive_client = init_drive_client()
 
-scheduler = BackgroundScheduler(timezone=pytz.utc)
-scheduler.start()
-
-
 # --- Include Routers ---
 from backend.routers import (
     auth,
@@ -293,32 +279,9 @@ from backend.routers import (
 )
 
 # --- Register Exception Handlers ---
-# --- Register Exception Handlers ---
 from backend.core.exceptions import register_exception_handlers
 
 register_exception_handlers(app)
-
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-
-
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Log validation errors nicely for debugging."""
-    try:
-        body = await request.json()
-    except Exception:
-        body = "Could not parse body"
-
-    logger.warning(
-        "[VALIDATION ERROR] %s %s | Body: %s | Errors: %s",
-        request.method, request.url, body, exc.errors()
-    )
-
-    return JSONResponse(
-        status_code=422,
-        content={"detail": exc.errors(), "body": body},
-    )
 
 
 app.include_router(treatments.router, prefix=API_V1_STR)
@@ -451,11 +414,6 @@ async def catch_all(full_path: str):
     return {"error": "Frontend not deployed"}
 
 
-@app.on_event("startup")
-async def startup_event():
-    logger.info("BACKEND V3 LOADED | CWD: %s | Routes: %d", os.getcwd(), len(app.routes))
-
-
 # --- Protected Admin Endpoints ---
 from backend.routers.auth import get_current_user
 
@@ -463,10 +421,11 @@ from backend.routers.auth import get_current_user
 @app.post("/admin/seed-database")
 def manual_seed_database(current_user=Depends(get_current_user)):
     """Manual endpoint to seed database (admin only)."""
-    if getattr(current_user, "role", None) != "admin":
-        from fastapi import HTTPException
-
+    if os.getenv("ENVIRONMENT") == "production":
+        raise HTTPException(status_code=404, detail="Not Found")
+    if getattr(current_user, "role", None) not in {"admin", "super_admin"}:
         raise HTTPException(status_code=403, detail="Admin access required")
+    logger.warning("Manual seed triggered by user: %s", current_user.username)
     return seeding.manual_seed_database_logic()
 
 

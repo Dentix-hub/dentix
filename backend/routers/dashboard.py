@@ -29,7 +29,7 @@ def get_dashboard_stats(
     return _get_cached_dashboard_stats(current_user.tenant_id, doctor_id, db)
 
 
-@cached(key_prefix="dashboard_stats", expire=60)
+@cached(key_prefix="dashboard_stats", expire=120)
 def _get_cached_dashboard_stats(tenant_id: int, doctor_id: int, db: Session):
     """Internal helper to ensure tenant_id and doctor_id are part of the cache key."""
     data = crud.get_dashboard_stats(db, tenant_id, doctor_id=doctor_id)

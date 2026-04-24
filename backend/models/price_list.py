@@ -55,7 +55,7 @@ class InsuranceProvider(Base):
 
     # Status
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     price_lists = relationship("PriceList", back_populates="insurance_provider")
@@ -101,8 +101,8 @@ class PriceList(Base):
     effective_to = Column(Date, nullable=True)
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationships
     insurance_provider = relationship("InsuranceProvider", back_populates="price_lists")
@@ -112,7 +112,7 @@ class PriceList(Base):
 
     def is_valid(self) -> bool:
         """Check if price list is currently valid."""
-        from datetime import date
+        from datetime import date, timezone
 
         today = date.today()
 
@@ -158,8 +158,8 @@ class PriceListItem(Base):
     requires_approval = Column(Boolean, default=False)  # Needs pre-approval
 
     # Metadata
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relationships
     price_list = relationship("PriceList", back_populates="items")

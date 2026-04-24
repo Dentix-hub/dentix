@@ -22,7 +22,7 @@ router = APIRouter(prefix="/ai", tags=["AI Assistant"])
 
 @router.post("/query", response_model=AIQueryResponse)
 @limiter.limit("10/minute")
-async def ai_query(
+def ai_query(
     query_data: AIQueryRequest,
     request: Request,
     db: Session = Depends(get_db),

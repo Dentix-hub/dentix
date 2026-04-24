@@ -31,7 +31,7 @@ class SecurityEvent(Base):
     ip_address = Column(String(50), nullable=True)
     user_agent = Column(String(255), nullable=True)
 
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     user = relationship("User")

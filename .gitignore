@@ -12,6 +12,9 @@ backend/static/*
 .DS_Store
 *.log
 *.db
+*.sqlite
+*.sqlite3
+.env.*
 *.pyc
 __pycache__/
 .stash_preview.patch

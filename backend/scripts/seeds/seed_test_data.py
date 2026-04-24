@@ -1,7 +1,7 @@
 import sys
 import os
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Add current directory to path to allow imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -31,7 +31,7 @@ def seed_data():
             name=clinic_name,
             subscription_status="active",
             plan="enterprise",
-            subscription_end_date=datetime.utcnow() + timedelta(days=365),
+            subscription_end_date=datetime.now(timezone.utc) + timedelta(days=365),
             is_active=True,
         )
         db.add(tenant)
@@ -61,7 +61,7 @@ def seed_data():
                 commission_percent=dr["commission"],
                 fixed_salary=dr["salary"],
                 per_appointment_fee=dr["fee"],
-                hire_date=datetime.utcnow().date(),
+                hire_date=datetime.now(timezone.utc).date(),
             )
             db.add(user)
             db.commit()
@@ -109,7 +109,7 @@ def seed_data():
                     actual_cost = proc_cost + random.choice([-50, 0, 50, 100])
                     discount = random.choice([0, 0, 0, 100, 200])  # Occasional discount
 
-                    tx_date = datetime.utcnow() - timedelta(days=random.randint(0, 30))
+                    tx_date = datetime.now(timezone.utc) - timedelta(days=random.randint(0, 30))
 
                     treatment = models.Treatment(
                         patient_id=patient.id,

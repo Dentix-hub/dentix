@@ -26,7 +26,7 @@ class SubscriptionService:
         if not tenant.subscription_end_date:
             return "active"  # Assuming permanent/trial if no date? Or indefinite.
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         if now <= tenant.subscription_end_date:
             return "active"
@@ -45,7 +45,7 @@ class SubscriptionService:
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found")
 
-        tenant.grace_period_until = datetime.utcnow() + timedelta(days=days)
+        tenant.grace_period_until = datetime.now(timezone.utc) + timedelta(days=days)
         tenant.manual_override_reason = reason
         tenant.is_active = True
 

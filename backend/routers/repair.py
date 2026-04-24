@@ -1,3 +1,4 @@
+import os
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from ..core.response import success_response, error_response
@@ -11,6 +12,11 @@ from ..services.auth_service import AuthService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/repair", tags=["Repair"])
+
+
+def _ensure_not_production():
+    if os.getenv("ENVIRONMENT", "development").lower() == "production":
+        raise HTTPException(status_code=404, detail="Not Found")
 
 
 @router.get("/schema")
@@ -179,6 +185,7 @@ def debug_login(
     db: Session = Depends(database.get_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
 ):
+    _ensure_not_production()
     if current_user.role != "super_admin":
         raise HTTPException(status_code=403, detail="Super Admin only")
     """Try to replicate login logic and capture specific errors."""

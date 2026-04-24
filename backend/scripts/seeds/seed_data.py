@@ -7,7 +7,7 @@ import sys
 import os
 import random
 import codecs
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Add project root to path (parent of backend)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -67,7 +67,7 @@ CLINICS = ["عيادة النخبة", "مركز الشفاء", "عيادة ال�
 
 def get_random_date(days_back=90):
     """Get a random date within the last n days."""
-    return datetime.utcnow() - timedelta(days=random.randint(0, days_back))
+    return datetime.now(timezone.utc) - timedelta(days=random.randint(0, days_back))
 
 
 def seed_data():
@@ -87,7 +87,7 @@ def seed_data():
                 tenant = models.Tenant(
                     name=clinic_name,
                     plan="premium",
-                    subscription_end_date=datetime.utcnow() + timedelta(days=365),
+                    subscription_end_date=datetime.now(timezone.utc) + timedelta(days=365),
                 )
                 db.add(tenant)
                 db.commit()

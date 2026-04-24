@@ -23,7 +23,7 @@ class Patient(Base):
     address = Column(EncryptedString, nullable=True)  # Encrypted
     medical_history = Column(EncryptedString)  # Encrypted
     notes = Column(EncryptedString)  # Encrypted
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Soft Delete
     is_deleted = Column(Boolean, default=False)
@@ -70,6 +70,6 @@ class Attachment(Base):
     file_path = Column(String)
     filename = Column(String)
     file_type = Column(String)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     patient = relationship("Patient", back_populates="attachments")

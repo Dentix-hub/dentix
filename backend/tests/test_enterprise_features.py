@@ -52,10 +52,10 @@ def test_enterprise_features():
         print(f" - Created test tenant ID: {t_id}")
 
         # Soft delete manually (simulating API logic)
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         test_tenant.is_deleted = True
-        test_tenant.deleted_at = datetime.utcnow()
+        test_tenant.deleted_at = datetime.now(timezone.utc)
         test_tenant.is_active = False
         db.commit()
 

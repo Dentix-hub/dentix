@@ -9,7 +9,7 @@ Central service for laboratory and lab order operations:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -164,7 +164,7 @@ class LabService:
 
         # If status changes to completed, set received_date
         if update_data.get("status") == "completed" and order.status != "completed":
-            update_data["received_date"] = datetime.utcnow()
+            update_data["received_date"] = datetime.now(timezone.utc)
 
         for key, value in update_data.items():
             setattr(order, key, value)
