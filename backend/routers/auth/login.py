@@ -72,7 +72,11 @@ def login_for_access_token(
 
         # 2. Check Lockout Status
         if user and user.account_locked_until:
-            if user.account_locked_until > datetime.now(timezone.utc):
+            lockout_time = user.account_locked_until
+            # DB stores naive datetimes; normalize before comparing with UTC-aware now
+            if lockout_time.tzinfo is None:
+                lockout_time = lockout_time.replace(tzinfo=timezone.utc)
+            if lockout_time > datetime.now(timezone.utc):
                 raise HTTPException(
                     status_code=403,
                     detail="تم قفل الحساب مؤقتاً بسبب كثرة المحاولات الخاطئة. يرجى المحاولة بعد 15 دقيقة."
@@ -112,16 +116,22 @@ def login_for_access_token(
 
         # Check for Global Maintenance Mode
         if user.role != Role.SUPER_ADMIN.value:
-            maintenance_mode = (
-                db.query(models.SystemSetting)
-                .filter(models.SystemSetting.key == "maintenance_mode")
-                .first()
-            )
-            if maintenance_mode and maintenance_mode.value.lower() == "true":
-                raise HTTPException(
-                    status_code=503,
-                    detail="System is currently under maintenance. Please try again later.",
+            try:
+                maintenance_mode = (
+                    db.query(models.SystemSetting)
+                    .filter(models.SystemSetting.key == "maintenance_mode")
+                    .first()
                 )
+                if maintenance_mode and maintenance_mode.value.lower() == "true":
+                    raise HTTPException(
+                        status_code=503,
+                        detail="System is currently under maintenance. Please try again later.",
+                    )
+            except HTTPException:
+                raise
+            except Exception:
+                # If system_settings table is missing, skip maintenance check
+                pass
 
         # Check for Account Deactivation
         if hasattr(user, "is_active") and not user.is_active:
@@ -157,7 +167,7 @@ def login_for_access_token(
         if is_2fa and secret:
             temp_token = auth.create_access_token(
                 data={"sub": user.username, "scope": "2fa_pending"},
-                expires_delta=auth.timedelta(minutes=5),
+                expires_delta=timedelta(minutes=5),
             )
             return {
                 "access_token": temp_token,
@@ -352,7 +362,7 @@ def revoke_session(
     db: Session = Depends(get_db),
 ):
     """Revoke a specific session."""
-    AuthService.revoke_session(db, session_id)
+    AuthService.revoke_session(db, session_id, current_user.id)
     return {"message": "Session revoked"}
 
 

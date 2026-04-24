@@ -131,13 +131,15 @@ def get_current_user(
                 detail="Tenant account is inactive",
             )
 
-        if (
-            user.tenant.subscription_end_date
-            and user.tenant.subscription_end_date < datetime.now(timezone.utc)
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail="Subscription expired"
-            )
+        sub_end = user.tenant.subscription_end_date
+        if sub_end:
+            # DB stores naive datetimes; normalize before comparing with UTC-aware now
+            if sub_end.tzinfo is None:
+                sub_end = sub_end.replace(tzinfo=timezone.utc)
+            if sub_end < datetime.now(timezone.utc):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN, detail="Subscription expired"
+                )
 
     # SECURE: Inject tenant explicitly into Request Context for automatic SQLAlchemy scoping
     from backend.core.tenant_scope import set_current_tenant, set_super_admin_bypass

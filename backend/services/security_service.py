@@ -21,14 +21,16 @@ class SecurityService:
         )
         if blocked_entry:
             # Check expiry
-            if (
-                blocked_entry.expires_at
-                and blocked_entry.expires_at < datetime.now(timezone.utc)
-            ):
-                # Expired, unblock
-                db.delete(blocked_entry)
-                db.commit()
-                return None
+            expires_at = blocked_entry.expires_at
+            now = datetime.now(timezone.utc)
+            if expires_at:
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                if expires_at < now:
+                    # Expired, unblock
+                    db.delete(blocked_entry)
+                    db.commit()
+                    return None
             return blocked_entry
         return None
 
@@ -78,8 +80,12 @@ class SecurityService:
 
     @staticmethod
     def is_account_locked(user: models.User) -> bool:
-        if user.account_locked_until and user.account_locked_until > datetime.now(timezone.utc):
-            return True
+        if user.account_locked_until:
+            lockout = user.account_locked_until
+            if lockout.tzinfo is None:
+                lockout = lockout.replace(tzinfo=timezone.utc)
+            if lockout > datetime.now(timezone.utc):
+                return True
         return False
 
     @staticmethod

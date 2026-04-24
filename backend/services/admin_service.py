@@ -8,7 +8,7 @@ Extracted from routers/admin.py to follow service layer pattern.
 import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import List, Dict, Any, Optional
 
 from backend import models
@@ -63,7 +63,7 @@ class AdminService:
             return None
 
         tenant.is_deleted = True
-        tenant.deleted_at = datetime.now(timezone.utc)
+        tenant.deleted_at = datetime.utcnow()
         tenant.is_active = False
 
         # Also deactivate the manager user

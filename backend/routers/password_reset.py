@@ -106,7 +106,11 @@ def reset_password(
         raise HTTPException(status_code=400, detail="Ø±Ø§Ø¨Ø· ØºÙŠØ± ØµØ§Ù„Ø­ Ø£Ùˆ Ù…Ù†ØªÙ‡ÙŠ Ø§Ù„ØµÙ„Ø§Ø­ÙŠØ©")
 
     # Check expiration
-    if datetime.now(timezone.utc) > reset_token.expires_at:
+    now = datetime.now(timezone.utc)
+    expires = reset_token.expires_at
+    if expires and expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if now > expires:
         reset_token.used = True
         db.commit()
         raise HTTPException(
@@ -156,7 +160,11 @@ def verify_reset_token(
             success=False, data={"valid": False}, message="Ø±Ø§Ø¨Ø· ØºÙŠØ± ØµØ§Ù„Ø­"
         )
 
-    if datetime.now(timezone.utc) > reset_token.expires_at:
+    now = datetime.now(timezone.utc)
+    expires = reset_token.expires_at
+    if expires and expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if now > expires:
         return success_response(
             success=False, data={"valid": False}, message="Ø§Ù†ØªÙ‡Øª ØµÙ„Ø§Ø­ÙŠØ© Ø§Ù„Ø±Ø§Ø¨Ø·"
         )
