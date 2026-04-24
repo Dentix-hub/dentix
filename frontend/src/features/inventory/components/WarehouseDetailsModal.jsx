@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { X, Package, Layers } from 'lucide-react';
-import api from '@/api'; // Using base API instance for flexible query
+import { api } from '@/api'; // Using base API instance for flexible query
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 
 const WarehouseDetailsModal = ({ isOpen, onClose, warehouse }) => {

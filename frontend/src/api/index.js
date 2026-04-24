@@ -1,5 +1,11 @@
 // Barrel file - re-export all API modules for backward compatibility
-export { api, API_URL } from './apiClient';
+import { api, API_URL } from './apiClient';
+
+// Export core client
+export { api, API_URL };
+export default api;
+
+// Export all functional modules
 export * from './auth';
 export * from './patients';
 export * from './appointments';
@@ -17,3 +23,4 @@ export * from './settings';
 export * from './pricing';
 export * from './ocr';
 export * from './ai';
+
