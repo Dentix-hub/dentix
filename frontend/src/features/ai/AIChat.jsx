@@ -6,7 +6,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, X, Bot, Loader2, Mic, MicOff, Calendar, Users, DollarSign, Building2, Volume2, VolumeX, FileEdit } from 'lucide-react';
 import { sendAIQuery } from '@/api';
-const aiAvatar = '/dental-ai-avatar.png';
+import aiAvatar from '@/assets/dental-ai-avatar.png';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import { formatAIResponse } from '@/utils/aiResponseFormatter';

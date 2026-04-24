@@ -220,7 +220,8 @@ import pathlib
 project_root = pathlib.Path(__file__).resolve().parent.parent
 base_dir = project_root / "backend"
 upload_dir = project_root / "uploads"
-static_dir = project_root / "static"
+# Check both /app/static and /app/backend/static
+static_dir = base_dir / "static" if (base_dir / "static").exists() else project_root / "static"
 
 os.makedirs(upload_dir, exist_ok=True)
 os.makedirs(static_dir / "logos", exist_ok=True)

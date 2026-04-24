@@ -708,11 +708,19 @@
             "search_placeholder": "Search material...",
             "receive_stock": "Receive Stock",
             "new_material": "New Material",
+            "add_category": "Add Category",
             "smart_settings": "Smart Settings",
             "edit": "Edit",
             "delete": "Delete",
             "open_package": "Open Package",
             "close_package": "Close Package"
+        },
+        "categories": {
+            "add_new": "New Category",
+            "name_ar": "Name (Arabic)",
+            "name_en": "Name (English)",
+            "success_add": "Category added successfully",
+            "fail_add": "Failed to add category"
         },
         "filters": {
             "all": "All",

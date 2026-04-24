@@ -35,6 +35,7 @@ export const deleteProcedureWeight = (id) => api.delete(`/api/v1/inventory/weigh
 
 // Material Categories (Phase 3)
 export const getCategories = () => api.get('/api/v1/inventory/categories');
+export const createCategory = (data) => api.post('/api/v1/inventory/categories', data);
 export const getCategoryMaterials = (categoryId) => api.get(`/api/v1/inventory/categories/${categoryId}/materials`);
 
 // Category-based Suggestions (Phase 3)

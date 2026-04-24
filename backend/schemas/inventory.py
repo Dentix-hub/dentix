@@ -15,6 +15,13 @@ class MaterialType(str, Enum):
 
 
 # --- MATERIAL CATEGORY ---
+class MaterialCategoryCreate(BaseModel):
+    name_en: str
+    name_ar: str
+    default_type: str = "DIVISIBLE"
+    default_unit: str = "g"
+
+
 class MaterialCategoryOut(BaseModel):
     id: int
     name_en: str

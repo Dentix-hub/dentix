@@ -165,8 +165,12 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                                                 className="px-6 py-4 font-bold text-text-primary cursor-pointer hover:text-primary transition-colors underline decoration-dotted decoration-text-secondary/30 hover:decoration-primary"
                                                 title={t('inventory.table.details_tooltip')}
                                             >
-                                                {item.material_name}
-                                                {item.brand && <span className="text-xs text-text-secondary block font-normal">{item.brand}</span>}
+                                                <div className="text-base">{item.brand || item.material_name}</div>
+                                                {item.brand && (
+                                                    <span className="text-[10px] text-text-secondary block font-normal opacity-70">
+                                                        {item.material_name}
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4 text-sm text-text-secondary">
                                                 {item.material_type === 'DIVISIBLE' ? t('inventory.types.divisible') : t('inventory.types.indivisible')}

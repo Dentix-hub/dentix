@@ -57,6 +57,20 @@ def delete_warehouse(
 
 
 # --- MATERIAL CATEGORIES ---
+@router.post("/categories", response_model=StandardResponse[schemas.inventory.MaterialCategoryOut])
+def create_material_category(
+    category: schemas.inventory.MaterialCategoryCreate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_MANAGE)),
+):
+    """Create a new material category"""
+    new_cat = inv_models.MaterialCategory(**category.model_dump())
+    db.add(new_cat)
+    db.commit()
+    db.refresh(new_cat)
+    return success_response(data=new_cat, message="Category created")
+
+
 @router.get("/categories", response_model=StandardResponse[List[schemas.inventory.MaterialCategoryOut]])
 def get_material_categories(
     db: Session = Depends(get_db),
