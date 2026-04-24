@@ -342,7 +342,7 @@ def download_backup(
 
 
 @router.post("/backup/upload", response_model=StandardResponse[dict])
-def upload_backup(
+async def upload_backup(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
