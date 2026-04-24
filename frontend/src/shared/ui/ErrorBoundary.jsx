@@ -23,6 +23,9 @@ class ErrorBoundary extends Component {
     };
     render() {
         if (this.state.hasError) {
+            if (this.props.fallback) {
+                return this.props.fallback;
+            }
             return (
                 <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 p-6" dir="rtl">
                     <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-10 max-w-lg w-full text-center space-y-6 border border-slate-100 dark:border-slate-700">

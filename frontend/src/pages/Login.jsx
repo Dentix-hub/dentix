@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../api';
 import { setToken } from '../utils';
-import { Sun, Moon, Globe } from 'lucide-react';
+import { Sun, Moon, Globe, Activity } from 'lucide-react';
 const logo = '/logo.png';
 export default function Login({ isDarkMode, toggleDarkMode }) {
     const { t, i18n } = useTranslation();
+    const [logoError, setLogoError] = useState(false);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -52,7 +53,11 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         <Globe size={20} />
                     </button>
                     <div className="h-44 w-full overflow-hidden flex items-center justify-center">
-                        <img src={logo} alt="DENTIX Logo" className="h-full w-full object-contain scale-[2.5] translate-x-4" />
+                        {logoError ? (
+                            <Activity size={80} className="text-primary" />
+                        ) : (
+                            <img src={logo} alt="DENTIX Logo" onError={() => setLogoError(true)} className="h-full w-full object-contain scale-[2.5] translate-x-4" />
+                        )}
                     </div>
                     <button
                         onClick={toggleDarkMode}
