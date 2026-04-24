@@ -33,7 +33,7 @@ def test_admin_users_query_count(db_session):
         super_admin = models.User(role="super_admin")
 
         users = admin_system.get_global_users(
-            db=db_session, limit=10, current_user=super_admin
+            db=db_session, limit=100, current_user=super_admin
         )
 
         # 4. Verify
