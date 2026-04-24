@@ -10,6 +10,7 @@ from .base import (
     ForeignKey,
     relationship,
     datetime,
+    timezone,
 )
 
 

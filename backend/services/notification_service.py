@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from typing import List, Dict, Any
 from sqlalchemy.orm import Session
 from .. import models
@@ -12,7 +12,7 @@ class NotificationService:
         """
         Sends a push notification to a specific user using their stored FCM token.
         """
-        user = db.query(models.User).filter(models.User.id == user_id, models.User.is_active == True).first()
+        user = db.query(models.User).filter(models.User.id == user_id, models.User.is_active).first()
 
         if not user or not user.fcm_token:
             logger.warning(f"Cannot send notification to user {user_id}: No FCM token found.")
@@ -32,7 +32,7 @@ class NotificationService:
         """
         users = db.query(models.User).filter(
             models.User.role == role,
-            models.User.is_active == True,
+            models.User.is_active,
             models.User.fcm_token.isnot(None)
         ).all()
 

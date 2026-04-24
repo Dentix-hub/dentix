@@ -7,6 +7,7 @@ from .base import (
     ForeignKey,
     relationship,
     datetime,
+    timezone,
 )
 from sqlalchemy import Boolean
 from backend.core.security import EncryptedString

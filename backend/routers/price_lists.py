@@ -151,7 +151,7 @@ def get_price_list(
         )
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("An exception occurred", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
 

@@ -9,7 +9,7 @@ modular architecture principles.
 from contextlib import asynccontextmanager
 import os
 import logging
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -110,10 +110,10 @@ async def lifespan(app: FastAPI):
 
         logger.info("[STARTUP] Seeding Global Procedures...")
         seed_procedures()
-        
+
         logger.info("[STARTUP] Seeding Material Categories...")
         seed_material_categories()
-        
+
         logger.info("[STARTUP] Seeding Procedure-Material Defaults...")
         seed_procedure_material_defaults()
         logger.info("[STARTUP] Global Procedures Seeded.")
