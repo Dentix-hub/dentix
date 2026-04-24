@@ -41,8 +41,8 @@ def get_material_suggestions(
 
     suggestions = service.get_suggested_materials(
         procedure_id=procedure_id,
+        tenant_id=current_user.tenant_id,
         doctor_id=effective_doctor_id,
-        patient_age=patient_age,
     )
     return {"data": suggestions, "success": True}
 
