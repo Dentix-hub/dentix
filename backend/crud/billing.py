@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, date, timezone, timedelta
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from backend import models, schemas
@@ -608,7 +609,6 @@ def get_dashboard_stats(db: Session, tenant_id: int, doctor_id: int = None):
     total_appointments_today = appointments_query.scalar() or 0
 
     # 4. Revenue Chart (Last 7 Days)
-    from datetime import timedelta, timezone
 
     chart_data = []
     for i in range(6, -1, -1):
