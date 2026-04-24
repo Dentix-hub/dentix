@@ -613,7 +613,7 @@ def get_detailed_analytics(db: Session, tenant_id: int, days: int = 30) -> str:
 
 
 @router.post("/analyze-clinic")
-def analyze_clinic(
+async def analyze_clinic(
     stats: ClinicStats,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
