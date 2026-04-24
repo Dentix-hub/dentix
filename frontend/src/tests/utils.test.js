@@ -24,49 +24,30 @@ describe('utils', () => {
         });
     });
     describe('setToken / getToken / getRefreshToken', () => {
-        it('stores token in localStorage when remember=true', () => {
-            setToken('access123', 'refresh456', true);
-            expect(localStorage.getItem('token')).toBe('access123');
-            expect(localStorage.getItem('refresh_token')).toBe('refresh456');
+        it('stores token in sessionStorage', () => {
+            setToken('access123', 'refresh456');
+            expect(sessionStorage.getItem('token')).toBe('access123');
+            expect(sessionStorage.getItem('refresh_token')).toBe('refresh456');
         });
-        it('stores token in sessionStorage when remember=false', () => {
-            setToken('access789', 'refresh012', false);
-            expect(sessionStorage.getItem('token')).toBe('access789');
-            expect(sessionStorage.getItem('refresh_token')).toBe('refresh012');
-        });
-        it('getToken retrieves from localStorage first', () => {
-            localStorage.setItem('token', 'ls-token');
-            sessionStorage.setItem('token', 'ss-token');
-            expect(getToken()).toBe('ls-token');
-        });
-        it('getToken falls back to sessionStorage', () => {
+        it('getToken retrieves from sessionStorage', () => {
             sessionStorage.setItem('token', 'ss-token');
             expect(getToken()).toBe('ss-token');
         });
-        it('getRefreshToken retrieves from localStorage first', () => {
-            localStorage.setItem('refresh_token', 'ls-refresh');
-            sessionStorage.setItem('refresh_token', 'ss-refresh');
-            expect(getRefreshToken()).toBe('ls-refresh');
-        });
-        it('getRefreshToken falls back to sessionStorage', () => {
+        it('getRefreshToken retrieves from sessionStorage', () => {
             sessionStorage.setItem('refresh_token', 'ss-refresh');
             expect(getRefreshToken()).toBe('ss-refresh');
         });
         it('setToken without refreshToken skips refresh storage', () => {
             setToken('access-only');
-            expect(localStorage.getItem('token')).toBe('access-only');
-            expect(localStorage.getItem('refresh_token')).toBeNull();
+            expect(sessionStorage.getItem('token')).toBe('access-only');
+            expect(sessionStorage.getItem('refresh_token')).toBeNull();
         });
     });
     describe('removeToken', () => {
-        it('clears tokens from both storages', () => {
-            localStorage.setItem('token', 'a');
-            localStorage.setItem('refresh_token', 'b');
+        it('clears tokens from sessionStorage', () => {
             sessionStorage.setItem('token', 'c');
             sessionStorage.setItem('refresh_token', 'd');
             removeToken();
-            expect(localStorage.getItem('token')).toBeNull();
-            expect(localStorage.getItem('refresh_token')).toBeNull();
             expect(sessionStorage.getItem('token')).toBeNull();
             expect(sessionStorage.getItem('refresh_token')).toBeNull();
         });

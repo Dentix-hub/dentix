@@ -1,5 +1,6 @@
 import React, { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
 // Sentry Removed - Replaced by Internal Logger
 import App from './App.jsx';
 import './index.css';
@@ -41,7 +42,9 @@ const root = createRoot(container);
 root.render(
   <StrictMode>
     <DiagnosticErrorBoundary>
-      <App />
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <App />
+      </BrowserRouter>
     </DiagnosticErrorBoundary>
   </StrictMode>
 );

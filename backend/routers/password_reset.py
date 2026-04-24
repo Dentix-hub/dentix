@@ -2,7 +2,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from backend.core.limiter import limiter
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets
 
 from .. import models, database
@@ -60,7 +60,7 @@ def forgot_password(
 
     # Legacy logic: save token to DB and send via SMTP
     token = secrets.token_urlsafe(32)
-    expires_at = datetime.utcnow() + timedelta(minutes=15)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
 
     reset_token = models.PasswordResetToken(
         token=token,
@@ -106,7 +106,7 @@ def reset_password(
         raise HTTPException(status_code=400, detail="Ø±Ø§Ø¨Ø· ØºÙŠØ± ØµØ§Ù„Ø­ Ø£Ùˆ Ù…Ù†ØªÙ‡ÙŠ Ø§Ù„ØµÙ„Ø§Ø­ÙŠØ©")
 
     # Check expiration
-    if datetime.utcnow() > reset_token.expires_at:
+    if datetime.now(timezone.utc) > reset_token.expires_at:
         reset_token.used = True
         db.commit()
         raise HTTPException(
@@ -156,7 +156,7 @@ def verify_reset_token(
             success=False, data={"valid": False}, message="Ø±Ø§Ø¨Ø· ØºÙŠØ± ØµØ§Ù„Ø­"
         )
 
-    if datetime.utcnow() > reset_token.expires_at:
+    if datetime.now(timezone.utc) > reset_token.expires_at:
         return success_response(
             success=False, data={"valid": False}, message="Ø§Ù†ØªÙ‡Øª ØµÙ„Ø§Ø­ÙŠØ© Ø§Ù„Ø±Ø§Ø¨Ø·"
         )

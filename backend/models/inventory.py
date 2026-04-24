@@ -64,7 +64,7 @@ class Batch(Base):
     expiry_date = Column(Date, nullable=False, index=True)
     supplier = Column(String, nullable=True)
     cost_per_unit = Column(Float, default=0.0)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     material = relationship("Material", back_populates="batches")
     stock_items = relationship("StockItem", back_populates="batch")
@@ -100,7 +100,7 @@ class MaterialSession(Base):
     stock_item_id = Column(
         Integer, ForeignKey("stock_items.id"), nullable=False, index=True
     )
-    opened_at = Column(DateTime, default=datetime.utcnow)
+    opened_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     status = Column(String, default="ACTIVE")  # ACTIVE, CLOSED
     remaining_est = Column(
         Float, default=1.0
@@ -129,7 +129,7 @@ class StockMovement(Base):
         String, nullable=False
     )  # PURCHASE, TRANSFER, USAGE, EXPIRED, ADJUSTMENT
     reference_id = Column(String, nullable=True)  # Link to Treatment ID or Order ID
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     performed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     stock_item = relationship("StockItem", back_populates="movements")
@@ -191,7 +191,7 @@ class MaterialLearningLog(Base):
     #   "procedure_breakdown": [...]
     # }
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class TreatmentMaterialUsage(Base):
@@ -211,7 +211,7 @@ class TreatmentMaterialUsage(Base):
     is_manual_override = Column(Boolean, default=False)  # Doctor adjusted manually
 
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     treatment = relationship("Treatment")
     material = relationship("Material")

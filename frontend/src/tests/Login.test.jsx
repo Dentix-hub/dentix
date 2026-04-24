@@ -19,9 +19,8 @@ vi.mock('../api', () => ({
     login: vi.fn(),
 }));
 
-vi.mock('@/assets/logoBase64', () => ({
-    logoBase64: 'data:image/png;base64,fake',
-}));
+// Base64 assets replaced with static files (T-1.9)
+// Logo is now referenced via static URL in component
 
 const renderLogin = (props = {}) => {
     return render(

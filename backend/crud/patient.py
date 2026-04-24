@@ -125,12 +125,12 @@ def update_patient(
 
 def delete_patient(db: Session, patient_id: int, tenant_id: int):
     """Soft Delete Patient."""
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     db_patient = get_patient(db, patient_id, tenant_id)
     if db_patient:
         db_patient.is_deleted = True
-        db_patient.deleted_at = datetime.utcnow()
+        db_patient.deleted_at = datetime.now(timezone.utc)
         db.commit()
         db.refresh(db_patient)
     return db_patient

@@ -100,3 +100,22 @@ def cached(key_prefix: str, expire: int = 300):
         return wrapper
 
     return decorator
+
+
+def invalidate_dashboard_cache(tenant_id: int):
+    """Invalidate dashboard cache keys for a given tenant."""
+    try:
+        prefix = f"dashboard_stats:{tenant_id}"
+        if cache.use_redis and cache.redis_client:
+            # Scan and delete matching keys
+            for key in cache.redis_client.scan_iter(match=f"{prefix}:*"):
+                cache.redis_client.delete(key)
+            # Also delete exact key if no doctor_id suffix
+            cache.redis_client.delete(prefix)
+        else:
+            # Local memory: delete keys starting with prefix
+            keys_to_delete = [k for k in cache.local_cache.keys() if k.startswith(prefix)]
+            for k in keys_to_delete:
+                del cache.local_cache[k]
+    except Exception as e:
+        logger.error(f"Failed to invalidate dashboard cache for tenant {tenant_id}: {e}")

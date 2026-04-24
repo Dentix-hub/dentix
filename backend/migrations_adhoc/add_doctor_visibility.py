@@ -6,7 +6,7 @@ This migration adds the necessary columns for multi-doctor patient visibility:
 - Patient: assigned_doctor_id
 - Appointment: doctor_id
 
-Run with: python backend/migrations/add_doctor_visibility.py
+Run with: python backend/migrations_adhoc/add_doctor_visibility.py
 """
 
 from sqlalchemy import text

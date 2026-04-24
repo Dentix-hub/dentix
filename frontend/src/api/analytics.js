@@ -1,4 +1,4 @@
-import api from './index';
+import { api } from './apiClient';
 
 export const getProfitability = async (period = '30d') => {
     const response = await api.get('/metrics/profitability', { params: { period } });
