@@ -13,6 +13,7 @@ import { formatAIResponse } from '@/utils/aiResponseFormatter';
 import { useTranslation } from 'react-i18next';
 export default function AIChat() {
     const { t } = useTranslation();
+    const [avatarError, setAvatarError] = useState(false);
     // Initial greeting in current language
     const [messages, setMessages] = useState([
         {
@@ -165,11 +166,14 @@ export default function AIChat() {
             >
                 {isOpen ? (
                     <X size={24} className="text-white" />
+                ) : avatarError ? (
+                    <Bot size={32} className="text-primary drop-shadow-lg" />
                 ) : (
                     <img
                         src={aiAvatar}
                         alt="AI Assistant"
                         loading="lazy"
+                        onError={() => setAvatarError(true)}
                         className="w-16 h-16 md:w-24 md:h-24 drop-shadow-2xl filter hover:brightness-110 transition-all transform hover:scale-105"
                     />
                 )}
@@ -180,7 +184,11 @@ export default function AIChat() {
                     {/* Header */}
                     <div className="bg-gradient-to-r from-cyan-600 to-indigo-600 p-4 flex items-center gap-3">
                         <div className="bg-white/10 rounded-full border border-white/20 w-12 h-12 flex items-center justify-center overflow-hidden shrink-0">
-                            <img src={aiAvatar} alt="AI" loading="lazy" className="w-full h-full object-cover" />
+                            {avatarError ? (
+                                <Bot size={24} className="text-white" />
+                            ) : (
+                                <img src={aiAvatar} alt="AI" loading="lazy" onError={() => setAvatarError(true)} className="w-full h-full object-cover" />
+                            )}
                         </div>
                         <div className="flex-1">
                             <h3 className="text-white font-bold">{t('ai_chat.title')}</h3>
