@@ -1,5 +1,5 @@
-import { useEffect, Suspense, lazy, useCallback } from 'react';
-import { useLocation, Link, useNavigate } from 'react-router-dom';
+import { useEffect, Suspense, lazy, useCallback, useState } from 'react';
+import { useLocation, Link, useNavigate, Outlet } from 'react-router-dom';
 import {
     Home, Users, Banknote, Calendar, Menu, Settings as SettingsIcon, Package, LineChart, Globe,
     LogOut, Shield, Sun, Moon, FlaskConical, Brain, HelpCircle, AlertTriangle
@@ -22,7 +22,8 @@ import { useUIStore } from '@/store/ui.store';
 import { useTenantStore } from '@/store/tenant.store';
 import { API_URL } from '@/api';
 
-const Layout = ({ children }) => {
+const Layout = () => {
+    const [logoError, setLogoError] = useState(false);
     const { t, i18n } = useTranslation();
     const { sidebarOpen, setSidebarOpen, darkMode: isDarkMode, toggleDarkMode } = useUIStore();
     const { tenant, hasFeature } = useTenantStore();
@@ -139,8 +140,9 @@ const Layout = ({ children }) => {
                 <div className={`flex flex-col items-center justify-center border-b border-border p-4`}>
                     <div className="h-28 w-full overflow-hidden flex items-center justify-center mb-4">
                         <img
-                            src={tenant?.logo ? `${API_URL}/${tenant.logo}` : logo}
+                            src={logoError ? logo : (tenant?.logo ? `${API_URL}/${tenant.logo}` : logo)}
                             alt={t('common.logo')}
+                            onError={() => setLogoError(true)}
                             className="h-full w-full object-contain drop-shadow-md scale-[2.5] translate-x-4"
                         />
                     </div>
@@ -268,7 +270,7 @@ const Layout = ({ children }) => {
                 <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
                     <div className="w-full max-w-[1920px] mx-auto">
                         <Suspense fallback={<LoadingSpinner />}>
-                            {children}
+                            <Outlet />
                         </Suspense>
                     </div>
                 </main>
