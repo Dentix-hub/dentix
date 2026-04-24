@@ -13,6 +13,7 @@ export * from './billing';
 export * from './admin';
 export * from './analytics';
 export * from './financials';
+export * from './treatments';
 export * from './inventory';
 export * from './labs';
 export * from './procedures';
