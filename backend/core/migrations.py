@@ -17,7 +17,7 @@ def run_alembic_migrations():
         if not os.path.exists(ini_path):
             # Try parent dir if running from backend/
             ini_path = os.path.join(os.path.dirname(os.getcwd()), "alembic.ini")
-            
+
         if not os.path.exists(ini_path):
             logger.error("[MIGRATION] alembic.ini not found. Skipping Alembic migrations.")
             return
@@ -27,7 +27,7 @@ def run_alembic_migrations():
         db_url = os.getenv("DATABASE_URL")
         if db_url:
             alembic_cfg.set_main_option("sqlalchemy.url", db_url)
-            
+
         command.upgrade(alembic_cfg, "head")
         logger.info("[MIGRATION] Alembic migrations completed successfully.")
     except Exception as e:
@@ -43,7 +43,7 @@ def run_migration_health_check():
         ("procedure_material_weights", "current_average_usage"),
         ("treatment_material_usages", "tenant_id"),
     ]
-    
+
     missing = []
     for table, col in checks:
         try:
@@ -59,11 +59,11 @@ def run_migration_health_check():
                     conn.execute(text(f"SELECT {col} FROM {table} LIMIT 0"))
         except Exception:
             missing.append(f"{table}.{col}")
-            
+
     if missing:
         logger.error(f"[MIGRATION HEALTH] Missing columns detected: {missing}")
         return False
-    
+
     logger.info("[MIGRATION HEALTH] All critical schema components verified.")
     return True
 
@@ -71,13 +71,13 @@ def run_migration_health_check():
 def check_and_migrate_tables():
     """Auto-migrate schema for cloud deployments (Legacy Ad-hoc + Alembic)."""
     logger.info('[MIGRATION] Starting schema checks...')
-    
+
     # 1. Run Alembic first (Standard way)
     run_alembic_migrations()
-    
+
     # 2. Run Health Check
     run_migration_health_check()
-    
+
     # 3. Run Legacy Ad-hoc migrations (Safety net)
     is_sqlite = database.engine.name == 'sqlite'
     auto_inc = ('INTEGER PRIMARY KEY AUTOINCREMENT' if is_sqlite else

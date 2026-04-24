@@ -170,10 +170,10 @@ def check_availability(
 def get_suggestion_logs():
     _ensure_not_production()
     """Debug endpoint to see what's happening with suggestions."""
-    
+
     import os
     if not os.path.exists("suggestion_debug.log"):
         return {"message": "No logs found"}
-    
+
     with open("suggestion_debug.log", "r", encoding="utf-8") as f:
         return {"logs": f.read().splitlines()[-100:]}  # Return last 100 lines

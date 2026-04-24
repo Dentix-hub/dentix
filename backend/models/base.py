@@ -23,7 +23,7 @@ from sqlalchemy import (
     UniqueConstraint
 )
 from sqlalchemy.orm import relationship
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, date, time, timedelta, timezone
 
 __all__ = [
     "Base",
@@ -43,5 +43,6 @@ __all__ = [
     "Numeric",
     "func",
     "relationship",
-    "datetime"
+    "datetime",
+    "timezone"
 ]
