@@ -31,11 +31,7 @@ class AIAgent:
             self.mock_mode = True
             self.client = None
         else:
-            # Use httpx.AsyncClient with specific limits and force IPv4 (local_address)
-            # HF Spaces sometimes drops IPv6 traffic to certain APIs leading to APIConnectionError
-            transport = httpx.AsyncHTTPTransport(local_address="0.0.0.0", retries=2)
             http_client = httpx.AsyncClient(
-                transport=transport,
                 limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
                 timeout=httpx.Timeout(60.0, connect=15.0)
             )
