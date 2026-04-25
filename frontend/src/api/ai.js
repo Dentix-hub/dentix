@@ -7,6 +7,6 @@ export const sendAIQuery = (text, options = {}) => {
         context,
         last_patient_name,
         scribe_mode
-    });
+    }, { skipUnwrap: true });
 };
 export const getAITools = () => api.get('/api/v1/ai/tools');
