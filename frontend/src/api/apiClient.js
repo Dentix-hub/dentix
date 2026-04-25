@@ -104,7 +104,7 @@ api.interceptors.response.use(
             console.error('[API] Request failed:', error.response.status, originalRequest.url);
         }
 
-        if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/api/v1/token' && originalRequest.url !== '/api/v1/auth/refresh') {
+        if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/api/v1/auth/token') && !originalRequest.url?.includes('/api/v1/auth/refresh')) {
             const debugMsg = error.response?.data?.detail || "Unknown Auth Error";
 
             if (isRefreshing) {
