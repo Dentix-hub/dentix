@@ -4,9 +4,9 @@ import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../api';
 import { setToken } from '../utils';
 import { Sun, Moon, Globe, Activity } from 'lucide-react';
+import BrandLogo from '@/shared/ui/BrandLogo';
 export default function Login({ isDarkMode, toggleDarkMode }) {
     const { t, i18n } = useTranslation();
-    const [logoError, setLogoError] = useState(false);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -52,11 +52,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         <Globe size={20} />
                     </button>
                     <div className="h-44 w-full overflow-hidden flex items-center justify-center">
-                        <img 
-                            src={'/logo.webp'} 
-                            alt="DENTIX Logo" 
-                            className="h-full w-full object-contain transition-transform" 
-                        />
+                        <BrandLogo className="h-full w-full object-contain transition-transform" />
                     </div>
                     <button
                         onClick={toggleDarkMode}
