@@ -4,7 +4,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../api';
 import { setToken } from '../utils';
 import { Sun, Moon, Globe, Activity } from 'lucide-react';
-import logo from '@/assets/logo.png';
 export default function Login({ isDarkMode, toggleDarkMode }) {
     const { t, i18n } = useTranslation();
     const [logoError, setLogoError] = useState(false);
@@ -54,9 +53,9 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                     </button>
                     <div className="h-44 w-full overflow-hidden flex items-center justify-center">
                         <img 
-                            src={logo} 
+                            src={'/logo.png'} 
                             alt="DENTIX Logo" 
-                            className="h-full w-full object-contain p-4" 
+                            className="h-full w-full object-contain transition-transform" 
                         />
                     </div>
                     <button
