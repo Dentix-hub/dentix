@@ -75,6 +75,10 @@ api.interceptors.response.use(
             return response;
         }
 
+        if (response.config?.skipUnwrap) {
+            return response;
+        }
+
         if (response.data && typeof response.data === 'object' && 'success' in response.data && 'data' in response.data) {
             if (response.data.pagination && response.data.data !== null && typeof response.data.data === 'object') {
                 try {
