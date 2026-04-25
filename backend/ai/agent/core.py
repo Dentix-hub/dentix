@@ -8,6 +8,7 @@ import os
 import json
 import logging
 import httpx
+import certifi
 from groq import AsyncGroq
 from .limiter import rate_limiter
 from .prompt import build_system_prompt
@@ -32,6 +33,8 @@ class AIAgent:
             self.client = None
         else:
             http_client = httpx.AsyncClient(
+                verify=certifi.where(),
+                http2=False,
                 limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
                 timeout=httpx.Timeout(60.0, connect=15.0)
             )
@@ -205,8 +208,10 @@ class AIAgent:
             return result
 
         except Exception as e:
-            msg = f"DEBUG ERROR: {str(e)}"
-            logger.error(f"AI Failed: {e}", exc_info=True)
+            root_cause = getattr(e, "__cause__", None)
+            cause_str = f" | Cause: {str(root_cause)}" if root_cause else ""
+            msg = f"DEBUG ERROR: {str(e)}{cause_str}"
+            logger.error(f"AI Failed: {e}{cause_str}", exc_info=True)
 
             if "429" in str(e):
                 msg = "الخادم مشغول حالياً، يرجى المحاولة لاحقاً."
@@ -217,7 +222,7 @@ class AIAgent:
                 # Try to guess tool name from context if possible, or just pass None
                 # We can't easily know tool name here unless we parse it from partial response,
                 # but let's pass generic error.
-                msg = error_explainer.explain(str(e))
+                msg = error_explainer.explain(f"{str(e)}{cause_str}")
 
             # Graceful Error Object
             return {
