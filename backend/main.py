@@ -351,6 +351,39 @@ async def get_global_settings():
 Instrumentator().instrument(app).expose(app)
 
 
+# --- Static File Serving Protection ---
+def get_safe_static_path(base_directory: pathlib.Path, requested_path_str: str) -> pathlib.Path | None:
+    """
+    Safely joins a base directory with a requested path string,
+    preventing path traversal and other injection attacks.
+    """
+    if not requested_path_str:
+        return None
+
+    # 1. Disallow null bytes
+    if "\0" in requested_path_str:
+        logger.warning(f"SECURITY: Null byte detected in path: {requested_path_str}")
+        return None
+
+    # 2. Strip leading slashes/backslashes to prevent absolute path escapes on join
+    clean_path = requested_path_str.lstrip("/\\")
+
+    try:
+        # 3. Join and resolve to canonical path
+        base_resolved = base_directory.resolve()
+        full_path = (base_resolved / clean_path).resolve()
+
+        # 4. Verify the resulting path is still within the base directory
+        if full_path.is_relative_to(base_resolved):
+            return full_path
+
+        logger.warning(f"SECURITY: Path traversal attempt blocked: {requested_path_str}")
+    except Exception as e:
+        logger.error(f"Error resolving path {requested_path_str}: {e}")
+
+    return None
+
+
 # --- System Routes ---
 # Note: /health is now handled by health.router with more comprehensive checks
 
@@ -400,9 +433,11 @@ async def catch_all(full_path: str):
         raise HTTPException(status_code=404, detail="Not Found")
 
     # Check if the file exists in the static directory (e.g. /logo.png)
-    file_path = os.path.join(static_dir, full_path)
-    if os.path.isfile(file_path):
-        return FileResponse(file_path)
+    # Using path safety utility to prevent path traversal
+    safe_file_path = get_safe_static_path(static_dir, full_path)
+
+    if safe_file_path and safe_file_path.is_file():
+        return FileResponse(str(safe_file_path))
 
     # Serve index.html for SPA routing
     index_path = os.path.join(static_dir, "index.html")
@@ -423,7 +458,7 @@ from backend.routers.auth import get_current_user
 @app.post("/admin/seed-database")
 def manual_seed_database(current_user=Depends(get_current_user)):
     """Manual endpoint to seed database (admin only)."""
-    if os.getenv("ENVIRONMENT") == "production":
+    if os.getenv("ENVIRONMENT", "").lower() != "development":
         raise HTTPException(status_code=404, detail="Not Found")
     if getattr(current_user, "role", None) not in {"admin", "super_admin"}:
         raise HTTPException(status_code=403, detail="Admin access required")

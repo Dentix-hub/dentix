@@ -12,6 +12,7 @@ import GlobalSearch from '@/shared/ui/GlobalSearch';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import NotificationBell from '@/shared/ui/NotificationBell';
 import GlobalBanner from '@/shared/ui/GlobalBanner';
+import BrandLogo from '@/shared/ui/BrandLogo';
 // Prefetching hooks
 import { usePrefetchPatients } from '@/hooks/usePatients';
 import { usePrefetchAppointments } from '@/hooks/useAppointments';
@@ -23,7 +24,6 @@ import { useTenantStore } from '@/store/tenant.store';
 import { API_URL } from '@/api';
 
 const Layout = () => {
-    const [logoError, setLogoError] = useState(false);
     const { t, i18n } = useTranslation();
     const { sidebarOpen, setSidebarOpen, darkMode: isDarkMode, toggleDarkMode } = useUIStore();
     const { tenant, hasFeature } = useTenantStore();
@@ -139,24 +139,7 @@ const Layout = () => {
             `}>
                 <div className={`flex flex-col items-center justify-center border-b border-border p-4`}>
                     <div className="h-28 w-full overflow-hidden flex items-center justify-center mb-4">
-                        {(!logoError && (tenant?.logo && tenant.logo !== 'null' ? (tenant.logo.startsWith('http') || tenant.logo.startsWith('/') ? tenant.logo : `${API_URL}/${tenant.logo}`) : '/logo.webp')) ? (
-                            <img
-                                src={tenant?.logo && tenant.logo !== 'null' ? (tenant.logo.startsWith('http') || tenant.logo.startsWith('/') ? tenant.logo : `${API_URL}/${tenant.logo}`) : '/logo.webp'}
-                                alt={t('common.logo')}
-                                onError={(e) => {
-                                    if (e.target.src.includes('/logo.webp')) {
-                                        setLogoError(true);
-                                    } else {
-                                        e.target.src = '/logo.webp';
-                                    }
-                                }}
-                                className="h-full w-full object-contain drop-shadow-md transition-transform"
-                            />
-                        ) : (
-                            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
-                                <Building2 size={40} />
-                            </div>
-                        )}
+                        <BrandLogo src={tenant?.logo} className="h-full w-full object-contain drop-shadow-md transition-transform" />
                     </div>
                     <p
                         id="sidebar-clinic-name"

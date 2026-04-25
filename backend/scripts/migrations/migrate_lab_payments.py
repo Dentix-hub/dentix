@@ -10,7 +10,7 @@ from sqlalchemy import (
     MetaData,
     Table,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import sys
 
@@ -36,7 +36,7 @@ def migrate_lab_payments():
             Column("id", Integer, primary_key=True, index=True),
             Column("laboratory_id", Integer, ForeignKey("laboratories.id"), index=True),
             Column("amount", Float),
-            Column("date", DateTime, default=lambda: datetime.now(timezone.utc), index=True),
+            Column("date", DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True),
             Column("notes", Text, nullable=True),
             Column("method", String, default="Cash"),
             Column(

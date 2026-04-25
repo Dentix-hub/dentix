@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import { registerClinic } from '../api';
 import { Building2, User, Lock, AlertCircle } from 'lucide-react';
+import BrandLogo from '@/shared/ui/BrandLogo';
 
 const RegisterClinic = ({ isDarkMode }) => {
     const { t } = useTranslation();
@@ -88,7 +89,7 @@ const RegisterClinic = ({ isDarkMode }) => {
             <div className={`w-full max-w-md p-8 rounded-2xl shadow-xl bg-surface`}>
                 <div className="text-center mb-8">
                     <div className="h-32 w-full overflow-hidden flex items-center justify-center mb-4">
-                        <img src={'/logo.webp'} alt="Logo" className="h-full w-full object-contain transition-transform" />
+                        <BrandLogo className="h-full w-full object-contain transition-transform" />
                     </div>
                     <h1 className={`text-2xl font-bold mb-2 text-text-primary`}>{t('auth.register.title')}</h1>
                     <p className={`text-sm text-text-secondary`}>{t('auth.register.subtitle')}</p>

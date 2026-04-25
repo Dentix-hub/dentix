@@ -88,7 +88,7 @@ class NotificationRead(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), index=True)
     notification_id = Column(Integer, ForeignKey("notifications.id"), index=True)
-    read_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    read_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     is_deleted = Column(Boolean, default=False)
 
     user = relationship("User", back_populates="notifications_read")
