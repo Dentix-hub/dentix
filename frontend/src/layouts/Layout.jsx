@@ -139,15 +139,15 @@ const Layout = () => {
             `}>
                 <div className={`flex flex-col items-center justify-center border-b border-border p-4`}>
                     <div className="h-28 w-full overflow-hidden flex items-center justify-center mb-4">
-                        {(!logoError && (tenant?.logo && tenant.logo !== 'null' ? (tenant.logo.startsWith('http') || tenant.logo.startsWith('/') ? tenant.logo : `${API_URL}/${tenant.logo}`) : '/logo.png')) ? (
+                        {(!logoError && (tenant?.logo && tenant.logo !== 'null' ? (tenant.logo.startsWith('http') || tenant.logo.startsWith('/') ? tenant.logo : `${API_URL}/${tenant.logo}`) : '/logo.webp')) ? (
                             <img
-                                src={tenant?.logo && tenant.logo !== 'null' ? (tenant.logo.startsWith('http') || tenant.logo.startsWith('/') ? tenant.logo : `${API_URL}/${tenant.logo}`) : '/logo.png?v=2'}
+                                src={tenant?.logo && tenant.logo !== 'null' ? (tenant.logo.startsWith('http') || tenant.logo.startsWith('/') ? tenant.logo : `${API_URL}/${tenant.logo}`) : '/logo.webp'}
                                 alt={t('common.logo')}
                                 onError={(e) => {
-                                    if (e.target.src.includes('/logo.png')) {
+                                    if (e.target.src.includes('/logo.webp')) {
                                         setLogoError(true);
                                     } else {
-                                        e.target.src = '/logo.png?v=2';
+                                        e.target.src = '/logo.webp';
                                     }
                                 }}
                                 className="h-full w-full object-contain drop-shadow-md transition-transform"

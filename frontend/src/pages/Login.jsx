@@ -53,7 +53,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                     </button>
                     <div className="h-44 w-full overflow-hidden flex items-center justify-center">
                         <img 
-                            src={'/logo.png?v=2'} 
+                            src={'/logo.webp'} 
                             alt="DENTIX Logo" 
                             className="h-full w-full object-contain transition-transform" 
                         />
