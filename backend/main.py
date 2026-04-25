@@ -399,18 +399,19 @@ async def catch_all(full_path: str):
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Not Found")
 
-    # Serve index.html
-    static_paths = [
-        os.path.join(base_dir, "static", "index.html"),
-        "/app/static/index.html",
-    ]
-    for path in static_paths:
-        if os.path.exists(path):
-            response = FileResponse(path)
-            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-            response.headers["Pragma"] = "no-cache"
-            response.headers["Expires"] = "0"
-            return response
+    # Check if the file exists in the static directory (e.g. /logo.png)
+    file_path = os.path.join(static_dir, full_path)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+
+    # Serve index.html for SPA routing
+    index_path = os.path.join(static_dir, "index.html")
+    if os.path.exists(index_path):
+        response = FileResponse(index_path)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
 
     return {"error": "Frontend not deployed"}
 

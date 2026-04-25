@@ -4,7 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { login } from '../api';
 import { setToken } from '../utils';
 import { Sun, Moon, Globe, Activity } from 'lucide-react';
-const logo = '/logo.png';
+import logo from '@/assets/logo.png';
 export default function Login({ isDarkMode, toggleDarkMode }) {
     const { t, i18n } = useTranslation();
     const [logoError, setLogoError] = useState(false);
@@ -53,11 +53,11 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         <Globe size={20} />
                     </button>
                     <div className="h-44 w-full overflow-hidden flex items-center justify-center">
-                        {logoError ? (
-                            <Activity size={80} className="text-primary" />
-                        ) : (
-                            <img src={logo} alt="DENTIX Logo" onError={() => setLogoError(true)} className="h-full w-full object-contain p-4" />
-                        )}
+                        <img 
+                            src={logo} 
+                            alt="DENTIX Logo" 
+                            className="h-full w-full object-contain p-4" 
+                        />
                     </div>
                     <button
                         onClick={toggleDarkMode}

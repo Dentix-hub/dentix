@@ -7,7 +7,8 @@ from typing import Dict, List, Optional, Any
 import os
 import json
 import logging
-from groq import Groq
+import httpx
+from groq import AsyncGroq
 from .limiter import rate_limiter
 from .prompt import build_system_prompt
 from .router import SmartModelRouter
@@ -30,17 +31,22 @@ class AIAgent:
             self.mock_mode = True
             self.client = None
         else:
-            self.client = Groq(api_key=api_key)
+            # Use httpx.AsyncClient with specific limits
+            http_client = httpx.AsyncClient(
+                limits=httpx.Limits(max_keepalive_connections=5, max_connections=10),
+                timeout=httpx.Timeout(60.0, connect=15.0)
+            )
+            self.client = AsyncGroq(api_key=api_key, http_client=http_client, max_retries=2)
 
         self.model = "llama-3.1-8b-instant"
 
-    def _call_llm_safe(self, model: str, messages: List[Dict]) -> Any:
+    async def _call_llm_safe(self, model: str, messages: List[Dict]) -> Any:
         # Wrapper for circuit breaker
         if self.mock_mode:
             logger.info("MOCK MODE: Returning simulated AI response.")
             return self._generate_mock_response(messages)
 
-        return self.client.chat.completions.create(
+        return await self.client.chat.completions.create(
             model=model,
             messages=messages,
             temperature=0,
@@ -152,7 +158,7 @@ class AIAgent:
 
         # 5. Call LLM with Retry & Circuit Breaker
         try:
-            response = self._call_llm_safe(model_name, messages)
+            response = await self._call_llm_safe(model_name, messages)
             ai_circuit_breaker.record_success()
 
             content = response.choices[0].message.content
