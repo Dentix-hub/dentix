@@ -23,7 +23,7 @@ class AIErrorExplainer:
 
         # 3. Connection Errors
         if "connection" in error_str or "timeout" in error_str:
-            return "⚠️ في مشكلة في الاتصال بالسيرفر. جرب تاني بعد شوية."
+            return f"⚠️ في مشكلة في الاتصال بالسيرفر. جرب تاني بعد شوية. (DEBUG: {error_str})"
 
         # 4. Authentication / Permission
         if "401" in error_str or "403" in error_str or "permission" in error_str:
