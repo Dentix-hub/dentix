@@ -5,6 +5,10 @@ from unittest.mock import MagicMock
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
 
+# Fix Arabic UnicodeEncodeError on Windows
+if sys.stdout.encoding.lower() != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8')
+
 from backend.ai.utils.error_explainer import error_explainer
 from backend.routers.ai_assist import ai_autocomplete
 from backend.ai.agent.state_manager import state_manager
