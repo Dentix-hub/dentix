@@ -103,13 +103,13 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                     >
                         {t('auth.login.submit')}
                     </button>
-                    <div className="text-center mt-6">
+                    <div className="text-center mt-4">
+                        <span className="text-sm font-medium text-text-secondary me-2">
+                            {i18n.language === 'ar' ? 'لا تملك حساب عيادة؟' : "Don't have a clinic account?"}
+                        </span>
                         <Link
                             to="/register"
-                            className={`inline-block w-full py-3 rounded-2xl border-2 font-bold transition-all ${isDarkMode
-                                ? 'border-primary/50 text-primary hover:bg-primary/10'
-                                : 'border-primary text-primary hover:bg-primary/5'
-                                }`}
+                            className="text-sm font-bold text-primary hover:underline transition-all"
                         >
                             {t('auth.login.register_new')}
                         </Link>
