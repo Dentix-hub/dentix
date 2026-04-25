@@ -143,7 +143,7 @@ const Layout = () => {
                             src={logoError ? logo : (tenant?.logo ? `${API_URL}/${tenant.logo}` : logo)}
                             alt={t('common.logo')}
                             onError={() => setLogoError(true)}
-                            className="h-full w-full object-contain drop-shadow-md scale-[2.5] translate-x-4"
+                            className="h-full w-full object-contain drop-shadow-md p-2"
                         />
                     </div>
                     <p
