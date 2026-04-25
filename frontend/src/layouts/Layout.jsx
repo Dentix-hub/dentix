@@ -141,9 +141,15 @@ const Layout = () => {
                     <div className="h-28 w-full overflow-hidden flex items-center justify-center mb-4">
                         {(!logoError && (tenant?.logo && tenant.logo !== 'null' ? (tenant.logo.startsWith('http') || tenant.logo.startsWith('/') ? tenant.logo : `${API_URL}/${tenant.logo}`) : '/logo.png')) ? (
                             <img
-                                src={tenant?.logo && tenant.logo !== 'null' ? (tenant.logo.startsWith('http') || tenant.logo.startsWith('/') ? tenant.logo : `${API_URL}/${tenant.logo}`) : '/logo.png'}
+                                src={tenant?.logo && tenant.logo !== 'null' ? (tenant.logo.startsWith('http') || tenant.logo.startsWith('/') ? tenant.logo : `${API_URL}/${tenant.logo}`) : '/logo.png?v=2'}
                                 alt={t('common.logo')}
-                                onError={() => setLogoError(true)}
+                                onError={(e) => {
+                                    if (e.target.src.includes('/logo.png')) {
+                                        setLogoError(true);
+                                    } else {
+                                        e.target.src = '/logo.png?v=2';
+                                    }
+                                }}
                                 className="h-full w-full object-contain drop-shadow-md transition-transform"
                             />
                         ) : (

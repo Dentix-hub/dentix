@@ -1,0 +1,8 @@
+{
+  "tool": "get_appointments",
+  "parameters": {
+    "date": "today"
+  },
+  "thought": "عرض قائمة المواعيد والحجوزات المسجلة ليوم اليوم",
+  "_model_used": "llama-3.1-8b-instant"
+}
