@@ -169,7 +169,7 @@ export default function AIChat() {
                     <Bot size={32} className="text-primary drop-shadow-lg" />
                 ) : (
                     <img
-                        src={'/dental-ai-avatar.png?v=2'}
+                        src={'/dental-ai-avatar.webp'}
                         alt="AI Assistant"
                         loading="lazy"
                         onError={() => setAvatarError(true)}
@@ -186,7 +186,7 @@ export default function AIChat() {
                             {avatarError ? (
                                 <Bot size={24} className="text-white" />
                             ) : (
-                                <img src={'/dental-ai-avatar.png?v=2'} alt="AI" loading="lazy" onError={() => setAvatarError(true)} className="w-full h-full object-cover" />
+                                <img src={'/dental-ai-avatar.webp'} alt="AI" loading="lazy" onError={() => setAvatarError(true)} className="w-full h-full object-cover" />
                             )}
                         </div>
                         <div className="flex-1">
