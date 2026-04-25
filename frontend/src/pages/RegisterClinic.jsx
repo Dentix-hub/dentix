@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import { registerClinic } from '../api';
-const logo = '/logo.png';
 import { Building2, User, Lock, AlertCircle } from 'lucide-react';
+import logo from '@/assets/logo.png';
 const RegisterClinic = ({ isDarkMode }) => {
     const { t } = useTranslation();
     const [formData, setFormData] = useState({
