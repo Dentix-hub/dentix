@@ -6,7 +6,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, X, Bot, Loader2, Mic, MicOff, Calendar, Users, DollarSign, Building2, Volume2, VolumeX, FileEdit } from 'lucide-react';
 import { sendAIQuery } from '@/api';
-import aiAvatar from '@/assets/dental-ai-avatar.png';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import { formatAIResponse } from '@/utils/aiResponseFormatter';
@@ -170,7 +169,7 @@ export default function AIChat() {
                     <Bot size={32} className="text-primary drop-shadow-lg" />
                 ) : (
                     <img
-                        src={aiAvatar}
+                        src={'/dental-ai-avatar.png'}
                         alt="AI Assistant"
                         loading="lazy"
                         onError={() => setAvatarError(true)}
@@ -187,7 +186,7 @@ export default function AIChat() {
                             {avatarError ? (
                                 <Bot size={24} className="text-white" />
                             ) : (
-                                <img src={aiAvatar} alt="AI" loading="lazy" onError={() => setAvatarError(true)} className="w-full h-full object-cover" />
+                                <img src={'/dental-ai-avatar.png'} alt="AI" loading="lazy" onError={() => setAvatarError(true)} className="w-full h-full object-cover" />
                             )}
                         </div>
                         <div className="flex-1">

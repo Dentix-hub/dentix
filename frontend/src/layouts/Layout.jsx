@@ -4,7 +4,7 @@ import {
     Home, Users, Banknote, Calendar, Menu, Settings as SettingsIcon, Package, LineChart, Globe,
     LogOut, Shield, Sun, Moon, FlaskConical, Brain, HelpCircle, AlertTriangle, Building2
 } from 'lucide-react';
-import logo from '@/assets/logo.png';
+
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/auth/useAuth';
 // Components
@@ -139,12 +139,12 @@ const Layout = () => {
             `}>
                 <div className={`flex flex-col items-center justify-center border-b border-border p-4`}>
                     <div className="h-28 w-full overflow-hidden flex items-center justify-center mb-4">
-                        {(!logoError && (tenant?.logo ? `${API_URL}/${tenant.logo}` : logo)) ? (
+                        {(!logoError && (tenant?.logo && tenant.logo !== 'null' ? (tenant.logo.startsWith('http') || tenant.logo.startsWith('/') ? tenant.logo : `${API_URL}/${tenant.logo}`) : '/logo.png')) ? (
                             <img
-                                src={tenant?.logo ? `${API_URL}/${tenant.logo}` : logo}
+                                src={tenant?.logo && tenant.logo !== 'null' ? (tenant.logo.startsWith('http') || tenant.logo.startsWith('/') ? tenant.logo : `${API_URL}/${tenant.logo}`) : '/logo.png'}
                                 alt={t('common.logo')}
                                 onError={() => setLogoError(true)}
-                                className="h-full w-full object-contain drop-shadow-md p-2"
+                                className="h-full w-full object-contain drop-shadow-md transition-transform"
                             />
                         ) : (
                             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
