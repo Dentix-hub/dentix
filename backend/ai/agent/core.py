@@ -25,6 +25,8 @@ class AIAgent:
     def __init__(self):
         # Initialize Groq client
         api_key = os.getenv("GROQ_API_KEY")
+        if api_key:
+            api_key = api_key.strip()
         self.mock_mode = False
 
         if not api_key:
