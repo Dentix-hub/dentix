@@ -139,7 +139,7 @@ const Layout = () => {
             `}>
                 <div className={`flex flex-col items-center justify-center border-b border-border p-4`}>
                     <div className="h-28 w-full overflow-hidden flex items-center justify-center mb-4">
-                        {!logoError ? (
+                        {(!logoError && (tenant?.logo ? `${API_URL}/${tenant.logo}` : logo)) ? (
                             <img
                                 src={tenant?.logo ? `${API_URL}/${tenant.logo}` : logo}
                                 alt={t('common.logo')}
