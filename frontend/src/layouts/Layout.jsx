@@ -134,7 +134,7 @@ const Layout = () => {
             )}
             {/* Sidebar */}
             <aside className={`
-                fixed inset-y-0 right-0 z-30 w-72 bg-surface border-l border-border/50 transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static shadow-2xl shadow-black/5
+                fixed inset-y-0 right-0 z-30 w-72 bg-white dark:bg-slate-900 border-l border-border/50 transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static shadow-2xl shadow-black/5
                 ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}
             `}>
                 <div className={`flex flex-col items-center justify-center border-b border-border p-4`}>
