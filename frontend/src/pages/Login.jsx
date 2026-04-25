@@ -56,7 +56,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         {logoError ? (
                             <Activity size={80} className="text-primary" />
                         ) : (
-                            <img src={logo} alt="DENTIX Logo" onError={() => setLogoError(true)} className="h-full w-full object-contain scale-[2.5] translate-x-4" />
+                            <img src={logo} alt="DENTIX Logo" onError={() => setLogoError(true)} className="h-full w-full object-contain p-4" />
                         )}
                     </div>
                     <button
