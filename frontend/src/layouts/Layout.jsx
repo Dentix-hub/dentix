@@ -2,7 +2,7 @@ import { useEffect, Suspense, lazy, useCallback, useState } from 'react';
 import { useLocation, Link, useNavigate, Outlet } from 'react-router-dom';
 import {
     Home, Users, Banknote, Calendar, Menu, Settings as SettingsIcon, Package, LineChart, Globe,
-    LogOut, Shield, Sun, Moon, FlaskConical, Brain, HelpCircle, AlertTriangle
+    LogOut, Shield, Sun, Moon, FlaskConical, Brain, HelpCircle, AlertTriangle, Building2
 } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { useTranslation } from 'react-i18next';
