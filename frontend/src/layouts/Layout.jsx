@@ -139,12 +139,18 @@ const Layout = () => {
             `}>
                 <div className={`flex flex-col items-center justify-center border-b border-border p-4`}>
                     <div className="h-28 w-full overflow-hidden flex items-center justify-center mb-4">
-                        <img
-                            src={logoError ? logo : (tenant?.logo ? `${API_URL}/${tenant.logo}` : logo)}
-                            alt={t('common.logo')}
-                            onError={() => setLogoError(true)}
-                            className="h-full w-full object-contain drop-shadow-md p-2"
-                        />
+                        {!logoError ? (
+                            <img
+                                src={tenant?.logo ? `${API_URL}/${tenant.logo}` : logo}
+                                alt={t('common.logo')}
+                                onError={() => setLogoError(true)}
+                                className="h-full w-full object-contain drop-shadow-md p-2"
+                            />
+                        ) : (
+                            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                                <Building2 size={40} />
+                            </div>
+                        )}
                     </div>
                     <p
                         id="sidebar-clinic-name"
