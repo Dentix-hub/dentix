@@ -6,13 +6,14 @@ import { createAppointment, updateAppointmentStatus, deleteAppointment } from '@
 import { useAppointments } from '@/hooks/useAppointments';
 import { usePatients } from '@/hooks/usePatients';
 import { getTodayDateTimeStr } from '@/utils/toothUtils';
-import { Button, Input, Modal, Badge, SkeletonBox, EmptyState, toast } from '@/shared/ui';
+import { Button, Input, Modal, Badge, SkeletonBox, EmptyState, toast, ConfirmDialog } from '@/shared/ui';
 export default function Appointments() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { t } = useTranslation();
     const preselectPatientId = searchParams.get('patient_id');
     const [viewMode, setViewMode] = useState('board'); // 'list' | 'board'
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null });
     const [newAppt, setNewAppt] = useState({ patient_id: '', date_time: getTodayDateTimeStr(), notes: '' });
     useEffect(() => {
         if (preselectPatientId) {
@@ -54,13 +55,13 @@ export default function Appointments() {
             toast.error(t('appointments.messages.update_error'), { id: toastId });
         }
     }, [refetchAppointments, t]);
-    const handleDelete = useCallback(async (id) => {
-        if (!window.confirm(t('appointments.confirm_delete'))) return;
+    const handleDeleteConfirm = useCallback(async (id) => {
         const toastId = toast.loading(t('appointments.messages.deleting'));
         try {
             await deleteAppointment(id);
             refetchAppointments(); // Use cached refetch
             toast.success(t('appointments.messages.delete_success'), { id: toastId });
+            setConfirmDelete({ open: false, id: null });
         } catch (err) {
             toast.error(t('appointments.messages.delete_error'), { id: toastId });
         }
@@ -208,7 +209,7 @@ export default function Appointments() {
                                             <td className="p-4">
                                                 <div className="flex justify-center">
                                                     <button
-                                                        onClick={() => handleDelete(appt.id)}
+                                                        onClick={() => setConfirmDelete({ open: true, id: appt.id })}
                                                         className="p-2 text-text-secondary hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                                                     >
                                                         <Trash2 size={16} />
@@ -226,7 +227,7 @@ export default function Appointments() {
                 // Kanban Board View
                 <div className="flex gap-6 overflow-x-auto pb-6 items-start min-h-[500px]">
                     {columns.map(col => (
-                        <div key={col.id} className={`min-w-[300px] w-[300px] flex-shrink-0 bg-surface rounded-[2rem] p-4 flex flex-col gap-4 border border-border shadow-sm`}>
+                        <div key={col.id} className={`min-w-[300px] w-[300px] flex-shrink-0 bg-surface rounded-2xl p-4 flex flex-col gap-4 border border-border shadow-sm`}>
                             {/* Column Header */}
                             <div className={`p-3 rounded-2xl border ${col.border} ${col.bg} flex justify-between items-center`}>
                                 <div className="flex items-center gap-3">
@@ -255,7 +256,7 @@ export default function Appointments() {
                                                     </h4>
                                                 </div>
                                                 <button
-                                                    onClick={() => handleDelete(appt.id)}
+                                                    onClick={() => setConfirmDelete({ open: true, id: appt.id })}
                                                     className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-400 hover:text-red-500 rounded-lg transition-opacity"
                                                 >
                                                     <Trash2 size={14} />
@@ -340,6 +341,14 @@ export default function Appointments() {
                     </div>
                 </div>
             </Modal>
+
+            <ConfirmDialog
+                isOpen={confirmDelete.open}
+                onClose={() => setConfirmDelete({ open: false, id: null })}
+                onConfirm={() => handleDeleteConfirm(confirmDelete.id)}
+                title={t('appointments.confirm_delete')}
+                message={t('appointments.confirm_delete_desc', 'هل أنت متأكد من حذف هذا الموعد؟ هذه العملية لا يمكن التراجع عنها.')}
+            />
         </div>
     );
 }

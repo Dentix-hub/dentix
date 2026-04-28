@@ -16,3 +16,4 @@ export { default as ToastProvider, toast } from './ToastProvider';
 export { default as EmptyState } from './EmptyState';
 export { default as Alert } from './Alert';
 export { default as IconButton } from './IconButton';
+export { default as Breadcrumb } from './Breadcrumb';

@@ -6,6 +6,10 @@ const PatientInfoCard = ({ patient, onEdit, onPrescription, onNewAppointment }) 
 
     if (!patient) return null;
 
+    const computedAge = patient.date_of_birth 
+        ? Math.floor((new Date() - new Date(patient.date_of_birth)) / 31557600000)
+        : patient.age;
+
     return (
         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col md:flex-row justify-between md:items-center gap-4">
             <div>
@@ -16,7 +20,7 @@ const PatientInfoCard = ({ patient, onEdit, onPrescription, onNewAppointment }) 
                 <div className="flex gap-4 text-slate-500 dark:text-slate-400 text-sm mt-1 items-center">
                     <span className="flex items-center gap-1">
                         <UserIcon size={14} />
-                        {patient.age ? t('patientDetails.info_card.age_years', { age: patient.age }) : t('patientDetails.info_card.age_unknown')}
+                        {computedAge ? t('patientDetails.info_card.age_years', { age: computedAge }) : t('patientDetails.info_card.age_unknown')}
                     </span>
                     <span>•</span>
                     <span dir="ltr" className="flex items-center gap-1">

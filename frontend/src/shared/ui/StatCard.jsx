@@ -7,7 +7,7 @@ const StatCard = ({ icon: Icon, title, value, subtext, label, color = "indigo", 
                 onClick(e);
             }
         }}
-        className={`relative overflow-hidden bg-surface dark:bg-surface/50 p-6 rounded-[2rem] border border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group ${onClick ? 'cursor-pointer active:scale-95' : ''}`}
+        className={`relative overflow-hidden bg-surface dark:bg-surface/50 p-6 rounded-2xl border border-border shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group ${onClick ? 'cursor-pointer active:scale-95' : ''}`}
     >
         <div className={`absolute top-0 right-0 w-32 h-32 bg-${color}-50 dark:bg-${color}-900/20 rounded-bl-[100px] transition-all group-hover:scale-110 pointer-events-none`} />
         <div className="relative z-10 flex justify-between items-start">

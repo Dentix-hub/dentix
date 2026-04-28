@@ -4,29 +4,19 @@ import { useTranslation } from 'react-i18next';
 import { Trash2, Phone, MapPin, Calendar, Users } from 'lucide-react';
 import { Button, SkeletonBox, SkeletonCard, EmptyState } from '@/shared/ui';
 
-const CARD_COLORS = [
-    { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', accent: 'bg-blue-100' },
-    { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', accent: 'bg-emerald-100' },
-    { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-700', accent: 'bg-cyan-100' },
-    { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', accent: 'bg-amber-100' },
-    { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700', accent: 'bg-rose-100' },
-];
-
 const PatientCard = memo(function PatientCard({ patient, onDelete, onNavigate, index, t }) {
-    const colorTheme = CARD_COLORS[index % CARD_COLORS.length];
-
     return (
         <div
             onClick={() => onNavigate(patient.id)}
-            className={`relative rounded-xl border ${colorTheme.border} ${colorTheme.bg} p-5 shadow-sm hover:shadow-md transition-shadow group cursor-pointer`}
+            className="relative rounded-xl border border-border bg-surface hover:bg-surface-hover p-5 shadow-sm hover:shadow-md transition-shadow group cursor-pointer"
         >
             <div className="flex items-start gap-4">
-                <div className={`flex items-center justify-center w-12 h-12 rounded-full ${colorTheme.accent} ${colorTheme.text} font-bold text-lg shrink-0`}>
+                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 text-primary font-bold text-lg shrink-0">
                     {patient.name?.charAt(0)?.toUpperCase()}
                 </div>
 
                 <div className="flex-1 min-w-0">
-                    <h3 className={`text-lg font-semibold ${colorTheme.text} truncate`}>
+                    <h3 className="text-lg font-semibold text-text-primary truncate">
                         {patient.name}
                     </h3>
 

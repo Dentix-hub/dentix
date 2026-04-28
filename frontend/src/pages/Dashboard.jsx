@@ -17,7 +17,7 @@ import { Card, Button, Modal } from '@/shared/ui';
 const GradientCard = memo(({ title, value, subtext, icon: Icon, gradient, onClick }) => (
     <div
         onClick={onClick}
-        className={`relative overflow-hidden rounded-[2.5rem] p-6 text-white shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] cursor-pointer group ${gradient}`}
+        className={`relative overflow-hidden rounded-2xl p-6 text-white shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] cursor-pointer group ${gradient}`}
     >
         <div className="relative z-10 flex flex-col h-full justify-between">
             <div className="flex justify-between items-start">
@@ -95,7 +95,7 @@ export default function Dashboard() {
     return (
         <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500 pb-10">
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-surface/50 backdrop-blur-sm p-6 rounded-[2rem] border border-border">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-surface/50 backdrop-blur-sm p-6 rounded-2xl border border-border">
                 <div className="flex items-center gap-4 w-full md:w-auto">
                     <div className="w-14 h-14 bg-gradient-to-tr from-indigo-500 to-teal-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
                         <Stethoscope size={28} />
@@ -337,7 +337,7 @@ export default function Dashboard() {
 const ActionButton = ({ icon: Icon, label, color, onClick }) => (
     <button
         onClick={onClick}
-        className={`${color} text-white p-4 rounded-[1.5rem] shadow-lg shadow-indigo-500/20 hover:scale-105 transition-all flex flex-col items-center justify-center gap-2 group`}
+        className={`${color} text-white p-4 rounded-2xl shadow-lg shadow-indigo-500/20 hover:scale-105 transition-all flex flex-col items-center justify-center gap-2 group`}
     >
         <div className="bg-white/20 p-2 rounded-full group-hover:rotate-12 transition-transform">
             <Icon size={24} />

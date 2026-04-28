@@ -213,7 +213,7 @@ export default function PatientScanner({ onScanComplete, onClose }) {
     };
     return (
         <div className="fixed inset-0 bg-slate-900/95 backdrop-blur-md z-[200] flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-800 w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden relative">
+            <div className="bg-white dark:bg-slate-800 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden relative">
                 <div className="p-6 flex justify-between items-center border-b dark:border-white/5">
                     <h3 className="font-bold text-xl flex items-center gap-2 dark:text-white">
                         <Scan className="text-primary" /> اسكان كارت المريض

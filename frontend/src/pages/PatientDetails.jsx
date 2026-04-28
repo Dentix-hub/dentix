@@ -7,8 +7,9 @@ import TreatmentModal from '@/shared/ui/modals/TreatmentModal';
 import PrescriptionModal from '@/shared/ui/modals/PrescriptionModal';
 import PaymentModal from '@/shared/ui/modals/PaymentModal';
 import EditPatientModal from '@/features/patients/modals/EditPatientModal';
-import { SkeletonBox } from '@/shared/ui';
+import { SkeletonBox, Breadcrumb } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
+import { useHotkeys } from 'react-hotkeys-hook';
 // Hooks for lazy data loading
 import {
     usePatient,
@@ -260,8 +261,30 @@ export default function PatientDetails() {
         }
     }, [id, patient, navigate, t]);
 
+    // === KEYBOARD SHORTCUTS ===
+    useHotkeys('n', (e) => {
+        e.preventDefault();
+        handleNewAppointment();
+    }, [handleNewAppointment]);
+
+    useHotkeys('t', (e) => {
+        e.preventDefault();
+        setIsToothSelectModalOpen(true);
+    });
+
+    useHotkeys('e', (e) => {
+        e.preventDefault();
+        setIsEditPatientOpen(true);
+    });
+
     return (
         <div className="space-y-6 p-4 md:p-6">
+            {!patientIsError && !patientLoading && patient && (
+                <Breadcrumb items={[
+                    { label: t('sidebar.patients'), to: '/patients' },
+                    { label: patient.name }
+                ]} />
+            )}
             {patientIsError ? (
                 <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-700">
                     <div className="font-bold mb-1">{t('patient_details.loading_error')}</div>

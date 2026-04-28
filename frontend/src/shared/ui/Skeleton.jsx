@@ -77,7 +77,7 @@ export const SkeletonTable = memo(function SkeletonTable({ rows = 5, cols = 4 })
 });
 export const SkeletonStatCard = memo(function SkeletonStatCard() {
     return (
-        <div className="bg-white dark:bg-slate-800/50 p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-white/5 flex items-center gap-4">
+        <div className="bg-white dark:bg-slate-800/50 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-white/5 flex items-center gap-4">
             <SkeletonBox width="3.5rem" height="3.5rem" rounded="2xl" />
             <div className="flex-1">
                 <SkeletonBox width="50%" height="0.875rem" className="mb-2" />
