@@ -2,7 +2,7 @@ import { useEffect, Suspense, lazy, useCallback, useState } from 'react';
 import { useLocation, Link, useNavigate, Outlet } from 'react-router-dom';
 import {
     Home, Users, Banknote, Calendar, Menu, Settings as SettingsIcon, Package, LineChart, Globe,
-    LogOut, Shield, Sun, Moon, FlaskConical, Brain, HelpCircle, AlertTriangle, Building2
+    LogOut, Shield, Sun, Moon, FlaskConical, Brain, HelpCircle, AlertTriangle, Building2, ChevronRight, ChevronLeft
 } from 'lucide-react';
 
 import { useTranslation } from 'react-i18next';
@@ -24,6 +24,7 @@ import { API_URL } from '@/api';
 
 const Layout = () => {
     const [logoError, setLogoError] = useState(false);
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const { t, i18n } = useTranslation();
     const { sidebarOpen, setSidebarOpen, darkMode: isDarkMode, toggleDarkMode } = useUIStore();
     const { tenant, hasFeature } = useTenantStore();
@@ -134,11 +135,18 @@ const Layout = () => {
             )}
             {/* Sidebar */}
             <aside className={`
-                fixed inset-y-0 right-0 z-30 w-72 bg-white dark:bg-slate-900 border-l border-border/50 transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static shadow-2xl shadow-black/5
+                fixed inset-y-0 right-0 z-30 bg-white dark:bg-slate-900 border-l border-border/50 transform transition-all duration-300 ease-in-out md:translate-x-0 md:static shadow-2xl shadow-black/5 flex flex-col
                 ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}
+                ${isSidebarCollapsed ? 'w-20' : 'w-72'}
             `}>
-                <div className={`flex flex-col items-center justify-center border-b border-border p-4`}>
-                    <div className="h-28 w-full overflow-hidden flex items-center justify-center mb-4">
+                <button
+                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                    className="absolute -left-3 top-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-1 hidden md:flex hover:bg-slate-50 transition-colors z-40 text-slate-500"
+                >
+                    {isSidebarCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+                </button>
+                <div className={`flex flex-col items-center justify-center border-b border-border p-4 transition-all duration-300`}>
+                    <div className={`${isSidebarCollapsed ? 'h-12' : 'h-28'} w-full overflow-hidden flex items-center justify-center mb-2 transition-all duration-300`}>
                         {(!logoError && (tenant?.logo && tenant.logo !== 'null' ? (tenant.logo.startsWith('http') || tenant.logo.startsWith('/') ? tenant.logo : `${API_URL}/${tenant.logo}`) : '/logo.webp')) ? (
                             <img
                                 src={tenant?.logo && tenant.logo !== 'null' ? (tenant.logo.startsWith('http') || tenant.logo.startsWith('/') ? tenant.logo : `${API_URL}/${tenant.logo}`) : '/logo.webp'}
@@ -150,34 +158,38 @@ const Layout = () => {
                                         e.target.src = '/logo.webp';
                                     }
                                 }}
-                                className="h-full w-full object-contain drop-shadow-md transition-transform"
+                                className="max-h-16 w-auto object-contain"
                             />
                         ) : (
-                            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
-                                <Building2 size={40} />
+                        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                                <Building2 size={isSidebarCollapsed ? 24 : 40} className="transition-all" />
                             </div>
                         )}
                     </div>
-                    <p
-                        id="sidebar-clinic-name"
-                        className="text-base font-black bg-gradient-to-r from-primary-600 to-blue-800 dark:from-sky-400 dark:to-blue-500 bg-clip-text text-transparent text-center tracking-tight"
-                    >
-                        {isSuperAdmin ? t('sidebar.system_admin') : (tenant?.name || t('common.default_clinic_name'))}
-                    </p>
-                    {/* Subscription Badge */}
-                    {tenant && (
-                        <div className="mt-2 text-center text-xs">
-                            <span className={`px-2 py-1 rounded-full font-bold ${tenant.plan === 'premium' ? 'bg-amber-500/20 text-amber-600' :
-                                tenant.plan === 'basic' ? 'bg-blue-500/20 text-blue-600' :
-                                    'bg-surface-hover text-text-secondary'
-                                }`}>
-                                {tenant.plan === 'premium' ? t('sidebar.subscription.plan_premium') :
-                                    tenant.plan === 'basic' ? t('sidebar.subscription.plan_basic') : t('sidebar.subscription.plan_trial')}
-                            </span>
-                            {subStatus && (
-                                <p className={`mt-1 ${subStatus.color}`}>
-                                    {subStatus.text}
-                                </p>
+                    {!isSidebarCollapsed && (
+                        <div className="animate-in fade-in zoom-in duration-300 flex flex-col items-center w-full">
+                            <p
+                                id="sidebar-clinic-name"
+                                className="text-base font-black bg-gradient-to-r from-primary-600 to-blue-800 dark:from-sky-400 dark:to-blue-500 bg-clip-text text-transparent text-center tracking-tight"
+                            >
+                                {isSuperAdmin ? t('sidebar.system_admin') : (tenant?.name || t('common.default_clinic_name'))}
+                            </p>
+                            {/* Subscription Badge */}
+                            {tenant && (
+                                <div className="mt-2 text-center text-xs">
+                                    <span className={`px-2 py-1 rounded-full font-bold ${tenant.plan === 'premium' ? 'bg-amber-500/20 text-amber-600' :
+                                        tenant.plan === 'basic' ? 'bg-blue-500/20 text-blue-600' :
+                                            'bg-surface-hover text-text-secondary'
+                                        }`}>
+                                        {tenant.plan === 'premium' ? t('sidebar.subscription.plan_premium') :
+                                            tenant.plan === 'basic' ? t('sidebar.subscription.plan_basic') : t('sidebar.subscription.plan_trial')}
+                                    </span>
+                                    {subStatus && (
+                                        <p className={`mt-1 ${subStatus.color}`}>
+                                            {subStatus.text}
+                                        </p>
+                                    )}
+                                </div>
                             )}
                         </div>
                     )}
@@ -204,25 +216,27 @@ const Layout = () => {
                                 {isActive && (
                                     <div className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 bg-primary rounded-r-full" />
                                 )}
-                                <Icon size={22} className={`transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
-                                <span className="text-sm">{item.label}</span>
+                                <Icon size={22} className={`shrink-0 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
+                                {!isSidebarCollapsed && <span className="text-sm animate-in fade-in">{item.label}</span>}
                             </Link>
                         )
                     })}
-                    <div className="mt-auto pt-6 border-t border-border/50">
+                    <div className="mt-auto pt-4 border-t border-border/50">
                         {/* Utilities Row (Lang & Theme) */}
-                        <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div className={`grid ${isSidebarCollapsed ? 'grid-cols-1 space-y-2' : 'grid-cols-2 gap-3'} mb-3`}>
                             <button
                                 onClick={() => i18n.changeLanguage(i18n.language === 'ar' ? 'en' : 'ar')}
-                                className="flex items-center justify-center py-3 rounded-2xl bg-surface-hover text-slate-600 dark:text-slate-300 hover:bg-primary/10 hover:text-primary transition-all group"
+                                className="flex items-center justify-center py-2.5 rounded-2xl bg-surface-hover text-slate-600 dark:text-slate-300 hover:bg-primary/10 hover:text-primary transition-all group"
                                 title={t('common.language')}
+                                aria-label={t('common.language')}
                             >
                                 <Globe size={20} className="transition-transform group-hover:rotate-12" />
                             </button>
                             <button
                                 onClick={toggleDarkMode}
-                                className="flex items-center justify-center py-3 rounded-2xl bg-surface-hover text-slate-600 dark:text-slate-300 hover:bg-amber-400/10 hover:text-amber-500 transition-all group"
+                                className="flex items-center justify-center py-2.5 rounded-2xl bg-surface-hover text-slate-600 dark:text-slate-300 hover:bg-amber-400/10 hover:text-amber-500 transition-all group"
                                 title={isDarkMode ? t('sidebar.mode.light') : t('sidebar.mode.dark')}
+                                aria-label={isDarkMode ? t('sidebar.mode.light') : t('sidebar.mode.dark')}
                             >
                                 {isDarkMode ?
                                     <Sun size={20} className="transition-transform group-hover:rotate-90" /> :
@@ -233,21 +247,19 @@ const Layout = () => {
                         <Link
                             to="/support"
                             onClick={() => setSidebarOpen(false)}
-                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-colors text-slate-600 dark:text-slate-300 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400 ${location.pathname === '/support' ? 'bg-indigo-50 dark:bg-indigo-900/20 font-bold text-indigo-600' : 'font-medium'}`}
+                            className={`w-full flex items-center justify-center md:justify-start gap-3 px-4 py-3 rounded-2xl transition-colors text-slate-600 dark:text-slate-300 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400 ${location.pathname === '/support' ? 'bg-indigo-50 dark:bg-indigo-900/20 font-bold text-indigo-600' : 'font-medium'}`}
                         >
-                            <HelpCircle size={22} />
-                            <span className="text-sm font-medium">{t('common.help_support')}</span>
+                            <HelpCircle size={22} className="shrink-0" />
+                            {!isSidebarCollapsed && <span className="text-sm font-medium animate-in fade-in">{t('common.help_support')}</span>}
                         </Link>
                         <button
-                            onClick={() => {
-                                logout();
-                            }}
-                            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all text-red-500 hover:bg-red-50 hover:text-red-600 hover:scale-[1.02] mt-2 active:scale-95"
+                            onClick={() => logout()}
+                            className="w-full flex items-center justify-center md:justify-start gap-3 px-4 py-3.5 rounded-2xl transition-all text-red-500 hover:bg-red-50 hover:text-red-600 hover:scale-[1.02] mt-2 active:scale-95"
                         >
-                            <LogOut size={22} />
-                            <span className="text-sm font-bold">{t('sidebar.logout')}</span>
+                            <LogOut size={22} className="shrink-0" />
+                            {!isSidebarCollapsed && <span className="text-sm font-bold animate-in fade-in">{t('sidebar.logout')}</span>}
                         </button>
-                        {!isAdmin && !isSuperAdmin && (
+                        {!isAdmin && !isSuperAdmin && !isSidebarCollapsed && (
                             <div className="mt-4 p-4 bg-surface-hover rounded-xl text-center">
                                 <p className="text-xs text-text-secondary">{t('sidebar.limited_account')}</p>
                             </div>

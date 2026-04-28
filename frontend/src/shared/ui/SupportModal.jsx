@@ -28,7 +28,7 @@ export default function SupportModal({ isOpen, onClose, isDarkMode }) {
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in" dir="rtl">
-            <div className={`relative w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] shadow-2xl border ${isDarkMode ? 'bg-slate-900 border-white/10' : 'bg-white border-slate-200'}`}>
+            <div className={`relative w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl border ${isDarkMode ? 'bg-slate-900 border-white/10' : 'bg-white border-slate-200'}`}>
                 {/* Header */}
                 <div className="p-8 pb-4 flex justify-between items-center sticky top-0 z-10 bg-inherit backdrop-blur-md">
                     <div className="flex items-center gap-4">

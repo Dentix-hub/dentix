@@ -43,7 +43,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
             {(Array.isArray(plans) ? plans : []).map(plan => (
-                <div key={plan.id} className={`relative group bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border hover:border-indigo-500/50 transition-all duration-300 ${editingPlan === plan.id ? 'border-indigo-500 ring-4 ring-indigo-500/10 z-10 scale-105 shadow-2xl' : 'border-slate-100 dark:border-slate-800 shadow-lg'}`}>
+                <div key={plan.id} className={`relative group bg-white dark:bg-slate-900 rounded-2xl p-8 border hover:border-indigo-500/50 transition-all duration-300 ${editingPlan === plan.id ? 'border-indigo-500 ring-4 ring-indigo-500/10 z-10 scale-105 shadow-2xl' : 'border-slate-100 dark:border-slate-800 shadow-lg'}`}>
                     {editingPlan === plan.id ? (
                         <div className="space-y-5 animate-fade-in">
                             <div className="flex items-center gap-2 mb-4 text-indigo-600 font-bold pb-4 border-b border-indigo-100 dark:border-indigo-900/30">
@@ -251,7 +251,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
 
             {/* Add New Plan Card */}
             {isCreating ? (
-                <div className="relative group bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-emerald-500 ring-4 ring-emerald-500/10 shadow-2xl animate-fade-in-up">
+                <div className="relative group bg-white dark:bg-slate-900 rounded-2xl p-8 border border-emerald-500 ring-4 ring-emerald-500/10 shadow-2xl animate-fade-in-up">
                     <div className="space-y-4">
                         <div className="flex items-center gap-2 mb-4 text-emerald-600 font-bold pb-4 border-b border-emerald-100 dark:border-emerald-900/30">
                             <PlusCircle size={20} />
@@ -382,7 +382,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                     </div>
                 </div>
             ) : (
-                <button onClick={() => setIsCreating(true)} className="group border-3 border-dashed border-slate-200 dark:border-slate-700 rounded-[2.5rem] p-8 flex flex-col items-center justify-center gap-4 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-all min-h-[400px]">
+                <button onClick={() => setIsCreating(true)} className="group border-3 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-8 flex flex-col items-center justify-center gap-4 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-all min-h-[400px]">
                     <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
                         <PlusCircle size={32} />
                     </div>

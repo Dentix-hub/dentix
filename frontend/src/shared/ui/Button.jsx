@@ -38,12 +38,12 @@ const Button = ({
             {...props}
         >
             {isLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                <Loader2 className="me-2 h-4 w-4 animate-spin" />
             ) : Icon ? (
                 isValidElement(Icon) ? (
-                    <span className="mr-2">{Icon}</span>
+                    <span className="me-2">{Icon}</span>
                 ) : (
-                    <Icon className={`mr-2 ${size === 'sm' ? 'h-3 w-3' : 'h-4 w-4'}`} />
+                    <Icon className={`me-2 ${size === 'sm' ? 'h-3 w-3' : 'h-4 w-4'}`} />
                 )
             ) : null}
 

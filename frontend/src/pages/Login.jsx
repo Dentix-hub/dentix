@@ -38,7 +38,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
     };
     return (
         <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-500 bg-background`}>
-            <div className={`w-full max-w-md p-8 rounded-[2rem] shadow-2xl border transition-all duration-300 bg-surface border-white/10 text-center`}>
+            <div className={`w-full max-w-md p-8 rounded-2xl shadow-2xl border transition-all duration-300 bg-surface border-white/10 text-center`}>
                 <div className="flex justify-between items-start mb-6 w-full">
                     {/* Language Switcher */}
                     <button
