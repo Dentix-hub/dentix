@@ -39,8 +39,8 @@ class Laboratory(LaboratoryBase):
 
 
 class LabOrderBase(BaseModel):
-    patient_id: int
-    laboratory_id: int
+    patient_id: Optional[int] = None
+    laboratory_id: Optional[int] = None
     work_type: str
     tooth_number: Optional[str] = None
     shade: Optional[str] = None
@@ -81,7 +81,7 @@ class LabOrder(LabOrderBase):
 
 
 class LabPaymentBase(BaseModel):
-    laboratory_id: int
+    laboratory_id: Optional[int] = None
     amount: float
     date: datetime = datetime.now(timezone.utc)
     notes: Optional[str] = None
