@@ -62,11 +62,24 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
         }
         return map;
     }, [activeSessions]);
-    const filteredItems = (stockItems || [])?.filter(item => {
-        const matchesSearch = item.material_name.toLowerCase().includes(searchQuery.toLowerCase());
-        if (filter === 'ALL') return matchesSearch;
-        return matchesSearch && item.alert_status === filter;
-    });
+    const [currentPage, setCurrentPage] = useState(1);
+    const ITEMS_PER_PAGE = 25;
+
+    const filteredItems = useMemo(() => {
+        return (stockItems || [])?.filter(item => {
+            const matchesSearch = (item.material_name || '').toLowerCase().includes((searchQuery || '').toLowerCase());
+            if (filter === 'ALL') return matchesSearch;
+            return matchesSearch && item.alert_status === filter;
+        });
+    }, [stockItems, searchQuery, filter]);
+
+    const paginatedItems = useMemo(() => {
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredItems.slice(start, start + ITEMS_PER_PAGE);
+    }, [filteredItems, currentPage]);
+
+    const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+
     const handleOpenSession = (item) => {
         setSessionModal({
             open: true,
@@ -100,14 +113,20 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                         type="text"
                         placeholder={t('inventory.actions.search_placeholder')}
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={(e) => {
+                            setSearchQuery(e.target.value);
+                            setCurrentPage(1);
+                        }}
                         className="w-full pr-10 pl-4 py-2 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                     />
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
                     <select
                         value={filter}
-                        onChange={(e) => setFilter(e.target.value)}
+                        onChange={(e) => {
+                            setFilter(e.target.value);
+                            setCurrentPage(1);
+                        }}
                         className="px-4 py-2 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20"
                     >
                         <option value="ALL">{t('inventory.filters.all')}</option>
@@ -147,7 +166,7 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
-                            {filteredItems?.length === 0 ? (
+                            {paginatedItems?.length === 0 ? (
                                 <tr>
                                     <td colSpan="8" className="px-6 py-12 text-center text-text-secondary">
                                         <Package size={48} className="mx-auto mb-2 opacity-20" />
@@ -155,7 +174,7 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                                     </td>
                                 </tr>
                             ) : (
-                                filteredItems?.map((item) => {
+                                paginatedItems?.map((item) => {
                                     const sessions = activeSessionsMap[item.material_id] || [];
                                     const hasActiveSession = sessions.length > 0;
                                     return (
@@ -269,6 +288,30 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                         </tbody>
                     </table>
                 </div>
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="flex justify-between items-center p-4 border-t border-border bg-background">
+                        <span className="text-sm text-text-secondary">
+                            {t('common.pagination.page')} {currentPage} {t('common.pagination.of')} {totalPages}
+                        </span>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1 rounded-lg border border-border hover:bg-surface-hover disabled:opacity-50 transition-colors"
+                            >
+                                {t('common.pagination.previous')}
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                                className="px-3 py-1 rounded-lg border border-border hover:bg-surface-hover disabled:opacity-50 transition-colors"
+                            >
+                                {t('common.pagination.next')}
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
             <SmartLearningModal
                 isOpen={!!smartMaterial}

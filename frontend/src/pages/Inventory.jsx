@@ -85,7 +85,7 @@ const Inventory = () => {
                                 {t('inventory.alerts.title')}
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {alerts.map((alert, idx) => (
+                                {alerts.slice(0, 6).map((alert, idx) => (
                                     <div key={idx} className="bg-white p-3 rounded-xl border border-red-100 flex items-center justify-between shadow-sm">
                                         <div>
                                             <div className="font-bold text-slate-800">{alert.material_name}</div>
@@ -98,6 +98,11 @@ const Inventory = () => {
                                     </div>
                                 ))}
                             </div>
+                            {alerts.length > 6 && (
+                                <div className="text-center mt-3 text-sm text-red-600 font-medium cursor-pointer hover:underline">
+                                    + {alerts.length - 6} {t('inventory.alerts.more_alerts', 'تنبيهات إضافية')}
+                                </div>
+                            )}
                         </div>
                     )}
                     {/* Main Content */}

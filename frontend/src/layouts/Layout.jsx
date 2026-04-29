@@ -194,7 +194,7 @@ const Layout = () => {
                         </div>
                     )}
                 </div>
-                <nav className="p-4 space-y-2">
+                <nav className="p-4 flex-1 flex flex-col overflow-y-auto space-y-2">
                     {navItems.map((item) => {
                         const isActive = location.pathname === item.path;
                         const Icon = item.icon;
