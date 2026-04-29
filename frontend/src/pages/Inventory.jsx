@@ -25,7 +25,9 @@ const Inventory = () => {
                 return [];
             }
         },
-        enabled: !!getExpiryAlerts
+        enabled: !!getExpiryAlerts,
+        staleTime: 60 * 1000,
+        retry: 1,
     });
     const handleOpenAdd = () => {
         setEditingMaterial(null);
@@ -115,16 +117,20 @@ const Inventory = () => {
             ) : (
                 <WarehouseList />
             )}
-            {/* Modals */}
-            <AddMaterialModal
-                isOpen={isAddMaterialOpen}
-                onClose={() => setIsAddMaterialOpen(false)}
-                initialData={editingMaterial}
-            />
-            <ReceiveStockModal
-                isOpen={isReceiveStockOpen}
-                onClose={() => setIsReceiveStockOpen(false)}
-            />
+            {/* Modals - Only mount when open to prevent unnecessary hook execution */}
+            {isAddMaterialOpen && (
+                <AddMaterialModal
+                    isOpen={isAddMaterialOpen}
+                    onClose={() => setIsAddMaterialOpen(false)}
+                    initialData={editingMaterial}
+                />
+            )}
+            {isReceiveStockOpen && (
+                <ReceiveStockModal
+                    isOpen={isReceiveStockOpen}
+                    onClose={() => setIsReceiveStockOpen(false)}
+                />
+            )}
         </div>
     );
 };
