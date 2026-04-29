@@ -15,13 +15,14 @@ const SmartLearningModal = ({ isOpen, onClose, material }) => {
     const [isAdding, setIsAdding] = useState(false);
     const [editingId, setEditingId] = useState(null);
     // Fetch existing weights
-    const { data: existingWeights = [], isLoading: isLoadingWeights } = useQuery({
+    const { data: existingWeights, isLoading: isLoadingWeights } = useQuery({
         queryKey: ['procedure-weights', material?.id],
         queryFn: async () => {
             const res = await getProcedureWeights(material?.id);
             return Array.isArray(res.data) ? res.data : [];
         },
         enabled: !!material?.id,
+        retry: 1,
     });
     useEffect(() => {
         setWeights(Array.isArray(existingWeights) ? existingWeights : []);

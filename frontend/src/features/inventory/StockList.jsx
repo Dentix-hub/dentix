@@ -22,7 +22,9 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
         queryFn: async () => {
             const res = await getStockSummary();
             return Array.isArray(res.data) ? res.data : [];
-        }
+        },
+        staleTime: 30 * 1000,
+        retry: 1,
     });
     const { data: activeSessions } = useQuery({
         queryKey: ['active-sessions'],
@@ -30,7 +32,9 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
             const res = await getActiveSessions();
             return Array.isArray(res.data) ? res.data : [];
         },
-        refetchInterval: 30000 // Refresh every 30s
+        staleTime: 15 * 1000,
+        retry: 1,
+        refetchInterval: 30000,
     });
     const deleteMutation = useMutation({
         mutationFn: deleteMaterial,
@@ -313,24 +317,31 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                     </div>
                 )}
             </div>
-            <SmartLearningModal
-                isOpen={!!smartMaterial}
-                onClose={() => setSmartMaterial(null)}
-                material={smartMaterial}
-            />
-            <MaterialDetailsModal
-                isOpen={!!selectedMaterial}
-                onClose={() => setSelectedMaterial(null)}
-                material={selectedMaterial}
-                activeSessions={activeSessions || []}
-            />
-            <TrackSessionModal
-                isOpen={sessionModal.open}
-                onClose={() => setSessionModal(prev => ({ ...prev, open: false }))}
-                mode={sessionModal.mode}
-                material={sessionModal.material}
-                session={sessionModal.session}
-            />
+            {/* Modals - Only mount when open */}
+            {!!smartMaterial && (
+                <SmartLearningModal
+                    isOpen
+                    onClose={() => setSmartMaterial(null)}
+                    material={smartMaterial}
+                />
+            )}
+            {!!selectedMaterial && (
+                <MaterialDetailsModal
+                    isOpen
+                    onClose={() => setSelectedMaterial(null)}
+                    material={selectedMaterial}
+                    activeSessions={activeSessions || []}
+                />
+            )}
+            {sessionModal.open && (
+                <TrackSessionModal
+                    isOpen
+                    onClose={() => setSessionModal(prev => ({ ...prev, open: false }))}
+                    mode={sessionModal.mode}
+                    material={sessionModal.material}
+                    session={sessionModal.session}
+                />
+            )}
         </div>
     );
 };
