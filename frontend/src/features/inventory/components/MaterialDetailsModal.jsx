@@ -50,8 +50,6 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
         try {
             await updateMaterial(materialId, formData);
             setIsEditing(false);
-            await updateMaterial(materialId, formData);
-            setIsEditing(false);
             queryClient.invalidateQueries(['inventory-stock']);
             showToast('success', t('inventory.material_details.messages.update_success'));
         } catch (error) {
