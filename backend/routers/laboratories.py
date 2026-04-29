@@ -149,8 +149,11 @@ def get_lab_orders(
     current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
 ):
     """Get all lab orders for current tenant with optional filtering"""
-    query = db.query(models.LabOrder).filter(
-        models.LabOrder.tenant_id == current_user.tenant_id
+    query = db.query(models.LabOrder).join(
+        models.Patient, models.LabOrder.patient_id == models.Patient.id
+    ).filter(
+        models.LabOrder.tenant_id == current_user.tenant_id,
+        models.Patient.is_deleted == False
     )
 
     if laboratory_id:
@@ -427,8 +430,11 @@ def get_lab_orders_stats(
     db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.FINANCIAL_READ))
 ):
     """Get lab orders statistics"""
-    base_query = db.query(models.LabOrder).filter(
-        models.LabOrder.tenant_id == current_user.tenant_id
+    base_query = db.query(models.LabOrder).join(
+        models.Patient, models.LabOrder.patient_id == models.Patient.id
+    ).filter(
+        models.LabOrder.tenant_id == current_user.tenant_id,
+        models.Patient.is_deleted == False
     )
 
     total_orders = base_query.count()
@@ -440,14 +446,22 @@ def get_lab_orders_stats(
 
     total_cost = (
         db.query(func.sum(models.LabOrder.cost))
-        .filter(models.LabOrder.tenant_id == current_user.tenant_id)
+        .join(models.Patient, models.LabOrder.patient_id == models.Patient.id)
+        .filter(
+            models.LabOrder.tenant_id == current_user.tenant_id,
+            models.Patient.is_deleted == False
+        )
         .scalar()
         or 0
     )
 
     total_revenue = (
         db.query(func.sum(models.LabOrder.price_to_patient))
-        .filter(models.LabOrder.tenant_id == current_user.tenant_id)
+        .join(models.Patient, models.LabOrder.patient_id == models.Patient.id)
+        .filter(
+            models.LabOrder.tenant_id == current_user.tenant_id,
+            models.Patient.is_deleted == False
+        )
         .scalar()
         or 0
     )
