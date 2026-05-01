@@ -4,7 +4,7 @@ import { useLocation, Link, useNavigate, Outlet } from 'react-router-dom';
 import {
     Home, Users, Banknote, Calendar, Menu, Settings as SettingsIcon, Package, LineChart, Globe,
     LogOut, Shield, Sun, Moon, FlaskConical, Brain, HelpCircle, AlertTriangle, Building2, ChevronRight, ChevronLeft,
-    UserCog, BarChart3, Users2
+    UserCog, BarChart3, Users2, User
 } from 'lucide-react';
 
 import { useTranslation } from 'react-i18next';
