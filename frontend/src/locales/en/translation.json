@@ -292,13 +292,23 @@
         "to_collect": "To Collect",
         "revenue_analysis": "Revenue Analysis",
         "revenue_growth": "Track financial growth over the last week",
-        "appointments_count": "{{count}} Appointments",
+        "appointments_count": "{{val}} Appointments",
+        "actions": {
+            "add_patient": "Add Patient",
+            "new_appointment": "New Appointment",
+            "record_payment": "Record Payment",
+            "create_rx": "Create RX"
+        },
         "no_appointments_today": "No remaining appointments today",
         "add_new_appointment": "Add New Appointment",
         "view_full_schedule": "View Full Schedule",
         "daily_income_details": "Daily Income Details",
         "outstanding_today": "Outstanding Dues (Today)",
         "no_financial_data": "Not enough financial data to display",
+        "clinic_efficiency": "Clinic Efficiency",
+        "efficiency_description": "Based on completed vs scheduled appointments today",
+        "efficiency_rate": "Efficiency Rate",
+        "status_distribution": "Appointment Status",
         "no_data": "No Data"
     },
     "patients": {

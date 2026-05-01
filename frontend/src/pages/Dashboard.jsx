@@ -317,7 +317,7 @@ export default function Dashboard() {
                                 {t('dashboard.appointments_today')}
                             </h3>
                             <span className="bg-primary/10 text-primary px-3 py-1 rounded-lg text-xs font-bold">
-                                {t('dashboard.appointments_count', { count: loading ? '...' : stats.todaysAppointments.length })}
+                                {t('dashboard.appointments_count', { val: loading ? '...' : stats.todaysAppointments.length })}
                             </span>
                         </div>
                         <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
