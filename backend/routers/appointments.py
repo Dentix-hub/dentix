@@ -62,7 +62,8 @@ def read_appointments(
         return success_response(data=results, message="Appointments retrieved successfully")
     except Exception as e:
         logger.error(f"Failed to fetch appointments: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to retrieve appointments")
+        # TEMPORARY: Expose error for diagnosis on staging
+        raise HTTPException(status_code=500, detail=f"Failed: {type(e).__name__}: {str(e)}")
 
 
 @router.put(
