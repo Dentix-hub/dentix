@@ -4,9 +4,11 @@ import WarehouseList from '@/features/inventory/WarehouseList';
 import AddMaterialModal from '@/features/inventory/AddMaterialModal';
 import ReceiveStockModal from '@/features/inventory/ReceiveStockModal';
 import { getExpiryAlerts } from '@/api/inventory';
-import { Package, AlertTriangle, Layers, Warehouse } from 'lucide-react';
+import { Package, AlertTriangle, Layers, Warehouse, Home } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { PageHeader, TabGroup } from '@/shared/ui';
+
 const Inventory = () => {
     const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState('stock'); // 'stock' | 'warehouses'
@@ -38,44 +40,27 @@ const Inventory = () => {
         setIsAddMaterialOpen(true);
     };
     return (
-        <div className="p-6 max-w-7xl mx-auto space-y-6">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-black text-text-primary flex items-center gap-3">
-                        <Package className="text-primary" size={32} />
-                        {t('inventory.title')}
-                    </h1>
-                    <p className="text-text-secondary mt-1">{t('inventory.subtitle')}</p>
-                </div>
-            </div>
+        <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <PageHeader
+                title={t('inventory.title')}
+                subtitle={t('inventory.subtitle')}
+                icon={Package}
+                breadcrumbs={[
+                    { label: t('nav.home', 'Home'), icon: Home, path: '/' },
+                    { label: t('inventory.title') }
+                ]}
+            />
+
             {/* Tabs */}
-            <div className="flex border-b border-border">
-                <button
-                    onClick={() => setActiveTab('stock')}
-                    className={`pb-3 px-6 text-sm font-bold flex items-center gap-2 transition-colors relative
-                        ${activeTab === 'stock' ? 'text-primary' : 'text-text-secondary hover:text-text-primary'}
-                    `}
-                >
-                    <Layers size={18} />
-                    {t('inventory.tabs.stock')}
-                    {activeTab === 'stock' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full" />
-                    )}
-                </button>
-                <button
-                    onClick={() => setActiveTab('warehouses')}
-                    className={`pb-3 px-6 text-sm font-bold flex items-center gap-2 transition-colors relative
-                        ${activeTab === 'warehouses' ? 'text-primary' : 'text-text-secondary hover:text-text-primary'}
-                    `}
-                >
-                    <Warehouse size={18} />
-                    {t('inventory.tabs.warehouses')}
-                    {activeTab === 'warehouses' && (
-                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full" />
-                    )}
-                </button>
-            </div>
+            <TabGroup
+                variant="underline"
+                activeTab={activeTab}
+                onChange={setActiveTab}
+                tabs={[
+                    { id: 'stock', label: t('inventory.tabs.stock'), icon: Layers },
+                    { id: 'warehouses', label: t('inventory.tabs.warehouses'), icon: Warehouse }
+                ]}
+            />
             {/* Content based on Tab */}
             {activeTab === 'stock' ? (
                 <>

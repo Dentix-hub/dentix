@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { login as apiLogin, registerClinic, getMe } from '@/api';
+import { login as apiLogin, registerClinic, getMeSilent } from '@/api';
 import { getToken, setToken, removeToken, parseJwt } from '@/utils';
 import AuthContext from './useAuth';
 import { useTenantStore } from '@/store/tenant.store';
@@ -14,16 +14,27 @@ export default function AuthProvider({ children }) {
                 try {
                     // 1. Decode locally for fast UI
                     const decoded = parseJwt(token);
-                    if (decoded) {
-                        setUser({
-                            username: decoded.sub,
-                            role: decoded.role,
-                            tenant_id: decoded.tenant_id
-                        });
+                    if (!decoded) {
+                        removeToken();
+                        setLoading(false);
+                        return;
                     }
-                    // 2. Verify with backend
+                    // 1b. Check if token is expired before hitting backend
+                    const now = Date.now() / 1000;
+                    if (decoded.exp && decoded.exp < now) {
+                        console.warn('Token expired, clearing session');
+                        removeToken();
+                        setLoading(false);
+                        return;
+                    }
+                    setUser({
+                        username: decoded.sub,
+                        role: decoded.role,
+                        tenant_id: decoded.tenant_id
+                    });
+                    // 2. Verify with backend (silent — won't trigger interceptor redirect)
                     try {
-                        const res = await getMe();
+                        const res = await getMeSilent();
                         if (res.data) {
                             setUser(prev => ({ ...prev, ...res.data }));
                             // Sync Tenant Store
@@ -32,10 +43,18 @@ export default function AuthProvider({ children }) {
                             }
                         }
                     } catch (e) {
-                        console.warn("Failed to fetch full profile", e);
+                        // If backend says 401, token is invalid — clean up quietly
+                        if (e.response?.status === 401) {
+                            console.warn('Session expired, clearing token');
+                            removeToken();
+                            setUser(null);
+                        } else {
+                            // Network error or other issue — keep local session alive
+                            console.warn('Failed to fetch profile, keeping local session', e);
+                        }
                     }
                 } catch (err) {
-                    console.error("Auth init failed", err);
+                    console.error('Auth init failed', err);
                     removeToken();
                 }
             }

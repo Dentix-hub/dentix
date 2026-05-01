@@ -1,4 +1,4 @@
-﻿import os
+import os
 import logging
 import firebase_admin
 from firebase_admin import credentials, auth, messaging, storage

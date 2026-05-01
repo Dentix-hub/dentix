@@ -13,7 +13,9 @@
         "all_rights_reserved": "All rights reserved.",
         "currency": "EGP",
         "cases": "Cases",
-        "date_range": "Date Range"
+        "date_range": "Date Range",
+        "search_patient": "Search patient...",
+        "no_results": "No results found"
     },
     "static": {
         "not_found": {
@@ -330,6 +332,18 @@
         "empty_state": {
             "title": "No Patients Found",
             "desc": "No patients match your search. Start by adding a new patient."
+        },
+        "medical_conditions": {
+            "none": "None",
+            "diabetes": "Diabetes",
+            "hypertension": "Hypertension",
+            "heart_disease": "Heart Disease",
+            "allergy": "Allergy",
+            "blood_thinners": "Blood Thinners",
+            "hepatitis_c": "Hepatitis C",
+            "thyroid": "Thyroid",
+            "pregnancy": "Pregnancy/Lactation",
+            "smoking": "Smoking"
         }
     },
     "patientDetails": {
@@ -483,6 +497,17 @@
             "status": "Status",
             "change_status": "Change Status",
             "actions": "Actions"
+        },
+        "stats": {
+            "today_total": "Total Today",
+            "waiting": "Waiting",
+            "in_chair": "In-Chair",
+            "completed_today": "Completed Today"
+        },
+        "view": {
+            "calendar": "Calendar",
+            "list": "List View",
+            "board": "Board View"
         },
         "status": {
             "scheduled": "Scheduled",

@@ -238,7 +238,7 @@ export default function Patients() {
                                 <option value="">{t('patients.form.doctor_select')}</option>
                                 {doctors.map(doc => (
                                     <option key={doc.id} value={doc.id}>
-                                        د. {doc.full_name || doc.username}
+                                        {t('common.doctor_prefix', 'د.')} {doc.full_name || doc.username}
                                     </option>
                                 ))}
                             </select>
@@ -249,34 +249,44 @@ export default function Patients() {
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
                                 {t('patients.form.medical_history')}
                             </label>
-                            <div className="flex flex-wrap gap-2">
-                                {['لا يوجد', 'سكري', 'ضغط دم', 'أزمة قلبية', 'أزمة قلبية', 'حساسية', 'سيولة دم', 'فيروس سي', 'غدة درقية', 'حمل/رضاعة', 'تدخين'].map(condition => (
-                                    <button
-                                        key={condition}
-                                        type="button"
-                                        onClick={() => {
-                                            let current = newPatient.medical_history ? newPatient.medical_history.split('، ') : [];
-                                            current = current.map(c => c.trim()).filter(c => c && c !== 'لا يوجد');
-                                            if (condition === 'لا يوجد') {
-                                                setNewPatient(prev => ({ ...prev, medical_history: 'لا يوجد' }));
-                                                return;
-                                            }
-                                            if (current.includes(condition)) {
-                                                current = current.filter(c => c !== condition);
-                                            } else {
-                                                current.push(condition);
-                                            }
-                                            setNewPatient(prev => ({ ...prev, medical_history: current.length ? current.join('، ') : '' }));
-                                        }}
-                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${(newPatient.medical_history || '').includes(condition)
-                                            ? 'bg-rose-500 text-white border-rose-500'
-                                            : 'bg-surface text-text-secondary border-border hover:border-rose-300'
-                                            }`}
-                                    >
-                                        {condition}
-                                    </button>
-                                ))}
-                            </div>
+                             <div className="flex flex-wrap gap-2">
+                                 {['none', 'diabetes', 'hypertension', 'heart_disease', 'allergy', 'blood_thinners', 'hepatitis_c', 'thyroid', 'pregnancy', 'smoking'].map(conditionKey => {
+                                     const condition = t(`patients.medical_conditions.${conditionKey}`);
+                                     const isSelected = conditionKey === 'none' 
+                                         ? newPatient.medical_history === condition
+                                         : (newPatient.medical_history || '').includes(condition);
+
+                                     return (
+                                         <button
+                                             key={conditionKey}
+                                             type="button"
+                                             onClick={() => {
+                                                 let current = newPatient.medical_history ? newPatient.medical_history.split(t('common.separator', '، ')) : [];
+                                                 current = current.map(c => c.trim()).filter(c => c && c !== t('patients.medical_conditions.none'));
+                                                 
+                                                 if (conditionKey === 'none') {
+                                                     setNewPatient(prev => ({ ...prev, medical_history: t('patients.medical_conditions.none') }));
+                                                     return;
+                                                 }
+                                                 
+                                                 if (current.includes(condition)) {
+                                                     current = current.filter(c => c !== condition);
+                                                 } else {
+                                                     current.push(condition);
+                                                 }
+                                                 const separator = t('common.separator', '، ');
+                                                 setNewPatient(prev => ({ ...prev, medical_history: current.length ? current.join(separator) : '' }));
+                                             }}
+                                             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${isSelected
+                                                 ? 'bg-rose-500 text-white border-rose-500 shadow-sm'
+                                                 : 'bg-surface text-text-secondary border-border hover:border-rose-300'
+                                                 }`}
+                                         >
+                                             {condition}
+                                         </button>
+                                     );
+                                 })}
+                             </div>
                             <Input
                                 placeholder={t('patients.form.other_notes')}
                                 value={newPatient.medical_history}

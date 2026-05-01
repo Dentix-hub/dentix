@@ -1,5 +1,5 @@
 import React, { useState, useCallback, memo, Suspense, lazy, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import DentalChartSVG from '@/features/dental/DentalChartSVG';
 import PatientInfoCard from '@/features/patients/PatientInfoCard';
 import { useProcedures } from '@/shared/context/ProceduresContext';
@@ -7,7 +7,7 @@ import TreatmentModal from '@/shared/ui/modals/TreatmentModal';
 import PrescriptionModal from '@/shared/ui/modals/PrescriptionModal';
 import PaymentModal from '@/shared/ui/modals/PaymentModal';
 import EditPatientModal from '@/features/patients/modals/EditPatientModal';
-import { SkeletonBox, Breadcrumb } from '@/shared/ui';
+import { SkeletonBox, Breadcrumb, TabGroup } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
 import { useHotkeys } from 'react-hotkeys-hook';
 // Hooks for lazy data loading
@@ -27,13 +27,14 @@ import {
     uploadAttachment, deleteAttachment,
     createPrescription
 } from '../api';
-import { showToast } from '@/shared/ui/Toast';
+import { toast } from '@/shared/ui';
 
 // Lazy load tab components
 const TreatmentHistory = lazy(() => import('@/features/patients/PatientTabs/TreatmentHistory'));
 const PatientFiles = lazy(() => import('@/features/patients/PatientTabs/PatientFiles'));
 const PatientBilling = lazy(() => import('@/features/patients/PatientTabs/PatientBilling'));
 const LabOrdersTab = lazy(() => import('@/features/lab/LabOrdersTab'));
+const PatientTimeline = lazy(() => import('@/features/patients/PatientTabs/PatientTimeline'));
 
 // Tab skeleton component
 const TabSkeleton = memo(() => (
@@ -61,9 +62,17 @@ PatientInfoSkeleton.displayName = 'PatientInfoSkeleton';
 
 export default function PatientDetails() {
     const { t } = useTranslation();
-    const { id } = useParams();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState('chart');
+    const { id } = useParams();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const initialTab = searchParams.get('tab') || 'chart';
+    const [activeTab, setActiveTab] = useState(initialTab);
+
+    // Sync tab changes to URL
+    const handleTabChange = (tabId) => {
+        setActiveTab(tabId);
+        setSearchParams({ tab: tabId }, { replace: true });
+    };
 
     // Cache procedures from context
     const { procedures } = useProcedures();
@@ -79,11 +88,11 @@ export default function PatientDetails() {
     // Tab-specific data - only loads when tab is active
     const { data: history = [], isLoading: historyLoading, refetch: refetchHistory } = usePatientTreatments(
         id,
-        activeTab === 'history' || activeTab === 'billing' // Also needed for billing calculations
+        activeTab === 'history' || activeTab === 'billing' || activeTab === 'timeline' // Also needed for timeline
     );
     const { data: payments = [], isLoading: paymentsLoading, refetch: refetchPayments } = usePatientPayments(
         id,
-        activeTab === 'billing'
+        activeTab === 'billing' || activeTab === 'timeline' // Also needed for timeline
     );
     const { data: attachments = [], isLoading: attachmentsLoading, refetch: refetchAttachments } = usePatientAttachments(
         id,
@@ -130,7 +139,7 @@ export default function PatientDetails() {
             await uploadAttachment(id, file);
             refetchAttachments();
         } catch (err) {
-            showToast('error', t('patient_details.alerts.upload_fail'));
+            toast.error(t('patient_details.alerts.upload_fail'));
         }
     }, [id, refetchAttachments, t]);
 
@@ -163,9 +172,9 @@ export default function PatientDetails() {
             await updatePatient(id, updatedData);
             setIsEditPatientOpen(false);
             refetchPatient();
-            showToast('success', t('patients.update_success'));
+            toast.success(t('patients.update_success'));
         } catch (err) {
-            showToast('error', t('common.error') + ': ' + (err.response?.data?.detail || err.message));
+            toast.error(t('common.error') + ': ' + (err.response?.data?.detail || err.message));
         }
     }, [id, refetchPatient, t]);
 
@@ -179,7 +188,7 @@ export default function PatientDetails() {
             setIsPaymentModalOpen(false);
             refetchPayments();
         } catch (err) {
-            showToast('error', err.response?.data?.detail || t('patient_details.alerts.payment_save_fail'));
+            toast.error(err.response?.data?.detail || t('patient_details.alerts.payment_save_fail'));
         }
     }, [id, refetchPayments, t]);
 
@@ -224,7 +233,7 @@ export default function PatientDetails() {
             await deleteTreatment(treatmentId);
             refetchHistory();
         } catch (err) {
-            showToast('error', err.response?.data?.detail || t('patient_details.alerts.delete_treatment_fail'));
+            toast.error(err.response?.data?.detail || t('patient_details.alerts.delete_treatment_fail'));
         }
     }, [refetchHistory, t]);
 
@@ -234,7 +243,7 @@ export default function PatientDetails() {
             await deletePayment(paymentId);
             refetchPayments();
         } catch (err) {
-            showToast('error', err.response?.data?.detail || t('patient_details.alerts.delete_payment_fail'));
+            toast.error(err.response?.data?.detail || t('patient_details.alerts.delete_payment_fail'));
         }
     }, [refetchPayments, t]);
 
@@ -257,7 +266,7 @@ export default function PatientDetails() {
             setIsRxModalOpen(false);
             window.open(`/print/rx/${id}`, '_blank');
         } catch (err) {
-            showToast('error', err.response?.data?.detail || t('patient_details.alerts.rx_fail'));
+            toast.error(err.response?.data?.detail || t('patient_details.alerts.rx_fail'));
         }
     }, [id, patient, navigate, t]);
 
@@ -320,104 +329,105 @@ export default function PatientDetails() {
                     {t('patient_details.no_data')}
                 </div>
             )}
+            {/* Content Cards */}
+            <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm min-h-[600px]">
+                {/* Tabs */}
+                <TabGroup
+                    activeTab={activeTab}
+                    onChange={handleTabChange}
+                    tabs={[
+                        { id: 'chart', label: t('patients.tabs.chart'), icon: '🦷' },
+                        { id: 'timeline', label: t('patients.tabs.timeline', 'الجدول الزمني'), icon: '📅' },
+                        { id: 'history', label: t('patients.tabs.history'), icon: '📝' },
+                        { id: 'billing', label: t('patients.tabs.billing'), icon: '💰' },
+                        { id: 'files', label: t('patients.tabs.files'), icon: '📁' },
+                        { id: 'labs', label: t('patients.tabs.labs'), icon: '🔬' },
+                    ]}
+                />
 
-            {/* Tabs */}
-            <div className="bg-white rounded-2xl border border-slate-100 p-2 flex flex-wrap gap-2">
-                {[
-                    { id: 'chart', label: t('patient_details.tabs.chart') },
-                    { id: 'history', label: t('patient_details.tabs.history') },
-                    { id: 'files', label: t('patient_details.tabs.files') },
-                    { id: 'billing', label: t('patient_details.tabs.billing') },
-                    { id: 'labs', label: t('patient_details.tabs.labs') },
-                ].map(t => (
-                    <button
-                        key={t.id}
-                        onClick={() => setActiveTab(t.id)}
-                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === t.id ? 'bg-primary text-white shadow' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                    >
-                        {t.label}
-                    </button>
-                ))}
-            </div>
+                {/* Tab Content */}
+                <div className="mt-8">
+                    <Suspense fallback={<TabSkeleton />}>
+                        {activeTab === 'chart' && (
+                            <div className="space-y-4">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                    <div>
+                                        <h3 className="font-bold text-slate-800">{t('patient_details.chart.title')}</h3>
+                                        <p className="text-xs text-slate-400">{t('patient_details.chart.subtitle')}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setIsPediatric(v => !v)}
+                                            className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${isPediatric ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
+                                            title={t('patient_details.chart.pediatric_mode')}
+                                        >
+                                            <Baby size={16} className="inline-block scale-x-[-1] ml-2 rtl:ml-0 rtl:mr-2" />
+                                            {isPediatric ? t('patient_details.chart.child') : t('patient_details.chart.adult')}
+                                        </button>
+                                        <button
+                                            onClick={() => setIsToothSelectModalOpen(true)}
+                                            className="px-4 py-2 rounded-xl text-sm font-bold bg-emerald-500 text-white hover:bg-emerald-600"
+                                        >
+                                            {t('patient_details.chart.new_treatment')}
+                                        </button>
+                                    </div>
+                                </div>
+                                {teethLoading ? (
+                                    <TabSkeleton />
+                                ) : (
+                                    <DentalChartSVG
+                                        teethStatus={effectiveTeethStatus}
+                                        onToothClick={handleToothClick}
+                                        isPediatric={isPediatric}
+                                    />
+                                )}
+                            </div>
+                        )}
 
-            {/* Tab Content */}
-            {activeTab === 'chart' && (
-                <div className="bg-white rounded-2xl border border-slate-100 p-4 space-y-4">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                        <div>
-                            <h3 className="font-bold text-slate-800">{t('patient_details.chart.title')}</h3>
-                            <p className="text-xs text-slate-400">{t('patient_details.chart.subtitle')}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setIsPediatric(v => !v)}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${isPediatric ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
-                                title={t('patient_details.chart.pediatric_mode')}
-                            >
-                                <Baby size={16} className="inline-block scale-x-[-1] ml-2 rtl:ml-0 rtl:mr-2" />
-                                {isPediatric ? t('patient_details.chart.child') : t('patient_details.chart.adult')}
-                            </button>
-                            <button
-                                onClick={() => setIsToothSelectModalOpen(true)}
-                                className="px-4 py-2 rounded-xl text-sm font-bold bg-emerald-500 text-white hover:bg-emerald-600"
-                            >
-                                {t('patient_details.chart.new_treatment')}
-                            </button>
-                        </div>
-                    </div>
-                    {teethLoading ? (
-                        <TabSkeleton />
-                    ) : (
-                        <DentalChartSVG
-                            teethStatus={effectiveTeethStatus}
-                            onToothClick={handleToothClick}
-                            isPediatric={isPediatric}
-                        />
-                    )}
+                        {activeTab === 'timeline' && (
+                            <PatientTimeline 
+                                history={history} 
+                                payments={payments} 
+                                t={t} 
+                            />
+                        )}
+
+                        {activeTab === 'history' && (
+                            <TreatmentHistory
+                                history={history}
+                                onAdd={openManualTreatment}
+                                onEdit={handleEditTreatment}
+                                onDelete={handleDeleteTreatment}
+                            />
+                        )}
+
+                        {activeTab === 'files' && (
+                            <PatientFiles
+                                attachments={attachments}
+                                handleFileUpload={handleFileUpload}
+                                handleDeleteAttachment={handleDeleteAttachment}
+                                loading={attachmentsLoading}
+                                reloadAttachments={refetchAttachments}
+                            />
+                        )}
+
+                        {activeTab === 'billing' && (
+                            <PatientBilling
+                                patientId={id}
+                                history={history}
+                                payments={payments}
+                                onAddPayment={() => setIsPaymentModalOpen(true)}
+                                onDeletePayment={handleDeletePayment}
+                                onPrintInvoice={handlePrintInvoice}
+                            />
+                        )}
+
+                        {activeTab === 'labs' && (
+                            <LabOrdersTab patientId={id} />
+                        )}
+                    </Suspense>
                 </div>
-            )}
-
-            {activeTab === 'history' && (
-                <Suspense fallback={<TabSkeleton />}>
-                    <TreatmentHistory
-                        history={history}
-                        onAdd={openManualTreatment}
-                        onEdit={handleEditTreatment}
-                        onDelete={handleDeleteTreatment}
-                    />
-                </Suspense>
-            )}
-
-            {activeTab === 'files' && (
-                <Suspense fallback={<TabSkeleton />}>
-                    <PatientFiles
-                        attachments={attachments}
-                        handleFileUpload={handleFileUpload}
-                        handleDeleteAttachment={handleDeleteAttachment}
-                        loading={attachmentsLoading}
-                        reloadAttachments={refetchAttachments}
-                    />
-                </Suspense>
-            )}
-
-            {activeTab === 'billing' && (
-                <Suspense fallback={<TabSkeleton />}>
-                    <PatientBilling
-                        patientId={id}
-                        history={history}
-                        payments={payments}
-                        onAddPayment={() => setIsPaymentModalOpen(true)}
-                        onDeletePayment={handleDeletePayment}
-                        onPrintInvoice={handlePrintInvoice}
-                    />
-                </Suspense>
-            )}
-
-            {activeTab === 'labs' && (
-                <Suspense fallback={<TabSkeleton />}>
-                    <LabOrdersTab patientId={id} />
-                </Suspense>
-            )}
+            </div>
 
             {/* Edit Patient Modal */}
             <EditPatientModal
@@ -451,11 +461,22 @@ export default function PatientDetails() {
             />
 
             {isToothSelectModalOpen && (
-                <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4 backdrop-blur-md">
-                    <div className="bg-white w-full max-w-4xl rounded-3xl p-6 shadow-2xl overflow-y-auto max-h-[95vh]">
+                <div 
+                    className="fixed inset-0 flex items-center justify-center p-4 z-[60]"
+                    onClick={(e) => e.target === e.currentTarget && setIsToothSelectModalOpen(false)}
+                >
+                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+                    <div className="bg-surface border border-border rounded-2xl p-6 shadow-2xl relative overflow-y-auto max-h-[95vh] z-10 w-full max-w-lg">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-2xl font-bold text-slate-800">{t('patient_details.chart.tooth_modal_title')}</h3>
-                            <button onClick={() => setIsToothSelectModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full"><X /></button>
+                            <h3 className="text-xl font-bold text-text-primary">
+                                {t('patientDetails.chart.select_tooth')}
+                            </h3>
+                            <button 
+                                onClick={() => setIsToothSelectModalOpen(false)}
+                                className="p-2 hover:bg-surface-hover rounded-xl text-text-secondary transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
                         </div>
                         <div className="mb-8">
                             <DentalChartSVG

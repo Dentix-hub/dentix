@@ -17,3 +17,7 @@ export { default as EmptyState } from './EmptyState';
 export { default as Alert } from './Alert';
 export { default as IconButton } from './IconButton';
 export { default as Breadcrumb } from './Breadcrumb';
+export { default as TabGroup } from './TabGroup';
+export { default as PageHeader } from './PageHeader';
+export { default as PatientSelect } from './PatientSelect';
+export { default as WeeklyCalendar } from './WeeklyCalendar';

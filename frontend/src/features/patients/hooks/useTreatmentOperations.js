@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createTreatment, updateTreatment, updateToothStatus } from '@/api';
 import { palmerToFdi } from '@/utils/toothUtils';
-import { showToast } from '@/shared/ui/Toast';
+import { toast } from '@/shared/ui';
 
 export const useTreatmentOperations = ({
     patientId,
@@ -68,14 +68,14 @@ export const useTreatmentOperations = ({
                     }
                 } catch (e) {
                     console.error("Failed to update tooth status", e);
-                    showToast('error', t('patient_details.alerts.tooth_update_fail'));
+                    toast.error(t('patient_details.alerts.tooth_update_fail'));
                 }
             }
 
             setIsTreatmentModalOpen(false);
             setEditingTreatmentId(null);
             refetchHistory();
-            showToast('success', t('patient_details.alerts.treatment_save_success'));
+            toast.success(t('patient_details.alerts.treatment_save_success'));
         } catch (err) {
             console.error(err);
             const res = err.response?.data;
@@ -94,7 +94,7 @@ export const useTreatmentOperations = ({
             }
 
             const finalMsg = typeof msg === 'object' ? JSON.stringify(msg) : (msg || t('patient_details.alerts.treatment_save_fail'));
-            showToast('error', finalMsg);
+            toast.error(finalMsg);
         }
     }, [patientId, editingTreatmentId, refetchHistory, refetchTeeth, selectedToothCondition, setIsTreatmentModalOpen, setEditingTreatmentId, t]);
 
