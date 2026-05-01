@@ -6,6 +6,7 @@ Handles appointment scheduling and management.
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
+from pydantic import TypeAdapter
 from typing import List
 import logging
 
@@ -59,11 +60,18 @@ def read_appointments(
         results = crud.get_appointments(
             db, current_user.tenant_id, skip=skip, limit=limit, doctor_id=doctor_id
         )
-        return success_response(data=results, message="Appointments retrieved successfully")
+        # Manual validation to catch response model errors during diagnosis
+        adapter = TypeAdapter(List[schemas.Appointment])
+        validated_results = adapter.validate_python(results)
+        return success_response(data=validated_results, message="Appointments retrieved successfully")
     except Exception as e:
         logger.error(f"Failed to fetch appointments: {e}", exc_info=True)
-        # TEMPORARY: Expose error for diagnosis on staging
-        raise HTTPException(status_code=500, detail=f"Failed: {type(e).__name__}: {str(e)}")
+        # Detailed error for diagnosis
+        error_msg = str(e)
+        if "ValidationError" in type(e).__name__:
+             # Extract more info if it's a validation error
+             error_msg = f"Validation Error on data: {e}"
+        raise HTTPException(status_code=500, detail=f"Failed: {type(e).__name__}: {error_msg}")
 
 
 @router.put(
