@@ -484,7 +484,6 @@ if os.getenv("ENVIRONMENT", "development").lower() != "production":
     def debug_db_info():
         """Debug: check database schema. NOT available in production."""
         from sqlalchemy import inspect
-
         try:
             inspector = inspect(database.engine)
             tables = inspector.get_table_names()
@@ -495,6 +494,24 @@ if os.getenv("ENVIRONMENT", "development").lower() != "production":
             }
         except Exception:
             return {"error": "Database inspection failed"}
+
+    @app.get("/debug/recent-errors")
+    def get_recent_errors(db: Session = Depends(database.get_db)):
+        """Debug: show last 10 system errors."""
+        from backend.models.system import SystemError
+        try:
+            errors = db.query(SystemError).order_by(SystemError.created_at.desc()).limit(10).all()
+            return [
+                {
+                    "id": e.id,
+                    "time": e.created_at.isoformat() if e.created_at else None,
+                    "path": e.path,
+                    "message": e.message,
+                    "stack": e.stack_trace[:500] + "..." if e.stack_trace and len(e.stack_trace) > 500 else e.stack_trace
+                } for e in errors
+            ]
+        except Exception as e:
+            return {"error": f"Failed to fetch errors: {str(e)}"}
 
     @app.get("/debug/static-files")
     def debug_static_files():
