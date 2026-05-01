@@ -295,13 +295,23 @@
         "to_collect": "يجب تحصيلها",
         "revenue_analysis": "تحليل الإيرادات",
         "revenue_growth": "تتبع النمو المالي خلال الأسبوع الماضي",
-        "appointments_count": "{{count}} مواعيد",
+        "appointments_count": "{{val}} مواعيد",
+        "actions": {
+            "add_patient": "إضافة مريض",
+            "new_appointment": "موعد جديد",
+            "record_payment": "تسجيل مبلغ",
+            "create_rx": "روشتة جديدة"
+        },
         "no_appointments_today": "لا توجد مواعيد متبقية اليوم",
         "add_new_appointment": "إضافة موعد جديد",
         "view_full_schedule": "عرض الجدول الكامل",
         "daily_income_details": "تفاصيل الدخل اليومي",
         "outstanding_today": "المستحقات الآجلة (اليوم)",
         "no_financial_data": "لا توجد بيانات مالية كافية للعرض",
+        "clinic_efficiency": "كفاءة العيادة",
+        "efficiency_description": "بناءً على المواعيد المكتملة مقابل المجدولة اليوم",
+        "efficiency_rate": "معدل الكفاءة",
+        "status_distribution": "توزيع الحالات",
         "no_data": "لا توجد بيانات"
     },
     "patients": {

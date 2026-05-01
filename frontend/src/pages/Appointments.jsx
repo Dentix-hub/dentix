@@ -70,10 +70,13 @@ export default function Appointments() {
         }
         const toastId = toast.loading(t('appointments.messages.booking'));
         try {
-            await createAppointment({
+            const payload = {
                 ...newAppt,
-                patient_id: parseInt(newAppt.patient_id)
-            });
+                patient_id: parseInt(newAppt.patient_id),
+                doctor_id: newAppt.doctor_id ? parseInt(newAppt.doctor_id) : null,
+                price_list_id: newAppt.price_list_id ? parseInt(newAppt.price_list_id) : null
+            };
+            await createAppointment(payload);
             setIsModalOpen(false);
             setNewAppt({ 
                 patient_id: '', 

@@ -3,6 +3,7 @@
 from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from datetime import datetime
+from .patient import PatientSummary
 
 
 class AppointmentBase(BaseModel):
@@ -33,6 +34,8 @@ class AppointmentCreate(AppointmentBase):
 
 class Appointment(AppointmentBase):
     id: int
+    date_time: Optional[datetime] = None  # Safe retrieval
+    patient: Optional[PatientSummary] = None
     patient_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

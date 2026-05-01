@@ -49,6 +49,10 @@ class Appointment(Base):
     patient = relationship("Patient", back_populates="appointments")
     doctor = relationship("User")
 
+    @property
+    def patient_name(self):
+        return self.patient.name if self.patient else "Unknown"
+
 
 class ToothStatus(Base):
     __tablename__ = "tooth_status"
