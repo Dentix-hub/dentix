@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Database, List, User, Settings as SettingsIcon, CreditCard, CheckCircle, AlertTriangle, Printer } from 'lucide-react';
+import { Database, List, User, Settings as SettingsIcon, CreditCard, CheckCircle, AlertTriangle, Printer, Home } from 'lucide-react';
 import { getMe, getBackupStatus } from '../api';
-// Import newly created components
+import { TabGroup, PageHeader } from '@/shared/ui';
 // Import newly created components
 import GeneralSettings from '@/features/settings/SettingsTabs/GeneralSettings';
 import SubscriptionSettings from '@/features/settings/SettingsTabs/SubscriptionSettings';
@@ -68,48 +68,38 @@ export default function Settings() {
         { id: 'backup', label: t('settings.tabs.backup'), icon: Database },
     ], [t]);
     return (
-        <div className="min-h-screen bg-slate-50/50 dark:bg-slate-900/50 p-6 flex flex-col md:flex-row gap-6 animate-in fade-in active">
-            {/* Sidebar Navigation */}
-            <div className="w-full md:w-64 flex-shrink-0">
-                <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-white/5 sticky top-6">
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-white px-4 mb-6 flex items-center gap-2">
-                        <SettingsIcon className="text-indigo-600" />
-                        {t('settings.title')}
-                    </h2>
-                    <nav className="space-y-1">
-                        {tabs.map(tab => {
-                            const Icon = tab.icon;
-                            const isActive = activeTab === tab.id;
-                            return (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-bold ${isActive
-                                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
-                                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                                        }`}
-                                >
-                                    <Icon size={20} />
-                                    {tab.label}
-                                </button>
-                            );
-                        })}
-                    </nav>
+        <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in active">
+            <PageHeader
+                title={t('settings.title')}
+                subtitle={t('nav.settings', 'Manage your application preferences')}
+                icon={SettingsIcon}
+                breadcrumbs={[
+                    { label: t('nav.home', 'Home'), icon: Home, path: '/' },
+                    { label: t('settings.title') }
+                ]}
+            />
+            <div className="flex flex-col md:flex-row gap-6">
+                <div className="w-full md:w-64 flex-shrink-0 space-y-4">
+                    <TabGroup
+                        variant="vertical"
+                        tabs={tabs}
+                        activeTab={activeTab}
+                        onChange={setActiveTab}
+                    />
                 </div>
-            </div>
             {/* Main Content Area */}
             <div className="flex-1">
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-white/5 min-h-[600px] relative overflow-hidden">
                     {/* Header Banner */}
-                    <div className="h-32 bg-gradient-to-r from-indigo-500 to-cyan-600 relative overflow-hidden">
+                    <div className="h-32 bg-gradient-to-r from-primary to-cyan-600 relative overflow-hidden">
                         <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'linear-gradient(45deg, currentColor 25%, transparent 25%), linear-gradient(-45deg, currentColor 25%, transparent 25%), linear-gradient(45deg, transparent 75%, currentColor 75%), linear-gradient(-45deg, transparent 75%, currentColor 75%)', backgroundSize: '20px 20px', backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px'}}></div>
                         <div className="absolute -bottom-6 right-8">
                             <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-lg border-4 border-white dark:border-slate-800">
-                                {activeTab === 'general' && <User size={32} className="text-indigo-600" />}
-                                {activeTab === 'subscription' && <CreditCard size={32} className="text-indigo-600" />}
-                                {activeTab === 'services' && <List size={32} className="text-indigo-600" />}
-                                {activeTab === 'backup' && <Database size={32} className="text-indigo-600" />}
-                                {activeTab === 'rx' && <Printer size={32} className="text-indigo-600" />}
+                                {activeTab === 'general' && <User size={32} className="text-primary" />}
+                                {activeTab === 'subscription' && <CreditCard size={32} className="text-primary" />}
+                                {activeTab === 'services' && <List size={32} className="text-primary" />}
+                                {activeTab === 'backup' && <Database size={32} className="text-primary" />}
+                                {activeTab === 'rx' && <Printer size={32} className="text-primary" />}
                             </div>
                         </div>
                     </div>
@@ -160,6 +150,8 @@ export default function Settings() {
                         )}
                     </div>
                 </div>
+            </div>
+            {/* End of flex container */}
             </div>
             {/* Toast Message */}
             {message && (

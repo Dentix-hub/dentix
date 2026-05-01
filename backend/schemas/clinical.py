@@ -8,6 +8,7 @@ from datetime import datetime
 class AppointmentBase(BaseModel):
     patient_id: int
     date_time: datetime
+    duration_minutes: int = 30
     status: str = "Scheduled"
     notes: Optional[str] = None
     doctor_id: Optional[int] = None

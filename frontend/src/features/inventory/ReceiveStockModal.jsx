@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, ArrowDownLeft, Calendar, Plus } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getMaterials, getWarehouses, receiveStock } from '@/api/inventory';
-import { showToast } from '@/shared/ui/Toast';
+import { toast } from '@/shared/ui';
 import AddWarehouseModal from './components/AddWarehouseModal';
 import { useTranslation } from 'react-i18next';
 const ReceiveStockModal = ({ isOpen, onClose }) => {
@@ -61,7 +61,7 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries(['inventory-stock']);
-            showToast('success', t('inventory.receive.success'));
+            toast.success(t('inventory.receive.success'));
             onClose();
             // Reset crucial fields
             setFormData(prev => ({
@@ -71,14 +71,14 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
             }));
         },
         onError: (error) => {
-            showToast('error', t('inventory.receive.fail') + (error.response?.data?.detail || error.message));
+            toast.error(t('inventory.receive.fail') + (error.response?.data?.detail || error.message));
         }
     });
     if (!isOpen) return null;
     const handleSubmit = (e) => {
         e.preventDefault();
         if (!formData.material_id || !formData.warehouse_id) {
-            showToast('error', t('inventory.receive.validation_error'));
+            toast.error(t('inventory.receive.validation_error'));
             return;
         }
         // Calculate Cost Per Unit derived from Package Price

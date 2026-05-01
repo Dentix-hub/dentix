@@ -1,7 +1,7 @@
 import { TrendingUp, Banknote, DollarSign, Calendar } from 'lucide-react';
 import { Button, Card, StatCard } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
-const SummaryTab = ({ startDate, setStartDate, endDate, setEndDate, comprehensiveStats, loading, getComprehensiveStats, setComprehensiveStats, setLoading }) => {
+const SummaryTab = ({ startDate, setStartDate, endDate, setEndDate, comprehensiveStats, loading }) => {
     const { t } = useTranslation();
     return (
         <div className="space-y-6">
@@ -30,17 +30,11 @@ const SummaryTab = ({ startDate, setStartDate, endDate, setEndDate, comprehensiv
                         />
                     </div>
                     <Button
-                        onClick={async () => {
-                            setLoading(true);
-                            try {
-                                const res = await getComprehensiveStats(startDate, endDate);
-                                setComprehensiveStats(res.data);
-                            } catch (err) { console.error(err); }
-                            finally { setLoading(false); }
-                        }}
+                        onClick={() => {}}
                         variant="success"
                         size="sm"
                         isLoading={loading}
+                        className="hidden" // Hidden since React Query automatically fetches on date change
                     >
                         {t('billing.summary.calculate')}
                     </Button>

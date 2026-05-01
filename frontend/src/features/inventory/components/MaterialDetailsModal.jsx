@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getMaterialStock, updateMaterial } from '@/api/inventory';
 import { X, Package, Calendar, Truck, AlertCircle, Square, Settings } from 'lucide-react';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
-import { showToast } from '@/shared/ui/Toast';
+import { toast } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
 const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }) => {
     const { t } = useTranslation();
@@ -51,10 +51,10 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
             await updateMaterial(materialId, formData);
             setIsEditing(false);
             queryClient.invalidateQueries(['inventory-stock']);
-            showToast('success', t('inventory.material_details.messages.update_success'));
+            toast.success(t('inventory.material_details.messages.update_success'));
         } catch (error) {
             console.error("Failed to update material", error);
-            showToast('error', t('inventory.material_details.messages.update_fail'));
+            toast.error(t('inventory.material_details.messages.update_fail'));
         }
     };
     if (!isOpen || !material) return null;

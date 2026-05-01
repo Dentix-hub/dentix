@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Sparkles, Brain, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { analyzeClinic } from '@/api/analytics';
-import { showToast } from '@/shared/ui/Toast';
+import { toast } from '@/shared/ui';
 const AiAdvisor = ({ stats }) => {
     const { t } = useTranslation();
     const [insights, setInsights] = useState(null);
@@ -15,7 +15,7 @@ const AiAdvisor = ({ stats }) => {
             setInsights(data.insights);
         } catch (err) {
             console.error(err);
-            showToast('error', t('analytics.advisor.error') + ' ' + (err.response?.data?.message || err.message));
+            toast.error(t('analytics.advisor.error') + ' ' + (err.response?.data?.message || err.message));
         } finally {
             setLoading(false);
         }

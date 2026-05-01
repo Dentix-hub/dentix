@@ -25,16 +25,16 @@ class CacheManager:
                 # Quick ping to verify connection
                 self.redis_client.ping()
                 self.use_redis = True
-                logger.info(f"✅ Redis Cache Connected: {redis_url}")
+                logger.info(f"[OK] Redis Cache Connected: {redis_url}")
 
                 # Initialize Stampede Protection
                 from backend.core.cache_stampede import init_stampede_protection
                 init_stampede_protection(self.redis_client)
             except Exception as e:
-                logger.warning(f"⚠️ Redis Connection Failed (Using Local Memory): {e}")
+                logger.warning(f"[WARN] Redis Connection Failed (Using Local Memory): {e}")
                 self.use_redis = False
         else:
-            logger.info("ℹ️ No REDIS_URL found. Using Local Memory Cache.")
+            logger.info("[INFO] No REDIS_URL found. Using Local Memory Cache.")
 
     def get_redis_client(self) -> Optional[redis.Redis]:
         """Return the Redis client if available."""

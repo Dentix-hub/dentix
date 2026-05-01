@@ -6,13 +6,19 @@
         "edit": "تعديل",
         "search": "بحث",
         "loading": "جاري التحميل...",
+        "error_loading_data": "فشل تحميل البيانات. يرجى التحقق من الاتصال.",
+        "doctor_prefix": "د.",
+        "separator": "، ",
+        "search": "بحث...",
         "actions": "إجراءات",
         "help_support": "مساعدة ودعم",
         "logo": "الشعار",
         "default_clinic_name": "عيادتي",
         "all_rights_reserved": "جميع الحقوق محفوظة.",
         "cases": "حالات",
-        "date_range": "النطاق الزمني"
+        "date_range": "النطاق الزمني",
+        "search_patient": "بحث عن مريض...",
+        "no_results": "لا توجد نتائج"
     },
     "static": {
         "not_found": {
@@ -483,6 +489,17 @@
             "change_status": "تغيير الحالة",
             "actions": "إجراءات"
         },
+        "stats": {
+            "today_total": "إجمالي اليوم",
+            "waiting": "في الانتظار",
+            "in_chair": "على الكرسي",
+            "completed_today": "تم الإنجاز"
+        },
+        "view": {
+            "calendar": "التقويم",
+            "list": "عرض القائمة",
+            "board": "عرض اللوحة"
+        },
         "status": {
             "scheduled": "مجدول",
             "waiting": "في الانتظار",
@@ -759,8 +776,20 @@
             "empty_desc": "ابدأ بإضافة مخزنك الأول.",
             "click_to_view": "اضغط للعرض",
             "delete_confirm": "هل أنت متأكد من حذف المخزن \"{{name}}\"؟ لا يمكن التراجع عن هذا الإجراء!",
-            "delete_success": "تم حذف المخزن بنجاح.",
-            "delete_fail": "فشل حذف المخزن"
+            "delete_success": "تم حذف المريض بنجاح",
+            "delete_error": "فشل حذف المريض"
+        },
+        "medical_conditions": {
+            "none": "لا يوجد",
+            "diabetes": "سكري",
+            "hypertension": "ضغط دم",
+            "heart_disease": "أزمة قلبية",
+            "allergy": "حساسية",
+            "blood_thinners": "سيولة دم",
+            "hepatitis_c": "فيروس سي",
+            "thyroid": "غدة درقية",
+            "pregnancy": "حمل/رضاعة",
+            "smoking": "تدخين"
         },
         "materials": {
             "modal_add": "إضافة مادة جديدة",

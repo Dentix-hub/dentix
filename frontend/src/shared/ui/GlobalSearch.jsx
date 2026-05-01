@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, User, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { searchPatients } from '@/api';
 export default function GlobalSearch() {
+    const { t } = useTranslation();
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [isOpen, setIsOpen] = useState(false);
@@ -50,7 +52,7 @@ export default function GlobalSearch() {
                 <Search className="absolute right-4 top-3.5 text-slate-400" size={20} />
                 <input
                     type="text"
-                    placeholder="بحث..."
+                    placeholder={t('common.search', 'بحث...')}
                     className="w-full pl-4 pr-12 py-3 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-transparent focus:bg-white dark:focus:bg-slate-900 focus:border-primary/20 outline-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 shadow-sm"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
@@ -69,7 +71,7 @@ export default function GlobalSearch() {
             {isOpen && (
                 <div className="absolute top-full mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-white/5 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                     {loading ? (
-                        <div className="p-4 text-center text-slate-400 text-sm font-bold">جاري البحث...</div>
+                        <div className="p-4 text-center text-slate-400 text-sm font-bold">{t('common.searching', 'جاري البحث...')}</div>
                     ) : results.length > 0 ? (
                         <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                             {results.map((patient) => (
@@ -92,7 +94,7 @@ export default function GlobalSearch() {
                             ))}
                         </div>
                     ) : (
-                        <div className="p-4 text-center text-slate-400 text-sm font-bold">لا توجد نتائج</div>
+                        <div className="p-4 text-center text-slate-400 text-sm font-bold">{t('common.no_results', 'لا توجد نتائج')}</div>
                     )}
                 </div>
             )}

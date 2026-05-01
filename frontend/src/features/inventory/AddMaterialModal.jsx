@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Save, AlertCircle } from 'lucide-react';
 import { createMaterial, updateMaterial, getCategories, createCategory } from '@/api/inventory';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { showToast } from '@/shared/ui/Toast';
+import { toast } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 
@@ -42,7 +42,7 @@ const AddMaterialModal = ({ isOpen, onClose, initialData = null }) => {
             if (res.data?.id) {
                 handleCategoryChange(res.data.id);
             }
-            showToast('success', t('inventory.categories.success_add') || 'Category added');
+            toast.success(t('inventory.categories.success_add') || 'Category added');
         }
     });
 
@@ -91,11 +91,11 @@ const AddMaterialModal = ({ isOpen, onClose, initialData = null }) => {
         mutationFn: (data) => initialData ? updateMaterial(initialData.material_id, data) : createMaterial(data),
         onSuccess: () => {
             queryClient.invalidateQueries(['inventory-stock']);
-            showToast('success', initialData ? t('inventory.materials.success_edit') : t('inventory.materials.success_add'));
+            toast.success(initialData ? t('inventory.materials.success_edit') : t('inventory.materials.success_add'));
             onClose();
         },
         onError: (error) => {
-            showToast('error', (initialData ? t('inventory.materials.fail_edit') : t('inventory.materials.fail_add')) + (error.response?.data?.detail || error.message));
+            toast.error((initialData ? t('inventory.materials.fail_edit') : t('inventory.materials.fail_add')) + (error.response?.data?.detail || error.message));
         }
     });
 

@@ -1,27 +1,32 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
-import { login } from '../api';
-import { setToken } from '../utils';
-import { Sun, Moon, Globe, Activity } from 'lucide-react';
+import { useAuth } from '../auth/useAuth';
+import { Sun, Moon, Globe, Activity, Loader2 } from 'lucide-react';
 export default function Login({ isDarkMode, toggleDarkMode }) {
     const { t, i18n } = useTranslation();
     const [logoError, setLogoError] = useState(false);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const navigate = useNavigate();
+    const { login } = useAuth();
     const handleLogin = async (e) => {
         e.preventDefault();
+        if (isSubmitting) return;
+        setIsSubmitting(true);
+        setError('');
         try {
-            const { data } = await login(username.trim(), password);
-            // Store tokens in sessionStorage (backend also sets httpOnly cookies)
-            setToken(data.access_token, data.refresh_token);
+            // Use AuthProvider's login — sets React state directly (no page reload)
+            const data = await login(username.trim(), password);
+            // React state change (isAuthenticated=true) auto-switches AppRoutes
+            // to the authenticated view. navigate() for super_admin only.
             if (data.role === 'super_admin') {
-                window.location.href = '/admin';
-            } else {
-                window.location.href = '/';
+                navigate('/admin', { replace: true });
             }
+            // For regular users: AppRoutes already shows Dashboard on '/'
+            // because isAuthenticated flipped to true — no navigation needed.
         } catch (err) {
             console.error("Login Error:", err);
             if (err.response) {
@@ -34,6 +39,8 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                 // Something else happened
                 setError(t('auth.login.errors.unknown') + ': ' + err.message);
             }
+        } finally {
+            setIsSubmitting(false);
         }
     };
     return (
@@ -99,8 +106,10 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                     </div>
                     <button
                         type="submit"
-                        className="w-full py-4 bg-primary text-white font-black rounded-2xl hover:brightness-110 shadow-xl shadow-primary/25 transition-all active:scale-[0.98] transform"
+                        disabled={isSubmitting}
+                        className="w-full py-4 bg-primary text-white font-black rounded-2xl hover:brightness-110 shadow-xl shadow-primary/25 transition-all active:scale-[0.98] transform flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                     >
+                        {isSubmitting && <Loader2 size={20} className="animate-spin" />}
                         {t('auth.login.submit')}
                     </button>
                     <div className="text-center mt-4">

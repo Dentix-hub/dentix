@@ -31,6 +31,7 @@ class Appointment(Base):
         Integer, ForeignKey("price_lists.id"), nullable=True, index=True
     )  # Multi Price List
     date_time = Column(DateTime, index=True)
+    duration_minutes = Column(Integer, default=30) # Default 30 mins
     status = Column(String, default="Scheduled")
     notes = Column(Text, nullable=True)
 

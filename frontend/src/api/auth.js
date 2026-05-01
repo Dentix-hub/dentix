@@ -9,6 +9,8 @@ export const login = (username, password) => {
 
 export const registerClinic = (data) => api.post('/api/v1/auth/register_clinic', data);
 export const getMe = () => api.get('/api/v1/users/me');
+// Silent variant: 401 won't trigger interceptor redirect (used during auth init)
+export const getMeSilent = () => api.get('/api/v1/users/me', { _silentAuth: true });
 export const updateProfile = (data) => api.put('/api/v1/users/me', data);
 export const forgotPassword = (email) => api.post('/api/v1/auth/forgot-password', null, { params: { email } });
 export const resetPassword = (token, newPassword) => api.post('/api/v1/auth/reset-password', null, { params: { token, new_password: newPassword } });

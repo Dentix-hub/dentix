@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getWarehouses, deleteWarehouse } from '@/api/inventory';
 import { Warehouse, Trash2, MapPin, Plus } from 'lucide-react';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
-import { showToast } from '@/shared/ui/Toast';
+import { toast } from '@/shared/ui';
 import AddWarehouseModal from './components/AddWarehouseModal';
 import WarehouseDetailsModal from './components/WarehouseDetailsModal';
 import { useTranslation } from 'react-i18next';
@@ -23,10 +23,10 @@ const WarehouseList = () => {
         mutationFn: deleteWarehouse,
         onSuccess: () => {
             queryClient.invalidateQueries(['warehouses']);
-            showToast('success', t('inventory.warehouses.delete_success'));
+            toast.success(t('inventory.warehouses.delete_success'));
         },
         onError: (err) => {
-            showToast('error', err.response?.data?.detail || t('inventory.warehouses.delete_fail'));
+            toast.error(err.response?.data?.detail || t('inventory.warehouses.delete_fail'));
         }
     });
     const handleDelete = (e, id, name) => {

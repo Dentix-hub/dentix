@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Users, UserPlus, Activity } from 'lucide-react';
-import { Button, SkeletonBox } from '@/shared/ui';
+import { Plus, Users, UserPlus, Activity, Home } from 'lucide-react';
+import { Button, SkeletonBox, PageHeader } from '@/shared/ui';
 
 function StatCard({ icon: Icon, label, value, isLoading }) {
     if (isLoading) {
@@ -34,20 +34,21 @@ export default memo(function PatientQuickActions({ stats, isLoading, onAddClick 
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                        <Users className="w-6 h-6" />
-                        {t('patients.title')}
-                    </h1>
-                    <p className="text-slate-500 mt-1">{t('patients.subtitle')}</p>
-                </div>
-                <Button onClick={onAddClick} size="lg">
-                    <Plus className="w-4 h-4 mr-2" />
-                    {t('patients.add_new')}
-                </Button>
-            </div>
+            <PageHeader
+                title={t('patients.title')}
+                subtitle={t('patients.subtitle')}
+                icon={Users}
+                breadcrumbs={[
+                    { label: t('nav.home', 'Home'), icon: Home, path: '/' },
+                    { label: t('patients.title') }
+                ]}
+                actions={
+                    <Button onClick={onAddClick} size="lg">
+                        <Plus className="w-4 h-4 mr-2" />
+                        {t('patients.add_new')}
+                    </Button>
+                }
+            />
 
             {/* Stats Bar */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

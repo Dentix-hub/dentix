@@ -1,8 +1,10 @@
 import { useEffect, Suspense, lazy, useCallback, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, Link, useNavigate, Outlet } from 'react-router-dom';
 import {
     Home, Users, Banknote, Calendar, Menu, Settings as SettingsIcon, Package, LineChart, Globe,
-    LogOut, Shield, Sun, Moon, FlaskConical, Brain, HelpCircle, AlertTriangle, Building2, ChevronRight, ChevronLeft
+    LogOut, Shield, Sun, Moon, FlaskConical, Brain, HelpCircle, AlertTriangle, Building2, ChevronRight, ChevronLeft,
+    UserCog, BarChart3, Users2
 } from 'lucide-react';
 
 import { useTranslation } from 'react-i18next';
@@ -12,9 +14,10 @@ import GlobalSearch from '@/shared/ui/GlobalSearch';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import NotificationBell from '@/shared/ui/NotificationBell';
 import GlobalBanner from '@/shared/ui/GlobalBanner';
+import CommandPalette from '@/shared/ui/CommandPalette';
 // Prefetching hooks
-import { usePrefetchPatients } from '@/hooks/usePatients';
-import { usePrefetchAppointments } from '@/hooks/useAppointments';
+import { usePatients, usePrefetchPatients } from '@/hooks/usePatients';
+import { useAppointments, usePrefetchAppointments } from '@/hooks/useAppointments';
 import { usePrefetchDashboard } from '@/hooks/useDashboard';
 // Lazy load AIChat
 const AIChat = lazy(() => import('@/features/ai/AIChat'));
@@ -35,6 +38,23 @@ const Layout = () => {
     const isAdmin = role === 'admin';
     const isSuperAdmin = role === 'super_admin';
     const navigate = useNavigate();
+    const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+    // Data for Command Palette
+    const { data: patients = [] } = usePatients();
+    const { data: appointments = [] } = useAppointments();
+
+    // Listen for Ctrl+K
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                setIsCommandPaletteOpen(prev => !prev);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
     // Redirect Super Admin to /admin if they land on root /
     useEffect(() => {
         if (isSuperAdmin && location.pathname === '/') {
@@ -48,7 +68,7 @@ const Layout = () => {
         navItems = [
             { icon: Shield, label: t('sidebar.dashboard'), path: '/admin' },
             { icon: Home, label: t('sidebar.settings'), path: '/admin/tenants' }, // Using settings for tenants momentarily or add specific key
-            { icon: Users, label: t('sidebar.users'), path: '/admin/users' },
+            { icon: UserCog, label: t('sidebar.users'), path: '/admin/users' },
             { icon: Banknote, label: t('sidebar.billing'), path: '/admin/finance' },
             { icon: HelpCircle, label: t('sidebar.contact'), path: '/admin/messages' },
             { icon: Brain, label: t('sidebar.ai'), path: '/ai/stats' }, // Existing
@@ -60,7 +80,7 @@ const Layout = () => {
         navItems = [
             { icon: Home, label: t('sidebar.dashboard'), path: '/' },
             { icon: Calendar, label: t('sidebar.appointments'), path: '/appointments' },
-            { icon: Users, label: t('sidebar.patients'), path: '/patients' },
+            { icon: Users2, label: t('sidebar.patients'), path: '/patients' },
             { icon: Package, label: t('sidebar.inventory'), path: '/inventory' },
         ];
         if (isAdmin) {
@@ -68,7 +88,7 @@ const Layout = () => {
             navItems.push({ icon: Banknote, label: t('sidebar.billing'), path: '/billing' });
             navItems.push({ icon: LineChart, label: t('sidebar.reports'), path: '/analytics' });
             navItems.push(
-                { icon: Users, label: t('sidebar.users'), path: '/users' },
+                { icon: UserCog, label: t('sidebar.users'), path: '/users' },
                 { icon: SettingsIcon, label: t('sidebar.settings'), path: '/settings' },
             );
         }
@@ -126,6 +146,13 @@ const Layout = () => {
             <div className="fixed top-0 left-0 right-0 z-[60]">
                 <GlobalBanner />
             </div>
+            
+            <CommandPalette 
+                isOpen={isCommandPaletteOpen} 
+                onClose={() => setIsCommandPaletteOpen(false)}
+                patients={patients}
+                appointments={appointments}
+            />
             {/* Mobile Sidebar Overlay */}
             {sidebarOpen && (
                 <div
@@ -141,6 +168,7 @@ const Layout = () => {
             `}>
                 <button
                     onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                    aria-label={t('common.toggle_sidebar', 'Toggle Sidebar')}
                     className="absolute -left-3 top-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-1 hidden md:flex hover:bg-slate-50 transition-colors z-40 text-slate-500"
                 >
                     {isSidebarCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
@@ -222,6 +250,22 @@ const Layout = () => {
                         )
                     })}
                     <div className="mt-auto pt-4 border-t border-border/50">
+                        {/* User Profile */}
+                        {!isSidebarCollapsed && currentUser && (
+                            <div className="flex items-center gap-3 p-3 mb-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">
+                                    {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : <User size={20} />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">
+                                        {currentUser.name || t('sidebar.user')}
+                                    </p>
+                                    <p className="text-xs text-slate-500 truncate capitalize">
+                                        {currentUser.role}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
                         {/* Utilities Row (Lang & Theme) */}
                         <div className={`grid ${isSidebarCollapsed ? 'grid-cols-1 space-y-2' : 'grid-cols-2 gap-3'} mb-3`}>
                             <button
@@ -273,6 +317,7 @@ const Layout = () => {
                     <div className="flex items-center gap-4 md:hidden">
                         <button
                             onClick={() => setSidebarOpen(true)}
+                            aria-label={t('common.open_menu', 'Open Menu')}
                             className="p-2 rounded-lg hover:bg-slate-50 text-slate-600 active:bg-slate-100 transition-colors"
                         >
                             <Menu size={24} />
@@ -293,9 +338,19 @@ const Layout = () => {
                 </header>
                 <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
                     <div className="w-full max-w-[1920px] mx-auto">
-                        <Suspense fallback={<LoadingSpinner />}>
-                            <Outlet />
-                        </Suspense>
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={location.pathname}
+                                initial={{ opacity: 0, y: 15 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -15 }}
+                                transition={{ duration: 0.2, ease: "easeOut" }}
+                            >
+                                <Suspense fallback={<LoadingSpinner />}>
+                                    <Outlet />
+                                </Suspense>
+                            </motion.div>
+                        </AnimatePresence>
                     </div>
                 </main>
                 <Suspense fallback={null}>

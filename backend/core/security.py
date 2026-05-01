@@ -107,7 +107,7 @@ class EncryptionManager:
         else:
             # Development mode: generate temporary key with warning
             logger.warning(
-                "⚠️ ENCRYPTION_KEY not set. Using temporary key for development. "
+                "[WARNING] ENCRYPTION_KEY not set. Using temporary key for development. "
                 "DO NOT use in production!"
             )
             temp_key = Fernet.generate_key()

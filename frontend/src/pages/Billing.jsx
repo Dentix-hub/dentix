@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, LayoutDashboard, Receipt, Briefcase, TrendingDown } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { Users, LayoutDashboard, Receipt, Briefcase, TrendingDown, Home } from 'lucide-react';
 import DoctorRevenue from '@/features/billing/DoctorRevenue';
 import { getFinancialStats, getAllPayments, getExpenses, createExpense, deleteExpense, getStaffRevenue, updateStaffCompensation, getComprehensiveStats, getSalariesStatus, recordSalaryPayment, deleteSalaryPayment, updateHireDate, getLabOrders } from '@/api';
 import { getTodayStr } from '@/utils/toothUtils';
-import { Card, Button, DataTable, SkeletonBox } from '@/shared/ui';
+import { Card, Button, DataTable, SkeletonBox, PageHeader, TabGroup, toast } from '@/shared/ui';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 // Import extracted components
 import ExpensesTab from '@/features/billing/BillingTabs/ExpensesTab';
 import ExpenseModal from '@/features/billing/BillingTabs/ExpenseModal';
@@ -18,12 +18,7 @@ import { useTranslation } from 'react-i18next';
 export default function Billing() {
     const { t } = useTranslation();
     const navigate = useNavigate();
-    const [stats, setStats] = useState(null);
-    const [payments, setPayments] = useState([]);
-    const [expenses, setExpenses] = useState([]);
-    const [staff, setStaff] = useState([]);
-    const [comprehensiveStats, setComprehensiveStats] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
     const [activeTab, setActiveTab] = useState('doctors');
     const [expensesSubTab, setExpensesSubTab] = useState('expenses'); // 'expenses' or 'salaries'
     // Expense Modal
@@ -44,11 +39,9 @@ export default function Billing() {
     const [salaryMonth, setSalaryMonth] = useState(today.toISOString().slice(0, 7));
     const [salariesData, setSalariesData] = useState([]);
     const [salariesLoading, setSalariesLoading] = useState(false);
-    useEffect(() => {
-        loadData();
-    }, []);
-    const loadData = async () => {
-        try {
+    const { data, isLoading: loading } = useQuery({
+        queryKey: ['billing_data', startDate, endDate],
+        queryFn: async () => {
             const [sRes, pRes, eRes, labRes, staffRes, compRes] = await Promise.all([
                 getFinancialStats(),
                 getAllPayments(),
@@ -57,9 +50,7 @@ export default function Billing() {
                 getStaffRevenue(startDate, endDate),
                 getComprehensiveStats(startDate, endDate)
             ]);
-            setStats(sRes.data);
-            setPayments(pRes.data);
-            // Merge Expenses and Lab Orders
+            
             const manualExpenses = eRes.data.map(e => ({ ...e, type: 'manual' }));
             const labExpenses = (labRes.data || []).map(order => ({
                 id: `lab-${order.id}`,
@@ -70,16 +61,22 @@ export default function Billing() {
                 cost: order.cost,
                 type: 'lab_order'
             }));
-            setExpenses([...manualExpenses, ...labExpenses].sort((a, b) => new Date(b.date) - new Date(a.date)));
-            setStaff(staffRes.data.staff || []);
-            setComprehensiveStats(compRes.data);
-        } catch (err) {
-            console.error(err);
-            toast.error(t('billing.alerts.load_fail'));
-        } finally {
-            setLoading(false);
+
+            return {
+                stats: sRes.data,
+                payments: pRes.data,
+                expenses: [...manualExpenses, ...labExpenses].sort((a, b) => new Date(b.date) - new Date(a.date)),
+                staff: staffRes.data.staff || [],
+                comprehensiveStats: compRes.data
+            };
         }
-    };
+    });
+
+    const stats = data?.stats;
+    const payments = data?.payments || [];
+    const expenses = data?.expenses || [];
+    const staff = data?.staff || [];
+    const comprehensiveStats = data?.comprehensiveStats;
     const handleCreateExpense = async () => {
         if (!newExpense.item_name || !newExpense.cost) return toast.error(t('billing.alerts.enter_item_cost'));
         try {
@@ -87,7 +84,7 @@ export default function Billing() {
             setIsExpenseModalOpen(false);
             setNewExpense({ item_name: '', cost: '', category: 'General', date: getTodayStr(), notes: '' });
             toast.success(t('billing.alerts.expense_add_success'));
-            loadData();
+            queryClient.invalidateQueries(['billing_data']);
         } catch (err) {
             toast.error(t('billing.alerts.expense_add_fail'));
         }
@@ -100,7 +97,7 @@ export default function Billing() {
         try {
             await deleteExpense(id);
             toast.success(t('billing.alerts.expense_delete_success'));
-            loadData();
+            queryClient.invalidateQueries(['billing_data']);
         } catch (err) {
             console.error(err);
             toast.error(t('billing.alerts.delete_error'));
@@ -117,12 +114,7 @@ export default function Billing() {
         setSavingStaff(true);
         try {
             await updateStaffCompensation(selectedStaff.id, 0, editStaffSalary, editStaffPerAppointment);
-            // Update local state
-            setStaff(prev => prev.map(s =>
-                s.id === selectedStaff.id
-                    ? { ...s, fixed_salary: editStaffSalary, per_appointment_fee: editStaffPerAppointment }
-                    : s
-            ));
+            queryClient.invalidateQueries(['billing_data']);
             setStaffModalOpen(false);
             toast.success(t('billing.alerts.save_success'));
         } catch (err) {
@@ -197,29 +189,20 @@ export default function Billing() {
     };
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                <div>
-                    <h2 className="text-3xl font-black text-text-primary tracking-tight">{t('billing.title')}</h2>
-                    <p className="text-text-secondary mt-1 text-lg font-medium">{t('billing.subtitle')}</p>
-                </div>
-            </div>
-            {/* Tabs */}
-            <div className="flex flex-wrap gap-2 p-1.5 bg-surface rounded-2xl w-fit border border-border">
-                {tabs.map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-all ${activeTab === tab.id
-                            ? 'bg-background text-primary shadow-sm'
-                            : 'text-text-secondary hover:text-text-primary'
-                            }`}
-                    >
-                        <tab.icon size={16} />
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
+            <PageHeader
+                title={t('billing.title')}
+                subtitle={t('billing.subtitle')}
+                breadcrumbs={[
+                    { label: t('nav.home', 'Home'), icon: Home, path: '/' },
+                    { label: t('billing.title') }
+                ]}
+            />
+            <TabGroup
+                variant="pill"
+                tabs={tabs}
+                activeTab={activeTab}
+                onChange={setActiveTab}
+            />
             {/* Tab Content */}
             {activeTab === 'doctors' && <DoctorRevenue />}
             {activeTab === 'staff' && (
@@ -231,23 +214,16 @@ export default function Billing() {
             )}
             {activeTab === 'expenses' && (
                 <div className="space-y-4">
-                    {/* Sub Tabs */}
-                    <div className="flex gap-2 p-1 bg-surface rounded-lg w-fit border border-border">
-                        <Button
-                            variant={expensesSubTab === 'expenses' ? 'default' : 'ghost'}
-                            size="sm"
-                            onClick={() => setExpensesSubTab('expenses')}
-                        >
-                            {t('billing.subtabs.general_expenses')}
-                        </Button>
-                        <Button
-                            variant={expensesSubTab === 'salaries' ? 'default' : 'ghost'}
-                            size="sm"
-                            onClick={() => setExpensesSubTab('salaries')}
-                        >
-                            {t('billing.subtabs.salaries')}
-                        </Button>
-                    </div>
+                    <TabGroup
+                        variant="underline"
+                        tabs={[
+                            { id: 'expenses', label: t('billing.subtabs.general_expenses') },
+                            { id: 'salaries', label: t('billing.subtabs.salaries') }
+                        ]}
+                        activeTab={expensesSubTab}
+                        onChange={setExpensesSubTab}
+                        className="mb-4"
+                    />
                     {expensesSubTab === 'expenses' ? (
                         <ExpensesTab
                             expenses={expenses}
@@ -278,9 +254,6 @@ export default function Billing() {
                     setEndDate={setEndDate}
                     comprehensiveStats={comprehensiveStats}
                     loading={loading}
-                    getComprehensiveStats={getComprehensiveStats}
-                    setComprehensiveStats={setComprehensiveStats}
-                    setLoading={setLoading}
                 />
             )}
             {activeTab === 'payments' && (

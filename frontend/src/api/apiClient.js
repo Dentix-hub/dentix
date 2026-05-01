@@ -105,6 +105,10 @@ api.interceptors.response.use(
         }
 
         if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/api/v1/auth/token') && !originalRequest.url?.includes('/api/v1/auth/refresh')) {
+            // Silent auth mode: don't redirect, let the caller handle the error
+            if (originalRequest._silentAuth) {
+                return Promise.reject(error);
+            }
             const debugMsg = error.response?.data?.detail || "Unknown Auth Error";
 
             if (isRefreshing) {

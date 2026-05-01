@@ -10,10 +10,10 @@ try:
     import chromadb
     from chromadb.utils import embedding_functions
     RAG_AVAILABLE = True
-except ImportError:
+except Exception:
     RAG_AVAILABLE = False
     logger.info(
-        'WARNING: RAG dependencies (chromadb, sentence-transformers) not found. RAG features will be disabled.'
+        'RAG dependencies (chromadb) not available. RAG features disabled.'
         )
 
 
