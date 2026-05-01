@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 import uuid
 import logging
 import traceback
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -342,13 +343,17 @@ async def handle_generic_exception(request: Request, exc: Exception) -> JSONResp
         },
     )
 
-    # Don't expose internal details to user
+    # Show actual error if not in production
+    message = "An unexpected error occurred. Please try again later."
+    if os.getenv("ENVIRONMENT", "development").lower() != "production":
+        message = f"DEBUG ERROR [{type(exc).__name__}]: {str(exc)}"
+
     return create_error_response(
         request=request,
         status_code=500,
         code="INTERNAL_ERROR",
-        message="An unexpected error occurred. Please try again later.",
-        details={"trace_id": trace_id},
+        message=message,
+        details={"trace_id": trace_id, "exception": type(exc).__name__},
     )
 
 

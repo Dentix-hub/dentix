@@ -55,23 +55,11 @@ def read_appointments(
     current_user: schemas.User = Depends(require_permission(Permission.APPOINTMENT_READ)),
 ):
     """Get all appointments for current tenant."""
-    try:
-        doctor_id = current_user.id if current_user.role == "doctor" else None
-        results = crud.get_appointments(
-            db, current_user.tenant_id, skip=skip, limit=limit, doctor_id=doctor_id
-        )
-        # Manual validation to catch response model errors during diagnosis
-        adapter = TypeAdapter(List[schemas.Appointment])
-        validated_results = adapter.validate_python(results)
-        return success_response(data=validated_results, message="Appointments retrieved successfully")
-    except Exception as e:
-        logger.error(f"Failed to fetch appointments: {e}", exc_info=True)
-        # Detailed error for diagnosis
-        error_msg = str(e)
-        if "ValidationError" in type(e).__name__:
-             # Extract more info if it's a validation error
-             error_msg = f"Validation Error on data: {e}"
-        raise HTTPException(status_code=500, detail=f"Failed: {type(e).__name__}: {error_msg}")
+    doctor_id = current_user.id if current_user.role == "doctor" else None
+    results = crud.get_appointments(
+        db, current_user.tenant_id, skip=skip, limit=limit, doctor_id=doctor_id
+    )
+    return success_response(data=results, message="Appointments retrieved successfully")
 
 
 @router.put(
