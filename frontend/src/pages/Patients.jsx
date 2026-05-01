@@ -8,6 +8,7 @@ import PatientScanner from '@/features/patients/PatientScanner';
 import PatientTable from '@/features/patients/PatientTable';
 import PatientFilters from '@/features/patients/PatientFilters';
 import PatientQuickActions from '@/features/patients/PatientQuickActions';
+import PatientModal from '@/features/patients/modals/PatientModal';
 import { Modal, Button, Input, toast } from '@/shared/ui';
 
 export default function Patients() {
@@ -186,150 +187,6 @@ export default function Patients() {
                 onDelete={handleDeletePatient}
             />
 
-            {/* Add Patient Modal */}
-            <Modal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                title={t('patients.add_new')}
-                size="lg"
-            >
-                <form onSubmit={handleCreatePatient} className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Input
-                            label={t('patients.form.name_label')}
-                            placeholder={t('patients.form.name_placeholder')}
-                            value={newPatient.name}
-                            onChange={(e) => handleInputChange('name', e.target.value)}
-                            containerClassName="md:col-span-2"
-                        />
-                        <Input
-                            label={t('patients.form.age_label')}
-                            type="number"
-                            placeholder="مثال: 25"
-                            value={newPatient.age}
-                            onChange={(e) => handleInputChange('age', e.target.value)}
-                        />
-                        <Input
-                            label={t('patients.form.phone_label')}
-                            type="tel"
-                            placeholder="01xxxxxxxxx"
-                            value={newPatient.phone}
-                            onChange={(e) => handleInputChange('phone', e.target.value)}
-                            dir="ltr"
-                            className="text-right"
-                        />
-                        <Input
-                            label={t('patients.form.address_label')}
-                            placeholder={t('patients.form.address_placeholder')}
-                            value={newPatient.address}
-                            onChange={(e) => handleInputChange('address', e.target.value)}
-                            containerClassName="md:col-span-2"
-                        />
-                        {/* Doctor Assignment Dropdown */}
-                        <div className="md:col-span-2 space-y-1.5">
-                            <label className="block text-sm font-bold text-text-secondary">
-                                {t('patients.form.doctor_label')}
-                            </label>
-                            <select
-                                value={newPatient.assigned_doctor_id || ''}
-                                onChange={(e) => handleInputChange('assigned_doctor_id', e.target.value)}
-                                className="w-full rounded-xl border border-border bg-input text-text-primary p-2.5 outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
-                            >
-                                <option value="">{t('patients.form.doctor_select')}</option>
-                                {doctors.map(doc => (
-                                    <option key={doc.id} value={doc.id}>
-                                        {t('common.doctor_prefix', 'د.')} {doc.full_name || doc.username}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        {/* Medical History */}
-                        <div className="md:col-span-2 space-y-3 pt-2 border-t border-border">
-                            <label className="text-sm font-black text-text-secondary flex items-center gap-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
-                                {t('patients.form.medical_history')}
-                            </label>
-                             <div className="flex flex-wrap gap-2">
-                                 {['none', 'diabetes', 'hypertension', 'heart_disease', 'allergy', 'blood_thinners', 'hepatitis_c', 'thyroid', 'pregnancy', 'smoking'].map(conditionKey => {
-                                     const condition = t(`patients.medical_conditions.${conditionKey}`);
-                                     const isSelected = conditionKey === 'none' 
-                                         ? newPatient.medical_history === condition
-                                         : (newPatient.medical_history || '').includes(condition);
-
-                                     return (
-                                         <button
-                                             key={conditionKey}
-                                             type="button"
-                                             onClick={() => {
-                                                 let current = newPatient.medical_history ? newPatient.medical_history.split(t('common.separator', '، ')) : [];
-                                                 current = current.map(c => c.trim()).filter(c => c && c !== t('patients.medical_conditions.none'));
-                                                 
-                                                 if (conditionKey === 'none') {
-                                                     setNewPatient(prev => ({ ...prev, medical_history: t('patients.medical_conditions.none') }));
-                                                     return;
-                                                 }
-                                                 
-                                                 if (current.includes(condition)) {
-                                                     current = current.filter(c => c !== condition);
-                                                 } else {
-                                                     current.push(condition);
-                                                 }
-                                                 const separator = t('common.separator', '، ');
-                                                 setNewPatient(prev => ({ ...prev, medical_history: current.length ? current.join(separator) : '' }));
-                                             }}
-                                             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border ${isSelected
-                                                 ? 'bg-rose-500 text-white border-rose-500 shadow-sm'
-                                                 : 'bg-surface text-text-secondary border-border hover:border-rose-300'
-                                                 }`}
-                                         >
-                                             {condition}
-                                         </button>
-                                     );
-                                 })}
-                             </div>
-                            <Input
-                                placeholder={t('patients.form.other_notes')}
-                                value={newPatient.medical_history}
-                                onChange={(e) => handleInputChange('medical_history', e.target.value)}
-                            />
-                        </div>
-                        {/* Duplicate Warning */}
-                        {suggestions.length > 0 && (
-                            <div className="md:col-span-2 bg-amber-50 dark:bg-amber-900/20 p-4 rounded-2xl border border-amber-200 dark:border-amber-700/50">
-                                <h4 className="text-amber-800 dark:text-amber-400 font-bold mb-3 text-sm">
-                                    {t('patients.form.duplicate_warning')}
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-32 overflow-y-auto custom-scrollbar">
-                                    {suggestions.map(s => (
-                                        <div key={s.id} className="flex justify-between text-sm bg-surface p-2 rounded-lg border border-border">
-                                            <span className="font-bold text-text-primary">{s.name}</span>
-                                            <span className="text-text-secondary" dir="ltr">{s.phone}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    <div className="flex gap-4 pt-4">
-                        <Button
-                            variant="ghost"
-                            type="button"
-                            onClick={() => setIsModalOpen(false)}
-                            className="flex-1"
-                        >
-                            {t('patients.form.cancel_btn')}
-                        </Button>
-                        <Button
-                            type="submit"
-                            isLoading={isSubmitting}
-                            className="flex-[2]"
-                        >
-                            {t('patients.form.submit_btn')}
-                        </Button>
-                    </div>
-                </form>
-            </Modal>
-
             {/* Patient Scanner */}
             {isScannerOpen && (
                 <PatientScanner
@@ -337,7 +194,13 @@ export default function Patients() {
                     onClose={() => setIsScannerOpen(false)}
                 />
             )}
+
+            {/* Add Patient Modal */}
+            <PatientModal 
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onSuccess={refetch}
+            />
         </div>
     );
 }
-
