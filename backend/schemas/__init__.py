@@ -22,6 +22,7 @@ from .patient import (
 from .clinical import (
     AppointmentBase,
     AppointmentCreate,
+    AppointmentUpdate,
     Appointment,
     ToothStatusBase,
     ToothStatusCreate,
@@ -160,6 +161,7 @@ __all__ = [
     # Clinical
     "AppointmentBase",
     "AppointmentCreate",
+    "AppointmentUpdate",
     "Appointment",
     "ToothStatusBase",
     "ToothStatusCreate",
