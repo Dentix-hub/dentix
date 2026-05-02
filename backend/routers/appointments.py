@@ -100,6 +100,45 @@ def read_appointments(
 
 
 @router.put(
+    "/{appointment_id}",
+    response_model=StandardResponse[schemas.Appointment],
+    summary="Update appointment",
+    description="Update appointment details like time, notes, or doctor. Requires APPOINTMENT_UPDATE permission.",
+)
+def update_appointment(
+    request: Request,
+    appointment_id: int,
+    appointment: schemas.AppointmentUpdate,
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(require_permission(Permission.APPOINTMENT_UPDATE)),
+):
+    """Update an appointment."""
+    try:
+        updated = crud.update_appointment(
+            db, appointment_id, appointment, current_user.tenant_id
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail="Appointment not found")
+        return success_response(data=updated, message="Appointment updated successfully")
+    except Exception as e:
+        db.rollback()
+        error_log = SystemError(
+            level=ErrorLevel.ERROR,
+            source=ErrorSource.BACKEND,
+            message=f"Appointment PUT Error: {str(e)}",
+            stack_trace=traceback.format_exc(),
+            path=str(request.url.path),
+            method="PUT",
+            user_id=current_user.id,
+            tenant_id=current_user.tenant_id
+        )
+        db.add(error_log)
+        db.commit()
+        logger.error(f"Appointment Update Failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put(
     "/{appointment_id}/status",
     summary="Update appointment status",
     description="Change appointment status (e.g. Scheduled → Completed/Cancelled). Requires APPOINTMENT_UPDATE permission.",
