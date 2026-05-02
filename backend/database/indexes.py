@@ -23,7 +23,7 @@ INDEX_DEFINITIONS = {
         ('idx_patient_created', ['tenant_id', 'created_at']),
     ],
     'appointments': [
-        ('idx_appointment_tenant_status_date', ['tenant_id', 'status', 'date_time']),
+        ('idx_appointment_status_date', ['status', 'date_time']),
     ],
     'payments': [
         ('idx_payment_tenant_date', ['tenant_id', 'date']),

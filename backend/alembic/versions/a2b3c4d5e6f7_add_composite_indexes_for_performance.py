@@ -37,7 +37,7 @@ def upgrade() -> None:
     create_idx_safe("idx_patient_created", "patients", ["tenant_id", "created_at"])
 
     # Appointment composite index
-    create_idx_safe("idx_appointment_tenant_status_date", "appointments", ["tenant_id", "status", "date_time"])
+    create_idx_safe("idx_appointment_status_date", "appointments", ["status", "date_time"])
 
     # Payment composite indexes
     create_idx_safe("idx_payment_tenant_date", "payments", ["tenant_id", "date"])
