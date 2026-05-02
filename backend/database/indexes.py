@@ -17,7 +17,6 @@ import logging
 logger = logging.getLogger(__name__)
 INDEX_DEFINITIONS = {
     'patients': [
-        ('idx_patient_tenant_active', ['tenant_id', 'is_active']),
         ('idx_patient_tenant_deleted', ['tenant_id', 'is_deleted']),
         ('idx_patient_name_search', ['name', 'tenant_id']),
         ('idx_patient_phone', ['phone', 'tenant_id']),
@@ -34,7 +33,7 @@ INDEX_DEFINITIONS = {
         ('idx_user_tenant_role', ['tenant_id', 'role', 'is_active']),
     ],
     'treatments': [
-        ('idx_treatment_patient', ['patient_id', 'created_at']),
+        ('idx_treatment_patient', ['patient_id', 'date']),
         ('idx_treatment_appointment', ['appointment_id']),
     ]
 }
