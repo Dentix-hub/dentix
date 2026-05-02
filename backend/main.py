@@ -45,6 +45,8 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifecycle manager for startup and shutdown events."""
     logger.info("[STARTUP] Server Starting...")
+    logger.info("🔥 [DEPLOY_VERIFY] DENTIX V2.0.8 IS LIVE 🔥")
+    print("🔥 [DEPLOY_VERIFY] DENTIX V2.0.8 IS LIVE 🔥")
 
     # --- STAGING/DEV ONLY: AUTO-WIPE OPTION ---
     # To trigger: set RESET_DB_ON_STARTUP=true in environment
@@ -146,7 +148,7 @@ async def lifespan(app: FastAPI):
 # Initialize FastAPI app with lifespan
 app = FastAPI(
     title="Smart Clinic API",
-    version="2.0.7",
+    version="2.0.8",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
