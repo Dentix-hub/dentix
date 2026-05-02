@@ -118,7 +118,7 @@ def update_appointment(
     if not db_appt:
         return None
 
-    update_data = appointment.dict(exclude_unset=True)
+    update_data = appointment.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_appt, key, value)
 
