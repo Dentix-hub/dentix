@@ -101,3 +101,28 @@ def delete_appointment(db: Session, appointment_id: int, tenant_id: int):
         db.refresh(db_appt)
         invalidate_dashboard_cache(tenant_id)
     return db_appt
+def update_appointment(
+    db: Session, appointment_id: int, appointment: schemas.AppointmentUpdate, tenant_id: int
+):
+    """Update appointment details."""
+    db_appt = (
+        db.query(models.Appointment)
+        .join(models.Patient)
+        .filter(
+            models.Appointment.id == appointment_id,
+            models.Patient.tenant_id == tenant_id,
+            models.Appointment.is_deleted == False,  # noqa: E712
+        )
+        .first()
+    )
+    if not db_appt:
+        return None
+
+    update_data = appointment.dict(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_appt, key, value)
+
+    db.commit()
+    db.refresh(db_appt)
+    invalidate_dashboard_cache(tenant_id)
+    return db_appt

@@ -16,6 +16,16 @@ class AppointmentBase(BaseModel):
     price_list_id: Optional[int] = None
 
 
+class AppointmentUpdate(BaseModel):
+    patient_id: Optional[int] = None
+    date_time: Optional[datetime] = None
+    duration_minutes: Optional[int] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    doctor_id: Optional[int] = None
+    price_list_id: Optional[int] = None
+
+
 class AppointmentCreate(AppointmentBase):
     model_config = ConfigDict(
         json_schema_extra={
