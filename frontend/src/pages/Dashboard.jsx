@@ -17,7 +17,6 @@ import { useAuth } from '@/auth/useAuth';
 import { Card, Button, Modal, PageHeader, toast } from '@/shared/ui';
 import DashboardQuickActions from '@/features/dashboard/DashboardQuickActions';
 import PatientModal from '@/features/patients/modals/PatientModal';
-import PaymentModal from '@/shared/ui/modals/PaymentModal';
 
 // Memoized Gradient Card
 const GradientCard = memo(({ title, value, subtext, icon: Icon, gradient, onClick }) => (
@@ -63,7 +62,6 @@ export default function Dashboard() {
 
     // Feature Modal States
     const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
-    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
     const formatCurrency = useCallback((amount) => {
         return new Intl.NumberFormat('en-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 }).format(amount);
@@ -128,7 +126,7 @@ export default function Dashboard() {
             {/* Quick Actions Grid */}
             <DashboardQuickActions 
                 onAddPatient={() => setIsPatientModalOpen(true)}
-                onRecordPayment={() => setIsPaymentModalOpen(true)}
+                onRecordPayment={() => navigate('/patients')}
             />
 
             {/* Stats Grid */}
@@ -378,10 +376,6 @@ export default function Dashboard() {
             <PatientModal 
                 isOpen={isPatientModalOpen} 
                 onClose={() => setIsPatientModalOpen(false)} 
-            />
-            <PaymentModal 
-                isOpen={isPaymentModalOpen} 
-                onClose={() => setIsPaymentModalOpen(false)} 
             />
 
             {/* Reusable Modal for Revenue/Debtors */}
