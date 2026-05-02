@@ -16,6 +16,8 @@ from backend.core.permissions import Permission, require_permission
 from backend.core.limiter import limiter
 from backend.core.response import success_response, StandardResponse
 from ..utils.audit_logger import log_admin_action
+import traceback
+from backend.models.system import SystemError, ErrorLevel, ErrorSource
 
 logger = logging.getLogger("smart_clinic")
 
@@ -36,10 +38,28 @@ def create_appointment(
     current_user: schemas.User = Depends(require_permission(Permission.APPOINTMENT_CREATE)),
 ):
     """Create a new appointment."""
-    patient = crud.get_patient(db, appointment.patient_id, current_user.tenant_id)
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
-    return success_response(data=crud.create_appointment(db=db, appointment=appointment), message="Appointment created successfully")
+    try:
+        patient = crud.get_patient(db, appointment.patient_id, current_user.tenant_id)
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        data = crud.create_appointment(db=db, appointment=appointment)
+        return success_response(data=data, message="Appointment created successfully")
+    except Exception as e:
+        db.rollback()
+        error_log = SystemError(
+            level=ErrorLevel.ERROR,
+            source=ErrorSource.BACKEND,
+            message=f"Appointment POST Error: {str(e)}",
+            stack_trace=traceback.format_exc(),
+            path=str(request.url.path),
+            method="POST",
+            user_id=current_user.id,
+            tenant_id=current_user.tenant_id
+        )
+        db.add(error_log)
+        db.commit()
+        logger.error(f"Appointment Creation Failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get(
@@ -49,17 +69,34 @@ def create_appointment(
     description="Get all appointments for the current tenant. Doctors see only their own.",
 )
 def read_appointments(
+    request: Request,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(require_permission(Permission.APPOINTMENT_READ)),
 ):
     """Get all appointments for current tenant."""
-    doctor_id = current_user.id if current_user.role == "doctor" else None
-    results = crud.get_appointments(
-        db, current_user.tenant_id, skip=skip, limit=limit, doctor_id=doctor_id
-    )
-    return success_response(data=results, message="Appointments retrieved successfully")
+    try:
+        doctor_id = current_user.id if current_user.role == "doctor" else None
+        results = crud.get_appointments(
+            db, current_user.tenant_id, skip=skip, limit=limit, doctor_id=doctor_id
+        )
+        return success_response(data=results, message="Appointments retrieved successfully")
+    except Exception as e:
+        error_log = SystemError(
+            level=ErrorLevel.ERROR,
+            source=ErrorSource.BACKEND,
+            message=f"Appointment GET Error: {str(e)}",
+            stack_trace=traceback.format_exc(),
+            path=str(request.url.path),
+            method="GET",
+            user_id=current_user.id,
+            tenant_id=current_user.tenant_id
+        )
+        db.add(error_log)
+        db.commit()
+        logger.error(f"Appointment Fetch Failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put(
