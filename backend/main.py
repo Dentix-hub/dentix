@@ -496,9 +496,9 @@ if os.getenv("ENVIRONMENT", "development").lower() != "production":
         except Exception:
             return {"error": "Database inspection failed"}
 
-    @app.get("/debug/recent-errors")
+    @app.get(f"{API_V1_STR}/debug/recent-errors")
     def get_recent_errors(db: Session = Depends(database.get_db)):
-        """Debug: show last 10 system errors."""
+        """Debug: show last 10 system errors. Available in staging/dev."""
         from backend.models.system import SystemError
         try:
             errors = db.query(SystemError).order_by(SystemError.created_at.desc()).limit(10).all()
@@ -508,7 +508,7 @@ if os.getenv("ENVIRONMENT", "development").lower() != "production":
                     "time": e.created_at.isoformat() if e.created_at else None,
                     "path": e.path,
                     "message": e.message,
-                    "stack": e.stack_trace[:500] + "..." if e.stack_trace and len(e.stack_trace) > 500 else e.stack_trace
+                    "stack": e.stack_trace[:1000] + "..." if e.stack_trace and len(e.stack_trace) > 1000 else e.stack_trace
                 } for e in errors
             ]
         except Exception as e:
