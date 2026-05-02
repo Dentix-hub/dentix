@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 import os
 import logging
 from fastapi import FastAPI, Request, Depends, HTTPException
+from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
