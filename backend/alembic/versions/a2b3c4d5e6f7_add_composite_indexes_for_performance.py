@@ -31,7 +31,6 @@ def upgrade() -> None:
             op.create_index(idx_name, table_name, columns, unique=False)
 
     # Patient composite indexes
-    create_idx_safe("idx_patient_tenant_active", "patients", ["tenant_id", "is_active"])
     create_idx_safe("idx_patient_tenant_deleted", "patients", ["tenant_id", "is_deleted"])
     create_idx_safe("idx_patient_name_search", "patients", ["name", "tenant_id"])
     create_idx_safe("idx_patient_phone", "patients", ["phone", "tenant_id"])
@@ -48,13 +47,11 @@ def upgrade() -> None:
     create_idx_safe("idx_user_tenant_role", "users", ["tenant_id", "role", "is_active"])
 
     # Treatment composite indexes
-    create_idx_safe("idx_treatment_patient", "treatments", ["patient_id", "created_at"])
-    create_idx_safe("idx_treatment_appointment", "treatments", ["appointment_id"])
+    create_idx_safe("idx_treatment_patient", "treatments", ["patient_id", "date"])
 
 
 
 def downgrade() -> None:
-    op.drop_index("idx_treatment_appointment", table_name="treatments")
     op.drop_index("idx_treatment_patient", table_name="treatments")
     op.drop_index("idx_user_tenant_role", table_name="users")
     op.drop_index("idx_payment_patient", table_name="payments")
@@ -64,4 +61,3 @@ def downgrade() -> None:
     op.drop_index("idx_patient_phone", table_name="patients")
     op.drop_index("idx_patient_name_search", table_name="patients")
     op.drop_index("idx_patient_tenant_deleted", table_name="patients")
-    op.drop_index("idx_patient_tenant_active", table_name="patients")
