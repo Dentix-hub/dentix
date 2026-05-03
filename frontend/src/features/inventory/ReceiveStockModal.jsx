@@ -6,7 +6,7 @@ import { toast, DateTimePicker } from '@/shared/ui';
 import AddWarehouseModal from './components/AddWarehouseModal';
 import { useTranslation } from 'react-i18next';
 const ReceiveStockModal = ({ isOpen, onClose }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const queryClient = useQueryClient();
     const [isAddWarehouseOpen, setIsAddWarehouseOpen] = useState(false);
     // Data Fetching
@@ -124,7 +124,12 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
                         >
                             <option value="">{t('inventory.receive.select_placeholder_material')}</option>
                             {materials?.map(m => (
-                                <option key={m.id} value={m.id}>{m.name} ({m.base_unit})</option>
+                                <option key={m.id} value={m.id}>
+                                    {m.brand ? `${m.brand} ` : ''}
+                                    {m.category ? `(${i18n.language === 'ar' ? m.category.name_ar : m.category.name_en}) ` : ''}
+                                    {m.brand || m.category ? ' - ' : ''}
+                                    {m.name} ({m.base_unit})
+                                </option>
                             ))}
                         </select>
                     </div>

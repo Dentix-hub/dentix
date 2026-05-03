@@ -6,7 +6,7 @@ import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import { toast } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
 const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     // Handle both 'id' (Active Session) and 'material_id' (Stock Summary) formats
     const materialId = material?.material_id || material?.id;
     const [isEditing, setIsEditing] = React.useState(false);
@@ -66,11 +66,24 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
                     <div>
                         <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
                             <Package className="text-primary" />
+                            {material.brand ? `${material.brand} - ` : ''}
                             {material.material_name || material.name}
                         </h2>
-                        <p className="text-sm text-text-secondary mt-1">
-                            {t('inventory.material_details.title')}
-                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                            <span className="text-sm text-text-secondary">
+                                {t('inventory.material_details.title')}
+                            </span>
+                            {(material.category_name_ar || material.category_name_en || material.category) && (
+                                <>
+                                    <span className="text-border mx-1">|</span>
+                                    <span className="text-sm font-medium text-primary">
+                                        {i18n.language === 'ar' 
+                                            ? (material.category_name_ar || material.category?.name_ar) 
+                                            : (material.category_name_en || material.category?.name_en)}
+                                    </span>
+                                </>
+                            )}
+                        </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-surface-hover rounded-full transition-colors">
                         <X size={20} className="text-text-secondary" />
