@@ -107,22 +107,29 @@ def update_appointment(
     """Update appointment details."""
     db_appt = (
         db.query(models.Appointment)
-        .join(models.Patient)
         .filter(
             models.Appointment.id == appointment_id,
-            models.Patient.tenant_id == tenant_id,
             models.Appointment.is_deleted == False,  # noqa: E712
         )
         .first()
     )
+    
     if not db_appt:
+        return None
+        
+    # Security check: Ensure patient belongs to tenant
+    if db_appt.patient.tenant_id != tenant_id:
         return None
 
     update_data = appointment.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(db_appt, key, value)
 
-    db.commit()
-    db.refresh(db_appt)
-    invalidate_dashboard_cache(tenant_id)
-    return db_appt
+    try:
+        db.commit()
+        db.refresh(db_appt)
+        invalidate_dashboard_cache(tenant_id)
+        return db_appt
+    except Exception as e:
+        db.rollback()
+        raise e
