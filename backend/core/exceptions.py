@@ -221,6 +221,8 @@ def create_error_response(
     details: Optional[Dict] = None,
 ) -> JSONResponse:
     """Create standardized error response."""
+    trace_id = getattr(request.state, "trace_id", str(uuid.uuid4()))
+
     # Standardized response matching both custom ErrorEnvelope and FastAPI default detail
     content = {
         "error": {
