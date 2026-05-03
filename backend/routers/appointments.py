@@ -99,6 +99,26 @@ def read_appointments(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/debug-errors", response_model=List[dict])
+def get_debug_errors(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
+    """Retrieve last 10 system errors for debugging."""
+    errors = db.query(SystemError).order_by(SystemError.created_at.desc()).limit(10).all()
+    return [
+        {
+            "id": e.id,
+            "message": e.message,
+            "stack_trace": e.stack_trace,
+            "created_at": e.created_at.isoformat() if e.created_at else None,
+            "path": e.path,
+            "method": e.method
+        }
+        for e in errors
+    ]
+
+
 @router.put(
     "/{appointment_id}",
     response_model=StandardResponse[schemas.Appointment],
