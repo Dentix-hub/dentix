@@ -277,7 +277,8 @@
         "mode": {
             "light": "Light Mode",
             "dark": "Dark Mode"
-        }
+        },
+        "user": "User"
     },
     "dashboard": {
         "welcome": "Welcome Dr. {{name}} 👋",
@@ -322,7 +323,16 @@
         "delete_confirm": "Are you sure you want to delete patient \"{{name}}\"? This will delete all related data.",
         "delete_success": "Patient deleted successfully",
         "delete_error": "Error deleting patient",
+        "tabs": {
+            "chart": "Dental Chart",
+            "history": "Treatment History",
+            "files": "Files",
+            "billing": "Billing",
+            "labs": "Lab Orders",
+            "timeline": "Timeline"
+        },
         "form": {
+            "add_new": "Add New Patient",
             "name_label": "Full Name",
             "name_placeholder": "Enter patient name...",
             "age_label": "Age",
