@@ -21,7 +21,6 @@ const SummaryTab = ({ startDate, setStartDate, endDate, setEndDate, comprehensiv
                         value={endDate}
                         onChange={(e) => setEndDate(e.target.value)}
                     />
-                </div>
                     <Button
                         onClick={() => {}}
                         variant="success"
