@@ -69,7 +69,7 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth, size
     if (!isOpen) return null;
     return (
         <div
-            className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center backdrop-blur-sm transition-opacity duration-300"
+            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm transition-opacity duration-300"
             onClick={(e) => e.target === e.currentTarget && onClose()}
         >
             <div 
