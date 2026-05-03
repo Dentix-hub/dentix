@@ -1,5 +1,5 @@
 import React, { useState, useMemo, Fragment } from 'react';
-import { Popover, PopoverButton, PopoverPanel, Transition, Portal } from '@headlessui/react';
+import { Dialog, Transition, TransitionChild } from '@headlessui/react';
 import { Calendar as CalendarIcon, Clock, ChevronLeft, ChevronRight, Check, ChevronDown, X } from 'lucide-react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday, parseISO, isValid } from 'date-fns';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,8 @@ export default function DateTimePicker({ value, onChange, label, error, required
     
     const isDateOnly = mode === 'date';
     const isMonthOnly = mode === 'month';
+    
+    const [isOpen, setIsOpen] = useState(false);
     
     // Parse value safely
     const initialDate = useMemo(() => {
@@ -34,7 +36,6 @@ export default function DateTimePicker({ value, onChange, label, error, required
     const days = useMemo(() => {
         const start = startOfWeek(startOfMonth(viewDate));
         const end = endOfMonth(viewDate);
-        // Ensure we show 6 weeks to keep height consistent
         const daysInMonth = eachDayOfInterval({ start, end: endOfWeek(end) });
         return daysInMonth;
     }, [viewDate]);
@@ -50,7 +51,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
         return yearsArray;
     }, []);
 
-    const handleConfirm = (close) => {
+    const handleConfirm = () => {
         let finalDate = new Date(selectedDate);
         if (!isDateOnly && !isMonthOnly) {
             let h = tempTime.hours === 12 ? 0 : tempTime.hours;
@@ -62,22 +63,34 @@ export default function DateTimePicker({ value, onChange, label, error, required
         } else {
             onChange({ target: { value: format(finalDate, 'yyyy-MM-dd') } });
         }
-        if (close) close();
+        setIsOpen(false);
     };
 
-    const handleDateClick = (day, close) => {
+    const handleDateClick = (day) => {
         setSelectedDate(day);
         if (isDateOnly || isMonthOnly) {
-            handleConfirm(close);
+            let finalDate = new Date(day);
+            if (isMonthOnly) {
+                onChange({ target: { value: format(finalDate, 'yyyy-MM') } });
+            } else {
+                onChange({ target: { value: format(finalDate, 'yyyy-MM-dd') } });
+            }
+            setIsOpen(false);
         }
     };
 
-    const handleToday = (close) => {
+    const handleToday = () => {
         const now = new Date();
         setSelectedDate(now);
         setViewDate(now);
         if (isDateOnly || isMonthOnly) {
-            handleConfirm(close);
+            let finalDate = new Date(now);
+            if (isMonthOnly) {
+                onChange({ target: { value: format(finalDate, 'yyyy-MM') } });
+            } else {
+                onChange({ target: { value: format(finalDate, 'yyyy-MM-dd') } });
+            }
+            setIsOpen(false);
         }
     };
 
@@ -106,44 +119,57 @@ export default function DateTimePicker({ value, onChange, label, error, required
                 </label>
             )}
             
-            <Popover className="relative">
-                {({ open, close }) => (
-                    <>
-                        <PopoverButton className={`w-full flex items-center justify-between ${compact ? 'px-3 py-1.5' : 'px-4 py-3'} bg-surface border-2 ${error ? 'border-red-300' : 'border-border'} rounded-2xl text-sm font-bold text-text-primary hover:border-primary/40 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm outline-none focus:ring-4 focus:ring-primary/10`}>
-                            <div className="flex items-center gap-2.5">
-                                <div className={`p-1.5 rounded-lg ${open ? 'bg-primary text-white' : 'bg-primary/10 text-primary'} transition-colors`}>
-                                    {isDateOnly || isMonthOnly ? <CalendarIcon size={compact ? 12 : 14} /> : <Clock size={compact ? 12 : 14} />}
-                                </div>
-                                <span dir="ltr" className={compact ? 'text-xs' : 'text-sm'}>
-                                    {!value && placeholder ? (
-                                        <span className="text-slate-400 font-medium">{placeholder}</span>
-                                    ) : (
-                                        isMonthOnly 
-                                            ? format(initialDate, 'MMMM yyyy')
-                                            : isDateOnly 
-                                            ? format(initialDate, 'yyyy-MM-dd') 
-                                            : format(initialDate, 'yyyy-MM-dd hh:mm a')
-                                    )}
-                                </span>
-                            </div>
-                            <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-                        </PopoverButton>
+            <button 
+                type="button"
+                onClick={() => setIsOpen(true)}
+                className={`w-full flex items-center justify-between ${compact ? 'px-3 py-1.5' : 'px-4 py-3'} bg-surface border-2 ${error ? 'border-red-300' : 'border-border'} rounded-2xl text-sm font-bold text-text-primary hover:border-primary/40 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm outline-none focus:ring-4 focus:ring-primary/10`}
+            >
+                <div className="flex items-center gap-2.5">
+                    <div className={`p-1.5 rounded-lg ${isOpen ? 'bg-primary text-white' : 'bg-primary/10 text-primary'} transition-colors`}>
+                        {isDateOnly || isMonthOnly ? <CalendarIcon size={compact ? 12 : 14} /> : <Clock size={compact ? 12 : 14} />}
+                    </div>
+                    <span dir="ltr" className={compact ? 'text-xs' : 'text-sm'}>
+                        {!value && placeholder ? (
+                            <span className="text-slate-400 font-medium">{placeholder}</span>
+                        ) : (
+                            isMonthOnly 
+                                ? format(initialDate, 'MMMM yyyy')
+                                : isDateOnly 
+                                ? format(initialDate, 'yyyy-MM-dd') 
+                                : format(initialDate, 'yyyy-MM-dd hh:mm a')
+                        )}
+                    </span>
+                </div>
+                <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
 
-                        <Portal>
-                            <Transition
+            <Transition appear show={isOpen} as={Fragment}>
+                <Dialog as="div" className="relative z-[9999]" onClose={() => setIsOpen(false)}>
+                    <TransitionChild
+                        as={Fragment}
+                        enter="ease-out duration-300"
+                        enterFrom="opacity-0"
+                        enterTo="opacity-100"
+                        leave="ease-in duration-200"
+                        leaveFrom="opacity-100"
+                        leaveTo="opacity-0"
+                    >
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
+                    </TransitionChild>
+
+                    <div className="fixed inset-0 overflow-y-auto">
+                        <div className="flex min-h-full items-center justify-center p-4 text-center">
+                            <TransitionChild
                                 as={Fragment}
-                                enter="transition ease-out duration-200"
-                                enterFrom="opacity-0 translate-y-1 scale-95"
-                                enterTo="opacity-100 translate-y-0 scale-100"
-                                leave="transition ease-in duration-150"
-                                leaveFrom="opacity-100 translate-y-0 scale-100"
-                                leaveTo="opacity-0 translate-y-1 scale-95"
+                                enter="ease-out duration-300"
+                                enterFrom="opacity-0 scale-95 translate-y-4"
+                                enterTo="opacity-100 scale-100 translate-y-0"
+                                leave="ease-in duration-200"
+                                leaveFrom="opacity-100 scale-100 translate-y-0"
+                                leaveTo="opacity-0 scale-95 translate-y-4"
                                 afterLeave={() => setViewMode('days')}
                             >
-                                <PopoverPanel 
-                                    anchor="bottom"
-                                    className="z-[9999] mt-2 bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] ring-1 ring-black/5 overflow-hidden border border-slate-200 dark:border-white/10 md:fixed md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:mt-0"
-                                >
+                                <Dialog.Panel className="w-full max-w-fit transform overflow-hidden rounded-[2.5rem] bg-white dark:bg-slate-900 text-left align-middle shadow-[0_20px_50px_rgba(0,0,0,0.3)] transition-all border border-slate-200 dark:border-white/10">
                                     <div className={`flex flex-col md:flex-row ${isDateOnly || isMonthOnly ? 'w-[320px]' : 'w-[320px] md:w-[600px]'} max-h-[90vh] overflow-hidden`}>
                                         
                                         {/* Calendar Column */}
@@ -237,7 +263,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                                                     <button
                                                                         key={idx}
                                                                         type="button"
-                                                                        onClick={() => handleDateClick(day, close)}
+                                                                        onClick={() => handleDateClick(day)}
                                                                         className={`
                                                                             aspect-square flex items-center justify-center rounded-2xl text-sm font-black transition-all relative
                                                                             ${isSelected ? 'bg-primary text-white shadow-2xl shadow-primary/40 scale-110 z-10' : 
@@ -259,7 +285,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                             <div className="mt-8 flex items-center justify-between gap-4 sticky bottom-0 bg-white dark:bg-slate-900 pt-2">
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleToday(close)}
+                                                    onClick={handleToday}
                                                     className="flex-1 py-3 px-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-text-primary text-xs font-black hover:bg-slate-200 transition-colors uppercase tracking-widest"
                                                 >
                                                     {t('common.today', 'Today')}
@@ -267,7 +293,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                                 {!isDateOnly && !isMonthOnly && (
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleConfirm(close)}
+                                                        onClick={handleConfirm}
                                                         className="flex-1 py-3 px-4 rounded-2xl bg-primary text-white text-xs font-black hover:bg-primary-dark shadow-lg shadow-primary/30 transition-all uppercase tracking-widest flex items-center justify-center gap-2"
                                                     >
                                                         <Check size={14} />
@@ -336,12 +362,12 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                             </div>
                                         )}
                                     </div>
-                                </PopoverPanel>
-                            </Transition>
-                        </Portal>
-                    </>
-                )}
-            </Popover>
+                                </Dialog.Panel>
+                            </TransitionChild>
+                        </div>
+                    </div>
+                </Dialog>
+            </Transition>
             {!compact && error && <p className="text-xs font-bold text-red-500 mt-1">{error}</p>}
         </div>
     );
