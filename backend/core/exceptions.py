@@ -221,20 +221,21 @@ def create_error_response(
     details: Optional[Dict] = None,
 ) -> JSONResponse:
     """Create standardized error response."""
-    trace_id = getattr(request.state, "trace_id", str(uuid.uuid4()))
+    # Standardized response matching both custom ErrorEnvelope and FastAPI default detail
+    content = {
+        "error": {
+            "code": code,
+            "message": message,
+            "details": details,
+            "trace_id": trace_id,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "path": str(request.url.path),
+        },
+        "detail": message,  # Standard FastAPI field for frontend compatibility
+        "success": False
+    }
 
-    error_response = ErrorEnvelope(
-        error=ErrorResponse(
-            code=code,
-            message=message,
-            details=details,
-            trace_id=trace_id,
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            path=str(request.url.path),
-        )
-    )
-
-    return JSONResponse(status_code=status_code, content=error_response.model_dump())
+    return JSONResponse(status_code=status_code, content=content)
 
 
 async def handle_app_exception(request: Request, exc: BaseAppException) -> JSONResponse:

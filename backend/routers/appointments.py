@@ -106,17 +106,24 @@ def get_debug_errors(
 ):
     """Retrieve last 10 system errors for debugging."""
     errors = db.query(SystemError).order_by(SystemError.created_at.desc()).limit(10).all()
-    return [
-        {
-            "id": e.id,
-            "message": e.message,
-            "stack_trace": e.stack_trace,
-            "created_at": e.created_at.isoformat() if e.created_at else None,
-            "path": e.path,
-            "method": e.method
-        }
-        for e in errors
-    ]
+    import os
+    from datetime import datetime, timezone
+    return {
+        "success": True,
+        "environment": os.getenv("ENVIRONMENT", "development"),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "errors": [
+            {
+                "id": e.id,
+                "message": e.message,
+                "stack_trace": e.stack_trace,
+                "created_at": e.created_at.isoformat() if e.created_at else None,
+                "path": e.path,
+                "method": e.method
+            }
+            for e in errors
+        ]
+    }
 
 
 @router.put(
