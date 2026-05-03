@@ -280,7 +280,8 @@
         "mode": {
             "light": "الوضع النهاري",
             "dark": "الوضع الليلي"
-        }
+        },
+        "user": "المستخدم"
     },
     "dashboard": {
         "welcome": "أهلاً د. {{name}} 👋",
@@ -325,7 +326,28 @@
         "delete_confirm": "هل أنت متأكد من حذف المريض \"{{name}}\"؟ سيؤدي هذا لحذف جميع بياناته المرتبطة.",
         "delete_success": "تم حذف المريض بنجاح",
         "delete_error": "خطأ في حذف المريض",
+        "tabs": {
+            "chart": "مخطط الأسنان",
+            "history": "سجل العلاج",
+            "files": "الملفات",
+            "billing": "الحسابات",
+            "labs": "المعمل",
+            "timeline": "الجدول الزمني"
+        },
+        "medical_conditions": {
+            "none": "لا يوجد",
+            "diabetes": "سكري",
+            "hypertension": "ضغط دم",
+            "heart_disease": "أمراض القلب",
+            "allergy": "حساسية",
+            "blood_thinners": "سيولة دم",
+            "hepatitis_c": "فيروس سي",
+            "thyroid": "غدة درقية",
+            "pregnancy": "حمل",
+            "smoking": "تدخين"
+        },
         "form": {
+            "add_new": "إضافة مريض جديد",
             "name_label": "الاسم بالكامل",
             "name_placeholder": "اكتب اسم المريض...",
             "age_label": "السن",
