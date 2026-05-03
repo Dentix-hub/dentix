@@ -94,8 +94,8 @@ export default function Appointments() {
     const handleEventDrop = async (id, newDateTime) => {
         const toastId = toast.loading(t('appointments.messages.updating'));
         try {
-            // Trim timezone offset if needed by server
-            const formattedDate = newDateTime.split('.')[0];
+            // Trim timezone offset if needed by server (e.g. 2026-05-01T10:00:00+03:00 -> 2026-05-01T10:00:00)
+            const formattedDate = newDateTime.substring(0, 19);
             await updateMutation.mutateAsync({ id, data: { date_time: formattedDate } });
             toast.success(t('appointments.messages.update_success'), { id: toastId });
         } catch (err) {
@@ -345,7 +345,7 @@ export default function Appointments() {
                     appointments={appointments}
                     onEventClick={(appt) => {
                         // Open modal or details if needed
-                        toast.info(`${t('appointments.table.patient')}: ${appt.patient_name}`);
+                        toast(`${t('appointments.table.patient')}: ${appt.patient_name}`, { icon: 'ℹ️' });
                     }}
                     onEventDrop={handleEventDrop}
                     onSelectSlot={handleSelectSlot}
