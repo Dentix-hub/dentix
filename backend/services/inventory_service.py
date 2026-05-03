@@ -83,7 +83,13 @@ class InventoryService:
 
     def get_materials(self, tenant_id: int, db: Session = None) -> List[Material]:
         db = self._get_db(db)
-        return db.query(Material).filter(Material.tenant_id == tenant_id).all()
+        from sqlalchemy.orm import joinedload
+        return (
+            db.query(Material)
+            .options(joinedload(Material.category))
+            .filter(Material.tenant_id == tenant_id)
+            .all()
+        )
 
     def update_material(
         self,
@@ -132,9 +138,12 @@ class InventoryService:
                 Material.alert_threshold,
                 Material.packaging_ratio,
                 Material.standard_price,
+                MaterialCategory.name_ar.label("category_ar"),
+                MaterialCategory.name_en.label("category_en"),
                 func.coalesce(func.sum(StockItem.quantity), 0).label("total_qty"),
                 func.count(Batch.id.distinct()).label("batch_count"),
             )
+            .outerjoin(MaterialCategory, MaterialCategory.id == Material.category_id)
             .outerjoin(Batch, Batch.material_id == Material.id)
             .outerjoin(StockItem, StockItem.batch_id == Batch.id)
             .filter(Material.tenant_id == tenant_id)
@@ -143,7 +152,7 @@ class InventoryService:
         if warehouse_id:
             query = query.filter(StockItem.warehouse_id == warehouse_id)
 
-        results = query.group_by(Material.id, Material.brand, Material.standard_price).all()
+        results = query.group_by(Material.id, Material.brand, Material.standard_price, MaterialCategory.name_ar, MaterialCategory.name_en).all()
 
         summary = []
         for r in results:
@@ -166,6 +175,8 @@ class InventoryService:
                     batches_count=r.batch_count,
                     packaging_ratio=r.packaging_ratio or 1.0,
                     standard_price=r.standard_price or 0.0,
+                    category_name_ar=r.category_ar,
+                    category_name_en=r.category_en,
                 )
             )
 

@@ -161,6 +161,8 @@ class MaterialStockSummary(BaseModel):
     batches_count: int
     packaging_ratio: Optional[float] = 1.0
     standard_price: Optional[float] = 0.0
+    category_name_ar: Optional[str] = None
+    category_name_en: Optional[str] = None
 
 
 class ConsumptionItem(BaseModel):

@@ -10,7 +10,7 @@ import SmartLearningModal from './components/SmartLearningModal';
 import TrackSessionModal from './components/TrackSessionModal';
 import MaterialDetailsModal from './components/MaterialDetailsModal';
 const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const queryClient = useQueryClient();
     const [searchQuery, setSearchQuery] = useState('');
     const [filter, setFilter] = useState('ALL');
@@ -188,10 +188,12 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                                                 className="px-6 py-4 font-bold text-text-primary cursor-pointer hover:text-primary transition-colors underline decoration-dotted decoration-text-secondary/30 hover:decoration-primary"
                                                 title={t('inventory.table.details_tooltip')}
                                             >
-                                                <div className="text-base">{item.brand || item.material_name}</div>
-                                                {item.brand && (
-                                                    <span className="text-[10px] text-text-secondary block font-normal opacity-70">
-                                                        {item.material_name}
+                                                <div className="text-base font-bold text-text-primary">
+                                                    {item.brand ? `${item.brand} - ` : ''}{item.material_name}
+                                                </div>
+                                                {(item.category_name_ar || item.category_name_en) && (
+                                                    <span className="text-[10px] text-text-secondary block font-normal opacity-70 uppercase tracking-wider mt-0.5">
+                                                        {i18n.language === 'ar' ? item.category_name_ar : item.category_name_en}
                                                     </span>
                                                 )}
                                             </td>
