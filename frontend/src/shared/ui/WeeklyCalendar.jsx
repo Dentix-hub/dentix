@@ -26,7 +26,7 @@ const WeeklyCalendar = ({ appointments, onEventClick, onEventDrop, onSelectSlot 
         <div className="weekly-calendar-container animate-in fade-in duration-500">
             <FullCalendar
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
-                initialView="timeGridWeek"
+                initialView="dayGridMonth"
                 headerToolbar={{
                     left: isRtl ? 'timeGridWeek,dayGridMonth,listWeek' : 'prev,next today',
                     center: 'title',
