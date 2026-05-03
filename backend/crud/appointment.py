@@ -32,7 +32,6 @@ def create_appointment(db: Session, appointment: schemas.AppointmentCreate):
     # Double Booking Prevention
     if appointment.doctor_id:
         # Check if doctor has an appointment at the exact same time
-        # We assume 15-30 min slots usually, but strict check on start time is a good first step
         existing = (
             db.query(models.Appointment)
             .filter(
@@ -47,7 +46,7 @@ def create_appointment(db: Session, appointment: schemas.AppointmentCreate):
         if existing:
             raise ValueError("Doctor is already booked at this time.")
 
-    db_appointment = models.Appointment(**appointment.dict())
+    db_appointment = models.Appointment(**appointment.model_dump())
     db.add(db_appointment)
     db.commit()
     db.refresh(db_appointment)
@@ -63,44 +62,44 @@ def update_appointment_status(
 ):
     db_appt = (
         db.query(models.Appointment)
-        .join(models.Patient)
         .filter(
             models.Appointment.id == appointment_id,
-            models.Patient.tenant_id == tenant_id,
             models.Appointment.is_deleted == False,  # noqa: E712
         )
         .first()
     )
-    if db_appt:
-        db_appt.status = status
-        db.commit()
-        db.refresh(db_appt)
-        invalidate_dashboard_cache(tenant_id)
+    if not db_appt or not db_appt.patient or db_appt.patient.tenant_id != tenant_id:
+        return None
+        
+    db_appt.status = status
+    db.commit()
+    db.refresh(db_appt)
+    invalidate_dashboard_cache(tenant_id)
     return db_appt
 
 
 def delete_appointment(db: Session, appointment_id: int, tenant_id: int):
     """Soft Delete Appointment."""
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     db_appt = (
         db.query(models.Appointment)
-        .join(models.Patient)
         .filter(
             models.Appointment.id == appointment_id,
-            models.Patient.tenant_id == tenant_id,
             models.Appointment.is_deleted == False,  # noqa: E712
         )
         .first()
     )
-    if db_appt:
-        db_appt.is_deleted = True
-        from datetime import timezone
-        db_appt.deleted_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(db_appt)
-        invalidate_dashboard_cache(tenant_id)
+    if not db_appt or not db_appt.patient or db_appt.patient.tenant_id != tenant_id:
+        return None
+        
+    db_appt.is_deleted = True
+    db_appt.deleted_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(db_appt)
+    invalidate_dashboard_cache(tenant_id)
     return db_appt
+
 def update_appointment(
     db: Session, appointment_id: int, appointment: schemas.AppointmentUpdate, tenant_id: int
 ):
@@ -114,11 +113,7 @@ def update_appointment(
         .first()
     )
     
-    if not db_appt:
-        return None
-        
-    # Security check: Ensure patient belongs to tenant
-    if db_appt.patient.tenant_id != tenant_id:
+    if not db_appt or not db_appt.patient or db_appt.patient.tenant_id != tenant_id:
         return None
 
     update_data = appointment.model_dump(exclude_unset=True)
