@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Calendar, Calculator } from 'lucide-react';
 import { getDoctorRevenue, getDoctorDetails, updateStaffCompensation } from '@/api';
-import { Button, Card, SkeletonBox, EmptyState, toast } from '@/shared/ui';
+import { Button, Card, SkeletonBox, EmptyState, toast, DateTimePicker } from '@/shared/ui';
 import DoctorRevenueDetails from './DoctorRevenueDetails';
 import { useTranslation } from 'react-i18next';
 export default function DoctorRevenue() {
@@ -95,19 +95,23 @@ export default function DoctorRevenue() {
                     <div className="flex items-center gap-2 px-2">
                         <Calendar size={14} className="text-text-secondary" />
                         <span className="text-xs font-bold text-text-secondary">{t('common.date_range')}:</span>
-                        <input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="bg-transparent border-none text-xs font-bold text-text-primary focus:ring-0 p-0 w-24"
-                        />
+                        <div className="w-32">
+                            <DateTimePicker
+                                mode="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                compact
+                            />
+                        </div>
                         <span className="text-text-secondary">-</span>
-                        <input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="bg-transparent border-none text-xs font-bold text-text-primary focus:ring-0 p-0 w-24"
-                        />
+                        <div className="w-32">
+                            <DateTimePicker
+                                mode="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                compact
+                            />
+                        </div>
                     </div>
                     <Button size="sm" onClick={loadData} disabled={loading}>
                         <Calculator size={14} />

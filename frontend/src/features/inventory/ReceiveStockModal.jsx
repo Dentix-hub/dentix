@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, ArrowDownLeft, Calendar, Plus } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getMaterials, getWarehouses, receiveStock } from '@/api/inventory';
-import { toast } from '@/shared/ui';
+import { toast, DateTimePicker } from '@/shared/ui';
 import AddWarehouseModal from './components/AddWarehouseModal';
 import { useTranslation } from 'react-i18next';
 const ReceiveStockModal = ({ isOpen, onClose }) => {
@@ -173,18 +173,14 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
                             {t('inventory.receive.expiry_date')}
                         </label>
                         <div className="relative">
-                            <input
-                                type="month"
+                            <DateTimePicker
+                                mode="month"
                                 required
-                                min={new Date().toISOString().slice(0, 7)}
                                 value={formData.expiry_date ? formData.expiry_date.slice(0, 7) : ''}
                                 onChange={e => {
                                     setFormData({ ...formData, expiry_date: e.target.value });
                                 }}
-                                className="w-full px-4 py-2 rounded-lg border border-border bg-background ltr-text"
-                                style={{ direction: 'ltr' }}
                             />
-                            <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none" size={16} />
                         </div>
                         <p className="text-xs text-slate-400 mt-1">{t('inventory.receive.expiry_note')}</p>
                     </div>

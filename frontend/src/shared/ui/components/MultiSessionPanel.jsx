@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Calendar, User, FileText, CheckCircle2, Clock } from 'lucide-react';
 import Button from '../Button';
+import { DateTimePicker } from '../index';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
@@ -53,11 +54,11 @@ export const MultiSessionPanel = ({ sessions = [], onAddSession, isLoading }) =>
                     <div className="flex flex-wrap gap-3">
                         <div className="flex-1 min-w-[150px]">
                             <label className="text-[10px] font-bold text-slate-500 mb-1 block">موعد الجلسة القادمة (اختياري)</label>
-                            <input
-                                type="date"
+                            <DateTimePicker
+                                mode="date"
                                 value={newSessionData.next_session_date}
                                 onChange={(e) => setNewSessionData({...newSessionData, next_session_date: e.target.value})}
-                                className="w-full p-2 bg-white border-0 rounded-lg text-xs"
+                                placeholder="اختر التاريخ"
                             />
                         </div>
                         <div className="flex items-end gap-2">

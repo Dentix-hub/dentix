@@ -1,4 +1,4 @@
-import { Button, Input, Modal } from '@/shared/ui';
+import { Button, Input, Modal, DateTimePicker } from '@/shared/ui';
 
 import { useTranslation } from 'react-i18next';
 
@@ -44,9 +44,9 @@ const ExpenseModal = ({ isOpen, onClose, newExpense, setNewExpense, handleCreate
                     </div>
                 </div>
 
-                <Input
+                <DateTimePicker
                     label={t('billing.expenses.date')}
-                    type="date"
+                    mode="date"
                     value={newExpense.date}
                     onChange={e => setNewExpense({ ...newExpense, date: e.target.value })}
                 />

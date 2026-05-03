@@ -10,13 +10,16 @@ export default function PatientSelect({ patients = [], value, onChange, onQuickA
 
     const filteredPatients =
         query === ''
-            ? patients.slice(0, 50)
-            : patients.filter((patient) => {
-                return (
-                    patient.name?.toLowerCase().includes(query.toLowerCase()) || 
-                    patient.phone?.includes(query)
-                );
-            }).slice(0, 50);
+            ? [...patients].sort((a, b) => (b.id || 0) - (a.id || 0)).slice(0, 50)
+            : patients
+                .filter((patient) => {
+                    return (
+                        patient.name?.toLowerCase().includes(query.toLowerCase()) || 
+                        patient.phone?.includes(query)
+                    );
+                })
+                .sort((a, b) => (b.id || 0) - (a.id || 0))
+                .slice(0, 50);
 
     const selectedPatient = patients.find(p => p.id === parseInt(value)) || null;
 
@@ -28,13 +31,21 @@ export default function PatientSelect({ patients = [], value, onChange, onQuickA
                     {required && <span className="text-red-500 ml-1">*</span>}
                 </label>
             )}
-            <Combobox value={selectedPatient} onChange={(p) => onChange({ target: { value: p?.id || '' } })}>
+            <Combobox 
+                value={selectedPatient} 
+                onChange={(p) => onChange({ target: { value: p?.id || '' } })}
+                onClose={() => setQuery('')}
+            >
                 <div className="relative mt-1">
                     <div className={`relative w-full cursor-default overflow-hidden rounded-xl bg-surface border ${error ? 'border-red-300' : 'border-border'} text-left focus:outline-none focus-within:ring-2 focus-within:ring-primary/20 sm:text-sm transition-all shadow-sm`}>
                         <ComboboxInput
                             className="w-full border-none py-3 pl-10 pr-10 text-sm font-bold leading-5 text-text-primary focus:ring-0 bg-transparent outline-none placeholder:text-slate-400"
                             displayValue={(patient) => patient?.name || ''}
                             onChange={(event) => setQuery(event.target.value)}
+                            onFocus={(e) => {
+                                // Trigger opening when focused
+                                if (!query) e.target.click();
+                            }}
                             placeholder={placeholder || t('common.search_patient', 'Search patient...')}
                         />
                         <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">

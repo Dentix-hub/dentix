@@ -3,6 +3,7 @@ import { Plus, Trash2, DollarSign, TrendingUp, TrendingDown, Calendar } from 'lu
 import { getExpenses, createExpense, deleteExpense, getFinancialStats } from '../api';
 import { getTodayStr } from '../utils/toothUtils';
 import { useTranslation } from 'react-i18next';
+import { DateTimePicker } from '../shared/ui';
 export default function Expenses() {
     const { t } = useTranslation();
     const [expenses, setExpenses] = useState([]);
@@ -166,13 +167,12 @@ export default function Expenses() {
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-slate-700 mb-1">{t('billing.expenses.date')}</label>
-                                <input
-                                    type="date"
-                                    value={newItem.date}
-                                    onChange={e => setNewItem({ ...newItem, date: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-primary transition-colors"
-                                />
+                            <DateTimePicker
+                                label={t('billing.expenses.date')}
+                                mode="date"
+                                value={newItem.date}
+                                onChange={e => setNewItem({ ...newItem, date: e.target.value })}
+                            />
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-1">{t('billing.expenses_page.notes')}</label>

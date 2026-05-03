@@ -490,8 +490,7 @@ export default function Appointments() {
                                     placeholder={t('appointments.form.select_patient_placeholder')}
                                 />
                             </div>
-                            <Input
-                                type="datetime-local"
+                            <DateTimePicker
                                 label={t('appointments.form.datetime')}
                                 value={newAppt.date_time}
                                 onChange={e => setNewAppt({ ...newAppt, date_time: e.target.value })}

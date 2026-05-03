@@ -1,5 +1,5 @@
 import { Check, Trash2 } from 'lucide-react';
-import { Button, Card, Badge, SkeletonBox, EmptyState } from '@/shared/ui';
+import { Button, Card, Badge, SkeletonBox, EmptyState, DateTimePicker } from '@/shared/ui';
 
 import { useTranslation } from 'react-i18next';
 
@@ -14,11 +14,10 @@ const SalariesTab = ({ salaryMonth, setSalaryMonth, salariesData, salariesLoadin
                 </div>
                 <div className="flex items-center gap-4 mt-4 md:mt-0">
                     <label className="font-bold text-text-secondary text-sm">{t('billing.salaries.month_label')}</label>
-                    <input
-                        type="month"
+                    <DateTimePicker
+                        mode="month"
                         value={salaryMonth}
                         onChange={(e) => setSalaryMonth(e.target.value)}
-                        className="p-2 bg-surface hover:bg-surface-hover rounded-xl border border-border outline-none focus:border-primary font-bold text-text-primary transition-colors"
                     />
                 </div>
             </Card>
@@ -49,12 +48,11 @@ const SalariesTab = ({ salaryMonth, setSalaryMonth, salariesData, salariesLoadin
                                             <div className="font-bold text-text-primary">{emp.username}</div>
                                             <div className="text-xs text-text-secondary">{roleLabels[emp.role] || emp.role}</div>
                                         </td>
-                                        <td className="p-4">
-                                            <input
-                                                type="date"
+                                        <td className="p-4 w-40">
+                                            <DateTimePicker
+                                                mode="date"
                                                 value={emp.hire_date || ''}
                                                 onChange={(e) => updateEmployeeHireDate(emp.id, e.target.value)}
-                                                className="bg-transparent border-b border-dashed border-border focus:border-primary outline-none text-xs w-28 text-text-primary"
                                             />
                                         </td>
                                         <td className="p-4 font-bold text-text-primary">{emp.base_salary.toLocaleString()}</td>
