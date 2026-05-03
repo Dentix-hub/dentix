@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
+import { DateTimePicker } from '../index';
 export default function PaymentModal({ isOpen, onClose, onAdd }) {
     const [payment, setPayment] = useState({ amount: '', notes: '', date: new Date().toISOString().split('T')[0] });
     if (!isOpen) return null;
@@ -27,11 +28,10 @@ export default function PaymentModal({ isOpen, onClose, onAdd }) {
                         type="number"
                         className="w-full p-3 bg-slate-50 rounded-xl outline-none font-bold text-lg text-emerald-600"
                     />
-                    <input
+                    <DateTimePicker
                         value={payment.date}
                         onChange={e => setPayment({ ...payment, date: e.target.value })}
-                        type="date"
-                        className="w-full p-3 bg-slate-50 rounded-xl outline-none text-slate-600"
+                        mode="date"
                     />
                     <textarea
                         value={payment.notes}

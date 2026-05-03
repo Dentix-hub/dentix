@@ -4,6 +4,7 @@ import PaymentsManager from '@/features/admin/SuperAdmin/PaymentsManager';
 import PlansManager from '@/features/admin/SuperAdmin/PlansManager';
 import ActiveSubscriptions from '@/features/admin/SuperAdmin/ActiveSubscriptions';
 import { CreditCard, PlusCircle, X, Banknote, Landmark, User, Calendar } from 'lucide-react';
+import { DateTimePicker } from '@/shared/ui';
 export default function FinancePage() {
     const [activeTab, setActiveTab] = useState('payments'); // payments, plans, subscriptions
     const [payments, setPayments] = useState([]);
@@ -262,16 +263,14 @@ export default function FinancePage() {
                                     ))}
                                 </select>
                             </div>
-                            {/* Payment Date */}
                             <div className="space-y-2">
                                 <label className="flex items-center gap-2 text-sm font-bold text-slate-500">
                                     <Calendar size={16} /> تاريخ الدفع
                                 </label>
-                                <input
-                                    type="date"
+                                <DateTimePicker
+                                    mode="date"
                                     value={paymentForm.payment_date}
                                     onChange={(e) => setPaymentForm({ ...paymentForm, payment_date: e.target.value })}
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none font-bold"
                                 />
                             </div>
                             {/* Payment Method */}

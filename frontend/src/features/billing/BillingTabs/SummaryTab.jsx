@@ -1,5 +1,5 @@
 import { TrendingUp, Banknote, DollarSign, Calendar } from 'lucide-react';
-import { Button, Card, StatCard } from '@/shared/ui';
+import { Button, Card, StatCard, DateTimePicker } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
 const SummaryTab = ({ startDate, setStartDate, endDate, setEndDate, comprehensiveStats, loading }) => {
     const { t } = useTranslation();
@@ -8,27 +8,20 @@ const SummaryTab = ({ startDate, setStartDate, endDate, setEndDate, comprehensiv
             {/* Date Range Picker */}
             <Card className="flex items-center justify-between p-4">
                 <h3 className="font-bold text-text-primary">{t('billing.summary.period')}</h3>
-                <div className="flex items-center gap-3 bg-surface p-2 rounded-xl border border-border">
-                    <div className="flex items-center gap-2">
-                        <Calendar size={16} className="text-text-secondary" />
-                        <span className="text-xs font-bold text-text-secondary">{t('billing.summary.from')}</span>
-                        <input
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="bg-transparent border-none text-sm font-bold text-text-primary focus:ring-0 p-0 w-28"
-                        />
-                    </div>
-                    <div className="w-px h-4 bg-border"></div>
-                    <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-text-secondary">{t('billing.summary.to')}</span>
-                        <input
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => setEndDate(e.target.value)}
-                            className="bg-transparent border-none text-sm font-bold text-text-primary focus:ring-0 p-0 w-28"
-                        />
-                    </div>
+                <div className="flex items-center gap-6">
+                    <DateTimePicker
+                        label={t('billing.summary.from')}
+                        mode="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                    />
+                    <DateTimePicker
+                        label={t('billing.summary.to')}
+                        mode="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                    />
+                </div>
                     <Button
                         onClick={() => {}}
                         variant="success"

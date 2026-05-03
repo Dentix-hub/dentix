@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { User, Activity, Calendar, Search, RotateCcw, Filter } from 'lucide-react';
+import { DateTimePicker } from '@/shared/ui';
 
 const AuditLogViewer = ({ logs, tenants = [], users = [], onFilter }) => {
     const [filters, setFilters] = useState({
@@ -106,22 +107,20 @@ const AuditLogViewer = ({ logs, tenants = [], users = [], onFilter }) => {
                     {/* Start Date */}
                     <div>
                         <label className="block text-xs font-bold text-slate-500 mb-1.5">من تاريخ</label>
-                        <input
-                            type="date"
+                        <DateTimePicker
+                            mode="date"
                             value={filters.start_date}
                             onChange={(e) => handleFilterChange('start_date', e.target.value)}
-                            className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
                     </div>
 
                     {/* End Date */}
                     <div>
                         <label className="block text-xs font-bold text-slate-500 mb-1.5">إلى تاريخ</label>
-                        <input
-                            type="date"
+                        <DateTimePicker
+                            mode="date"
                             value={filters.end_date}
                             onChange={(e) => handleFilterChange('end_date', e.target.value)}
-                            className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
                     </div>
 
