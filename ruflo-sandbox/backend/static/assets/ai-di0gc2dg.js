@@ -1,0 +1,1 @@
+import{r as n}from"./index-BMNWKfAH.js";const p=(e,t={})=>{const{context:r=null,last_patient_name:s=null,scribe_mode:a=!1}=t;return n.post("/api/v1/ai/query",{text:e,context:r,last_patient_name:s,scribe_mode:a},{skipUnwrap:!0})};export{p as s};

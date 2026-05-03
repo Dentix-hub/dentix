@@ -3,6 +3,8 @@ import os
 import datetime
 from datetime import timezone
 import json
+import csv
+import io
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.responses import StreamingResponse
@@ -97,6 +99,87 @@ def get_system_logs(
     )
 
     return success_response(data=logs)
+
+
+@router.delete("/logs/clear", response_model=StandardResponse[dict])
+def clear_system_logs(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
+    """Delete all system logs."""
+    if current_user.role != Role.SUPER_ADMIN.value:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    db.query(models.SystemError).delete()
+    db.commit()
+    return success_response(message="All system logs cleared successfully")
+
+
+@router.delete("/logs/{log_id}", response_model=StandardResponse[dict])
+def delete_system_log(
+    log_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
+    """Delete a specific system log."""
+    if current_user.role != Role.SUPER_ADMIN.value:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    log = db.query(models.SystemError).filter(models.SystemError.id == log_id).first()
+    if not log:
+        raise HTTPException(status_code=404, detail="Log not found")
+
+    db.delete(log)
+    db.commit()
+    return success_response(message="Log deleted successfully")
+
+
+@router.get("/logs/export")
+def export_system_logs(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
+    """Export system logs as CSV."""
+    if current_user.role != Role.SUPER_ADMIN.value:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    logs = db.query(models.SystemError).order_by(models.SystemError.created_at.desc()).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # Header
+    writer.writerow([
+        "ID", "Level", "Source", "Message", "Path", "Method",
+        "User ID", "Tenant ID", "IP Address", "User Agent", "Created At", "Stack Trace"
+    ])
+
+    # Data
+    for log in logs:
+        writer.writerow([
+            log.id,
+            log.level,
+            log.source,
+            log.message,
+            log.path,
+            log.method,
+            log.user_id,
+            log.tenant_id,
+            log.ip_address,
+            log.user_agent,
+            log.created_at.isoformat() if log.created_at else "",
+            log.stack_trace
+        ])
+
+    output.seek(0)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"system_logs_{timestamp}.csv"
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 @router.put("/profile", response_model=StandardResponse[dict])

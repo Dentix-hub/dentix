@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DENTIX - Clinical Management Hub</title>
+    <meta name="description" content="DENTIX: A modern clinical management platform for proactive dental health and seamless patient workflows." />
+    <meta name="keywords" content="dentist, clinic management, dental health, patient records, RTL dental app" />
+    <meta property="og:site_name" content="DENTIX" />
+    <meta property="og:locale" content="ar_SA" />
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://dentix-hub.vercel.app/" />
+    <meta name="twitter:title" content="DENTIX - Modern Clinical Management" />
+    <meta name="twitter:description" content="Streamline your dental clinic with DENTIX's advanced charting and patient management." />
+    <meta name="twitter:image" content="https://dentix-hub.vercel.app/static/logos/dentix_og.png" />
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script>
+      /* CRITITAL: Force unregister potential legacy Service Workers from old deployments */
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(let registration of registrations) {
+            console.log('Unregistering legacy SW:', registration);
+            registration.unregister();
+          }
+        });
+      }
+      /* CRITICAL: Force clear old caches to prevent stale content */
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          for(let name of names) {
+            console.log('Deleting legacy cache:', name);
+            caches.delete(name);
+          }
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
