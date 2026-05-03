@@ -1,19 +1,26 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bell, Info, AlertTriangle, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import { getNotifications, markNotificationRead, dismissNotification } from '@/api';
+import { useAuth } from '@/auth/useAuth';
+
 const NOTIFICATION_TYPES = {
     WARNING: 'warning',
     SUCCESS: 'success',
     ERROR: 'error',
     INFO: 'info'
 };
+
 const POLL_INTERVAL_MS = 120000; // 2 Minutes
+
 const NotificationBell = () => {
+    const { user } = useAuth();
     const [notifications, setNotifications] = useState([]);
     const [showDropdown, setShowDropdown] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const dropdownRef = useRef(null);
+
     const fetchNotifications = async () => {
+        if (!user) return;
         try {
             const response = await getNotifications();
             if (response?.data && Array.isArray(response.data)) {
@@ -25,15 +32,23 @@ const NotificationBell = () => {
                 setUnreadCount(response.data.notifications.filter(n => !n.is_read).length);
             }
         } catch (error) {
-            console.error('Failed to sync notifications:', error);
-            // Silent fail is acceptable here to avoid disrupting user workflow
+            if (error.response?.status !== 401) {
+                console.error('Failed to sync notifications:', error);
+            }
         }
     };
+
     useEffect(() => {
-        fetchNotifications();
-        const interval = setInterval(fetchNotifications, POLL_INTERVAL_MS);
-        return () => clearInterval(interval);
-    }, []);
+        if (user) {
+            fetchNotifications();
+            const interval = setInterval(fetchNotifications, POLL_INTERVAL_MS);
+            return () => clearInterval(interval);
+        } else {
+            setNotifications([]);
+            setUnreadCount(0);
+        }
+    }, [user]);
+
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
