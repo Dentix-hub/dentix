@@ -25,7 +25,7 @@ import { createAppointment, deleteAppointment, updateAppointmentStatus } from '@
 import { useAppointments, useUpdateAppointmentStatus, useUpdateAppointment } from '@/hooks/useAppointments';
 import { usePatients, useCreatePatient } from '@/hooks/usePatients';
 import { getTodayDateTimeStr } from '@/utils/toothUtils';
-import { Button, Input, Modal, Badge, SkeletonBox, EmptyState, toast, ConfirmDialog, PageHeader, PatientSelect, WeeklyCalendar, StatCard } from '@/shared/ui';
+import { Button, Input, Modal, Badge, SkeletonBox, EmptyState, toast, ConfirmDialog, PageHeader, PatientSelect, WeeklyCalendar, StatCard, DateTimePicker } from '@/shared/ui';
 import { useAuth } from '@/auth/useAuth';
 
 export default function Appointments() {
