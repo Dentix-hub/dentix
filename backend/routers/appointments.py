@@ -122,20 +122,26 @@ def update_appointment(
         return success_response(data=updated, message="Appointment updated successfully")
     except Exception as e:
         db.rollback()
-        error_log = SystemError(
-            level=ErrorLevel.ERROR,
-            source=ErrorSource.BACKEND,
-            message=f"Appointment PUT Error: {str(e)}",
-            stack_trace=traceback.format_exc(),
-            path=str(request.url.path),
-            method="PUT",
-            user_id=current_user.id,
-            tenant_id=current_user.tenant_id
-        )
-        db.add(error_log)
-        db.commit()
-        logger.error(f"Appointment Update Failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Appointment Update Failed: {str(e)}\n{traceback.format_exc()}")
+        
+        try:
+            error_log = SystemError(
+                level=ErrorLevel.ERROR,
+                source=ErrorSource.BACKEND,
+                message=f"Appointment PUT Error: {str(e)}",
+                stack_trace=traceback.format_exc(),
+                path=str(request.url.path),
+                method="PUT",
+                user_id=current_user.id,
+                tenant_id=current_user.tenant_id
+            )
+            db.add(error_log)
+            db.commit()
+        except Exception as log_e:
+            db.rollback()
+            logger.error(f"Failed to log error to DB: {str(log_e)}")
+            
+        raise HTTPException(status_code=500, detail=f"Backend Error: {str(e)}")
 
 
 @router.put(
