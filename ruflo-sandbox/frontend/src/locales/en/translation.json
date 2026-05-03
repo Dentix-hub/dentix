@@ -1,0 +1,1505 @@
+{
+    "common": {
+        "save": "Save",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "edit": "Edit",
+        "search": "Search",
+        "loading": "Loading...",
+        "actions": "Actions",
+        "help_support": "Help & Support",
+        "logo": "Logo",
+        "default_clinic_name": "My Clinic",
+        "all_rights_reserved": "All rights reserved.",
+        "currency": "EGP",
+        "cases": "Cases",
+        "date_range": "Date Range",
+        "search_patient": "Search patient...",
+        "no_results": "No results found"
+    },
+    "static": {
+        "not_found": {
+            "title": "Page Not Found",
+            "message": "Sorry, the page you are looking for does not exist or has been moved.",
+            "home_button": "Home Page",
+            "back_button": "Back"
+        },
+        "privacy": {
+            "title": "Privacy Policy",
+            "last_updated": "Last Updated: January 20, 2026",
+            "intro": "At DENTIX, we are committed to protecting your privacy and your patients' data.",
+            "back": "Back",
+            "sections": {
+                "1": {
+                    "title": "1. Data Collection",
+                    "intro": "We collect necessary data to provide our services, including:",
+                    "clinic": {
+                        "title": "First: Clinic Data",
+                        "items": [
+                            "Clinic Name",
+                            "Logo",
+                            "Contact Info"
+                        ]
+                    },
+                    "users": {
+                        "title": "Second: User Data",
+                        "items": [
+                            "Name",
+                            "Email",
+                            "Login Credentials",
+                            "Role"
+                        ]
+                    },
+                    "patients": {
+                        "title": "Third: Patient Data",
+                        "items": [
+                            "Name",
+                            "Medical Records",
+                            "Medical Attachments",
+                            "Financial Data"
+                        ]
+                    }
+                },
+                "2": {
+                    "title": "2. Legal Basis",
+                    "intro": "We process data based on:",
+                    "items": [
+                        "User Consent (Clinic)",
+                        "Contract Performance",
+                        "Regulatory Compliance"
+                    ]
+                },
+                "3": {
+                    "title": "3. Data Security",
+                    "intro": "We implement strict technical measures, including:",
+                    "items": [
+                        "Encryption at Rest",
+                        "Encryption in Transit (HTTPS)",
+                        "Multi-Tenant Isolation",
+                        "Access Controls"
+                    ]
+                },
+                "4": {
+                    "title": "4. Data Usage",
+                    "intro": "Data is used for:",
+                    "items": [
+                        "System Operation",
+                        "Performance Improvement",
+                        "Operational Notifications"
+                    ],
+                    "alert": "Important: We do not share or sell patient data to third parties for marketing."
+                },
+                "5": {
+                    "title": "5. Third-Party Sharing",
+                    "content": "We may use technical service providers (like hosting) who strictly adhere to data protection."
+                },
+                "6": {
+                    "title": "6. Data Retention",
+                    "content": "We retain data for the duration of the subscription."
+                },
+                "7": {
+                    "title": "7. User Rights",
+                    "intro": "As a clinic owner/manager, you have the right to:",
+                    "items": [
+                        "Access your data anytime",
+                        "Export data",
+                        "Request permanent deletion"
+                    ]
+                },
+                "8": {
+                    "title": "8. Breach Notification",
+                    "content": "In case of a security breach, affected clinics will be notified immediately."
+                },
+                "9": {
+                    "title": "9. Cookies",
+                    "intro": "We use cookies solely for operational purposes:",
+                    "items": [
+                        "Session Management",
+                        "User Preferences"
+                    ],
+                    "outro": "We do not use advertising tracking cookies."
+                },
+                "10": {
+                    "title": "10. Policy Amendments",
+                    "content": "We reserve the right to amend this policy when necessary."
+                },
+                "11": {
+                    "title": "11. Contact",
+                    "content": "For privacy inquiries, please contact us via official channels."
+                }
+            }
+        },
+        "terms": {
+            "title": "Terms & Conditions",
+            "last_updated": "Last Updated: January 20, 2026",
+            "intro": "By using DENTIX, you acknowledge reading and agreeing to these terms entirely.",
+            "back": "Back",
+            "sections": {
+                "1": {
+                    "title": "1. System Definition",
+                    "content": "DENTIX is a medical management SaaS used exclusively for legitimate purposes."
+                },
+                "2": {
+                    "title": "2. Account Security",
+                    "items": [
+                        "Users are responsible for login confidentiality.",
+                        "Notify us immediately of unauthorized use.",
+                        "Internet security is not absolute."
+                    ]
+                },
+                "3": {
+                    "title": "3. Data Responsibility",
+                    "items": [
+                        "Clinic is responsible for data accuracy.",
+                        "Clinic must obtain patient consent.",
+                        "Illegal data entry is prohibited."
+                    ]
+                },
+                "4": {
+                    "title": "4. Intellectual Property",
+                    "intro": "All IP rights, including:",
+                    "items": [
+                        "Code",
+                        "Design",
+                        "Branding"
+                    ],
+                    "outro": "Are exclusive property of DENTIX."
+                },
+                "5": {
+                    "title": "5. Subscriptions & Payments",
+                    "items": [
+                        "Service is subscription-based (Monthly/Yearly).",
+                        "Service may be suspended for late payment.",
+                        "No refunds for past periods."
+                    ]
+                },
+                "6": {
+                    "title": "6. Liability Limits",
+                    "content": "The system is an administrative tool only. The doctor is fully responsible for diagnosis and treatment."
+                },
+                "7": {
+                    "title": "7. Service Availability",
+                    "intro": "We strive for high availability, however:",
+                    "items": [
+                        "Temporary maintenance downtime may occur.",
+                        "We are not liable for uncontrollable outages."
+                    ]
+                },
+                "8": {
+                    "title": "8. Force Majeure",
+                    "intro": "We are not liable for uncontrolled circumstances like:",
+                    "items": [
+                        "Natural Disasters",
+                        "Provider Failures",
+                        "Government Decisions"
+                    ]
+                },
+                "9": {
+                    "title": "9. Termination",
+                    "intro": "We reserve the right to suspend or terminate accounts for:",
+                    "items": [
+                        "Terms Violation",
+                        "System Abuse",
+                        "Illegal Use"
+                    ]
+                },
+                "10": {
+                    "title": "10. Amendments",
+                    "content": "We may amend these terms at any time."
+                },
+                "11": {
+                    "title": "11. Governing Law",
+                    "content": "These terms are governed by local laws."
+                },
+                "12": {
+                    "title": "12. Contact",
+                    "content": "For inquiries, contact support."
+                }
+            }
+        },
+        "support": {
+            "title": "Support Center",
+            "subtitle": "We are here to answer your queries and solve your problems",
+            "contact_direct": "Direct Contact",
+            "whatsapp": "WhatsApp (Preferred)",
+            "email": "Email",
+            "working_hours": "Working Hours",
+            "working_hours_desc": "Support team is available daily",
+            "available_now": "Available now to reply",
+            "send_ticket": "Send Support Ticket",
+            "subject": "Subject",
+            "subject_placeholder": "e.g. Issue with invoice printing",
+            "message": "Problem Details",
+            "message_placeholder": "Explain the problem in detail...",
+            "submit": "Send Ticket",
+            "success_title": "Sent Successfully!",
+            "success_msg": "Thank you for contacting us. We will review your request and reply shortly.",
+            "send_another": "Send Another Message",
+            "error_send": "Failed to send message, please try again later."
+        },
+        "user_profile": {
+            "menu_title": "My Account",
+            "tabs": {
+                "general": "Profile",
+                "security": "Security & Sessions"
+            },
+            "desc": {
+                "general": "Update account info and password",
+                "security": "Manage 2FA and active sessions"
+            },
+            "loading": "Loading data..."
+        }
+    },
+    "sidebar": {
+        "dashboard": "Dashboard",
+        "appointments": "Appointments",
+        "patients": "Patients",
+        "inventory": "Inventory",
+        "billing": "Billing",
+        "reports": "Reports",
+        "users": "Users",
+        "settings": "Settings",
+        "contact": "Contact",
+        "ai": "AI",
+        "error_log": "Error Log",
+        "labs": "Labs",
+        "logout": "Logout",
+        "system_admin": "System Admin",
+        "limited_account": "Limited Account",
+        "subscription": {
+            "expired": "Expired",
+            "ends_today": "Ends Today",
+            "days_left": "{{count}} Days Left",
+            "plan_premium": "Premium",
+            "plan_basic": "Basic",
+            "plan_trial": "Trial"
+        },
+        "mode": {
+            "light": "Light Mode",
+            "dark": "Dark Mode"
+        }
+    },
+    "dashboard": {
+        "welcome": "Welcome Dr. {{name}} 👋",
+        "clinic_overview_today": "Overview of today's clinic performance",
+        "new_patients_today": "New Patients",
+        "registered_today": "Registered Today",
+        "appointments_today": "Today's Appointments",
+        "confirmed_booking": "Confirmed",
+        "daily_income": "Daily Income",
+        "cash_collection": "Cash Collection",
+        "outstanding_dues": "Outstanding Dues",
+        "to_collect": "To Collect",
+        "revenue_analysis": "Revenue Analysis",
+        "revenue_growth": "Track financial growth over the last week",
+        "appointments_count": "{{val}} Appointments",
+        "actions": {
+            "add_patient": "Add Patient",
+            "new_appointment": "New Appointment",
+            "record_payment": "Record Payment",
+            "create_rx": "Create RX"
+        },
+        "no_appointments_today": "No remaining appointments today",
+        "add_new_appointment": "Add New Appointment",
+        "view_full_schedule": "View Full Schedule",
+        "daily_income_details": "Daily Income Details",
+        "outstanding_today": "Outstanding Dues (Today)",
+        "no_financial_data": "Not enough financial data to display",
+        "clinic_efficiency": "Clinic Efficiency",
+        "efficiency_description": "Based on completed vs scheduled appointments today",
+        "efficiency_rate": "Efficiency Rate",
+        "status_distribution": "Appointment Status",
+        "no_data": "No Data"
+    },
+    "patients": {
+        "title": "Patient Records",
+        "subtitle": "Manage patient files and history easily",
+        "add_new": "Add New Patient",
+        "stats_total": "Total Patients",
+        "stats_new_month": "New (Month)",
+        "stats_active": "Recently Active",
+        "search_placeholder": "Search by name or phone...",
+        "delete_confirm": "Are you sure you want to delete patient \"{{name}}\"? This will delete all related data.",
+        "delete_success": "Patient deleted successfully",
+        "delete_error": "Error deleting patient",
+        "form": {
+            "name_label": "Full Name",
+            "name_placeholder": "Enter patient name...",
+            "age_label": "Age",
+            "phone_label": "Phone Number",
+            "address_label": "Address",
+            "address_placeholder": "Detailed address...",
+            "doctor_label": "Assigned Doctor",
+            "doctor_select": "Select Doctor...",
+            "medical_history": "Medical History",
+            "other_notes": "Other diseases or notes...",
+            "duplicate_warning": "Warning: Similar patients found",
+            "duplicate_error": "This patient is already registered!",
+            "submit_btn": "Save & Add",
+            "cancel_btn": "Cancel",
+            "scan_success": "Card scanned successfully"
+        },
+        "empty_state": {
+            "title": "No Patients Found",
+            "desc": "No patients match your search. Start by adding a new patient."
+        },
+        "medical_conditions": {
+            "none": "None",
+            "diabetes": "Diabetes",
+            "hypertension": "Hypertension",
+            "heart_disease": "Heart Disease",
+            "allergy": "Allergy",
+            "blood_thinners": "Blood Thinners",
+            "hepatitis_c": "Hepatitis C",
+            "thyroid": "Thyroid",
+            "pregnancy": "Pregnancy/Lactation",
+            "smoking": "Smoking"
+        }
+    },
+    "patientDetails": {
+        "treatment_history": {
+            "title": "Visits & Treatments History",
+            "add_manual": "+ Add Manual Treatment",
+            "date": "Date",
+            "tooth": "Tooth",
+            "diagnosis": "Diagnosis",
+            "treatment": "Treatment",
+            "details": "Details",
+            "actions": "Actions",
+            "canal_count": "Canal Count:",
+            "canal_default_name": "Canal",
+            "canal_unit": "mm",
+            "lengths": "Lengths:",
+            "sessions": "Sessions:",
+            "empty": "No treatment history recorded"
+        },
+        "files": {
+            "title": "X-Rays & Attachments",
+            "upload": "Upload File",
+            "refresh_tooltip": "Refresh List",
+            "empty": "No attached files"
+        },
+        "lab_orders": {
+            "stats": {
+                "total_orders": "Total Lab Orders",
+                "prosthetics_cost": "Prosthetics Cost",
+                "pending": "Pending"
+            },
+            "title": "Lab Orders",
+            "add_order": "New Lab Order",
+            "table": {
+                "date": "Date",
+                "lab": "Lab",
+                "work_type": "Work Type",
+                "tooth": "Tooth",
+                "shade": "Shade",
+                "status": "Status",
+                "price": "Price",
+                "actions": "Actions"
+            },
+            "status": {
+                "completed": "Completed",
+                "in_progress": "In Progress",
+                "try_in": "Try-In",
+                "pending": "Pending",
+                "cancelled": "Cancelled"
+            },
+            "empty": "No lab orders recorded",
+            "add_empty": "+ Add Lab Order",
+            "modal": {
+                "title_add": "New Lab Order",
+                "title_edit": "Edit Lab Order",
+                "lab_label": "Lab",
+                "lab_placeholder": "Select Lab...",
+                "work_type": "Work Type",
+                "work_type_placeholder": "Select Work Type...",
+                "work_types": {
+                    "crown": "Crown",
+                    "bridge": "Bridge",
+                    "veneer": "Veneer",
+                    "inlay": "Inlay",
+                    "onlay": "Onlay",
+                    "denture": "Denture",
+                    "partial_denture": "Partial Denture",
+                    "implant_crown": "Implant Crown",
+                    "other": "Other"
+                },
+                "tooth_label": "Tooth Number(s)",
+                "tooth_placeholder": "e.g. 11 or 11,12,13",
+                "shade_label": "Shade",
+                "shade_placeholder": "e.g. A1, A2, B1",
+                "material_label": "Material",
+                "material_placeholder": "Select Material...",
+                "materials": {
+                    "zirconia": "Zirconia",
+                    "emax": "E-max",
+                    "pfm": "Metal Ceramic (PFM)",
+                    "full_metal": "Full Metal",
+                    "acrylic": "Acrylic",
+                    "composite": "Composite",
+                    "other": "Other"
+                },
+                "cost_label": "Lab Cost",
+                "price_label": "Patient Price",
+                "status_label": "Status",
+                "notes_label": "Notes",
+                "notes_placeholder": "Additional notes for the lab...",
+                "cancel": "Cancel",
+                "save_edit": "Save Changes",
+                "save_add": "Add Order"
+            },
+            "confirm_delete": "Are you sure you want to delete this order?",
+            "delete_failed": "Delete failed",
+            "save_error": "An error occurred while saving",
+            "validation_error": "Please select lab and work type"
+        },
+        "info_card": {
+            "age_years": "{{age}} years",
+            "age_unknown": "Age not specified",
+            "no_phone": "No phone",
+            "prescription": "Prescription",
+            "edit_data": "Edit Data",
+            "new_appointment": "New Appointment",
+            "basic_plan": "Private (Basic)",
+            "not_found": "Not Found"
+        },
+        "billing": {
+            "tabs": {
+                "invoices": "Treatment Costs",
+                "payments": "Payments Record"
+            },
+            "add_payment": "+ Add Payment",
+            "print_invoice": "Print Statement",
+            "stats": {
+                "total_treatments": "Total Treatments",
+                "paid": "Paid",
+                "remaining": "Remaining"
+            },
+            "invoices_title": "Treatment Costs Record",
+            "procedure_count": "{{count}} procedure",
+            "table": {
+                "date": "Date",
+                "treatment": "Treatment",
+                "cost": "Cost",
+                "discount": "Discount",
+                "net": "Net",
+                "amount": "Amount",
+                "notes": "Notes",
+                "actions": "Actions"
+            },
+            "empty_treatments": "No treatments recorded",
+            "payments_title": "Payments Record",
+            "empty_payments": "No payments recorded"
+        }
+    },
+    "appointments": {
+        "title": "Appointments Schedule",
+        "subtitle": "Manage clinic bookings and appointments",
+        "new_booking": "New Booking",
+        "no_appointments": "No Appointments",
+        "no_appointments_desc": "No appointments booked yet",
+        "add_appointment": "Add Appointment",
+        "confirm_delete": "Are you sure you want to permanently delete this appointment?",
+        "table": {
+            "patient": "Patient",
+            "datetime": "Date & Time",
+            "notes": "Notes",
+            "status": "Status",
+            "change_status": "Change Status",
+            "actions": "Actions"
+        },
+        "stats": {
+            "today_total": "Total Today",
+            "waiting": "Waiting",
+            "in_chair": "In-Chair",
+            "completed_today": "Completed Today"
+        },
+        "view": {
+            "calendar": "Calendar",
+            "list": "List View",
+            "board": "Board View"
+        },
+        "status": {
+            "scheduled": "Scheduled",
+            "waiting": "Waiting",
+            "in_chair": "In-Chair",
+            "completed": "Completed",
+            "cancelled": "Cancelled",
+            "postponed": "Postponed",
+            "no_show": "No Show",
+            "cancelled_noshow": "Cancelled / No Show"
+        },
+        "form": {
+            "title": "Book New Appointment",
+            "select_patient": "Select Patient",
+            "select_patient_placeholder": "-- Select Patient --",
+            "datetime": "Date & Time",
+            "notes": "Notes",
+            "notes_placeholder": "Additional notes...",
+            "confirm_btn": "Confirm Booking",
+            "cancel_btn": "Cancel"
+        },
+        "messages": {
+            "fill_all": "Please fill all fields",
+            "booking": "Booking appointment...",
+            "booking_success": "Appointment booked successfully",
+            "booking_error": "Failed to book appointment",
+            "updating": "Updating status...",
+            "update_success": "Status updated",
+            "update_error": "Failed to update status",
+            "deleting": "Deleting...",
+            "delete_success": "Appointment deleted",
+            "delete_error": "Failed to delete appointment"
+        }
+    },
+    "settings": {
+        "title": "Settings",
+        "tabs": {
+            "general": "General / Account",
+            "subscription": "Subscription & Clinic",
+            "services": "Services & Prices",
+            "rx": "Rx Settings",
+            "backup": "Backup"
+        },
+        "headers": {
+            "general": "Profile Management",
+            "subscription": "Plan Details & Clinic Info",
+            "services": "Treatments, Price Lists, Insurance",
+            "rx": "Prescription Print Settings",
+            "backup": "Data Protection & Backup"
+        },
+        "general": {
+            "username": "Username",
+            "email": "Email",
+            "new_password": "New Password",
+            "password_hint": "Leave empty if unchanged",
+            "save": "Save Changes",
+            "success": "Profile updated successfully",
+            "error": "Update failed"
+        },
+        "subscription": {
+            "clinic_name": "Clinic Name",
+            "current_plan": "Current Plan",
+            "premium": "Premium ⭐",
+            "basic": "Basic",
+            "expiry_date": "Expiry Date",
+            "unlimited": "Unlimited",
+            "expired": "Expired",
+            "days_remaining": "{{count}} days remaining"
+        },
+        "services": {
+            "tabs": {
+                "procedures": "Procedures List",
+                "price_lists": "Price Lists",
+                "insurance": "Insurance Companies"
+            }
+        },
+        "price_lists": {
+            "title": "Price Lists",
+            "subtitle": "Define cash and insurance prices",
+            "add_btn": "+ New List",
+            "edit_prices": "Edit Prices",
+            "edit_modal_title": "Edit List Details",
+            "add_modal_title": "New Price List",
+            "list_name": "List Name",
+            "list_name_placeholder": "e.g., 2026 Prices or Allianz Insurance",
+            "type": "Type",
+            "type_cash": "Cash",
+            "type_insurance": "Insurance",
+            "insurance_provider": "Insurance Provider",
+            "select_provider": "Select Provider...",
+            "coverage_percent": "Coverage (%)",
+            "copay_percent": "Co-pay (%)",
+            "set_default": "Set as Default",
+            "default_badge": "Default",
+            "save": "Save",
+            "cancel": "Cancel",
+            "inactive": "Inactive",
+            "deactivate_confirm": "Are you sure you want to deactivate price list:",
+            "deactivate_fail": "Failed to deactivate price list",
+            "cannot_deactivate_default": "Cannot deactivate the default list. Set another list as default first.",
+            "insurance_list": "Insurance Price List",
+            "cash_list": "Cash Price List",
+            "editor": {
+                "title": "Edit Prices:",
+                "coverage_info": "Coverage: {{coverage}}% - Co-pay: {{copay}}%",
+                "search_placeholder": "Search for a service...",
+                "table": {
+                    "service_name": "Service Name",
+                    "base_price": "Base Price",
+                    "list_price": "List Price",
+                    "saved": "Saved ✅"
+                }
+            }
+        }
+    },
+    "users": {
+        "title": "User Management",
+        "subtitle": "Add, remove users and manage permissions",
+        "add_new": "Add New User",
+        "edit_user": "Edit User",
+        "roles": {
+            "admin": "System Admin",
+            "doctor": "Doctor",
+            "assistant": "Medical Assistant",
+            "receptionist": "Receptionist",
+            "accountant": "Accountant",
+            "custom": "Custom"
+        },
+        "form": {
+            "username": "Username",
+            "password": "Password",
+            "role": "Role",
+            "password_placeholder": "Leave empty to keep current password",
+            "cancel": "Cancel",
+            "save": "Save",
+            "update": "Update",
+            "delete_confirm": "Delete this user?",
+            "visibility": "Data Visibility",
+            "visibility_hint": "Control which patients and financials this doctor can see",
+            "vis_all": "Assigned Patients Only",
+            "vis_appt": "Patients with Appointments",
+            "vis_mixed": "Assigned + Appointments",
+            "detailed_perms": "Detailed Permissions"
+        },
+        "permissions": {
+            "view_patients": "View Patients",
+            "edit_patients": "Edit/Add Patients",
+            "delete_patients": "Delete Patients",
+            "view_treatments": "View Treatments",
+            "edit_treatments": "Add Treatments",
+            "view_calendar": "Manage Appointments",
+            "manage_lab": "Lab Management",
+            "manage_inventory": "Inventory",
+            "view_financials": "Financials",
+            "view_reports": "Reports & Stats",
+            "manage_users": "Manage Users",
+            "manage_settings": "General Settings"
+        }
+    },
+    "language": {
+        "switch_to_en": "English",
+        "switch_to_ar": "العربية"
+    },
+    "patient_details": {
+        "loading_error": "Failed to load patient data",
+        "unknown_error": "Unknown error",
+        "retry": "Retry",
+        "login": "Login",
+        "no_data": "Patient data not found.",
+        "tabs": {
+            "chart": "Dental Chart",
+            "history": "Treatment History",
+            "files": "Files",
+            "billing": "Billing",
+            "labs": "Lab Orders"
+        },
+        "chart": {
+            "title": "Dental Chart",
+            "subtitle": "Click a tooth to add treatment",
+            "pediatric_mode": "Pediatric Mode",
+            "child": "Child",
+            "adult": "Adult",
+            "new_treatment": "+ New Treatment",
+            "tooth_modal_title": "Select Tooth",
+            "continue_no_tooth": "Continue without tooth",
+            "voice_unsupported": "Voice Recognition Not Supported"
+        },
+        "edit_modal": {
+            "title": "Edit Patient Details",
+            "price_list_label": "Price List / Insurance",
+            "price_list_hint": "Prices from this list will auto-apply to new treatments.",
+            "doctor_label": "Assigned Doctor",
+            "doctor_select": "Select Doctor...",
+            "doctor_hint": "Assigning a doctor allows them to view this patient.",
+            "default_option": "-- Default --",
+            "insurance_tag": "(Insurance)"
+        },
+        "alerts": {
+            "tooth_update_fail": "Failed to update tooth status",
+            "treatment_save_success": "Treatment saved and stock deducted",
+            "treatment_save_fail": "Failed to save treatment",
+            "payment_save_fail": "Failed to save payment",
+            "delete_treatment_confirm": "Are you sure you want to delete this treatment?",
+            "delete_treatment_fail": "Failed to delete treatment",
+            "delete_payment_confirm": "Are you sure you want to delete this payment?",
+            "delete_payment_fail": "Failed to delete payment",
+            "rx_fail": "Failed to save/print prescription",
+            "upload_fail": "Failed to upload file"
+        }
+    },
+    "inventory": {
+        "title": "Inventory Management",
+        "subtitle": "Track materials, quantities, and expiry dates within the clinic and warehouse",
+        "tabs": {
+            "stock": "Stock",
+            "warehouses": "Warehouses"
+        },
+        "alerts": {
+            "title": "Expiry Alerts",
+            "days_left": "Days"
+        },
+        "actions": {
+            "search_placeholder": "Search material...",
+            "receive_stock": "Receive Stock",
+            "new_material": "New Material",
+            "add_category": "Add Category",
+            "smart_settings": "Smart Settings",
+            "edit": "Edit",
+            "delete": "Delete",
+            "open_package": "Open Package",
+            "close_package": "Close Package"
+        },
+        "categories": {
+            "add_new": "New Category",
+            "name_ar": "Name (Arabic)",
+            "name_en": "Name (English)",
+            "success_add": "Category added successfully",
+            "fail_add": "Failed to add category"
+        },
+        "filters": {
+            "all": "All",
+            "low": "Low",
+            "critical": "Critical"
+        },
+        "table": {
+            "material": "Material",
+            "type": "Type",
+            "standard_price": "Standard Price",
+            "current_stock": "Current Stock",
+            "status": "Status",
+            "sessions": "Sessions",
+            "actions": "Actions",
+            "empty": "No matching materials",
+            "details_tooltip": "Click to view details"
+        },
+        "status": {
+            "available": "Available",
+            "low": "Low",
+            "out_of_stock": "Out of Stock"
+        },
+        "types": {
+            "divisible": "Divisible",
+            "indivisible": "Indivisible",
+            "package": "Package",
+            "unit": "Unit"
+        },
+        "messages": {
+            "delete_success": "Material deleted successfully",
+            "delete_fail": "Failed to delete material. Ensure no stock or history exists.",
+            "delete_confirm": "Are you sure you want to delete \"{{name}}\"?\nCannot delete materials with current stock or history.",
+            "open_packages_tooltip": "{{count}} open packages. Click to close one by one."
+        },
+        "warehouses": {
+            "add_button": "Add New Warehouse",
+            "empty_title": "No warehouses added",
+            "empty_desc": "Start by adding your first warehouse.",
+            "click_to_view": "Click to view",
+            "delete_confirm": "Are you sure you want to delete warehouse \"{{name}}\"? This cannot be undone!",
+            "delete_success": "Warehouse deleted successfully.",
+            "delete_fail": "Failed to delete warehouse"
+        },
+        "materials": {
+            "modal_add": "Add New Material",
+            "modal_edit": "Edit Material",
+            "name_label": "Material Name",
+            "name_placeholder": "Ex: Composite A2",
+            "type_label": "Type",
+            "unit_label": "Unit",
+            "unit_placeholder": "Ex: ml, mg, kit",
+            "alert_threshold": "Alert Threshold",
+            "packaging_ratio_divisible": "Package Volume (Net)",
+            "packaging_ratio_indivisible": "Units per Package",
+            "ratio_placeholder_divisible": "Ex: 4 (for 4g)",
+            "ratio_placeholder_indivisible": "Ex: 50 (for 50 ampules)",
+            "info_divisible_label": "Package Volume:",
+            "info_divisible_desc": " System will multiply purchased quantity by this to calculate total grams/ml.",
+            "info_indivisible_label": "Conversion:",
+            "info_indivisible_desc": " Purchased boxes will be converted to base units (e.g., 1 Box x 50 = 50 Units).",
+            "success_add": "Material added successfully",
+            "success_edit": "Material updated successfully",
+            "fail_add": "Failed to add: ",
+            "fail_edit": "Failed to update: ",
+            "saving": "Saving...",
+            "save_changes": "Save Changes",
+            "save_new": "Save Material",
+            "category_label": "Category",
+            "category_placeholder": "-- Select Category --",
+            "brand_label": "Brand",
+            "brand_placeholder": "Ex: 3M Filtek Z350",
+            "suggested_materials": "Suggested Materials",
+            "loading_suggestions": "Loading suggested materials...",
+            "error_suggestions": "Failed to load suggested materials",
+            "no_suggestions": "No suggested materials for this procedure",
+            "active_session": "Active Session",
+            "session_linked": "Session Linked",
+            "select_material": "Select Material",
+            "no_materials_in_category": "No materials in this category — add a material first",
+            "weight_score": "Weight Score",
+            "quantity": "Quantity",
+            "manual_override": "Manual Override"
+        },
+        "receive": {
+            "title": "Receive New Stock",
+            "select_material": "Material",
+            "select_warehouse": "Receiving Warehouse",
+            "quantity": "Received Quantity",
+            "expiry_date": "Expiry Date (Month/Year)",
+            "expiry_note": "Expiry will be set to the end of the selected month",
+            "package_price": "Package Price",
+            "price_note": "* Unit cost will be calculated automatically based on package volume.",
+            "supplier": "Supplier (Optional)",
+            "supplier_placeholder": "Company or Rep Name...",
+            "select_placeholder_material": "-- Select Material --",
+            "select_placeholder_warehouse": "-- Select Warehouse --",
+            "success": "Stock received successfully",
+            "fail": "Failed to receive: ",
+            "validation_error": "Please select material and warehouse",
+            "receiving": "Receiving...",
+            "confirm": "Confirm Receipt"
+        },
+        "smart_learning": {
+            "title": "Smart Learning Settings",
+            "subtitle": "Customize consumption weights for: {{name}}",
+            "help_title": "How it works?",
+            "help_desc": "Consumption is distributed based on relative weight. (e.g. Class II weighs 2x Class I)",
+            "help_note": "Default weight is 1.0. Increase for higher consumption procedures.",
+            "table": {
+                "procedure": "Procedure",
+                "weight": "Relative Weight",
+                "average": "Learned Average",
+                "edit": "Edit"
+            },
+            "empty": "No custom weights yet.",
+            "add_button": "Add Weight for New Procedure",
+            "select_placeholder": "Select Procedure...",
+            "delete_confirm": "Delete this weight?",
+            "actions": {
+                "cancel": "Cancel",
+                "edit": "Edit",
+                "delete": "Delete",
+                "save": "Save",
+                "close": "Close"
+            }
+        },
+        "track_session": {
+            "title_open": "Start Consumption Session",
+            "subtitle_open": "Register opening a new package",
+            "title_close": "End Consumption Session",
+            "subtitle_close": "Register package finish and calculate consumption",
+            "material_label": "Material:",
+            "select_batch_label": "Select Batch",
+            "consumption_label": "Consumed Quantity ({{unit}})",
+            "info_open": "Upon confirmation, system will track all therapeutic procedures.",
+            "info_close_hint": "Enter full package capacity if completely empty.",
+            "opened_since": "Open since:",
+            "select_placeholder": "-- Select --",
+            "empty_stock": "No batches available in stock.",
+            "actions": {
+                "start": "Start Tracking",
+                "end": "End & Calculate",
+                "cancel": "Cancel"
+            },
+            "messages": {
+                "select_error": "Please select a package",
+                "success_open": "Package opened successfully",
+                "error_prefix": "Error: "
+            }
+        },
+        "material_details": {
+            "title": "Stock & Package Details",
+            "settings": {
+                "title": "Material Properties",
+                "edit": "Edit",
+                "cancel": "Cancel",
+                "save": "Save",
+                "type": "Type",
+                "unit": "Base Unit",
+                "ratio": "Package Ratio",
+                "price": "Package Price",
+                "type_divisible": "Divisible (Session)",
+                "type_indivisible": "Non-Divisible (Unit)"
+            },
+            "empty": "No current stock for this item",
+            "active_badge": "Active",
+            "usage_bar": "Package currently in use",
+            "started_at": "Started:",
+            "close": "Close",
+            "messages": {
+                "update_success": "Material properties updated successfully",
+                "update_fail": "Failed to update material"
+            }
+        }
+    },
+    "labs": {
+        "title": "Dental Labs",
+        "subtitle": "Manage Prosthetics and Denture Labs",
+        "add_button": "Add Lab",
+        "search_placeholder": "Search for a lab...",
+        "empty": "No labs registered",
+        "add_new_empty": "+ Add New Lab",
+        "active": "Active",
+        "inactive": "Inactive",
+        "stats": {
+            "total_labs": "Total Labs",
+            "pending_orders": "Pending Orders",
+            "completed_orders": "Completed Orders",
+            "profit": "Profit"
+        },
+        "actions": {
+            "edit": "Edit",
+            "delete": "Delete",
+            "save": "Save Changes",
+            "add": "Add Lab",
+            "cancel": "Cancel",
+            "confirm_delete": "Are you sure you want to delete this lab?",
+            "add_lab": "+ Add New Lab"
+        },
+        "form": {
+            "add_title": "Add New Lab",
+            "edit_title": "Edit Lab Details",
+            "name": "Lab Name",
+            "phone": "Phone Number",
+            "email": "Email",
+            "address": "Address",
+            "contact_person": "Contact Person",
+            "specialties": "Specialties",
+            "specialties_hint": "Separate specialties with a comma",
+            "notes": "Notes",
+            "placeholders": {
+                "name": "e.g. Hope Dental Lab",
+                "phone": "01xxxxxxxxx",
+                "email": "email@example.com",
+                "address": "Detailed Address",
+                "contact_person": "Contact Person Name",
+                "specialties": "Zirconia, E-max, PFM, Dentures",
+                "notes": "Additional notes about the lab..."
+            }
+        },
+        "messages": {
+            "save_error": "An error occurred while saving",
+            "delete_error": "Failed to delete"
+        },
+        "details": {
+            "tabs": {
+                "overview": "Overview",
+                "orders": "Orders",
+                "payments": "Payments"
+            },
+            "overview": {
+                "total_cost": "Total Cost",
+                "paid": "Paid",
+                "balance": "Balance",
+                "order_status": "Order Status",
+                "status_pending": "Pending",
+                "status_completed": "Completed"
+            },
+            "orders": {
+                "filter_all": "All Statuses",
+                "filter_pending": "Pending",
+                "filter_in_progress": "In Progress",
+                "filter_completed": "Completed",
+                "table": {
+                    "patient": "Patient",
+                    "work": "Work",
+                    "status": "Status",
+                    "cost": "Cost",
+                    "date": "Order Date",
+                    "empty": "No orders found"
+                }
+            },
+            "payments": {
+                "title": "Payment History",
+                "add_button": "Add Payment",
+                "cancel_button": "Cancel",
+                "form": {
+                    "amount": "Amount",
+                    "method": "Payment Method",
+                    "notes": "Notes",
+                    "submit": "Record Payment"
+                },
+                "table": {
+                    "date": "Date",
+                    "amount": "Amount",
+                    "method": "Method",
+                    "notes": "Notes",
+                    "empty": "No payments recorded"
+                },
+                "messages": {
+                    "add_fail": "Failed to add payment"
+                }
+            }
+        }
+    },
+    "ai_chat": {
+        "title": "Smart Assistant",
+        "subtitle": "Smart Dent AI - 🎤 Voice + Text",
+        "welcome_message": "Hello! 👋 I am your smart assistant. I can help you with:\n• Searching patient files\n• Check accounts\n• Show appointments\n• 🎙️ **Medical Scribe Mode** - Speak during treatment and I'll record details\n\n🎤 Type or press mic to speak",
+        "listening": "Listening...",
+        "processing": "Processing...",
+        "toggle_sound_on": "Enable Sound",
+        "toggle_sound_off": "Mute Sound",
+        "quick_actions": {
+            "appointments": "Appointments",
+            "debtors": "Debtors",
+            "staff": "Staff",
+            "clinic": "Clinic"
+        },
+        "quick_queries": {
+            "appointments": "Who is booked today",
+            "debtors": "Who owes money",
+            "staff": "List employees",
+            "clinic": "Clinic info"
+        },
+        "scribe_mode": {
+            "button_active": "🎙️ Recording...",
+            "button_inactive": "Scribe",
+            "tooltip": "Medical Scribe Mode - Speak during treatment",
+            "banner": "🎙️ **Medical Scribe Mode** - Speak loudly: \"Patient has caries...\"",
+            "stop": "Stop"
+        },
+        "chat": {
+            "assistant_label": "Assistant",
+            "input_placeholder": "Type your message here...",
+            "input_listening": "Listening...",
+            "connection_error": "Connection Error",
+            "powered_by": "Powered by Smart Dent AI",
+            "voice_enabled": "Voice Recognition Enabled",
+            "voice_unsupported": "Voice Recognition Not Supported"
+        }
+    },
+    "billing": {
+        "title": "Billing",
+        "subtitle": "Manage Revenue, Expenses & Net Profit",
+        "tabs": {
+            "doctors": "Doctors Revenue",
+            "staff": "Staff Salaries",
+            "expenses": "Expenses",
+            "summary": "Reports",
+            "payments": "Patient Payments"
+        },
+        "subtabs": {
+            "general_expenses": "General Expenses",
+            "salaries": "Salary Records"
+        },
+        "roles": {
+            "assistant": "Assistant",
+            "receptionist": "Receptionist",
+            "accountant": "Accountant",
+            "nurse": "Nurse"
+        },
+        "alerts": {
+            "load_fail": "Failed to load financial data",
+            "enter_item_cost": "Please enter item name and cost",
+            "expense_add_success": "Expense added successfully",
+            "expense_add_fail": "Failed to add expense",
+            "lab_delete_error": "Cannot delete lab orders from here",
+            "delete_expense_confirm": "Are you sure you want to delete this expense?",
+            "expense_delete_success": "Expense deleted successfully",
+            "delete_error": "Error during deletion",
+            "save_success": "Saved successfully",
+            "save_fail": "Save failed",
+            "salaries_load_fail": "Failed to load salaries data",
+            "pay_confirm_prefix": "Do you want to pay",
+            "pay_confirm_suffix": "to employee",
+            "pay_success": "Payment recorded successfully",
+            "pay_fail": "Failed to record payment",
+            "hire_date_success": "Hire date updated",
+            "hire_date_fail": "Failed to update date",
+            "doctors_load_fail": "Failed to load doctors data",
+            "doctor_details_load_fail": "Failed to load doctor details",
+            "saving": "Saving settings...",
+            "cancel_pay_confirm": "Are you sure you want to cancel this payment?"
+        },
+        "doctor_revenue": {
+            "title": "Doctors Accounts",
+            "subtitle": "Net revenue after lab deduction",
+            "tabs": {
+                "treatments": "Treatments & Procedures",
+                "settings": "Account Settings"
+            },
+            "stats": {
+                "total_revenue": "Total Revenue",
+                "lab_discounts": "Lab Discounts",
+                "net_profit": "Net Profit"
+            },
+            "table": {
+                "date": "Date",
+                "patient": "Patient",
+                "procedure": "Procedure",
+                "discount": "Discount",
+                "net": "Net",
+                "doctor": "Doctor",
+                "gross_total": "Gross Total",
+                "collected": "Collected",
+                "patient_discount": "Patient Discount",
+                "lab_cost": "Lab Cost",
+                "net_profit": "Net Profit",
+                "doctor_dues": "Doctor Dues",
+                "cases": "Cases",
+                "commission": "Commission",
+                "actions": ""
+            },
+            "settings": {
+                "title": "Account Settings",
+                "subtitle": "Edit commission and salary",
+                "commission_rate": "Commission Rate (%)",
+                "fixed_salary": "Fixed Salary (Monthly)",
+                "save_changes": "Save Changes"
+            },
+            "footer": {
+                "equation": "Equation",
+                "net_due": "Net Due"
+            },
+            "no_revenue": "No revenue recorded for this period"
+        },
+        "summary": {
+            "period": "Time Period",
+            "from": "From",
+            "to": "To",
+            "calculate": "Calculate Report",
+            "total_revenue": "Total Revenue",
+            "total_collected": "Collected Cash",
+            "outstanding": "Outstanding (Debt)",
+            "patient_count": "Patient Count",
+            "deductions_title": "Expenses & Deductions",
+            "doctor_dues": "Doctor Dues",
+            "commission": "Commission",
+            "salary": "Salary",
+            "staff_dues": "Staff Salaries",
+            "appointment": "appt",
+            "no_employees": "No employees",
+            "lab_costs": "Lab Costs",
+            "other_expenses": "Other Expenses",
+            "net_profit_after": "Net Profit After Deductions",
+            "net_profit_equation": "Revenue - (Lab + Doctors + Salary + Expenses)"
+        },
+        "stats": {
+            "total_income": "Total Income",
+            "total_expenses": "Total Expenses",
+            "net_profit": "Net Profit"
+        },
+        "expenses": {
+            "title": "Expenses",
+            "add": "Add Expense",
+            "item": "Item",
+            "category": "Category",
+            "date": "Date",
+            "cost": "Cost",
+            "actions": "Actions",
+            "no_data": "No expenses",
+            "no_data_desc": "No expenses recorded for this period",
+            "add_first": "Add First Expense"
+        },
+        "payments": {
+            "title": "Patient Payment History",
+            "patient": "Patient",
+            "date": "Date",
+            "amount": "Amount",
+            "notes": "Notes",
+            "no_data": "No payments",
+            "no_data_desc": "No payments recorded for this period"
+        },
+        "salaries": {
+            "title": "Staff Salaries",
+            "subtitle": "Manage monthly salaries and hire dates",
+            "month_label": "Payment Month:",
+            "employee": "Employee",
+            "hire_date": "Hire Date",
+            "base_salary": "Base Salary",
+            "work_days": "Work Days",
+            "payable": "Payable",
+            "status": "Status",
+            "actions": "Actions",
+            "new_employee_day": "Work day",
+            "full_month": "Full Month",
+            "partial_pay": "Partial Pay",
+            "paid": "Paid",
+            "unpaid": "Unpaid",
+            "cancel_pay": "Cancel Payment",
+            "record_pay": "Record Payment",
+            "no_employees": "No employees registered",
+            "no_employees_desc": "Add employees from Users page first"
+        },
+        "staff": {
+            "title": "Staff Salaries",
+            "employee": "Employee",
+            "role": "Role",
+            "fixed_salary": "Fixed Salary",
+            "per_appointment": "Per Appointment",
+            "no_employees": "No Employees",
+            "no_employees_desc": "No employees have been added yet.",
+            "modal_title": "Edit Details",
+            "modal_per_appointment_input": "Per Appointment Rate",
+            "per_appointment_desc": "Added automatically when checkup is completed"
+        }
+    },
+    "auth": {
+        "login": {
+            "title": "Smart Clinic",
+            "subtitle": "Smart Clinic Management System",
+            "username": "Username",
+            "password": "Password",
+            "forgot_password": "Forgot Password?",
+            "remember_me": "Remember Me",
+            "submit": "Login",
+            "register_new": "Register New Clinic",
+            "terms": "Terms of Use",
+            "privacy": "Privacy Policy",
+            "copyright": "© 2026 All Rights Reserved Smart Clinic",
+            "errors": {
+                "server": "Server Error",
+                "connection": "Connection Failed. Ensure server is running.",
+                "unknown": "Unknown Error"
+            }
+        },
+        "register": {
+            "title": "Register New Clinic",
+            "subtitle": "Create an account for your clinic and start managing patients",
+            "clinic_name": "Clinic Name",
+            "clinic_name_placeholder": "e.g. Al-Shifa Clinic",
+            "email": "Email",
+            "email_hint": "Used for password recovery",
+            "username": "Username (Admin)",
+            "username_placeholder": "Admin Username",
+            "password": "Password",
+            "confirm_password": "Confirm Password",
+            "agree_pre": "I agree to",
+            "agree_terms": "Terms & Conditions",
+            "agree_and": "and",
+            "agree_privacy": "Privacy Policy",
+            "agree_post": "and acknowledge data accuracy responsibility.",
+            "submit": "Register Clinic",
+            "submitting": "Registering...",
+            "login_link": "Already have an account? Login",
+            "errors": {
+                "password_mismatch": "Passwords do not match",
+                "generic": "Registration failed. Please try again.",
+                "clinic_name_short": "Clinic name must be at least 2 characters.",
+                "invalid_email": "Invalid email address. Please enter a valid email.",
+                "username_short": "Username must be at least 3 characters.",
+                "password_min_length": "Password must be at least 8 characters.",
+                "password_weak": "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.",
+                "email_taken": "Email is already registered. Use a different email or log in.",
+                "connection": "Connection failed. Check your internet connection."
+            },
+            "success": "Clinic registered successfully! Please login."
+        },
+        "forgot_password": {
+            "title": "Forgot Password?",
+            "subtitle": "Enter your email and we'll send you a password reset link",
+            "email": "Email",
+            "submit": "Send Recovery Link",
+            "success_title": "Sent!",
+            "success_msg": "If the email is registered, you will receive a reset link",
+            "back_to_login": "Back to Login",
+            "errors": {
+                "email_required": "Enter your email",
+                "generic": "An error occurred. Try again"
+            }
+        },
+        "reset_password": {
+            "title": "New Password",
+            "subtitle": "Enter your new password",
+            "new_password": "New Password",
+            "confirm_password": "Confirm Password",
+            "submit": "Set Password",
+            "success_title": "Success!",
+            "success_msg": "Password changed. Redirecting to login...",
+            "invalid_link_title": "Invalid Link",
+            "request_new": "Request New Link",
+            "errors": {
+                "password_required": "Enter new password",
+                "password_min_length": "Password must be at least 8 characters",
+                "password_mismatch": "Passwords do not match",
+                "invalid_link": "Invalid Link",
+                "verification_error": "Link verification error"
+            }
+        }
+    },
+    "analytics": {
+        "dashboard": {
+            "title": "Smart Clinic Analytics",
+            "subtitle": "Comprehensive view of financial and operational performance, powered by AI",
+            "periods": {
+                "week": "Week",
+                "month": "Month",
+                "three_months": "3 Months"
+            },
+            "tabs": {
+                "financials": "Financial KPIs",
+                "procedures": "Procedures & Costs"
+            },
+            "error_loading": "Error loading data:"
+        },
+        "kpi": {
+            "revenue": {
+                "title": "Total Revenue",
+                "desc": "Income from treatments"
+            },
+            "profit": {
+                "title": "Net Profit",
+                "desc": "Actual profit margin"
+            },
+            "opex": {
+                "title": "Operating Expenses (OpEx)",
+                "desc": "Salaries, rent, bills"
+            },
+            "cogs": {
+                "title": "Cost of Goods (COGS)",
+                "desc": "Direct treatment costs"
+            }
+        },
+        "general_analysis": {
+            "loading": "Analyzing all procedures...",
+            "total_procedures": "Total Procedures",
+            "avg_margin": "Avg Margin",
+            "avg_cost": "Avg Cost",
+            "currency": "EGP",
+            "table": {
+                "title": "Detailed Procedure Analysis",
+                "subtitle": "Sorted automatically by lowest profitability",
+                "procedure": "Procedure",
+                "price": "Price",
+                "cost_ai": "Cost (AI)",
+                "margin": "Margin",
+                "materials_used": "Materials Used",
+                "material_count": "material"
+            }
+        },
+        "procedure_analysis": {
+            "title": "Procedure Cost Analysis",
+            "subtitle": "Compare Planned vs Actual Cost (AI) based on material usage",
+            "select_placeholder": "Select procedure...",
+            "empty_state": "Please select a procedure to view analysis",
+            "loading": "Analyzing data...",
+            "tabs": {
+                "cost_smart": "Smart Cost Analysis",
+                "consumption": "Consumption Analysis"
+            },
+            "metrics": {
+                "service_price": "Service Price",
+                "actual_cost": "Actual Cost",
+                "actual_profit": "Actual Profit",
+                "actual_margin": "EGP (Actual)"
+            },
+            "alerts": {
+                "low_margin": "Low Actual Margin",
+                "low_margin_desc": "Based on actual usage, cost is higher than expected. Recommend increasing price or optimizing usage."
+            },
+            "comparison": {
+                "title": "Cost Details (Comparison)",
+                "ai_samples": "AI Samples",
+                "weight_score": "Weight Score",
+                "ai_projected": "AI Projected",
+                "points": "Points",
+                "cost_per_unit": "EGP / unit"
+            },
+            "coverage": {
+                "title": "Material Efficiency (Smart Allocation)",
+                "desc": "Shows how many services can be covered by a 'full package' based on",
+                "desc_bold": "Actual Usage (AI Distribution)",
+                "important": "Important:",
+                "desc_continued": "If numbers are inaccurate, adjust 'Pack Size' below.",
+                "table": {
+                    "material": "Material",
+                    "actual_usage": "Actual Usage (AI)",
+                    "pack_size": "Pack Size",
+                    "coverage": "Package Covers",
+                    "pack_cost": "Package Cost"
+                },
+                "waiting_ai": "Waiting for AI...",
+                "patient_unit": "patient",
+                "usage_exceeds": "Usage > Package"
+            },
+            "update_fail": "Failed to update pack size"
+        },
+        "advisor": {
+            "title": "Smart Advisor (Beta)",
+            "subtitle": "Financial & Strategic Analysis",
+            "start": "Start Analysis",
+            "refresh": "Refresh",
+            "error": "Analysis failed:",
+            "ready_title": "AI is ready to analyze your numbers",
+            "ready_desc": "Click 'Start Analysis' for profit optimization recommendations"
+        },
+        "chart": {
+            "title": "Cost Structure",
+            "subtitle": "Expenses distribution by type",
+            "expenses": "OpEx",
+            "materials": "Materials",
+            "labs": "Labs",
+            "no_data": "No cost data to display",
+            "total": "Total"
+        }
+    },
+    "backup": {
+        "title": "Backup & Data Protection",
+        "cloud_title": "Cloud Backup (Google Drive)",
+        "status_label": "Connection Status",
+        "connected": "Connected & Active ✅",
+        "disconnected": "Disconnected ❌",
+        "checking": "Checking...",
+        "connect_btn": "Connect Account",
+        "auto_backup_label": "Auto Backup Frequency",
+        "off": "Off",
+        "daily": "Daily (24h)",
+        "weekly": "Weekly (7d)",
+        "monthly": "Monthly (30d)",
+        "backup_now": "Backup Now (Manual)",
+        "backup_success": "Backup successful!",
+        "curr_backup": "Last Backup:",
+        "local_title": "Local Backup (Download/Upload)",
+        "download_btn": "Download Backup (.db)",
+        "restore_btn": "Restore Backup",
+        "restore_warning": "Warning: Restoring a backup will delete all current data and replace it with the new version. Are you sure?",
+        "restore_success": "Data restored successfully! Refreshing page...",
+        "danger_zone": {
+            "title": "Danger Zone ⛔",
+            "purge_patients": "Permanently Delete Soft-Deleted Patients",
+            "purge_desc": "This action will permanently wipe all previously deleted patients to free up space. This cannot be undone.",
+            "purge_confirm": "Are you absolutely sure? This will remove all soft-deleted patients forever.",
+            "purge_success": "Database cleaned successfully."
+        }
+    },
+    "rx_settings": {
+        "title": "Prescription Header",
+        "subtitle": "Details appearing at the top of printed prescriptions",
+        "doctor_name": "Doctor Name",
+        "doctor_title": "Scientific Title / Specialty",
+        "address": "Address",
+        "phone": "Phone Number",
+        "save": "Save Header",
+        "saved_meds": "Saved Medications",
+        "saved_meds_subtitle": "Favorite list for quick access",
+        "med_name": "Medication Name (EN)",
+        "dose": "Default Dose",
+        "notes": "Notes",
+        "add_btn": "Add",
+        "plac_name": "Panadol Extra",
+        "plac_dose": "1 tablet every 8 hours",
+        "plac_notes": "After meals",
+        "table": {
+            "name": "Medication",
+            "dose": "Dose",
+            "notes": "Notes",
+            "empty": "No saved medications"
+        }
+    },
+    "insurance": {
+        "title": "Insurance Companies",
+        "subtitle": "Manage insurance providers and contracts",
+        "add_btn": "Add Company",
+        "edit_title": "Edit Insurance Provider",
+        "add_title": "Add New Provider",
+        "company_name": "Company Name",
+        "code": "Company Code",
+        "email": "Email",
+        "phone": "Phone",
+        "address": "Address",
+        "save": "Save",
+        "cancel": "Cancel",
+        "delete_confirm": "Are you sure you want to deactivate this provider?",
+        "price_lists_count": "Price Lists:"
+    }
+}

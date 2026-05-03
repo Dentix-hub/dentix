@@ -1,0 +1,82 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+    darkMode: 'class',
+    content: [
+        "./index.html",
+        "./src/**/*.{js,ts,jsx,tsx}",
+    ],
+    theme: {
+        extend: {
+            fontFamily: {
+                sans: ['Inter', 'Cairo', 'sans-serif'],
+                cairo: ['Cairo', 'sans-serif'],
+                inter: ['Inter', 'sans-serif'],
+            },
+            colors: {
+                primary: {
+                    50: '#f0f9ff',
+                    100: '#e0f2fe',
+                    200: '#bae6fd',
+                    300: '#7dd3fc',
+                    400: '#38bdf8',
+                    500: '#0ea5e9',
+                    600: '#0284c7',
+                    700: '#0369a1',
+                    800: '#075985',
+                    900: '#0c4a6e',
+                    950: '#082f49',
+                    DEFAULT: '#0ea5e9',
+                },
+                secondary: {
+                    50: '#f0fdfa',
+                    100: '#ccfbf1',
+                    200: '#99f6e4',
+                    300: '#5eead4',
+                    400: '#2dd4bf',
+                    500: '#14b8a6',
+                    600: '#0d9488',
+                    700: '#0f766e',
+                    800: '#115e59',
+                    900: '#134e4a',
+                    950: '#042f2e',
+                    DEFAULT: '#14b8a6',
+                },
+                accent: {
+                    50: '#faf5ff',
+                    100: '#f3e8ff',
+                    200: '#e9d5ff',
+                    300: '#d8b4fe',
+                    400: '#c084fc',
+                    500: '#a855f7',
+                    600: '#9333ea',
+                    700: '#7e22ce',
+                    800: '#6b21a8',
+                    900: '#581c87',
+                    950: '#3b0764',
+                    DEFAULT: '#a855f7',
+                },
+                medical: {
+                    light: '#E0F2FE',
+                    DEFAULT: '#0891B2',
+                    dark: '#155E75',
+                },
+                health: {
+                    light: '#DCFCE7',
+                    DEFAULT: '#22C55E',
+                    dark: '#166534',
+                },
+                'mint-tint': '#F0FDFA',
+                // Semantic Colors
+                background: "var(--background)",
+                surface: "var(--surface)",
+                "surface-hover": "var(--surface-hover)",
+                "text-primary": "var(--text-primary)",
+                "text-secondary": "var(--text-secondary)",
+                border: "var(--border)",
+                input: "var(--input)",
+                "input-focus": "var(--input-focus)",
+            }
+        },
+    },
+    plugins: [],
+}

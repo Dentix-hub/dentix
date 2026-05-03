@@ -1,0 +1,29 @@
+[run]
+source = backend
+omit =
+    */tests/*
+    */migrations/*
+    */__pycache__/*
+    */venv/*
+    */.venv/*
+    */static/*
+    backend/seed.py
+    backend/migrate_*.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod
+    pass
+
+fail_under = 60
+show_missing = true
+precision = 2
+
+[html]
+directory = htmlcov

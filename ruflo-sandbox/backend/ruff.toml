@@ -1,0 +1,19 @@
+# Ruff Configuration for Dentix Backend
+# Focused on production readiness of core modules.
+
+extend-exclude = [
+    "tests",
+    "scripts",
+    "alembic/versions",
+    "alembic/env.py",
+]
+
+[lint]
+# Enable standard rules
+select = ["E", "F", "W", "I"]
+# Ignore E402 (import order) and others for pragmatism, including unused imports in __init__ files
+ignore = ["E402", "E501", "I001", "F401"]
+
+[format]
+quote-style = "double"
+indent-style = "space"

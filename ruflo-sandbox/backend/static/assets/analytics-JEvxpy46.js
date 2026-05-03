@@ -1,0 +1,1 @@
+import{r as t}from"./index-BMNWKfAH.js";const e=async(a="30d")=>(await t.get("/metrics/profitability",{params:{period:a}})).data,n=async a=>(await t.post("/api/v1/admin/ai/analyze-clinic",a,{timeout:6e4})).data;export{n as a,e as g};

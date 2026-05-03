@@ -1,0 +1,140 @@
+/* FullCalendar Modern Polish for DENTIX */
+.weekly-calendar-container {
+    background: var(--surface);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+    border: 1px solid var(--border);
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
+}
+
+.fc {
+    --fc-border-color: var(--border);
+    --fc-today-bg-color: rgba(14, 165, 233, 0.05); /* rgba version of --primary */
+    --fc-button-bg-color: var(--surface-hover);
+    --fc-button-border-color: var(--border);
+    --fc-button-hover-bg-color: var(--primary);
+    --fc-button-hover-border-color: var(--primary);
+    --fc-button-active-bg-color: var(--primary-hover);
+    --fc-button-active-border-color: var(--primary-hover);
+    --fc-event-bg-color: var(--primary);
+    --fc-event-border-color: var(--primary);
+    --fc-page-bg-color: transparent;
+    --fc-list-event-hover-bg-color: var(--surface-hover);
+    font-family: inherit;
+}
+
+.fc .fc-toolbar-title {
+    font-size: 1.25rem;
+    font-weight: 900;
+    color: var(--text-primary);
+}
+
+.fc .fc-button {
+    border-radius: 0.75rem;
+    font-weight: 700;
+    text-transform: capitalize;
+    transition: all 0.2s ease;
+    background: var(--surface);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+
+.fc .fc-button:hover {
+    background: var(--primary) !important;
+    color: white !important;
+    border-color: var(--primary) !important;
+}
+
+.fc .fc-button-primary:not(:disabled).fc-button-active,
+.fc .fc-button-primary:not(:disabled):active {
+    background: var(--primary) !important;
+    color: white !important;
+    border-color: var(--primary) !important;
+}
+
+.fc .fc-button:focus {
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2) !important;
+}
+
+.fc-v-event {
+    border-radius: 0.75rem !important;
+    padding: 4px 6px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border: none !important;
+}
+
+.fc-event-main {
+    padding: 2px;
+}
+
+.fc-event-title {
+    font-weight: 800 !important;
+    font-size: 0.85rem;
+}
+
+.fc-event-time {
+    font-weight: 600;
+    font-size: 0.75rem;
+    opacity: 0.9;
+}
+
+/* Status Colors */
+.appt-status-scheduled {
+    background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+}
+
+.appt-status-waiting {
+    background: linear-gradient(135deg, #f59e0b, #d97706) !important;
+}
+
+.appt-status-in-chair {
+    background: linear-gradient(135deg, #0d9488, #0f766e) !important;
+}
+
+.appt-status-completed {
+    background: linear-gradient(135deg, #10b981, #059669) !important;
+}
+
+.appt-status-cancelled, 
+.appt-status-cancelled-noshow {
+    background: linear-gradient(135deg, #64748b, #475569) !important;
+}
+
+.fc-timegrid-slot {
+    height: 3.5rem !important;
+}
+
+.fc-timegrid-axis-cushion,
+.fc-timegrid-slot-label-cushion {
+    font-weight: 700;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.fc-col-header-cell-cushion {
+    padding: 10px 0 !important;
+    font-weight: 900 !important;
+    color: var(--text-primary);
+    text-decoration: none !important;
+}
+
+.fc-theme-standard .fc-scrollgrid {
+    border-radius: 1rem;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+.fc-day-today {
+    background-color: rgba(14, 165, 233, 0.03) !important;
+}
+
+/* RTL Adjustments */
+[dir="rtl"] .fc-toolbar {
+    flex-direction: row-reverse;
+}
+
+[dir="rtl"] .fc-header-toolbar {
+    margin-bottom: 1.5rem !important;
+}
