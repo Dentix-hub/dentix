@@ -29,6 +29,7 @@ from .patient import (
 from .appointment import (
     get_appointments,
     create_appointment,
+    update_appointment,
     update_appointment_status,
     delete_appointment,
 )
