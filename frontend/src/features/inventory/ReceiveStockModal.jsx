@@ -123,14 +123,19 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
                             className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:ring-2 focus:ring-secondary/20"
                         >
                             <option value="">{t('inventory.receive.select_placeholder_material')}</option>
-                            {materials?.map(m => (
-                                <option key={m.id} value={m.id}>
-                                    {m.brand ? `${m.brand} ` : ''}
-                                    {m.category ? `(${i18n.language === 'ar' ? m.category.name_ar : m.category.name_en}) ` : ''}
-                                    {m.brand || m.category ? ' - ' : ''}
-                                    {m.name} ({m.base_unit})
-                                </option>
-                            ))}
+                            {materials?.map(m => {
+                                const catName = m.category ? (i18n.language === 'ar' ? m.category.name_ar : m.category.name_en) : '';
+                                const isNameDuplicate = m.name === catName;
+                                return (
+                                    <option key={m.id} value={m.id}>
+                                        {m.brand ? `${m.brand} ` : ''}
+                                        {catName ? `(${catName}) ` : ''}
+                                        {!isNameDuplicate && (m.brand || m.category) ? ' - ' : ''}
+                                        {!isNameDuplicate ? `${m.name} ` : ''}
+                                        ({m.base_unit})
+                                    </option>
+                                );
+                            })}
                         </select>
                     </div>
                     {/* Warehouse Selection */}

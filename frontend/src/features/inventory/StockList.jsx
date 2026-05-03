@@ -191,7 +191,8 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                                                 <div className="text-base font-bold text-text-primary">
                                                     {item.brand ? `${item.brand} - ` : ''}{item.material_name}
                                                 </div>
-                                                {(item.category_name_ar || item.category_name_en) && (
+                                                {(item.category_name_ar || item.category_name_en) && 
+                                                 (i18n.language === 'ar' ? item.category_name_ar : item.category_name_en) !== item.material_name && (
                                                     <span className="text-[10px] text-text-secondary block font-normal opacity-70 uppercase tracking-wider mt-0.5">
                                                         {i18n.language === 'ar' ? item.category_name_ar : item.category_name_en}
                                                     </span>

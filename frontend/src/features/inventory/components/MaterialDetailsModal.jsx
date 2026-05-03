@@ -73,16 +73,24 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
                             <span className="text-sm text-text-secondary">
                                 {t('inventory.material_details.title')}
                             </span>
-                            {(material.category_name_ar || material.category_name_en || material.category) && (
-                                <>
-                                    <span className="text-border mx-1">|</span>
-                                    <span className="text-sm font-medium text-primary">
-                                        {i18n.language === 'ar' 
-                                            ? (material.category_name_ar || material.category?.name_ar) 
-                                            : (material.category_name_en || material.category?.name_en)}
-                                    </span>
-                                </>
-                            )}
+                            {(() => {
+                                const catName = i18n.language === 'ar' 
+                                    ? (material.category_name_ar || material.category?.name_ar) 
+                                    : (material.category_name_en || material.category?.name_en);
+                                const matName = material.material_name || material.name;
+                                
+                                if (catName && catName !== matName) {
+                                    return (
+                                        <>
+                                            <span className="text-border mx-1">|</span>
+                                            <span className="text-sm font-medium text-primary">
+                                                {catName}
+                                            </span>
+                                        </>
+                                    );
+                                }
+                                return null;
+                            })()}
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-surface-hover rounded-full transition-colors">
