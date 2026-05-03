@@ -9,6 +9,7 @@ from backend.models.inventory import (
     Material,
     Batch,
     StockItem,
+    MaterialCategory,
     MaterialSession,
     StockMovement,
 )
