@@ -22,6 +22,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
         return isValid(d) ? d : new Date();
     }, [value, isMonthOnly]);
 
+    const [viewMode, setViewMode] = useState('days'); // 'days', 'months', 'years'
     const [viewDate, setViewDate] = useState(initialDate);
     const [selectedDate, setSelectedDate] = useState(initialDate);
     const [tempTime, setTempTime] = useState({
@@ -32,9 +33,22 @@ export default function DateTimePicker({ value, onChange, label, error, required
 
     const days = useMemo(() => {
         const start = startOfWeek(startOfMonth(viewDate));
-        const end = endOfWeek(endOfMonth(viewDate));
-        return eachDayOfInterval({ start, end });
+        const end = endOfMonth(viewDate);
+        // Ensure we show 6 weeks to keep height consistent
+        const daysInMonth = eachDayOfInterval({ start, end: endOfWeek(end) });
+        return daysInMonth;
     }, [viewDate]);
+
+    const years = useMemo(() => {
+        const currentYear = new Date().getFullYear();
+        const startYear = currentYear - 80;
+        const endYear = currentYear + 20;
+        const yearsArray = [];
+        for (let i = startYear; i <= endYear; i++) {
+            yearsArray.push(i);
+        }
+        return yearsArray;
+    }, []);
 
     const handleConfirm = (close) => {
         let finalDate = new Date(selectedDate);
@@ -65,6 +79,22 @@ export default function DateTimePicker({ value, onChange, label, error, required
         if (isDateOnly || isMonthOnly) {
             handleConfirm(close);
         }
+    };
+
+    const handleMonthSelect = (month) => {
+        const newDate = new Date(viewDate.setMonth(month));
+        setViewDate(new Date(newDate));
+        if (isMonthOnly) {
+            setSelectedDate(new Date(newDate));
+        } else {
+            setViewMode('days');
+        }
+    };
+
+    const handleYearSelect = (year) => {
+        const newDate = new Date(viewDate.setFullYear(year));
+        setViewDate(new Date(newDate));
+        setViewMode('months');
     };
 
     return (
@@ -108,93 +138,125 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                 leave="transition ease-in duration-150"
                                 leaveFrom="opacity-100 translate-y-0 scale-100"
                                 leaveTo="opacity-0 translate-y-1 scale-95"
+                                afterLeave={() => setViewMode('days')}
                             >
                                 <PopoverPanel 
-                                    anchor="bottom start"
-                                    className="z-[9999] mt-2 bg-white/90 dark:bg-slate-900/95 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.2)] ring-1 ring-black/5 overflow-hidden border border-white/20 dark:border-white/10"
+                                    anchor="bottom"
+                                    className="z-[9999] mt-2 bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] ring-1 ring-black/5 overflow-hidden border border-slate-200 dark:border-white/10 md:fixed md:top-1/2 md:left-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:mt-0"
                                 >
-                                    <div className={`flex flex-col md:flex-row ${isDateOnly || isMonthOnly ? 'w-[320px]' : 'w-[320px] md:w-[600px]'} max-h-[90vh] overflow-y-auto`}>
+                                    <div className={`flex flex-col md:flex-row ${isDateOnly || isMonthOnly ? 'w-[320px]' : 'w-[320px] md:w-[600px]'} max-h-[90vh] overflow-hidden`}>
                                         
                                         {/* Calendar Column */}
-                                        <div className="p-6 flex-1">
+                                        <div className="p-6 flex-1 flex flex-col min-h-[400px]">
                                             <div className="flex items-center justify-between mb-6">
                                                 <button 
                                                     type="button"
-                                                    onClick={() => setViewDate(subMonths(viewDate, isMonthOnly ? 12 : 1))} 
+                                                    onClick={() => setViewDate(subMonths(viewDate, viewMode === 'years' ? 120 : (viewMode === 'months' ? 12 : 1)))} 
                                                     className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl text-slate-500 transition-colors"
                                                 >
                                                     <ChevronLeft size={20} />
                                                 </button>
-                                                <div className="text-center">
-                                                    <h3 className="font-black text-lg text-text-primary tracking-tight">
-                                                        {isMonthOnly ? format(viewDate, 'yyyy') : format(viewDate, 'MMMM yyyy')}
-                                                    </h3>
-                                                </div>
+                                                
                                                 <button 
                                                     type="button"
-                                                    onClick={() => setViewDate(addMonths(viewDate, isMonthOnly ? 12 : 1))} 
+                                                    onClick={() => setViewMode(viewMode === 'days' ? 'months' : (viewMode === 'months' ? 'years' : 'days'))}
+                                                    className="px-4 py-2 hover:bg-primary/10 rounded-2xl transition-all"
+                                                >
+                                                    <h3 className="font-black text-lg text-text-primary tracking-tight flex items-center gap-2">
+                                                        {viewMode === 'years' ? (
+                                                            `${years[0]} - ${years[years.length - 1]}`
+                                                        ) : viewMode === 'months' ? (
+                                                            format(viewDate, 'yyyy')
+                                                        ) : (
+                                                            <>
+                                                                {format(viewDate, 'MMMM')}
+                                                                <span className="text-primary">{format(viewDate, 'yyyy')}</span>
+                                                            </>
+                                                        )}
+                                                        <ChevronDown size={14} className="text-primary opacity-50" />
+                                                    </h3>
+                                                </button>
+
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setViewDate(addMonths(viewDate, viewMode === 'years' ? 120 : (viewMode === 'months' ? 12 : 1)))} 
                                                     className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-2xl text-slate-500 transition-colors"
                                                 >
                                                     <ChevronRight size={20} />
                                                 </button>
                                             </div>
 
-                                            {isMonthOnly ? (
-                                                <div className="grid grid-cols-3 gap-3">
-                                                    {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(m => {
-                                                        const monthDate = new Date(viewDate.getFullYear(), m, 1);
-                                                        const isSelected = isSameMonth(monthDate, selectedDate);
-                                                        return (
+                                            <div className="flex-1 overflow-y-auto">
+                                                {viewMode === 'years' ? (
+                                                    <div className="grid grid-cols-4 gap-2">
+                                                        {years.map(y => (
                                                             <button
-                                                                key={m}
+                                                                key={y}
                                                                 type="button"
-                                                                onClick={() => handleDateClick(monthDate, close)}
-                                                                className={`py-4 rounded-2xl text-sm font-bold transition-all ${isSelected ? 'bg-primary text-white shadow-xl shadow-primary/30' : 'text-text-primary hover:bg-primary/10'}`}
+                                                                onClick={() => handleYearSelect(y)}
+                                                                className={`py-3 rounded-xl text-sm font-bold transition-all ${viewDate.getFullYear() === y ? 'bg-primary text-white shadow-lg' : 'hover:bg-primary/10 text-text-primary'}`}
                                                             >
-                                                                {format(monthDate, 'MMM')}
+                                                                {y}
                                                             </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            ) : (
-                                                <>
-                                                    <div className="grid grid-cols-7 gap-1 mb-3">
-                                                        {(isArabic ? ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'] : ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']).map((d, i) => (
-                                                            <span key={i} className="text-[10px] font-black text-slate-400 text-center uppercase tracking-wider">
-                                                                {d}
-                                                            </span>
                                                         ))}
                                                     </div>
-                                                    
-                                                    <div className="grid grid-cols-7 gap-2">
-                                                        {days.map((day, idx) => {
-                                                            const isSelected = isSameDay(day, selectedDate);
-                                                            const currentMonth = isSameMonth(day, viewDate);
-                                                            const today = isToday(day);
-                                                            
+                                                ) : viewMode === 'months' ? (
+                                                    <div className="grid grid-cols-3 gap-3">
+                                                        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(m => {
+                                                            const monthDate = new Date(viewDate.getFullYear(), m, 1);
+                                                            const isSelected = isSameMonth(monthDate, selectedDate);
                                                             return (
                                                                 <button
-                                                                    key={idx}
+                                                                    key={m}
                                                                     type="button"
-                                                                    onClick={() => handleDateClick(day, close)}
-                                                                    className={`
-                                                                        aspect-square flex items-center justify-center rounded-2xl text-sm font-black transition-all relative
-                                                                        ${isSelected ? 'bg-primary text-white shadow-2xl shadow-primary/40 scale-110 z-10' : 
-                                                                          currentMonth ? 'text-text-primary hover:bg-primary/10' : 'text-slate-300 dark:text-slate-700 opacity-40'}
-                                                                    `}
+                                                                    onClick={() => handleMonthSelect(m)}
+                                                                    className={`py-6 rounded-2xl text-sm font-bold transition-all ${isSelected ? 'bg-primary text-white shadow-xl shadow-primary/30' : 'text-text-primary hover:bg-primary/10'}`}
                                                                 >
-                                                                    {format(day, 'd')}
-                                                                    {today && !isSelected && (
-                                                                        <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full" />
-                                                                    )}
+                                                                    {format(monthDate, 'MMMM')}
                                                                 </button>
                                                             );
                                                         })}
                                                     </div>
-                                                </>
-                                            )}
+                                                ) : (
+                                                    <>
+                                                        <div className="grid grid-cols-7 gap-1 mb-3">
+                                                            {(isArabic ? ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'] : ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']).map((d, i) => (
+                                                                <span key={i} className="text-[10px] font-black text-slate-400 text-center uppercase tracking-wider">
+                                                                    {d}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                        
+                                                        <div className="grid grid-cols-7 gap-2">
+                                                            {days.map((day, idx) => {
+                                                                const isSelected = isSameDay(day, selectedDate);
+                                                                const currentMonth = isSameMonth(day, viewDate);
+                                                                const today = isToday(day);
+                                                                
+                                                                return (
+                                                                    <button
+                                                                        key={idx}
+                                                                        type="button"
+                                                                        onClick={() => handleDateClick(day, close)}
+                                                                        className={`
+                                                                            aspect-square flex items-center justify-center rounded-2xl text-sm font-black transition-all relative
+                                                                            ${isSelected ? 'bg-primary text-white shadow-2xl shadow-primary/40 scale-110 z-10' : 
+                                                                              currentMonth ? 'text-text-primary hover:bg-primary/10' : 'text-slate-300 dark:text-slate-700 opacity-40'}
+                                                                        `}
+                                                                    >
+                                                                        {format(day, 'd')}
+                                                                        {today && !isSelected && (
+                                                                            <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full" />
+                                                                        )}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
 
-                                            <div className="mt-8 flex items-center justify-between gap-4">
+                                            <div className="mt-8 flex items-center justify-between gap-4 sticky bottom-0 bg-white dark:bg-slate-900 pt-2">
                                                 <button
                                                     type="button"
                                                     onClick={() => handleToday(close)}
@@ -215,9 +277,9 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                             </div>
                                         </div>
 
-                                        {/* Time Column (Sleeker Design) */}
+                                        {/* Time Column */}
                                         {!isDateOnly && !isMonthOnly && (
-                                            <div className="bg-slate-50/80 dark:bg-black/40 p-6 w-full md:w-[280px] border-t md:border-t-0 md:border-s border-border/50">
+                                            <div className="bg-slate-50 dark:bg-black/40 p-6 w-full md:w-[280px] border-t md:border-t-0 md:border-s border-border/50 overflow-y-auto">
                                                 <div className="flex items-center gap-2.5 text-primary mb-6">
                                                     <div className="p-1.5 bg-primary/10 rounded-lg">
                                                         <Clock size={16} />
