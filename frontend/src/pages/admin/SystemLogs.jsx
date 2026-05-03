@@ -44,7 +44,8 @@ export default function SystemLogs() {
     const handleExport = async () => {
         try {
             const res = await api.get('/api/v1/admin/system/logs/export', { responseType: 'blob' });
-            const url = window.URL.createObjectURL(new Blob([res]));
+            // res is the full axios response object, the actual blob is in res.data
+            const url = window.URL.createObjectURL(new Blob([res.data]));
             const link = document.createElement('a');
             link.href = url;
             link.setAttribute('download', `system_logs_${new Date().toISOString().split('T')[0]}.csv`);
