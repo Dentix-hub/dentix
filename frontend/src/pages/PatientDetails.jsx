@@ -6,7 +6,7 @@ import { useProcedures } from '@/shared/context/ProceduresContext';
 import TreatmentModal from '@/shared/ui/modals/TreatmentModal';
 import PrescriptionModal from '@/shared/ui/modals/PrescriptionModal';
 import PaymentModal from '@/shared/ui/modals/PaymentModal';
-import EditPatientModal from '@/features/patients/modals/EditPatientModal';
+import EditPatientModal from '@/features/patients/modals/EditPatientModal.jsx';
 import { SkeletonBox, Breadcrumb, TabGroup } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
 import { useHotkeys } from 'react-hotkeys-hook';

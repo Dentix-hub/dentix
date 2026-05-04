@@ -5,7 +5,7 @@ import { usePatients } from '@/hooks/usePatients';
 import PatientTable from '@/features/patients/PatientTable';
 import PatientFilters from '@/features/patients/PatientFilters';
 import PatientQuickActions from '@/features/patients/PatientQuickActions';
-import PatientModal from '@/features/patients/modals/PatientModal';
+import PatientModal from '@/features/patients/modals/PatientModal.jsx';
 import { toast } from '@/shared/ui';
 
 export default function Patients() {
