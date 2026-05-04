@@ -59,6 +59,10 @@ function AppRoutes() {
     const { i18n } = useTranslation();
 
     useEffect(() => {
+        console.log(`[DENTIX] Build ID: 20260505-0015`);
+    }, []);
+
+    useEffect(() => {
         if (!isBooting) {
             console.log(`[ROUTER] Navigation detected: ${location.pathname} (Authenticated: ${isAuthenticated})`);
         }
