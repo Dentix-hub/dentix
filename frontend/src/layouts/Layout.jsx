@@ -28,22 +28,23 @@ import { useTenantStore } from '@/store/tenant.store';
 import { API_URL } from '@/api';
 
 const Layout = () => {
+    const location = useLocation();
+    const navigate = useNavigate();
+    const { t, i18n } = useTranslation();
+    const { sidebarOpen, setSidebarOpen, darkMode: isDarkMode, toggleDarkMode } = useUIStore();
+    const { tenant, hasFeature } = useTenantStore();
+    const { user: currentUser, logout } = useAuth();
+    
     useEffect(() => {
         console.log(`[LAYOUT] Rendering Layout (Path: ${location.pathname})`);
     }, [location.pathname]);
 
     const [logoError, setLogoError] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-    const { t, i18n } = useTranslation();
-    const { sidebarOpen, setSidebarOpen, darkMode: isDarkMode, toggleDarkMode } = useUIStore();
-    const { tenant, hasFeature } = useTenantStore();
-    const { user: currentUser, logout } = useAuth();
-    const location = useLocation();
     // Role derived from user object directly
     const role = currentUser?.role || 'doctor';
     const isAdmin = role === 'admin';
     const isSuperAdmin = role === 'super_admin';
-    const navigate = useNavigate();
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
     const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
