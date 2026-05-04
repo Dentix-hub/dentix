@@ -1,12 +1,15 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import {
     getPatient,
     getPatientTeeth,
     getPatientTreatments,
     getPatientPayments,
-    getAttachments
+    getAttachments,
+    createPayment,
+    deletePayment
 } from '@/api';
+
 /**
  * Hook for patient core data (basic info) - loads immediately
  */
@@ -21,6 +24,7 @@ export function usePatient(patientId) {
         staleTime: 60 * 1000, // 1 minute
     });
 }
+
 /**
  * Hook for patient teeth data - loads for chart tab
  */
@@ -37,6 +41,7 @@ export function usePatientTeeth(patientId, enabled = true) {
         staleTime: 60 * 1000,
     });
 }
+
 /**
  * Hook for patient treatments - loads only on history tab
  */
@@ -51,6 +56,7 @@ export function usePatientTreatments(patientId, enabled = true) {
         staleTime: 30 * 1000,
     });
 }
+
 /**
  * Hook for patient payments - loads only on billing tab
  */
@@ -65,6 +71,75 @@ export function usePatientPayments(patientId, enabled = true) {
         staleTime: 30 * 1000,
     });
 }
+
+/**
+ * Hook for creating a payment with optimistic update
+ */
+export function useCreatePayment() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: createPayment,
+        onMutate: async (newPayment) => {
+            const patientId = newPayment.patient_id;
+            await queryClient.cancelQueries({ queryKey: ['patient', patientId, 'payments'] });
+            const previousPayments = queryClient.getQueryData(['patient', patientId, 'payments']);
+
+            if (previousPayments) {
+                queryClient.setQueryData(['patient', patientId, 'payments'], old => [
+                    ...old,
+                    { ...newPayment, id: 'temp-' + Date.now(), date: new Date().toISOString(), status: 'paid' }
+                ]);
+            }
+
+            return { previousPayments, patientId };
+        },
+        onError: (err, newPayment, context) => {
+            if (context?.previousPayments) {
+                queryClient.setQueryData(['patient', context.patientId, 'payments'], context.previousPayments);
+            }
+        },
+        onSettled: (data, err, variables, context) => {
+            queryClient.invalidateQueries({ queryKey: ['patient', context.patientId, 'payments'] });
+            queryClient.invalidateQueries({ queryKey: ['patient', context.patientId] });
+            queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+        },
+    });
+}
+
+/**
+ * Hook for deleting a payment with optimistic update
+ */
+export function useDeletePayment() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: deletePayment,
+        onMutate: async ({ paymentId, patientId }) => {
+            await queryClient.cancelQueries({ queryKey: ['patient', patientId, 'payments'] });
+            const previousPayments = queryClient.getQueryData(['patient', patientId, 'payments']);
+
+            if (previousPayments) {
+                queryClient.setQueryData(['patient', patientId, 'payments'], old => 
+                    old.filter(p => p.id !== paymentId)
+                );
+            }
+
+            return { previousPayments, patientId };
+        },
+        onError: (err, variables, context) => {
+            if (context?.previousPayments) {
+                queryClient.setQueryData(['patient', context.patientId, 'payments'], context.previousPayments);
+            }
+        },
+        onSettled: (data, err, variables, context) => {
+            queryClient.invalidateQueries({ queryKey: ['patient', context.patientId, 'payments'] });
+            queryClient.invalidateQueries({ queryKey: ['patient', context.patientId] });
+            queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+        },
+    });
+}
+
 /**
  * Hook for patient attachments - loads only on files tab
  */
@@ -79,6 +154,7 @@ export function usePatientAttachments(patientId, enabled = true) {
         staleTime: 30 * 1000,
     });
 }
+
 /**
  * Hook to invalidate patient-related queries
  */
@@ -92,3 +168,4 @@ export function useInvalidatePatientData() {
         }
     }, [queryClient]);
 }
+

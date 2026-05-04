@@ -2,10 +2,11 @@
  * Modal Component
  * Reusable modal wrapper with backdrop blur and close on escape.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
 export default function Modal({ isOpen, onClose, title, children, maxWidth, size = 'md', scrollable = true, className = '' }) {
     const modalRef = useRef(null);
+    const titleId = useId();
 
     const sizeMap = {
         sm: 'max-w-sm',
@@ -74,6 +75,9 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth, size
         >
             <div 
                 ref={modalRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
                 className={`
                 bg-white dark:bg-slate-900 w-full ${resolvedMaxWidth} 
                 rounded-t-3xl md:rounded-3xl p-4 md:p-6 shadow-2xl 
@@ -86,10 +90,10 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth, size
             `}>
                 <div className="flex justify-between items-center mb-6 sticky top-0 bg-white dark:bg-slate-900 z-10 py-2 -mt-2">
                     <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto md:hidden absolute -top-4 left-1/2 -translate-x-1/2 mb-4" />
-                    <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight">{title}</h3>
+                    <h3 id={titleId} className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">{title}</h3>
                     <button
                         onClick={onClose}
-                        className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-600 transition-colors"
+                        className="p-2 hover:bg-slate-100 rounded-xl text-slate-500 hover:text-slate-600 transition-colors"
                     >
                         <X size={20} />
                     </button>

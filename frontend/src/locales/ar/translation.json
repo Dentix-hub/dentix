@@ -4,12 +4,11 @@
         "cancel": "إلغاء",
         "delete": "حذف",
         "edit": "تعديل",
-        "search": "بحث",
+        "search": "بحث...",
         "loading": "جاري التحميل...",
         "error_loading_data": "فشل تحميل البيانات. يرجى التحقق من الاتصال.",
         "doctor_prefix": "د.",
         "separator": "، ",
-        "search": "بحث...",
         "actions": "إجراءات",
         "help_support": "مساعدة ودعم",
         "logo": "الشعار",
@@ -1518,5 +1517,35 @@
             "notes": "ملاحظات",
             "empty": "لا توجد أدوية محفوظة"
         }
+    },
+    "command_palette": {
+        "placeholder": "ابحث عن أي شيء...",
+        "results_label": "نتائج البحث",
+        "no_results": "لم يتم العثور على نتائج",
+        "no_results_desc": "لم نتمكن من العثور على نتائج لـ \\\"{{query}}\\\"",
+        "quick_nav": "انتقال سريع",
+        "add_patient": "إضافة مريض",
+        "new_appointment": "موعد جديد",
+        "inventory_check": "فحص المخزون",
+        "settings": "الإعدادات",
+        "to_close": "للإغلاق",
+        "to_select": "للاختيار",
+        "go_to": "انتقال إلى",
+        "sections": {
+            "patients": "المرضى",
+            "appointments": "المواعيد",
+            "pages": "الصفحات",
+            "actions": "الإجراءات"
+        }
+    },
+    "shortcuts": {
+        "title": "Keyboard Shortcuts",
+        "global": "Global",
+        "navigation": "Navigation",
+        "open_command_palette": "Open Command Palette",
+        "show_shortcuts": "Show Keyboard Shortcuts",
+        "close_modal": "Close Modal / Cancel",
+        "navigate_results": "Navigate Results",
+        "select_item": "Select Item"
     }
 }

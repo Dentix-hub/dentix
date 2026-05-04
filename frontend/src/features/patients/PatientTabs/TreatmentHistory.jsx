@@ -63,15 +63,15 @@ const TreatmentHistory = ({
                                     {item.notes && <div className="mt-1 text-slate-500 italic text-xs" title={item.notes}>{item.notes}</div>}
                                 </td>
                                 <td className="p-4 flex gap-2 whitespace-nowrap">
-                                    <button onClick={() => onEdit(item)} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 size={16} /></button>
-                                    <button onClick={() => onDelete(item.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+                                    <button onClick={() => onEdit(item)} className="p-2 text-slate-500 hover:text-blue-500 hover:bg-blue-50 rounded-lg"><Edit2 size={16} /></button>
+                                    <button onClick={() => onDelete(item.id)} className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
-            {history.length === 0 && <div className="p-8 text-center text-slate-400">{t('patientDetails.treatment_history.empty')}</div>}
+            {history.length === 0 && <div className="p-8 text-center text-slate-500">{t('patientDetails.treatment_history.empty')}</div>}
         </div>
     );
 };

@@ -227,7 +227,7 @@ export default function PatientScanner({ onScanComplete, onClose }) {
                         <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center bg-slate-900">
                             <Info size={48} className="text-red-500 mb-4" />
                             <p className="text-white font-bold mb-6 text-lg">{errorHeader}</p>
-                            <button onClick={() => fileInputRef.current?.click()} className="w-full bg-primary py-4 rounded-2xl text-white font-black">اختيار صورة من الجهاز</button>
+                            <button onClick={() => fileInputRef.current?.click()} className="w-full bg-primary py-4 rounded-2xl text-white font-bold">اختيار صورة من الجهاز</button>
                         </div>
                     ) : capturedImage && !isReviewing ? (
                         <div className="absolute inset-0 bg-slate-900 flex items-center justify-center p-4">
@@ -245,34 +245,34 @@ export default function PatientScanner({ onScanComplete, onClose }) {
                     ) : (
                         <div className="absolute inset-0 bg-white dark:bg-slate-900 p-8 overflow-y-auto">
                             <div className="flex items-center justify-between mb-6">
-                                <h4 className="text-xl font-black dark:text-white flex items-center gap-2">
+                                <h4 className="text-xl font-bold dark:text-white flex items-center gap-2">
                                     <Check className="text-green-500" /> مراجعة البيانات
                                 </h4>
                                 <button
                                     onClick={() => setShowRaw(!showRaw)}
-                                    className="text-[10px] font-black uppercase tracking-wider text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg border border-primary/20 transition-colors"
+                                    className="text-[10px] font-bold uppercase tracking-wider text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg border border-primary/20 transition-colors"
                                 >
                                     {showRaw ? 'إخفاء النص الأصلي' : 'عرض النص المستخرج'}
                                 </button>
                             </div>
                             {showRaw && (
                                 <div className="mb-6 p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-white/5 animate-in fade-in slide-in-from-top-2 duration-300">
-                                    <label className="text-[10px] font-black text-slate-400 block mb-2">النص كما قرأه البرنامج (OCR):</label>
+                                    <label className="text-[10px] font-bold text-slate-500 block mb-2">النص كما قرأه البرنامج (OCR):</label>
                                     <p className="text-xs text-slate-600 dark:text-slate-300 whitespace-pre-wrap leading-relaxed font-medium bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-100 dark:border-white/5 max-h-40 overflow-y-auto">
                                         {rawOcrText || 'لم يتم العثور على نص'}
                                     </p>
                                 </div>
                             )}
                             <div className="space-y-4">
-                                <div><label className="text-xs font-bold text-slate-400 block mb-1">الاسم</label>
+                                <div><label className="text-xs font-bold text-slate-500 block mb-1">الاسم</label>
                                     <input type="text" value={extractedData.name} onChange={e => setExtractedData({ ...extractedData, name: e.target.value })} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold dark:text-white focus:ring-2 focus:ring-primary/20 transition-all" /></div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <div><label className="text-xs font-bold text-slate-400 block mb-1">السن</label>
+                                    <div><label className="text-xs font-bold text-slate-500 block mb-1">السن</label>
                                         <input type="text" value={extractedData.age} onChange={e => setExtractedData({ ...extractedData, age: e.target.value })} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold dark:text-white focus:ring-2 focus:ring-primary/20 transition-all" /></div>
-                                    <div><label className="text-xs font-bold text-slate-400 block mb-1">رقم الهاتف</label>
+                                    <div><label className="text-xs font-bold text-slate-500 block mb-1">رقم الهاتف</label>
                                         <input type="text" value={extractedData.phone} onChange={e => setExtractedData({ ...extractedData, phone: e.target.value })} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold dark:text-white text-left focus:ring-2 focus:ring-primary/20 transition-all" dir="ltr" /></div>
                                 </div>
-                                <div><label className="text-xs font-bold text-slate-400 block mb-1">العنوان</label>
+                                <div><label className="text-xs font-bold text-slate-500 block mb-1">العنوان</label>
                                     <input type="text" value={extractedData.address} onChange={e => setExtractedData({ ...extractedData, address: e.target.value })} className="w-full p-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl font-bold dark:text-white focus:ring-2 focus:ring-primary/20 transition-all" /></div>
                             </div>
                         </div>
@@ -280,7 +280,7 @@ export default function PatientScanner({ onScanComplete, onClose }) {
                     {isProcessing && (
                         <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center text-white z-50">
                             <Loader2 className="animate-spin text-primary mb-4" size={48} />
-                            <p className="font-black text-xl">{ocrStatus}</p>
+                            <p className="font-bold text-xl">{ocrStatus}</p>
                         </div>
                     )}
                 </div>
@@ -288,14 +288,14 @@ export default function PatientScanner({ onScanComplete, onClose }) {
                     {isReviewing ? (
                         <>
                             <button onClick={retake} className="flex-1 py-4 font-bold text-slate-500 hover:bg-slate-100 rounded-2xl transition-colors">إعادة تصوير</button>
-                            <button onClick={() => { onScanComplete(extractedData); onClose(); }} className="flex-[2] py-4 bg-primary text-white font-black rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all">تأكيد وحفظ</button>
+                            <button onClick={() => { onScanComplete(extractedData); onClose(); }} className="flex-[2] py-4 bg-primary text-white font-bold rounded-2xl shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all">تأكيد وحفظ</button>
                         </>
                     ) : (
                         <div className="flex gap-4 w-full">
                             {capturedImage ? (
                                 <>
                                     <button onClick={retake} className="flex-1 py-4 font-bold text-slate-500 bg-slate-200 rounded-2xl">إلغاء</button>
-                                    <button onClick={() => processOCR(true)} className="flex-[2] py-4 bg-primary text-white font-black rounded-2xl shadow-lg">تحليل الصورة المرفوعة</button>
+                                    <button onClick={() => processOCR(true)} className="flex-[2] py-4 bg-primary text-white font-bold rounded-2xl shadow-lg">تحليل الصورة المرفوعة</button>
                                 </>
                             ) : (
                                 <button
@@ -311,7 +311,7 @@ export default function PatientScanner({ onScanComplete, onClose }) {
                                             processOCR();
                                         }
                                     }}
-                                    className="w-full py-5 bg-primary text-white font-black rounded-3xl flex items-center justify-center gap-3 shadow-2xl shadow-primary/30 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+                                    className="w-full py-5 bg-primary text-white font-bold rounded-3xl flex items-center justify-center gap-3 shadow-2xl shadow-primary/30 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
                                 >
                                     <Camera size={24} />
                                     <span>التقاط صورة الكارت</span>

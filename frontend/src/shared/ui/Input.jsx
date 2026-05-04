@@ -1,4 +1,4 @@
-import { isValidElement } from 'react';
+import { isValidElement, useId } from 'react';
 
 const Input = ({
     label,
@@ -7,28 +7,36 @@ const Input = ({
     type = 'text',
     className = '',
     containerClassName = '',
+    id,
     ...props
 }) => {
+    const generatedId = useId();
+    const inputId = id || generatedId;
+
     return (
         <div className={`space-y-1.5 ${containerClassName}`}>
             {label && (
-                <label className="block text-sm font-bold text-text-secondary">
+                <label 
+                    htmlFor={inputId}
+                    className="block text-sm font-bold text-text-secondary"
+                >
                     {label}
                 </label>
             )}
 
             <div className="relative group">
                 {Icon && (
-                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary transition-colors">
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-500 group-focus-within:text-primary transition-colors">
                         {isValidElement(Icon) ? Icon : <Icon size={18} />}
                     </div>
                 )}
 
                 <input
+                    id={inputId}
                     type={type}
                     className={`
                         w-full rounded-xl border bg-input text-text-primary outline-none transition-all duration-200
-                        placeholder:text-slate-400
+                        placeholder:text-slate-500
                         ${Icon ? 'pr-10 pl-3' : 'px-3'}
                         ${error
                             ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500'

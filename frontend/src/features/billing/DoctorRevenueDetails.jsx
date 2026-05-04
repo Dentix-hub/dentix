@@ -66,7 +66,7 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                 {/* 1. Header (Fixed) */}
                 <div className="flex justify-between items-center p-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 z-10 shrink-0">
                     <div>
-                        <h2 className="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2">
+                        <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                             <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-lg">
                                 {doctor.doctor_name.charAt(0)}
                             </div>
@@ -119,19 +119,19 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div className="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
                                             <div className="text-emerald-600 font-bold text-xs mb-1">{t('billing.doctor_revenue.stats.total_revenue')}</div>
-                                            <div className="text-2xl font-black text-emerald-700 dark:text-emerald-400">
+                                            <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
                                                 {(details?.treatments?.reduce((sum, t) => sum + t.net, 0) || 0).toLocaleString()}
                                             </div>
                                         </div>
                                         <div className="bg-rose-50 dark:bg-rose-900/20 p-4 rounded-xl border border-rose-100 dark:border-rose-900/30">
                                             <div className="text-rose-600 font-bold text-xs mb-1">{t('billing.doctor_revenue.stats.lab_discounts')}</div>
-                                            <div className="text-2xl font-black text-rose-700 dark:text-rose-400">
+                                            <div className="text-2xl font-bold text-rose-700 dark:text-rose-400">
                                                 {(details?.lab_orders?.reduce((sum, l) => sum + l.cost, 0) || 0).toLocaleString()}
                                             </div>
                                         </div>
                                         <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                                             <div className="text-slate-500 font-bold text-xs mb-1">{t('billing.doctor_revenue.stats.net_profit')}</div>
-                                            <div className="text-2xl font-black text-slate-800 dark:text-white">
+                                            <div className="text-2xl font-bold text-slate-800 dark:text-white">
                                                 {netRevenue.toLocaleString()}
                                             </div>
                                         </div>
@@ -162,7 +162,7 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                                                     </tr>
                                                 ))}
                                                 {!details?.treatments?.length && (
-                                                    <tr><td colSpan="5" className="p-8 text-center text-slate-400">{t('common.no_data')}</td></tr>
+                                                    <tr><td colSpan="5" className="p-8 text-center text-slate-500">{t('common.no_data')}</td></tr>
                                                 )}
                                             </tbody>
                                         </table>
@@ -188,7 +188,7 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                                                         onChange={e => setCommission(parseFloat(e.target.value) || 0)}
                                                         className="pl-12 text-lg font-bold h-12"
                                                     />
-                                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</div>
+                                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">%</div>
                                                 </div>
                                             </div>
                                             <div>
@@ -200,7 +200,7 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                                                         onChange={e => setSalary(parseFloat(e.target.value) || 0)}
                                                         className="pl-12 text-lg font-bold h-12"
                                                     />
-                                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold"></div>
+                                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold"></div>
                                                 </div>
                                             </div>
                                             <Button
@@ -227,11 +227,11 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                             <div className="flex items-center gap-4">
                                 <div className="text-right">
                                     <div className="text-xs text-slate-500">{t('billing.doctor_revenue.footer.net_due')}</div>
-                                    <div className="text-3xl font-black text-indigo-600">
+                                    <div className="text-3xl font-bold text-indigo-600">
                                         {calculateTotal(
                                             (doctor.collected || 0) - (doctor.lab_cost || 0)
                                         ).toLocaleString()}
-                                        <span className="text-sm font-normal text-slate-400 mr-1"></span>
+                                        <span className="text-sm font-normal text-slate-500 mr-1"></span>
                                     </div>
                                 </div>
                             </div>

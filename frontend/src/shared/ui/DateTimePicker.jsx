@@ -130,7 +130,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
                     </div>
                     <span dir="ltr" className={compact ? 'text-xs' : 'text-sm'}>
                         {!value && placeholder ? (
-                            <span className="text-slate-400 font-medium">{placeholder}</span>
+                            <span className="text-slate-500 font-medium">{placeholder}</span>
                         ) : (
                             isMonthOnly 
                                 ? format(initialDate, 'MMMM yyyy')
@@ -140,7 +140,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
                         )}
                     </span>
                 </div>
-                <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 
             <Transition appear show={isOpen} as={Fragment}>
@@ -188,7 +188,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                                     onClick={() => setViewMode(viewMode === 'days' ? 'months' : (viewMode === 'months' ? 'years' : 'days'))}
                                                     className="px-4 py-2 hover:bg-primary/10 rounded-2xl transition-all"
                                                 >
-                                                    <h3 className="font-black text-lg text-text-primary tracking-tight flex items-center gap-2">
+                                                    <h3 className="font-bold text-lg text-text-primary tracking-tight flex items-center gap-2">
                                                         {viewMode === 'years' ? (
                                                             `${years[0]} - ${years[years.length - 1]}`
                                                         ) : viewMode === 'months' ? (
@@ -247,7 +247,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                                     <>
                                                         <div className="grid grid-cols-7 gap-1 mb-3">
                                                             {(isArabic ? ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'] : ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']).map((d, i) => (
-                                                                <span key={i} className="text-[10px] font-black text-slate-400 text-center uppercase tracking-wider">
+                                                                <span key={i} className="text-[10px] font-bold text-slate-500 text-center uppercase tracking-wider">
                                                                     {d}
                                                                 </span>
                                                             ))}
@@ -265,7 +265,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                                                         type="button"
                                                                         onClick={() => handleDateClick(day)}
                                                                         className={`
-                                                                            aspect-square flex items-center justify-center rounded-2xl text-sm font-black transition-all relative
+                                                                            aspect-square flex items-center justify-center rounded-2xl text-sm font-bold transition-all relative
                                                                             ${isSelected ? 'bg-primary text-white shadow-2xl shadow-primary/40 scale-110 z-10' : 
                                                                               currentMonth ? 'text-text-primary hover:bg-primary/10' : 'text-slate-300 dark:text-slate-700 opacity-40'}
                                                                         `}
@@ -286,7 +286,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                                 <button
                                                     type="button"
                                                     onClick={handleToday}
-                                                    className="flex-1 py-3 px-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-text-primary text-xs font-black hover:bg-slate-200 transition-colors uppercase tracking-widest"
+                                                    className="flex-1 py-3 px-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-text-primary text-xs font-bold hover:bg-slate-200 transition-colors uppercase tracking-widest"
                                                 >
                                                     {t('common.today', 'Today')}
                                                 </button>
@@ -294,7 +294,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                                     <button
                                                         type="button"
                                                         onClick={handleConfirm}
-                                                        className="flex-1 py-3 px-4 rounded-2xl bg-primary text-white text-xs font-black hover:bg-primary-dark shadow-lg shadow-primary/30 transition-all uppercase tracking-widest flex items-center justify-center gap-2"
+                                                        className="flex-1 py-3 px-4 rounded-2xl bg-primary text-white text-xs font-bold hover:bg-primary-dark shadow-lg shadow-primary/30 transition-all uppercase tracking-widest flex items-center justify-center gap-2"
                                                     >
                                                         <Check size={14} />
                                                         {t('common.confirm', 'Confirm')}
@@ -310,19 +310,19 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                                     <div className="p-1.5 bg-primary/10 rounded-lg">
                                                         <Clock size={16} />
                                                     </div>
-                                                    <span className="text-xs font-black uppercase tracking-[0.2em]">{t('common.time', 'Time')}</span>
+                                                    <span className="text-xs font-bold uppercase tracking-[0.2em]">{t('common.time', 'Time')}</span>
                                                 </div>
 
                                                 <div className="space-y-6">
                                                     <div>
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">{t('common.hour', 'Hour')}</label>
+                                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 block">{t('common.hour', 'Hour')}</label>
                                                         <div className="grid grid-cols-4 gap-2">
                                                             {[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(h => (
                                                                 <button
                                                                     key={h}
                                                                     type="button"
                                                                     onClick={() => setTempTime(t => ({ ...t, hours: h }))}
-                                                                    className={`py-3 rounded-xl text-xs font-black transition-all ${tempTime.hours === h ? 'bg-primary text-white shadow-xl' : 'bg-white dark:bg-slate-800 text-text-primary border border-border/50'}`}
+                                                                    className={`py-3 rounded-xl text-xs font-bold transition-all ${tempTime.hours === h ? 'bg-primary text-white shadow-xl' : 'bg-white dark:bg-slate-800 text-text-primary border border-border/50'}`}
                                                                 >
                                                                     {h}
                                                                 </button>
@@ -331,14 +331,14 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                                     </div>
 
                                                     <div>
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block">{t('common.minute', 'Minutes')}</label>
+                                                        <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 block">{t('common.minute', 'Minutes')}</label>
                                                         <div className="grid grid-cols-4 gap-2">
                                                             {[0, 15, 30, 45].map(m => (
                                                                 <button
                                                                     key={m}
                                                                     type="button"
                                                                     onClick={() => setTempTime(t => ({ ...t, minutes: m }))}
-                                                                    className={`py-3 rounded-xl text-xs font-black transition-all ${tempTime.minutes === m ? 'bg-primary text-white shadow-xl' : 'bg-white dark:bg-slate-800 text-text-primary border border-border/50'}`}
+                                                                    className={`py-3 rounded-xl text-xs font-bold transition-all ${tempTime.minutes === m ? 'bg-primary text-white shadow-xl' : 'bg-white dark:bg-slate-800 text-text-primary border border-border/50'}`}
                                                                 >
                                                                     {m.toString().padStart(2, '0')}
                                                                 </button>
@@ -352,7 +352,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                                                 key={p}
                                                                 type="button"
                                                                 onClick={() => setTempTime(t => ({ ...t, ampm: p }))}
-                                                                className={`flex-1 py-3 rounded-xl text-xs font-black transition-all ${tempTime.ampm === p ? 'bg-primary text-white shadow-lg' : 'text-slate-400 hover:text-text-primary'}`}
+                                                                className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all ${tempTime.ampm === p ? 'bg-primary text-white shadow-lg' : 'text-slate-500 hover:text-text-primary'}`}
                                                             >
                                                                 {p}
                                                             </button>

@@ -55,7 +55,7 @@ const GlobalLabOrdersModal = ({ isOpen, onClose, initialStatus = '', title = '' 
                 {/* Filters */}
                 <div className="p-4 border-b flex gap-4 bg-white">
                     <div className="relative flex-1">
-                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                         <input
                             type="text"
                             placeholder="بحث باسم المريض أو المعمل..."
@@ -99,7 +99,7 @@ const GlobalLabOrdersModal = ({ isOpen, onClose, initialStatus = '', title = '' 
                                             <td className="p-3 font-medium text-slate-700">{order.patient_name}</td>
                                             <td className="p-3">
                                                 <div className="font-medium">{order.work_type}</div>
-                                                <div className="text-xs text-slate-400">{order.material} {order.shade && `(${order.shade})`}</div>
+                                                <div className="text-xs text-slate-500">{order.material} {order.shade && `(${order.shade})`}</div>
                                             </td>
                                             <td className="p-3">
                                                 <span className={`px-2 py-1 rounded text-xs font-bold 
@@ -115,7 +115,7 @@ const GlobalLabOrdersModal = ({ isOpen, onClose, initialStatus = '', title = '' 
                                     ))}
                                     {filteredOrders.length === 0 && (
                                         <tr>
-                                            <td colSpan="6" className="p-8 text-center text-slate-400">لا توجد طلبات</td>
+                                            <td colSpan="6" className="p-8 text-center text-slate-500">لا توجد طلبات</td>
                                         </tr>
                                     )}
                                 </tbody>

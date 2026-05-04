@@ -55,7 +55,7 @@ export default function Support() {
         <div className="space-y-6 animate-fade-in pb-12">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-800 dark:text-white">{t('static.support.title')}</h1>
+                    <h1 className="text-3xl font-bold text-slate-800 dark:text-white">{t('static.support.title')}</h1>
                     <p className="text-slate-500 mt-1">{t('static.support.subtitle')}</p>
                 </div>
             </div>
@@ -134,7 +134,7 @@ export default function Support() {
                                     )}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="col-span-2">
-                                            <label className="block text-sm font-black uppercase tracking-wider mb-3 pr-1 text-slate-500 dark:text-slate-400">{t('static.support.subject')}</label>
+                                            <label className="block text-sm font-bold uppercase tracking-wider mb-3 pr-1 text-slate-500 dark:text-slate-400">{t('static.support.subject')}</label>
                                             <input
                                                 type="text"
                                                 required
@@ -145,7 +145,7 @@ export default function Support() {
                                             />
                                         </div>
                                         <div className="col-span-2">
-                                            <label className="block text-sm font-black uppercase tracking-wider mb-3 pr-1 text-slate-500 dark:text-slate-400">{t('static.support.message')}</label>
+                                            <label className="block text-sm font-bold uppercase tracking-wider mb-3 pr-1 text-slate-500 dark:text-slate-400">{t('static.support.message')}</label>
                                             <textarea
                                                 required
                                                 rows="8"

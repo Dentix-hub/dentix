@@ -17,13 +17,15 @@ import {
     usePatientTreatments,
     usePatientPayments,
     usePatientAttachments,
-    useInvalidatePatientData
+    useInvalidatePatientData,
+    useCreatePayment,
+    useDeletePayment
 } from '@/hooks/usePatientDetails';
 import { useTreatmentOperations } from '@/features/patients/hooks/useTreatmentOperations';
 import { Baby, User as X } from 'lucide-react';
 import { toothToNumber, fdiToPalmer, getTodayStr, universalToPalmer } from '../utils/toothUtils';
 import {
-    updatePatient, createPayment, deleteTreatment, deletePayment,
+    updatePatient, deleteTreatment,
     uploadAttachment, deleteAttachment,
     createPrescription
 } from '../api';
@@ -120,7 +122,12 @@ export default function PatientDetails() {
     const [editingTreatmentId, setEditingTreatmentId] = useState(null);
     const [selectedToothCondition, setSelectedToothCondition] = useState('Healthy');
 
+    // === MUTATION HOOKS ===
+    const { mutateAsync: createPaymentMutate } = useCreatePayment();
+    const { mutateAsync: deletePaymentMutate } = useDeletePayment();
+
     // === CUSTOM HOOK FOR TREATMENT OPERATIONS ===
+
     const { handleSaveTreatment } = useTreatmentOperations({
         patientId: id,
         refetchHistory,
@@ -184,13 +191,13 @@ export default function PatientDetails() {
 
     const handleSavePayment = useCallback(async (data) => {
         try {
-            await createPayment({ ...data, patient_id: parseInt(id, 10) });
+            await createPaymentMutate({ ...data, patient_id: parseInt(id, 10) });
             setIsPaymentModalOpen(false);
-            refetchPayments();
+            // refetchPayments is handled by onSettled in hook
         } catch (err) {
             toast.error(err.response?.data?.detail || t('patient_details.alerts.payment_save_fail'));
         }
-    }, [id, refetchPayments, t]);
+    }, [id, createPaymentMutate, t]);
 
     const openManualTreatment = useCallback(() => {
         setEditingTreatmentId(null);
@@ -240,12 +247,12 @@ export default function PatientDetails() {
     const handleDeletePayment = useCallback(async (paymentId) => {
         if (!window.confirm(t('patient_details.alerts.delete_payment_confirm'))) return;
         try {
-            await deletePayment(paymentId);
-            refetchPayments();
+            await deletePaymentMutate({ paymentId, patientId: parseInt(id, 10) });
+            // refetchPayments is handled by onSettled in hook
         } catch (err) {
             toast.error(err.response?.data?.detail || t('patient_details.alerts.delete_payment_fail'));
         }
-    }, [refetchPayments, t]);
+    }, [id, deletePaymentMutate, t]);
 
     const handlePrintInvoice = useCallback(() => {
         navigate(`/print/invoice/${id}`);
@@ -353,7 +360,7 @@ export default function PatientDetails() {
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                                     <div>
                                         <h3 className="font-bold text-slate-800">{t('patient_details.chart.title')}</h3>
-                                        <p className="text-xs text-slate-400">{t('patient_details.chart.subtitle')}</p>
+                                        <p className="text-xs text-slate-500">{t('patient_details.chart.subtitle')}</p>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <button

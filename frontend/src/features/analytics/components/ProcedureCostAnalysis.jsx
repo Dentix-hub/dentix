@@ -65,7 +65,7 @@ const ProcedureCostAnalysis = () => {
                 </div>
             </div>
             {!selectedProcedure ? (
-                <div className="text-center py-12 text-slate-400 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200">
+                <div className="text-center py-12 text-slate-500 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200">
                     <Search className="mx-auto mb-2 opacity-50" size={32} />
                     <p>{t('analytics.procedure_analysis.empty_state')}</p>
                 </div>
@@ -95,20 +95,20 @@ const ProcedureCostAnalysis = () => {
                                 {/* Service Price */}
                                 <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 text-center shadow-sm">
                                     <div className="text-xs text-slate-500 font-bold mb-1">{t('analytics.procedure_analysis.metrics.service_price')}</div>
-                                    <div className="text-2xl font-black text-slate-800 dark:text-white">{analysis.current_price}</div>
-                                    <div className="text-[10px] text-slate-400">{t('analytics.general_analysis.currency')}</div>
+                                    <div className="text-2xl font-bold text-slate-800 dark:text-white">{analysis.current_price}</div>
+                                    <div className="text-[10px] text-slate-500">{t('analytics.general_analysis.currency')}</div>
                                 </div>
                                 {/* Actual Cost (AI) */}
                                 <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-800 text-center shadow-sm relative overflow-hidden">
                                     <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[9px] px-2 py-0.5 rounded-bl-lg">AI Learn</div>
                                     <div className="text-xs text-indigo-800 dark:text-indigo-300 font-bold mb-1">{t('analytics.procedure_analysis.metrics.actual_cost')}</div>
-                                    <div className="text-2xl font-black text-indigo-700 dark:text-indigo-400">{analysis.total_actual_cost}</div>
+                                    <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-400">{analysis.total_actual_cost}</div>
                                     <div className="text-[10px] text-indigo-400">{t('analytics.procedure_analysis.metrics.actual_margin')}</div>
                                 </div>
                                 {/* Actual Profit */}
                                 <div className={`p-4 rounded-2xl border text-center shadow-sm ${analysis.actual_profit_margin < 0 ? 'bg-red-50 border-red-100 text-red-700' : 'bg-emerald-50 border-emerald-100 text-emerald-700'}`}>
                                     <div className="text-xs font-bold mb-1 opacity-80">{t('analytics.procedure_analysis.metrics.actual_profit')}</div>
-                                    <div className="text-2xl font-black mb-1">{analysis.actual_profit_margin}</div>
+                                    <div className="text-2xl font-bold mb-1">{analysis.actual_profit_margin}</div>
                                     <div className="text-[10px] opacity-70">{analysis.actual_margin_percentage}%</div>
                                 </div>
                             </div>
@@ -134,12 +134,12 @@ const ProcedureCostAnalysis = () => {
                                         <div key={idx} className="flex flex-col sm:flex-row justify-between items-center text-sm p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-100 dark:border-slate-700 hover:shadow-sm transition-shadow gap-3">
                                             <div className="flex-1 text-center sm:text-right w-full">
                                                 <div className="font-bold text-slate-700 dark:text-slate-200">{item.material_name}</div>
-                                                <div className="text-xs text-slate-400 mt-0.5">{item.unit_cost} ج.م / {item.base_unit}</div>
+                                                <div className="text-xs text-slate-500 mt-0.5">{item.unit_cost} ج.م / {item.base_unit}</div>
                                             </div>
                                             {/* Comparison Grid */}
                                             <div className="flex bg-slate-50 dark:bg-slate-900 rounded-lg p-1 gap-4 text-center w-full sm:w-auto justify-center">
                                                 <div className="px-2 border-r border-slate-200 dark:border-slate-700">
-                                                    <div className="text-[10px] text-slate-400">{t('analytics.procedure_analysis.comparison.weight_score')}</div>
+                                                    <div className="text-[10px] text-slate-500">{t('analytics.procedure_analysis.comparison.weight_score')}</div>
                                                     <div className="font-bold text-slate-600 dark:text-slate-300">{item.weight_used} <span className="text-[9px] font-normal">{t('analytics.procedure_analysis.comparison.points')}</span></div>
                                                     {/* Cost removed as Score is unitless */}
                                                 </div>
@@ -210,11 +210,11 @@ const ProcedureCostAnalysis = () => {
                                                             }}
                                                             className="w-16 p-1 text-center border rounded bg-white dark:bg-slate-700 dark:border-slate-600 focus:border-indigo-500 outline-none font-bold"
                                                         />
-                                                        <span className="text-xs text-slate-400">{item.base_unit}</span>
+                                                        <span className="text-xs text-slate-500">{item.base_unit}</span>
                                                     </div>
                                                 </td>
                                                 <td className={`p-4 text-center font-bold text-lg ${item.coverage_per_pack < 1 ? 'text-amber-600 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-400' : 'text-indigo-600 dark:text-indigo-400 bg-indigo-50/30 dark:bg-indigo-900/20'}`}>
-                                                    {isFinite(item.coverage_per_pack) ? (item.coverage_per_pack < 1 ? item.coverage_per_pack.toFixed(1) : Math.floor(item.coverage_per_pack)) : 0} <span className="text-xs font-normal text-slate-400">{t('analytics.procedure_analysis.coverage.patient_unit')}</span>
+                                                    {isFinite(item.coverage_per_pack) ? (item.coverage_per_pack < 1 ? item.coverage_per_pack.toFixed(1) : Math.floor(item.coverage_per_pack)) : 0} <span className="text-xs font-normal text-slate-500">{t('analytics.procedure_analysis.coverage.patient_unit')}</span>
                                                     {item.coverage_per_pack < 1 && <div className="text-[10px] text-amber-600 dark:text-amber-400 font-normal mt-0.5">{t('analytics.procedure_analysis.coverage.usage_exceeds')}</div>}
                                                 </td>
                                                 <td className="p-4 text-center text-slate-600 dark:text-slate-300 font-mono">{item.cost_per_pack} {t('analytics.general_analysis.currency')}</td>

@@ -69,10 +69,10 @@ const WarehouseDetailsModal = ({ isOpen, onClose, warehouse }) => {
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="font-bold font-mono text-primary">
-                                                {item.total_quantity} <span className="text-xs text-slate-400">{item.unit}</span>
+                                                {item.total_quantity} <span className="text-xs text-slate-500">{item.unit}</span>
                                             </div>
                                             {item.packaging_ratio > 1 && (
-                                                <div className="text-xs text-slate-400 mt-0.5">
+                                                <div className="text-xs text-slate-500 mt-0.5">
                                                     {(item.total_quantity / item.packaging_ratio).toFixed(1)} box
                                                 </div>
                                             )}

@@ -9,7 +9,7 @@ const StaffTab = ({ staff, roleLabels, openStaffProfile }) => {
         <Card className="overflow-hidden">
             <div className="p-6 border-b border-border flex items-center gap-4 bg-surface">
                 <div className="w-1.5 h-8 bg-teal-500 rounded-full"></div>
-                <h3 className="font-black text-xl text-text-primary">{t('billing.staff.title')}</h3>
+                <h3 className="font-bold text-xl text-text-primary">{t('billing.staff.title')}</h3>
             </div>
             <div className="overflow-x-auto">
                 {staff.length > 0 ? (

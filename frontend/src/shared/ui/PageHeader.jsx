@@ -17,7 +17,7 @@ export default function PageHeader({
             )}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-black text-text-primary tracking-tight flex items-center gap-3">
+                    <h1 className="text-3xl font-extrabold text-text-primary tracking-tight flex items-center gap-3">
                         {Icon && <Icon className="text-primary" size={32} />}
                         {title}
                     </h1>

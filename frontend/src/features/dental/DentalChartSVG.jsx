@@ -139,7 +139,7 @@ export default memo(function DentalChartSVG({ teethStatus, onToothClick, isPedia
         <div className="bg-slate-50 p-8 rounded-3xl shadow-inner overflow-x-auto text-center">
             <h3 className="text-lg font-bold mb-8 text-slate-700">
                 {isPediatric ? 'مخطط الأسنان (أطفال)' : 'مخطط الأسنان (بالغين)'}
-                <span className="block text-xs text-slate-400 font-normal mt-1">Palmer Notation</span>
+                <span className="block text-xs text-slate-500 font-normal mt-1">Palmer Notation</span>
             </h3>
             <div className="inline-flex flex-col gap-16 min-w-[700px]">
                 {/* Upper Arch */}

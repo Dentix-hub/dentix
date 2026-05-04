@@ -202,7 +202,7 @@ export default function UsersManager() {
                                     <option value="custom">🛠️ {t('users.roles.custom')}</option>
                                     <option value="admin">🔐 {t('users.roles.admin')}</option>
                                 </select>
-                                <p className="text-xs text-slate-400 mt-2">
+                                <p className="text-xs text-slate-500 mt-2">
                                     {newUser.role === 'custom' ? t('users.roles.custom') : ''}
                                 </p>
                             </div>
@@ -219,7 +219,7 @@ export default function UsersManager() {
                                         <option value="appointments_only">{t('users.form.vis_appt')}</option>
                                         <option value="mixed">{t('users.form.vis_mixed')}</option>
                                     </select>
-                                    <p className="text-xs text-slate-400 mt-1">{t('users.form.visibility_hint')}</p>
+                                    <p className="text-xs text-slate-500 mt-1">{t('users.form.visibility_hint')}</p>
                                 </div>
                             )}
                             {/* Granular Permissions (Not for Admin) */}

@@ -131,7 +131,7 @@ const NotificationsManager = ({ notifForm, setNotifForm, handleSendNotification,
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan="5" className="p-10 text-center text-slate-400">لا توجد إشعارات سابقة</td>
+                                    <td colSpan="5" className="p-10 text-center text-slate-500">لا توجد إشعارات سابقة</td>
                                 </tr>
                             )}
                         </tbody>

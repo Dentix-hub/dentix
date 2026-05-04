@@ -25,7 +25,7 @@ export default function AILogs() {
             {/* Header */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-800 dark:text-white">سجل العمليات 📜</h1>
+                    <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white">سجل العمليات 📜</h1>
                     <p className="text-slate-500 mt-2">تتبع جميع تفاعلات المساعد الذكي بالتفصيل.</p>
                 </div>
                 <div className="flex gap-2">
@@ -59,14 +59,14 @@ export default function AILogs() {
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                             {loading ? (
-                                <tr><td colSpan="5" className="px-6 py-8 text-center text-slate-400">تحميل...</td></tr>
+                                <tr><td colSpan="5" className="px-6 py-8 text-center text-slate-500">تحميل...</td></tr>
                             ) : logs.length === 0 ? (
-                                <tr><td colSpan="5" className="px-6 py-8 text-center text-slate-400">لا توجد سجلات</td></tr>
+                                <tr><td colSpan="5" className="px-6 py-8 text-center text-slate-500">لا توجد سجلات</td></tr>
                             ) : logs.map((log) => (
                                 <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                                     <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-300">
                                         <div className="flex items-center gap-2">
-                                            <Clock size={14} className="text-slate-400" />
+                                            <Clock size={14} className="text-slate-500" />
                                             {new Date(log.created_at).toLocaleString('ar-EG')}
                                         </div>
                                     </td>

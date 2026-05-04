@@ -26,7 +26,7 @@ export default function Overview() {
                     <ShieldCheck size={32} />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-black text-slate-800 dark:text-white">لوحة التحكم</h1>
+                    <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white">لوحة التحكم</h1>
                     <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">نظرة عامة على أداء النظام</p>
                 </div>
             </div>

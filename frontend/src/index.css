@@ -149,3 +149,25 @@
 .content-wrapper {
   @apply text-slate-900 dark:text-slate-100;
 }
+
+.glass-card {
+  @apply bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-xl shadow-black/5;
+}
+
+/* Table Row Hover Animation */
+tr.group\/row {
+  @apply relative transition-all duration-200;
+}
+
+tr.group\/row:hover {
+  @apply bg-primary/5 dark:bg-primary/10;
+}
+
+tr.group\/row::before {
+  content: '';
+  @apply absolute left-0 top-0 bottom-0 w-1 bg-primary scale-y-0 transition-transform duration-200 origin-center rounded-r-full;
+}
+
+tr.group\/row:hover::before {
+  @apply scale-y-75;
+}

@@ -63,7 +63,7 @@ const GeneralCostAnalysis = () => {
                     </div>
                     <div>
                         <div className="text-sm text-slate-500 font-bold">{t('analytics.general_analysis.total_procedures')}</div>
-                        <div className="text-2xl font-black text-slate-800 dark:text-white">{data.length}</div>
+                        <div className="text-2xl font-bold text-slate-800 dark:text-white">{data.length}</div>
                     </div>
                 </div>
                 <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm flex items-center gap-4">
@@ -72,7 +72,7 @@ const GeneralCostAnalysis = () => {
                     </div>
                     <div>
                         <div className="text-sm text-slate-500 font-bold">{t('analytics.general_analysis.avg_margin')}</div>
-                        <div className={`text-2xl font-black ${averages.margin < 30 ? 'text-red-600' : 'text-emerald-600'}`}>
+                        <div className={`text-2xl font-bold ${averages.margin < 30 ? 'text-red-600' : 'text-emerald-600'}`}>
                             {averages.margin.toFixed(1)}%
                         </div>
                     </div>
@@ -83,7 +83,7 @@ const GeneralCostAnalysis = () => {
                     </div>
                     <div>
                         <div className="text-sm text-slate-500 font-bold">{t('analytics.general_analysis.avg_cost')}</div>
-                        <div className="text-2xl font-black text-slate-800 dark:text-white">{averages.cost.toFixed(0)} <span className="text-xs font-normal text-slate-400">{t('analytics.general_analysis.currency')}</span></div>
+                        <div className="text-2xl font-bold text-slate-800 dark:text-white">{averages.cost.toFixed(0)} <span className="text-xs font-normal text-slate-500">{t('analytics.general_analysis.currency')}</span></div>
                     </div>
                 </div>
             </div>
@@ -91,7 +91,7 @@ const GeneralCostAnalysis = () => {
             <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
                 <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
                     <h3 className="font-bold text-slate-800 dark:text-white">{t('analytics.general_analysis.table.title')}</h3>
-                    <div className="text-xs text-slate-400">{t('analytics.general_analysis.table.subtitle')}</div>
+                    <div className="text-xs text-slate-500">{t('analytics.general_analysis.table.subtitle')}</div>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">

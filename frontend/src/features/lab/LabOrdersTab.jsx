@@ -134,7 +134,7 @@ const LabOrdersTab = ({ patientId }) => {
                                     <td className="p-4 font-bold text-slate-700 whitespace-nowrap">{order.laboratory_name}</td>
                                     <td className="p-4 whitespace-nowrap">
                                         <span className="bg-teal-50 text-teal-700 px-2 py-1 rounded-lg text-sm font-medium">{order.work_type}</span>
-                                        {order.material && <span className="text-slate-400 text-xs ml-1">({order.material})</span>}
+                                        {order.material && <span className="text-slate-500 text-xs ml-1">({order.material})</span>}
                                     </td>
                                     <td className="p-4 font-bold text-slate-600 whitespace-nowrap">{order.tooth_number || '-'}</td>
                                     <td className="p-4 whitespace-nowrap">{order.shade || '-'}</td>
@@ -170,13 +170,13 @@ const LabOrdersTab = ({ patientId }) => {
                                                 });
                                                 setIsLabOrderModalOpen(true);
                                             }}
-                                            className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg"
+                                            className="p-2 text-slate-500 hover:text-blue-500 hover:bg-blue-50 rounded-lg"
                                         >
                                             <Edit2 size={16} />
                                         </button>
                                         <button
                                             onClick={() => handleDeleteLabOrder(order.id)}
-                                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                                            className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-lg"
                                         >
                                             <Trash2 size={16} />
                                         </button>
@@ -187,7 +187,7 @@ const LabOrdersTab = ({ patientId }) => {
                     </table>
                 </div>
                 {labOrders.length === 0 && (
-                    <div className="p-12 text-center text-slate-400">
+                    <div className="p-12 text-center text-slate-500">
                         <FlaskConical size={48} className="mx-auto mb-3 opacity-20" />
                         <p>{t('patientDetails.lab_orders.empty')}</p>
                         <button

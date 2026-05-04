@@ -67,7 +67,7 @@ export default function ResetPassword() {
                 {/* Logo */}
                 <div className="text-center mb-8">
                     <div className="text-5xl mb-2">🏥</div>
-                    <h1 className="text-3xl font-black text-slate-800 dark:text-white">DENTIX</h1>
+                    <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white">DENTIX</h1>
                 </div>
                 <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-8">
                     {success ? (
@@ -111,7 +111,7 @@ export default function ResetPassword() {
                                         <button
                                             type="button"
                                             onClick={() => setShowPassword(!showPassword)}
-                                            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-600"
                                         >
                                             {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                                         </button>

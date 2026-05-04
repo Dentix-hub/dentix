@@ -122,7 +122,7 @@ export default function SystemHealth() {
                     </tbody>
                 </table>
                 {jobs.length === 0 && !loading && (
-                    <div className="p-8 text-center text-slate-400">لا توجد سجلات للمهام مؤخراً.</div>
+                    <div className="p-8 text-center text-slate-500">لا توجد سجلات للمهام مؤخراً.</div>
                 )}
             </div>
         </div>

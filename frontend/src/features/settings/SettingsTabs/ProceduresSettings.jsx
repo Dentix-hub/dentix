@@ -99,7 +99,7 @@ const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
                     {/* List */}
                     <div className="space-y-2">
                         {weights.length === 0 ? (
-                            <div className="text-center py-8 text-slate-400">لا توجد مواد مرتبطة بهذا الإجراء</div>
+                            <div className="text-center py-8 text-slate-500">لا توجد مواد مرتبطة بهذا الإجراء</div>
                         ) : weights.map(w => {
                             const mat = materials.find(m => m.id === w.material_id);
                             return (
@@ -193,7 +193,7 @@ const ProceduresSettings = ({ setMessage }) => {
         <div className="space-y-6">
             <div className="flex justify-between gap-4">
                 <div className="relative flex-1">
-                    <Search className="absolute right-4 top-3.5 text-slate-400" size={20} />
+                    <Search className="absolute right-4 top-3.5 text-slate-500" size={20} />
                     <input
                         type="text"
                         placeholder="بحث عن إجراء..."

@@ -56,7 +56,7 @@ const PatientBilling = ({
                 </div>
                 <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
                     <p className="text-xs text-slate-500 font-bold uppercase mb-1">{t('patientDetails.billing.stats.remaining')}</p>
-                    <p className="text-2xl font-bold text-slate-400">
+                    <p className="text-2xl font-bold text-slate-500">
                         {totalRemaining}
                     </p>
                 </div>
@@ -83,7 +83,7 @@ const PatientBilling = ({
                                 {history.map(item => (
                                     <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                                         <td className="p-4 whitespace-nowrap text-sm text-slate-600">{new Date(item.date).toLocaleDateString()}</td>
-                                        <td className="p-4 font-bold text-slate-700">{item.procedure} <span className="text-xs font-normal text-slate-400">({fdiToPalmer(item.tooth_number) || ''})</span></td>
+                                        <td className="p-4 font-bold text-slate-700">{item.procedure} <span className="text-xs font-normal text-slate-500">({fdiToPalmer(item.tooth_number) || ''})</span></td>
                                         <td className="p-4 font-bold text-slate-800">{item.cost}</td>
                                         <td className="p-4 text-red-500">{item.discount > 0 ? item.discount : '-'}</td>
                                         <td className="p-4 font-bold text-emerald-600">{item.cost - (item.discount || 0)}</td>
@@ -92,7 +92,7 @@ const PatientBilling = ({
                             </tbody>
                         </table>
                     </div>
-                    {history.length === 0 && <div className="p-8 text-center text-slate-400">{t('patientDetails.billing.empty_treatments')}</div>}
+                    {history.length === 0 && <div className="p-8 text-center text-slate-500">{t('patientDetails.billing.empty_treatments')}</div>}
                 </div>
             )}
             {/* Payments Tab Content */}
@@ -118,14 +118,14 @@ const PatientBilling = ({
                                         <td className="p-4 font-bold text-emerald-600 text-lg">{item.amount}</td>
                                         <td className="p-4 text-slate-500">{item.notes || '-'}</td>
                                         <td className="p-4">
-                                            <button onClick={() => onDeletePayment(item.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                                            <button onClick={() => onDeletePayment(item.id)} className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
-                    {payments.length === 0 && <div className="p-8 text-center text-slate-400">{t('patientDetails.billing.empty_payments')}</div>}
+                    {payments.length === 0 && <div className="p-8 text-center text-slate-500">{t('patientDetails.billing.empty_payments')}</div>}
                 </div>
             )}
         </div>

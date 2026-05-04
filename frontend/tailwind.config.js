@@ -12,6 +12,15 @@ export default {
                 cairo: ['Cairo', 'sans-serif'],
                 inter: ['Inter', 'sans-serif'],
             },
+            spacing: {
+                'card': '1.5rem',      // 24px
+                'card-sm': '1rem',     // 16px
+                'section': '2rem',     // 32px
+                'page': '2rem',        // 32px
+                'page-sm': '1rem',     // 16px
+                'inline': '0.75rem',   // 12px
+                'stack': '0.5rem',     // 8px
+            },
             colors: {
                 primary: {
                     50: '#f0f9ff',
@@ -42,18 +51,38 @@ export default {
                     DEFAULT: '#14b8a6',
                 },
                 accent: {
-                    50: '#faf5ff',
-                    100: '#f3e8ff',
-                    200: '#e9d5ff',
-                    300: '#d8b4fe',
-                    400: '#c084fc',
-                    500: '#a855f7',
-                    600: '#9333ea',
-                    700: '#7e22ce',
-                    800: '#6b21a8',
-                    900: '#581c87',
-                    950: '#3b0764',
-                    DEFAULT: '#a855f7',
+                    50: '#fffbeb',
+                    100: '#fef3c7',
+                    200: '#fde68a',
+                    300: '#fcd34d',
+                    400: '#fbbf24',
+                    500: '#f59e0b',
+                    600: '#d97706',
+                    700: '#b45309',
+                    800: '#92400e',
+                    900: '#78350f',
+                    950: '#451a03',
+                    DEFAULT: '#f59e0b',
+                },
+                success: {
+                    DEFAULT: '#10b981',
+                    light: '#d1fae5',
+                    dark: '#065f46',
+                },
+                warning: {
+                    DEFAULT: '#f59e0b',
+                    light: '#fef3c7',
+                    dark: '#92400e',
+                },
+                danger: {
+                    DEFAULT: '#ef4444',
+                    light: '#fee2e2',
+                    dark: '#991b1b',
+                },
+                info: {
+                    DEFAULT: '#3b82f6',
+                    light: '#dbeafe',
+                    dark: '#1e40af',
                 },
                 medical: {
                     light: '#E0F2FE',

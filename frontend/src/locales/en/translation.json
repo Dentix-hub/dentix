@@ -1511,5 +1511,35 @@
         "cancel": "Cancel",
         "delete_confirm": "Are you sure you want to deactivate this provider?",
         "price_lists_count": "Price Lists:"
+    },
+    "command_palette": {
+        "placeholder": "Search anything...",
+        "results_label": "Search Results",
+        "no_results": "No matches found",
+        "no_results_desc": "We couldn't find any results for \"{{query}}\"",
+        "quick_nav": "Quick Navigation",
+        "add_patient": "Add Patient",
+        "new_appointment": "New Appointment",
+        "inventory_check": "Inventory Check",
+        "settings": "Settings",
+        "to_close": "to close",
+        "to_select": "to select",
+        "go_to": "Go To",
+        "sections": {
+            "patients": "Patients",
+            "appointments": "Appointments",
+            "pages": "Pages",
+            "actions": "Actions"
+        }
+    },
+    "shortcuts": {
+        "title": "Keyboard Shortcuts",
+        "global": "Global",
+        "navigation": "Navigation",
+        "open_command_palette": "Open Command Palette",
+        "show_shortcuts": "Show Keyboard Shortcuts",
+        "close_modal": "Close Modal / Cancel",
+        "navigate_results": "Navigate Results",
+        "select_item": "Select Item"
     }
 }

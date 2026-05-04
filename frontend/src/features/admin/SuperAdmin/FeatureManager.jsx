@@ -87,7 +87,7 @@ export default function FeatureManager({ tenants }) {
         <div className="space-y-6">
             <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div>
-                    <h3 className="text-2xl font-black text-slate-800 dark:text-white flex items-center gap-2">
+                    <h3 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                         <Settings className="text-indigo-500" />
                         إدارة المزايا (Feature Flags)
                     </h3>
@@ -122,7 +122,7 @@ export default function FeatureManager({ tenants }) {
 
                         <div className="flex items-center gap-4 w-full md:w-auto">
                             <div className="md:text-left flex-1">
-                                <label className="text-xs font-bold text-slate-400 block mb-1">override tenant</label>
+                                <label className="text-xs font-bold text-slate-500 block mb-1">override tenant</label>
                                 <select
                                     className="w-full md:w-40 text-sm p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
                                     onChange={(e) => {
@@ -156,7 +156,7 @@ export default function FeatureManager({ tenants }) {
                     <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 w-full max-w-md shadow-2xl space-y-6">
                         <div className="flex justify-between items-center">
                             <h3 className="text-xl font-bold text-slate-800 dark:text-white">إضافة ميزة جديدة</h3>
-                            <button onClick={() => setShowModal(false)}><X className="text-slate-400" /></button>
+                            <button onClick={() => setShowModal(false)}><X className="text-slate-500" /></button>
                         </div>
 
                         <div className="space-y-4">

@@ -38,7 +38,7 @@ const ActiveSubscriptions = ({ tenants, plans, getDaysRemaining }) => {
                                         </span>
                                     </td>
                                     <td className="p-6">
-                                        <span className="font-black text-emerald-600 dark:text-emerald-400">
+                                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
                                             {plan?.price?.toLocaleString() || 0} ج.م
                                         </span>
                                     </td>
@@ -49,7 +49,7 @@ const ActiveSubscriptions = ({ tenants, plans, getDaysRemaining }) => {
                                                 {daysLeft} يوم
                                             </div>
                                         ) : (
-                                            <span className="text-slate-400 text-2xl">∞</span>
+                                            <span className="text-slate-500 text-2xl">∞</span>
                                         )}
                                     </td>
                                     <td className="p-6 font-medium text-slate-600 dark:text-slate-400">

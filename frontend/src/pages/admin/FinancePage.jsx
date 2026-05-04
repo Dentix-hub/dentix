@@ -112,7 +112,7 @@ export default function FinancePage() {
                         <CreditCard size={32} />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-black text-slate-800 dark:text-white">الإدارة المالية</h1>
+                        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white">الإدارة المالية</h1>
                         <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">المدفوعات وخطط الاشتراك</p>
                     </div>
                 </div>
@@ -290,7 +290,7 @@ export default function FinancePage() {
                                             onClick={() => setPaymentForm({ ...paymentForm, payment_method: method.id })}
                                             className={`flex flex-col items-center justify-center gap-1 p-2 rounded-xl border-2 transition-all ${paymentForm.payment_method === method.id
                                                 ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600'
-                                                : 'border-slate-100 dark:border-slate-800 text-slate-400 hover:border-slate-300'
+                                                : 'border-slate-100 dark:border-slate-800 text-slate-500 hover:border-slate-300'
                                                 }`}
                                         >
                                             <method.icon size={16} />

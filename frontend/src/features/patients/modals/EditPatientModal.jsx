@@ -76,7 +76,7 @@ export default function EditPatientModal({ isOpen, onClose, onSave, initialData 
                             value={formData.default_price_list_id ?? ''}
                             onChange={(val) => setFormData(prev => ({ ...prev, default_price_list_id: val }))}
                         />
-                        <p className="text-xs text-slate-400 mt-1">{t('patient_details.edit_modal.price_list_hint')}</p>
+                        <p className="text-xs text-slate-500 mt-1">{t('patient_details.edit_modal.price_list_hint')}</p>
                     </div>
 
                     {/* Doctor Assignment */}
@@ -94,7 +94,7 @@ export default function EditPatientModal({ isOpen, onClose, onSave, initialData 
                                 </option>
                             ))}
                         </select>
-                        <p className="text-xs text-slate-400 mt-1">{t('patient_details.edit_modal.doctor_hint')}</p>
+                        <p className="text-xs text-slate-500 mt-1">{t('patient_details.edit_modal.doctor_hint')}</p>
                     </div>
 
                     <div className="flex justify-end gap-3">

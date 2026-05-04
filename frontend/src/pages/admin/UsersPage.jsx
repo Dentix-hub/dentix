@@ -57,7 +57,7 @@ export default function UsersPage() {
                     <Users size={32} />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-black text-slate-800 dark:text-white">إدارة المستخدمين</h1>
+                    <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white">إدارة المستخدمين</h1>
                     <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">البحث والتحكم في جميع مستخدمي النظام</p>
                 </div>
             </div>

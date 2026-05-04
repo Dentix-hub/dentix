@@ -9,7 +9,7 @@ const SalariesTab = ({ salaryMonth, setSalaryMonth, salariesData, salariesLoadin
         <div className="space-y-6">
             <Card className="flex flex-col md:flex-row items-center justify-between p-6">
                 <div>
-                    <h2 className="text-xl font-black text-text-primary mb-1">{t('billing.salaries.title')}</h2>
+                    <h2 className="text-xl font-bold text-text-primary mb-1">{t('billing.salaries.title')}</h2>
                     <p className="text-sm text-text-secondary">{t('billing.salaries.subtitle')}</p>
                 </div>
                 <div className="flex items-center gap-4 mt-4 md:mt-0">
@@ -64,7 +64,7 @@ const SalariesTab = ({ salaryMonth, setSalaryMonth, salariesData, salariesLoadin
                                             )}
                                         </td>
                                         <td className="p-4">
-                                            <span className={`font-black ${emp.is_new_this_month ? 'text-warning' : 'text-text-primary'}`}>
+                                            <span className={`font-bold ${emp.is_new_this_month ? 'text-warning' : 'text-text-primary'}`}>
                                                 {emp.prorated_salary.toLocaleString()}
                                             </span>
                                             {emp.is_new_this_month && <div className="text-[10px] text-warning">{t('billing.salaries.partial_pay')}</div>}

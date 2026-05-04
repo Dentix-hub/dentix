@@ -192,7 +192,7 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
                                 }}
                             />
                         </div>
-                        <p className="text-xs text-slate-400 mt-1">{t('inventory.receive.expiry_note')}</p>
+                        <p className="text-xs text-slate-500 mt-1">{t('inventory.receive.expiry_note')}</p>
                     </div>
                     {/* PACKAGE PRICE INPUT */}
                     <div>

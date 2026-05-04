@@ -23,7 +23,7 @@ export default function AIStats() {
         <div className="flex h-[50vh] items-center justify-center">
             <div className="flex flex-col items-center gap-4">
                 <div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
-                <p className="text-slate-400 font-medium">جاري تحليل البيانات...</p>
+                <p className="text-slate-500 font-medium">جاري تحليل البيانات...</p>
             </div>
         </div>
     );
@@ -35,7 +35,7 @@ export default function AIStats() {
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
                 <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full -ml-8 -mb-8 blur-2xl"></div>
                 <div className="relative z-10">
-                    <h1 className="text-3xl font-black mb-2 flex items-center gap-3">
+                    <h1 className="text-3xl font-extrabold mb-2 flex items-center gap-3">
                         <Brain className="w-8 h-8 text-indigo-100" />
                         مركز قيادة الذكاء الاصطناعي
                     </h1>
@@ -82,7 +82,7 @@ export default function AIStats() {
                             <span className="w-2 h-8 bg-indigo-500 rounded-full"></span>
                             أكثر الأدوات استخداماً
                         </h3>
-                        <p className="text-slate-400 text-sm mt-1 mr-4">توزيع استخدام أدوات النظام المختلفة</p>
+                        <p className="text-slate-500 text-sm mt-1 mr-4">توزيع استخدام أدوات النظام المختلفة</p>
                     </div>
                     <div className="h-[400px] w-full" dir="ltr">
                         <ResponsiveContainer width="100%" height="100%">
@@ -118,7 +118,7 @@ export default function AIStats() {
                             <span className="w-2 h-8 bg-emerald-500 rounded-full"></span>
                             نشاط المستخدمين
                         </h3>
-                        <p className="text-slate-400 text-sm mt-1 mr-4">نسبة تفاعل كل مستخدم مع النظام</p>
+                        <p className="text-slate-500 text-sm mt-1 mr-4">نسبة تفاعل كل مستخدم مع النظام</p>
                     </div>
                     <div className="h-[400px] w-full relative">
                         <ResponsiveContainer width="100%" height="100%">
@@ -150,8 +150,8 @@ export default function AIStats() {
                         </ResponsiveContainer>
                         {/* Center Text */}
                         <div className="absolute top-[45%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-                            <p className="text-3xl font-black text-slate-800 dark:text-white">{stats.total_requests}</p>
-                            <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Total</p>
+                            <p className="text-3xl font-extrabold text-slate-800 dark:text-white">{stats.total_requests}</p>
+                            <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Total</p>
                         </div>
                     </div>
                 </div>
@@ -181,9 +181,9 @@ function MetricCard({ title, value, icon: Icon, color, subtext, trend }) {
                     </span>
                 )}
             </div>
-            <h3 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight mb-1">{value}</h3>
+            <h3 className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight mb-1">{value}</h3>
             <p className="text-slate-500 font-medium text-sm">{title}</p>
-            {subtext && <p className="text-xs text-slate-400 mt-3 pt-3 border-t border-slate-50 dark:border-slate-700 border-dashed">{subtext}</p>}
+            {subtext && <p className="text-xs text-slate-500 mt-3 pt-3 border-t border-slate-50 dark:border-slate-700 border-dashed">{subtext}</p>}
         </div>
     );
 }

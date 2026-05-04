@@ -114,7 +114,7 @@ const NotificationBell = () => {
                     </div>
                     <div className="overflow-y-auto">
                         {notifications.length === 0 ? (
-                            <div className="px-4 py-8 text-center text-slate-400">
+                            <div className="px-4 py-8 text-center text-slate-500">
                                 <Bell className="w-8 h-8 mx-auto mb-2 opacity-20" />
                                 <p className="text-sm">لا توجد إشعارات جديدة</p>
                             </div>
@@ -133,7 +133,7 @@ const NotificationBell = () => {
                                                     {notification.title}
                                                 </h4>
                                                 <div className="flex items-center gap-2">
-                                                    <span className="text-[10px] text-slate-400">
+                                                    <span className="text-[10px] text-slate-500">
                                                         {new Date(notification.created_at).toLocaleDateString()}
                                                     </span>
                                                     <button
@@ -158,7 +158,7 @@ const NotificationBell = () => {
                         )}
                     </div>
                     <div className="px-4 py-2 border-t border-slate-50 text-center">
-                        <button className="text-xs text-slate-400 hover:text-slate-600 transition-all font-medium">
+                        <button className="text-xs text-slate-500 hover:text-slate-600 transition-all font-medium">
                             عرض كل الإشعارات
                         </button>
                     </div>

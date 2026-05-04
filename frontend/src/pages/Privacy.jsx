@@ -30,7 +30,7 @@ export default function Privacy() {
                 </button>
 
                 <div className="text-center mb-12">
-                    <h1 className="text-3xl md:text-4xl font-black text-text-primary mb-4">{t('static.privacy.title')}</h1>
+                    <h1 className="text-3xl md:text-4xl font-extrabold text-text-primary mb-4">{t('static.privacy.title')}</h1>
                     <p className="text-text-secondary text-lg">{t('static.privacy.last_updated')}</p>
                     <p className="mt-4 text-text-secondary max-w-2xl mx-auto">
                         {t('static.privacy.intro')}

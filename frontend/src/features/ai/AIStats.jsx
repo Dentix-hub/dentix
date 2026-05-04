@@ -19,17 +19,17 @@ const OverviewTab = ({ stats, costs, suggestions }) => {
                 <div className="relative z-10 grid grid-cols-1 md:grid-cols-4 gap-8">
                     <div>
                         <p className="text-teal-100 text-sm font-bold mb-1">إجمالي العائد (توفير)</p>
-                        <h3 className="text-4xl font-black">${costs?.roi?.money_saved_usd || 0}</h3>
+                        <h3 className="text-4xl font-bold">${costs?.roi?.money_saved_usd || 0}</h3>
                         <p className="text-xs text-teal-200 mt-2">بناءً على {costs?.roi?.hours_saved || 0} ساعة عمل تم توفيرها</p>
                     </div>
                     <div>
                         <p className="text-teal-100 text-sm font-bold mb-1">تكلفة الذكاء الاصطناعي</p>
-                        <h3 className="text-4xl font-black text-white/90">${costs?.estimated_cost_usd || 0}</h3>
+                        <h3 className="text-4xl font-bold text-white/90">${costs?.estimated_cost_usd || 0}</h3>
                         <p className="text-xs text-teal-200 mt-2">{costs?.total_tokens?.toLocaleString() || 0} توكن</p>
                     </div>
                     <div>
                         <p className="text-teal-100 text-sm font-bold mb-1">صافي الفائدة</p>
-                        <h3 className="text-4xl font-black text-emerald-300">
+                        <h3 className="text-4xl font-bold text-emerald-300">
                             ${costs?.roi?.net_benefit_usd || 0}
                         </h3>
                         <p className="text-xs text-teal-200 mt-2">القيمة المضافة الحقيقية</p>
@@ -37,7 +37,7 @@ const OverviewTab = ({ stats, costs, suggestions }) => {
                     <div className="flex flex-col justify-center items-end">
                         <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm text-center min-w-[120px]">
                             <p className="text-xs font-bold mb-1 text-white/80">الاقتراحات</p>
-                            <h3 className="text-3xl font-black text-amber-300 animate-pulse">{suggestions?.length || 0}</h3>
+                            <h3 className="text-3xl font-bold text-amber-300 animate-pulse">{suggestions?.length || 0}</h3>
                         </div>
                     </div>
                 </div>
@@ -62,7 +62,7 @@ const OverviewTab = ({ stats, costs, suggestions }) => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {suggestions.map((sug, idx) => (
                             <div key={idx} className="bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm border-l-4 border-l-amber-400">
-                                <span className={`text-[10px] font-black px-2 py-1 rounded uppercase mb-2 inline-block ${sug.type === 'CRITICAL' ? 'bg-red-100 text-red-600' :
+                                <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase mb-2 inline-block ${sug.type === 'CRITICAL' ? 'bg-red-100 text-red-600' :
                                     sug.type === 'WARNING' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
                                     }`}>
                                     {sug.type === 'CRITICAL' ? 'حرج' : sug.type === 'WARNING' ? 'تحذير' : 'معلومة'}
@@ -103,7 +103,7 @@ const AnalyticsTab = ({ failures, heatmap, intents }) => {
                                 </div>
                             ))
                         ) : (
-                            <p className="text-slate-400 text-sm text-center py-4">النظام يعمل بكفاءة ✅ لا توجد أخطاء.</p>
+                            <p className="text-slate-500 text-sm text-center py-4">النظام يعمل بكفاءة ✅ لا توجد أخطاء.</p>
                         )}
                     </div>
                 </div>
@@ -115,7 +115,7 @@ const AnalyticsTab = ({ failures, heatmap, intents }) => {
                     </h3>
                     <div className="overflow-x-auto">
                         <table className="w-full text-center text-xs">
-                            <thead className="text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800">
+                            <thead className="text-slate-500 font-bold border-b border-slate-100 dark:border-slate-800">
                                 <tr>
                                     <th className="pb-2 text-right">النية (Intent)</th>
                                     <th className="pb-2 text-red-500">منخفض</th>
@@ -145,7 +145,7 @@ const AnalyticsTab = ({ failures, heatmap, intents }) => {
                 </h3>
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-right">
-                        <thead className="text-slate-400 font-medium border-b border-slate-100 dark:border-slate-800">
+                        <thead className="text-slate-500 font-medium border-b border-slate-100 dark:border-slate-800">
                             <tr>
                                 <th className="pb-3">النية / الأداة</th>
                                 <th className="pb-3">الاستخدام</th>
@@ -194,7 +194,7 @@ const LogsTab = ({ logs, page, setPage, fetchLogDetails, selectedLog, setSelecte
                                 </div>
                                 <div>
                                     <p className="font-bold text-slate-700 dark:text-slate-300">{log.tool || "Chat"}</p>
-                                    <div className="flex gap-2 text-xs text-slate-400 font-mono mt-1">
+                                    <div className="flex gap-2 text-xs text-slate-500 font-mono mt-1">
                                         <span>{log.trace_id.substring(0, 8)}...</span>
                                         <span>•</span>
                                         <span>{new Date(log.timestamp).toLocaleTimeString()}</span>
@@ -207,7 +207,7 @@ const LogsTab = ({ logs, page, setPage, fetchLogDetails, selectedLog, setSelecte
                             </div>
                         </div>
                     ))}
-                    {logs.length === 0 && <p className="text-center text-slate-400 py-10">لا توجد سجلات.</p>}
+                    {logs.length === 0 && <p className="text-center text-slate-500 py-10">لا توجد سجلات.</p>}
                 </div>
             </div>
             {/* Log Detail Modal */}
@@ -222,34 +222,34 @@ const LogsTab = ({ logs, page, setPage, fetchLogDetails, selectedLog, setSelecte
                                 </h3>
                                 <p className="font-mono text-sm text-slate-500 mt-1">{selectedLog.trace_id}</p>
                             </div>
-                            <button onClick={() => setSelectedLog(null)} className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-full transition-colors">
+                            <button onClick={() => setSelectedLog(null)} className="p-2 hover:bg-red-50 text-slate-500 hover:text-red-500 rounded-full transition-colors">
                                 <XCircle size={28} />
                             </button>
                         </div>
                         <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-6 content-start pr-2">
                             <div className="bg-slate-50 dark:bg-slate-800 p-5 rounded-2xl border border-slate-100">
-                                <label className="block text-xs font-black text-slate-400 uppercase mb-3 tracking-wider">مدخلات المستخدم</label>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">مدخلات المستخدم</label>
                                 <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{selectedLog.input_text || "لا توجد نصوص (تسجيل صوتي أو أمر نظام)"}</p>
                             </div>
                             <div className="bg-teal-50 dark:bg-teal-900/20 p-5 rounded-2xl border border-teal-100">
-                                <label className="block text-xs font-black text-teal-400 uppercase mb-3 tracking-wider">رد الذكاء الاصطناعي</label>
+                                <label className="block text-xs font-bold text-teal-400 uppercase mb-3 tracking-wider">رد الذكاء الاصطناعي</label>
                                 <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{selectedLog.output_text}</p>
                             </div>
                             <div className="col-span-2">
-                                <label className="block text-xs font-black text-slate-400 uppercase mb-3 tracking-wider">معاملات الأداة</label>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">معاملات الأداة</label>
                                 <pre className="bg-slate-900 text-emerald-400 p-5 rounded-2xl text-xs font-mono overflow-x-auto ltr border border-slate-800 shadow-inner">
                                     {tryFormatJSON(selectedLog.tool_params)}
                                 </pre>
                             </div>
                             <div className="col-span-2">
-                                <label className="block text-xs font-black text-slate-400 uppercase mb-3 tracking-wider">نتائج التنفيذ</label>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">نتائج التنفيذ</label>
                                 <pre className="bg-slate-900 text-blue-400 p-5 rounded-2xl text-xs font-mono overflow-x-auto ltr border border-slate-800 shadow-inner">
                                     {tryFormatJSON(selectedLog.tool_result)}
                                 </pre>
                             </div>
                             {selectedLog.error_details && (
                                 <div className="col-span-2 bg-red-50 dark:bg-red-900/20 p-5 rounded-2xl border border-red-100 dark:border-red-800">
-                                    <label className="block text-xs font-black text-red-500 uppercase mb-3 tracking-wider">تفاصيل الخطأ</label>
+                                    <label className="block text-xs font-bold text-red-500 uppercase mb-3 tracking-wider">تفاصيل الخطأ</label>
                                     <pre className="text-red-600 dark:text-red-400 text-xs font-mono whitespace-pre-wrap ltr">
                                         {selectedLog.error_details}
                                     </pre>
@@ -301,17 +301,17 @@ const GovernanceTab = ({ governance, updateGovernance, saving }) => {
                         <label className="text-sm font-bold text-slate-500 mb-4 uppercase tracking-wider">حد الإنفاق اليومي</label>
                         <div className="flex items-end gap-2 mb-2">
                             <div className="flex-1 relative">
-                                <span className="absolute left-0 bottom-2 text-2xl font-black text-slate-300">$</span>
+                                <span className="absolute left-0 bottom-2 text-2xl font-bold text-slate-300">$</span>
                                 <input
                                     type="number"
                                     step="0.1"
                                     defaultValue={governance?.ai_max_daily_cost}
                                     onBlur={(e) => updateGovernance('ai_max_daily_cost', e.target.value)}
-                                    className="text-5xl font-black bg-transparent border-b-4 border-slate-200 focus:border-teal-500 outline-none w-full pb-2 ltr pl-6 transition-colors"
+                                    className="text-5xl font-bold bg-transparent border-b-4 border-slate-200 focus:border-teal-500 outline-none w-full pb-2 ltr pl-6 transition-colors"
                                 />
                             </div>
                         </div>
-                        <p className="text-sm text-slate-400 mt-4 leading-relaxed">
+                        <p className="text-sm text-slate-500 mt-4 leading-relaxed">
                             سيقوم النظام بإيقاف عمليات الذكاء الاصطناعي تلقائياً عند الوصول لهذا الحد وإشعار الأدمن عبر البريد/SMS.
                         </p>
                     </div>
@@ -434,7 +434,7 @@ const AIStats = () => {
                             <Brain className="text-white" size={24} />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-black text-slate-800 tracking-tight">مركز التحكم بالذكاء الاصطناعي</h1>
+                            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">مركز التحكم بالذكاء الاصطناعي</h1>
                             <p className="text-slate-500 text-sm font-medium">الذكاء والحوكمة اللحظية</p>
                         </div>
                     </div>
@@ -497,9 +497,9 @@ const KPICard = ({ title, value, icon: Icon, color, suffix }) => {
     return (
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center justify-between group hover:shadow-md transition-all">
             <div>
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">{title}</p>
-                <h3 className="text-2xl font-black text-slate-800">
-                    {value || 0}<span className="text-sm text-slate-400 font-medium ml-1">{suffix}</span>
+                <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">{title}</p>
+                <h3 className="text-2xl font-bold text-slate-800">
+                    {value || 0}<span className="text-sm text-slate-500 font-medium ml-1">{suffix}</span>
                 </h3>
             </div>
             <div className={`p-4 rounded-2xl ${colors[color]} group-hover:scale-110 transition-transform`}>
@@ -515,7 +515,7 @@ const ToggleSetting = ({ label, desc, enabled, onToggle }) => (
     <div className="flex items-center justify-between group">
         <div>
             <h4 className="font-bold text-slate-700 text-sm mb-1 group-hover:text-teal-600 transition-colors">{label}</h4>
-            <p className="text-xs text-slate-400 max-w-sm leading-relaxed">{desc}</p>
+            <p className="text-xs text-slate-500 max-w-sm leading-relaxed">{desc}</p>
         </div>
         <button
             onClick={() => onToggle(!enabled)}
