@@ -11,7 +11,7 @@ import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import { ProceduresProvider } from '@/shared/context/ProceduresContext';
 import Layout from '@/layouts/Layout';
 import BackgroundWrapper from '@/shared/ui/BackgroundWrapper';
-import ErrorBoundary from '@/shared/ui/ErrorBoundary';
+import RootErrorBoundary from '@/shared/ui/ErrorBoundary';
 import GlobalErrorFallback from '@/shared/ui/GlobalErrorFallback';
 // React Query for data caching
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -111,9 +111,9 @@ function AppRoutes() {
                         <Route path="/print/rx/:id" element={<PrintRx />} />
                         {/* App Routes with Layout */}
                         <Route element={
-                            <ErrorBoundary fallback={<GlobalErrorFallback />}>
+                            <RootErrorBoundary fallback={<GlobalErrorFallback />}>
                                 <Layout />
-                            </ErrorBoundary>
+                            </RootErrorBoundary>
                         }>
                             <Route path="/" element={<Dashboard />} />
                             <Route path="/patients" element={<Patients />} />
@@ -216,13 +216,13 @@ function AppRoutes() {
 }
 export default function App() {
     return (
-        <ErrorBoundary>
+        <RootErrorBoundary>
             <QueryClientProvider client={queryClient}>
                 <AuthProvider>
                     <ToastProvider />
                     <AppRoutes />
                 </AuthProvider>
             </QueryClientProvider>
-        </ErrorBoundary>
+        </RootErrorBoundary>
     );
 }
