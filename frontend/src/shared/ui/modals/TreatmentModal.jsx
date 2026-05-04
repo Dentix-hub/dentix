@@ -395,7 +395,7 @@ export default function TreatmentModal({
                                     ))}
                                 </select>
                                 <div className="absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                                    <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                     </svg>
                                 </div>
@@ -404,7 +404,7 @@ export default function TreatmentModal({
                         {/* Price Display / Override */}
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="text-xs font-bold text-slate-400 block mb-1">التكلفة</label>
+                                <label className="text-xs font-bold text-slate-500 block mb-1">التكلفة</label>
                                 <input
                                     value={treatment.cost}
                                     onChange={e => setTreatment({ ...treatment, cost: e.target.value })}
@@ -414,7 +414,7 @@ export default function TreatmentModal({
                                 />
                             </div>
                             <div>
-                                <label className="text-xs font-bold text-slate-400 block mb-1">الخصم</label>
+                                <label className="text-xs font-bold text-slate-500 block mb-1">الخصم</label>
                                 <input
                                     value={treatment.discount}
                                     onChange={e => setTreatment({ ...treatment, discount: e.target.value })}
@@ -540,7 +540,7 @@ export default function TreatmentModal({
                                 })}
                             </div>
                         ) : (
-                            <div className="p-4 text-center text-xs text-slate-400 bg-slate-50/50">
+                            <div className="p-4 text-center text-xs text-slate-500 bg-slate-50/50">
                                 لم يتم تسجيل أي مواد لهذا الإجراء
                             </div>
                         )}

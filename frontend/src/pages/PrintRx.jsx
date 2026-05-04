@@ -38,7 +38,7 @@ export default function PrintRx() {
             }, 1000); // Increased delay slightly to ensure font loading
         }
     }, [id]);
-    if (!patient || !prescription) return <div className="p-10 text-center text-slate-400">Loading Prescription Data...</div>;
+    if (!patient || !prescription) return <div className="p-10 text-center text-slate-500">Loading Prescription Data...</div>;
     const medications = JSON.parse(prescription.medications);
     return (
         <div className="min-h-screen bg-white p-4 sm:p-10 font-['Cairo']" dir="rtl">
@@ -93,7 +93,7 @@ export default function PrintRx() {
                 <div className="mt-auto pt-10 flex justify-end">
                     <div className="text-center w-48">
                         <div className="h-px bg-slate-300 mb-2"></div>
-                        <p className="text-sm font-bold text-slate-400">توقيع الطبيب</p>
+                        <p className="text-sm font-bold text-slate-500">توقيع الطبيب</p>
                     </div>
                 </div>
                 {/* Contact Info Footer */}

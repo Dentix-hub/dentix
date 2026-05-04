@@ -34,7 +34,7 @@ export default function ForgotPassword() {
                 {/* Logo */}
                 <div className="text-center mb-8">
                     <div className="text-5xl mb-2">🏥</div>
-                    <h1 className="text-3xl font-black text-slate-800 dark:text-white">DENTIX</h1>
+                    <h1 className="text-3xl font-extrabold text-slate-800 dark:text-white">DENTIX</h1>
                 </div>
                 <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-8">
                     {!success ? (

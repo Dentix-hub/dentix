@@ -107,7 +107,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                     <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="w-full py-4 bg-primary text-white font-black rounded-2xl hover:brightness-110 shadow-xl shadow-primary/25 transition-all active:scale-[0.98] transform flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                        className="w-full py-4 bg-primary text-white font-bold rounded-2xl hover:brightness-110 shadow-xl shadow-primary/25 transition-all active:scale-[0.98] transform flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                     >
                         {isSubmitting && <Loader2 size={20} className="animate-spin" />}
                         {t('auth.login.submit')}
@@ -130,7 +130,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         <span>•</span>
                         <Link to="/privacy" className="hover:text-primary transition-colors">{t('auth.login.privacy')}</Link>
                     </div>
-                    <p className={`text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                    <p className={`text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
                         {t('auth.login.copyright')}
                     </p>
                 </div>

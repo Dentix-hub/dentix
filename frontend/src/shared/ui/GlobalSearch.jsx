@@ -49,7 +49,7 @@ export default function GlobalSearch() {
     return (
         <div className="relative w-full max-w-md mx-auto block" ref={searchRef}>
             <div className="relative">
-                <Search className="absolute right-4 top-3.5 text-slate-400" size={20} />
+                <Search className="absolute right-4 top-3.5 text-slate-500" size={20} />
                 <input
                     type="text"
                     placeholder={t('common.search', 'بحث...')}
@@ -61,7 +61,7 @@ export default function GlobalSearch() {
                 {query && (
                     <button
                         onClick={() => { setQuery(''); setIsOpen(false); }}
-                        className="absolute left-3 top-3.5 text-slate-400 hover:text-red-500 transition-colors"
+                        className="absolute left-3 top-3.5 text-slate-500 hover:text-red-500 transition-colors"
                     >
                         <X size={18} />
                     </button>
@@ -71,7 +71,7 @@ export default function GlobalSearch() {
             {isOpen && (
                 <div className="absolute top-full mt-2 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-white/5 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                     {loading ? (
-                        <div className="p-4 text-center text-slate-400 text-sm font-bold">{t('common.searching', 'جاري البحث...')}</div>
+                        <div className="p-4 text-center text-slate-500 text-sm font-bold">{t('common.searching', 'جاري البحث...')}</div>
                     ) : results.length > 0 ? (
                         <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                             {results.map((patient) => (
@@ -94,7 +94,7 @@ export default function GlobalSearch() {
                             ))}
                         </div>
                     ) : (
-                        <div className="p-4 text-center text-slate-400 text-sm font-bold">{t('common.no_results', 'لا توجد نتائج')}</div>
+                        <div className="p-4 text-center text-slate-500 text-sm font-bold">{t('common.no_results', 'لا توجد نتائج')}</div>
                     )}
                 </div>
             )}

@@ -24,7 +24,7 @@ export default function UserProfile() {
         { id: 'general', label: t('static.user_profile.tabs.general'), icon: User },
         { id: 'security', label: t('static.user_profile.tabs.security'), icon: Shield },
     ];
-    if (!currentUser) return <div className="p-8 text-center text-slate-400 font-bold">{t('static.user_profile.loading')}</div>;
+    if (!currentUser) return <div className="p-8 text-center text-slate-500 font-bold">{t('static.user_profile.loading')}</div>;
     return (
         <div className="min-h-screen bg-slate-50/50 dark:bg-slate-900/50 p-6 flex flex-col md:flex-row gap-6 animate-in fade-in active">
             {/* Sidebar Navigation */}

@@ -23,7 +23,7 @@ const SmartDashboard = () => {
             {/* Header Area */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                 <div>
-                    <h1 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight">{t('analytics.dashboard.title')}</h1>
+                    <h1 className="text-3xl font-bold text-slate-800 dark:text-white tracking-tight">{t('analytics.dashboard.title')}</h1>
                     <p className="text-slate-500 mt-1 font-medium">{t('analytics.dashboard.subtitle')}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">

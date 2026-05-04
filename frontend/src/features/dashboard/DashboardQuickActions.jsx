@@ -11,7 +11,7 @@ const ActionButton = ({ icon: Icon, label, onClick, colorClass }) => (
         <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center mb-3 shadow-inner">
             <Icon size={28} className="text-white" />
         </div>
-        <span className="font-black text-white tracking-tight">{label}</span>
+        <span className="font-bold text-white tracking-tight">{label}</span>
     </button>
 );
 

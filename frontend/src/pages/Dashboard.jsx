@@ -14,7 +14,7 @@ import { getTodayPayments, getTodayDebtors } from '@/api';
 import { useDashboardStats } from '@/hooks/useDashboard';
 import { useAppointments } from '@/hooks/useAppointments';
 import { useAuth } from '@/auth/useAuth';
-import { Card, Button, Modal, PageHeader, toast } from '@/shared/ui';
+import { Card, Button, Modal, PageHeader, toast, AdvancedTable } from '@/shared/ui';
 import DashboardQuickActions from '@/features/dashboard/DashboardQuickActions';
 import PatientModal from '@/features/patients/modals/PatientModal';
 
@@ -32,8 +32,8 @@ const GradientCard = memo(({ title, value, subtext, icon: Icon, gradient, onClic
             </div>
             <div className="mt-4">
                 <p className="text-white/80 text-sm font-medium mb-1">{title}</p>
-                <h3 className="text-3xl font-black tracking-tight">{value}</h3>
-                <p className="text-white/60 text-[10px] mt-2 font-black uppercase tracking-widest bg-black/10 inline-block px-2 py-1 rounded-lg">
+                <h3 className="text-3xl font-extrabold tracking-tight">{value}</h3>
+                <p className="text-white/60 text-[10px] mt-2 font-bold uppercase tracking-widest bg-black/10 inline-block px-2 py-1 rounded-lg">
                     {subtext}
                 </p>
             </div>
@@ -114,8 +114,35 @@ export default function Dashboard() {
         finally { setModalLoading(false); }
     }, [t]);
 
+    const modalColumns = useMemo(() => [
+        {
+            header: t('common.patient', 'Patient'),
+            accessorKey: modalType === 'payments' ? 'patient_name' : 'name',
+            cell: ({ row }) => (
+                <div className="flex items-center gap-3">
+                    <div className={`p-2 rounded-xl flex items-center justify-center w-8 h-8 ${modalType === 'payments' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                        <span className="text-sm">
+                            {modalType === 'payments' ? '💰' : '📈'}
+                        </span>
+                    </div>
+                    <span className="font-bold">{row.original.patient_name || row.original.name}</span>
+                </div>
+            )
+        },
+        {
+            header: t('common.time', 'Time'),
+            accessorKey: 'date',
+            cell: ({ getValue }) => <span className="text-slate-500 font-medium">{new Date(getValue() || new Date()).toLocaleTimeString()}</span>
+        },
+        {
+            header: t('common.amount', 'Amount'),
+            accessorKey: 'amount',
+            cell: ({ getValue }) => <span className="font-bold text-lg text-primary">{formatCurrency(getValue())}</span>
+        }
+    ], [modalType, t, formatCurrency]);
+
     return (
-        <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500 pb-10">
+        <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500 pb-10">
             {/* Header with Breadcrumbs */}
             <PageHeader
                 title={t('dashboard.welcome', { name: user?.username })}
@@ -289,7 +316,7 @@ export default function Dashboard() {
                              <div className="w-16 h-16 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mb-4">
                                  <TrendingUp size={32} />
                              </div>
-                             <h4 className="font-black text-text-primary text-lg mb-2">{t('dashboard.clinic_efficiency')}</h4>
+                             <h4 className="font-bold text-text-primary text-lg mb-2">{t('dashboard.clinic_efficiency')}</h4>
                              <p className="text-sm text-text-secondary mb-6">{t('dashboard.efficiency_description')}</p>
                              <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                                  <motion.div 
@@ -299,8 +326,8 @@ export default function Dashboard() {
                                  />
                              </div>
                              <div className="flex justify-between w-full mt-2">
-                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('dashboard.efficiency_rate')}</span>
-                                 <span className="text-[10px] font-black text-primary uppercase tracking-widest">{stats.efficiency}%</span>
+                                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('dashboard.efficiency_rate')}</span>
+                                 <span className="text-[10px] font-bold text-primary uppercase tracking-widest">{stats.efficiency}%</span>
                              </div>
                         </Card>
                     </div>
@@ -383,35 +410,16 @@ export default function Dashboard() {
                 isOpen={modalOpen}
                 onClose={() => setModalOpen(false)}
                 title={modalTitle}
-                size="md"
+                size="lg"
             >
-                <div className="space-y-3">
-                    {modalLoading ? (
-                        <div className="flex flex-col gap-3">
-                            <div className="animate-pulse bg-slate-200 dark:bg-slate-700/50 rounded-2xl h-[4rem] w-full" />
-                            <div className="animate-pulse bg-slate-200 dark:bg-slate-700/50 rounded-2xl h-[4rem] w-full" />
-                        </div>
-                    ) : modalData.length > 0 ? modalData.map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-center p-4 bg-surface-hover rounded-2xl border border-border">
-                            <div className="flex items-center gap-3">
-                                <div className={`p-2 rounded-xl flex items-center justify-center w-10 h-10 ${modalType === 'payments' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                                    <span className="text-xl leading-none">
-                                        {modalType === 'payments' ? '💰' : '📈'}
-                                    </span>
-                                </div>
-                                <div>
-                                    <p className="font-bold text-text-primary">{item.patient_name || item.name}</p>
-                                    <p className="text-xs text-text-secondary">{new Date(item.date || new Date()).toLocaleTimeString()}</p>
-                                </div>
-                            </div>
-                            <span className="font-black text-lg dir-ltr text-text-primary">{formatCurrency(item.amount)}</span>
-                        </div>
-                    )) : (
-                        <div className="text-center py-8">
-                            <p className="text-text-secondary">{t('dashboard.no_data')}</p>
-                        </div>
-                    )}
-                </div>
+                <AdvancedTable
+                    data={modalData}
+                    columns={modalColumns}
+                    isLoading={modalLoading}
+                    emptyMessage={t('dashboard.no_data')}
+                    pagination={modalData.length > 5}
+                    pageSize={5}
+                />
             </Modal>
         </div>
     );

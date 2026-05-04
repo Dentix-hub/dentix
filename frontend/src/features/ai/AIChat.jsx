@@ -345,7 +345,7 @@ export default function AIChat() {
                             </button>
                         </div>
                         <div className="text-center mt-2">
-                            <p className="text-[10px] text-slate-400">
+                            <p className="text-[10px] text-slate-500">
                                 {t('ai_chat.chat.powered_by')} • {speechSupported ? t('ai_chat.chat.voice_enabled') : t('ai_chat.chat.voice_unsupported')}
                             </p>
                         </div>

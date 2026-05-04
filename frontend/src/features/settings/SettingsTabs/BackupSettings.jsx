@@ -125,7 +125,7 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                 </h3>
                 <div className="grid grid-cols-2 gap-4">
                     <button onClick={handleDownload} className="p-6 border-2 border-slate-200 border-dashed rounded-2xl hover:bg-slate-50 transition flex flex-col items-center gap-3">
-                        <Download className="text-slate-400" size={32} />
+                        <Download className="text-slate-500" size={32} />
                         <span className="font-bold text-slate-600">{t('backup.download_btn')}</span>
                     </button>
                     <div className="relative">

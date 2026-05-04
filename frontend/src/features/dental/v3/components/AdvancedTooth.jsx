@@ -55,7 +55,7 @@ const AdvancedTooth = memo(function AdvancedTooth({
                 ${isMissing ? 'opacity-40 grayscale' : ''}
             `}
         >
-            <span className={`text-[10px] font-bold mb-1 leading-none ${isActive ? 'text-blue-600' : 'text-slate-400'}`}>
+            <span className={`text-[10px] font-bold mb-1 leading-none ${isActive ? 'text-blue-600' : 'text-slate-500'}`}>
                 {number}
             </span>
             <svg

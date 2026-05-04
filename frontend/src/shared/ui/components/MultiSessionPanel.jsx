@@ -26,7 +26,7 @@ export const MultiSessionPanel = ({ sessions = [], onAddSession, isLoading }) =>
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
                     <Clock size={14} className="text-blue-500" />
                     سجل الجلسات والزيارات (Multi-Session)
                 </label>
@@ -86,7 +86,7 @@ export const MultiSessionPanel = ({ sessions = [], onAddSession, isLoading }) =>
                 {sessions.length === 0 ? (
                     <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                         <Clock size={32} className="mx-auto text-slate-300 mb-2 opacity-50" />
-                        <p className="text-xs text-slate-400 font-medium tracking-wide">لا يوجد جلسات مسجلة بعد</p>
+                        <p className="text-xs text-slate-500 font-medium tracking-wide">لا يوجد جلسات مسجلة بعد</p>
                     </div>
                 ) : (
                     sessions.map((session, index) => (
@@ -96,7 +96,7 @@ export const MultiSessionPanel = ({ sessions = [], onAddSession, isLoading }) =>
                                     <div className="w-6 h-6 rounded-full bg-blue-50 flex items-center justify-center text-[10px] font-bold text-blue-600">
                                         #{sessions.length - index}
                                     </div>
-                                    <span className="text-[11px] font-bold text-slate-400">
+                                    <span className="text-[11px] font-bold text-slate-500">
                                         {format(new Date(session.created_at), 'PPP', { locale: ar })}
                                     </span>
                                 </div>

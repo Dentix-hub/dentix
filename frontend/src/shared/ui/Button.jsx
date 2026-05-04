@@ -32,24 +32,33 @@ const Button = ({
     return (
         <button
             type={type}
-            className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
+            className={`
+                ${baseStyles} ${variants[variant]} ${sizes[size]} ${className}
+                relative overflow-hidden group
+            `}
             onClick={onClick}
             disabled={disabled || isLoading}
             {...props}
         >
-            {isLoading ? (
-                <Loader2 className="me-2 h-4 w-4 animate-spin" />
-            ) : Icon ? (
-                isValidElement(Icon) ? (
-                    <span className="me-2">{Icon}</span>
-                ) : (
-                    <Icon className={`me-2 ${size === 'sm' ? 'h-3 w-3' : 'h-4 w-4'}`} />
-                )
-            ) : null}
+            {/* Ripple Effect Layer */}
+            <span className="absolute inset-0 w-full h-full bg-white/0 group-active:bg-white/10 transition-colors pointer-events-none" />
+            
+            <span className="relative z-10 flex items-center justify-center">
+                {isLoading ? (
+                    <Loader2 className="me-2 h-4 w-4 animate-spin" />
+                ) : Icon ? (
+                    isValidElement(Icon) ? (
+                        <span className="me-2">{Icon}</span>
+                    ) : (
+                        <Icon className={`me-2 ${size === 'sm' ? 'h-3 w-3' : 'h-4 w-4'}`} />
+                    )
+                ) : null}
 
-            {children}
+                {children}
+            </span>
         </button>
     );
 };
 
 export default Button;
+

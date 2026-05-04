@@ -67,10 +67,10 @@ const PatientTimeline = ({ history = [], payments = [], t }) => {
                     {/* Content Card */}
                     <div className="flex-1 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm p-5 md:p-6 rounded-[2rem] border border-slate-100 dark:border-white/5 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-3">
-                            <h4 className="font-black text-slate-800 dark:text-slate-100 text-sm md:text-base tracking-tight leading-none">
+                            <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm md:text-base tracking-tight leading-none">
                                 {event.title}
                             </h4>
-                            <div className="px-3 py-1 bg-slate-100 dark:bg-slate-900 rounded-lg text-[10px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap self-start">
+                            <div className="px-3 py-1 bg-slate-100 dark:bg-slate-900 rounded-lg text-[10px] font-bold text-slate-500 uppercase tracking-widest whitespace-nowrap self-start">
                                 {event.date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
                             </div>
                         </div>

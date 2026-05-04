@@ -9,8 +9,7 @@ import {
     KeyboardSensor, 
     PointerSensor, 
     useSensor, 
-    useSensors,
-    PointerActivationConstraint
+    useSensors
 } from '@dnd-kit/core';
 import { 
     arrayMove, 
@@ -513,7 +512,7 @@ export default function Appointments() {
                     ) : (
                         <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
                             <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 mb-2">
-                                <h4 className="text-sm font-black text-primary uppercase tracking-wider mb-1">{t('patients.quick_add_title', 'Quick Add New Patient')}</h4>
+                                <h4 className="text-sm font-bold text-primary uppercase tracking-wider mb-1">{t('patients.quick_add_title', 'Quick Add New Patient')}</h4>
                                 <p className="text-[11px] font-bold text-slate-500">{t('patients.quick_add_desc', 'Enter the basic details to register this patient immediately.')}</p>
                             </div>
                             <Input
@@ -564,9 +563,9 @@ const KanbanColumn = ({ col, appointments, patients, t, getStatusVariant, getSta
                     <div className={`p-2 rounded-xl bg-white/50 dark:bg-black/20 ${col.color}`}>
                         <col.icon size={20} />
                     </div>
-                    <span className={`font-black text-sm tracking-tight ${col.color}`}>{col.title}</span>
+                    <span className={`font-bold text-sm tracking-tight ${col.color}`}>{col.title}</span>
                 </div>
-                <span className={`bg-white/60 dark:bg-black/30 px-2.5 py-1 rounded-lg text-xs font-black ${col.color}`}>
+                <span className={`bg-white/60 dark:bg-black/30 px-2.5 py-1 rounded-lg text-xs font-bold ${col.color}`}>
                     {appointments.length}
                 </span>
             </div>
@@ -627,14 +626,14 @@ const AppointmentCard = ({ appt, patient, t, getStatusVariant, getStatusLabel, s
         >
             <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-sm font-black shrink-0 shadow-inner">
+                    <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center text-sm font-bold shrink-0 shadow-inner">
                         {patient?.name?.charAt(0) || '?'}
                     </div>
                     <div className="min-w-0">
-                        <h4 className="font-black text-slate-800 dark:text-slate-100 text-sm line-clamp-1 tracking-tight">
+                        <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm line-clamp-1 tracking-tight">
                             {patient?.name || 'Unknown'}
                         </h4>
-                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-500 uppercase tracking-widest">
                              #{appt.id}
                         </p>
                     </div>
@@ -663,7 +662,7 @@ const AppointmentCard = ({ appt, patient, t, getStatusVariant, getStatusLabel, s
                 </p>
             )}
 
-            <Badge variant={getStatusVariant(appt.status)} size="xs" className="w-full justify-center py-2 rounded-xl text-[10px] font-black uppercase tracking-wider">
+            <Badge variant={getStatusVariant(appt.status)} size="xs" className="w-full justify-center py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider">
                 {getStatusLabel(appt.status)}
             </Badge>
             

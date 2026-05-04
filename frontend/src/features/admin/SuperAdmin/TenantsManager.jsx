@@ -47,10 +47,10 @@ const TenantsManager = ({ tenants, plans, handlePlanChange, setShowPaymentModal,
                                                         <option key={p.id} value={p.id}>{p.display_name_ar}</option>
                                                     ))}
                                                 </select>
-                                                <Edit3 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                                <Edit3 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
                                             </div>
                                         ) : (
-                                            <span className="text-slate-400">-</span>
+                                            <span className="text-slate-500">-</span>
                                         )}
                                     </td>
                                     <td className="p-6">
@@ -71,7 +71,7 @@ const TenantsManager = ({ tenants, plans, handlePlanChange, setShowPaymentModal,
                                                 {daysLeft} يوم
                                             </div>
                                         ) : (
-                                            <span className="text-slate-400 text-2xl">∞</span>
+                                            <span className="text-slate-500 text-2xl">∞</span>
                                         )}
                                     </td>
                                     <td className="p-6 font-bold text-emerald-600 dark:text-emerald-400">{tenant.total_revenue?.toLocaleString() || 0} ج.م</td>

@@ -121,7 +121,7 @@ export default function PatientModal({ isOpen, onClose, onSuccess }) {
                     </div>
 
                     <div className="md:col-span-2 space-y-3 pt-2">
-                        <label className="text-sm font-black text-text-secondary flex items-center gap-2">
+                        <label className="text-sm font-bold text-text-secondary flex items-center gap-2">
                             {t('patients.form.medical_history')}
                         </label>
                         <div className="flex flex-wrap gap-2">

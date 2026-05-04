@@ -15,7 +15,7 @@ export default function Breadcrumb({ items }) {
 
                     return (
                         <li key={index} className="flex items-center space-x-2 rtl:space-x-reverse">
-                            {index > 0 && <Separator className="w-4 h-4 text-slate-400 mx-1" />}
+                            {index > 0 && <Separator className="w-4 h-4 text-slate-500 mx-1" />}
                             
                             {item.to && !isLast ? (
                                 <Link 

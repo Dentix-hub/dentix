@@ -116,14 +116,14 @@ export default function Expenses() {
                                     <td className="p-4 font-bold text-red-500">{exp.cost.toLocaleString()}</td>
                                     <td className="p-4 text-slate-500 text-sm max-w-[200px] truncate">{exp.notes || '-'}</td>
                                     <td className="p-4">
-                                        <button onClick={() => handleDelete(exp.id)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+                                        <button onClick={() => handleDelete(exp.id)} className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
-                {expenses.length === 0 && <div className="p-12 text-center text-slate-400">{t('billing.expenses_page.empty')}</div>}
+                {expenses.length === 0 && <div className="p-12 text-center text-slate-500">{t('billing.expenses_page.empty')}</div>}
             </div>
             {/* Modal */}
             {isModalOpen && (

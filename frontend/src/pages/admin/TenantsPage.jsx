@@ -122,7 +122,7 @@ export default function TenantsPage() {
                     <Building2 size={32} />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-black text-slate-800 dark:text-white">إدارة العيادات</h1>
+                    <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white">إدارة العيادات</h1>
                     <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">التحكم في العيادات المشتركة وحالتها</p>
                 </div>
             </div>
@@ -186,7 +186,7 @@ export default function TenantsPage() {
                                     placeholder="أدخل كلمة المرور الجديدة (6 أحرف على الأقل)"
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-amber-500 outline-none font-bold"
                                 />
-                                <p className="text-xs text-slate-400 mt-2">💡 سيتم إلغاء قفل الحساب وتفعيله تلقائياً</p>
+                                <p className="text-xs text-slate-500 mt-2">💡 سيتم إلغاء قفل الحساب وتفعيله تلقائياً</p>
                             </div>
                             <button
                                 onClick={handleSubmitPasswordReset}

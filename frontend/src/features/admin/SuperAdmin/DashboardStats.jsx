@@ -25,8 +25,8 @@ const DashboardStats = ({ stats }) => {
                             <div key={plan} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
                                 <span className="font-bold text-slate-700 dark:text-slate-200">{plan}</span>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-2xl font-black text-teal-600 dark:text-teal-400">{count}</span>
-                                    <span className="text-xs text-slate-400">عيادة</span>
+                                    <span className="text-2xl font-bold text-teal-600 dark:text-teal-400">{count}</span>
+                                    <span className="text-xs text-slate-500">عيادة</span>
                                 </div>
                             </div>
                         ))}
@@ -37,7 +37,7 @@ const DashboardStats = ({ stats }) => {
                         <Activity className="text-emerald-500" />
                         أحدث النشاطات
                     </h3>
-                    <div className="text-center text-slate-400 py-10 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
+                    <div className="text-center text-slate-500 py-10 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
                         قريباً: رسوم بيانية تفاعلية 📈
                     </div>
                 </div>

@@ -66,7 +66,7 @@ export default function SecurityPanel() {
                     </div>
                     <div>
                         <p className="text-slate-500 dark:text-slate-400 font-bold text-sm">عناوين IP المحظورة</p>
-                        <h3 className="text-3xl font-black text-slate-800 dark:text-white">{stats?.blocked_ips_count || 0}</h3>
+                        <h3 className="text-3xl font-bold text-slate-800 dark:text-white">{stats?.blocked_ips_count || 0}</h3>
                     </div>
                 </div>
 
@@ -76,7 +76,7 @@ export default function SecurityPanel() {
                     </div>
                     <div>
                         <p className="text-slate-500 dark:text-slate-400 font-bold text-sm">حسابات مقفلة حالياً</p>
-                        <h3 className="text-3xl font-black text-slate-800 dark:text-white">{stats?.locked_users?.length || 0}</h3>
+                        <h3 className="text-3xl font-bold text-slate-800 dark:text-white">{stats?.locked_users?.length || 0}</h3>
                     </div>
                 </div>
 
@@ -86,7 +86,7 @@ export default function SecurityPanel() {
                     </div>
                     <div>
                         <p className="text-slate-500 dark:text-slate-400 font-bold text-sm">محاولات فاشلة حديثاً</p>
-                        <h3 className="text-3xl font-black text-slate-800 dark:text-white">{stats?.recent_failures?.length || 0}</h3>
+                        <h3 className="text-3xl font-bold text-slate-800 dark:text-white">{stats?.recent_failures?.length || 0}</h3>
                     </div>
                 </div>
             </div>
@@ -109,7 +109,7 @@ export default function SecurityPanel() {
 
                     <div className="p-6">
                         {blockedIps.length === 0 ? (
-                            <div className="text-center py-8 text-slate-400">
+                            <div className="text-center py-8 text-slate-500">
                                 <CheckCircle className="mx-auto mb-2 text-emerald-500" size={32} />
                                 <p>لا توجد عناوين محظورة حالياً</p>
                             </div>
@@ -159,7 +159,7 @@ export default function SecurityPanel() {
                             <div key={log.id} className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
                                 <div className="flex justify-between items-start mb-2">
                                     <span className="font-mono text-sm bg-slate-200 dark:bg-slate-700 px-2 py-1 rounded text-slate-600 dark:text-slate-300">{log.ip_address}</span>
-                                    <span className="text-xs text-slate-400 font-medium" dir="ltr">{new Date(log.created_at).toLocaleString()}</span>
+                                    <span className="text-xs text-slate-500 font-medium" dir="ltr">{new Date(log.created_at).toLocaleString()}</span>
                                 </div>
                                 <div className="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2">
                                     <AlertTriangle size={14} className="text-red-500" />
@@ -168,7 +168,7 @@ export default function SecurityPanel() {
                             </div>
                         ))}
                         {(!stats?.recent_failures || stats.recent_failures.length === 0) && (
-                            <div className="text-center py-8 text-slate-400">
+                            <div className="text-center py-8 text-slate-500">
                                 <p>سجل نظيف! لا توجد محاولات فاشلة.</p>
                             </div>
                         )}

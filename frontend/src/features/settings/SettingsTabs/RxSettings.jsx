@@ -201,7 +201,7 @@ export default function RxSettings({ setMessage }) {
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                             {medications.length === 0 ? (
                                 <tr>
-                                    <td colSpan="4" className="py-8 text-center text-slate-400">{t('rx_settings.table.empty')}</td>
+                                    <td colSpan="4" className="py-8 text-center text-slate-500">{t('rx_settings.table.empty')}</td>
                                 </tr>
                             ) : (
                                 medications.map(med => (

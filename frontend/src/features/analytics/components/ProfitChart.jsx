@@ -22,7 +22,7 @@ const ProfitChart = ({ data }) => {
                     <p className="font-bold text-slate-800">{payload[0].name}</p>
                     <p className="text-slate-600">
                         ${(payload[0].value || 0).toLocaleString()}
-                        <span className="text-slate-400 mx-1">
+                        <span className="text-slate-500 mx-1">
                             ({((payload[0].value / (data.total_costs || 1)) * 100).toFixed(1)}%)
                         </span>
                     </p>
@@ -75,7 +75,7 @@ const ProfitChart = ({ data }) => {
                 {/* Center Label */}
                 {costData.length > 0 && (
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -mt-4 text-center pointer-events-none">
-                        <p className="text-[10px] text-slate-400">{t('analytics.chart.total')}</p>
+                        <p className="text-[10px] text-slate-500">{t('analytics.chart.total')}</p>
                         <p className="text-sm font-bold text-slate-700">${data.total_costs > 1000 ? (data.total_costs / 1000).toFixed(1) + 'k' : data.total_costs}</p>
                     </div>
                 )}

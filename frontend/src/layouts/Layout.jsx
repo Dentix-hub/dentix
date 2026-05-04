@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 
 import { useTranslation } from 'react-i18next';
+import { useHotkeys } from 'react-hotkeys-hook';
 import { useAuth } from '@/auth/useAuth';
 // Components
 import GlobalSearch from '@/shared/ui/GlobalSearch';
@@ -19,7 +20,8 @@ import CommandPalette from '@/shared/ui/CommandPalette';
 import { usePatients, usePrefetchPatients } from '@/hooks/usePatients';
 import { useAppointments, usePrefetchAppointments } from '@/hooks/useAppointments';
 import { usePrefetchDashboard } from '@/hooks/useDashboard';
-// Lazy load AIChat
+import Tooltip from '@/shared/ui/Tooltip';
+import KeyboardShortcutsModal from '@/shared/ui/modals/KeyboardShortcutsModal';
 const AIChat = lazy(() => import('@/features/ai/AIChat'));
 import { useUIStore } from '@/store/ui.store';
 import { useTenantStore } from '@/store/tenant.store';
@@ -39,21 +41,32 @@ const Layout = () => {
     const isSuperAdmin = role === 'super_admin';
     const navigate = useNavigate();
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-    // Data for Command Palette
-    const { data: patients = [] } = usePatients();
-    const { data: appointments = [] } = useAppointments();
+    const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
-    // Listen for Ctrl+K
+    // Global Hotkeys
+    useHotkeys('g+p', () => navigate('/patients'), { preventDefault: true });
+    useHotkeys('g+a', () => navigate('/appointments'), { preventDefault: true });
+    useHotkeys('g+b', () => navigate('/billing'), { preventDefault: true });
+    useHotkeys('g+d', () => navigate('/'), { preventDefault: true });
+    useHotkeys('g+s', () => navigate('/settings'), { preventDefault: true });
+    useHotkeys('g+i', () => navigate('/inventory'), { preventDefault: true });
+
+    // Listen for Ctrl+K and ?
     useEffect(() => {
         const handleKeyDown = (e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
                 e.preventDefault();
                 setIsCommandPaletteOpen(prev => !prev);
             }
+            if (e.key === '?' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+                e.preventDefault();
+                setIsShortcutsOpen(true);
+            }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
+
 
     // Redirect Super Admin to /admin if they land on root /
     useEffect(() => {
@@ -153,6 +166,10 @@ const Layout = () => {
                 patients={patients}
                 appointments={appointments}
             />
+            <KeyboardShortcutsModal 
+                isOpen={isShortcutsOpen} 
+                onClose={() => setIsShortcutsOpen(false)} 
+            />
             {/* Mobile Sidebar Overlay */}
             {sidebarOpen && (
                 <div
@@ -198,7 +215,7 @@ const Layout = () => {
                         <div className="animate-in fade-in zoom-in duration-300 flex flex-col items-center w-full">
                             <p
                                 id="sidebar-clinic-name"
-                                className="text-base font-black bg-gradient-to-r from-primary-600 to-blue-800 dark:from-sky-400 dark:to-blue-500 bg-clip-text text-transparent text-center tracking-tight"
+                                className="text-base font-extrabold bg-gradient-to-r from-primary-600 to-blue-800 dark:from-sky-400 dark:to-blue-500 bg-clip-text text-transparent text-center tracking-tight"
                             >
                                 {isSuperAdmin ? t('sidebar.system_admin') : (tenant?.name || t('common.default_clinic_name'))}
                             </p>
@@ -226,7 +243,7 @@ const Layout = () => {
                     {navItems.map((item) => {
                         const isActive = location.pathname === item.path;
                         const Icon = item.icon;
-                        return (
+                        const link = (
                             <Link
                                 key={item.path}
                                 id={`nav-${item.path.replace(/\//g, '') || 'dashboard'}`}
@@ -236,8 +253,8 @@ const Layout = () => {
                                 className={`
                                     relative flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 group
                                     ${isActive
-                                        ? 'bg-primary/10 text-primary shadow-inner font-extrabold'
-                                        : 'text-slate-700 dark:text-slate-200 font-bold hover:bg-surface-hover hover:text-primary hover:shadow-sm'}
+                                        ? 'bg-primary/10 text-primary shadow-inner font-bold'
+                                        : 'text-slate-700 dark:text-slate-200 font-medium hover:bg-surface-hover hover:text-primary hover:shadow-sm'}
                                     ${isActive ? 'before:absolute before:inset-0 before:rounded-2xl before:bg-primary/20 before:blur-sm before:opacity-70 before:scale-x-105' : 'hover:before:absolute hover:before:inset-0 hover:before:rounded-2xl hover:before:bg-primary/10 hover:before:blur-sm hover:before:opacity-50 hover:before:scale-x-105'}
                                 `}
                             >
@@ -247,7 +264,16 @@ const Layout = () => {
                                 <Icon size={22} className={`shrink-0 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
                                 {!isSidebarCollapsed && <span className="text-sm animate-in fade-in">{item.label}</span>}
                             </Link>
-                        )
+                        );
+
+                        if (isSidebarCollapsed) {
+                            return (
+                                <Tooltip key={item.path} content={item.label} side={i18n.language === 'ar' ? 'left' : 'right'}>
+                                    {link}
+                                </Tooltip>
+                            );
+                        }
+                        return link;
                     })}
                     <div className="mt-auto pt-4 border-t border-border/50">
                         {/* User Profile */}

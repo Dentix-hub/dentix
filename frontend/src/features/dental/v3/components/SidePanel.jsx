@@ -6,7 +6,7 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
     // Wizard State
     const [wizStep, setWizStep] = useState(1);
     const [newProc, setNewProc] = useState({ type: null, segments: [], price: 0, notes: '' });
-    if (!activeTooth) return <div className="w-full h-full flex items-center justify-center text-slate-400">Select a tooth</div>;
+    if (!activeTooth) return <div className="w-full h-full flex items-center justify-center text-slate-500">Select a tooth</div>;
     const toothProcs = procedures.filter(p => p.tooth === activeTooth).sort((a, b) => new Date(b.date) - new Date(a.date));
     // --- WIZARD HANDLERS ---
     const startWizard = () => {
@@ -70,7 +70,7 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                         </div>
                         <div className="space-y-4 relative before:absolute before:inset-y-0 before:left-4 before:w-0.5 before:bg-slate-200">
                             {toothProcs.length === 0 && (
-                                <p className="text-center text-slate-400 text-sm py-4 ml-8">No medical history</p>
+                                <p className="text-center text-slate-500 text-sm py-4 ml-8">No medical history</p>
                             )}
                             {toothProcs.map(proc => (
                                 <div key={proc.id} className="relative pl-8">
@@ -83,7 +83,7 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                                             <span className="font-bold text-slate-800">
                                                 {PROCEDURE_TYPES[proc.type.toUpperCase()]?.label || proc.type}
                                             </span>
-                                            <span className="text-xs text-slate-400 font-mono">
+                                            <span className="text-xs text-slate-500 font-mono">
                                                 {new Date(proc.date).toLocaleDateString()}
                                             </span>
                                         </div>
@@ -105,7 +105,7 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
 
                         {/* Color Legend */}
                         <div className="mt-8 pt-6 border-t border-slate-200">
-                            <h4 className="text-[10px] uppercase tracking-widest font-black text-slate-400 mb-4 flex items-center gap-2">
+                            <h4 className="text-[10px] uppercase tracking-widest font-bold text-slate-500 mb-4 flex items-center gap-2">
                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
                                 Color Mapping Guide
                             </h4>
@@ -116,7 +116,7 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                                     
                                     return (
                                         <div key={cat} className="space-y-2">
-                                            <div className="text-[9px] font-black text-slate-500 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded w-max">
+                                            <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded w-max">
                                                 {cat}
                                             </div>
                                             <div className="grid grid-cols-2 gap-x-4 gap-y-2">
@@ -142,7 +142,7 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                 {/* MODE: WIZARD STEP 1 (TYPE) */}
                 {mode === 'WIZARD' && wizStep === 1 && (
                     <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                        <button onClick={() => setMode('VIEW')} className="text-slate-400 text-xs mb-4">← Cancel</button>
+                        <button onClick={() => setMode('VIEW')} className="text-slate-500 text-xs mb-4">← Cancel</button>
                         <h3 className="font-bold text-lg mb-4">Select Procedure</h3>
                         <div className="grid grid-cols-2 gap-2">
                             {Object.entries(PROCEDURE_TYPES).map(([key, def]) => (
@@ -152,7 +152,7 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                                     className="p-3 text-left bg-white border border-slate-200 rounded-xl hover:border-blue-500 hover:ring-1 hover:ring-blue-500 transition group"
                                 >
                                     <div className="font-bold text-slate-700 group-hover:text-blue-600">{def.label}</div>
-                                    <div className="text-[10px] text-slate-400 capitalize">{def.category}</div>
+                                    <div className="text-[10px] text-slate-500 capitalize">{def.category}</div>
                                 </button>
                             ))}
                         </div>
@@ -161,7 +161,7 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                 {/* MODE: WIZARD STEP 2 (SEGMENTS) */}
                 {mode === 'WIZARD' && wizStep === 2 && (
                     <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                        <button onClick={() => setWizStep(1)} className="text-slate-400 text-xs mb-4">← Back</button>
+                        <button onClick={() => setWizStep(1)} className="text-slate-500 text-xs mb-4">← Back</button>
                         <h3 className="font-bold text-lg mb-4">Select Segments</h3>
                         <div className="flex flex-wrap gap-2 justify-center py-8">
                             {/* Mock Segment Selector Visual */}
@@ -196,7 +196,7 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                 {/* MODE: WIZARD STEP 3 (DETAILS) */}
                 {mode === 'WIZARD' && wizStep === 3 && (
                     <div className="animate-in fade-in slide-in-from-right-4 duration-300">
-                        <button onClick={() => setWizStep(newProc.segments.length ? 2 : 1)} className="text-slate-400 text-xs mb-4">← Back</button>
+                        <button onClick={() => setWizStep(newProc.segments.length ? 2 : 1)} className="text-slate-500 text-xs mb-4">← Back</button>
                         <h3 className="font-bold text-lg mb-4">Procedure Details</h3>
                         <div className="space-y-4">
                             <div>

@@ -69,7 +69,7 @@ export default function CommunicationsPage() {
                         <MessageSquare size={32} />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-black text-slate-800 dark:text-white">التواصل والدعم</h1>
+                        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white">التواصل والدعم</h1>
                         <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">رسائل الدعم الفني والإشعارات</p>
                     </div>
                 </div>

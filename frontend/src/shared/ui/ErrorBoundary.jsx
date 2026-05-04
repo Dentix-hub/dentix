@@ -33,7 +33,7 @@ class ErrorBoundary extends Component {
                             <AlertTriangle size={40} className="text-red-500" />
                         </div>
                         <div className="space-y-2">
-                            <h1 className="text-2xl font-black text-slate-800 dark:text-white">
+                            <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white">
                                 حدث خطأ غير متوقع
                             </h1>
                             <p className="text-slate-500 dark:text-slate-400">

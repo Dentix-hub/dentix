@@ -117,7 +117,7 @@ export default function SecuritySettings() {
                                     <p className="text-sm text-slate-500 mt-1" dir="ltr">
                                         Last active: {new Date(session.last_active_at).toLocaleString()}
                                     </p>
-                                    <p className="text-xs text-slate-400 mt-0.5 truncate max-w-md" dir="ltr">
+                                    <p className="text-xs text-slate-500 mt-0.5 truncate max-w-md" dir="ltr">
                                         {session.user_agent}
                                     </p>
                                 </div>
@@ -131,7 +131,7 @@ export default function SecuritySettings() {
                         </div>
                     ))}
                     {sessions.length === 0 && (
-                        <div className="p-8 text-center text-slate-400">لا توجد جلسات نشطة أخرى.</div>
+                        <div className="p-8 text-center text-slate-500">لا توجد جلسات نشطة أخرى.</div>
                     )}
                 </div>
             </div>
@@ -141,12 +141,12 @@ export default function SecuritySettings() {
                     <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 w-full max-w-md shadow-2xl space-y-6">
                         <div className="flex justify-between items-center">
                             <h3 className="text-xl font-bold text-slate-800 dark:text-white">إعداد المصادقة الثنائية</h3>
-                            <button onClick={() => setShow2FAModal(false)}><X className="text-slate-400" /></button>
+                            <button onClick={() => setShow2FAModal(false)}><X className="text-slate-500" /></button>
                         </div>
                         <div className="space-y-4 text-center">
                             <div className="bg-slate-100 p-4 rounded-xl mx-auto inline-block">
                                 {/* In real app: <QRCode value={otpUrl} /> */}
-                                <Smartphone size={64} className="text-slate-400 mx-auto" />
+                                <Smartphone size={64} className="text-slate-500 mx-auto" />
                                 <p className="text-xs text-slate-500 mt-2 font-mono break-all">{secret}</p>
                             </div>
                             <p className="text-slate-600 dark:text-slate-300 text-sm">

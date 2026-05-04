@@ -168,13 +168,13 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                 <div className="flex justify-between items-start mb-6">
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <h3 className="text-2xl font-black text-slate-800 dark:text-white mb-2">{plan.display_name_ar}</h3>
+                                            <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">{plan.display_name_ar}</h3>
                                             {plan.is_default && (
                                                 <span className="bg-indigo-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold mb-2">افتراضي</span>
                                             )}
                                         </div>
                                         <div className="flex items-baseline gap-1">
-                                            <span className="text-4xl font-black text-indigo-600 dark:text-indigo-400">{plan.price}</span>
+                                            <span className="text-4xl font-bold text-indigo-600 dark:text-indigo-400">{plan.price}</span>
                                             <span className="text-sm font-bold text-slate-500">ج.م / {plan.duration_days} يوم</span>
                                         </div>
                                     </div>
@@ -383,7 +383,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                 </div>
             ) : (
                 <button onClick={() => setIsCreating(true)} className="group border-3 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-8 flex flex-col items-center justify-center gap-4 hover:border-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 transition-all min-h-[400px]">
-                    <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
+                    <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
                         <PlusCircle size={32} />
                     </div>
                     <p className="font-bold text-slate-500 group-hover:text-indigo-600 transition-colors">إضافة خطة جديدة</p>

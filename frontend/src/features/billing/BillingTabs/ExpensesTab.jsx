@@ -35,7 +35,7 @@ const ExpensesTab = ({ expenses, stats, setIsExpenseModalOpen, handleDeleteExpen
                 <div className="p-6 border-b border-border flex items-center justify-between bg-surface">
                     <div className="flex items-center gap-4">
                         <div className="w-1.5 h-8 bg-danger rounded-full"></div>
-                        <h3 className="font-black text-xl text-text-primary">{t('billing.expenses.title')}</h3>
+                        <h3 className="font-bold text-xl text-text-primary">{t('billing.expenses.title')}</h3>
                     </div>
                     <Button
                         onClick={() => setIsExpenseModalOpen(true)}

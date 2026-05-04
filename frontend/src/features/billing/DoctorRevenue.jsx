@@ -87,7 +87,7 @@ export default function DoctorRevenue() {
                 <div className="flex items-center gap-4">
                     <div className="w-1.5 h-8 bg-primary rounded-full"></div>
                     <div>
-                        <h3 className="font-black text-xl text-text-primary">{t('billing.doctor_revenue.title')}</h3>
+                        <h3 className="font-bold text-xl text-text-primary">{t('billing.doctor_revenue.title')}</h3>
                         <p className="text-text-secondary text-sm">{t('billing.doctor_revenue.subtitle')}</p>
                     </div>
                 </div>
@@ -166,9 +166,9 @@ export default function DoctorRevenue() {
                                             <td className="p-4 font-bold text-rose-500">
                                                 {labCost > 0 ? `-${labCost.toLocaleString()}` : '-'}
                                             </td>
-                                            <td className="p-4 font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-900/10 rounded-lg">{netRevenue.toLocaleString()}</td>
+                                            <td className="p-4 font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/10 rounded-lg">{netRevenue.toLocaleString()}</td>
                                             <td className="p-4">
-                                                <div className="font-black text-lg text-primary">
+                                                <div className="font-bold text-lg text-primary">
                                                     {totalDue.toLocaleString()}
                                                 </div>
                                             </td>

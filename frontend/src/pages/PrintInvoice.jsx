@@ -59,7 +59,7 @@ export default function PrintInvoice() {
                     <tbody>
                         {items.map((item, index) => (
                             <tr key={index} className="border-b border-slate-100">
-                                <td className="py-3 font-bold text-slate-800">{item.diagnosis} - {item.procedure} <span className="text-xs text-slate-400">({item.tooth_number || 'عام'})</span></td>
+                                <td className="py-3 font-bold text-slate-800">{item.diagnosis} - {item.procedure} <span className="text-xs text-slate-500">({item.tooth_number || 'عام'})</span></td>
                                 <td className="py-3 text-slate-600">{new Date(item.date).toLocaleDateString()}</td>
                                 <td className="py-3 font-mono">{item.cost}</td>
                             </tr>
@@ -85,7 +85,7 @@ export default function PrintInvoice() {
                 </div>
             </div>
             {/* Footer */}
-            <div className="fixed bottom-0 left-0 right-0 p-8 text-center text-slate-400 text-sm border-t border-slate-100">
+            <div className="fixed bottom-0 left-0 right-0 p-8 text-center text-slate-500 text-sm border-t border-slate-100">
                 <p>عنوان العيادة: شارع التحرير - أمام محطة المترو</p>
                 <p>تليفون: 01000000000</p>
             </div>

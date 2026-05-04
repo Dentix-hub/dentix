@@ -80,7 +80,7 @@ const Inventory = () => {
                                         </div>
                                         <div className="text-right">
                                             <div className="text-sm font-bold text-red-600">{alert.days_left} {t('inventory.alerts.days_left')}</div>
-                                            <div className="text-xs text-slate-400">{new Date(alert.expiry_date).toLocaleDateString()}</div>
+                                            <div className="text-xs text-slate-500">{new Date(alert.expiry_date).toLocaleDateString()}</div>
                                         </div>
                                     </div>
                                 ))}

@@ -197,7 +197,7 @@ export default function Labs() {
             )}
             {/* Search */}
             <div className="relative">
-                <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
                 <input
                     type="text"
                     placeholder={t('labs.search_placeholder')}
@@ -241,19 +241,19 @@ export default function Labs() {
                         <div className="space-y-2 text-sm text-slate-600 mb-4">
                             {lab.phone && (
                                 <div className="flex items-center gap-2">
-                                    <Phone size={14} className="text-slate-400" />
+                                    <Phone size={14} className="text-slate-500" />
                                     <span dir="ltr">{lab.phone}</span>
                                 </div>
                             )}
                             {lab.email && (
                                 <div className="flex items-center gap-2">
-                                    <Mail size={14} className="text-slate-400" />
+                                    <Mail size={14} className="text-slate-500" />
                                     <span>{lab.email}</span>
                                 </div>
                             )}
                             {lab.address && (
                                 <div className="flex items-center gap-2">
-                                    <MapPin size={14} className="text-slate-400" />
+                                    <MapPin size={14} className="text-slate-500" />
                                     <span className="truncate">{lab.address}</span>
                                 </div>
                             )}
@@ -314,7 +314,7 @@ export default function Labs() {
                             </h3>
                             <button
                                 onClick={handleCloseModal}
-                                className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
+                                className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-600 transition-colors"
                             >
                                 <X size={20} />
                             </button>
@@ -386,7 +386,7 @@ export default function Labs() {
                                     className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
                                     placeholder={t('labs.form.placeholders.specialties')}
                                 />
-                                <p className="text-xs text-slate-400 mt-1">{t('labs.form.specialties_hint')}</p>
+                                <p className="text-xs text-slate-500 mt-1">{t('labs.form.specialties_hint')}</p>
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 mb-1">{t('labs.form.notes')}</label>

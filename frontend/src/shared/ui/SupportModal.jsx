@@ -36,11 +36,11 @@ export default function SupportModal({ isOpen, onClose, isDarkMode }) {
                             <MessageSquare size={32} />
                         </div>
                         <div>
-                            <h2 className={`text-3xl font-black ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>تواصل معنا</h2>
+                            <h2 className={`text-3xl font-extrabold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>تواصل معنا</h2>
                             <p className="text-slate-500 text-base font-medium">نحن هنا لمساعدتك في أي وقت</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className={`p-2 rounded-full transition-colors ${isDarkMode ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
+                    <button onClick={onClose} className={`p-2 rounded-full transition-colors ${isDarkMode ? 'hover:bg-slate-800 text-slate-500' : 'hover:bg-slate-100 text-slate-500'}`}>
                         <X size={28} />
                     </button>
                 </div>
@@ -62,7 +62,7 @@ export default function SupportModal({ isOpen, onClose, isDarkMode }) {
                                 </div>
                             )}
                             <div>
-                                <label className={`block text-sm font-black uppercase tracking-wider mb-3 pr-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>الموضوع</label>
+                                <label className={`block text-sm font-bold uppercase tracking-wider mb-3 pr-1 ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>الموضوع</label>
                                 <input
                                     type="text"
                                     required
@@ -73,7 +73,7 @@ export default function SupportModal({ isOpen, onClose, isDarkMode }) {
                                 />
                             </div>
                             <div>
-                                <label className={`block text-sm font-black uppercase tracking-wider mb-3 pr-1 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>رسالتك</label>
+                                <label className={`block text-sm font-bold uppercase tracking-wider mb-3 pr-1 ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>رسالتك</label>
                                 <textarea
                                     required
                                     rows="10"
@@ -102,7 +102,7 @@ export default function SupportModal({ isOpen, onClose, isDarkMode }) {
                                     <div className={`w-full border-t ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`} />
                                 </div>
                                 <div className="relative flex justify-center text-xs uppercase">
-                                    <span className={`px-4 font-black ${isDarkMode ? 'bg-slate-900 text-slate-500' : 'bg-white text-slate-400'}`}>أو تواصل فوراً</span>
+                                    <span className={`px-4 font-bold ${isDarkMode ? 'bg-slate-900 text-slate-500' : 'bg-white text-slate-500'}`}>أو تواصل فوراً</span>
                                 </div>
                             </div>
                             <a

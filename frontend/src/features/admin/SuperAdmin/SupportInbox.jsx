@@ -10,7 +10,7 @@ const SupportInbox = ({ messages, setMessages, handleDeleteMessage, fetchData })
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
                     <div>
                         <p className="text-slate-500 font-bold text-sm mb-1">إجمالي الرسائل</p>
-                        <p className="text-3xl font-black text-slate-800 dark:text-white">{messages.length}</p>
+                        <p className="text-3xl font-bold text-slate-800 dark:text-white">{messages.length}</p>
                     </div>
                     <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-2xl">
                         <MessageSquare size={24} />
@@ -19,7 +19,7 @@ const SupportInbox = ({ messages, setMessages, handleDeleteMessage, fetchData })
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
                     <div>
                         <p className="text-slate-500 font-bold text-sm mb-1">رسائل غير مقروءة</p>
-                        <p className="text-3xl font-black text-rose-600 dark:text-rose-400">{messages.filter(m => m.status === 'unread').length}</p>
+                        <p className="text-3xl font-bold text-rose-600 dark:text-rose-400">{messages.filter(m => m.status === 'unread').length}</p>
                     </div>
                     <div className="p-4 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-2xl">
                         <AlertCircle size={24} />
@@ -28,7 +28,7 @@ const SupportInbox = ({ messages, setMessages, handleDeleteMessage, fetchData })
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
                     <div>
                         <p className="text-slate-500 font-bold text-sm mb-1">أولوية عالية</p>
-                        <p className="text-3xl font-black text-amber-600 dark:text-amber-400">{messages.filter(m => m.priority === 'high').length}</p>
+                        <p className="text-3xl font-bold text-amber-600 dark:text-amber-400">{messages.filter(m => m.priority === 'high').length}</p>
                     </div>
                     <div className="p-4 bg-amber-50 dark:bg-amber-900/20 text-amber-600 rounded-2xl">
                         <ShieldCheck size={24} />
@@ -42,7 +42,7 @@ const SupportInbox = ({ messages, setMessages, handleDeleteMessage, fetchData })
                         <MessageSquare className="text-indigo-500" size={20} />
                         صندوق الوارد
                     </h3>
-                    <span className="text-xs font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full">
+                    <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full">
                         {messages.length} رسالة
                     </span>
                 </div>
@@ -70,7 +70,7 @@ const SupportInbox = ({ messages, setMessages, handleDeleteMessage, fetchData })
                                     <td className="p-6">
                                         <div className="flex flex-col">
                                             <span className="font-bold text-slate-800 dark:text-white">{msg.subject}</span>
-                                            <span className="text-sm text-slate-400 truncate max-w-xs">{msg.message}</span>
+                                            <span className="text-sm text-slate-500 truncate max-w-xs">{msg.message}</span>
                                         </div>
                                     </td>
                                     <td className="p-6">
@@ -112,7 +112,7 @@ const SupportInbox = ({ messages, setMessages, handleDeleteMessage, fetchData })
                                 </tr>
                             )) : (
                                 <tr>
-                                    <td colSpan="7" className="p-20 text-center text-slate-400 font-bold">
+                                    <td colSpan="7" className="p-20 text-center text-slate-500 font-bold">
                                         لا توجد رسائل دعم فني حالياً 📬
                                     </td>
                                 </tr>

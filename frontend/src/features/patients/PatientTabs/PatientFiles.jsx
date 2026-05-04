@@ -15,7 +15,7 @@ const PatientFiles = ({
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
             <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
                 <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                    <FileIcon size={20} className="text-slate-400" />
+                    <FileIcon size={20} className="text-slate-500" />
                     {t('patientDetails.files.title')}
                 </h3>
                 <div className="flex gap-2">
@@ -55,7 +55,7 @@ const PatientFiles = ({
                                 }}
                             />
                         ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 p-4 text-center">
+                            <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 p-4 text-center">
                                 <FileText size={40} className="mb-2" />
                                 <span className="text-xs truncate w-full">{file.filename}</span>
                             </div>
@@ -81,7 +81,7 @@ const PatientFiles = ({
                     </div>
                 ))}
                 {attachments.length === 0 && (
-                    <div className="col-span-full py-12 text-center text-slate-400 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                    <div className="col-span-full py-12 text-center text-slate-500 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
                         <Upload size={48} className="mx-auto mb-3 opacity-20" />
                         <p>{t('patientDetails.files.empty')}</p>
                     </div>

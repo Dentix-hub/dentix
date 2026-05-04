@@ -12,7 +12,7 @@ const SubscriptionSettings = ({ currentUser }) => {
                     <Shield size={20} />
                     <span className="font-bold">{t('settings.subscription.clinic_name')}</span>
                 </div>
-                <p className="text-2xl font-black text-slate-800 dark:text-white">{currentUser.tenant.name}</p>
+                <p className="text-2xl font-bold text-slate-800 dark:text-white">{currentUser.tenant.name}</p>
             </div>
 
             <div className="p-6 bg-slate-50 dark:bg-slate-900/30 rounded-2xl border border-slate-100 dark:border-white/5">
@@ -20,7 +20,7 @@ const SubscriptionSettings = ({ currentUser }) => {
                     <CreditCard size={20} />
                     <span className="font-bold">{t('settings.subscription.current_plan')}</span>
                 </div>
-                <p className={`text-2xl font-black ${currentUser.tenant.plan === 'premium' ? 'text-amber-500' : 'text-blue-600'
+                <p className={`text-2xl font-bold ${currentUser.tenant.plan === 'premium' ? 'text-amber-500' : 'text-blue-600'
                     }`}>
                     {currentUser.tenant.plan === 'premium' ? t('settings.subscription.premium') : t('settings.subscription.basic')}
                 </p>

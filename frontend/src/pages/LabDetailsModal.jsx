@@ -120,15 +120,15 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                         <div className="bg-white p-4 rounded-xl border shadow-sm">
                                             <div className="text-sm text-slate-500 mb-1">{t('labs.details.overview.total_cost')}</div>
-                                            <div className="text-2xl font-black text-slate-800">{stats.total_cost}</div>
+                                            <div className="text-2xl font-bold text-slate-800">{stats.total_cost}</div>
                                         </div>
                                         <div className="bg-white p-4 rounded-xl border shadow-sm">
                                             <div className="text-sm text-slate-500 mb-1">{t('labs.details.overview.paid')}</div>
-                                            <div className="text-2xl font-black text-emerald-600">{stats.total_paid}</div>
+                                            <div className="text-2xl font-bold text-emerald-600">{stats.total_paid}</div>
                                         </div>
                                         <div className={`bg-white p-4 rounded-xl border shadow-sm ${stats.balance > 0 ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'}`}>
                                             <div className="text-sm text-slate-500 mb-1">{t('labs.details.overview.balance')}</div>
-                                            <div className={`text-2xl font-black ${stats.balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                            <div className={`text-2xl font-bold ${stats.balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
                                                 {stats.balance}
                                             </div>
                                         </div>
@@ -175,7 +175,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                                                         <td className="p-3 font-bold text-slate-700">{order.patient_name}</td>
                                                         <td className="p-3">
                                                             <div className="font-medium">{order.work_type}</div>
-                                                            <div className="text-xs text-slate-400">{order.material} {order.shade && `(${order.shade})`}</div>
+                                                            <div className="text-xs text-slate-500">{order.material} {order.shade && `(${order.shade})`}</div>
                                                         </td>
                                                         <td className="p-3">
                                                             <span className={`px-2 py-1 rounded text-xs font-bold 
@@ -191,7 +191,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                                                 ))}
                                                 {orders.length === 0 && (
                                                     <tr>
-                                                        <td colSpan="5" className="p-8 text-center text-slate-400">{t('labs.details.orders.table.empty')}</td>
+                                                        <td colSpan="5" className="p-8 text-center text-slate-500">{t('labs.details.orders.table.empty')}</td>
                                                     </tr>
                                                 )}
                                             </tbody>
@@ -267,14 +267,14 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                                                 {payments.map(payment => (
                                                     <tr key={payment.id} className="hover:bg-slate-50/50">
                                                         <td className="p-3 text-slate-600">{new Date(payment.date).toLocaleDateString('ar-EG')}</td>
-                                                        <td className="p-3 font-black text-emerald-600">{payment.amount}</td>
+                                                        <td className="p-3 font-bold text-emerald-600">{payment.amount}</td>
                                                         <td className="p-3 text-slate-500">{payment.method}</td>
                                                         <td className="p-3 text-slate-500 text-xs">{payment.notes || '-'}</td>
                                                     </tr>
                                                 ))}
                                                 {payments.length === 0 && (
                                                     <tr>
-                                                        <td colSpan="4" className="p-8 text-center text-slate-400">{t('labs.details.payments.table.empty')}</td>
+                                                        <td colSpan="4" className="p-8 text-center text-slate-500">{t('labs.details.payments.table.empty')}</td>
                                                     </tr>
                                                 )}
                                             </tbody>

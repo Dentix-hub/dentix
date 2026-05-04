@@ -26,7 +26,7 @@ export default function Terms() {
                     <span>{t('static.terms.back')}</span>
                 </button>
                 <div className="text-center mb-12">
-                    <h1 className="text-3xl md:text-4xl font-black text-text-primary mb-4">{t('static.terms.title')}</h1>
+                    <h1 className="text-3xl md:text-4xl font-extrabold text-text-primary mb-4">{t('static.terms.title')}</h1>
                     <p className="text-text-secondary text-lg">{t('static.terms.last_updated')}</p>
                     <p className="mt-4 text-text-secondary max-w-2xl mx-auto">
                         {t('static.terms.intro')}

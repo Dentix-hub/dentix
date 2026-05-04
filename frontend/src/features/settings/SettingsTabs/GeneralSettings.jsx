@@ -53,7 +53,7 @@ const GeneralSettings = ({ currentUser, loadUserInfo, setMessage }) => {
                     placeholder="••••••••"
                     className="w-full p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all font-bold"
                 />
-                <p className="text-xs text-slate-400">{t('settings.general.password_hint')}</p>
+                <p className="text-xs text-slate-500">{t('settings.general.password_hint')}</p>
             </div>
             <div className="pt-4">
                 <button type="submit" className="flex items-center gap-2 px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-500/20 active:scale-95">
