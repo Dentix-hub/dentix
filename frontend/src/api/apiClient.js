@@ -137,7 +137,11 @@ api.interceptors.response.use(
                 const formData = new FormData();
                 formData.append('refresh_token', refreshToken);
 
-                const response = await axios.post(`${API_URL}/api/v1/auth/refresh`, formData, { withCredentials: true });
+                console.log('[API] Attempting token refresh...');
+                const response = await axios.post(`${API_URL}/api/v1/auth/refresh`, formData, { 
+                    withCredentials: true,
+                    timeout: 10000 
+                });
 
                 const { access_token, refresh_token: newRefreshToken } = response.data;
                 setToken(access_token, newRefreshToken);

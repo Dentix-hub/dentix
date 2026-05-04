@@ -28,6 +28,10 @@ import { useTenantStore } from '@/store/tenant.store';
 import { API_URL } from '@/api';
 
 const Layout = () => {
+    useEffect(() => {
+        console.log(`[LAYOUT] Rendering Layout (Path: ${location.pathname})`);
+    }, [location.pathname]);
+
     const [logoError, setLogoError] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const { t, i18n } = useTranslation();
@@ -347,7 +351,7 @@ const Layout = () => {
             </aside>
             {/* Main Content */}
             <div className="flex-1 flex flex-col h-screen overflow-hidden bg-background/50">
-                <header className={`h-18 border-b flex items-center justify-between px-6 md:px-8 shrink-0 sticky top-0 z-20 shadow-sm bg-surface/90 backdrop-blur-xl border-border/60`}>
+                <header className={`h-16 border-b flex items-center justify-between px-6 md:px-8 shrink-0 sticky top-0 z-20 shadow-sm bg-surface/90 backdrop-blur-xl border-border/60`}>
                     <div className="flex items-center gap-4 md:hidden">
                         <button
                             onClick={() => setSidebarOpen(true)}
@@ -372,7 +376,7 @@ const Layout = () => {
                 </header>
                 <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
                     <div className="w-full max-w-[1920px] mx-auto">
-                        <AnimatePresence mode="popLayout" initial={false}>
+                        <AnimatePresence mode="wait" initial={false}>
                             <motion.div
                                 key={location.pathname}
                                 initial={{ opacity: 0, y: 10 }}
