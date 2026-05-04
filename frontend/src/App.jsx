@@ -78,7 +78,7 @@ function AppRoutes() {
             setDarkMode(false);
         }
     }, [setDarkMode]);
-    if (loading) {
+    if (isBooting) {
         return <LoadingSpinner />;
     }
     if (!isAuthenticated) {
