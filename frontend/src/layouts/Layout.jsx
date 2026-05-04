@@ -43,6 +43,10 @@ const Layout = () => {
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
     const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
+    // Fetch data for Command Palette (only for clinic users)
+    const { data: patients = [] } = usePatients({ enabled: !isSuperAdmin });
+    const { data: appointments = [] } = useAppointments({ enabled: !isSuperAdmin });
+
     // Global Hotkeys
     useHotkeys('g+p', () => navigate('/patients'), { preventDefault: true });
     useHotkeys('g+a', () => navigate('/appointments'), { preventDefault: true });

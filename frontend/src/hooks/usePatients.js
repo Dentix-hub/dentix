@@ -12,7 +12,7 @@ import { queryKeys } from '@/lib/queryClient';
 /**
  * Hook for fetching all patients with caching
  */
-export function usePatients() {
+export function usePatients(options = {}) {
     return useQuery({
         queryKey: queryKeys.patients,
         queryFn: async () => {
@@ -20,6 +20,7 @@ export function usePatients() {
             return res.data;
         },
         staleTime: 60 * 1000, // Patients list stays fresh for 1 minute
+        ...options
     });
 }
 

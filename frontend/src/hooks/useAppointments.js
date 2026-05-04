@@ -11,7 +11,7 @@ import { queryKeys } from '@/lib/queryClient';
 /**
  * Hook for fetching appointments with caching
  */
-export function useAppointments() {
+export function useAppointments(options = {}) {
     return useQuery({
         queryKey: queryKeys.appointments,
         queryFn: async () => {
@@ -19,6 +19,7 @@ export function useAppointments() {
             return res.data;
         },
         staleTime: 30 * 1000, // 30 seconds
+        ...options
     });
 }
 
