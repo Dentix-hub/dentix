@@ -16,7 +16,7 @@ import { useAppointments } from '@/hooks/useAppointments';
 import { useAuth } from '@/auth/useAuth';
 import { Card, Button, Modal, PageHeader, toast, AdvancedTable } from '@/shared/ui';
 import DashboardQuickActions from '@/features/dashboard/DashboardQuickActions';
-import PatientModal from '@/features/patients/modals/PatientModal';
+import PatientModal from '@/features/patients/modals/PatientModal.jsx';
 
 // Memoized Gradient Card
 const GradientCard = memo(({ title, value, subtext, icon: Icon, gradient, onClick }) => (
