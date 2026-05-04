@@ -368,15 +368,16 @@ const Layout = () => {
                 </header>
                 <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
                     <div className="w-full max-w-[1920px] mx-auto">
-                        <AnimatePresence mode="wait">
+                        <AnimatePresence mode="popLayout" initial={false}>
                             <motion.div
                                 key={location.pathname}
-                                initial={{ opacity: 0, y: 15 }}
+                                initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -15 }}
-                                transition={{ duration: 0.2, ease: "easeOut" }}
+                                exit={{ opacity: 0, y: -10 }}
+                                transition={{ duration: 0.15, ease: "easeOut" }}
+                                className="w-full"
                             >
-                                <Suspense fallback={<LoadingSpinner />}>
+                                <Suspense fallback={<LoadingSpinner variant="page" />}>
                                     <Outlet />
                                 </Suspense>
                             </motion.div>
