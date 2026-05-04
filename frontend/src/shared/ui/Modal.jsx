@@ -3,7 +3,9 @@
  * Reusable modal wrapper with backdrop blur and close on escape.
  */
 import { useEffect, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+
 export default function Modal({ isOpen, onClose, title, children, maxWidth, size = 'md', scrollable = true, className = '' }) {
     const modalRef = useRef(null);
     const titleId = useId();
@@ -67,10 +69,12 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth, size
             document.body.style.overflow = 'auto';
         };
     }, [isOpen, onClose]);
+
     if (!isOpen) return null;
-    return (
+
+    return createPortal(
         <div
-            className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center backdrop-blur-sm transition-opacity duration-300"
+            className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center backdrop-blur-sm transition-opacity duration-300"
             onClick={(e) => e.target === e.currentTarget && onClose()}
         >
             <div 
@@ -102,7 +106,8 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth, size
                     {children}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
 

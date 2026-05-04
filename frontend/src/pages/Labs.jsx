@@ -33,14 +33,24 @@ export default function Labs() {
     const loadData = async () => {
         try {
             setLoading(true);
-            const [labsRes, statsRes] = await Promise.all([
+            const [labsRes, statsRes] = await Promise.allSettled([
                 getLaboratories(),
                 getLabOrdersStats()
             ]);
-            setLabs(labsRes.data);
-            setStats(statsRes.data);
+            
+            if (labsRes.status === 'fulfilled') {
+                setLabs(labsRes.value.data);
+            } else {
+                console.error('Failed to load labs:', labsRes.reason);
+            }
+
+            if (statsRes.status === 'fulfilled') {
+                setStats(statsRes.value.data);
+            } else {
+                console.warn('Failed to load lab stats (likely permission issue):', statsRes.reason);
+            }
         } catch (err) {
-            console.error('Failed to load labs:', err);
+            console.error('Critical error loading labs data:', err);
         } finally {
             setLoading(false);
         }
@@ -124,9 +134,9 @@ export default function Labs() {
                     </h1>
                     <p className="text-slate-500 text-sm mt-1">{t('labs.subtitle')}</p>
                 </div>
-                <button
+                <button 
                     onClick={() => handleOpenModal()}
-                    className="flex items-center gap-2 px-6 py-3 bg-teal-600 text-white font-bold rounded-xl hover:bg-teal-700 shadow-lg shadow-teal-500/20 transition-all"
+                    className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95"
                 >
                     <Plus size={20} />
                     {t('labs.actions.add_lab')}
@@ -292,7 +302,6 @@ export default function Labs() {
                 ))}
                 {filteredLabs.length === 0 && (
                     <div className="col-span-full py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                        <FlaskConical size={48} className="mx-auto mb-3 text-slate-300" />
                         <FlaskConical size={48} className="mx-auto mb-3 text-slate-300" />
                         <p className="text-slate-500">{t('labs.empty')}</p>
                         <button

@@ -49,7 +49,7 @@ const LabOrdersTab = ({ patientId }) => {
         try {
             const orderData = {
                 patient_id: parseInt(patientId),
-                laboratory_id: parseInt(newLabOrder.laboratory_id),
+                laboratory_id: parseInt(newLabOrder.laboratory_id) || null,
                 work_type: newLabOrder.work_type,
                 tooth_number: newLabOrder.tooth_number,
                 shade: newLabOrder.shade,
