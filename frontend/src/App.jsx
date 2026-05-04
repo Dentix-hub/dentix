@@ -53,9 +53,17 @@ const InsuranceProviders = lazy(() => import('./pages/admin/InsuranceProviders')
 // Stores
 import { useUIStore } from '@/store/ui.store';
 function AppRoutes() {
-    const { isAuthenticated, loading } = useAuth();
+    const { isAuthenticated, isBooting } = useAuth();
+    const location = useLocation();
     const { darkMode, setDarkMode, toggleDarkMode } = useUIStore();
     const { i18n } = useTranslation();
+
+    useEffect(() => {
+        if (!isBooting) {
+            console.log(`[ROUTER] Navigation detected: ${location.pathname} (Authenticated: ${isAuthenticated})`);
+        }
+    }, [location.pathname, isAuthenticated, isBooting]);
+
     // Sync direction with language
     useEffect(() => {
         document.documentElement.dir = i18n.language === 'ar' ? 'rtl' : 'ltr';

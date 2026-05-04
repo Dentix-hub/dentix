@@ -375,24 +375,28 @@ const Layout = () => {
                         <NotificationBell />
                     </div>
                 </header>
-                <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
-                    <div className="w-full max-w-[1920px] mx-auto">
-                        <AnimatePresence mode="wait" initial={false}>
-                            <motion.div
-                                key={location.pathname}
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -10 }}
-                                transition={{ duration: 0.15, ease: "easeOut" }}
-                                className="w-full"
-                            >
-                                <Suspense fallback={<LoadingSpinner variant="page" />}>
-                                    <Outlet />
-                                </Suspense>
-                            </motion.div>
-                        </AnimatePresence>
-                    </div>
-                </main>
+                    <main className="relative flex-1 p-4 lg:p-8 overflow-x-hidden pt-20 lg:pt-8" id="main-content">
+                        <ErrorBoundary fallback={<GlobalErrorFallback />}>
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key={location.pathname}
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="h-full"
+                                >
+                                    <Suspense fallback={
+                                        <div className="flex items-center justify-center min-h-[400px]">
+                                            <LoadingSpinner variant="page" />
+                                        </div>
+                                    }>
+                                        <Outlet />
+                                    </Suspense>
+                                </motion.div>
+                            </AnimatePresence>
+                        </ErrorBoundary>
+                    </main>
                 <Suspense fallback={null}>
                     <AIChat />
                 </Suspense>
