@@ -49,9 +49,14 @@ export default function PatientModal({ isOpen, onClose, onSuccess }) {
         e.preventDefault();
         if (!formData.name) return toast.error(t('patients.form.name_required'));
         
-        setIsSubmitting(true);
+        const cleanedData = {
+            ...formData,
+            age: formData.age === '' ? null : parseInt(formData.age),
+            assigned_doctor_id: formData.assigned_doctor_id === '' ? null : parseInt(formData.assigned_doctor_id)
+        };
+
         try {
-            await createPatient(formData);
+            await createPatient(cleanedData);
             toast.success(t('patients.form.success_msg'));
             if (onSuccess) onSuccess();
             onClose();

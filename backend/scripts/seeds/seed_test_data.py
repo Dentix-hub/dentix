@@ -9,15 +9,10 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from backend.database import SessionLocal
 from backend import models
-from passlib.context import CryptContext
-
-
-# Init password context
-pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
-
+import bcrypt
 
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def seed_data():

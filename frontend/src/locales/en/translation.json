@@ -347,7 +347,11 @@
             "duplicate_error": "This patient is already registered!",
             "submit_btn": "Save & Add",
             "cancel_btn": "Cancel",
-            "scan_success": "Card scanned successfully"
+            "scan_success": "Card scanned successfully",
+            "success_msg": "Patient data saved successfully",
+            "error_msg": "Error saving patient data",
+            "update_success": "Patient data updated successfully",
+            "update_error": "Error updating patient data"
         },
         "empty_state": {
             "title": "No Patients Found",
@@ -460,7 +464,9 @@
             },
             "confirm_delete": "Are you sure you want to delete this order?",
             "delete_failed": "Delete failed",
+            "delete_success": "Lab order deleted successfully",
             "save_error": "An error occurred while saving",
+            "save_success": "Lab order saved successfully",
             "validation_error": "Please select lab and work type"
         },
         "info_card": {
@@ -963,7 +969,7 @@
             "add": "Add Lab",
             "cancel": "Cancel",
             "confirm_delete": "Are you sure you want to delete this lab?",
-            "add_lab": "+ Add New Lab"
+            "add_lab": "Add New Lab"
         },
         "form": {
             "add_title": "Add New Lab",

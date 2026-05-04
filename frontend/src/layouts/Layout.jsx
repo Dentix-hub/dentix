@@ -44,8 +44,12 @@ const Layout = () => {
     const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
     // Fetch data for Command Palette (only for clinic users)
-    const { data: patients = [] } = usePatients({ enabled: !isSuperAdmin });
-    const { data: appointments = [] } = useAppointments({ enabled: !isSuperAdmin });
+    const { data: patientsData } = usePatients({ enabled: !isSuperAdmin });
+    const { data: appointmentsData } = useAppointments({ enabled: !isSuperAdmin });
+    
+    // Explicit initialization with safe fallbacks to prevent ReferenceErrors in production
+    const patients = patientsData || [];
+    const appointments = appointmentsData || [];
 
     // Global Hotkeys
     useHotkeys('g+p', () => navigate('/patients'), { preventDefault: true });
@@ -145,13 +149,13 @@ const Layout = () => {
     const handlePrefetch = useCallback((path) => {
         switch (path) {
             case '/':
-                prefetchDashboard();
+                if (prefetchDashboard) prefetchDashboard();
                 break;
             case '/patients':
-                prefetchPatients();
+                if (prefetchPatients) prefetchPatients();
                 break;
             case '/appointments':
-                prefetchAppointments();
+                if (prefetchAppointments) prefetchAppointments();
                 break;
             default:
                 break;
