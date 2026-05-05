@@ -63,6 +63,7 @@ def get_user_by_id(db: Session, user_id: int, tenant_id: int):
 def create_user(db: Session, user: schemas.User, password_hash: str, tenant_id: int):
     db_user = models.User(
         username=user.username,
+        full_name=user.full_name,
         hashed_password=password_hash,
         role=user.role,
         permissions=user.permissions,
