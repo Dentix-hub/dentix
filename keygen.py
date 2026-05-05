@@ -11,7 +11,7 @@ if __name__ == "__main__":
     print("DENTIX License Key Generator (Admin)")
     print("=======================================")
     client_hwid = input("Enter the Machine ID (HWID) from the client: ").strip()
-    
+
     if client_hwid:
         key = generate_license_key(client_hwid)
         print("\n---------------------------------------")

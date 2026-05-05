@@ -82,11 +82,26 @@ class AdminService:
         self.db.commit()
         return tenant
 
-    def get_tenant_stats(self, tenant_id: int) -> Dict[str, Any]:
-        """Get statistics for a specific tenant."""
+    def get_tenant_detailed_stats(self, tenant_id: int) -> Dict[str, Any]:
+        """Get comprehensive detailed statistics for a specific tenant."""
         patient_count = (
             self.db.query(func.count(models.Patient.id))
             .filter(models.Patient.tenant_id == tenant_id)
+            .scalar()
+            or 0
+        )
+
+        appointment_count = (
+            self.db.query(func.count(models.Appointment.id))
+            .filter(models.Appointment.tenant_id == tenant_id)
+            .scalar()
+            or 0
+        )
+
+        # Revenue from treatments (internal to the clinic)
+        total_revenue = (
+            self.db.query(func.sum(models.TreatmentPayment.amount))
+            .filter(models.TreatmentPayment.tenant_id == tenant_id)
             .scalar()
             or 0
         )
@@ -98,9 +113,21 @@ class AdminService:
             or 0
         )
 
+        # Last activity
+        last_activity = (
+            self.db.query(models.AuditLog)
+            .filter(models.AuditLog.tenant_id == tenant_id)
+            .order_by(models.AuditLog.created_at.desc())
+            .first()
+        )
+
         return {
             "patients_count": patient_count,
+            "appointments_count": appointment_count,
+            "total_revenue": float(total_revenue),
             "users_count": user_count,
+            "last_activity": last_activity.created_at if last_activity else None,
+            "last_activity_desc": last_activity.action if last_activity else None
         }
 
     def get_users_for_tenant(self, tenant_id: int) -> List[models.User]:
@@ -283,3 +310,106 @@ class AdminService:
             logger.exception("[PERMANENT DELETE ERROR]", exc_info=True)
             raise e
 
+    def global_search(self, query: str) -> List[Dict[str, Any]]:
+        """Search across tenants, users, and admin functions."""
+        results = []
+        if not query or len(query) < 2:
+            return results
+
+        # 1. Search Tenants
+        tenants = (
+            self.db.query(models.Tenant)
+            .filter(
+                models.Tenant.name.ilike(f"%{query}%")
+                | models.Tenant.domain.ilike(f"%{query}%")
+            )
+            .limit(5)
+            .all()
+        )
+
+        for t in tenants:
+            results.append(
+                {
+                    "type": "clinic",
+                    "id": t.id,
+                    "title": t.name,
+                    "subtitle": t.domain or "بدون نطاق",
+                    "url": f"/admin/tenants?id={t.id}",
+                    "icon": "Building2",
+                }
+            )
+
+        # 2. Search Users (Super Admin context)
+        users = (
+            self.db.query(models.User)
+            .filter(
+                models.User.username.ilike(f"%{query}%")
+                | models.User.email.ilike(f"%{query}%")
+            )
+            .limit(5)
+            .all()
+        )
+
+        for u in users:
+            results.append(
+                {
+                    "type": "user",
+                    "id": u.id,
+                    "title": u.username or u.email,
+                    "subtitle": f"{u.role} - {u.email}",
+                    "url": f"/admin/users?id={u.id}",
+                    "icon": "User",
+                }
+            )
+
+        # 3. Static Admin Actions (Matching query)
+        admin_actions = [
+            {
+                "title": "إدارة العيادات",
+                "url": "/admin/tenants",
+                "icon": "Building2",
+                "tags": ["tenants", "clinics", "عيادات"],
+            },
+            {
+                "title": "إدارة المستخدمين",
+                "url": "/admin/users",
+                "icon": "Users",
+                "tags": ["users", "staff", "مستخدمين"],
+            },
+            {
+                "title": "التقارير المالية",
+                "url": "/admin/finance",
+                "icon": "CreditCard",
+                "tags": ["finance", "money", "revenue", "مالية"],
+            },
+            {
+                "title": "سجلات النظام",
+                "url": "/admin/system/logs",
+                "icon": "Terminal",
+                "tags": ["logs", "errors", "debug", "سجلات"],
+            },
+            {
+                "title": "إحصائيات AI",
+                "url": "/ai/stats",
+                "icon": "Cpu",
+                "tags": ["ai", "stats", "usage", "ذكاء"],
+            },
+        ]
+
+        for action in admin_actions:
+            if (
+                any(query.lower() in tag.lower() for tag in action["tags"])
+                or query.lower() in action["title"].lower()
+            ):
+                results.append(
+                    {
+                        "type": "action",
+                        "id": action["url"],
+                        "title": action["title"],
+                        "subtitle": "إجراء سريع",
+                        "url": action["url"],
+                        "icon": action["icon"],
+                    }
+                )
+
+        return results

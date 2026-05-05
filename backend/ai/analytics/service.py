@@ -83,6 +83,19 @@ class AIAnalyticsService:
             .all()
         )
 
+        # 7. Usage Trends (Last 30 days)
+        trend_start = now - timedelta(days=30)
+        daily_trends = (
+            db.query(
+                func.date(models.AIUsageLog.created_at).label("day"),
+                func.count(models.AIUsageLog.id)
+            )
+            .filter(models.AIUsageLog.created_at >= trend_start)
+            .group_by("day")
+            .order_by("day")
+            .all()
+        )
+
         return {
             "period": period,
             "total_requests": total_requests,
@@ -94,6 +107,7 @@ class AIAnalyticsService:
                 {"name": t[0] or "Unknown", "value": t[1]} for t in tool_stats
             ],
             "top_users": [{"name": t[0], "count": t[1]} for t in user_stats],
+            "usage_trends": [{"date": str(t[0]), "count": t[1]} for t in daily_trends],
         }
 
     @staticmethod

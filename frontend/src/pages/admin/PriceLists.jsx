@@ -9,15 +9,8 @@ import {
     addPriceListItem,
     getProcedures
 } from '../../api';
-import {
-    CurrencyDollarIcon,
-    PlusIcon,
-    PencilSquareIcon,
-    TrashIcon,
-    ListBulletIcon,
-    ShieldCheckIcon,
-    XMarkIcon
-} from '@heroicons/react/24/outline';
+import { DollarSign, Plus, Edit2, Trash2, List, ShieldCheck, X } from 'lucide-react';
+import { toast } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
 const PriceListEditor = ({ priceListId, onClose }) => {
     const { t } = useTranslation();
@@ -64,7 +57,7 @@ const PriceListEditor = ({ priceListId, onClose }) => {
             });
         } catch (error) {
             console.error("Error updating price:", error);
-            alert("Failed to update price");
+            toast.error("Failed to update price");
         }
     };
     if (loading) return <div className="p-8 text-center">Loading Editor...</div>;
@@ -76,7 +69,7 @@ const PriceListEditor = ({ priceListId, onClose }) => {
             <div className="p-6 border-b flex justify-between items-center bg-gray-50">
                 <div>
                     <h2 className="text-xl font-bold flex items-center gap-2">
-                        <PencilSquareIcon className="w-6 h-6 text-blue-600" />
+                        <Edit2 className="w-6 h-6 text-blue-600" />
                         {t('settings.price_lists.editor.title')} {listDetails?.name}
                     </h2>
                     <p className="text-sm text-gray-500">
@@ -84,7 +77,7 @@ const PriceListEditor = ({ priceListId, onClose }) => {
                     </p>
                 </div>
                 <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full">
-                    <XMarkIcon className="w-6 h-6" />
+                    <X className="w-6 h-6" />
                 </button>
             </div>
             <div className="flex-1 overflow-hidden flex flex-col p-6 max-w-5xl mx-auto w-full">
@@ -245,7 +238,7 @@ export default function PriceLists() {
             fetchData();
         } catch (error) {
             console.error(error);
-            alert("Error saving price list");
+            toast.error("Error saving price list");
         }
     };
     const handleDeactivateList = async (list) => {
@@ -255,7 +248,7 @@ export default function PriceLists() {
             fetchData();
         } catch (error) {
             console.error(error);
-            alert(error.response?.data?.detail || "فشل تعطيل قائمة الأسعار");
+            toast.error(error.response?.data?.detail || "فشل تعطيل قائمة الأسعار");
         }
     };
     if (loading) return <div>Loading...</div>;
@@ -270,7 +263,7 @@ export default function PriceLists() {
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <ListBulletIcon className="w-8 h-8 text-green-600" />
+                        <List className="w-8 h-8 text-green-600" />
                         {t('settings.price_lists.title')}
                     </h1>
                     <p className="text-gray-500 mt-1">{t('settings.price_lists.subtitle')}</p>
@@ -279,7 +272,7 @@ export default function PriceLists() {
                     onClick={() => handleOpenModal()}
                     className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
                 >
-                    <PlusIcon className="w-5 h-5" />
+                    <Plus className="w-5 h-5" />
                     {t('settings.price_lists.add_btn')}
                 </button>
             </div>
@@ -288,7 +281,7 @@ export default function PriceLists() {
                     <div key={list.id} className={`p-6 rounded-xl shadow-sm border transition-shadow ${list.is_default ? 'border-green-300 bg-green-50/50' : 'border-gray-100 bg-white hover:shadow-md'}`}>
                         <div className="flex justify-between items-start mb-4">
                             <div className={`p-3 rounded-lg ${list.type === 'insurance' ? 'bg-teal-50 text-teal-600' : 'bg-green-50 text-green-600'}`}>
-                                {list.type === 'insurance' ? <ShieldCheckIcon className="w-8 h-8" /> : <CurrencyDollarIcon className="w-8 h-8" />}
+                                {list.type === 'insurance' ? <ShieldCheck className="w-8 h-8" /> : <DollarSign className="w-8 h-8" />}
                             </div>
                             <div className="flex gap-2">
                                 <button
@@ -301,12 +294,12 @@ export default function PriceLists() {
                                     onClick={() => handleOpenModal(list)}
                                     className="p-1 text-gray-400 hover:text-blue-600"
                                 >
-                                    <PencilSquareIcon className="w-5 h-5" />
+                                    <Edit2 className="w-5 h-5" />
                                 </button>
                                 <button
                                     onClick={() => {
                                         if (list.is_default) {
-                                            alert(t('settings.price_lists.cannot_deactivate_default'));
+                                            toast.error(t('settings.price_lists.cannot_deactivate_default'));
                                             return;
                                         }
                                         handleDeactivateList(list);
@@ -314,7 +307,7 @@ export default function PriceLists() {
                                     className={`p-1 ${list.is_default ? 'text-gray-200 cursor-not-allowed' : 'text-gray-400 hover:text-red-500'}`}
                                     title={list.is_default ? t('settings.price_lists.cannot_deactivate_default') : t('settings.price_lists.deactivate_confirm')}
                                 >
-                                    <TrashIcon className="w-5 h-5" />
+                                    <Trash2 className="w-5 h-5" />
                                 </button>
                             </div>
                         </div>

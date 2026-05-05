@@ -9,6 +9,8 @@ from backend.core.permissions import Role, Permission, require_permission
 from backend.core.response import success_response, StandardResponse
 
 
+from backend.auth import create_access_token
+
 router = APIRouter(
     prefix="/admin/tenants",
     tags=["Admin Tenants"],
@@ -195,4 +197,66 @@ def purge_deleted_patients(
         data={"purged_count": count},
         message=f"تم حذف {count} مريض نهائياً"
     )
+
+@router.get("/{tenant_id}/details", response_model=StandardResponse[dict])
+def get_tenant_details(
+    tenant_id: int,
+    current_user: models.User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    service = AdminService(db)
+    tenant = service.get_tenant_by_id(tenant_id)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    stats = service.get_tenant_detailed_stats(tenant_id)
+
+    return success_response(data={
+        "tenant": {
+            "id": tenant.id,
+            "name": tenant.name,
+            "domain": tenant.domain,
+            "plan": tenant.plan,
+            "created_at": tenant.created_at,
+            "subscription_end_date": tenant.subscription_end_date,
+            "is_active": tenant.is_active
+        },
+        "stats": stats
+    })
+
+
+@router.post("/{tenant_id}/impersonate", response_model=StandardResponse[dict])
+def impersonate_tenant(
+    tenant_id: int,
+    current_user: models.User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """Generate a temporary token to log in as a clinic manager."""
+    # 1. Find the manager or any active admin for this tenant
+    target_user = db.query(models.User).filter(
+        models.User.tenant_id == tenant_id,
+        models.User.is_active == True,
+        models.User.is_deleted == False
+    ).order_by(models.User.role == Role.MANAGER.value).first()
+
+    if not target_user:
+        raise HTTPException(status_code=404, detail="No active users found for this clinic")
+
+    # 2. Create impersonation token (Valid for 30 minutes)
+    access_token = create_access_token(
+        data={
+            "sub": target_user.username,
+            "tenant_id": target_user.tenant_id,
+            "role": target_user.role,
+            "is_impersonating": True,
+            "admin_id": current_user.id
+        },
+        expires_delta=timedelta(minutes=30)
+    )
+
+    return success_response(data={
+        "access_token": access_token,
+        "token_type": "bearer",
+        "tenant_name": target_user.tenant.name if target_user.tenant else "Unknown"
+    }, message=f"تم إنشاء جلسة دخول مؤقتة لعيادة {target_user.tenant.name if target_user.tenant else ''}")
 

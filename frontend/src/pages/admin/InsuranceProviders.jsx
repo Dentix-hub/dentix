@@ -5,14 +5,8 @@ import {
     updateInsuranceProvider,
     deactivateInsuranceProvider
 } from '../../api';
-import {
-    BuildingOfficeIcon,
-    PlusIcon,
-    PencilSquareIcon,
-    TrashIcon,
-    PhoneIcon,
-    EnvelopeIcon
-} from '@heroicons/react/24/outline';
+import { Building2, Plus, Edit2, Trash2, Phone, Mail } from 'lucide-react';
+import { toast } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
 export default function InsuranceProviders() {
     const { t } = useTranslation();
@@ -79,7 +73,7 @@ export default function InsuranceProviders() {
             fetchProviders();
         } catch (error) {
             console.error("Error saving provider:", error);
-            alert("Error saving provider. Please check inputs.");
+            toast.error("Error saving provider. Please check inputs.");
         }
     };
     const handleDelete = async (id) => {
@@ -89,7 +83,7 @@ export default function InsuranceProviders() {
                 fetchProviders();
             } catch (error) {
                 console.error("Error deactivating:", error);
-                alert(error.response?.data?.detail || "فشل حذف/تعطيل شركة التأمين");
+                toast.error(error.response?.data?.detail || "فشل حذف/تعطيل شركة التأمين");
             }
         }
     };
@@ -99,7 +93,7 @@ export default function InsuranceProviders() {
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <BuildingOfficeIcon className="w-8 h-8 text-blue-600" />
+                        <Building2 className="w-8 h-8 text-blue-600" />
                         {t('insurance.title')}
                     </h1>
                     <p className="text-gray-500 mt-1">{t('insurance.subtitle')}</p>
@@ -108,7 +102,7 @@ export default function InsuranceProviders() {
                     onClick={() => handleOpenModal()}
                     className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
                 >
-                    <PlusIcon className="w-5 h-5" />
+                    <Plus className="w-5 h-5" />
                     {t('insurance.add_btn')}
                 </button>
             </div>
@@ -117,20 +111,20 @@ export default function InsuranceProviders() {
                     <div key={provider.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
                         <div className="flex justify-between items-start mb-4">
                             <div className="bg-blue-50 p-3 rounded-lg">
-                                <BuildingOfficeIcon className="w-8 h-8 text-blue-600" />
+                                <Building2 className="w-8 h-8 text-blue-600" />
                             </div>
                             <div className="flex gap-2">
                                 <button
                                     onClick={() => handleOpenModal(provider)}
                                     className="p-1 text-gray-400 hover:text-blue-600"
                                 >
-                                    <PencilSquareIcon className="w-5 h-5" />
+                                    <Edit2 className="w-5 h-5" />
                                 </button>
                                 <button
                                     onClick={() => handleDelete(provider.id)}
                                     className="p-1 text-gray-400 hover:text-red-500"
                                 >
-                                    <TrashIcon className="w-5 h-5" />
+                                    <Trash2 className="w-5 h-5" />
                                 </button>
                             </div>
                         </div>
@@ -139,13 +133,13 @@ export default function InsuranceProviders() {
                         <div className="mt-4 space-y-2 text-sm text-gray-600">
                             {provider.contact_phone && (
                                 <div className="flex items-center gap-2">
-                                    <PhoneIcon className="w-4 h-4" />
+                                    <Phone className="w-4 h-4" />
                                     <span>{provider.contact_phone}</span>
                                 </div>
                             )}
                             {provider.contact_email && (
                                 <div className="flex items-center gap-2">
-                                    <EnvelopeIcon className="w-4 h-4" />
+                                    <Mail className="w-4 h-4" />
                                     <span>{provider.contact_email}</span>
                                 </div>
                             )}

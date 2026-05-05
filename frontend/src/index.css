@@ -151,16 +151,31 @@
 }
 
 .glass-card {
-  @apply bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-xl shadow-black/5;
+  @apply bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-xl shadow-black/5 rounded-2xl;
+}
+
+/* Premium Shadows */
+.shadow-premium {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05), inset 0 1px 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.dark .shadow-premium {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+}
+
+/* Unified Spacing & Radius */
+:root {
+  --radius-card: 1rem;
+  --radius-button: 0.75rem;
 }
 
 /* Table Row Hover Animation */
 tr.group\/row {
-  @apply relative transition-all duration-200;
+  @apply relative transition-all duration-200 cursor-pointer;
 }
 
 tr.group\/row:hover {
-  @apply bg-primary/5 dark:bg-primary/10;
+  @apply bg-primary/5 dark:bg-primary/10 transform scale-[1.002];
 }
 
 tr.group\/row::before {

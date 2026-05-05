@@ -10,8 +10,7 @@ LICENSE_FILE = os.path.join(APP_DATA_DIR, "license.key")
 
 def get_machine_id():
     """Get a unique hardware ID for the machine with multiple fallbacks."""
-    methods = []
-    
+
     # Method 1: Windows UUID (Best)
     if platform.system() == "Windows":
         try:
@@ -81,6 +80,6 @@ def is_license_valid():
     current_key = load_license()
     if not current_key:
         return False
-    
+
     expected_key = generate_license_key(get_machine_id())
     return current_key == expected_key

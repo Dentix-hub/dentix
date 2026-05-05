@@ -32,7 +32,8 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const PrintInvoice = lazy(() => import('./pages/PrintInvoice'));
 const PrintRx = lazy(() => import('./pages/PrintRx'));
 const RegisterClinic = lazy(() => import('./pages/RegisterClinic'));
-const AIStats = lazy(() => import('@/features/ai/AIStats'));
+const AIStatsPage = lazy(() => import('./pages/admin/AIStatsPage'));
+const AIAdminDashboard = lazy(() => import('@/features/admin/SuperAdmin/AIAdminDashboard'));
 const Support = lazy(() => import('./pages/Support'));
 const UserProfile = lazy(() => import('./pages/UserProfile'));
 const Terms = lazy(() => import('./pages/Terms'));
@@ -52,6 +53,8 @@ const PriceLists = lazy(() => import('./pages/admin/PriceLists'));
 const InsuranceProviders = lazy(() => import('./pages/admin/InsuranceProviders'));
 // Stores
 import { useUIStore } from '@/store/ui.store';
+import ImpersonationBar from '@/components/common/ImpersonationBar';
+
 function AppRoutes() {
     const { isAuthenticated, isBooting } = useAuth();
     const location = useLocation();
@@ -88,6 +91,7 @@ function AppRoutes() {
     if (!isAuthenticated) {
         return (
             <>
+                <ImpersonationBar />
                 <BackgroundWrapper />
                 <Suspense fallback={<LoadingSpinner />}>
                     <Routes>
@@ -107,6 +111,7 @@ function AppRoutes() {
     return (
         <ProceduresProvider>
             <>
+                <ImpersonationBar />
                 <BackgroundWrapper />
                 <Suspense fallback={<LoadingSpinner />}>
                     <Routes>
@@ -203,7 +208,7 @@ function AppRoutes() {
                             } />
                             <Route path="/ai/stats" element={
                                 <ProtectedRoute allowedRoles={['super_admin']}>
-                                    <AIStats />
+                                    <AIStatsPage />
                                 </ProtectedRoute>
                             } />
                             <Route path="/terms" element={<Terms />} />

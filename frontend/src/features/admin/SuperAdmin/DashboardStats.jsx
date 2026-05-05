@@ -1,47 +1,44 @@
 import React from 'react';
 import { Building2, TrendingUp, AlertCircle, DollarSign, Users, Activity } from 'lucide-react';
 import StatCard from '@/shared/ui/StatCard';
+import { useTranslation } from 'react-i18next';
 
 const DashboardStats = ({ stats }) => {
+    const { t, i18n } = useTranslation();
+    const isRtl = i18n.language === 'ar';
+
     if (!stats) return null;
 
     return (
-        <div className="space-y-8 animate-fade-in">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard icon={Building2} title="إجمالي العيادات" value={stats.total_tenants} subtext="المسجلة في النظام" color="teal" />
-                <StatCard icon={TrendingUp} title="اشتراكات نشطة" value={stats.active_tenants} subtext="تعمل حالياً" color="emerald" />
-                <StatCard icon={AlertCircle} title="اشتراكات منتهية" value={stats.expired_tenants} subtext="تحتاج تجديد" color="rose" />
-                <StatCard icon={DollarSign} title="الإيرادات الكلية" value={`${(stats.total_revenue || 0).toLocaleString()} ج.م`} subtext="منذ البداية" color="amber" />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                        <Users className="text-teal-500" />
-                        توزيع الخطط
-                    </h3>
-                    <div className="space-y-4">
-                        {Object.entries(stats.plan_distribution || {}).map(([plan, count]) => (
-                            <div key={plan} className="flex justify-between items-center p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
-                                <span className="font-bold text-slate-700 dark:text-slate-200">{plan}</span>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-2xl font-bold text-teal-600 dark:text-teal-400">{count}</span>
-                                    <span className="text-xs text-slate-500">عيادة</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
-                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                        <Activity className="text-emerald-500" />
-                        أحدث النشاطات
-                    </h3>
-                    <div className="text-center text-slate-500 py-10 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-700">
-                        قريباً: رسوم بيانية تفاعلية 📈
-                    </div>
-                </div>
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in" dir={isRtl ? 'rtl' : 'ltr'}>
+            <StatCard 
+                icon={Building2} 
+                title={t('super_admin.stats.total_tenants')} 
+                value={stats.total_tenants} 
+                subtext={t('super_admin.stats.total_tenants_desc')} 
+                color="teal" 
+            />
+            <StatCard 
+                icon={TrendingUp} 
+                title={t('super_admin.stats.active_tenants')} 
+                value={stats.active_tenants} 
+                subtext={t('super_admin.stats.active_tenants_desc')} 
+                color="emerald" 
+            />
+            <StatCard 
+                icon={AlertCircle} 
+                title={t('super_admin.stats.expired_tenants')} 
+                value={stats.expired_tenants} 
+                subtext={t('super_admin.stats.expired_tenants_desc')} 
+                color="rose" 
+            />
+            <StatCard 
+                icon={DollarSign} 
+                title={t('super_admin.stats.total_revenue')} 
+                value={`${(stats.total_revenue || 0).toLocaleString()} ${t('super_admin.finance.currency')}`} 
+                subtext={t('super_admin.stats.total_revenue_desc')} 
+                color="amber" 
+            />
         </div>
     );
 };

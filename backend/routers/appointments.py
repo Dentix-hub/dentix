@@ -150,7 +150,7 @@ def update_appointment(
     except Exception as e:
         db.rollback()
         logger.error(f"Appointment Update Failed: {str(e)}\n{traceback.format_exc()}")
-        
+
         try:
             error_log = SystemError(
                 level=ErrorLevel.ERROR,
@@ -167,7 +167,7 @@ def update_appointment(
         except Exception as log_e:
             db.rollback()
             logger.error(f"Failed to log error to DB: {str(log_e)}")
-            
+
         raise HTTPException(status_code=500, detail=f"Backend Error: {str(e)}")
 
 

@@ -3,13 +3,16 @@ import { api } from '@/api';
 import PaymentsManager from '@/features/admin/SuperAdmin/PaymentsManager';
 import PlansManager from '@/features/admin/SuperAdmin/PlansManager';
 import ActiveSubscriptions from '@/features/admin/SuperAdmin/ActiveSubscriptions';
-import { CreditCard, PlusCircle, X, Banknote, Landmark, User, Calendar } from 'lucide-react';
-import { DateTimePicker } from '@/shared/ui';
+import FinanceReports from '@/features/admin/SuperAdmin/FinanceReports';
+import { CreditCard, PlusCircle, X, Banknote, Landmark, User, Calendar, FileText } from 'lucide-react';
+import { DateTimePicker, toast } from '@/shared/ui';
+
 export default function FinancePage() {
-    const [activeTab, setActiveTab] = useState('payments'); // payments, plans, subscriptions
+    const [activeTab, setActiveTab] = useState('payments'); // payments, plans, subscriptions, reports
     const [payments, setPayments] = useState([]);
     const [tenants, setTenants] = useState([]);
     const [plans, setPlans] = useState([]);
+    
     // Payment Modal State
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [paymentForm, setPaymentForm] = useState({
@@ -22,11 +25,13 @@ export default function FinancePage() {
         notes: ''
     });
     const [tenantUsers, setTenantUsers] = useState([]);
+    
     // Plans Editing State
     const [editingPlan, setEditingPlan] = useState(null);
     const [editedPlanData, setEditedPlanData] = useState({});
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
+
     const fetchData = async () => {
         setLoading(true);
         try {
@@ -44,9 +49,11 @@ export default function FinancePage() {
             setLoading(false);
         }
     };
+
     useEffect(() => {
         fetchData();
     }, []);
+
     const handleSavePlan = async (planId) => {
         try {
             await api.put(`/api/v1/admin/subscriptions/plans/${planId}`, editedPlanData);
@@ -54,9 +61,10 @@ export default function FinancePage() {
             setEditedPlanData({});
             fetchData();
         } catch (err) {
-            alert('فشل التعديل');
+            toast.error('فشل التعديل');
         }
     };
+
     const handleClinicChange = async (tenantId) => {
         setPaymentForm(prev => ({ ...prev, tenant_id: tenantId, paid_by: '' }));
         if (!tenantId) {
@@ -65,16 +73,16 @@ export default function FinancePage() {
         }
         try {
             const res = await api.get(`/api/v1/admin/system/tenants/${tenantId}/users`);
-            // Ensure we always set an array, even if API returns unexpected data
             setTenantUsers(Array.isArray(res.data.users) ? res.data.users : []);
         } catch (err) {
             console.error(err);
-            setTenantUsers([]); // Set empty array on error
+            setTenantUsers([]);
         }
     };
+
     const handleRecordPayment = async () => {
         if (!paymentForm.tenant_id || !paymentForm.plan_id || !paymentForm.amount) {
-            alert('الرجاء إكمال البيانات الأساسية');
+            toast.error('الرجاء إكمال البيانات الأساسية');
             return;
         }
         setProcessing(true);
@@ -91,19 +99,22 @@ export default function FinancePage() {
                 notes: ''
             });
             fetchData();
-            alert('تم تسجيل الدفعة بنجاح');
+            toast.success('تم تسجيل الدفعة بنجاح');
         } catch (err) {
-            alert('فشل تسجيل الدفعة');
+            toast.error('فشل تسجيل الدفعة');
         } finally {
             setProcessing(false);
         }
     };
+
     const getDaysRemaining = (endDate) => {
         if (!endDate) return null;
         const days = Math.ceil((new Date(endDate) - new Date()) / (1000 * 60 * 60 * 24));
         return days;
     };
+
     if (loading) return <div className="p-8 text-center text-slate-500">جاري تحميل البيانات المالية...</div>;
+
     return (
         <div className="space-y-6 animate-fade-in-up">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
@@ -135,6 +146,12 @@ export default function FinancePage() {
                     >
                         الخطط
                     </button>
+                    <button
+                        onClick={() => setActiveTab('reports')}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'reports' ? 'bg-white dark:bg-slate-700 shadow text-emerald-600' : 'text-slate-500'}`}
+                    >
+                        التقارير
+                    </button>
                 </div>
                 <button
                     onClick={() => {
@@ -149,6 +166,7 @@ export default function FinancePage() {
                     تسجيل دفعة
                 </button>
             </div>
+
             {activeTab === 'payments' ? (
                 <PaymentsManager
                     payments={payments}
@@ -159,9 +177,9 @@ export default function FinancePage() {
                         try {
                             await api.delete(`/api/v1/payments/${id}`);
                             fetchData();
-                            alert('تم حذف الدفعة بنجاح');
+                            toast.success('تم حذف الدفعة بنجاح');
                         } catch (err) {
-                            alert('فعل الحذف');
+                            toast.error('فشل الحذف');
                         }
                     }}
                 />
@@ -171,7 +189,7 @@ export default function FinancePage() {
                     plans={plans}
                     getDaysRemaining={getDaysRemaining}
                 />
-            ) : (
+            ) : activeTab === 'plans' ? (
                 <PlansManager
                     plans={plans}
                     editingPlan={editingPlan}
@@ -181,7 +199,10 @@ export default function FinancePage() {
                     handleSavePlan={handleSavePlan}
                     onRefresh={fetchData}
                 />
+            ) : (
+                <FinanceReports />
             )}
+
             {/* Enhanced Payment Modal */}
             {showPaymentModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
@@ -328,4 +349,3 @@ export default function FinancePage() {
         </div>
     );
 }
-

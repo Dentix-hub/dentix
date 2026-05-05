@@ -46,13 +46,13 @@ def main():
         print("  1. Deploy to Staging [STAGING]")
         print("  2. Deploy to Production [PRODUCTION]")
         print("  0. Exit")
-        
+
         choice = input("\nChoose (1-2): ").strip()
-        
+
         if choice == '0':
             print("Bye! ")
             break
-            
+
         if choice in REPOS:
             target = REPOS[choice]
             deploy(target)
@@ -64,10 +64,10 @@ def deploy(target):
     repo_url = target['url']
     clone_dir = target['dir']
     source_dir = os.getcwd()
-    
+
     print(f"\nStarting Git Deployment to [{target['name']}]...")
     print(f"Repo: {repo_url}")
-    
+
     # 1. Clone or Update
     if os.path.exists(clone_dir):
         print("\n Updating existing clone...")
@@ -77,7 +77,7 @@ def deploy(target):
     else:
         print("\n Cloning repository...")
         run_command(f"git clone {repo_url} {clone_dir}")
-        
+
     if not os.path.exists(clone_dir):
         print(" Clone failed. Check internet/credentials.")
         return
@@ -88,10 +88,10 @@ def deploy(target):
         dest_path = os.path.join(clone_dir, folder)
         if os.path.exists(dest_path):
             shutil.rmtree(dest_path)
-            
+
     # 3. Copy Files
     print("\n Copying files...")
-    
+
     # Helper to copy with ignore
     def copy_tree(src, dst):
         shutil.copytree(src, dst, ignore=IGNORE_PATTERNS)
@@ -99,11 +99,11 @@ def deploy(target):
     # Backend
     print("   -> Copying backend...")
     copy_tree(os.path.join(source_dir, "backend"), os.path.join(clone_dir, "backend"))
-    
+
     # Frontend
     print("   -> Copying frontend...")
     copy_tree(os.path.join(source_dir, "frontend"), os.path.join(clone_dir, "frontend"))
-    
+
     # Root Files
     print("   -> Copying root files...")
     for file in ["Dockerfile", "requirements.txt", "README.md"]:
@@ -111,13 +111,13 @@ def deploy(target):
         dst = os.path.join(clone_dir, file)
         if os.path.exists(src):
             shutil.copy2(src, dst)
-            
+
     # 4. Commit and Push
     print("\n Committing changes...")
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
-    
+
     run_command("git add -A", cwd=clone_dir)
-    
+
     # Check if anything to commit
     status_ok, status_out = run_command("git status --porcelain", cwd=clone_dir)
     if not status_out.strip():
@@ -125,11 +125,11 @@ def deploy(target):
         return
 
     commit_ok, _ = run_command(f'git commit -m "Deploy: {timestamp}"', cwd=clone_dir)
-    
+
     if commit_ok:
         print("  Pushing to Hugging Face...")
         push_ok, push_err = run_command("git push origin main", cwd=clone_dir)
-        
+
         if push_ok:
             print("\nSUCCESS! Deployment complete.")
             print(f" Monitor: {repo_url}")

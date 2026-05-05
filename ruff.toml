@@ -17,6 +17,8 @@ extend-exclude = [
     "fix_prints_regex.py",
     "wrap_response.py",
     "gunicorn_conf.py",
+    ".hf-deploy-staging-v2",
+    "ruflo-sandbox",
 ]
 
 [lint]

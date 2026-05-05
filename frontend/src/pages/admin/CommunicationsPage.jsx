@@ -3,6 +3,7 @@ import { api, broadcastNotification, deleteNotification, deleteSupportMessage } 
 import SupportInbox from '@/features/admin/SuperAdmin/SupportInbox';
 import NotificationsManager from '@/features/admin/SuperAdmin/NotificationsManager';
 import { MessageSquare } from 'lucide-react';
+import { toast } from '@/shared/ui';
 export default function CommunicationsPage() {
     const [activeTab, setActiveTab] = useState('messages');
     const [messages, setMessages] = useState([]);
@@ -35,20 +36,20 @@ export default function CommunicationsPage() {
         try {
             await deleteSupportMessage(id);
             setMessages(prev => prev.filter(m => m.id !== id));
-            alert('تم حذف الرسالة بنجاح');
+            toast.success('تم حذف الرسالة بنجاح');
         } catch (err) {
-            alert('فشل حذف الرسالة');
+            toast.error('فشل حذف الرسالة');
         }
     };
     const handleSendNotification = async () => {
-        if (!notifForm.title || !notifForm.content) return alert('الرجاء تعبئة العنوان والمحتوى');
+        if (!notifForm.title || !notifForm.content) return toast.error('الرجاء تعبئة العنوان والمحتوى');
         try {
             await broadcastNotification(notifForm);
             setNotifForm({ title: '', content: '', type: 'info', is_global: true, tenant_id: null });
             fetchData();
-            alert('تم إرسال الإشعار بنجاح');
+            toast.success('تم إرسال الإشعار بنجاح');
         } catch (err) {
-            alert('فشل إرسال الإشعار');
+            toast.error('فشل إرسال الإشعار');
         }
     };
     const handleDeleteNotification = async (id) => {
@@ -57,7 +58,7 @@ export default function CommunicationsPage() {
             await deleteNotification(id);
             fetchData();
         } catch (err) {
-            alert('فشل حذف الإشعار');
+            toast.error('فشل حذف الإشعار');
         }
     };
     if (loading) return <div className="p-8 text-center text-slate-500">جاري تحميل الرسائل...</div>;

@@ -134,7 +134,7 @@ class LicenseApi:
     def __init__(self):
         self.window = None
     def activate(self, key):
-        log(f"API CALL: activate")
+        log("API CALL: activate")
         try:
             is_ok = save_license(key)
             if is_ok:
@@ -188,12 +188,12 @@ def main():
         log("State: License verified. Initializing...")
         port = get_free_port(PORT)
         url = f"http://{HOST}:{port}"
-        
+
         threading.Thread(target=run_server, args=(port,), daemon=True).start()
-        
+
         # Increased wait time to ensure uvicorn is fully up
         log("Waiting for server to stabilize...")
-        time.sleep(5) 
+        time.sleep(5)
 
         log(f"Opening main window: {url}")
         webview.create_window("DENTIX Smart Clinic", url, width=1280, height=800, min_size=(1024, 768))
