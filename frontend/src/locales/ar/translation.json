@@ -299,8 +299,8 @@
         "actions": {
             "add_patient": "إضافة مريض",
             "new_appointment": "موعد جديد",
-            "record_payment": "تسجيل مبلغ",
-            "create_rx": "روشتة جديدة"
+            "add_expense": "إضافة مصروف",
+            "view_analytics": "التحليلات"
         },
         "no_appointments_today": "لا توجد مواعيد متبقية اليوم",
         "add_new_appointment": "إضافة موعد جديد",

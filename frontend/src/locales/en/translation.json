@@ -297,8 +297,8 @@
         "actions": {
             "add_patient": "Add Patient",
             "new_appointment": "New Appointment",
-            "record_payment": "Record Payment",
-            "create_rx": "Create RX"
+            "add_expense": "Add Expense",
+            "view_analytics": "Analytics"
         },
         "no_appointments_today": "No remaining appointments today",
         "add_new_appointment": "Add New Appointment",

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Calendar, Wallet, FileText } from 'lucide-react';
+import { Plus, Calendar, Receipt, BarChart3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 
@@ -15,7 +15,7 @@ const ActionButton = ({ icon: Icon, label, onClick, colorClass }) => (
     </button>
 );
 
-const DashboardQuickActions = ({ onAddPatient, onRecordPayment }) => {
+const DashboardQuickActions = ({ onAddPatient }) => {
     const { t } = useTranslation();
     const navigate = useNavigate();
 
@@ -33,15 +33,15 @@ const DashboardQuickActions = ({ onAddPatient, onRecordPayment }) => {
             colorClass: 'bg-gradient-to-br from-teal-500 to-cyan-600'
         },
         {
-            icon: Wallet,
-            label: t('dashboard.actions.record_payment'),
-            onClick: onRecordPayment,
+            icon: Receipt,
+            label: t('dashboard.actions.add_expense'),
+            onClick: () => navigate('/expenses'),
             colorClass: 'bg-gradient-to-br from-emerald-500 to-emerald-700'
         },
         {
-            icon: FileText,
-            label: t('dashboard.actions.create_rx'),
-            onClick: () => navigate('/patients'),
+            icon: BarChart3,
+            label: t('dashboard.actions.view_analytics'),
+            onClick: () => navigate('/analytics'),
             colorClass: 'bg-gradient-to-br from-amber-500 to-orange-600'
         }
     ];
