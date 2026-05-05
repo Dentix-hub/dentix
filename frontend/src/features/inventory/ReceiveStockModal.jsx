@@ -37,13 +37,20 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
     });
     const mutation = useMutation({
         mutationFn: (data) => {
-            // Logic: Convert YYYY-MM to YYYY-MM-{LastDay}
             let finalExpiry = data.expiry_date;
-            if (data.expiry_date && data.expiry_date.length === 7) {
-                // It's YYYY-MM
-                const [y, m] = data.expiry_date.split('-').map(Number);
-                const lastDay = new Date(y, m, 0).getDate(); // Day 0 of next month is last day of this month
-                finalExpiry = `${y}-${String(m).padStart(2, '0')}-${lastDay}`;
+            // Ensure it's a valid string
+            if (typeof finalExpiry === 'string') {
+                // If it's a full ISO string like YYYY-MM-DDTHH:mm..., take the first 10 chars
+                if (finalExpiry.includes('T')) {
+                    finalExpiry = finalExpiry.split('T')[0];
+                }
+                
+                // If it's just YYYY-MM, append the last day of the month
+                if (finalExpiry.length === 7) {
+                    const [y, m] = finalExpiry.split('-').map(Number);
+                    const lastDay = new Date(y, m, 0).getDate();
+                    finalExpiry = `${y}-${String(m).padStart(2, '0')}-${lastDay}`;
+                }
             }
             return receiveStock({
                 material_id: parseInt(data.material_id),
@@ -79,6 +86,11 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
         e.preventDefault();
         if (!formData.material_id || !formData.warehouse_id) {
             toast.error(t('inventory.receive.validation_error'));
+            return;
+        }
+        
+        if (!formData.expiry_date) {
+            toast.error(t('inventory.receive.expiry_date') + " is required.");
             return;
         }
         // Calculate Cost Per Unit derived from Package Price
