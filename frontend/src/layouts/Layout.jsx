@@ -379,24 +379,21 @@ const Layout = () => {
                 </header>
                     <main className="relative flex-1 p-4 lg:p-8 overflow-x-hidden pt-20 lg:pt-8" id="main-content">
                         <ErrorBoundary fallback={<GlobalErrorFallback />}>
-                            <AnimatePresence mode="wait">
+                            <Suspense fallback={
+                                <div className="flex items-center justify-center min-h-[400px]">
+                                    <LoadingSpinner variant="page" />
+                                </div>
+                            }>
                                 <motion.div
                                     key={location.pathname}
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 0.15 }}
+                                    initial={{ opacity: 0, y: 8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.2, ease: "easeOut" }}
                                     className="h-full"
                                 >
-                                    <Suspense fallback={
-                                        <div className="flex items-center justify-center min-h-[400px]">
-                                            <LoadingSpinner variant="page" />
-                                        </div>
-                                    }>
-                                        <Outlet />
-                                    </Suspense>
+                                    <Outlet />
                                 </motion.div>
-                            </AnimatePresence>
+                            </Suspense>
                         </ErrorBoundary>
                     </main>
                 <Suspense fallback={null}>
