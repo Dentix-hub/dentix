@@ -104,6 +104,7 @@ def list_doctors(
 def register_user(
     username: str,
     password: str,
+    full_name: str = None,
     role: str = "doctor",
     permissions: str = None,
     db: Session = Depends(get_db),
@@ -139,7 +140,7 @@ def register_user(
     validate_password(password)
 
     hashed_password = auth.get_password_hash(password)
-    user_in = schemas.User(username=username, role=role)
+    user_in = schemas.User(username=username, full_name=full_name, role=role)
     if permissions:
         user_in.permissions = permissions
 

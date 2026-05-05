@@ -25,6 +25,7 @@ class TokenData(BaseModel):
 class User(BaseModel):
     id: Optional[int] = None
     username: str
+    full_name: Optional[str] = None
     email: Optional[str] = None
     role: Optional[str] = None
     permissions: Optional[str] = None
@@ -40,6 +41,7 @@ class User(BaseModel):
 
 class UserUpdate(BaseModel):
     username: Optional[str] = None
+    full_name: Optional[str] = None
     email: Optional[str] = None
     password: Optional[str] = None
     role: Optional[str] = None
@@ -50,6 +52,7 @@ class UserUpdate(BaseModel):
 class UserAdminView(BaseModel):
     id: int
     username: str
+    full_name: Optional[str] = None
     email: Optional[str] = None
     role: str
     is_active: bool = True

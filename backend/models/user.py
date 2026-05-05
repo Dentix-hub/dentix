@@ -22,6 +22,7 @@ class User(Base):
     username = Column(
         String, index=True
     )  # Non-unique to allow duplicates across tenants or same user
+    full_name = Column(String, nullable=True)
     email = Column(String, unique=True, index=True)  # Email MUST be unique now
     hashed_password = Column(String)
 
