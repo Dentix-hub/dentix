@@ -153,7 +153,6 @@ export default function Dashboard() {
             {/* Quick Actions Grid */}
             <DashboardQuickActions 
                 onAddPatient={() => setIsPatientModalOpen(true)}
-                onRecordPayment={() => navigate('/patients')}
             />
 
             {/* Stats Grid */}
