@@ -22,6 +22,8 @@ import { useAppointments, usePrefetchAppointments } from '@/hooks/useAppointment
 import { usePrefetchDashboard } from '@/hooks/useDashboard';
 import Tooltip from '@/shared/ui/Tooltip';
 import KeyboardShortcutsModal from '@/shared/ui/modals/KeyboardShortcutsModal';
+import ErrorBoundary from '@/shared/ui/ErrorBoundary';
+import GlobalErrorFallback from '@/shared/ui/GlobalErrorFallback';
 const AIChat = lazy(() => import('@/features/ai/AIChat'));
 import { useUIStore } from '@/store/ui.store';
 import { useTenantStore } from '@/store/tenant.store';
