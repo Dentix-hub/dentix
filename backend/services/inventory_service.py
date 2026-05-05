@@ -13,6 +13,7 @@ from backend.models.inventory import (
     MaterialSession,
     StockMovement,
 )
+from backend.models.financial import Expense
 
 
 class InventoryService:
@@ -251,6 +252,19 @@ class InventoryService:
             )
             db.add(move)
             created_items.append(stock_item)
+
+        # 4. Add to Expenses automatically
+        if batch_data.cost_per_unit > 0:
+            total_cost = batch_data.cost_per_unit * quantity
+            expense = Expense(
+                item_name=f"شراء: {mat.name}",
+                cost=total_cost,
+                category="مخزن",
+                date=datetime.now(timezone.utc).date(),
+                tenant_id=tenant_id,
+                notes=f"استلام {quantity} عبوة - باتش: {batch_data.batch_number}"
+            )
+            db.add(expense)
 
         db.commit()
 
