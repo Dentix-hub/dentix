@@ -39,18 +39,44 @@ def seed_subscription_plans():
         if not db.query(models.SubscriptionPlan).first():
             logger.info(
                 '[SEED] No subscription plans found. Seeding defaults...')
-            plans = [models.SubscriptionPlan(name='trial', display_name_ar=
-                'تجريبي', price=0, duration_days=7, features='مجاني ٧ أيام',
-                max_users=1, max_patients=10), models.SubscriptionPlan(name
-                ='basic', display_name_ar='أساسي', price=500, duration_days
-                =30, features='١ مستخدم، ١٠٠ مريض', max_users=1,
-                max_patients=100), models.SubscriptionPlan(name='pro',
-                display_name_ar='محترف', price=1000, duration_days=30,
-                features='٥ مستخدمين، مرضى غير محدود', max_users=5,
-                max_patients=None), models.SubscriptionPlan(name=
-                'enterprise', display_name_ar='مؤسسات', price=2500,
-                duration_days=30, features='غير محدود', max_users=None,
-                max_patients=None)]
+            plans = [
+                models.SubscriptionPlan(
+                    name='trial', 
+                    display_name_ar='تجريبي', 
+                    price=0, 
+                    duration_days=7, 
+                    features='["TRIAL", "BASIC_REPORTING"]',
+                    max_users=1, 
+                    max_patients=10
+                ), 
+                models.SubscriptionPlan(
+                    name='basic', 
+                    display_name_ar='أساسي', 
+                    price=500, 
+                    duration_days=30, 
+                    features='["BILLING", "REPORTS_BASIC"]', 
+                    max_users=1,
+                    max_patients=100
+                ), 
+                models.SubscriptionPlan(
+                    name='pro',
+                    display_name_ar='محترف', 
+                    price=1000, 
+                    duration_days=30, 
+                    features='["BILLING", "REPORTS_ADVANCED", "LAB_INTEGRATION", "MULTI_USER"]', 
+                    max_users=5,
+                    max_patients=None
+                ), 
+                models.SubscriptionPlan(
+                    name='enterprise', 
+                    display_name_ar='مؤسسات', 
+                    price=2500, 
+                    duration_days=30, 
+                    features='["BILLING", "REPORTS_ADVANCED", "LAB_INTEGRATION", "MULTI_USER", "AI_ASSISTANT"]', 
+                    max_users=None,
+                    max_patients=None
+                )
+            ]
             db.add_all(plans)
             db.commit()
             logger.info('[SEED] Subscription plans seeded successfully.')

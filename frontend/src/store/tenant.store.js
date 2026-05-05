@@ -28,18 +28,29 @@ export const useTenantStore = create((set, get) => ({
                     // Backend returns string usually, check Plan definition. 
                     // schemas/tenant.py says features: Optional[str]
                     const rawFeatures = tenantData.subscription_plan.features;
-                    const parsed = typeof rawFeatures === 'string' ? JSON.parse(rawFeatures) : rawFeatures;
+                    let parsed = rawFeatures;
+                    
+                    if (typeof rawFeatures === 'string' && (rawFeatures.startsWith('[') || rawFeatures.startsWith('{'))) {
+                        try {
+                            parsed = JSON.parse(rawFeatures);
+                        } catch (e) {
+                            console.warn("Invalid JSON in features string, using as-is:", e);
+                        }
+                    }
 
                     if (Array.isArray(parsed)) {
                         // Convert array ["BILLING", "LABS"] to object { BILLING: true, LABS: true }
                         features = parsed.reduce((acc, feat) => ({ ...acc, [feat]: true }), {});
                         // Ensure base features are present
                         features = { ...features, 'PATIENTS': true, 'APPOINTMENTS': true, 'DASHBOARD': true };
-                    } else if (typeof parsed === 'object') {
+                    } else if (typeof parsed === 'object' && parsed !== null) {
                         features = parsed;
+                    } else {
+                        // If it's a plain string or something else, use legacy derivation
+                        features = deriveFeatures(tenantData?.plan);
                     }
-                } catch (e) {
-                    console.warn("Failed to parse DB features, falling back to legacy:", e);
+                } catch (err) {
+                    console.error("Critical error parsing features:", err);
                     features = deriveFeatures(tenantData?.plan);
                 }
             } else {
