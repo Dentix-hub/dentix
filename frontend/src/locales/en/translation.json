@@ -323,6 +323,10 @@
         "delete_confirm": "Are you sure you want to delete patient \"{{name}}\"? This will delete all related data.",
         "delete_success": "Patient deleted successfully",
         "delete_error": "Error deleting patient",
+        "history": {
+            "treatment": "Treatment",
+            "no_data": "No records found yet"
+        },
         "tabs": {
             "chart": "Dental Chart",
             "history": "Treatment History",
@@ -1198,6 +1202,8 @@
         "expenses": {
             "title": "Expenses",
             "add": "Add Expense",
+            "modal_title": "Add New Expense",
+            "placeholder": "Expense description...",
             "item": "Item",
             "category": "Category",
             "date": "Date",
