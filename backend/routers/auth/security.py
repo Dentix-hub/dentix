@@ -54,3 +54,15 @@ def verify_2fa_setup(
     db.commit()
 
     return {"message": "2FA Enabled Successfully"}
+
+
+@router.delete("/auth/2fa/disable")
+def disable_2fa(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Disable 2FA for the current user."""
+    current_user.is_2fa_enabled = False
+    current_user.otp_secret = None
+    db.commit()
+    return {"message": "2FA Disabled Successfully"}

@@ -22,11 +22,14 @@ def log_security_event(
     event_type: str,
     details: str,
     user_id: int = None,
+    tenant_id: int = None,
     ip_address: str = None,
+    user_agent: str = None,
     severity: str = "WARNING",
+    db: Session = None,
 ):
     """
-    Log security-related events to system log and potentially DB or external tool.
+    Log security-related events to system log and DB.
     Examples: Failed Login, Suspicious IP, Permission Denied.
     """
     msg = f"SECURITY_EVENT [{event_type}] User: {user_id}, IP: {ip_address} | {details}"
@@ -37,6 +40,23 @@ def log_security_event(
         logger.error(msg)
     else:
         logger.warning(msg)
+
+    if db:
+        try:
+            event = models.SecurityEvent(
+                event_type=event_type,
+                description=details,
+                user_id=user_id,
+                tenant_id=tenant_id,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                severity=severity,
+                timestamp=datetime.now(timezone.utc),
+            )
+            db.add(event)
+            # Commit depends on the caller or we can do it if it's a standalone log
+        except Exception as e:
+            logger.error(f"Failed to write security event to DB: {str(e)}")
 
 
 def log_system_error(error_type: str, error: Exception, context: str = ""):
@@ -56,6 +76,7 @@ def log_admin_action(
     old_value: dict = None,
     new_value: dict = None,
     target_user_id: int = None,
+    tenant_id: int = None,
 ):
     """
     Create an audit log entry in the database AND log to system logs.
@@ -72,10 +93,11 @@ def log_admin_action(
             entity_type=entity_type,
             entity_id=entity_id,
             target_user_id=target_user_id,
-            performed_by_id=admin_user.id,
-            performed_by_username=admin_user.username,
+            tenant_id=tenant_id or (admin_user.tenant_id if admin_user else None),
+            performed_by_id=admin_user.id if admin_user else None,
+            performed_by_username=admin_user.username if admin_user else "system",
             details=details,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
         )
 
         if old_value:

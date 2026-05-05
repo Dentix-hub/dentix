@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '@/api';
 import { ToggleLeft, ToggleRight, Settings, Plus, X, Building2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export default function FeatureManager({ tenants }) {
+    const { t, i18n } = useTranslation();
+    const isRtl = i18n.language === 'ar';
     const [flags, setFlags] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -30,36 +33,19 @@ export default function FeatureManager({ tenants }) {
     };
 
     const handleCreateFlag = async () => {
-        if (!form.key) return alert("مفتاح الميزة مطلوب");
+        if (!form.key) return alert(t('super_admin.features.key_required'));
         try {
             await api.post('/api/v1/admin/features/', form);
             setShowModal(false);
             setForm({ key: '', description: '', is_global_enabled: false, rollout_percentage: 100 });
             fetchFlags();
-            alert("تم إنشاء الميزة بنجاح");
+            alert(t('super_admin.features.create_success'));
         } catch (error) {
-            alert("فشل إنشاء الميزة (ربما المفتاح موجود مسبقاً)");
+            alert(t('super_admin.features.create_fail'));
         }
     };
 
     const handleToggleGlobal = async (key, currentStatus) => {
-        // Since we don't have a direct PUT endpoint for just one field in the minimal router we built,
-        // we might need to use the POST override or expand the API. 
-        // Wait, the router I built:
-        // @router.post("/", response_model=schemas.FeatureFlag) -> Create
-        // @router.post("/override") -> Tenant Override
-        // I missed a Global Update endpoint in Phase 2 router! 
-        // Plan: I will use a direct DB hack or quick fix in this file? 
-        // No, I should fix the backend router. But I am in Frontend mode.
-        // Let's assume for now I can re-create with same key to update? No, that throws 400.
-        // I'll add a TODO note. 
-        // Actually, FeatureFlagService.update_flag exists in service, but I didn't verify exposing it in router.
-        // Checking `admin_features.py`... 
-        // It only has GET / and POST / (create) and POST /override.
-        // CRITICAL MISSING API: Update Flag.
-        // I will implement the UI assuming the API exists or I will quick fix it in next step.
-        // Let's implement UI logic to call PUT /admin/features/{key} 
-
         try {
             await api.put(`/api/v1/admin/features/${key}`, { is_global_enabled: !currentStatus });
             fetchFlags();
@@ -75,44 +61,44 @@ export default function FeatureManager({ tenants }) {
                 feature_key: key,
                 is_enabled: enabled
             });
-            alert("تم تحديث التخصيص بنجاح");
+            alert(t('super_admin.features.override_success'));
         } catch (err) {
-            alert("فشل التخصيص");
+            alert(t('super_admin.features.override_fail'));
         }
     };
 
-    if (loading) return <div className="p-8 text-center text-slate-500">جاري تحميل المزايا...</div>;
+    if (loading) return <div className="p-8 text-center text-slate-500">{t('super_admin.features.loading')}</div>;
 
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
-                <div>
+        <div className="space-y-6" dir={isRtl ? 'rtl' : 'ltr'}>
+            <div className={`flex flex-col md:flex-row justify-between items-start md:items-center bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 gap-4`}>
+                <div className={isRtl ? 'text-right' : 'text-left'}>
                     <h3 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                         <Settings className="text-indigo-500" />
-                        إدارة المزايا (Feature Flags)
+                        {t('super_admin.features.title')}
                     </h3>
-                    <p className="text-slate-500 mt-1">التحكم في ظهور المزايا وتفعيلها تدريجياً</p>
+                    <p className="text-slate-500 mt-1">{t('super_admin.features.subtitle')}</p>
                 </div>
                 <button
                     onClick={() => setShowModal(true)}
                     className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20"
                 >
                     <Plus size={20} />
-                    ميزة جديدة
+                    {t('super_admin.features.new_feature')}
                 </button>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
                 {flags.map(flag => (
-                    <div key={flag.id} className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div key={flag.id} className={`bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
                         <div className="flex items-center gap-4">
                             <div className={`p-3 rounded-2xl ${flag.is_global_enabled ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
                                 <Settings size={24} />
                             </div>
-                            <div>
+                            <div className={isRtl ? 'text-right' : 'text-left'}>
                                 <h4 className="font-bold text-lg text-slate-800 dark:text-white font-mono">{flag.key}</h4>
                                 <p className="text-slate-500 text-sm">{flag.description}</p>
-                                <div className="flex items-center gap-2 mt-2">
+                                <div className={`flex items-center gap-2 mt-2 ${isRtl ? 'flex-row-reverse' : 'flex-row'}`}>
                                     <span className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg text-slate-500 font-bold">
                                         Rollout: {flag.rollout_percentage}%
                                     </span>
@@ -120,8 +106,8 @@ export default function FeatureManager({ tenants }) {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-4 w-full md:w-auto">
-                            <div className="md:text-left flex-1">
+                        <div className={`flex flex-col md:flex-row items-center gap-4 w-full md:w-auto ${isRtl ? 'md:flex-row-reverse' : ''}`}>
+                            <div className={isRtl ? 'text-right' : 'text-left'}>
                                 <label className="text-xs font-bold text-slate-500 block mb-1">override tenant</label>
                                 <select
                                     className="w-full md:w-40 text-sm p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
@@ -129,7 +115,7 @@ export default function FeatureManager({ tenants }) {
                                         if (e.target.value) handleOverride(flag.key, parseInt(e.target.value), !flag.is_global_enabled)
                                     }}
                                 >
-                                    <option value="">اختر عيادة...</option>
+                                    <option value="">{t('super_admin.features.select_clinic')}</option>
                                     {(tenants || []).map(t => (
                                         <option key={t.id} value={t.id}>{t.name}</option>
                                     ))}
@@ -143,7 +129,7 @@ export default function FeatureManager({ tenants }) {
                                     : 'bg-slate-200 text-slate-500'}`}
                             >
                                 {flag.is_global_enabled ? <ToggleRight /> : <ToggleLeft />}
-                                {flag.is_global_enabled ? 'مفعل عالمياً' : 'معطل'}
+                                {flag.is_global_enabled ? t('super_admin.features.global_enabled') : t('super_admin.features.disabled')}
                             </button>
                         </div>
                     </div>
@@ -152,15 +138,15 @@ export default function FeatureManager({ tenants }) {
 
             {/* Create Modal */}
             {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in" dir={isRtl ? 'rtl' : 'ltr'}>
                     <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 w-full max-w-md shadow-2xl space-y-6">
                         <div className="flex justify-between items-center">
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-white">إضافة ميزة جديدة</h3>
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-white">{t('super_admin.features.add_title')}</h3>
                             <button onClick={() => setShowModal(false)}><X className="text-slate-500" /></button>
                         </div>
 
                         <div className="space-y-4">
-                            <div>
+                            <div className={isRtl ? 'text-right' : 'text-left'}>
                                 <label className="block text-sm font-bold text-slate-500 mb-1.5">Feature Key (Unique)</label>
                                 <input
                                     type="text"
@@ -171,8 +157,8 @@ export default function FeatureManager({ tenants }) {
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none font-mono"
                                 />
                             </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-500 mb-1.5">الوصف</label>
+                            <div className={isRtl ? 'text-right' : 'text-left'}>
+                                <label className="block text-sm font-bold text-slate-500 mb-1.5">{t('super_admin.features.description')}</label>
                                 <input
                                     type="text"
                                     value={form.description}
@@ -180,15 +166,15 @@ export default function FeatureManager({ tenants }) {
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none"
                                 />
                             </div>
-                            <div className="flex items-center gap-3">
-                                <label className="flex items-center gap-2 cursor-pointer">
+                            <div className={`flex items-center gap-3 ${isRtl ? 'flex-row-reverse' : ''}`}>
+                                <label className={`flex items-center gap-2 cursor-pointer ${isRtl ? 'flex-row-reverse' : ''}`}>
                                     <input
                                         type="checkbox"
                                         checked={form.is_global_enabled}
                                         onChange={(e) => setForm({ ...form, is_global_enabled: e.target.checked })}
                                         className="w-5 h-5 accent-indigo-500"
                                     />
-                                    <span className="font-bold text-slate-700 dark:text-slate-300">تفعيل عالمي</span>
+                                    <span className="font-bold text-slate-700 dark:text-slate-300">{t('super_admin.features.global_enable')}</span>
                                 </label>
                             </div>
 
@@ -196,7 +182,7 @@ export default function FeatureManager({ tenants }) {
                                 onClick={handleCreateFlag}
                                 className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg"
                             >
-                                حفظ الميزة
+                                {t('super_admin.features.save_btn')}
                             </button>
                         </div>
                     </div>
@@ -205,4 +191,5 @@ export default function FeatureManager({ tenants }) {
         </div>
     );
 }
+
 

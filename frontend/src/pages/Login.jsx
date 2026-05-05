@@ -11,34 +11,49 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const navigate = useNavigate();
-    const { login } = useAuth();
+    const { login, verify2FA } = useAuth();
+    const [show2FA, setShow2FA] = useState(false);
+    const [twoFACode, setTwoFACode] = useState('');
+    const [tempToken, setTempToken] = useState('');
+
     const handleLogin = async (e) => {
         e.preventDefault();
         if (isSubmitting) return;
         setIsSubmitting(true);
         setError('');
         try {
-            // Use AuthProvider's login — sets React state directly (no page reload)
             const data = await login(username.trim(), password);
-            // React state change (isAuthenticated=true) auto-switches AppRoutes
-            // to the authenticated view. navigate() for super_admin only.
+            
+            if (data.user_status === '2fa_required') {
+                setTempToken(data.access_token);
+                setShow2FA(true);
+                setIsSubmitting(false);
+                return;
+            }
+
             if (data.role === 'super_admin') {
                 navigate('/admin', { replace: true });
             }
-            // For regular users: AppRoutes already shows Dashboard on '/'
-            // because isAuthenticated flipped to true — no navigation needed.
         } catch (err) {
             console.error("Login Error:", err);
-            if (err.response) {
-                // Server responded with a status code
-                setError(err.response.data.detail || err.response.data.error?.message || t('auth.login.errors.server') + ': ' + err.response.status);
-            } else if (err.request) {
-                // Request made but no response received
-                setError(t('auth.login.errors.connection'));
-            } else {
-                // Something else happened
-                setError(t('auth.login.errors.unknown') + ': ' + err.message);
+            setError(err.response?.data?.detail || t('auth.login.errors.server'));
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleVerify2FA = async (e) => {
+        e.preventDefault();
+        if (isSubmitting) return;
+        setIsSubmitting(true);
+        setError('');
+        try {
+            const data = await verify2FA(twoFACode, tempToken);
+            if (data.role === 'super_admin') {
+                navigate('/admin', { replace: true });
             }
+        } catch (err) {
+            setError(err.response?.data?.detail || 'رمز التحقق غير صحيح');
         } finally {
             setIsSubmitting(false);
         }
@@ -77,53 +92,94 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         {error}
                     </div>
                 )}
-                <form onSubmit={handleLogin} className="space-y-5">
-                    <div className="relative group">
-                        <input
-                            type="text"
-                            placeholder={t('auth.login.username')}
-                            className={`w-full p-4 rounded-2xl border outline-none transition-all text-right bg-input border-border text-text-primary focus:border-primary focus:ring-1 focus:ring-primary`}
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                        />
-                    </div>
-                    <div className="relative group">
-                        <input
-                            type="password"
-                            placeholder={t('auth.login.password')}
-                            className={`w-full p-4 rounded-2xl border outline-none transition-all text-right bg-input border-border text-text-primary focus:border-primary focus:ring-1 focus:ring-primary`}
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                        />
-                    </div>
-                    <div className="flex items-center justify-between px-1">
-                        <Link
-                            to="/forgot-password"
-                            className={`text-sm font-bold hover:underline text-primary`}
+                {!show2FA ? (
+                    <form onSubmit={handleLogin} className="space-y-5 animate-in slide-in-from-right duration-300">
+                        <div className="relative group">
+                            <input
+                                type="text"
+                                placeholder={t('auth.login.username')}
+                                className={`w-full p-4 rounded-2xl border outline-none transition-all text-right bg-input border-border text-text-primary focus:border-primary focus:ring-1 focus:ring-primary`}
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <div className="relative group">
+                            <input
+                                type="password"
+                                placeholder={t('auth.login.password')}
+                                className={`w-full p-4 rounded-2xl border outline-none transition-all text-right bg-input border-border text-text-primary focus:border-primary focus:ring-1 focus:ring-primary`}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                            />
+                        </div>
+                        <div className="flex items-center justify-between px-1">
+                            <Link
+                                to="/forgot-password"
+                                className={`text-sm font-bold hover:underline text-primary`}
+                            >
+                                {t('auth.login.forgot_password')}
+                            </Link>
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={isSubmitting}
+                            className="w-full py-4 bg-primary text-white font-bold rounded-2xl hover:brightness-110 shadow-xl shadow-primary/25 transition-all active:scale-[0.98] transform flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                         >
-                            {t('auth.login.forgot_password')}
-                        </Link>
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-full py-4 bg-primary text-white font-bold rounded-2xl hover:brightness-110 shadow-xl shadow-primary/25 transition-all active:scale-[0.98] transform flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                    >
-                        {isSubmitting && <Loader2 size={20} className="animate-spin" />}
-                        {t('auth.login.submit')}
-                    </button>
-                    <div className="text-center mt-4">
-                        <span className="text-sm font-medium text-text-secondary me-2">
-                            {i18n.language === 'ar' ? 'لا تملك حساب عيادة؟' : "Don't have a clinic account?"}
-                        </span>
-                        <Link
-                            to="/register"
-                            className="text-sm font-bold text-primary hover:underline transition-all"
+                            {isSubmitting && <Loader2 size={20} className="animate-spin" />}
+                            {t('auth.login.submit')}
+                        </button>
+                        <div className="text-center mt-4">
+                            <span className="text-sm font-medium text-text-secondary me-2">
+                                {i18n.language === 'ar' ? 'لا تملك حساب عيادة؟' : "Don't have a clinic account?"}
+                            </span>
+                            <Link
+                                to="/register"
+                                className="text-sm font-bold text-primary hover:underline transition-all"
+                            >
+                                {t('auth.login.register_new')}
+                            </Link>
+                        </div>
+                    </form>
+                ) : (
+                    <form onSubmit={handleVerify2FA} className="space-y-5 animate-in slide-in-from-left duration-300">
+                        <div className="p-4 bg-primary/5 rounded-2xl mb-4">
+                            <p className="text-sm font-bold text-primary text-center">
+                                {i18n.language === 'ar' 
+                                    ? 'تم تفعيل التحقق بخطوتين. يرجى إدخال الرمز من تطبيق المصادقة.' 
+                                    : 'Two-factor authentication is enabled. Please enter the code from your authenticator app.'}
+                            </p>
+                        </div>
+                        <div className="relative group">
+                            <input
+                                type="text"
+                                maxLength="6"
+                                placeholder="000000"
+                                className={`w-full p-5 rounded-2xl border outline-none transition-all text-center text-2xl tracking-[1em] bg-input border-border text-text-primary focus:border-primary focus:ring-2 focus:ring-primary font-black`}
+                                value={twoFACode}
+                                onChange={(e) => setTwoFACode(e.target.value.replace(/\D/g, ''))}
+                                required
+                                autoFocus
+                            />
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={isSubmitting || twoFACode.length < 6}
+                            className="w-full py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 shadow-xl shadow-emerald-500/25 transition-all active:scale-[0.98] transform flex items-center justify-center gap-2 disabled:opacity-70"
                         >
-                            {t('auth.login.register_new')}
-                        </Link>
-                    </div>
-                </form>
+                            {isSubmitting && <Loader2 size={20} className="animate-spin" />}
+                            {i18n.language === 'ar' ? 'تأكيد الرمز' : 'Verify Code'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setShow2FA(false)}
+                            className="w-full py-3 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors"
+                        >
+                            {i18n.language === 'ar' ? 'العودة لتسجيل الدخول' : 'Back to Login'}
+                        </button>
+                    </form>
+                )}
                 <div className="mt-8 pt-6 border-t border-slate-100/10 flex flex-col gap-2">
                     <div className="flex justify-center gap-4 text-xs font-medium text-text-secondary">
                         <Link to="/terms" className="hover:text-primary transition-colors">{t('auth.login.terms')}</Link>

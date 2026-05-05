@@ -97,14 +97,25 @@ class TenantFeature(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ActivityFeedItem(BaseModel):
+    id: int
+    type: str  # tenant, payment, error, audit
+    title: str
+    description: str
+    timestamp: datetime
+    status: Optional[str] = None
+    link: Optional[str] = None
+
 class AdminDashboardStats(BaseModel):
     total_tenants: int
     active_tenants: int
     expired_tenants: int
     total_revenue: float
     monthly_revenue: dict
+    clinic_growth: dict
     plan_distribution: dict
     recent_payments: List[SubscriptionPayment]
+    activity_feed: List[ActivityFeedItem]
 
 
 class DailySystemStats(BaseModel):

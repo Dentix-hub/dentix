@@ -21,7 +21,7 @@ def run_command(cmd, cwd=PROJECT_ROOT):
 
 def build_frontend():
     print("\n=== 1. Building React Frontend ===")
-    
+
     # Create .env.desktop to point to localhost
     env_desktop = os.path.join(FRONTEND_DIR, ".env.production")
     with open(env_desktop, 'w') as f:
@@ -33,26 +33,26 @@ def build_frontend():
 
     run_command("npm install", cwd=FRONTEND_DIR)
     run_command("npm run build", cwd=FRONTEND_DIR)
-    
+
     source_dist = os.path.join(FRONTEND_DIR, "dist")
     target_static = os.path.join(BACKEND_DIR, "static")
-    
+
     if os.path.exists(target_static):
         shutil.rmtree(target_static)
-        
+
     print(f"Copying {source_dist} to {target_static}")
     shutil.copytree(source_dist, target_static)
 
 def obfuscate_backend():
     print("\n=== 2. Obfuscating Python Code (PyArmor) ===")
     run_command("pip install pyarmor pyinstaller pywebview")
-    
+
     if os.path.exists(DIST_OBF_DIR):
         shutil.rmtree(DIST_OBF_DIR)
-        
+
     # Pyarmor 8 command to obfuscate the backend directory recursively
     run_command(f"pyarmor gen -O {DIST_OBF_DIR} backend")
-    
+
     # We also need to copy the static files into the obfuscated directory
     # so that Pyinstaller bundles them correctly
     source_static = os.path.join(BACKEND_DIR, "static")
@@ -62,10 +62,10 @@ def obfuscate_backend():
 
 def build_executable():
     print("\n=== 3. Packaging Desktop Application (PyInstaller) ===")
-    
+
     # Separator for PyInstaller add-data varies by OS (Windows uses ';', Linux/Mac uses ':')
     sep = ';' if os.name == 'nt' else ':'
-    
+
     # PyInstaller options
     # Hidden imports needed for SQLite offline mode (not auto-detected from dynamic URLs)
     hidden_imports = [
@@ -75,7 +75,7 @@ def build_executable():
         'sqlalchemy.dialects.sqlite.aiosqlite',
     ]
     hidden_str = ' '.join(f'--hidden-import {m}' for m in hidden_imports)
-    
+
     cmd = (
         'pyinstaller --noconfirm --onedir --windowed '
         '--name "DENTIX_Offline" '
@@ -83,7 +83,7 @@ def build_executable():
         f'--add-data "{DIST_OBF_DIR}/backend{sep}backend" '
         'desktop_app.py'
     )
-    
+
     run_command(cmd)
 
 if __name__ == "__main__":

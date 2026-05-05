@@ -1,9 +1,11 @@
 import React from 'react';
 import { Edit3, Save, X, Users, Activity, PlusCircle, Trash2 } from 'lucide-react';
-
+import { useTranslation } from 'react-i18next';
 import { createSubscriptionPlan } from '@/api';
 
 const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setEditedPlanData, handleSavePlan, onRefresh }) => {
+    const { t, i18n } = useTranslation();
+    const isRtl = i18n.language === 'ar';
     const [isCreating, setIsCreating] = React.useState(false);
     const [newPlanData, setNewPlanData] = React.useState({
         name: '',
@@ -17,7 +19,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
 
     const handleCreatePlan = async () => {
         if (!newPlanData.name || !newPlanData.display_name_ar) {
-            alert('يرجى تعبئة الاسم والمعرف');
+            alert(t('super_admin.plans.fill_required'));
             return;
         }
         try {
@@ -33,38 +35,38 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                 features: ''
             });
             if (onRefresh) onRefresh();
-            alert('تم إنشاء الخطة بنجاح');
+            alert(t('super_admin.plans.create_success'));
         } catch (err) {
             console.error(err);
-            alert('فشل إنشاء الخطة: ' + (err.response?.data?.detail || err.message));
+            alert(t('super_admin.plans.create_fail') + ': ' + (err.response?.data?.detail || err.message));
         }
     };
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8" dir={isRtl ? 'rtl' : 'ltr'}>
             {(Array.isArray(plans) ? plans : []).map(plan => (
                 <div key={plan.id} className={`relative group bg-white dark:bg-slate-900 rounded-2xl p-8 border hover:border-indigo-500/50 transition-all duration-300 ${editingPlan === plan.id ? 'border-indigo-500 ring-4 ring-indigo-500/10 z-10 scale-105 shadow-2xl' : 'border-slate-100 dark:border-slate-800 shadow-lg'}`}>
                     {editingPlan === plan.id ? (
                         <div className="space-y-5 animate-fade-in">
                             <div className="flex items-center gap-2 mb-4 text-indigo-600 font-bold pb-4 border-b border-indigo-100 dark:border-indigo-900/30">
                                 <Edit3 size={20} />
-                                تعديل الخطة
+                                {t('super_admin.plans.edit_plan')}
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">اسم الخطة (للعرض)</label>
+                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.plan_name_label')}</label>
                                 <input
                                     type="text"
                                     value={editedPlanData.display_name_ar ?? plan.display_name_ar}
                                     onChange={(e) => setEditedPlanData({ ...editedPlanData, display_name_ar: e.target.value })}
                                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all font-bold"
-                                    placeholder="مثال: الباقة الذهبية"
+                                    placeholder={isRtl ? "مثال: الباقة الذهبية" : "Example: Gold Plan"}
                                 />
                             </div>
 
                             <div className="flex gap-4">
                                 <div className="flex-1">
-                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">السعر (ج.م)</label>
+                                    <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.price_label')} ({t('super_admin.finance.currency')})</label>
                                     <input
                                         type="number"
                                         value={editedPlanData.price ?? plan.price}
@@ -73,7 +75,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     />
                                 </div>
                                 <div className="flex-1">
-                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">المدة (أيام)</label>
+                                    <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.duration_label')}</label>
                                     <input
                                         type="number"
                                         value={editedPlanData.duration_days ?? plan.duration_days}
@@ -85,7 +87,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
 
                             <div className="flex gap-4">
                                 <div className="flex-1">
-                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">مستخدمين</label>
+                                    <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.users_label')}</label>
                                     <input
                                         type="number"
                                         value={editedPlanData.max_users ?? plan.max_users ?? ''}
@@ -95,7 +97,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     />
                                 </div>
                                 <div className="flex-1">
-                                    <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">مرضى</label>
+                                    <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.patients_label')}</label>
                                     <input
                                         type="number"
                                         value={editedPlanData.max_patients ?? plan.max_patients ?? ''}
@@ -107,7 +109,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">المميزات (نص وصفي)</label>
+                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.features_label')}</label>
                                 <textarea
                                     value={editedPlanData.features ?? plan.features}
                                     onChange={(e) => setEditedPlanData({ ...editedPlanData, features: e.target.value })}
@@ -118,20 +120,20 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                             {/* AI Settings Section */}
                             <div className="bg-indigo-50 dark:bg-indigo-900/10 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/30">
                                 <h4 className="font-bold text-indigo-600 mb-3 flex items-center gap-2">
-                                    <Activity size={16} /> إعدادات الذكاء الاصطناعي
+                                    <Activity size={16} /> {t('super_admin.plans.ai_settings')}
                                 </h4>
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
-                                        <label className="text-sm font-bold text-slate-600 dark:text-slate-300">تفعيل المساعد الذكي</label>
+                                        <label className="text-sm font-bold text-slate-600 dark:text-slate-300">{t('super_admin.plans.ai_helper_label')}</label>
                                         <input
                                             type="checkbox"
                                             checked={editedPlanData.is_ai_enabled ?? plan.is_ai_enabled ?? false}
-                                            onChange={(e) => setEditedPlanData({ ...editedPlanData, is_ai_enabled: e.target.checked })}
+                                            onChange={(e) => setEditedPlanData({ ...editedPlanData, i_ai_enabled: e.target.checked })}
                                             className="w-5 h-5 accent-indigo-600 rounded-lg cursor-pointer"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-500 mb-1">الحد اليومي (0 = غير نشط)</label>
+                                        <label className={`block text-xs font-bold text-slate-500 mb-1`}>{t('super_admin.plans.ai_daily_limit')} (0 = {t('super_admin.plans.unlimited')})</label>
                                         <input
                                             type="number"
                                             value={editedPlanData.ai_daily_limit ?? plan.ai_daily_limit ?? 0}
@@ -142,7 +144,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                 </div>
                                 {/* Default Setting */}
                                 <div className="flex items-center justify-between pt-2 border-t border-indigo-100 dark:border-indigo-900/30 mt-2">
-                                    <label className="text-sm font-bold text-slate-600 dark:text-slate-300">تعيين كخطة افتراضية</label>
+                                    <label className="text-sm font-bold text-slate-600 dark:text-slate-300">{t('super_admin.plans.default_plan_label')}</label>
                                     <input
                                         type="checkbox"
                                         checked={editedPlanData.is_default ?? plan.is_default ?? false}
@@ -154,7 +156,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
 
                             <div className="flex gap-3 pt-2">
                                 <button onClick={() => handleSavePlan(plan.id)} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all">
-                                    <Save size={18} /> حفظ التعديلات
+                                    <Save size={18} /> {t('super_admin.plans.save_changes')}
                                 </button>
                                 <button onClick={() => { setEditingPlan(null); setEditedPlanData({}); }} className="px-4 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-xl font-bold transition-all">
                                     <X size={18} />
@@ -163,46 +165,48 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                         </div>
                     ) : (
                         <>
-                            <div className="absolute top-0 left-0 w-full h-[140px] bg-gradient-to-br from-indigo-500 to-teal-600 rounded-t-[2.5rem] opacity-10 group-hover:opacity-15 transition-opacity" />
+                            <div className={`absolute top-0 ${isRtl ? 'right-0' : 'left-0'} w-full h-[140px] bg-gradient-to-br from-indigo-500 to-teal-600 rounded-t-[2.5rem] opacity-10 group-hover:opacity-15 transition-opacity`} />
                             <div className="relative pt-4">
                                 <div className="flex justify-between items-start mb-6">
                                     <div>
                                         <div className="flex items-center gap-2">
-                                            <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">{plan.display_name_ar}</h3>
+                                            <h3 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">
+                                                {isRtl ? plan.display_name_ar : plan.display_name_en || plan.name}
+                                            </h3>
                                             {plan.is_default && (
-                                                <span className="bg-indigo-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold mb-2">افتراضي</span>
+                                                <span className="bg-indigo-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold mb-2">{t('super_admin.plans.default_badge')}</span>
                                             )}
                                         </div>
                                         <div className="flex items-baseline gap-1">
                                             <span className="text-4xl font-bold text-indigo-600 dark:text-indigo-400">{plan.price}</span>
-                                            <span className="text-sm font-bold text-slate-500">ج.م / {plan.duration_days} يوم</span>
+                                            <span className="text-sm font-bold text-slate-500">{t('super_admin.finance.currency')} / {plan.duration_days} {t('super_admin.plans.days_unit')}</span>
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
                                         <button
                                             onClick={() => setEditingPlan(plan.id)}
                                             className="p-3 bg-white dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-slate-700 text-indigo-600 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 transition-all hover:scale-110"
-                                            title="تعديل الخطة"
+                                            title={t('super_admin.plans.edit_plan')}
                                         >
                                             <Edit3 size={20} />
                                         </button>
                                         <button
                                             onClick={() => {
-                                                if (window.confirm(`هل أنت متأكد من حذف خطة "${plan.display_name_ar}"؟`)) {
+                                                if (window.confirm(t('super_admin.plans.delete_confirm', { name: isRtl ? plan.display_name_ar : plan.display_name_en || plan.name }))) {
                                                     import('@/api').then(({ default: api }) => {
                                                         api.delete(`/api/v1/admin/subscriptions/plans/${plan.id}`)
                                                             .then(() => {
-                                                                alert('تم حذف الخطة بنجاح');
+                                                                alert(t('super_admin.plans.delete_success'));
                                                                 if (onRefresh) onRefresh();
                                                             })
                                                             .catch(err => {
-                                                                alert('فشل الحذف: ' + (err.response?.data?.detail || err.message));
+                                                                alert(t('super_admin.plans.delete_fail') + ': ' + (err.response?.data?.detail || err.message));
                                                             });
                                                     });
                                                 }
                                             }}
                                             className="p-3 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 transition-all hover:scale-110"
-                                            title="حذف الخطة"
+                                            title={t('super_admin.plans.delete_plan')}
                                         >
                                             <Trash2 size={20} />
                                         </button>
@@ -215,8 +219,8 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                             <Users size={18} />
                                         </div>
                                         <div>
-                                            <p className="text-xs text-slate-500 font-bold">المستخدمين</p>
-                                            <p className="font-bold text-slate-700 dark:text-slate-200">{plan.max_users ? `${plan.max_users} مستخدم` : 'غير محدود'}</p>
+                                            <p className="text-xs text-slate-500 font-bold">{t('super_admin.plans.users_label')}</p>
+                                            <p className="font-bold text-slate-700 dark:text-slate-200">{plan.max_users ? `${plan.max_users} ${t('super_admin.users.title')}` : t('super_admin.plans.unlimited')}</p>
                                         </div>
                                     </div>
 
@@ -228,10 +232,10 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                             </div>
                                             <div>
                                                 <p className="text-xs text-indigo-500 font-bold flex items-center gap-1">
-                                                    ذكاء اصطناعي <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                                                    {t('super_admin.plans.ai_settings')} <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
                                                 </p>
                                                 <p className="font-bold text-indigo-700 dark:text-indigo-300">
-                                                    {plan.ai_daily_limit > 0 ? `${plan.ai_daily_limit} طلب/يوم` : 'غير محدود'}
+                                                    {plan.ai_daily_limit > 0 ? `${plan.ai_daily_limit} ${t('super_admin.plans.requests_unit')}` : t('super_admin.plans.unlimited')}
                                                 </p>
                                             </div>
                                         </div>
@@ -255,12 +259,12 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                     <div className="space-y-4">
                         <div className="flex items-center gap-2 mb-4 text-emerald-600 font-bold pb-4 border-b border-emerald-100 dark:border-emerald-900/30">
                             <PlusCircle size={20} />
-                            إضافة خطة جديدة
+                            {t('super_admin.plans.add_plan')}
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">المعرف (EN)</label>
+                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.plan_id_label')}</label>
                                 <input
                                     type="text"
                                     value={newPlanData.name}
@@ -270,20 +274,20 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">الاسم (للعرض)</label>
+                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.plan_name_label')}</label>
                                 <input
                                     type="text"
                                     value={newPlanData.display_name_ar}
                                     onChange={(e) => setNewPlanData({ ...newPlanData, display_name_ar: e.target.value })}
                                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-sm"
-                                    placeholder="الباقة الذهبية"
+                                    placeholder={isRtl ? "الباقة الذهبية" : "Gold Plan"}
                                 />
                             </div>
                         </div>
 
                         <div className="flex gap-4">
                             <div className="flex-1">
-                                <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">السعر (ج.م)</label>
+                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.price_label')} ({t('super_admin.finance.currency')})</label>
                                 <input
                                     type="number"
                                     value={newPlanData.price}
@@ -292,7 +296,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                 />
                             </div>
                             <div className="flex-1">
-                                <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">المدة (أيام)</label>
+                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.duration_label')}</label>
                                 <input
                                     type="number"
                                     value={newPlanData.duration_days}
@@ -304,7 +308,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
 
                         <div className="flex gap-4">
                             <div className="flex-1">
-                                <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">مستخدمين</label>
+                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.users_label')}</label>
                                 <input
                                     type="number"
                                     value={newPlanData.max_users || ''}
@@ -314,7 +318,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                 />
                             </div>
                             <div className="flex-1">
-                                <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">مرضى</label>
+                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.patients_label')}</label>
                                 <input
                                     type="number"
                                     value={newPlanData.max_patients || ''}
@@ -326,23 +330,23 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1.5 mr-1">المميزات</label>
+                            <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.features_label')}</label>
                             <textarea
                                 value={newPlanData.features}
                                 onChange={(e) => setNewPlanData({ ...newPlanData, features: e.target.value })}
                                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none text-sm min-h-[80px]"
-                                placeholder="دعم كامل، وصول لجميع الخصائص..."
+                                placeholder={isRtl ? "دعم كامل، وصول لجميع الخصائص..." : "Full support, access to all features..."}
                             />
                         </div>
 
                         {/* AI Settings Section for New Plan */}
                         <div className="bg-emerald-50 dark:bg-emerald-900/10 p-4 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
                             <h4 className="font-bold text-emerald-600 mb-3 flex items-center gap-2">
-                                <Activity size={16} /> إعدادات الذكاء الاصطناعي
+                                <Activity size={16} /> {t('super_admin.plans.ai_settings')}
                             </h4>
                             <div className="space-y-3">
                                 <div className="flex items-center justify-between">
-                                    <label className="text-sm font-bold text-slate-600 dark:text-slate-300">تفعيل المساعد الذكي</label>
+                                    <label className="text-sm font-bold text-slate-600 dark:text-slate-300">{t('super_admin.plans.ai_helper_label')}</label>
                                     <input
                                         type="checkbox"
                                         checked={newPlanData.is_ai_enabled || false}
@@ -351,7 +355,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     />
                                 </div>
                                 <div className="flex items-center justify-between">
-                                    <label className="text-sm font-bold text-slate-600 dark:text-slate-300">تعيين كخطة افتراضية</label>
+                                    <label className="text-sm font-bold text-slate-600 dark:text-slate-300">{t('super_admin.plans.default_plan_label')}</label>
                                     <input
                                         type="checkbox"
                                         checked={newPlanData.is_default || false}
@@ -360,7 +364,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1">الحد اليومي (0 = غير نشط)</label>
+                                    <label className={`block text-xs font-bold text-slate-500 mb-1`}>{t('super_admin.plans.ai_daily_limit')} (0 = {t('super_admin.plans.unlimited')})</label>
                                     <input
                                         type="number"
                                         value={newPlanData.ai_daily_limit || 0}
@@ -373,7 +377,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
 
                         <div className="flex gap-3 pt-2">
                             <button onClick={handleCreatePlan} className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all">
-                                <PlusCircle size={18} /> إنشاء
+                                <PlusCircle size={18} /> {t('super_admin.plans.create_button')}
                             </button>
                             <button onClick={() => setIsCreating(false)} className="px-4 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-xl font-bold transition-all">
                                 <X size={18} />
@@ -386,7 +390,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                     <div className="p-4 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
                         <PlusCircle size={32} />
                     </div>
-                    <p className="font-bold text-slate-500 group-hover:text-indigo-600 transition-colors">إضافة خطة جديدة</p>
+                    <p className="font-bold text-slate-500 group-hover:text-indigo-600 transition-colors">{t('super_admin.plans.add_plan')}</p>
                 </button>
             )}
         </div>

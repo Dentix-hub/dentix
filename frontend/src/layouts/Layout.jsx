@@ -16,6 +16,7 @@ import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import NotificationBell from '@/shared/ui/NotificationBell';
 import GlobalBanner from '@/shared/ui/GlobalBanner';
 import CommandPalette from '@/shared/ui/CommandPalette';
+import SuperAdminCommandPalette from '@/features/admin/SuperAdmin/SuperAdminCommandPalette';
 // Prefetching hooks
 import { usePatients, usePrefetchPatients } from '@/hooks/usePatients';
 import { useAppointments, usePrefetchAppointments } from '@/hooks/useAppointments';
@@ -175,12 +176,19 @@ const Layout = () => {
                 <GlobalBanner />
             </div>
             
-            <CommandPalette 
-                isOpen={isCommandPaletteOpen} 
-                onClose={() => setIsCommandPaletteOpen(false)}
-                patients={patients}
-                appointments={appointments}
-            />
+            {isSuperAdmin ? (
+                <SuperAdminCommandPalette 
+                    isOpen={isCommandPaletteOpen} 
+                    onClose={() => setIsCommandPaletteOpen(false)}
+                />
+            ) : (
+                <CommandPalette 
+                    isOpen={isCommandPaletteOpen} 
+                    onClose={() => setIsCommandPaletteOpen(false)}
+                    patients={patients}
+                    appointments={appointments}
+                />
+            )}
             <KeyboardShortcutsModal 
                 isOpen={isShortcutsOpen} 
                 onClose={() => setIsShortcutsOpen(false)} 

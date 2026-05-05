@@ -6,7 +6,7 @@ import json
 import csv
 import io
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -21,11 +21,20 @@ import subprocess
 import shutil
 from ..services.backup_service import run_backup_task
 from ..services.admin_service import AdminService
+from ..services.security_service import SecurityService
 from .auth.dependencies import validate_password
 from backend.core.response import success_response, StandardResponse
 
 
 logger = logging.getLogger(__name__)
+
+
+def require_super_admin(
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
+    if current_user.role != Role.SUPER_ADMIN.value:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return current_user
 
 
 # Valid Log Levels
@@ -606,3 +615,132 @@ def reset_user_password(
         },
         message=f"Password reset successfully for user: {user.username}",
     )
+
+
+
+@router.get("/search", response_model=StandardResponse[List[dict]])
+def global_admin_search(
+    q: str = Query(..., min_length=2),
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
+    """Global search for Super Admin Command Palette."""
+    if current_user.role != Role.SUPER_ADMIN.value:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    service = AdminService(db)
+    results = service.global_search(q)
+    return success_response(data=results)
+
+
+@router.get("/security/stats", response_model=StandardResponse[dict])
+def get_security_stats(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
+    if current_user.role != Role.SUPER_ADMIN.value:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return success_response(data=SecurityService.get_security_stats(db))
+
+@router.get("/security/chart", response_model=StandardResponse[List[dict]])
+def get_security_chart(
+    days: int = 7,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
+    if current_user.role != Role.SUPER_ADMIN.value:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return success_response(data=SecurityService.get_login_attempts_chart(db, days))
+
+@router.get("/audit-logs", response_model=StandardResponse[dict])
+def get_audit_logs(
+    skip: int = 0,
+    limit: int = 50,
+    tenant_id: int = None,
+    user_id: int = None,
+    action: str = None,
+    entity_type: str = None,
+    start_date: datetime.datetime = None,
+    end_date: datetime.datetime = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
+    if current_user.role != Role.SUPER_ADMIN.value:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    filters = {
+        "tenant_id": tenant_id,
+        "user_id": user_id,
+        "action": action,
+        "entity_type": entity_type,
+        "start_date": start_date,
+        "end_date": end_date
+    }
+    return success_response(data=SecurityService.get_audit_logs(db, skip, limit, filters))
+
+@router.get("/audit-logs/export")
+def export_audit_logs(
+    tenant_id: int = None,
+    user_id: int = None,
+    action: str = None,
+    entity_type: str = None,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
+    if current_user.role != Role.SUPER_ADMIN.value:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    filters = {
+        "tenant_id": tenant_id,
+        "user_id": user_id,
+        "action": action,
+        "entity_type": entity_type
+    }
+    logs_data = SecurityService.get_audit_logs(db, skip=0, limit=10000, filters=filters)
+    logs = logs_data["items"]
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "Action", "Entity", "Performed By", "Tenant", "Date", "Details"])
+
+    for log in logs:
+        writer.writerow([
+            log.id,
+            log.action,
+            f"{log.entity_type} #{log.entity_id}",
+            log.performed_by_username,
+            log.tenant_id,
+            log.created_at.isoformat() if log.created_at else "",
+            log.details
+        ])
+
+    output.seek(0)
+    filename = f"audit_logs_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/security/sessions")
+def get_active_sessions(
+    current_user: models.User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """List all active user sessions across all tenants."""
+    service = SecurityService(db)
+    return success_response(service.get_active_sessions())
+
+
+@router.delete("/security/sessions/{session_id}")
+def terminate_session(
+    session_id: int,
+    current_user: models.User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """Terminate a specific user session."""
+    service = SecurityService(db)
+    if service.terminate_session(session_id):
+        return success_response({"message": "Session terminated successfully"})
+    raise HTTPException(status_code=404, detail="Session not found")

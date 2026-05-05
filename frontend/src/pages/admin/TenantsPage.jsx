@@ -1,20 +1,25 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/api';
-import TenantsManager from '@/features/admin/SuperAdmin/TenantsManager';
+import { toast } from '@/shared/ui';
 import { Building2, X, Key } from 'lucide-react';
+import TenantsManager from '@/features/admin/SuperAdmin/TenantsManager';
+import TenantDetailPanel from '@/features/admin/SuperAdmin/TenantDetailPanel';
+import { setToken, getToken } from '@/utils';
+
 export default function TenantsPage() {
     const [tenants, setTenants] = useState([]);
     const [plans, setPlans] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [selectedTenantId, setSelectedTenantId] = useState(null);
+
     // Shared State for Payment Modal (passed down)
-    // In a fuller refactor, Modal state should be handled locally in TenantsManager or global context
-    // For now, keeping it here to match TenantsManager props API
     const [showPaymentModal, setShowPaymentModal] = useState(null);
     const [paymentForm, setPaymentForm] = useState({ plan_id: '', amount: '', payment_method: 'cash', notes: '' });
     // Password Reset State
     const [showPasswordResetModal, setShowPasswordResetModal] = useState(null); // {tenantId, tenantName}
     const [tenantUsers, setTenantUsers] = useState([]);
     const [passwordResetForm, setPasswordResetForm] = useState({ user_id: '', new_password: '' });
+
     const fetchData = async () => {
         setLoading(true);
         try {
@@ -22,48 +27,70 @@ export default function TenantsPage() {
                 api.get('/api/v1/admin/tenants'),
                 api.get('/api/v1/admin/subscriptions/plans')
             ]);
-            // Ensure we have arrays, even if the API returns unexpected data
             setTenants(Array.isArray(tRes.data) ? tRes.data : []);
             setPlans(Array.isArray(pRes.data) ? pRes.data : []);
         } catch (err) {
             console.error('Error fetching data:', err);
-            // Set empty arrays in case of error to prevent the map error
             setTenants([]);
             setPlans([]);
         } finally {
             setLoading(false);
         }
     };
+
     useEffect(() => {
         fetchData();
     }, []);
+
+    const handleImpersonate = async (tenantId) => {
+        try {
+            const res = await api.post(`/api/v1/admin/tenants/${tenantId}/impersonate`);
+            const { access_token } = res.data;
+
+            // Save original admin token to return later
+            const currentToken = getToken();
+            sessionStorage.setItem('admin_token', currentToken);
+
+            // Set new token and redirect
+            setToken(access_token);
+            toast.success('جاري الدخول بصفة مدير العيادة...');
+            
+            setTimeout(() => {
+                window.location.href = '/dashboard';
+            }, 1000);
+        } catch (err) {
+            toast.error('فشل عملية الدخول: ' + (err.response?.data?.detail || err.message));
+        }
+    };
+
     const handlePlanChange = (e, tenantId) => {
         const newPlanId = parseInt(e.target.value);
         if (!newPlanId) return;
         if (window.confirm('هل أنت متأكد من تغيير الخطة؟ سيتم احتساب المدة الجديدة بدءاً من اليوم.')) {
             api.post(`/api/v1/admin/tenants/${tenantId}/assign-plan?plan_id=${newPlanId}`)
                 .then(() => fetchData())
-                .catch(() => alert('فشل تغيير الخطة'));
+                .catch(() => toast.error('فشل تغيير الخطة'));
         }
     };
+
     const handleResetPassword = async (tenantId) => {
         try {
-            const res = await api.get(`/api/v1/admin/system/tenants/${tenantId}/users`);
+            const res = await api.get(`/api/v1/admin/tenants/${tenantId}/users`);
             setTenantUsers(res.data.users || []);
             const tenant = tenants.find(t => t.id === tenantId);
             setShowPasswordResetModal({ tenantId, tenantName: tenant?.name || 'العيادة' });
             setPasswordResetForm({ user_id: '', new_password: '' });
         } catch (err) {
             console.error('Error in handleResetPassword:', err);
-            alert('فشل تحميل مستخدمي العيادة: ' + (err.response?.data?.detail || err.message));
+            toast.error('فشل تحميل مستخدمي العيادة');
         }
     };
     const handleSubmitPasswordReset = async () => {
         if (!passwordResetForm.user_id || !passwordResetForm.new_password) {
-            return alert('الرجاء اختيار المستخدم وإدخال كلمة المرور الجديدة');
+            return toast.error('الرجاء اختيار المستخدم وإدخال كلمة المرور الجديدة');
         }
         if (passwordResetForm.new_password.length < 6) {
-            return alert('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
+            return toast.error('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
         }
         if (!window.confirm('هل أنت متأكد من إعادة تعيين كلمة المرور؟')) return;
         try {
@@ -72,10 +99,10 @@ export default function TenantsPage() {
             });
             setShowPasswordResetModal(null);
             setPasswordResetForm({ user_id: '', new_password: '' });
-            alert('تم إعادة تعيين كلمة المرور بنجاح');
+            toast.success('تم إعادة تعيين كلمة المرور بنجاح');
         } catch (err) {
             console.error(err);
-            alert('فشل إعادة تعيين كلمة المرور');
+            toast.error('فشل إعادة تعيين كلمة المرور');
         }
     };
     const getDaysRemaining = (endDate) => {
@@ -88,9 +115,9 @@ export default function TenantsPage() {
         try {
             await api.delete(`/api/v1/admin/tenants/${tenantId}`);
             fetchData();
-            alert("تم الحذف بنجاح");
+            toast.success("تم الحذف بنجاح");
         } catch (error) {
-            alert("فشلت عملية الحذف");
+            toast.error("فشلت عملية الحذف");
         }
     };
     const handleRestoreTenant = async (tenantId) => {
@@ -98,9 +125,9 @@ export default function TenantsPage() {
         try {
             await api.post(`/api/v1/admin/tenants/${tenantId}/restore`);
             fetchData();
-            alert("تمت الاستعادة بنجاح");
+            toast.success("تمت الاستعادة بنجاح");
         } catch (error) {
-            alert("فشلت عملية الاستعادة");
+            toast.error("فشلت عملية الاستعادة");
         }
     };
     const handlePermanentDelete = async (tenantId) => {
@@ -108,10 +135,10 @@ export default function TenantsPage() {
         try {
             await api.delete(`/api/v1/admin/tenants/${tenantId}/permanent`);
             fetchData();
-            alert("تم الحذف النهائي بنجاح");
+            toast.success("تم الحذف النهائي بنجاح");
         } catch (error) {
             console.error(error);
-            alert("فشلت عملية الحذف النهائي");
+            toast.error("فشلت عملية الحذف النهائي");
         }
     };
     if (loading) return <div className="p-8 text-center text-slate-500">جاري تحميل العيادات...</div>;
@@ -137,6 +164,13 @@ export default function TenantsPage() {
                 handleRestoreTenant={handleRestoreTenant}
                 handlePermanentDelete={handlePermanentDelete}
                 onResetPassword={handleResetPassword}
+                onSelectTenant={(id) => setSelectedTenantId(id)}
+            />
+
+            <TenantDetailPanel 
+                tenantId={selectedTenantId} 
+                onClose={() => setSelectedTenantId(null)}
+                onImpersonate={handleImpersonate}
             />
             {/* Payment Modal Logic would arguably live here or in parent, but strict refactor suggests placing it where triggered. 
                 However, for speed, assuming TenantsPage focuses on List. 

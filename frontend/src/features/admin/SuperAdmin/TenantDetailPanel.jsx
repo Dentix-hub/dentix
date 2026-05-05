@@ -1,0 +1,157 @@
+import { memo, useEffect, useState } from 'react';
+import { 
+    X, 
+    Users, 
+    Calendar, 
+    DollarSign, 
+    Clock, 
+    Activity, 
+    Shield, 
+    ExternalLink,
+    Mail,
+    Globe
+} from 'lucide-react';
+import { api } from '@/api';
+import { format } from 'date-fns';
+import { ar } from 'date-fns/locale';
+
+const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, onImpersonate }) {
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!tenantId) return;
+        const fetchDetails = async () => {
+            try {
+                setLoading(true);
+                const res = await api.get(`/api/v1/admin/tenants/${tenantId}/details`);
+                setData(res.data);
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchDetails();
+    }, [tenantId]);
+
+    if (!tenantId) return null;
+
+    return (
+        <div className={`fixed inset-y-0 right-0 w-full max-w-md bg-white dark:bg-slate-900 shadow-2xl z-50 transform transition-transform duration-300 ${tenantId ? 'translate-x-0' : 'translate-x-full'}`}>
+            <div className="h-full flex flex-col">
+                {/* Header */}
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800 dark:text-white">تفاصيل العيادة</h2>
+                        <p className="text-sm text-slate-500 mt-1">إدارة بيانات وموارد المستأجر</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+                    {loading ? (
+                        <div className="space-y-6 animate-pulse">
+                            <div className="h-32 bg-slate-100 dark:bg-slate-800 rounded-3xl" />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="h-24 bg-slate-100 dark:bg-slate-800 rounded-2xl" />
+                                <div className="h-24 bg-slate-100 dark:bg-slate-800 rounded-2xl" />
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Profile Card */}
+                            <div className="bg-gradient-to-br from-indigo-500 to-teal-600 p-6 rounded-3xl text-white shadow-lg shadow-indigo-500/20">
+                                <h3 className="text-2xl font-bold mb-1">{data.tenant.name}</h3>
+                                <p className="text-indigo-100 flex items-center gap-2 text-sm">
+                                    <Globe size={14} />
+                                    {data.tenant.domain}.dentix.com
+                                </p>
+                                <div className="mt-6 flex gap-4">
+                                    <button 
+                                        onClick={() => onImpersonate(data.tenant.id)}
+                                        className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-md px-4 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
+                                    >
+                                        <Shield size={16} />
+                                        دخول كمدير
+                                    </button>
+                                    <button className="p-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-xl transition-all">
+                                        <ExternalLink size={18} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Stats Grid */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <Users size={20} className="text-teal-500 mb-2" />
+                                    <div className="text-xl font-bold text-slate-800 dark:text-white">{data.stats.patients_count}</div>
+                                    <div className="text-xs text-slate-500">إجمالي المرضى</div>
+                                </div>
+                                <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <Calendar size={20} className="text-blue-500 mb-2" />
+                                    <div className="text-xl font-bold text-slate-800 dark:text-white">{data.stats.appointments_count}</div>
+                                    <div className="text-xs text-slate-500">المواعيد</div>
+                                </div>
+                                <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <DollarSign size={20} className="text-amber-500 mb-2" />
+                                    <div className="text-xl font-bold text-slate-800 dark:text-white">{data.stats.total_revenue.toLocaleString()}</div>
+                                    <div className="text-xs text-slate-500">إيرادات العيادة</div>
+                                </div>
+                                <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                    <Shield size={20} className="text-indigo-500 mb-2" />
+                                    <div className="text-xl font-bold text-slate-800 dark:text-white">{data.tenant.plan}</div>
+                                    <div className="text-xs text-slate-500">الخطة الحالية</div>
+                                </div>
+                            </div>
+
+                            {/* More Details */}
+                            <div className="space-y-4">
+                                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">سجل النشاط والتواريخ</h4>
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-slate-50 dark:bg-slate-700 rounded-lg text-slate-500">
+                                                <Clock size={16} />
+                                            </div>
+                                            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">تاريخ الانضمام</span>
+                                        </div>
+                                        <span className="text-sm font-bold text-slate-800 dark:text-white">
+                                            {format(new Date(data.tenant.created_at), 'dd MMM yyyy', { locale: ar })}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-slate-50 dark:bg-slate-700 rounded-lg text-slate-500">
+                                                <Activity size={16} />
+                                            </div>
+                                            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">آخر نشاط</span>
+                                        </div>
+                                        <span className="text-sm font-bold text-slate-800 dark:text-white">
+                                            {data.stats.last_activity ? format(new Date(data.stats.last_activity), 'dd MMM HH:mm', { locale: ar }) : 'لا يوجد'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {/* Footer Actions */}
+                <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
+                    <button 
+                        className="w-full py-3 bg-slate-800 dark:bg-slate-700 text-white font-bold rounded-2xl hover:bg-slate-900 transition-colors"
+                        onClick={onClose}
+                    >
+                        إغلاق
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+});
+
+export default TenantDetailPanel;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { login as apiLogin, registerClinic, getMeSilent } from '@/api';
+import { login as apiLogin, registerClinic, getMeSilent, api } from '@/api';
 import { getToken, setToken, removeToken, parseJwt } from '@/utils';
 import AuthContext from './useAuth';
 import { useTenantStore } from '@/store/tenant.store';
@@ -61,6 +61,12 @@ export default function AuthProvider({ children }) {
         setLoading(true);
         try {
             const res = await apiLogin(username, password);
+            
+            // Check for 2FA requirement
+            if (res.data.user_status === '2fa_required') {
+                return res.data; // Return early, don't set user
+            }
+
             const { access_token, refresh_token, role } = res.data;
             setToken(access_token, refresh_token);
             
@@ -83,6 +89,35 @@ export default function AuthProvider({ children }) {
         }
     };
 
+    const verify2FA = async (code, tempToken) => {
+        setLoading(true);
+        try {
+            const res = await api.post('/api/v1/auth/login/2fa', `code=${code}`, {
+                headers: {
+                    'Authorization': `Bearer ${tempToken}`,
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
+            });
+
+            const { access_token, refresh_token, role, username } = res.data;
+            setToken(access_token, refresh_token);
+            
+            const decoded = parseJwt(access_token);
+            setUser({
+                username: username || decoded.sub,
+                role: role,
+                tenant_id: decoded.tenant_id
+            });
+
+            await useTenantStore.getState().fetchTenant();
+            return res.data;
+        } catch (err) {
+            throw err;
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const logout = () => {
         removeToken();
         setUser(null);
@@ -97,6 +132,7 @@ export default function AuthProvider({ children }) {
         user,
         loading,
         login,
+        verify2FA,
         logout,
         register,
         isAuthenticated: !!user

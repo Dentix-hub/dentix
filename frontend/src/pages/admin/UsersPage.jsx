@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { api } from '@/api';
 import UsersManager from '@/features/admin/SuperAdmin/UsersManager';
 import { Users } from 'lucide-react';
+import { toast } from '@/shared/ui';
 
 export default function UsersPage() {
     const [globalUsers, setGlobalUsers] = useState([]);
@@ -28,7 +29,7 @@ export default function UsersPage() {
             }
         } catch (err) {
             console.error(err);
-            alert("فشل البحث");
+            toast.error("فشل البحث");
         } finally {
             setUsersLoading(false);
         }
@@ -43,10 +44,10 @@ export default function UsersPage() {
             setGlobalUsers(prev => prev.map(u =>
                 u.id === userId ? { ...u, is_active: !currentStatus } : u
             ));
-            alert(`تم ${action} المستخدم بنجاح`);
+            toast.success(`تم ${action} المستخدم بنجاح`);
         } catch (err) {
             console.error(err);
-            alert("فشل تغيير حالة المستخدم");
+            toast.error("فشل تغيير حالة المستخدم");
         }
     };
 

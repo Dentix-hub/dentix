@@ -70,7 +70,7 @@ def update_appointment_status(
     )
     if not db_appt or not db_appt.patient or db_appt.patient.tenant_id != tenant_id:
         return None
-        
+
     db_appt.status = status
     db.commit()
     db.refresh(db_appt)
@@ -92,7 +92,7 @@ def delete_appointment(db: Session, appointment_id: int, tenant_id: int):
     )
     if not db_appt or not db_appt.patient or db_appt.patient.tenant_id != tenant_id:
         return None
-        
+
     db_appt.is_deleted = True
     db_appt.deleted_at = datetime.now(timezone.utc)
     db.commit()
@@ -112,7 +112,7 @@ def update_appointment(
         )
         .first()
     )
-    
+
     if not db_appt or not db_appt.patient or db_appt.patient.tenant_id != tenant_id:
         return None
 
