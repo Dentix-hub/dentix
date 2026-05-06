@@ -219,7 +219,9 @@ def get_tenant_details(
             "plan": tenant.plan,
             "created_at": tenant.created_at,
             "subscription_end_date": tenant.subscription_end_date,
-            "is_active": tenant.is_active
+            "is_active": tenant.is_active,
+            "contact_phone": tenant.contact_phone,
+            "admin_email": next((u.email for u in tenant.users if u.role == "admin"), None)
         },
         "stats": stats
     })
