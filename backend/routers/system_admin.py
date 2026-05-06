@@ -705,13 +705,13 @@ def export_audit_logs(
 
     for log in logs:
         writer.writerow([
-            log.id,
-            log.action,
-            f"{log.entity_type} #{log.entity_id}",
-            log.performed_by_username,
-            log.tenant_id,
-            log.created_at.isoformat() if log.created_at else "",
-            log.details
+            log["id"],
+            log["action"],
+            f"{log['entity_type']} #{log['entity_id']}",
+            log["performed_by_username"],
+            log["tenant_id"],
+            log["created_at"].isoformat() if log["created_at"] else "",
+            log["details"]
         ])
 
     output.seek(0)

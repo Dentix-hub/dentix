@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 class SecurityService:
     MAX_FAILED_ATTEMPTS = 5
     LOCKOUT_DURATION_MINUTES = 15
+    
+    def __init__(self, db: Session = None):
+        self.db = db
 
     @staticmethod
     def check_ip_blocked(db: Session, ip_address: str):
@@ -246,7 +249,24 @@ class SecurityService:
 
         return {
             "total": total,
-            "items": logs
+            "items": [
+                {
+                    "id": log.id,
+                    "action": log.action,
+                    "entity_type": log.entity_type,
+                    "entity_id": log.entity_id,
+                    "target_user_id": log.target_user_id,
+                    "target_username": log.target_username,
+                    "performed_by_id": log.performed_by_id,
+                    "performed_by_username": log.performed_by_username,
+                    "old_value": log.old_value,
+                    "new_value": log.new_value,
+                    "details": log.details,
+                    "tenant_id": log.tenant_id,
+                    "created_at": log.created_at,
+                }
+                for log in logs
+            ]
         }
 
     def get_active_sessions(self, limit: int = 50):

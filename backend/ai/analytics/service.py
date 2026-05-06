@@ -42,7 +42,7 @@ class AIAnalyticsService:
 
         # 3. Aggregations
         total_requests = query.count()
-        success_count = query.filter(models.AIUsageLog.success).count()
+        success_count = query.filter(models.AIUsageLog.status == "SUCCESS").count()
         _error_rate = 1 - (success_count / total_requests) if total_requests > 0 else 0
 
         # 4. Cost Calculation (Token-based)
@@ -65,9 +65,9 @@ class AIAnalyticsService:
 
         # 5. Top Tools
         tool_stats = (
-            db.query(models.AIUsageLog.response_tool, func.count(models.AIUsageLog.id))
+            db.query(models.AIUsageLog.tool, func.count(models.AIUsageLog.id))
             .filter(models.AIUsageLog.created_at >= start_date)
-            .group_by(models.AIUsageLog.response_tool)
+            .group_by(models.AIUsageLog.tool)
             .order_by(desc(func.count(models.AIUsageLog.id)))
             .limit(5)
             .all()
@@ -133,7 +133,8 @@ class AIAnalyticsService:
                 )
             if filters.get("status") is not None:
                 is_success = str(filters["status"]).lower() == "true"
-                query = query.filter(models.AIUsageLog.success == is_success)
+                status_val = "SUCCESS" if is_success else "FAILURE"
+                query = query.filter(models.AIUsageLog.status == status_val)
             if filters.get("start_date"):
                 query = query.filter(
                     models.AIUsageLog.created_at >= filters["start_date"]
