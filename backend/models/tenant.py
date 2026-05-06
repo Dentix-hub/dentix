@@ -92,6 +92,7 @@ class Tenant(Base):
     doctor_title = Column(String, nullable=True)
     clinic_address = Column(String, nullable=True)
     clinic_phone = Column(String, nullable=True)
+    contact_phone = Column(String, nullable=True) # Administrative contact from registration
     print_header_image = Column(String, nullable=True)
     print_footer_image = Column(String, nullable=True)
 

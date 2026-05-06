@@ -23,20 +23,22 @@ def register_clinic(
     admin_username: str = Form(...),
     admin_email: str = Form(...),
     admin_password: str = Form(...),
+    contact_phone: str = Form(...),
     db: Session = Depends(get_db),
 ):
     """
     Register a new clinic (Tenant) and its Admin User.
     Transactions are atomic: either both tenant and user are created, or neither.
     """
-    if not clinic_name or not admin_username or not admin_password:
-        logger.warning(f"Registration failed: Missing fields. clinic_name={bool(clinic_name)}, user={bool(admin_username)}, pass={bool(admin_password)}")
+    if not clinic_name or not admin_username or not admin_password or not contact_phone:
+        logger.warning(f"Registration failed: Missing fields. clinic_name={bool(clinic_name)}, user={bool(admin_username)}, pass={bool(admin_password)}, phone={bool(contact_phone)}")
         raise HTTPException(status_code=400, detail="Missing required fields")
 
     # Clean inputs
     clinic_name = clinic_name.strip()
     admin_username = crud.normalize_username(admin_username)
     admin_email = admin_email.strip().lower()
+    contact_phone = contact_phone.strip()
 
     try:
         validate_password(admin_password)
@@ -82,6 +84,7 @@ def register_clinic(
             name=clinic_name,
             is_active=True,
             plan_id=plan_id,
+            contact_phone=contact_phone,
         )
         db.add(new_tenant)
         db.flush()  # Get ID

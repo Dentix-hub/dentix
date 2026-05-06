@@ -1,6 +1,6 @@
 import logging
 logger = logging.getLogger(__name__)
-from fastapi import Depends, HTTPException, status, Cookie
+from fastapi import Depends, HTTPException, status, Cookie, Request
 from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from backend import schemas, crud, auth
@@ -75,7 +75,9 @@ def validate_password(password: str) -> None:
 
 
 def get_current_user(
-    token: str | None = Depends(get_token_from_header_or_cookie), db: Session = Depends(get_db)
+    request: Request,
+    token: str | None = Depends(get_token_from_header_or_cookie), 
+    db: Session = Depends(get_db)
 ):
     """Validate JWT token and return current user."""
 
@@ -128,18 +130,34 @@ def get_current_user(
         if not user.tenant.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Tenant account is inactive",
+                detail="تم إيقاف حساب العيادة مؤقتاً. يرجى التواصل مع الدعم الفني.",
             )
 
         sub_end = user.tenant.subscription_end_date
+        now = datetime.now(timezone.utc)
+        
         if sub_end:
-            # DB stores naive datetimes; normalize before comparing with UTC-aware now
             if sub_end.tzinfo is None:
                 sub_end = sub_end.replace(tzinfo=timezone.utc)
-            if sub_end < datetime.now(timezone.utc):
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail="Subscription expired"
-                )
+            
+            if sub_end < now:
+                # Check for Grace Period
+                grace_end = user.tenant.grace_period_until
+                is_grace = False
+                
+                if grace_end:
+                    if grace_end.tzinfo is None:
+                        grace_end = grace_end.replace(tzinfo=timezone.utc)
+                    if now <= grace_end:
+                        is_grace = True
+                
+                if not is_grace:
+                    # Subscription AND Grace Period expired - Allow Read-Only (GET)
+                    if request.method != "GET":
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="انتهت صلاحية الاشتراك. يرجى التجديد للتمكن من الإضافة أو التعديل.",
+                        )
 
     # SECURE: Inject tenant explicitly into Request Context for automatic SQLAlchemy scoping
     from backend.core.tenant_scope import set_current_tenant, set_super_admin_bypass
