@@ -98,7 +98,6 @@ class Tenant(Base):
     # Soft Delete
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     users = relationship("User", back_populates="tenant")
     subscription_plan = relationship("SubscriptionPlan", back_populates="tenants")
