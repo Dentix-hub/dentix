@@ -40,6 +40,7 @@ class Material(Base):
     standard_price = Column(
         Float, default=0.0, nullable=True
     )  # Reference Cost (Market Price)
+    max_uses = Column(Integer, default=1)  # For tools like endo files
 
     category_id = Column(Integer, ForeignKey("material_categories.id"), nullable=True)
     brand = Column(String, nullable=True)  # e.g. "3M Filtek Z350"
@@ -105,6 +106,7 @@ class MaterialSession(Base):
     remaining_est = Column(
         Float, default=1.0
     )  # Estimated percentage or amount remaining (0.0 - 1.0 or units)
+    current_uses = Column(Integer, default=0)  # Counter for tool usage
     doctor_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     # Smart Learning Fields

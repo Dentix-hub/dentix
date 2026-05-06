@@ -88,6 +88,7 @@ class Treatment(Base):
     sessions = Column(Text, nullable=True)
     complications = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
+    status = Column(String, default="Done")  # Pending, In Progress, Done
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     # Multi Price List Support

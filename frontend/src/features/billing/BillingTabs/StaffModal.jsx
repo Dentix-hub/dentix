@@ -12,7 +12,7 @@ const StaffModal = ({ isOpen, onClose, selectedStaff, roleLabels, editStaffSalar
             title={`${t('billing.staff.modal_title')} ${selectedStaff?.username}`}
             size="md"
         >
-            <div className="space-y-4">
+            <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
                 <div className="p-4 bg-teal-50 dark:bg-teal-500/10 rounded-xl border border-teal-100 dark:border-teal-500/20">
                     <p className="text-sm text-teal-600 dark:text-teal-400 mb-2 flex items-center gap-2">
                         <Briefcase size={16} />
@@ -38,13 +38,13 @@ const StaffModal = ({ isOpen, onClose, selectedStaff, roleLabels, editStaffSalar
                 </div>
 
                 <div className="flex justify-end gap-3 mt-6">
-                    <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
-                    <Button onClick={saveStaffCompensation} disabled={savingStaff}>
+                    <Button variant="ghost" onClick={onClose} type="button">{t('common.cancel')}</Button>
+                    <Button onClick={saveStaffCompensation} disabled={savingStaff} type="submit">
                         <Save size={16} className="mr-2" />
                         {savingStaff ? t('common.loading') : t('common.save')}
                     </Button>
                 </div>
-            </div>
+            </form>
         </Modal>
     );
 };

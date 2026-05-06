@@ -59,6 +59,7 @@ class MaterialBase(BaseModel):
     alert_threshold: int = 10
     packaging_ratio: float = 1.0
     standard_price: Optional[float] = 0.0
+    max_uses: Optional[int] = 1
     category_id: Optional[int] = None
     brand: Optional[str] = None
 
@@ -74,6 +75,7 @@ class MaterialUpdate(BaseModel):
     alert_threshold: Optional[int] = None
     packaging_ratio: Optional[float] = None
     standard_price: Optional[float] = None
+    max_uses: Optional[int] = None
     category_id: Optional[int] = None
     brand: Optional[str] = None
 
@@ -142,6 +144,7 @@ class MaterialSessionCreate(MaterialSessionBase):
 class MaterialSessionRead(MaterialSessionBase):
     id: int
     opened_at: datetime
+    current_uses: int = 0
     doctor_id: Optional[int] = None
     stock_item: Optional[StockItemRead] = None
 
@@ -163,6 +166,7 @@ class MaterialStockSummary(BaseModel):
     standard_price: Optional[float] = 0.0
     category_name_ar: Optional[str] = None
     category_name_en: Optional[str] = None
+    max_uses: Optional[int] = 1
 
 
 class ConsumptionItem(BaseModel):

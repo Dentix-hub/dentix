@@ -206,6 +206,8 @@ class MaterialResolutionService:
                 ],
                 "has_active_session": active_session is not None,
                 "session_id": active_session.id if active_session else None,
+                "current_uses": active_session.current_uses if active_session else 0,
+                "max_uses": primary.max_uses if (primary and hasattr(primary, 'max_uses')) else 0,
                 "confidence": confidence,
                 "reason": reason,
             }

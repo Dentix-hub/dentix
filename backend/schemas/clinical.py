@@ -81,6 +81,7 @@ class TreatmentBase(BaseModel):
     sessions: Optional[str] = None
     complications: Optional[str] = None
     notes: Optional[str] = None
+    status: str = "Done"  # Pending, In Progress, Done
 
 
 class ConsumedMaterialItem(BaseModel):
