@@ -9,7 +9,8 @@ import {
     Shield, 
     ExternalLink,
     Mail,
-    Globe
+    Globe,
+    Phone
 } from 'lucide-react';
 import { api } from '@/api';
 import { format } from 'date-fns';
@@ -113,6 +114,35 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                                             <Shield size={20} className="text-indigo-500 mb-2" />
                                             <div className="text-xl font-bold text-slate-800 dark:text-white">{data.tenant?.plan || 'trial'}</div>
                                             <div className="text-xs text-slate-500">الخطة الحالية</div>
+                                        </div>
+                                    </div>
+
+                                    {/* Contact Information */}
+                                    <div className="space-y-4">
+                                        <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">معلومات التواصل</h4>
+                                        <div className="space-y-3">
+                                            <div className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl shadow-sm text-indigo-500">
+                                                    <Mail size={18} />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-xs text-slate-500 mb-0.5">البريد الإلكتروني</div>
+                                                    <div className="text-sm font-bold text-slate-800 dark:text-white truncate">
+                                                        {data.tenant?.admin_email || 'غير متوفر'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                <div className="p-2.5 bg-white dark:bg-slate-800 rounded-xl shadow-sm text-teal-500">
+                                                    <Phone size={18} />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-xs text-slate-500 mb-0.5">رقم الهاتف</div>
+                                                    <div className="text-sm font-bold text-slate-800 dark:text-white">
+                                                        {data.tenant?.contact_phone || 'غير متوفر'}
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 
