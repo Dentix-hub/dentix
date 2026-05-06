@@ -114,12 +114,12 @@ def get_current_user(
     # Use getattr to prevent crash if column hasn't migrated yet
     active_session_val = getattr(user, "active_session_id", None)
 
-    if token_sid and active_session_val:
-        if token_sid != active_session_val:
+    if token_sid:
+        if active_session_val is None or token_sid != active_session_val:
             # logger.info(f"DEBUG: Session Mismatch. Token: {token_sid}, DB: {active_session_val}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="تم تسجيل الدخول من جهاز آخر. يرجى إعادة تسجيل الدخول.",
+                detail="تم تسجيل الدخول من جهاز آخر أو انتهت صلاحية الجلسة. يرجى إعادة تسجيل الدخول.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 

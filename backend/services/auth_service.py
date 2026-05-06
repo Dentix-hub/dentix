@@ -73,6 +73,11 @@ class AuthService:
         if session:
             session.is_active = False
             session.expires_at = datetime.now(timezone.utc)  # Expire immediately
+            
+            # If this was the active session, clear it from user record to trigger kickout
+            if session.user and session.device_info == getattr(session.user, "active_session_id", None):
+                session.user.active_session_id = "revoked_" + str(session.id)
+                
             db.commit()
             return True
         return False

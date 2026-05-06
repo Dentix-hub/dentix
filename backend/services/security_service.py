@@ -304,6 +304,9 @@ class SecurityService:
         session = self.db.query(models.UserSession).filter(models.UserSession.id == session_id).first()
         if session:
             session.is_active = False
+            # If this was the active session, clear it from user record to trigger kickout
+            if session.user and session.device_info == getattr(session.user, "active_session_id", None):
+                session.user.active_session_id = "revoked_by_admin_" + str(session.id)
             self.db.commit()
             return True
         return False
