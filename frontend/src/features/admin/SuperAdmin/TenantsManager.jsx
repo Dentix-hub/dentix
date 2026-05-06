@@ -42,11 +42,11 @@ const TenantsManager = ({
                                     <td className="p-6 font-bold text-slate-800 dark:text-slate-200">
                                         <div className="flex items-center gap-3 cursor-pointer group" onClick={() => onSelectTenant && onSelectTenant(tenant.id)}>
                                             <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold transition-transform group-hover:scale-110 ${isDeleted ? 'bg-red-100 text-red-600' : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/50 dark:text-indigo-400'}`}>
-                                                {tenant.name.charAt(0)}
+                                                {tenant.name?.charAt(0) || '?'}
                                             </div>
                                             <div className="flex flex-col">
-                                                <span className="group-hover:text-indigo-600 transition-colors">{tenant.name}</span>
-                                                <span className="text-[10px] text-slate-400 font-normal" dir="ltr">{tenant.domain}.dentix.com</span>
+                                                <span className="group-hover:text-indigo-600 transition-colors">{tenant.name || 'بدون اسم'}</span>
+                                                <span className="text-[10px] text-slate-400 font-normal" dir="ltr">{tenant.domain || 'portal'}.dentix.com</span>
                                                 {isDeleted && <span className="text-xs text-red-500 font-bold">({t('super_admin.tenants.archived')})</span>}
                                             </div>
                                         </div>

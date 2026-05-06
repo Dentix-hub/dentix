@@ -86,7 +86,7 @@ def _get_admin_stats_logic(db: Session):
             "id": t.id,
             "type": "tenant",
             "title": f"عيادة جديدة: {t.name}",
-            "description": f"تم تسجيل عيادة جديدة بخطة {t.plan.name if t.plan else 'تجريبية'}",
+            "description": f"تم تسجيل عيادة جديدة بخطة {t.subscription_plan.name if t.subscription_plan else (t.plan or 'تجريبية')}",
             "timestamp": t.created_at,
             "status": "success",
             "link": f"/admin/tenants?id={t.id}"

@@ -75,6 +75,7 @@ class Tenant(Base):
 
     plan = Column(String, default="trial")  # Legacy
     plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=True)
+    domain = Column(String, nullable=True, index=True)
 
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -97,6 +98,7 @@ class Tenant(Base):
     # Soft Delete
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     users = relationship("User", back_populates="tenant")
     subscription_plan = relationship("SubscriptionPlan", back_populates="tenants")

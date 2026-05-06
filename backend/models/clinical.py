@@ -38,6 +38,7 @@ class Appointment(Base):
     # Soft Delete
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     # Optimistic Locking: prevents double-booking race conditions
     version_id = Column(Integer, default=1, nullable=False)

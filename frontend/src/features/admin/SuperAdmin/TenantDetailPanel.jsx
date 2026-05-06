@@ -63,79 +63,89 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                         </div>
                     ) : (
                         <>
-                            {/* Profile Card */}
-                            <div className="bg-gradient-to-br from-indigo-500 to-teal-600 p-6 rounded-3xl text-white shadow-lg shadow-indigo-500/20">
-                                <h3 className="text-2xl font-bold mb-1">{data.tenant.name}</h3>
-                                <p className="text-indigo-100 flex items-center gap-2 text-sm">
-                                    <Globe size={14} />
-                                    {data.tenant.domain}.dentix.com
-                                </p>
-                                <div className="mt-6 flex gap-4">
-                                    <button 
-                                        onClick={() => onImpersonate(data.tenant.id)}
-                                        className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-md px-4 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
-                                    >
-                                        <Shield size={16} />
-                                        دخول كمدير
-                                    </button>
-                                    <button className="p-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-xl transition-all">
-                                        <ExternalLink size={18} />
-                                    </button>
+                            {!data ? (
+                                <div className="p-8 text-center text-slate-500 bg-slate-50 dark:bg-slate-800/50 rounded-2xl">
+                                    <Activity className="mx-auto mb-3 opacity-20" size={48} />
+                                    <p className="font-bold">فشل تحميل البيانات</p>
+                                    <p className="text-xs mt-1">تأكد من اتصالك بالخادم أو حاول مرة أخرى</p>
                                 </div>
-                            </div>
-
-                            {/* Stats Grid */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                    <Users size={20} className="text-teal-500 mb-2" />
-                                    <div className="text-xl font-bold text-slate-800 dark:text-white">{data.stats.patients_count}</div>
-                                    <div className="text-xs text-slate-500">إجمالي المرضى</div>
-                                </div>
-                                <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                    <Calendar size={20} className="text-blue-500 mb-2" />
-                                    <div className="text-xl font-bold text-slate-800 dark:text-white">{data.stats.appointments_count}</div>
-                                    <div className="text-xs text-slate-500">المواعيد</div>
-                                </div>
-                                <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                    <DollarSign size={20} className="text-amber-500 mb-2" />
-                                    <div className="text-xl font-bold text-slate-800 dark:text-white">{data.stats.total_revenue.toLocaleString()}</div>
-                                    <div className="text-xs text-slate-500">إيرادات العيادة</div>
-                                </div>
-                                <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                    <Shield size={20} className="text-indigo-500 mb-2" />
-                                    <div className="text-xl font-bold text-slate-800 dark:text-white">{data.tenant.plan}</div>
-                                    <div className="text-xs text-slate-500">الخطة الحالية</div>
-                                </div>
-                            </div>
-
-                            {/* More Details */}
-                            <div className="space-y-4">
-                                <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">سجل النشاط والتواريخ</h4>
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-slate-50 dark:bg-slate-700 rounded-lg text-slate-500">
-                                                <Clock size={16} />
-                                            </div>
-                                            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">تاريخ الانضمام</span>
+                            ) : (
+                                <>
+                                    {/* Profile Card */}
+                                    <div className="bg-gradient-to-br from-indigo-500 to-teal-600 p-6 rounded-3xl text-white shadow-lg shadow-indigo-500/20">
+                                        <h3 className="text-2xl font-bold mb-1">{data.tenant?.name || 'بدون اسم'}</h3>
+                                        <p className="text-indigo-100 flex items-center gap-2 text-sm">
+                                            <Globe size={14} />
+                                            {data.tenant?.domain || 'portal'}.dentix.com
+                                        </p>
+                                        <div className="mt-6 flex gap-4">
+                                            <button 
+                                                onClick={() => onImpersonate(data.tenant?.id)}
+                                                className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-md px-4 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
+                                            >
+                                                <Shield size={16} />
+                                                دخول كمدير
+                                            </button>
+                                            <button className="p-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-xl transition-all">
+                                                <ExternalLink size={18} />
+                                            </button>
                                         </div>
-                                        <span className="text-sm font-bold text-slate-800 dark:text-white">
-                                            {format(new Date(data.tenant.created_at), 'dd MMM yyyy', { locale: ar })}
-                                        </span>
                                     </div>
-                                    <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-slate-50 dark:bg-slate-700 rounded-lg text-slate-500">
-                                                <Activity size={16} />
-                                            </div>
-                                            <span className="text-sm font-medium text-slate-600 dark:text-slate-300">آخر نشاط</span>
+
+                                    {/* Stats Grid */}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                            <Users size={20} className="text-teal-500 mb-2" />
+                                            <div className="text-xl font-bold text-slate-800 dark:text-white">{data.stats?.patients_count || 0}</div>
+                                            <div className="text-xs text-slate-500">إجمالي المرضى</div>
                                         </div>
-                                        <span className="text-sm font-bold text-slate-800 dark:text-white">
-                                            {data.stats.last_activity ? format(new Date(data.stats.last_activity), 'dd MMM HH:mm', { locale: ar }) : 'لا يوجد'}
-                                        </span>
+                                        <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                            <Calendar size={20} className="text-blue-500 mb-2" />
+                                            <div className="text-xl font-bold text-slate-800 dark:text-white">{data.stats?.appointments_count || 0}</div>
+                                            <div className="text-xs text-slate-500">المواعيد</div>
+                                        </div>
+                                        <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                            <DollarSign size={20} className="text-amber-500 mb-2" />
+                                            <div className="text-xl font-bold text-slate-800 dark:text-white">{(data.stats?.total_revenue || 0).toLocaleString()}</div>
+                                            <div className="text-xs text-slate-500">إيرادات العيادة</div>
+                                        </div>
+                                        <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                            <Shield size={20} className="text-indigo-500 mb-2" />
+                                            <div className="text-xl font-bold text-slate-800 dark:text-white">{data.tenant?.plan || 'trial'}</div>
+                                            <div className="text-xs text-slate-500">الخطة الحالية</div>
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
+
+                                    {/* More Details */}
+                                    <div className="space-y-4">
+                                        <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">سجل النشاط والتواريخ</h4>
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-slate-50 dark:bg-slate-700 rounded-lg text-slate-500">
+                                                        <Clock size={16} />
+                                                    </div>
+                                                    <span className="text-sm font-medium text-slate-600 dark:text-slate-300">تاريخ الانضمام</span>
+                                                </div>
+                                                <span className="text-sm font-bold text-slate-800 dark:text-white">
+                                                    {data.tenant?.created_at ? format(new Date(data.tenant.created_at), 'dd MMM yyyy', { locale: ar }) : '-'}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-slate-50 dark:bg-slate-700 rounded-lg text-slate-500">
+                                                        <Activity size={16} />
+                                                    </div>
+                                                    <span className="text-sm font-medium text-slate-600 dark:text-slate-300">آخر نشاط</span>
+                                                </div>
+                                                <span className="text-sm font-bold text-slate-800 dark:text-white">
+                                                    {data.stats?.last_activity ? format(new Date(data.stats.last_activity), 'dd MMM HH:mm', { locale: ar }) : 'لا يوجد'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </>
                     )}
                 </div>
