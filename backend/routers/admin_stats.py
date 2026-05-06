@@ -215,7 +215,8 @@ def get_financial_reports(
     thirty_days_ago = now - timedelta(days=30)
     # Using UserSession to check activity
     active_tenant_ids = (
-        db.query(models.UserSession.tenant_id)
+        db.query(models.User.tenant_id)
+        .join(models.UserSession, models.User.id == models.UserSession.user_id)
         .filter(models.UserSession.last_active_at >= thirty_days_ago)
         .distinct()
     )
@@ -233,7 +234,8 @@ def get_financial_reports(
             "name": t.name,
             "last_active": (
                 db.query(func.max(models.UserSession.last_active_at))
-                .filter(models.UserSession.tenant_id == t.id)
+                .join(models.User, models.User.id == models.UserSession.user_id)
+                .filter(models.User.tenant_id == t.id)
                 .scalar()
             ),
             "plan_name": t.plan.display_name_ar if t.plan else "بدون خطة"
