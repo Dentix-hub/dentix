@@ -283,3 +283,78 @@ def download_backup(
         media_type="application/json",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+# --- Security Management (Sessions & IP Blocking) ---
+@router.get("/security/sessions")
+def get_global_sessions(
+    current_user: models.User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """List all active user sessions across all tenants."""
+    from backend.services.security_service import SecurityService
+    service = SecurityService(db)
+    return success_response(service.get_active_sessions())
+
+
+@router.delete("/security/sessions/{session_id}")
+def terminate_session(
+    session_id: int,
+    current_user: models.User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """Terminate a specific user session."""
+    from backend.services.security_service import SecurityService
+    service = SecurityService(db)
+    if service.terminate_session(session_id):
+        return success_response({"message": "Session terminated successfully"})
+    raise HTTPException(status_code=404, detail="Session not found")
+
+
+@router.get("/security/blocked-ips")
+def get_blocked_ips(
+    current_user: models.User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """Get list of all blocked IP addresses."""
+    blocked = db.query(models.BlockedIP).all()
+    return success_response([
+        {
+            "id": b.id,
+            "ip_address": b.ip_address,
+            "reason": b.reason,
+            "blocked_by": b.blocked_by,
+            "created_at": b.created_at,
+            "expires_at": b.expires_at
+        }
+        for b in blocked
+    ])
+
+
+@router.post("/security/ip-block")
+def block_ip(
+    block_data: dict,
+    current_user: models.User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """Block an IP address."""
+    from backend.services.security_service import SecurityService
+    ip = block_data.get("ip_address")
+    reason = block_data.get("reason", "Administrative block")
+    
+    if not ip:
+        raise HTTPException(status_code=400, detail="IP address required")
+        
+    SecurityService.block_ip(db, ip, reason, current_user.username)
+    return success_response({"message": f"IP {ip} blocked successfully"})
+
+
+@router.delete("/security/ip-block/{ip_address}")
+def unblock_ip(
+    ip_address: str,
+    current_user: models.User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """Unblock an IP address."""
+    from backend.services.security_service import SecurityService
+    SecurityService.unblock_ip(db, ip_address)
+    return success_response({"message": f"IP {ip_address} unblocked successfully"})

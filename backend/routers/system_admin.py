@@ -723,24 +723,3 @@ def export_audit_logs(
     )
 
 
-@router.get("/security/sessions")
-def get_active_sessions(
-    current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
-):
-    """List all active user sessions across all tenants."""
-    service = SecurityService(db)
-    return success_response(service.get_active_sessions())
-
-
-@router.delete("/security/sessions/{session_id}")
-def terminate_session(
-    session_id: int,
-    current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
-):
-    """Terminate a specific user session."""
-    service = SecurityService(db)
-    if service.terminate_session(session_id):
-        return success_response({"message": "Session terminated successfully"})
-    raise HTTPException(status_code=404, detail="Session not found")
