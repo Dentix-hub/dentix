@@ -183,7 +183,7 @@ def get_financial_reports(
             "name": t.name,
             "expiry_date": t.subscription_end_date,
             "days_overdue": (now - t.subscription_end_date.replace(tzinfo=timezone.utc) if t.subscription_end_date.tzinfo is None else now - t.subscription_end_date).days,
-            "plan_name": t.plan.display_name_ar if t.plan else "بدون خطة"
+            "plan_name": t.subscription_plan.display_name_ar if t.subscription_plan else "بدون خطة"
         }
         for t in overdue_clinics_raw
     ]
@@ -238,7 +238,7 @@ def get_financial_reports(
                 .filter(models.User.tenant_id == t.id)
                 .scalar()
             ),
-            "plan_name": t.plan.display_name_ar if t.plan else "بدون خطة"
+            "plan_name": t.subscription_plan.display_name_ar if t.subscription_plan else "بدون خطة"
         }
         for t in churn_risks_raw
     ]
