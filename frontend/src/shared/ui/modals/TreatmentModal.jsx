@@ -110,16 +110,22 @@ export default function TreatmentModal({
         if (e) e.preventDefault();
         // 0. Smart Inventory Pre-Check (Client Side Optimization)
         const payload = {
-            ...treatment,
-            tooth_number: treatment.tooth_number,
+            patient_id: treatment.patient_id,
+            doctor_id: treatment.doctor_id,
+            procedure: treatment.procedure,
+            diagnosis: treatment.diagnosis,
+            tooth_number: treatment.tooth_number ? parseInt(treatment.tooth_number, 10) : null,
             cost: treatment.cost ? parseFloat(treatment.cost) : 0,
             discount: treatment.discount ? parseFloat(treatment.discount) : 0,
+            status: treatment.status || 'Done',
+            notes: treatment.notes,
             canal_count: treatment.canal_count ? parseInt(treatment.canal_count, 10) : null,
-            diagnosis: treatment.diagnosis,
-            status: treatment.status || 'Done', // Default to Done
-            selectedPathologies,
-            selectedRestorations,
-            consumedMaterials
+            sessions: treatment.sessions,
+            complications: treatment.complications,
+            consumedMaterials: (consumedMaterials || []).map(m => ({
+                material_id: parseInt(m.material_id, 10),
+                quantity: parseFloat(m.quantity) || 1
+            }))
         };
         try {
             await onSave(payload);
