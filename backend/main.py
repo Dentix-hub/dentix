@@ -341,13 +341,27 @@ app.include_router(metrics.router, prefix=API_V1_STR)
 
 # --- Global Settings (public, no auth) ---
 @app.get(f"{API_V1_STR}/global-settings")
-async def get_global_settings():
+async def get_global_settings(db: Session = Depends(database.get_db)):
     """Return global application settings (banner, support info, etc.)."""
+
+    # Helper to get setting from DB or fallback to ENV
+    def get_setting(key, env_name, default=""):
+        try:
+            val = db.query(models.SystemSetting).filter(models.SystemSetting.key == key).first()
+            if val and val.value:
+                return val.value
+        except Exception as e:
+            logger.error(f"Error fetching setting {key}: {e}")
+        return os.getenv(env_name, default)
+
     return success_response({
-        "banner": None,
-        "support_email": os.getenv("SUPPORT_EMAIL", ""),
-        "support_phone": os.getenv("SUPPORT_PHONE", ""),
+        "banner": get_setting("global_announcement", "GLOBAL_BANNER", None),
+        "support_email": get_setting("support_email", "SUPPORT_EMAIL", "support@smartdentalclinicapp.com"),
+        "support_phone": get_setting("support_phone", "SUPPORT_PHONE", "+20 120 130 1415"),
+        "support_whatsapp": get_setting("support_whatsapp", "SUPPORT_WHATSAPP", "201201301415"),
+        "support_working_hours": get_setting("support_working_hours", "SUPPORT_WORKING_HOURS", "9:00 AM - 10:00 PM"),
     })
+
 
 
 # --- Observability ---
