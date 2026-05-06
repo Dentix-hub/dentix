@@ -26,6 +26,7 @@ export function EnhancedMaterialConsumption({
     // Auto-open picker for manual mode
     useEffect(() => {
         if (isOpen && mode === 'manual') {
+            console.log('[EMC_DEBUG] Opening picker. availableMaterials:', availableMaterials?.length, 'items', availableMaterials);
             setPickerOpen(true);
         } else {
             setPickerOpen(false);
