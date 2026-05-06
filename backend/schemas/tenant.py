@@ -25,6 +25,7 @@ class TenantBase(BaseModel):
     doctor_title: Optional[str] = None
     clinic_address: Optional[str] = None
     clinic_phone: Optional[str] = None
+    contact_phone: Optional[str] = None
     print_header_image: Optional[str] = None
     print_footer_image: Optional[str] = None
 
@@ -49,6 +50,7 @@ class TenantUpdate(BaseModel):
     doctor_title: Optional[str] = None
     clinic_address: Optional[str] = None
     clinic_phone: Optional[str] = None
+    contact_phone: Optional[str] = None
     print_header_image: Optional[str] = None
     print_footer_image: Optional[str] = None
 
@@ -75,6 +77,7 @@ class ClinicRegistration(BaseModel):
     clinic_name: str
     admin_username: str
     admin_password: str
+    contact_phone: str
 
 
 class SubscriptionPlanBase(BaseModel):

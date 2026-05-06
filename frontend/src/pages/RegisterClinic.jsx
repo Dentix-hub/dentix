@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import { registerClinic } from '../api';
-import { Building2, User, Lock, AlertCircle } from 'lucide-react';
+import { Building2, User, Lock, AlertCircle, Phone } from 'lucide-react';
 
 const RegisterClinic = ({ isDarkMode }) => {
     const { t } = useTranslation();
@@ -11,7 +11,8 @@ const RegisterClinic = ({ isDarkMode }) => {
         admin_username: '',
         admin_email: '',
         admin_password: '',
-        confirm_password: ''
+        confirm_password: '',
+        contact_phone: ''
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -33,6 +34,14 @@ const RegisterClinic = ({ isDarkMode }) => {
         }
         if (!formData.admin_username.trim() || formData.admin_username.trim().length < 3) {
             setError(t('auth.register.errors.username_short'));
+            return;
+        }
+        if (!formData.contact_phone.trim()) {
+            setError(t('auth.register.errors.phone_required'));
+            return;
+        }
+        if (formData.contact_phone.trim().length < 5) {
+            setError(t('auth.register.errors.phone_short'));
             return;
         }
         if (formData.admin_password.length < 8) {
@@ -57,6 +66,7 @@ const RegisterClinic = ({ isDarkMode }) => {
             data.append('admin_username', formData.admin_username.trim());
             data.append('admin_email', formData.admin_email.trim().toLowerCase());
             data.append('admin_password', formData.admin_password);
+            data.append('contact_phone', formData.contact_phone.trim());
             await registerClinic(data);
             navigate('/', { state: { message: t('auth.register.success') } });
         } catch (err) {
@@ -112,6 +122,22 @@ const RegisterClinic = ({ isDarkMode }) => {
                                 onChange={handleChange}
                                 className={`w-full pr-10 pl-4 py-3 rounded-xl outline-none focus:ring-2 transition-all bg-input border-border text-text-primary focus:ring-primary/20 focus:border-primary border`}
                                 placeholder={t('auth.register.clinic_name_placeholder')}
+                            />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        <label className={`text-sm font-medium text-text-secondary`}>{t('auth.register.contact_phone')}</label>
+                        <div className="relative">
+                            <Phone className={`absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary`} />
+                            <input
+                                type="tel"
+                                name="contact_phone"
+                                required
+                                value={formData.contact_phone}
+                                onChange={handleChange}
+                                className={`w-full pr-10 pl-4 py-3 rounded-xl outline-none focus:ring-2 transition-all bg-input border-border text-text-primary focus:ring-primary/20 focus:border-primary border`}
+                                placeholder={t('auth.register.contact_phone_placeholder')}
+                                dir="ltr"
                             />
                         </div>
                     </div>

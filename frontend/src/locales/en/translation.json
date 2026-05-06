@@ -272,7 +272,10 @@
             "days_left": "{{count}} Days Left",
             "plan_premium": "Premium",
             "plan_basic": "Basic",
-            "plan_trial": "Trial"
+            "plan_trial": "Trial",
+            "grace_period": "Grace Period: {{count}} days remaining",
+            "expiring_soon": "Your subscription expires in {{count}} days. Please renew soon.",
+            "expired_readonly": "Subscription expired. Read-only mode activated."
         },
         "mode": {
             "light": "Light Mode",
@@ -1280,6 +1283,8 @@
             "subtitle": "Create an account for your clinic and start managing patients",
             "clinic_name": "Clinic Name",
             "clinic_name_placeholder": "e.g. Al-Shifa Clinic",
+            "contact_phone": "Contact Phone",
+            "contact_phone_placeholder": "e.g. 01234567890",
             "email": "Email",
             "email_hint": "Used for password recovery",
             "username": "Username (Admin)",
@@ -1303,6 +1308,8 @@
                 "password_min_length": "Password must be at least 8 characters.",
                 "password_weak": "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.",
                 "email_taken": "Email is already registered. Use a different email or log in.",
+                "phone_required": "Phone number is required",
+                "phone_short": "Phone number must be at least 5 digits",
                 "connection": "Connection failed. Check your internet connection."
             },
             "success": "Clinic registered successfully! Please login."

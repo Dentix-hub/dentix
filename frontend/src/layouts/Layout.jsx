@@ -15,6 +15,7 @@ import GlobalSearch from '@/shared/ui/GlobalSearch';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import NotificationBell from '@/shared/ui/NotificationBell';
 import GlobalBanner from '@/shared/ui/GlobalBanner';
+import SubscriptionBanner from '@/shared/ui/SubscriptionBanner';
 import CommandPalette from '@/shared/ui/CommandPalette';
 import SuperAdminCommandPalette from '@/features/admin/SuperAdmin/SuperAdminCommandPalette';
 // Prefetching hooks
@@ -142,8 +143,19 @@ const Layout = () => {
     // Helper to calculate subscription days
     const getSubscriptionStatus = () => {
         if (!tenant?.subscription_end_date) return null;
-        const daysLeft = Math.ceil((new Date(tenant.subscription_end_date) - new Date()) / (1000 * 60 * 60 * 24));
-        if (daysLeft < 0) return { text: t('sidebar.subscription.expired'), color: 'text-red-500' };
+        const now = new Date();
+        const endDate = new Date(tenant.subscription_end_date);
+        const daysLeft = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
+        
+        if (daysLeft < 0) {
+            const graceDate = tenant.grace_period_until ? new Date(tenant.grace_period_until) : null;
+            if (graceDate && now <= graceDate) {
+                const graceDaysLeft = Math.ceil((graceDate - now) / (1000 * 60 * 60 * 24));
+                return { text: t('sidebar.subscription.grace_period', { count: graceDaysLeft }), color: 'text-amber-500 animate-pulse' };
+            }
+            return { text: t('sidebar.subscription.expired'), color: 'text-red-500 font-black' };
+        }
+        
         if (daysLeft === 0) return { text: t('sidebar.subscription.ends_today'), color: 'text-amber-500' };
         if (daysLeft <= 7) return { text: t('sidebar.subscription.days_left', { count: daysLeft }), color: 'text-amber-500' };
         return { text: t('sidebar.subscription.days_left', { count: daysLeft }), color: 'text-text-secondary' };
@@ -171,9 +183,10 @@ const Layout = () => {
     }, [prefetchPatients, prefetchAppointments, prefetchDashboard]);
     return (
         <div className={`flex h-screen bg-background`}>
-            {/* Global Banner (Phase 3) */}
+            {/* Global & Subscription Banners */}
             <div className="fixed top-0 left-0 right-0 z-[60]">
                 <GlobalBanner />
+                <SubscriptionBanner />
             </div>
             
             {isSuperAdmin ? (
