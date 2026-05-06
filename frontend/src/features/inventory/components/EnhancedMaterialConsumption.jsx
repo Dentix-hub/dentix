@@ -77,7 +77,7 @@ export function EnhancedMaterialConsumption({
     });
     const stockCheckData = Array.isArray(rawStockCheckData) ? rawStockCheckData : [];
     const addManualMaterial = (materialId) => {
-        const mat = availableMaterials.find(m => m.id === parseInt(materialId));
+        const mat = availableMaterials.find(m => (m.material_id || m.id) === parseInt(materialId));
         if (!mat) return;
         // Prevent duplicates
         if (materials.some(m => m.materialId === mat.id)) {
@@ -97,10 +97,10 @@ export function EnhancedMaterialConsumption({
         setMaterials(prev => [
             ...prev,
             {
-                materialId: mat.id,
-                materialName: mat.name,
+                materialId: mat.material_id || mat.id,
+                materialName: mat.material_name || mat.name,
                 quantity: initialQuantity,
-                unit: mat.base_unit,
+                unit: mat.unit || mat.base_unit,
                 suggested: false
             }
         ]);
@@ -199,9 +199,22 @@ export function EnhancedMaterialConsumption({
                                         value=""
                                     >
                                         <option value="">-- اختر مادة --</option>
-                                        {Array.isArray(availableMaterials) && availableMaterials.map(m => (
-                                            <option key={m.id} value={m.id}>{m.name} ({m.quantity} {m.base_unit})</option>
-                                        ))}
+                                        {Array.isArray(availableMaterials) && availableMaterials.length > 0 ? (
+                                            availableMaterials.map(m => {
+                                                const id = m.material_id || m.id;
+                                                const name = m.material_name || m.name;
+                                                const unit = m.unit || m.base_unit;
+                                                const qty = m.total_quantity !== undefined ? m.total_quantity : m.quantity;
+                                                
+                                                return (
+                                                    <option key={id} value={id}>
+                                                        {name} {qty !== undefined ? `(${qty} ${unit})` : `(${unit})`}
+                                                    </option>
+                                                );
+                                            })
+                                        ) : (
+                                            <option disabled value="">لا توجد مواد في المخزن</option>
+                                        )}
                                     </select>
                                     <Button size="sm" variant="ghost" onClick={() => setPickerOpen(false)}>إلغاء</Button>
                                 </div>
