@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Package, Plus, Trash2, Clock, FileText } from 'lucide-react';
-import { getMaterials, getProcedureWeights, getActiveSessions } from '@/api/inventory';
+import { getMaterials, getStockSummary, getProcedureWeights, getActiveSessions } from '@/api/inventory';
 import TrackSessionModal from '@/features/inventory/components/TrackSessionModal';
 import { EnhancedMaterialConsumption } from '@/features/inventory/components/EnhancedMaterialConsumption';
 import MaterialConsumptionPanel from '@/features/inventory/MaterialConsumptionPanel';
@@ -46,11 +46,15 @@ export default function TreatmentModal({
     // Fetch Materials on Mount
     useEffect(() => {
         if (isOpen) {
-            import('@/api/inventory').then(api => {
-                api.getStockSummary().then(res => {
+            getStockSummary().then(res => {
+                const materialsList = res.data?.data || res.data || [];
+                setAvailableMaterials(Array.isArray(materialsList) ? materialsList : []);
+            }).catch(err => {
+                console.error("Failed to load stock summary, falling back to materials", err);
+                getMaterials().then(res => {
                     const materialsList = res.data?.data || res.data || [];
                     setAvailableMaterials(Array.isArray(materialsList) ? materialsList : []);
-                }).catch(err => console.error("Failed to load materials", err));
+                });
             });
         }
     }, [isOpen]);
