@@ -4,7 +4,6 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from .. import models
 from .security_service import SecurityService
-from .backup_service import BackupService
 from .internal_notification_service import InternalNotificationService
 
 logger = logging.getLogger("smart_clinic")
