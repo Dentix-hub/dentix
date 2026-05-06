@@ -34,7 +34,13 @@ const AuditLogViewer = ({ tenants = [] }) => {
                 if (val) params.append(key, val);
             });
             const res = await api.get(`/api/v1/admin/system/audit-logs?${params.toString()}`);
-            setData(res.data);
+            const responseData = res.data.data || res.data;
+            setData({
+                logs: Array.isArray(responseData.logs) ? responseData.logs : [],
+                total: responseData.total || 0,
+                pages: responseData.pages || 0,
+                current_page: responseData.current_page || 1
+            });
         } catch (err) {
             console.error('Fetch logs error:', err);
         } finally {

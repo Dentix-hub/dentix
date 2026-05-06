@@ -245,11 +245,11 @@ class SecurityService:
                 query = query.filter(models.AuditLog.created_at <= filters["end_date"])
 
         total = query.count()
-        logs = query.order_by(models.AuditLog.created_at.desc()).offset(skip).limit(limit).all()
+        audit_logs = query.order_by(models.AuditLog.created_at.desc()).offset(skip).limit(limit).all()
 
         return {
             "total": total,
-            "items": [
+            "logs": [
                 {
                     "id": log.id,
                     "action": log.action,
@@ -265,8 +265,10 @@ class SecurityService:
                     "tenant_id": log.tenant_id,
                     "created_at": log.created_at,
                 }
-                for log in logs
-            ]
+                for log in audit_logs
+            ],
+            "pages": (total + limit - 1) // limit if limit > 0 else 1,
+            "current_page": (skip // limit) + 1 if limit > 0 else 1
         }
 
     def get_active_sessions(self, limit: int = 50):

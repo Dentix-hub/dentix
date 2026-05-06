@@ -697,7 +697,7 @@ def export_audit_logs(
         "entity_type": entity_type
     }
     logs_data = SecurityService.get_audit_logs(db, skip=0, limit=10000, filters=filters)
-    logs = logs_data["items"]
+    logs = logs_data["logs"]
 
     output = io.StringIO()
     writer = csv.writer(output)
