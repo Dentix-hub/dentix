@@ -46,10 +46,12 @@ export default function TreatmentModal({
     // Fetch Materials on Mount
     useEffect(() => {
         if (isOpen) {
-            getMaterials().then(res => {
-                const materialsList = res.data?.data || res.data || [];
-                setAvailableMaterials(Array.isArray(materialsList) ? materialsList : []);
-            }).catch(err => console.error("Failed to load materials", err));
+            import('@/api/inventory').then(api => {
+                api.getStockSummary().then(res => {
+                    const materialsList = res.data?.data || res.data || [];
+                    setAvailableMaterials(Array.isArray(materialsList) ? materialsList : []);
+                }).catch(err => console.error("Failed to load materials", err));
+            });
         }
     }, [isOpen]);
     useEffect(() => {
