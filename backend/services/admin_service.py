@@ -100,8 +100,8 @@ class AdminService:
 
         # Revenue from treatments (internal to the clinic)
         total_revenue = (
-            self.db.query(func.sum(models.TreatmentPayment.amount))
-            .filter(models.TreatmentPayment.tenant_id == tenant_id)
+            self.db.query(func.sum(models.Payment.amount))
+            .filter(models.Payment.tenant_id == tenant_id)
             .scalar()
             or 0
         )
