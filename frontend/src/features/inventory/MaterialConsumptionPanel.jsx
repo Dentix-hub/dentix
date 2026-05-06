@@ -180,7 +180,14 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
                                         {sugg.brand && <span className="text-xs text-text-secondary ml-1">({sugg.brand})</span>}
                                     </span>
                                     {sugg.has_active_session && (
-                                        <span className="text-xs text-green-600">{t('inventory.materials.session_linked')}</span>
+                                        <span className="text-xs text-green-600">
+                                            {t('inventory.materials.session_linked')}
+                                            {sugg.max_uses > 1 && (
+                                                <span className="ml-2 px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-100 font-bold">
+                                                    {sugg.current_uses} / {sugg.max_uses} استهلاك
+                                                </span>
+                                            )}
+                                        </span>
                                     )}
                                 </label>
                             )}

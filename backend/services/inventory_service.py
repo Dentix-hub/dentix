@@ -255,7 +255,8 @@ class InventoryService:
 
         # 4. Add to Expenses automatically
         if batch_data.cost_per_unit > 0:
-            total_cost = batch_data.cost_per_unit * quantity
+            # FIX: cost_per_unit is per Base Unit, so we must multiply by ratio to get Package Price
+            total_cost = batch_data.cost_per_unit * ratio * quantity
             expense = Expense(
                 item_name=f"شراء: {mat.name}",
                 cost=total_cost,
@@ -615,6 +616,17 @@ class InventoryService:
             # We do NOT decrement stock (because we already decremented on OPEN)
             # We do NOT record USAGE movement (because we track via Weights/Treatments later)
             if session:
+                # 1. Increment Usage Counter for Reusable Tools
+                mat = si.batch.material
+                if mat and mat.max_uses > 1:
+                    session.current_uses += 1
+                    
+                    # 2. Check if reached limit
+                    if session.current_uses >= mat.max_uses:
+                        session.status = "CLOSED"
+                        session.closed_at = datetime.now(timezone.utc)
+                        # We don't trigger learning here because it's a Tool, not a consumable volume
+                
                 # Satisfy request fully from this open session
                 # Assume infinite capacity until closed manually
                 remaining_to_consume = 0

@@ -46,7 +46,10 @@ export default function TreatmentModal({
     // Fetch Materials on Mount
     useEffect(() => {
         if (isOpen) {
-            getMaterials().then(res => setAvailableMaterials(res.data)).catch(err => console.error("Failed to load materials", err));
+            getMaterials().then(res => {
+                const materialsList = res.data?.data || res.data || [];
+                setAvailableMaterials(Array.isArray(materialsList) ? materialsList : []);
+            }).catch(err => console.error("Failed to load materials", err));
         }
     }, [isOpen]);
     useEffect(() => {
@@ -113,6 +116,7 @@ export default function TreatmentModal({
             discount: treatment.discount ? parseFloat(treatment.discount) : 0,
             canal_count: treatment.canal_count ? parseInt(treatment.canal_count, 10) : null,
             diagnosis: treatment.diagnosis,
+            status: treatment.status || 'Done', // Default to Done
             selectedPathologies,
             selectedRestorations,
             consumedMaterials
@@ -424,6 +428,29 @@ export default function TreatmentModal({
                                 />
                             </div>
                         </div>
+                        {/* Status Selection */}
+                        <div className="pt-2 border-t border-slate-200/50 mt-2">
+                            <label className="text-xs font-bold text-slate-500 block mb-2">حالة الإجراء</label>
+                            <div className="flex p-1 bg-white border border-slate-200 rounded-xl gap-1">
+                                {[
+                                    { id: 'Pending', label: 'قيد التنفيذ', color: 'text-amber-600 bg-amber-50 border-amber-200' },
+                                    { id: 'Done', label: 'تم الانتهاء', color: 'text-green-600 bg-green-50 border-green-200' }
+                                ].map((s) => (
+                                    <button
+                                        key={s.id}
+                                        type="button"
+                                        onClick={() => setTreatment({ ...treatment, status: s.id })}
+                                        className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${
+                                            (treatment.status || 'Done') === s.id 
+                                            ? s.color + ' border shadow-sm scale-[1.02]' 
+                                            : 'text-slate-400 hover:text-slate-600'
+                                        }`}
+                                    >
+                                        {s.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                     <input value={treatment.tooth_number} onChange={e => setTreatment({ ...treatment, tooth_number: e.target.value })} placeholder="رقم السن" className="w-full p-3 bg-slate-50 rounded-xl outline-none" />
                     {/* Advanced Toggle */}
@@ -546,7 +573,19 @@ export default function TreatmentModal({
                         )}
                     </div>
                     <textarea value={treatment.notes} onChange={e => setTreatment({ ...treatment, notes: e.target.value })} placeholder="ملاحظات عامة" className="w-full p-3 bg-slate-50 rounded-xl outline-none" />
-                    <div className="flex justify-end gap-3 text-lg font-bold">
+                    
+                    {/* Multi-Session Tracking (Only if editing existing treatment) */}
+                    {isEditing && treatment.id && (
+                        <div className="pt-4 border-t border-slate-100">
+                            <MultiSessionPanel 
+                                sessions={treatment.treatment_sessions || []}
+                                onAddSession={handleAddSession}
+                                isLoading={addSessionMutation.isPending}
+                            />
+                        </div>
+                    )}
+
+                    <div className="flex justify-end gap-3 text-lg font-bold pt-4 border-t border-slate-100">
                         <button onClick={onClose} className="px-4 py-2 hover:bg-slate-100 rounded-lg">إلغاء</button>
                         <button onClick={handleSave} className="px-6 py-2 bg-primary text-white rounded-lg">حفظ</button>
                     </div>
