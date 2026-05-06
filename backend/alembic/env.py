@@ -20,9 +20,7 @@ load_dotenv(os.path.join(project_root, ".env"))
 
 # Import Base from your models
 from backend.models.base import Base  # noqa: E402
-# Import all models to ensure they are registered in metadata
-# Import all models to ensure they are registered in metadata
-# from backend.models import system_log # Removed incorrect import
+from backend import models # noqa: F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
