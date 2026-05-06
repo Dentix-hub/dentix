@@ -48,7 +48,9 @@ class BusinessAlertsService:
         alerts_sent = 0
 
         # Get list of tenant IDs that have been active in the last 30 days
-        active_tenant_ids_rows = db.query(models.UserSession.tenant_id).filter(
+        active_tenant_ids_rows = db.query(models.User.tenant_id).join(
+            models.UserSession, models.User.id == models.UserSession.user_id
+        ).filter(
             models.UserSession.last_active_at >= thirty_days_ago
         ).distinct().all()
         active_ids = [r[0] for r in active_tenant_ids_rows if r[0] is not None]
@@ -61,8 +63,10 @@ class BusinessAlertsService:
 
         for t in inactive_tenants:
             # Check last active date for the body message
-            last_active = db.query(func.max(models.UserSession.last_active_at)).filter(
-                models.UserSession.tenant_id == t.id
+            last_active = db.query(func.max(models.UserSession.last_active_at)).join(
+                models.User, models.User.id == models.UserSession.user_id
+            ).filter(
+                models.User.tenant_id == t.id
             ).scalar()
 
             last_active_str = last_active.strftime('%Y-%m-%d') if last_active else "أبداً"
