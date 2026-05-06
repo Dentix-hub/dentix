@@ -148,6 +148,3 @@ const NotificationsManager = ({ notifForm, setNotifForm, handleSendNotification,
 
 export default NotificationsManager;
 
-
-export default NotificationsManager;
-
