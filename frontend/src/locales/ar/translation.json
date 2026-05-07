@@ -805,6 +805,7 @@
         "types": {
             "divisible": "قابل للتجزئة",
             "indivisible": "غير قابل للتجزئة",
+            "reusable": "متعدد الاستخدام (Reusable)",
             "package": "عبوة",
             "unit": "وحدة"
         },
@@ -954,7 +955,8 @@
                 "ratio": "حجم العبوة (Ratio)",
                 "price": "سعر العبوة (Package Price)",
                 "type_divisible": "قابل للتجزئة (Session)",
-                "type_indivisible": "غير قابل للتجزئة (Unit)"
+                "type_indivisible": "غير قابل للتجزئة (Unit)",
+                "type_reusable": "متعدد الاستخدام (Reusable)"
             },
             "empty": "لا يوجد مخزون حالي لهذا العنصر",
             "active_badge": "مفتوحة حالياً (Active)",
