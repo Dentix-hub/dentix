@@ -231,33 +231,56 @@ export function EnhancedMaterialConsumption({
                     </Button>
                     <div className="flex gap-3">
                         {!pickerOpen && (
-                            <div className="flex gap-2">
-                                <Button 
-                                    variant="outline" 
-                                    size="sm"
-                                    onClick={() => queryClient.invalidateQueries(['stock-summary'])}
-                                    title="تحديث المخزون"
-                                >
-                                    <Clock size={16} />
-                                </Button>
-                                <Button variant="outline" onClick={() => setPickerOpen(true)}>
-                                    <Plus size={18} className="ml-2" />
-                                    مادة أخرى
-                                </Button>
+                            <div className="flex flex-col items-center">
+                                <div className="flex gap-2">
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm"
+                                        onClick={() => {
+                                            console.log('[EMC_DEBUG_MANUAL] Current State:', { availableMaterials, materials, initialMaterials });
+                                            queryClient.invalidateQueries(['stock-summary']);
+                                        }}
+                                        title="تحديث المخزون"
+                                    >
+                                        <Clock size={16} />
+                                    </Button>
+                                    <Button variant="outline" onClick={() => setPickerOpen(true)}>
+                                        <Plus size={18} className="ml-2" />
+                                        مادة أخرى
+                                    </Button>
+                                </div>
+                                <span className="text-[10px] text-gray-400 mt-1">
+                                    متاح: {availableMaterials?.length || 0} | مختار: {materials?.length || 0}
+                                    {availableMaterials?.length > 0 && availableMaterialsList?.length === 0 && " (الكل مختار)"}
+                                </span>
                             </div>
                         )}
                         <Button
                             onClick={handleSave}
-                            disabled={hasCritical || materials.length === 0}
-                            className={cn(hasCritical && "opacity-50 cursor-not-allowed")}
-                            variant="primary"
+                            className="bg-primary hover:bg-primary/90 text-white px-8"
+                            disabled={isLoading}
                         >
-                            <CheckCircle size={18} className="ml-2" />
-                            تأكيد الصرف
+                            {isLoading ? 'جاري الحفظ...' : (
+                                <div className="flex items-center gap-2">
+                                    <CheckCircle size={18} />
+                                    تأكيد الصرف
+                                </div>
+                            )}
                         </Button>
                     </div>
                 </div>
             </div>
+            
+            {/* Visual Diagnostic for Debugging */}
+            {process.env.NODE_ENV === 'development' && (
+                <div style={{ display: 'none' }}>
+                    {console.log('[EMC_DIAGNOSTIC]', { 
+                        available: availableMaterials?.length,
+                        filtered: availableMaterialsList?.length,
+                        selected: materials?.length
+                    })}
+                </div>
+            )}
         </Modal>
     );
 }
