@@ -198,6 +198,8 @@ class TestAppointmentStatusUpdate:
         mock_appt = MagicMock(spec=models.Appointment)
         mock_appt.id = 1
         mock_appt.status = "Scheduled"
+        mock_appt.patient = MagicMock()
+        mock_appt.patient.tenant_id = 1
 
         mock_db.query.return_value.join.return_value.filter.return_value.first.return_value = (
             mock_appt
@@ -227,6 +229,8 @@ class TestAppointmentStatusUpdate:
         mock_appt = MagicMock(spec=models.Appointment)
         mock_appt.id = 1
         mock_appt.status = "Scheduled"
+        mock_appt.patient = MagicMock()
+        mock_appt.patient.tenant_id = 1
 
         mock_db.query.return_value.join.return_value.filter.return_value.first.return_value = (
             mock_appt
@@ -249,6 +253,8 @@ class TestAppointmentDeletion:
         mock_appt = MagicMock(spec=models.Appointment)
         mock_appt.id = 1
         mock_appt.is_deleted = False
+        mock_appt.patient = MagicMock()
+        mock_appt.patient.tenant_id = 1
 
         mock_db.query.return_value.join.return_value.filter.return_value.first.return_value = (
             mock_appt

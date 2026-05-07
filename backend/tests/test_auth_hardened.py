@@ -242,6 +242,7 @@ def test_register_clinic_rejects_weak_password(client):
             "admin_username": f"adm_{uid}",
             "admin_email": f"{uid}@clinic.test",
             "admin_password": "short",
+            "contact_phone": "0123456789",
         },
     )
     assert resp.status_code == 400
