@@ -167,15 +167,6 @@ export default function Billing() {
             loadSalaries();
         }
     }, [activeTab, expensesSubTab, salaryMonth]);
-    if (loading) return (
-        <div className="space-y-6">
-            <div className="flex gap-4">
-                <SkeletonBox className="h-10 w-32" />
-                <SkeletonBox className="h-10 w-32" />
-            </div>
-            <SkeletonBox className="h-[400px] w-full rounded-2xl" />
-        </div>
-    );
     const tabs = useMemo(() => [
         { id: 'doctors', label: t('billing.tabs.doctors'), icon: Users },
         { id: 'staff', label: t('billing.tabs.staff'), icon: Briefcase },
@@ -190,6 +181,17 @@ export default function Billing() {
         accountant: t('billing.roles.accountant'),
         nurse: t('billing.roles.nurse')
     }), [t]);
+
+    if (loading) return (
+        <div className="space-y-6">
+            <div className="flex gap-4">
+                <SkeletonBox className="h-10 w-32" />
+                <SkeletonBox className="h-10 w-32" />
+            </div>
+            <SkeletonBox className="h-[400px] w-full rounded-2xl" />
+        </div>
+    );
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <PageHeader
