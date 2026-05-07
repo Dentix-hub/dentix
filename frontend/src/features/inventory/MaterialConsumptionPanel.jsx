@@ -54,43 +54,53 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
         }
     }, [suggestions]);
 
-    // Notify parent of changes
-    useEffect(() => {
-        const materialsList = Object.values(selectedMaterials).filter(m => m.material_id);
-        onMaterialsChange?.(materialsList);
-    }, [selectedMaterials, onMaterialsChange]);
+    // REMOVED automatic useEffect to prevent overwriting materials added by other components (e.g. Picker)
+    // Parent is now notified explicitly in interaction handlers
 
     const handleMaterialSelect = (categoryId, material) => {
-        setSelectedMaterials(prev => ({
-            ...prev,
-            [categoryId]: {
-                ...prev[categoryId],
-                material_id: material.id,
-                material_name: material.name,
-                brand: material.brand
-            }
-        }));
+        setSelectedMaterials(prev => {
+            const updated = {
+                ...prev,
+                [categoryId]: {
+                    ...prev[categoryId],
+                    material_id: material.id,
+                    material_name: material.name,
+                    brand: material.brand
+                }
+            };
+            // Explicitly notify parent
+            onMaterialsChange?.(Object.values(updated).filter(m => m.material_id));
+            return updated;
+        });
     };
 
     const handleQuantityChange = (categoryId, delta) => {
-        setSelectedMaterials(prev => ({
-            ...prev,
-            [categoryId]: {
-                ...prev[categoryId],
-                quantity: Math.max(0, (prev[categoryId]?.quantity || 0) + delta)
-            }
-        }));
+        setSelectedMaterials(prev => {
+            const updated = {
+                ...prev,
+                [categoryId]: {
+                    ...prev[categoryId],
+                    quantity: Math.max(0, (prev[categoryId]?.quantity || 0) + delta)
+                }
+            };
+            onMaterialsChange?.(Object.values(updated).filter(m => m.material_id));
+            return updated;
+        });
     };
 
     const handleWeightChange = (categoryId, newWeight) => {
-        setSelectedMaterials(prev => ({
-            ...prev,
-            [categoryId]: {
-                ...prev[categoryId],
-                weight: parseFloat(newWeight) || 1.0,
-                is_manual_override: true
-            }
-        }));
+        setSelectedMaterials(prev => {
+            const updated = {
+                ...prev,
+                [categoryId]: {
+                    ...prev[categoryId],
+                    weight: parseFloat(newWeight) || 1.0,
+                    is_manual_override: true
+                }
+            };
+            onMaterialsChange?.(Object.values(updated).filter(m => m.material_id));
+            return updated;
+        });
         setManualOverrides(prev => ({ ...prev, [categoryId]: true }));
     };
 

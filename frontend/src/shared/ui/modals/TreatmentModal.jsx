@@ -534,48 +534,25 @@ export default function TreatmentModal({
                             </button>
                         </div>
 
-                        {/* Material Consumption Panel - shows suggested materials */}
-                        {treatment.procedure && (
-                            <div className="p-3 bg-white border-b border-slate-100">
-                                <MaterialConsumptionPanel
-                                    procedureId={safeProcedures.find(p => p.name === treatment.procedure)?.id}
-                                    doctorId={treatment.doctor_id}
-                                    initialMaterials={consumedMaterials}
-                                    onMaterialsChange={(materials) => {
-                                        // Convert to consumedMaterials format
-                                        const formatted = materials.map(m => ({
-                                            material_id: m.material_id,
-                                            quantity: m.material_type === 'NON_DIVISIBLE' ? m.quantity : m.weight,
-                                            unit: m.base_unit,
-                                            weight_score: m.weight,
-                                            is_manual_override: m.is_manual_override,
-                                            session_id: m.session_id
-                                        }));
-                                        setConsumedMaterials(formatted);
-                                    }}
-                                />
-                            </div>
-                        )}
-
-                        {consumedMaterials.length > 0 ? (
-                            <div className="p-3 bg-white space-y-2">
+                        {/* Selected Materials List (Always at top if items exist) */}
+                        {consumedMaterials.length > 0 && (
+                            <div className="p-3 bg-white border-b border-slate-100 space-y-2">
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">المواد المختارة</div>
                                 {consumedMaterials.map((item, idx) => {
-                                    // Search by both material_id and id to be safe
                                     const mId = item.material_id || item.id;
                                     const matInfo = availableMaterials.find(m => 
                                         (m.material_id?.toString() === mId?.toString()) || 
                                         (m.id?.toString() === mId?.toString())
                                     );
-                                    const matName = matInfo?.material_name || matInfo?.name || 'Unknown Material';
-                                    // Check if divisible based on unit or material type
+                                    const matName = item.name || item.material_name || matInfo?.material_name || matInfo?.name || 'Unknown Material';
                                     const isDivisible = ['g', 'ml', 'cm'].includes(item.unit?.toLowerCase()) ||
                                         matInfo?.type === 'DIVISIBLE' ||
                                         matInfo?.material_type === 'DIVISIBLE';
                                     return (
-                                        <div key={idx} className="flex justify-between items-center text-sm p-2 bg-slate-50 rounded-lg border border-slate-100">
-                                            <span className="font-medium text-slate-700">{matName}</span>
+                                        <div key={idx} className="flex justify-between items-center text-sm p-2 bg-primary/5 rounded-lg border border-primary/10">
+                                            <span className="font-bold text-slate-700">{matName}</span>
                                             <div className="flex items-center gap-2">
-                                                <span className="bg-white px-2 py-0.5 rounded border text-slate-600 font-mono font-bold text-xs">
+                                                <span className="bg-white px-2 py-0.5 rounded border border-primary/20 text-primary font-mono font-bold text-xs">
                                                     {item.quantity} {isDivisible ? '× وزن نسبي' : (item.unit ? item.unit : 'وحدة')}
                                                 </span>
                                                 <button
@@ -584,7 +561,7 @@ export default function TreatmentModal({
                                                         newMats.splice(idx, 1);
                                                         setConsumedMaterials(newMats);
                                                     }}
-                                                    className="text-red-400 hover:text-red-500"
+                                                    className="text-red-400 hover:text-red-500 p-1"
                                                 >
                                                     <Trash2 size={14} />
                                                 </button>
@@ -593,7 +570,39 @@ export default function TreatmentModal({
                                     );
                                 })}
                             </div>
-                        ) : (
+                        )}
+
+                        {/* Material Consumption Panel - shows suggested materials */}
+                        {treatment.procedure && (
+                            <div className="p-3 bg-white">
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">اقتراحات حسب الإجراء</div>
+                                <MaterialConsumptionPanel
+                                    procedureId={safeProcedures.find(p => p.name === treatment.procedure)?.id}
+                                    doctorId={treatment.doctor_id}
+                                    initialMaterials={consumedMaterials}
+                                    onMaterialsChange={(materials) => {
+                                        const formatted = materials.map(m => ({
+                                            material_id: m.material_id,
+                                            quantity: m.material_type === 'NON_DIVISIBLE' ? m.quantity : m.weight,
+                                            unit: m.base_unit,
+                                            weight_score: m.weight,
+                                            is_manual_override: m.is_manual_override,
+                                            session_id: m.session_id,
+                                            name: m.material_name,
+                                            category_id: m.category_id
+                                        }));
+                                        
+                                        setConsumedMaterials(prev => {
+                                            const incomingCategories = new Set(formatted.map(m => m.category_id));
+                                            const manualMaterials = prev.filter(p => !p.category_id || !incomingCategories.has(p.category_id));
+                                            return [...manualMaterials, ...formatted];
+                                        });
+                                    }}
+                                />
+                            </div>
+                        )}
+
+                        {consumedMaterials.length === 0 && (
                             <div className="p-4 text-center text-xs text-slate-500 bg-slate-50/50">
                                 لم يتم تسجيل أي مواد لهذا الإجراء
                             </div>
@@ -629,17 +638,23 @@ export default function TreatmentModal({
                 initialMaterials={consumedMaterials}
                 mode={smartConsumptionMode} // Pass mode
                 onSave={(newMaterials) => {
-                    // Map generic format to specific format needed by backend
-                    // Backend expects: { material_id, quantity, batch_id? }
-                    // Enhanced returns: { materialId, quantity, ... }
                     const mapped = newMaterials.map(m => ({
-                        material_id: m.material_id || m.materialId,
+                        material_id: m.material_id || m.id,
                         quantity: m.quantity,
                         unit: m.unit,
-                        name: m.name || m.material_name,
-                        is_manual_override: m.is_manual || false
+                        name: m.name || m.material_name, // Ensure name is passed for fallback rendering
+                        is_manual_override: true
                     }));
-                    setConsumedMaterials(mapped);
+                    
+                    // MERGE: Keep existing materials that were selected via the suggestions panel
+                    // but update/replace if the same material was picked
+                    setConsumedMaterials(prev => {
+                        const existingIds = new Set(mapped.map(m => m.material_id.toString()));
+                        const filteredPrev = prev.filter(p => !existingIds.has((p.material_id || p.id).toString()));
+                        return [...filteredPrev, ...mapped];
+                    });
+                    
+                    setIsSmartConsumptionOpen(false);
                 }}
             />
             {/* Session Tracking Modal */}
