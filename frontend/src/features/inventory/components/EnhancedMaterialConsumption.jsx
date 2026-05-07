@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Modal, Button } from '@/shared/ui';
+import { Modal, Button, Badge } from '@/shared/ui';
 import { SmartMaterialRow } from './SmartMaterialRow';
 import { api } from '@/api';
 import { toast } from 'react-hot-toast';
@@ -198,43 +198,49 @@ export function EnhancedMaterialConsumption({
                         {/* Inline Picker */}
                         {pickerOpen && (
                             <div className="p-4 bg-blue-50/50 rounded-xl border border-blue-100 animate-in slide-in-from-top-2">
-                                <label className="block text-sm font-bold text-blue-900 mb-2">اختر مادة من المخزون:</label>
-                                <div className="flex gap-2">
-                                    <select
-                                        className="flex-1 p-2 rounded-lg border border-blue-200 outline-none"
-                                        onChange={(e) => {
-                                            console.log('[EMC_DEBUG] Select changed to:', e.target.value);
-                                            addManualMaterial(e.target.value);
-                                        }}
-                                        value=""
-                                        onClick={() => console.log('[EMC_DEBUG] Select clicked. Current materials count:', availableMaterials?.length)}
-                                    >
-                                        <option value="">{isLoading ? 'جاري التحميل...' : '-- اختر مادة --'}</option>
-                                        {isLoading ? (
-                                            <option disabled>جاري تحميل المواد من المخزن...</option>
-                                        ) : Array.isArray(availableMaterials) && availableMaterials.length > 0 ? (
-                                            availableMaterials.map((m, idx) => {
-                                                // Handle different data structures from different API endpoints
-                                                // getStockSummary returns material_id, getMaterials returns id
-                                                const id = m.material_id || m.id;
-                                                const name = m.material_name || m.name;
-                                                const unitDisplay = m.unit || m.base_unit || '';
-                                                const qtyDisplay = m.total_quantity !== undefined ? m.total_quantity : (m.quantity || 0);
-                                                
-                                                if (!id) return null;
+                                <div className="flex justify-between items-center mb-3">
+                                    <label className="block text-sm font-bold text-blue-900">اختر مادة من المخزون:</label>
+                                    <Button size="sm" variant="ghost" onClick={() => setPickerOpen(false)} className="h-7 text-xs">إلغاء</Button>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 gap-2 max-h-[200px] overflow-y-auto p-1">
+                                    {isLoading ? (
+                                        <div className="text-center py-4 text-blue-600 text-sm animate-pulse">جاري تحميل المواد...</div>
+                                    ) : availableMaterialsList.length > 0 ? (
+                                        availableMaterialsList.map((m, idx) => {
+                                            const id = m.material_id || m.id;
+                                            const name = m.material_name || m.name;
+                                            const unitDisplay = m.unit || m.base_unit || '';
+                                            const qtyDisplay = m.total_quantity !== undefined ? m.total_quantity : (m.quantity || 0);
+                                            
+                                            if (!id) return null;
 
-                                                return (
-                                                    <option key={`${id}-${idx}`} value={id}>
-                                                        {name} {unitDisplay ? `(${unitDisplay})` : ''} - {qtyDisplay} متوفر
-                                                    </option>
-                                                );
-                                            })
-                                         ) : (
-                                             <option disabled value="">لا توجد مواد في المخزن</option>
-                                         )}
-                                    </select>
-
-                                    <Button size="sm" variant="ghost" onClick={() => setPickerOpen(false)}>إلغاء</Button>
+                                            return (
+                                                <button
+                                                    key={`${id}-${idx}`}
+                                                    onClick={() => {
+                                                        console.log('[EMC_ACTION] Adding material:', id);
+                                                        addManualMaterial(id);
+                                                    }}
+                                                    className="flex justify-between items-center p-3 bg-white border border-blue-200 rounded-lg hover:border-primary hover:shadow-sm transition-all text-right group"
+                                                >
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="font-bold text-slate-800 group-hover:text-primary transition-colors">{name}</span>
+                                                        <span className="text-[10px] text-slate-500">{m.brand || ''}</span>
+                                                    </div>
+                                                    <div className="flex flex-col items-start text-left">
+                                                        <Badge variant="outline" className="text-[10px] bg-slate-50">
+                                                            {qtyDisplay} {unitDisplay} متوفر
+                                                        </Badge>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })
+                                    ) : (
+                                        <div className="text-center py-6 bg-white rounded-lg border border-dashed border-blue-200">
+                                            <p className="text-sm text-slate-500">لا توجد مواد إضافية في المخزن</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
