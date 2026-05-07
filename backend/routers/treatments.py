@@ -183,6 +183,7 @@ def save_treatment_materials(
                     quantity=item.quantity_used,
                     tenant_id=tenant_id,
                     user_id=current_user.id,
+                    patient_id=treatment.patient_id,
                     db=db,
                 )
             except ValueError as e:

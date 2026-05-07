@@ -92,7 +92,8 @@ class StockItem(Base):
 
 class MaterialSession(Base):
     """
-    Tracks usage of opened DIVISIBLE materials (e.g. opened Bond bottle).
+    Tracks usage of opened DIVISIBLE materials (e.g. opened Bond bottle)
+    or REUSABLE tools (e.g. Endo Files).
     """
 
     __tablename__ = "material_sessions"
@@ -101,8 +102,11 @@ class MaterialSession(Base):
     stock_item_id = Column(
         Integer, ForeignKey("stock_items.id"), nullable=False, index=True
     )
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=True, index=True)
     opened_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     status = Column(String, default="ACTIVE")  # ACTIVE, CLOSED
+    is_disposed = Column(Boolean, default=False)  # For reusable tools
+    disposal_reason = Column(String, nullable=True) # e.g. "Bent", "Broken", "Natural end"
     remaining_est = Column(
         Float, default=1.0
     )  # Estimated percentage or amount remaining (0.0 - 1.0 or units)

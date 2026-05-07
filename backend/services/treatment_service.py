@@ -133,6 +133,7 @@ class TreatmentService:
         self,
         treatment_id: int,
         consumed_materials: List[schemas.clinical.ConsumedMaterialItem],
+        patient_id: Optional[int] = None,
     ) -> None:
         """
         Consume stock for treatment materials.
@@ -152,6 +153,7 @@ class TreatmentService:
                     tenant_id=self.tenant_id,
                     user_id=self.current_user.id,
                     reference_id=f"TREATMENT:{treatment_id}",
+                    patient_id=patient_id,
                     db=self.db,
                 )
             except Exception as e:
@@ -226,7 +228,11 @@ class TreatmentService:
         )
 
         # 6. Consume stock (post-creation)
-        self.consume_treatment_stock(created_treatment.id, treatment_data.consumedMaterials or [])
+        self.consume_treatment_stock(
+            created_treatment.id, 
+            treatment_data.consumedMaterials or [],
+            patient_id=treatment_data.patient_id
+        )
 
         # 7. Commit transaction
         self.db.commit()
@@ -269,7 +275,11 @@ class TreatmentService:
         )
 
         # 3. Consume stock (post-update)
-        self.consume_treatment_stock(treatment_id, treatment_data.consumedMaterials or [])
+        self.consume_treatment_stock(
+            treatment_id, 
+            treatment_data.consumedMaterials or [],
+            patient_id=treatment_data.patient_id
+        )
 
         # 4. Commit transaction
         self.db.commit()

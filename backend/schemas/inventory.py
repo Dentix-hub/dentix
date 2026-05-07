@@ -12,6 +12,7 @@ class WarehouseType(str, Enum):
 class MaterialType(str, Enum):
     DIVISIBLE = "DIVISIBLE"
     NON_DIVISIBLE = "NON_DIVISIBLE"
+    REUSABLE = "REUSABLE"
 
 
 # --- MATERIAL CATEGORY ---
@@ -173,6 +174,7 @@ class ConsumptionItem(BaseModel):
     material_id: int
     quantity: float
     batch_id: Optional[int] = None
+    patient_id: Optional[int] = None
 
 
 class StockReceiveRequest(BaseModel):

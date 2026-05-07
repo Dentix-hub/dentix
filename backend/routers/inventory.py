@@ -205,6 +205,7 @@ def consume_stock(
                 tenant_id=tenant_id,
                 user_id=current_user.id,
                 batch_id=item.batch_id,
+                patient_id=item.patient_id,
                 db=db,
             )
             total_movements += len(movements)
