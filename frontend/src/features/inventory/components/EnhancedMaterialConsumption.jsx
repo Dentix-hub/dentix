@@ -49,18 +49,22 @@ export function EnhancedMaterialConsumption({
             return;
         }
         // Case 3: Modal is open and we have data to initialize with
-        if (isOpen && !hasInitializedRef.current && Array.isArray(availableMaterials) && Array.isArray(initialMaterials)) {
+        // Only initialize if availableMaterials is populated (unless it's genuinely empty)
+        const isReadyToInitialize = isOpen && !hasInitializedRef.current && (availableMaterials.length > 0 || !isLoading);
+        
+        if (isReadyToInitialize && Array.isArray(initialMaterials)) {
             console.log('[EMC_DEBUG] Initializing materials from:', initialMaterials.length, 'items');
             const mapped = initialMaterials.map(m => {
-                const targetId = parseInt(m.material_id || m.id);
+                const targetId = parseInt(m.material_id || m.id || m.materialId);
                 const matInfo = availableMaterials.find(am => (am.material_id || am.id) === targetId) || {};
                 
                 return {
-                    materialId: targetId,
-                    materialName: matInfo.material_name || matInfo.name || 'Unknown',
+                    id: Date.now() + Math.random(),
+                    material_id: targetId,
+                    material_name: matInfo.material_name || matInfo.name || m.material_name || m.name || 'Unknown',
                     quantity: parseFloat(m.quantity) || 1,
-                    unit: matInfo.unit || matInfo.base_unit || 'وحدة',
-                    suggested: false
+                    unit: matInfo.unit || matInfo.base_unit || m.unit || 'وحدة',
+                    is_manual: m.is_manual_override || m.is_manual || false
                 };
             });
             setMaterials(mapped);
@@ -73,7 +77,10 @@ export function EnhancedMaterialConsumption({
         queryKey: ['stock-check', materials],
         queryFn: async () => {
             if (materials.length === 0) return [];
-            const payload = materials.map(m => ({ material_id: m.materialId, quantity: m.quantity }));
+            const payload = materials.map(m => ({ 
+                material_id: m.material_id || m.id, 
+                quantity: m.quantity 
+            }));
             const res = await api.post('/api/v1/inventory/smart/check-availability', payload);
             const rawData = res.data?.data;
             return Array.isArray(rawData) ? rawData : [];
@@ -211,6 +218,7 @@ export function EnhancedMaterialConsumption({
                                              <option disabled value="">لا توجد مواد في المخزن</option>
                                          )}
                                     </select>
+
                                     <Button size="sm" variant="ghost" onClick={() => setPickerOpen(false)}>إلغاء</Button>
                                 </div>
                             </div>
@@ -223,10 +231,20 @@ export function EnhancedMaterialConsumption({
                     </Button>
                     <div className="flex gap-3">
                         {!pickerOpen && (
-                            <Button variant="outline" onClick={() => setPickerOpen(true)}>
-                                <Plus size={18} className="ml-2" />
-                                مادة أخرى
-                            </Button>
+                            <div className="flex gap-2">
+                                <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => queryClient.invalidateQueries(['stock-summary'])}
+                                    title="تحديث المخزون"
+                                >
+                                    <Clock size={16} />
+                                </Button>
+                                <Button variant="outline" onClick={() => setPickerOpen(true)}>
+                                    <Plus size={18} className="ml-2" />
+                                    مادة أخرى
+                                </Button>
+                            </div>
                         )}
                         <Button
                             onClick={handleSave}
