@@ -74,7 +74,9 @@ export function SmartMaterialRow({
                 {/* Material Info */}
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                        <h4 className="font-bold text-lg truncate text-slate-800">{material.materialName}</h4>
+                        <h4 className="font-bold text-lg truncate text-slate-800">
+                            {material.material_name || material.name || material.materialName}
+                        </h4>
                         {material.suggested && (
                             <Badge variant="primary" size="sm" className="bg-blue-100 text-blue-700 hover:bg-blue-200">
                                 ✨ مقترح

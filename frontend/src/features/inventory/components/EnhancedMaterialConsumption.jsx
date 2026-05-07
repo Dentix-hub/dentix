@@ -85,7 +85,7 @@ export function EnhancedMaterialConsumption({
         const mat = availableMaterials.find(m => (m.material_id || m.id) === parseInt(materialId));
         if (!mat) return;
         // Prevent duplicates
-        if (materials.some(m => m.materialId === mat.id)) {
+        if (materials.some(m => (m.material_id || m.materialId) === (mat.material_id || mat.id))) {
             toast.error("هذه المادة مضافة بالفعل");
             setPickerOpen(false);
             return;
@@ -102,11 +102,12 @@ export function EnhancedMaterialConsumption({
         setMaterials(prev => [
             ...prev,
             {
-                materialId: mat.material_id || mat.id,
-                materialName: mat.material_name || mat.name,
+                id: Date.now(),
+                material_id: mat.material_id || mat.id,
+                material_name: mat.material_name || mat.name,
                 quantity: initialQuantity,
                 unit: mat.unit || mat.base_unit,
-                suggested: false
+                is_manual: true
             }
         ]);
         setPickerOpen(false);
@@ -165,9 +166,9 @@ export function EnhancedMaterialConsumption({
                     <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
                         {materials.map((mat, idx) => (
                             <SmartMaterialRow
-                                key={mat.materialId || idx}
+                                key={mat.material_id || mat.id || idx}
                                 material={mat}
-                                stockInfo={stockCheckData?.find(s => s.material_id === mat.materialId)}
+                                stockInfo={stockCheckData?.find(s => s.material_id === (mat.material_id || mat.id))}
                                 onChange={(updated) => updateMaterial(idx, updated)}
                                 onRemove={() => removeMaterial(idx)}
                             />
@@ -190,16 +191,22 @@ export function EnhancedMaterialConsumption({
                                         {isLoading ? (
                                             <option disabled>جاري تحميل المواد من المخزن...</option>
                                         ) : Array.isArray(availableMaterials) && availableMaterials.length > 0 ? (
-                                             availableMaterials.map(m => {
-                                                 const id = m.material_id || m.id;
-                                                 const name = m.material_name || m.name;
-                                                 const stock = m.available ?? m.total_quantity ?? m.total_qty ?? '0';
-                                                 return (
-                                                     <option key={id} value={id}>
-                                                         {name} ({stock})
-                                                     </option>
-                                                 );
-                                             })
+                                            availableMaterials.map((m, idx) => {
+                                                // Handle different data structures from different API endpoints
+                                                // getStockSummary returns material_id, getMaterials returns id
+                                                const id = m.material_id || m.id;
+                                                const name = m.material_name || m.name;
+                                                const unitDisplay = m.unit || m.base_unit || '';
+                                                const qtyDisplay = m.total_quantity !== undefined ? m.total_quantity : (m.quantity || 0);
+                                                
+                                                if (!id) return null;
+
+                                                return (
+                                                    <option key={`${id}-${idx}`} value={id}>
+                                                        {name} {unitDisplay ? `(${unitDisplay})` : ''} - {qtyDisplay} متوفر
+                                                    </option>
+                                                );
+                                            })
                                          ) : (
                                              <option disabled value="">لا توجد مواد في المخزن</option>
                                          )}

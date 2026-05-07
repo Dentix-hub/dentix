@@ -560,8 +560,13 @@ export default function TreatmentModal({
                         {consumedMaterials.length > 0 ? (
                             <div className="p-3 bg-white space-y-2">
                                 {consumedMaterials.map((item, idx) => {
-                                    const matInfo = availableMaterials.find(m => m.id === parseInt(item.material_id));
-                                    const matName = matInfo?.name || 'Unknown Material';
+                                    // Search by both material_id and id to be safe
+                                    const mId = item.material_id || item.id;
+                                    const matInfo = availableMaterials.find(m => 
+                                        (m.material_id?.toString() === mId?.toString()) || 
+                                        (m.id?.toString() === mId?.toString())
+                                    );
+                                    const matName = matInfo?.material_name || matInfo?.name || 'Unknown Material';
                                     // Check if divisible based on unit or material type
                                     const isDivisible = ['g', 'ml', 'cm'].includes(item.unit?.toLowerCase()) ||
                                         matInfo?.type === 'DIVISIBLE' ||
@@ -628,9 +633,11 @@ export default function TreatmentModal({
                     // Backend expects: { material_id, quantity, batch_id? }
                     // Enhanced returns: { materialId, quantity, ... }
                     const mapped = newMaterials.map(m => ({
-                        material_id: m.materialId,
+                        material_id: m.material_id || m.materialId,
                         quantity: m.quantity,
-                        unit: m.unit // purely for display
+                        unit: m.unit,
+                        name: m.name || m.material_name,
+                        is_manual_override: m.is_manual || false
                     }));
                     setConsumedMaterials(mapped);
                 }}
