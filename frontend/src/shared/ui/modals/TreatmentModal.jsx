@@ -138,10 +138,12 @@ export default function TreatmentModal({
             canal_count: treatment.canal_count ? parseInt(treatment.canal_count, 10) : null,
             sessions: treatment.sessions,
             complications: treatment.complications,
-            consumedMaterials: (consumedMaterials || []).map(m => ({
-                material_id: parseInt(m.material_id, 10),
-                quantity: parseFloat(m.quantity) || 1
-            }))
+            consumedMaterials: (consumedMaterials || [])
+                .filter(m => (m.material_id || m.materialId)) // Filter out empty entries
+                .map(m => ({
+                    material_id: parseInt(m.material_id || m.materialId, 10),
+                    quantity: parseFloat(m.quantity) || 1
+                })).filter(m => !isNaN(m.material_id)) // Final safety guard
         };
         try {
             await onSave(payload);
@@ -390,19 +392,17 @@ export default function TreatmentModal({
                                         console.log('[PRICE_DEBUG] Final Calculated Price:', calculatedPrice);
                                         // NEW: Auto-load consumed materials (BOM)
                                         if (foundProc) {
-                                            try {
-                                                const weightsRes = await getProcedureWeights({ procedure_id: foundProc.id });
-                                                if (weightsRes.data && weightsRes.data.length > 0) {
-                                                    const autoMaterials = weightsRes.data.map(w => ({
-                                                        material_id: w.material_id,
-                                                        quantity: parseFloat(w.weight) || 1
-                                                    }));
-                                                    console.log("Auto-loaded materials:", autoMaterials);
-                                                    setConsumedMaterials(autoMaterials);
-                                                    setShowInventory(true); // Auto-expand to show user
-                                                }
-                                            } catch (err) {
-                                                console.error("Failed to load procedure materials", err);
+                                            const autoMaterials = (foundProc.suggestedMaterials || []).map(sm => ({
+                                                material_id: sm.id,
+                                                quantity: sm.quantity,
+                                                name: sm.name,
+                                                unit: sm.unit,
+                                                is_manual: false
+                                            }));
+                                            if (autoMaterials.length > 0) {
+                                                console.log("[MATERIALS_DEBUG] Auto-loaded materials (BOM):", autoMaterials);
+                                                setConsumedMaterials(autoMaterials);
+                                                setShowInventory(true);
                                             }
                                         }
                                         setTreatment({
