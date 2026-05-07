@@ -4,7 +4,7 @@ import { Modal, Button } from '@/shared/ui';
 import { SmartMaterialRow } from './SmartMaterialRow';
 import { api } from '@/api';
 import { toast } from 'react-hot-toast';
-import { Plus, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Plus, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 import { cn } from '@/utils/cn';
 export function EnhancedMaterialConsumption({
     procedure,
