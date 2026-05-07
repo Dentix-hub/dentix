@@ -40,9 +40,9 @@ def test_admin_users_nplus1(db_session, query_counter):
     users = []
     for i, t in enumerate(tenants):
         u = models.User(
-            username=f"u{i}", 
-            hashed_password="pw", 
-            role="doctor", 
+            username=f"u{i}",
+            hashed_password="pw",
+            role="doctor",
             tenant_id=t.id
         )
         db_session.add(u)
@@ -52,12 +52,12 @@ def test_admin_users_nplus1(db_session, query_counter):
     # 2. Test get_global_users
     # Should be 1 query (or small constant), NOT 1 + N
     admin_user = models.User(role="super_admin")
-    
+
     with query_counter as qc:
         results = admin_system.get_global_users(db=db_session, limit=100, current_user=admin_user)
         # Access tenant_name to trigger lazy load if any
         [r.tenant_name for r in results if isinstance(r, (models.User, schemas.UserAdminView)) or hasattr(r, 'tenant_name')]
-    
+
     # We expect 1 query to fetch users + joined tenants
     # Maybe 1 extra for count?
     # Definitely less than 5 (1 per user)
@@ -91,6 +91,6 @@ def test_patients_balance_nplus1(db_session, query_counter):
     with query_counter as qc:
         patient_service.get_patients_with_balance(db=db_session, tenant_id=t.id)
         # Logic already ran inside service, so just check count
-    
+
     print(f"Queries count: {qc.count}")
     assert qc.count < 3, f"Too many queries! {qc.count}"

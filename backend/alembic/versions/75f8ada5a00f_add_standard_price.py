@@ -25,7 +25,7 @@ def upgrade() -> None:
     from sqlalchemy.engine.reflection import Inspector
     conn = op.get_bind()
     inspector = Inspector.from_engine(conn)
-    
+
     # Patients table columns
     patient_columns = [c["name"] for c in inspector.get_columns("patients")]
     if "email" not in patient_columns:
@@ -34,14 +34,14 @@ def upgrade() -> None:
         op.add_column("patients", sa.Column("is_deleted", sa.Boolean(), nullable=True))
     if "deleted_at" not in patient_columns:
         op.add_column("patients", sa.Column("deleted_at", sa.DateTime(), nullable=True))
-    
+
     # Patients table indexes
     patient_indexes = [idx["name"] for idx in inspector.get_indexes("patients")]
     if "ix_patients_email" not in patient_indexes:
         op.create_index(op.f("ix_patients_email"), "patients", ["email"], unique=False)
     if "ix_patients_phone" not in patient_indexes:
         op.create_index(op.f("ix_patients_phone"), "patients", ["phone"], unique=False)
-    
+
     # Subscription plans columns
     sub_columns = [c["name"] for c in inspector.get_columns("subscription_plans")]
     if "is_default" not in sub_columns:

@@ -1,7 +1,7 @@
 """add fcm_token to users
 
 Revision ID: 4326f6d2f707
-Revises: 
+Revises:
 Create Date: 2026-04-20 01:21:44.020584
 
 """

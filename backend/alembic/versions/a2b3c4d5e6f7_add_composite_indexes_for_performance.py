@@ -23,7 +23,7 @@ def upgrade() -> None:
     from sqlalchemy.engine.reflection import Inspector
     conn = op.get_bind()
     inspector = Inspector.from_engine(conn)
-    
+
     # Helper to create index if not exists
     def create_idx_safe(idx_name, table_name, columns):
         existing_indexes = [idx["name"] for idx in inspector.get_indexes(table_name)]

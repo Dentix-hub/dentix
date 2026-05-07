@@ -43,7 +43,7 @@ def test_delete_material_with_stock_blocked(client, admin_headers):
     if wh_resp.status_code != 200 or not wh_resp.json():
         # No warehouses available, skip stock test
         return
-    
+
     wh_res = wh_resp.json()
     if isinstance(wh_res, dict) and "data" in wh_res:
         wh_list = wh_res["data"]

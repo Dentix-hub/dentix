@@ -82,7 +82,7 @@ class TestTenantScopeRegistration:
         from sqlalchemy.orm import Session
         from sqlalchemy import event as sa_event
 
-        has_listeners = sa_event.contains(Session, "do_orm_execute", 
+        has_listeners = sa_event.contains(Session, "do_orm_execute",
             __import__('backend.core.tenant_scope', fromlist=['_add_tenant_filter'])._add_tenant_filter
         )
         assert has_listeners, "tenant_scope do_orm_execute listener is NOT registered"

@@ -340,10 +340,10 @@ def block_ip(
     from backend.services.security_service import SecurityService
     ip = block_data.get("ip_address")
     reason = block_data.get("reason", "Administrative block")
-    
+
     if not ip:
         raise HTTPException(status_code=400, detail="IP address required")
-        
+
     SecurityService.block_ip(db, ip, reason, current_user.username)
     return success_response({"message": f"IP {ip} blocked successfully"})
 

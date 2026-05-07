@@ -16,12 +16,12 @@ logger = logging.getLogger(__name__)
 def init_db():
     """Initialize the database: create all tables and stamp Alembic head."""
     logger.info("Starting Database Initialization on Supabase...")
-    
+
     try:
         # 1. Create all tables defined in models
         models.Base.metadata.create_all(bind=database.engine)
         logger.info("Successfully created all tables via Base.metadata.create_all")
-        
+
         # 2. Stamp Alembic to head
         import subprocess
         logger.info("Stamping Alembic to head...")
@@ -38,9 +38,9 @@ def init_db():
         else:
             logger.error(f"Failed to stamp Alembic: {result.stderr}")
             sys.exit(1)
-            
+
         logger.info("Database Initialization Complete.")
-        
+
     except Exception as e:
         logger.exception(f"Critical error during database initialization: {e}")
         sys.exit(1)

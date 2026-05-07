@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class SecurityService:
     MAX_FAILED_ATTEMPTS = 5
     LOCKOUT_DURATION_MINUTES = 15
-    
+
     def __init__(self, db: Session = None):
         self.db = db
 

@@ -24,16 +24,16 @@ def process_file(filepath):
 
     # Track if we need to add the import
     needs_import = False
-    
+
     # We want to find patterns like: return {"something": value}
     # and replace with: return success_response(data={"something": value})
-    
+
     # A simple regex for top-level returns (be careful with multiline dicts)
     # We can match `return { ... }` that is on a single line or starts/ends simply
-    
+
     lines = content.split('\n')
     new_lines = []
-    
+
     for line in lines:
         if line.strip().startswith("return {") and line.strip().endswith("}"):
             inner = line[line.find("{"):line.rfind("}")+1]
@@ -53,12 +53,12 @@ def process_file(filepath):
             new_lines.append(line)
 
     content_new = "\n".join(new_lines)
-    
+
     # Ensure import is present if needed
     if needs_import and "from ..core.response import success_response" not in content_new and "from backend.core.response import success_response" not in content_new:
         # Find where to put the import
         import_stmt = "from ..core.response import success_response, error_response"
-        
+
         # simple placement after the first batch of from/import
         lines_new = content_new.split('\n')
         insert_idx = 0
@@ -68,10 +68,10 @@ def process_file(filepath):
                 break
         lines_new.insert(insert_idx, import_stmt)
         content_new = "\n".join(lines_new)
-        
+
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(content_new)
-        
+
     print(f"Processed {os.path.basename(filepath)} - Modified: {needs_import}")
 
 for r in routers:

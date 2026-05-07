@@ -56,12 +56,12 @@ def main():
     print(
         """
 1. Copy these keys to your production environment:
-   
+
    For local development (.env file):
    ----------------------------------------
    ENCRYPTION_KEY={enc_key}
    SECRET_KEY={secret_key}
-   
+
 2. For production (Hugging Face Spaces, Vercel, etc.):
    - Go to your hosting dashboard
    - Add these as environment variables
@@ -71,8 +71,8 @@ def main():
    - Generate new ENCRYPTION_KEY
    - Run migration script to re-encrypt data
    - Update production environment
-   
-⚠️  WARNING: 
+
+⚠️  WARNING:
    - Keep these keys SECRET and SECURE
    - Backup keys securely (losing them = losing encrypted data)
    - Different keys for development vs production

@@ -61,11 +61,11 @@ def upgrade() -> None:
         op.create_index(
             op.f("ix_lab_payments_tenant_id"), "lab_payments", ["tenant_id"], unique=False
         )
-    
+
     # Check if index exists before creating
     indexes = inspector.get_indexes("system_errors")
     index_names = [idx["name"] for idx in indexes]
-    
+
     op.alter_column("system_errors", "message", existing_type=sa.TEXT(), nullable=True)
     if "ix_system_errors_created_at" not in index_names:
         op.create_index(
@@ -74,7 +74,7 @@ def upgrade() -> None:
             ["created_at"],
             unique=False,
         )
-    
+
     # Check for active_session_id column in users
     columns = [c["name"] for c in inspector.get_columns("users")]
     if "active_session_id" not in columns:

@@ -6,7 +6,7 @@ def test_get_saved_medications(client, admin_headers, db_session, test_tenant):
     med = SavedMedication(name="Panadol", strength="500mg", frequency="3 times daily", tenant_id=test_tenant.id)
     db_session.add(med)
     db_session.commit()
-    
+
     response = client.get("/api/v1/medications/saved", headers=admin_headers)
     assert response.status_code == 200
     res = response.json()
@@ -27,7 +27,7 @@ def test_create_saved_medication(client, admin_headers, db_session):
     assert res["success"] is True
     data = res["data"]
     assert data["name"] == "Amoxicillin"
-    
+
     # Verify DB
     db_med = db_session.query(SavedMedication).filter(SavedMedication.id == data["id"]).first()
     assert db_med is not None
@@ -37,10 +37,10 @@ def test_delete_saved_medication(client, admin_headers, db_session, test_tenant)
     med = SavedMedication(name="To Delete", tenant_id=test_tenant.id)
     db_session.add(med)
     db_session.commit()
-    
+
     response = client.delete(f"/api/v1/medications/saved/{med.id}", headers=admin_headers)
     assert response.status_code == 200
-    
+
     # Verify DB (hard delete in router line 68)
     db_med = db_session.query(SavedMedication).filter(SavedMedication.id == med.id).first()
     assert db_med is None

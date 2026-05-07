@@ -22,7 +22,7 @@ def upgrade():
     conn = op.get_bind()
     inspector = Inspector.from_engine(conn)
     columns = [c["name"] for c in inspector.get_columns("appointments")]
-    
+
     # Add version_id column with default 1 for optimistic locking
     if "version_id" not in columns:
         op.add_column('appointments', sa.Column('version_id', sa.Integer(), nullable=False, server_default='1'))
