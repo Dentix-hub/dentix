@@ -804,6 +804,7 @@
         "types": {
             "divisible": "Divisible",
             "indivisible": "Indivisible",
+            "reusable": "Reusable (Multi-use)",
             "package": "Package",
             "unit": "Unit"
         },
@@ -941,7 +942,8 @@
                 "ratio": "Package Ratio",
                 "price": "Package Price",
                 "type_divisible": "Divisible (Session)",
-                "type_indivisible": "Non-Divisible (Unit)"
+                "type_indivisible": "Non-Divisible (Unit)",
+                "type_reusable": "Reusable (Multi-use)"
             },
             "empty": "No current stock for this item",
             "active_badge": "Active",

@@ -138,10 +138,15 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
                                 >
                                     <option value="NON_DIVISIBLE">{t('inventory.material_details.settings.type_indivisible')}</option>
                                     <option value="DIVISIBLE">{t('inventory.material_details.settings.type_divisible')}</option>
+                                    <option value="REUSABLE">{t('inventory.material_details.settings.type_reusable')}</option>
                                 </select>
                             ) : (
-                                <span className={`text-sm font-medium ${formData.type === 'DIVISIBLE' ? 'text-blue-600' : 'text-gray-700'}`}>
-                                    {formData.type === 'DIVISIBLE' ? t('inventory.material_details.settings.type_divisible') : t('inventory.material_details.settings.type_indivisible')}
+                                <span className={`text-sm font-medium ${formData.type === 'DIVISIBLE' ? 'text-blue-600' : formData.type === 'REUSABLE' ? 'text-emerald-600' : 'text-gray-700'}`}>
+                                    {formData.type === 'DIVISIBLE' 
+                                        ? t('inventory.material_details.settings.type_divisible') 
+                                        : formData.type === 'REUSABLE' 
+                                            ? t('inventory.material_details.settings.type_reusable') 
+                                            : t('inventory.material_details.settings.type_indivisible')}
                                 </span>
                             )}
                         </div>

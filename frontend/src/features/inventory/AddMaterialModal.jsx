@@ -207,6 +207,7 @@ const AddMaterialModal = ({ isOpen, onClose, initialData = null }) => {
                             >
                                 <option value="NON_DIVISIBLE">{t('inventory.types.indivisible')} (Units)</option>
                                 <option value="DIVISIBLE">{t('inventory.types.divisible')} (Liquids/Gels)</option>
+                                <option value="REUSABLE">{t('inventory.types.reusable')}</option>
                             </select>
                         </div>
                         <div>
