@@ -14,7 +14,8 @@ export function EnhancedMaterialConsumption({
     mode = 'smart', // 'smart' | 'manual'
     onSave,
     onClose,
-    isOpen
+    isOpen,
+    isLoading = false
 }) {
     const queryClient = useQueryClient();
     // Track if we've initialized for this modal session
@@ -25,13 +26,13 @@ export function EnhancedMaterialConsumption({
     const [pickerOpen, setPickerOpen] = useState(false);
     // Auto-open picker for manual mode
     useEffect(() => {
+        console.log('[EMC_DEBUG] Picker effect triggered:', { isOpen, mode, materialsCount: availableMaterials?.length });
         if (isOpen && mode === 'manual') {
-            console.log('[EMC_DEBUG] Opening picker. availableMaterials:', availableMaterials?.length, 'items', availableMaterials);
             setPickerOpen(true);
         } else {
             setPickerOpen(false);
         }
-    }, [isOpen, mode]);
+    }, [isOpen, mode, availableMaterials]); // Added availableMaterials to dependencies
     // CRITICAL FIX: Only sync from props when modal OPENS (transition from closed to open)
     // Never overwrite while modal is already open
     useEffect(() => {
@@ -49,18 +50,21 @@ export function EnhancedMaterialConsumption({
         }
         // Case 3: Modal is open and we have data to initialize with
         if (isOpen && !hasInitializedRef.current && Array.isArray(availableMaterials) && Array.isArray(initialMaterials)) {
+            console.log('[EMC_DEBUG] Initializing materials from:', initialMaterials.length, 'items');
             const mapped = initialMaterials.map(m => {
-                const matInfo = availableMaterials.find(am => am.id === parseInt(m.material_id)) || {};
+                const targetId = parseInt(m.material_id || m.id);
+                const matInfo = availableMaterials.find(am => (am.material_id || am.id) === targetId) || {};
+                
                 return {
-                    materialId: parseInt(m.material_id),
-                    materialName: matInfo.name || 'Unknown',
-                    quantity: parseFloat(m.quantity),
-                    unit: m.unit || matInfo.base_unit,
+                    materialId: targetId,
+                    materialName: matInfo.material_name || matInfo.name || 'Unknown',
+                    quantity: parseFloat(m.quantity) || 1,
+                    unit: matInfo.unit || matInfo.base_unit || 'وحدة',
                     suggested: false
                 };
             });
             setMaterials(mapped);
-            hasInitializedRef.current = true; // Mark as initialized - NO MORE OVERWRITES
+            hasInitializedRef.current = true;
             console.log('[EnhancedMaterialConsumption] Initialized materials:', mapped);
         }
     }, [isOpen, availableMaterials, initialMaterials]);
@@ -118,33 +122,12 @@ export function EnhancedMaterialConsumption({
     }, [stockCheckData]);
     const hasCritical = warnings.some(w => w.type === 'critical');
     const handleSave = async () => {
-        // 1. Check for materials needing Open Confirmation
-        // We need to know which ones are "New/Closed" but `stockCheckData` only returns qty.
-        // The backend consumes_stock throws error `CONFIRM_OPEN_REQUIRED`. 
-        // So we can try to save, catch that error, show confirm dialog.
         try {
             onSave(materials);
             onClose();
         } catch (error) {
             console.error("Save failed", error);
         }
-    };
-    // Actually `onSave` just passes data to parent (TreatmentModal). 
-    // The parent calls the API. The parent needs to handle the confirmation workflow.
-    // BUT we are in `EnhancedMaterialConsumption`.
-    // Let's modify the parent logic OR we can do a "Pre-Check" here if we want.
-    // The user requirement says "System must ask for approval".
-    // Best place: The backend throws specific error. The UI catches it and shows "Confirm Open?".
-    // Then re-tries with `auto_open=true`.
-    // Since `onSave` is just passing data, we should update `TreatmentModal` or whoever calls API.
-    // Let's create an `SmartStockHandler` component or hook in the parent.
-    // WAIT: `EnhancedMaterialConsumption` is just a picker.
-    // The API call happens in `TreatmentModal.jsx` -> `createTreatment`.
-    // We should look at `TreatmentModal.jsx`.
-    // Placeholder to avoid breaking current file logic.
-    const handleSavePlaceholder = () => {
-        onSave(materials);
-        onClose();
     };
     const updateMaterial = (index, updated) => {
         const newMats = [...materials];
@@ -196,26 +179,30 @@ export function EnhancedMaterialConsumption({
                                 <div className="flex gap-2">
                                     <select
                                         className="flex-1 p-2 rounded-lg border border-blue-200 outline-none"
-                                        onChange={(e) => addManualMaterial(e.target.value)}
+                                        onChange={(e) => {
+                                            console.log('[EMC_DEBUG] Select changed to:', e.target.value);
+                                            addManualMaterial(e.target.value);
+                                        }}
                                         value=""
+                                        onClick={() => console.log('[EMC_DEBUG] Select clicked. Current materials count:', availableMaterials?.length)}
                                     >
-                                        <option value="">-- اختر مادة --</option>
-                                        {Array.isArray(availableMaterials) && availableMaterials.length > 0 ? (
-                                            availableMaterials.map(m => {
-                                                const id = m.material_id || m.id;
-                                                const name = m.material_name || m.name;
-                                                const unit = m.unit || m.base_unit;
-                                                const qty = m.total_quantity !== undefined ? m.total_quantity : m.quantity;
-                                                
-                                                return (
-                                                    <option key={id} value={id}>
-                                                        {name} {qty !== undefined ? `(${qty} ${unit})` : `(${unit})`}
-                                                    </option>
-                                                );
-                                            })
-                                        ) : (
-                                            <option disabled value="">لا توجد مواد في المخزن</option>
-                                        )}
+                                        <option value="">{isLoading ? 'جاري التحميل...' : '-- اختر مادة --'}</option>
+                                        {isLoading ? (
+                                            <option disabled>جاري تحميل المواد من المخزن...</option>
+                                        ) : Array.isArray(availableMaterials) && availableMaterials.length > 0 ? (
+                                             availableMaterials.map(m => {
+                                                 const id = m.material_id || m.id;
+                                                 const name = m.material_name || m.name;
+                                                 const stock = m.available ?? m.total_quantity ?? m.total_qty ?? '0';
+                                                 return (
+                                                     <option key={id} value={id}>
+                                                         {name} ({stock})
+                                                     </option>
+                                                 );
+                                             })
+                                         ) : (
+                                             <option disabled value="">لا توجد مواد في المخزن</option>
+                                         )}
                                     </select>
                                     <Button size="sm" variant="ghost" onClick={() => setPickerOpen(false)}>إلغاء</Button>
                                 </div>
