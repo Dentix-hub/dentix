@@ -179,10 +179,13 @@ export function SmartMaterialRow({
                                 step="0.01"
                                 min="0"
                                 value={material.quantity || 0}
-                                onChange={(e) => onChange({
-                                    ...material,
-                                    quantity: parseFloat(e.target.value) || 0
-                                })}
+                                onChange={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    onChange({
+                                        ...material,
+                                        quantity: Number.isFinite(val) ? val : 0
+                                    });
+                                }}
                                 className="w-20 text-center h-9"
                                 autoFocus
                             />

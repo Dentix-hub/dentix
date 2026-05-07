@@ -124,13 +124,21 @@ export default function TreatmentModal({
     if (!isOpen) return null;
     const handleSave = async (e) => {
         if (e) e.preventDefault();
-        // 0. Smart Inventory Pre-Check (Client Side Optimization)
+        
+        // Clean and validate consumed materials
+        const cleanedMaterials = (consumedMaterials || [])
+            .map(m => ({
+                material_id: m.material_id || m.id,
+                quantity: Number.isFinite(parseFloat(m.quantity)) ? parseFloat(m.quantity) : 1
+            }))
+            .filter(m => m.quantity > 0 && m.material_id);
+
         const payload = {
+            ...treatment,
             patient_id: treatment.patient_id,
             doctor_id: treatment.doctor_id,
-            procedure: treatment.procedure,
-            diagnosis: treatment.diagnosis,
             tooth_number: !isNaN(parseInt(treatment.tooth_number)) ? parseInt(treatment.tooth_number, 10) : null,
+            procedure_id: safeProcedures.find(p => p.name === treatment.procedure)?.id,
             cost: parseFloat(treatment.cost) || 0,
             discount: parseFloat(treatment.discount) || 0,
             status: treatment.status || 'Done',
@@ -138,59 +146,53 @@ export default function TreatmentModal({
             canal_count: !isNaN(parseInt(treatment.canal_count)) ? parseInt(treatment.canal_count, 10) : null,
             sessions: treatment.sessions,
             complications: treatment.complications,
-            consumedMaterials: (consumedMaterials || [])
-                .filter(m => (m.material_id || m.materialId)) // Filter out empty entries
-                .map(m => ({
-                    material_id: parseInt(m.material_id || m.materialId, 10),
-                    quantity: parseFloat(m.quantity) || 1
-                })).filter(m => !isNaN(m.material_id)) // Final safety guard
+            consumedMaterials: cleanedMaterials
         };
+
+        console.log('[TREATMENT] Saving with payload:', payload);
+
         try {
             await onSave(payload);
         } catch (error) {
-            // Handle 409 Conflict (Structured Data)
-            // Backend now returns detailed logic in `error.details`
-            const errorData = error.response?.data?.error;
-            const errorDetails = errorData?.details;
-            if (error.response?.status === 409) {
-                // Check structured details first
-                if (errorDetails?.code === "CONFIRM_OPEN_REQUIRED") {
-                    const stockId = errorDetails.stock_item_id;
-                    const matName = errorDetails.material_info;
-                    setConfirmOpenMaterial({
-                        stockItemId: stockId,
-                        name: matName
-                    });
-                    // Set mode for TrackSessionModal
-                    setTrackSessionMaterial({ name: matName, id: stockId });
-                    setTrackSessionMode('OPEN');
-                    setIsTrackSessionOpen(true);
-                    return;
-                }
+            console.error('[TREATMENT] Save Error Details:', {
+                status: error.response?.status,
+                data: error.response?.data,
+                message: error.message
+            });
+
+            const errDetail = error.response?.data?.detail;
+            
+            // Case 1: Structured Detail (Latest Backend 409 Conflict)
+            if (errDetail && typeof errDetail === 'object' && errDetail.code === 'CONFIRM_OPEN_REQUIRED') {
+                setTrackSessionMode('OPEN');
+                setTrackSessionMaterial({
+                    id: errDetail.stock_item_id,
+                    name: errDetail.material_info
+                });
+                setIsTrackSessionOpen(true);
+                return;
             }
-            // Fallback / Legacy String Parsing
-            const res = error?.response?.data;
-            const errorMsg = res?.error?.message || res?.detail || res?.message || "";
-            if (typeof errorMsg === 'string' && errorMsg.includes("CONFIRM_OPEN_REQUIRED")) {
-                const parts = errorMsg.split('CONFIRM_OPEN_REQUIRED:');
-                if (parts.length > 1) {
-                    const infoParts = parts[1].split(':');
-                    if (infoParts.length >= 1) {
-                        const stockId = infoParts[0];
-                        const matName = infoParts.slice(1).join(':') || "Unknown Material";
-                        setConfirmOpenMaterial({
-                            stockItemId: stockId,
-                            name: matName
-                        });
-                        setTrackSessionMaterial({ name: matName, id: stockId });
-                        setTrackSessionMode('OPEN');
-                        setIsTrackSessionOpen(true);
-                        return;
-                    }
-                }
+
+            // Case 2: Legacy String Detail
+            const errorMsg = typeof errDetail === 'string' ? errDetail : '';
+            if (errorMsg.includes('CONFIRM_OPEN_REQUIRED')) {
+                const parts = errorMsg.split(':');
+                setTrackSessionMode('OPEN');
+                setTrackSessionMaterial({
+                    id: parseInt(parts[1]),
+                    name: parts[2] || 'Material'
+                });
+                setIsTrackSessionOpen(true);
+                return;
             }
-            // Re-throw if not ours
-            throw error;
+
+            // Case 3: Generic Error (400 Bad Request or 500)
+            const friendlyMsg = typeof errDetail === 'string' ? errDetail : 
+                               (errDetail?.message || error.message || 'فشل حفظ العلاج');
+            
+            toast.error(friendlyMsg);
+        } finally {
+            setIsSaving(false);
         }
     };
     return (

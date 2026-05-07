@@ -64,7 +64,7 @@ export function EnhancedMaterialConsumption({
                     id: Math.random(), // Use random for internal keying
                     material_id: targetId,
                     material_name: m.name || m.material_name || matInfo.material_name || matInfo.name || 'Unknown',
-                    quantity: parseFloat(m.quantity) || 1,
+                    quantity: Number.isFinite(parseFloat(m.quantity)) ? parseFloat(m.quantity) : 1,
                     unit: m.unit || matInfo.unit || matInfo.base_unit || 'وحدة',
                     is_manual: m.is_manual || m.is_manual_override || false
                 };
