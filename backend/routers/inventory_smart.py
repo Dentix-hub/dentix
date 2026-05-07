@@ -84,7 +84,7 @@ def get_category_based_suggestions(
 
 @router.post("/check-availability")
 def check_availability(
-    materials: List[Dict[str, Any]],  # [{material_id, quantity}]
+    request_data: Dict[str, Any], # Changed from List to Dict to support patient_id
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
@@ -93,6 +93,8 @@ def check_availability(
     Returns warnings if stock is low or expired.
     FIXED: Includes items with Active Sessions (quantity may be 0 but usable)
     """
+    materials = request_data.get("materials", [])
+    patient_id = request_data.get("patient_id")
     results = []
 
     for item in materials:
@@ -106,9 +108,10 @@ def check_availability(
             .first()
         )
         material_name = material.name if material else "Unknown Material"
+        material_type = material.type if material else "DIVISIBLE"
 
         # Check for active sessions for this material (virtual stock for divisible items)
-        has_active_session = (
+        session_query = (
             db.query(inv_models.MaterialSession)
             .join(inv_models.StockItem)
             .join(inv_models.Batch)
@@ -116,9 +119,23 @@ def check_availability(
                 inv_models.Batch.material_id == mat_id,
                 inv_models.MaterialSession.status == "ACTIVE",
             )
-            .count()
-            > 0
         )
+        
+        # Patient-specific awareness
+        if patient_id:
+            # Prioritize sessions for this patient
+            patient_session = session_query.filter(inv_models.MaterialSession.patient_id == patient_id).first()
+            if patient_session:
+                active_session = patient_session
+            else:
+                # If no patient session, check if there's a GENERAL session (null patient_id)
+                active_session = session_query.filter(inv_models.MaterialSession.patient_id.is_(None)).first()
+        else:
+            active_session = session_query.first()
+
+        has_active_session = active_session is not None
+        current_uses = active_session.current_uses if active_session else 0
+        session_id = active_session.id if active_session else None
 
         # Get total available stock (include 0-quantity items if active session exists)
         if has_active_session:
@@ -144,6 +161,8 @@ def check_availability(
             # Material has active session - always OK (virtual consumption)
             status = "OK"
             message = "جلسة مفتوحة (استهلاك افتراضي)"
+            if patient_id and active_session.patient_id == patient_id:
+                message = "جلسة نشطة لهذا المريض"
         elif total_available == 0:
             status = "CRITICAL"
             message = "Out of stock"
@@ -155,6 +174,7 @@ def check_availability(
             {
                 "material_id": mat_id,
                 "material_name": material_name,
+                "material_type": material_type,
                 "available": total_available
                 if total_available != float("inf")
                 else 999,
@@ -162,6 +182,8 @@ def check_availability(
                 "status": status,
                 "message": message,
                 "has_active_session": has_active_session,
+                "current_uses": current_uses,
+                "session_id": session_id,
             }
         )
 

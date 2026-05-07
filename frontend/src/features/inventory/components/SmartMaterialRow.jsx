@@ -6,8 +6,11 @@ export function SmartMaterialRow({
     material,
     stockInfo,
     onChange,
-    onRemove
+    onRemove,
+    patientId,
+    onRefresh
 }) {
+    const [isDisposing, setIsDisposing] = useState(false);
     // Check if this is a divisible material based on unit
     const isDivisible = ['ml', 'g', 'cm'].includes(material.unit?.toLowerCase());
     // Generate quick amounts based on unit
@@ -103,9 +106,40 @@ export function SmartMaterialRow({
                             </span>
                         )}
                         {stockInfo && stockStatus === 'session_active' && (
-                            <span className="text-sm text-green-700 font-medium">
-                                استهلاك افتراضي (لا حاجة للتحقق من الكمية)
-                            </span>
+                            <div className="flex flex-col gap-1">
+                                <span className="text-sm text-green-700 font-bold flex items-center gap-1">
+                                    استهلاك افتراضي (جلسة نشطة)
+                                    {stockInfo.material_type === 'REUSABLE' && (
+                                        <Badge variant="success" className="bg-green-600 text-white animate-pulse">
+                                            استخدام: {stockInfo.current_uses + 1}
+                                        </Badge>
+                                    )}
+                                </span>
+                                {stockInfo.material_type === 'REUSABLE' && (
+                                    <button 
+                                        onClick={async () => {
+                                            if (window.confirm('هل أنت متأكد من إتلاف هذه الأداة؟ سيتم حساب التكلفة النهائية.')) {
+                                                setIsDisposing(true);
+                                                try {
+                                                    await api.post(`/api/v1/inventory/sessions/${stockInfo.session_id}/close`, {
+                                                        reason: 'Manual Disposal during treatment'
+                                                    });
+                                                    toast.success("تم إتلاف الأداة بنجاح");
+                                                    onRefresh?.();
+                                                } catch (err) {
+                                                    toast.error("فشل إتلاف الأداة");
+                                                } finally {
+                                                    setIsDisposing(false);
+                                                }
+                                            }
+                                        }}
+                                        disabled={isDisposing}
+                                        className="text-[10px] text-red-600 font-bold hover:underline text-right"
+                                    >
+                                        {isDisposing ? 'جاري الإتلاف...' : '⚠️ إتلاف الأداة الآن (أصبحت غير صالحة)'}
+                                    </button>
+                                )}
+                            </div>
                         )}
                     </div>
                 </div>

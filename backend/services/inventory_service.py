@@ -363,7 +363,7 @@ class InventoryService:
         )
 
     def open_session(
-        self, stock_item_id: int, user_id: int, db: Session = None
+        self, stock_item_id: int, user_id: int, patient_id: Optional[int] = None, db: Session = None
     ) -> MaterialSession:
         """
         Explicitly open a material package (Session).
@@ -418,6 +418,7 @@ class InventoryService:
             status="ACTIVE",
             remaining_est=1.0,  # 100%
             doctor_id=user_id,  # Initial opener
+            patient_id=patient_id,
         )
         db.add(session)
         db.commit()
@@ -481,6 +482,7 @@ class InventoryService:
         warehouse_id: Optional[int] = None,
         auto_open: bool = False,
         reference_id: Optional[str] = None,
+        patient_id: Optional[int] = None,
         db: Session = None,
     ) -> List[StockMovement]:
         """
@@ -513,9 +515,15 @@ class InventoryService:
             .filter(
                 Batch.material_id == material_id, MaterialSession.status == "ACTIVE"
             )
-            .count()
-            > 0
         )
+        
+        # If patient_id is provided, prioritize sessions for that patient
+        if patient_id:
+            has_active_session_for_material = has_active_session_for_material.filter(
+                MaterialSession.patient_id == patient_id
+            )
+            
+        has_active_session_for_material = has_active_session_for_material.count() > 0
 
         # Only enforce integer check if NO active session
         if (
@@ -568,12 +576,17 @@ class InventoryService:
         stock_items = items_with_session + items_without_session
 
         # S.1: Check for Active Session (Virtual Stock)
-        # FIX: Check if ANY stock item has an active session (regardless of DIVISIBLE/NON_DIVISIBLE type)
         has_active_session = False
+        active_si_with_session = None
         for si in stock_items:
             sess = self.get_active_session(si.id, db)
             if sess:
+                # If patient-specific tracking is on, ensure it matches
+                if patient_id and sess.patient_id and sess.patient_id != patient_id:
+                    continue
+                
                 has_active_session = True
+                active_si_with_session = si
                 break
 
         total_available = sum(si.quantity for si in stock_items)
@@ -618,14 +631,11 @@ class InventoryService:
             if session:
                 # 1. Increment Usage Counter for Reusable Tools
                 mat = si.batch.material
-                if mat and mat.max_uses > 1:
+                if mat and (mat.type == "REUSABLE" or mat.max_uses > 1):
                     session.current_uses += 1
                     
-                    # 2. Check if reached limit
-                    if session.current_uses >= mat.max_uses:
-                        session.status = "CLOSED"
-                        session.closed_at = datetime.now(timezone.utc)
-                        # We don't trigger learning here because it's a Tool, not a consumable volume
+                    # Note: We removed the hard limit check as requested
+                    # Doctors will manually discard tools
                 
                 # Satisfy request fully from this open session
                 # Assume infinite capacity until closed manually

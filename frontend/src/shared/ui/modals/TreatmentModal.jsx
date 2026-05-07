@@ -632,7 +632,8 @@ export default function TreatmentModal({
                 isOpen={isSmartConsumptionOpen}
                 onClose={() => setIsSmartConsumptionOpen(false)}
                 procedure={safeProcedures.find(p => p.name === treatment.procedure)}
-                patientAge={null} // Add logic if needed
+                patientAge={null} 
+                patientId={treatment.patient_id}
                 availableMaterials={availableMaterials}
                 isLoading={isMaterialsLoading}
                 initialMaterials={consumedMaterials}

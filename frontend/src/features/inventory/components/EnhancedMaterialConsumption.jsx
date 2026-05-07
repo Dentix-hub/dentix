@@ -12,6 +12,7 @@ export function EnhancedMaterialConsumption({
     availableMaterials = [],
     initialMaterials = [], // [{ material_id, quantity, unit }]
     mode = 'smart', // 'smart' | 'manual'
+    patientId = null,
     onSave,
     onClose,
     isOpen,
@@ -79,10 +80,13 @@ export function EnhancedMaterialConsumption({
         queryKey: ['stock-check', materials],
         queryFn: async () => {
             if (!materials || materials.length === 0) return [];
-            const payload = materials.map(m => ({ 
-                material_id: m.material_id || m.id, 
-                quantity: m.quantity 
-            }));
+            const payload = {
+                materials: materials.map(m => ({ 
+                    material_id: m.material_id || m.id, 
+                    quantity: m.quantity 
+                })),
+                patient_id: patientId
+            };
             const res = await api.post('/api/v1/inventory/smart/check-availability', payload);
             const rawData = res.data?.data;
             return Array.isArray(rawData) ? rawData : [];
@@ -196,9 +200,11 @@ export function EnhancedMaterialConsumption({
                             <SmartMaterialRow
                                 key={mat.material_id || mat.id || idx}
                                 material={mat}
+                                patientId={patientId}
                                 stockInfo={stockCheckData?.find(s => s.material_id === (mat.material_id || mat.id))}
                                 onChange={(updated) => updateMaterial(idx, updated)}
                                 onRemove={() => removeMaterial(idx)}
+                                onRefresh={() => queryClient.invalidateQueries(['stock-check', materials])}
                             />
                         ))}
                         {/* Inline Picker */}
