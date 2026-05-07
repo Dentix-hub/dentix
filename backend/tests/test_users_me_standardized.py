@@ -10,13 +10,13 @@ def test_get_user_me_standardized(client, auth_headers, test_user):
     """
     response = client.get("/api/v1/users/me", headers=auth_headers)
     assert response.status_code == 200
-    
+
     data = response.json()
     # Check for StandardResponse structure
     assert "success" in data
     assert data["success"] is True
     assert "data" in data
-    
+
     user_data = data["data"]
     assert user_data["id"] == test_user.id
     assert user_data["username"] == test_user.username
@@ -33,7 +33,7 @@ def test_update_user_me_standardized(client, auth_headers, test_user):
         headers=auth_headers
     )
     assert response.status_code == 200
-    
+
     data = response.json()
     assert data["success"] is True
     assert data["data"]["email"] == new_email

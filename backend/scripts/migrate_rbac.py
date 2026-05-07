@@ -21,7 +21,7 @@ for filename, default_perm in FILES_TO_MIGRATE.items():
     if not os.path.exists(filepath):
         print(f"Skipping {filename}, not found.")
         continue
-        
+
     with open(filepath, 'r', encoding='utf-8') as f:
         content = f.read()
 
@@ -35,9 +35,9 @@ for filename, default_perm in FILES_TO_MIGRATE.items():
     if "require_permission" not in content and "Permission" not in content:
         # insert after first block of imports
         content = re.sub(
-            r"(from fastapi import.*?\n)", 
-            f"\\1{import_stmt}\n", 
-            content, 
+            r"(from fastapi import.*?\n)",
+            f"\\1{import_stmt}\n",
+            content,
             count=1,
             flags=re.DOTALL
         )
@@ -51,7 +51,7 @@ for filename, default_perm in FILES_TO_MIGRATE.items():
 
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(new_content)
-        
+
     print(f"Migrated {filename} with default {default_perm}")
 
 print("Migration script executed.")

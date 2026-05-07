@@ -42,7 +42,7 @@ def mock_db():
     query.order_by.return_value = query
     query.first.return_value = None
     query.all.return_value = []
-    
+
     return session
 
 
@@ -302,6 +302,7 @@ class TestStockConsumption:
                 tenant_id=1,
                 user_id=mock_user.id,
                 reference_id="TREATMENT:50",
+                patient_id=None,
                 db=treatment_service.db,
             )
 

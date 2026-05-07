@@ -22,7 +22,7 @@ def test_smart_costing_flow(db_session):
     uid = str(uuid.uuid4())[:8]
     mat_name = f"Gold Amalgam {uid}"
     proc_name = f"Gold Filling {uid}"
-    
+
     try:
         tenant_id = 1
         print(f"\n--- Starting Smart Costing Verification ({uid}) ---")
@@ -67,9 +67,9 @@ def test_smart_costing_flow(db_session):
 
         # 3. Link them (BOM)
         bom = ProcedureMaterialWeight(
-            procedure_id=proc.id, 
-            material_id=mat.id, 
-            tenant_id=tenant_id, 
+            procedure_id=proc.id,
+            material_id=mat.id,
+            tenant_id=tenant_id,
             weight=2.0,
             current_average_usage=2.0  # Crucial: Set learned usage to 2g
         )
@@ -88,7 +88,7 @@ def test_smart_costing_flow(db_session):
         # Cleanup: Only what we created
         db.delete(bom)
         db.delete(proc)
-        # We don't delete the material to avoid foreign key issues with logs, 
+        # We don't delete the material to avoid foreign key issues with logs,
         # but since the name is unique it won't collide.
         db.commit()
 

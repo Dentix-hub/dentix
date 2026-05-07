@@ -22,7 +22,7 @@ for row in cursor.fetchall():
 
 print("\n=== All Active Sessions ===")
 cursor.execute("""
-    SELECT 
+    SELECT
         ms.id as session_id,
         ms.status,
         si.id as stock_item_id,

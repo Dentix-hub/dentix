@@ -32,7 +32,7 @@ def upgrade() -> None:
         if 'ix_ai_usage_logs_user_id' in existing_indexes:
             op.drop_index('ix_ai_usage_logs_user_id', table_name='ai_usage_logs')
         op.drop_table('ai_usage_logs')
-    
+
     if 'appointments' in existing_tables:
         columns = [c["name"] for c in inspector.get_columns("appointments")]
         if 'tenant_id' in columns:
@@ -41,12 +41,12 @@ def upgrade() -> None:
             if any(fk["name"] == "appointments_tenant_id_fkey" for fk in fks):
                 op.drop_constraint('appointments_tenant_id_fkey', 'appointments', type_='foreignkey')
             op.drop_column('appointments', 'tenant_id')
-    
+
     if 'saved_medications' in existing_tables:
         existing_indexes = [idx["name"] for idx in inspector.get_indexes('saved_medications')]
         if 'ix_saved_medications_tenant_id' in existing_indexes:
             op.drop_index('ix_saved_medications_tenant_id', table_name='saved_medications')
-            
+
     if 'support_messages' in existing_tables:
         existing_indexes = [idx["name"] for idx in inspector.get_indexes('support_messages')]
         if 'ix_support_messages_status' in existing_indexes:

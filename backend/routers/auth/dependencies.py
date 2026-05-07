@@ -76,7 +76,7 @@ def validate_password(password: str) -> None:
 
 def get_current_user(
     request: Request,
-    token: str | None = Depends(get_token_from_header_or_cookie), 
+    token: str | None = Depends(get_token_from_header_or_cookie),
     db: Session = Depends(get_db)
 ):
     """Validate JWT token and return current user."""
@@ -135,22 +135,22 @@ def get_current_user(
 
         sub_end = user.tenant.subscription_end_date
         now = datetime.now(timezone.utc)
-        
+
         if sub_end:
             if sub_end.tzinfo is None:
                 sub_end = sub_end.replace(tzinfo=timezone.utc)
-            
+
             if sub_end < now:
                 # Check for Grace Period
                 grace_end = user.tenant.grace_period_until
                 is_grace = False
-                
+
                 if grace_end:
                     if grace_end.tzinfo is None:
                         grace_end = grace_end.replace(tzinfo=timezone.utc)
                     if now <= grace_end:
                         is_grace = True
-                
+
                 if not is_grace:
                     # Subscription AND Grace Period expired - Allow Read-Only (GET)
                     if request.method != "GET":

@@ -49,7 +49,7 @@ def fix_global_procedures():
             # 3. Get Default Price List
             price_list = conn.execute(
                 text("""
-                SELECT id FROM price_lists 
+                SELECT id FROM price_lists
                 WHERE tenant_id = :tid AND is_default = TRUE
             """),
                 {"tid": tenant_id},
@@ -68,7 +68,7 @@ def fix_global_procedures():
                 # Check if exists
                 exists = conn.execute(
                     text("""
-                    SELECT id FROM price_list_items 
+                    SELECT id FROM price_list_items
                     WHERE price_list_id = :plid AND procedure_id = :pid
                 """),
                     {"plid": pl_id, "pid": proc_id},

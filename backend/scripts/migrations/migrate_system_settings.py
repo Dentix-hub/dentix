@@ -32,7 +32,7 @@ def run_migration():
             conn.execute(
                 text("""
                 INSERT INTO system_settings (key, value, description, updated_at)
-                VALUES 
+                VALUES
                 ('maintenance_mode', 'false', 'Enable maintenance mode to block non-admin logins', CURRENT_TIMESTAMP),
                 ('global_announcement', '', 'Global banner text shown to all users', CURRENT_TIMESTAMP)
                 ON CONFLICT (key) DO NOTHING

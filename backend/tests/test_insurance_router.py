@@ -9,18 +9,18 @@ def test_create_insurance_provider(client, admin_headers, db_session):
         "contact_email": "contact@ghi.com"
     }
     response = client.post("/api/v1/insurance-providers", json=payload, headers=admin_headers)
-    
+
     assert response.status_code == 200
     res = response.json()
     assert res["success"] is True
     data = res["data"]
     assert data["name"] == "Global Health Insurance"
-    
+
     # Verify DB state
     provider = db_session.query(InsuranceProvider).filter(InsuranceProvider.id == data["id"]).first()
     assert provider is not None
     assert provider.name == "Global Health Insurance"
-    
+
     # Verify auto-created price list
     price_list = db_session.query(PriceList).filter(PriceList.insurance_provider_id == provider.id).first()
     assert price_list is not None
@@ -31,7 +31,7 @@ def test_get_insurance_providers(client, admin_headers, db_session, test_tenant)
     provider = InsuranceProvider(name="AXA", tenant_id=test_tenant.id, is_active=True)
     db_session.add(provider)
     db_session.commit()
-    
+
     response = client.get("/api/v1/insurance-providers", headers=admin_headers)
     assert response.status_code == 200
     res = response.json()
@@ -44,10 +44,10 @@ def test_update_insurance_provider(client, admin_headers, db_session, test_tenan
     provider = InsuranceProvider(name="Old Name", tenant_id=test_tenant.id, is_active=True)
     db_session.add(provider)
     db_session.commit()
-    
+
     payload = {"name": "New Name"}
     response = client.put(f"/api/v1/insurance-providers/{provider.id}", json=payload, headers=admin_headers)
-    
+
     assert response.status_code == 200
     db_session.refresh(provider)
     assert provider.name == "New Name"
@@ -56,15 +56,15 @@ def test_deactivate_insurance_provider(client, admin_headers, db_session, test_t
     provider = InsuranceProvider(name="To Deactivate", tenant_id=test_tenant.id, is_active=True)
     db_session.add(provider)
     db_session.flush()
-    
+
     # Add a price list
     pl = PriceList(name="Test PL", insurance_provider_id=provider.id, tenant_id=test_tenant.id, is_active=True)
     db_session.add(pl)
     db_session.commit()
-    
+
     response = client.delete(f"/api/v1/insurance-providers/{provider.id}", headers=admin_headers)
     assert response.status_code == 200
-    
+
     db_session.refresh(provider)
     db_session.refresh(pl)
     assert provider.is_active is False

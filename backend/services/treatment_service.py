@@ -229,7 +229,7 @@ class TreatmentService:
 
         # 6. Consume stock (post-creation)
         self.consume_treatment_stock(
-            created_treatment.id, 
+            created_treatment.id,
             treatment_data.consumedMaterials or [],
             patient_id=treatment_data.patient_id
         )
@@ -276,7 +276,7 @@ class TreatmentService:
 
         # 3. Consume stock (post-update)
         self.consume_treatment_stock(
-            treatment_id, 
+            treatment_id,
             treatment_data.consumedMaterials or [],
             patient_id=treatment_data.patient_id
         )

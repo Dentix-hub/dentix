@@ -19,18 +19,18 @@ def run_final_setup():
     """Final setup: seeding and verification."""
     # Ensure env is loaded
     load_dotenv(os.path.join(project_root, ".env"))
-    
+
     logger.info("Starting Final Seeding & Verification...")
-    
+
     try:
         # 1. Seed Subscription Plans
         logger.info("Seeding Subscription Plans...")
         seeding.seed_subscription_plans()
-        
+
         # 2. Create First Admin
         logger.info("Creating First Admin...")
         seeding.create_first_admin()
-        
+
         # 3. Test Firebase Initialization
         logger.info("Testing Firebase Initialization...")
         firebase_manager.initialize()
@@ -38,9 +38,9 @@ def run_final_setup():
             logger.info("Firebase Integration: SUCCESS")
         else:
             logger.error("Firebase Integration: FAILED (Check credentials)")
-            
+
         logger.info("Final Setup Complete.")
-        
+
     except Exception as e:
         logger.exception(f"Error during final setup: {e}")
 

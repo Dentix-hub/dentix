@@ -180,9 +180,9 @@ def test_check_availability(test_db):
     mat2 = test_db.query(models.Material).filter_by(name="Bonding Agent").first()
 
     # 1. Check sufficient stock
-    payload = [
-        {"material_id": mat1.id, "quantity": 10}  # Have 50
-    ]
+    payload = {
+        "materials": [{"material_id": mat1.id, "quantity": 10}]  # Have 50
+    }
     res = client.post(
         "/api/v1/inventory/smart/check-availability", json=payload, headers=headers
     )
@@ -191,9 +191,9 @@ def test_check_availability(test_db):
     assert data[0]["status"] == "OK"
 
     # 2. Check insufficient stock
-    payload_high = [
-        {"material_id": mat1.id, "quantity": 100}  # Have 50
-    ]
+    payload_high = {
+        "materials": [{"material_id": mat1.id, "quantity": 100}]  # Have 50
+    }
     res = client.post(
         "/api/v1/inventory/smart/check-availability", json=payload_high, headers=headers
     )
@@ -201,7 +201,9 @@ def test_check_availability(test_db):
     assert data[0]["status"] == "WARNING"  # or CRITICAL depending on implementation
 
     # 3. Check out of stock (Mat2 has 0 stock)
-    payload_none = [{"material_id": mat2.id, "quantity": 1}]
+    payload_none = {
+        "materials": [{"material_id": mat2.id, "quantity": 1}]
+    }
     res = client.post(
         "/api/v1/inventory/smart/check-availability", json=payload_none, headers=headers
     )

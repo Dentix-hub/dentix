@@ -45,7 +45,7 @@ def upgrade() -> None:
         op.add_column("materials", sa.Column("category_id", sa.Integer(), nullable=True))
     if "brand" not in material_columns:
         op.add_column("materials", sa.Column("brand", sa.String(), nullable=True))
-    
+
     material_fks = inspector.get_foreign_keys("materials")
     if not any(fk["name"] == "fk_materials_category_id" for fk in material_fks):
         op.create_foreign_key("fk_materials_category_id", "materials", "material_categories", ["category_id"], ["id"])
@@ -54,7 +54,7 @@ def upgrade() -> None:
     weight_columns = [c["name"] for c in inspector.get_columns("procedure_material_weights")]
     if "category_id" not in weight_columns:
         op.add_column("procedure_material_weights", sa.Column("category_id", sa.Integer(), nullable=True))
-    
+
     weight_fks = inspector.get_foreign_keys("procedure_material_weights")
     if not any(fk["name"] == "fk_proc_weights_category_id" for fk in weight_fks):
         op.create_foreign_key("fk_proc_weights_category_id", "procedure_material_weights", "material_categories", ["category_id"], ["id"])

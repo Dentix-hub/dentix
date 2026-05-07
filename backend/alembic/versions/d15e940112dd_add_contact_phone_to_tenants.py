@@ -24,7 +24,7 @@ def upgrade() -> None:
     from sqlalchemy.engine.reflection import Inspector
     conn = op.get_bind()
     inspector = Inspector.from_engine(conn)
-    
+
     tenant_columns = [c["name"] for c in inspector.get_columns("tenants")]
     if "contact_phone" not in tenant_columns:
         op.add_column("tenants", sa.Column("contact_phone", sa.String(), nullable=True))

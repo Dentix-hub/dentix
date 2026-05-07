@@ -120,7 +120,7 @@ def check_availability(
                 inv_models.MaterialSession.status == "ACTIVE",
             )
         )
-        
+
         # Patient-specific awareness
         if patient_id:
             # Prioritize sessions for this patient
