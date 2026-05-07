@@ -129,6 +129,15 @@ export function EnhancedMaterialConsumption({
         }));
     }, [stockCheckData]);
     const hasCritical = warnings.some(w => w.type === 'critical');
+
+    const availableMaterialsList = useMemo(() => {
+        if (!Array.isArray(availableMaterials)) return [];
+        // Filter out materials already in the list
+        return availableMaterials.filter(am => 
+            !materials.some(m => (m.material_id || m.id) === (am.material_id || am.id))
+        );
+    }, [availableMaterials, materials]);
+
     const handleSave = async () => {
         try {
             onSave(materials);
@@ -149,6 +158,12 @@ export function EnhancedMaterialConsumption({
     };
     return (
         <Modal isOpen={isOpen} onClose={onClose} size="lg" title={`المواد المستخدمة: ${procedure?.name || ''}`}>
+            {/* DEBUG BANNER - ALWAYS VISIBLE IF DATA EXISTS */}
+            {availableMaterials?.length > 0 && (
+                <div className="bg-red-600 text-white p-1 text-[10px] text-center font-bold">
+                    DEBUG: {availableMaterials.length} مواد متوفرة | {availableMaterialsList.length} مصفاة
+                </div>
+            )}
             <div className="space-y-6">
                 {/* Warnings */}
                 {warnings.length > 0 && (
