@@ -62,6 +62,7 @@ def update_appointment_status(
 ):
     db_appt = (
         db.query(models.Appointment)
+        .join(models.Patient)
         .filter(
             models.Appointment.id == appointment_id,
             models.Appointment.is_deleted == False,  # noqa: E712
@@ -84,6 +85,7 @@ def delete_appointment(db: Session, appointment_id: int, tenant_id: int):
 
     db_appt = (
         db.query(models.Appointment)
+        .join(models.Patient)
         .filter(
             models.Appointment.id == appointment_id,
             models.Appointment.is_deleted == False,  # noqa: E712
@@ -106,6 +108,7 @@ def update_appointment(
     """Update appointment details."""
     db_appt = (
         db.query(models.Appointment)
+        .join(models.Patient)
         .filter(
             models.Appointment.id == appointment_id,
             models.Appointment.is_deleted == False,  # noqa: E712
