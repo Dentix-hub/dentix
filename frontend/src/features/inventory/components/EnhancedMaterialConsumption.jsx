@@ -33,50 +33,52 @@ export function EnhancedMaterialConsumption({
             setPickerOpen(false);
         }
     }, [isOpen, mode, availableMaterials]); // Added availableMaterials to dependencies
-    // CRITICAL FIX: Only sync from props when modal OPENS (transition from closed to open)
-    // Never overwrite while modal is already open
+    // CRITICAL FIX: Only sync from props when modal OPENS or when initialMaterials arrive
     useEffect(() => {
         const wasOpen = prevIsOpenRef.current;
         prevIsOpenRef.current = isOpen;
-        // Case 1: Modal just opened (transition from closed to open)
-        if (isOpen && !wasOpen) {
-            hasInitializedRef.current = false; // Reset for new session
-        }
-        // Case 2: Modal closed - reset for next time
-        if (!isOpen && wasOpen) {
-            hasInitializedRef.current = false;
-            setMaterials([]);
+
+        // Reset if modal closes
+        if (!isOpen) {
+            if (wasOpen) {
+                hasInitializedRef.current = false;
+                setMaterials([]);
+            }
             return;
         }
-        // Case 3: Modal is open and we have data to initialize with
-        // Only initialize if availableMaterials is populated (unless it's genuinely empty)
-        const isReadyToInitialize = isOpen && !hasInitializedRef.current && (availableMaterials.length > 0 || !isLoading);
+
+        // Initialize if:
+        // 1. Modal just opened
+        // 2. OR we haven't initialized yet and initialMaterials is now available
+        // 3. OR the current materials list is empty but initialMaterials has data (reactive pop-in)
+        const shouldInitialize = !hasInitializedRef.current || (materials.length === 0 && initialMaterials?.length > 0);
         
-        if (isReadyToInitialize && Array.isArray(initialMaterials)) {
-            console.log('[EMC_DEBUG] Initializing materials from:', initialMaterials.length, 'items');
+        if (shouldInitialize && Array.isArray(initialMaterials) && initialMaterials.length > 0) {
+            console.log('[EMC_DEBUG] Initializing/Syncing materials from:', initialMaterials.length, 'items');
             const mapped = initialMaterials.map(m => {
                 const targetId = parseInt(m.material_id || m.id || m.materialId);
                 const matInfo = availableMaterials.find(am => (am.material_id || am.id) === targetId) || {};
                 
                 return {
-                    id: Date.now() + Math.random(),
+                    id: Math.random(), // Use random for internal keying
                     material_id: targetId,
-                    material_name: matInfo.material_name || matInfo.name || m.material_name || m.name || 'Unknown',
+                    material_name: m.name || m.material_name || matInfo.material_name || matInfo.name || 'Unknown',
                     quantity: parseFloat(m.quantity) || 1,
-                    unit: matInfo.unit || matInfo.base_unit || m.unit || 'وحدة',
-                    is_manual: m.is_manual_override || m.is_manual || false
+                    unit: m.unit || matInfo.unit || matInfo.base_unit || 'وحدة',
+                    is_manual: m.is_manual || m.is_manual_override || false
                 };
             });
             setMaterials(mapped);
             hasInitializedRef.current = true;
-            console.log('[EnhancedMaterialConsumption] Initialized materials:', mapped);
+            console.log('[EMC_DEBUG] Materials State Updated:', mapped);
         }
-    }, [isOpen, availableMaterials, initialMaterials]);
+    }, [isOpen, initialMaterials, availableMaterials]); // Removed materials from deps to avoid loop, using internal check
+
     // Pre-flight Stock Check
     const { data: rawStockCheckData } = useQuery({
         queryKey: ['stock-check', materials],
         queryFn: async () => {
-            if (materials.length === 0) return [];
+            if (!materials || materials.length === 0) return [];
             const payload = materials.map(m => ({ 
                 material_id: m.material_id || m.id, 
                 quantity: m.quantity 
@@ -88,35 +90,39 @@ export function EnhancedMaterialConsumption({
         enabled: materials.length > 0
     });
     const stockCheckData = Array.isArray(rawStockCheckData) ? rawStockCheckData : [];
+
     const addManualMaterial = (materialId) => {
+        console.log('[EMC_ACTION] addManualMaterial called for ID:', materialId);
         const mat = availableMaterials.find(m => (m.material_id || m.id) === parseInt(materialId));
-        if (!mat) return;
-        // Prevent duplicates
-        if (materials.some(m => (m.material_id || m.materialId) === (mat.material_id || mat.id))) {
+        
+        if (!mat) {
+            console.error('[EMC_ERROR] Material not found in available list:', materialId);
+            return;
+        }
+
+        // Prevent duplicates using normalized IDs
+        const normalizedTargetId = parseInt(mat.material_id || mat.id);
+        if (materials.some(m => parseInt(m.material_id || m.id) === normalizedTargetId)) {
+            console.warn('[EMC_WARN] Material already added:', normalizedTargetId);
             toast.error("هذه المادة مضافة بالفعل");
             setPickerOpen(false);
             return;
         }
-        // Check for smart suggestion (Relative Weight)
-        let initialQuantity = 1;
-        // Check if material is divisible (by type or unit)
+
         const isDivisible = mat.material_type === 'DIVISIBLE' || mat.type === 'DIVISIBLE' || ['ml', 'g', 'cm'].includes(mat.base_unit?.toLowerCase());
-        if (isDivisible) {
-            // FIX: For manual addition of divisible items (g/ml), always start with small relative weight (0.1)
-            // The user prefers "Relative" increment logic over the static BOM definition (which might be large, e.g. 1.5g)
-            initialQuantity = 0.1;
-        }
-        setMaterials(prev => [
-            ...prev,
-            {
-                id: Date.now(),
-                material_id: mat.material_id || mat.id,
-                material_name: mat.material_name || mat.name,
-                quantity: initialQuantity,
-                unit: mat.unit || mat.base_unit,
-                is_manual: true
-            }
-        ]);
+        const initialQuantity = isDivisible ? 0.1 : 1;
+
+        const newEntry = {
+            id: Date.now(),
+            material_id: normalizedTargetId,
+            material_name: mat.material_name || mat.name,
+            quantity: initialQuantity,
+            unit: mat.unit || mat.base_unit,
+            is_manual: true
+        };
+
+        console.log('[EMC_ACTION] Adding new entry to state:', newEntry);
+        setMaterials(prev => [...prev, newEntry]);
         setPickerOpen(false);
     };
     // Analyze Warnings
