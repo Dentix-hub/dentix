@@ -608,7 +608,7 @@ class InventoryService:
 
             if not session:
                 # FIXED: Only enforce opening for DIVISIBLE items
-                if mat_type == "DIVISIBLE":
+                if mat_type == "DIVISIBLE" or mat_type == "REUSABLE":
                     if auto_open:
                         # This will decrement stock by packaging_ratio
                         try:

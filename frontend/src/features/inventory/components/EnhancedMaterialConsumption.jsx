@@ -82,7 +82,7 @@ export function EnhancedMaterialConsumption({
             if (!materials || materials.length === 0) return [];
             const payload = {
                 materials: materials.map(m => ({ 
-                    material_id: m.material_id || m.id, 
+                    material_id: m.material_id, 
                     quantity: m.quantity 
                 })),
                 patient_id: patientId

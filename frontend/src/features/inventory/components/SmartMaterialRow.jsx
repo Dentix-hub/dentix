@@ -178,7 +178,7 @@ export function SmartMaterialRow({
                                 type="number"
                                 step="0.01"
                                 min="0"
-                                value={material.quantity}
+                                value={material.quantity || 0}
                                 onChange={(e) => onChange({
                                     ...material,
                                     quantity: parseFloat(e.target.value) || 0
