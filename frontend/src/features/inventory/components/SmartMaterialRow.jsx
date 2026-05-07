@@ -77,7 +77,7 @@ export function SmartMaterialRow({
                         <h4 className="font-bold text-lg truncate text-slate-800">
                             {material.material_name || material.name || material.materialName}
                         </h4>
-                        {material.suggested && (
+                        {(!material.is_manual && !material.is_manual_override) && (
                             <Badge variant="primary" size="sm" className="bg-blue-100 text-blue-700 hover:bg-blue-200">
                                 ✨ مقترح
                             </Badge>
