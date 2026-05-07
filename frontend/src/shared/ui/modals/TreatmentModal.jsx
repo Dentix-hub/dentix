@@ -27,6 +27,7 @@ export default function TreatmentModal({
     const [selectedRestorations, setSelectedRestorations] = useState([]);
     // Inventory State
     const [availableMaterials, setAvailableMaterials] = useState([]);
+    const [isMaterialsLoading, setIsMaterialsLoading] = useState(false);
     const [consumedMaterials, setConsumedMaterials] = useState([]); // [{ material_id, quantity }]
     const [showInventory, setShowInventory] = useState(false);
     const [isSmartConsumptionOpen, setIsSmartConsumptionOpen] = useState(false);
@@ -47,25 +48,23 @@ export default function TreatmentModal({
     useEffect(() => {
         if (isOpen) {
             console.log('[MATERIALS_DEBUG] TreatmentModal opened, fetching stock summary...');
+            setIsMaterialsLoading(true);
             getStockSummary().then(res => {
                 console.log('[MATERIALS_DEBUG] getStockSummary raw response:', JSON.stringify(res.data).substring(0, 500));
                 const materialsList = res.data?.data || res.data || [];
                 console.log('[MATERIALS_DEBUG] Parsed materialsList:', materialsList?.length, 'items', Array.isArray(materialsList));
-                if (materialsList.length > 0) {
-                    console.log('[MATERIALS_DEBUG] First item sample:', JSON.stringify(materialsList[0]));
-                }
+                
                 setAvailableMaterials(Array.isArray(materialsList) ? materialsList : []);
             }).catch(err => {
                 console.error("[MATERIALS_DEBUG] getStockSummary FAILED:", err?.response?.status, err?.response?.data || err.message);
-                console.log('[MATERIALS_DEBUG] Falling back to getMaterials...');
                 getMaterials().then(res => {
-                    console.log('[MATERIALS_DEBUG] getMaterials raw response:', JSON.stringify(res.data).substring(0, 500));
-                    const materialsList = res.data?.data || res.data || [];
-                    console.log('[MATERIALS_DEBUG] Fallback parsed materialsList:', materialsList?.length, 'items');
-                    setAvailableMaterials(Array.isArray(materialsList) ? materialsList : []);
+                    const list = res.data?.data || res.data || [];
+                    setAvailableMaterials(Array.isArray(list) ? list : []);
                 }).catch(err2 => {
-                    console.error("[MATERIALS_DEBUG] getMaterials ALSO FAILED:", err2?.response?.status, err2?.response?.data || err2.message);
+                    console.error("[MATERIALS_DEBUG] getMaterials ALSO FAILED:", err2?.response?.status);
                 });
+            }).finally(() => {
+                setIsMaterialsLoading(false);
             });
         }
     }, [isOpen]);
@@ -621,7 +620,8 @@ export default function TreatmentModal({
                 procedure={safeProcedures.find(p => p.name === treatment.procedure)}
                 patientAge={null} // Add logic if needed
                 availableMaterials={availableMaterials}
-                initialMaterials={consumedMaterials} // Pass existing materials
+                isLoading={isMaterialsLoading}
+                initialMaterials={consumedMaterials}
                 mode={smartConsumptionMode} // Pass mode
                 onSave={(newMaterials) => {
                     // Map generic format to specific format needed by backend
