@@ -41,7 +41,7 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
                         material_id: materialId,
                         material_name: sugg.material_name || sugg.alternatives[0]?.name,
                         weight: sugg.weight,
-                        quantity: sugg.material_type === 'NON_DIVISIBLE' ? 1 : null,
+                        quantity: (sugg.material_type === 'NON_DIVISIBLE' || sugg.material_type === 'REUSABLE') ? 1 : null,
                         material_type: sugg.material_type,
                         base_unit: sugg.base_unit,
                         has_active_session: sugg.has_active_session,
@@ -144,6 +144,7 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
                 const selected = selectedMaterials[sugg.category_id];
                 const isManual = manualOverrides[sugg.category_id];
                 const isDivisible = sugg.material_type === 'DIVISIBLE';
+                const isReusable = sugg.material_type === 'REUSABLE';
 
                 return (
                     <div
@@ -153,7 +154,7 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
                         {/* Category Header */}
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
-                                {isDivisible ? <Droplets size={16} /> : <Package size={16} />}
+                                {(isDivisible || isReusable) ? <Droplets size={16} /> : <Package size={16} />}
                                 <span className="font-medium">{sugg.category_name_ar}</span>
                                 <span className="text-xs text-text-secondary">({sugg.category_name_en})</span>
                             </div>
@@ -192,9 +193,9 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
                                     {sugg.has_active_session && (
                                         <span className="text-xs text-green-600">
                                             {t('inventory.materials.session_linked')}
-                                            {sugg.max_uses > 1 && (
+                                            {(sugg.max_uses > 1 || isReusable) && (
                                                 <span className="ml-2 px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-100 font-bold">
-                                                    {sugg.current_uses} / {sugg.max_uses} استهلاك
+                                                    {sugg.current_uses} / {isReusable ? '∞' : sugg.max_uses} استخدام
                                                 </span>
                                             )}
                                         </span>
