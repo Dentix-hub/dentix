@@ -23,6 +23,7 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth, size
 
     const resolvedMaxWidth = maxWidth || sizeMap[size] || sizeMap.md;
     
+    // Keyboard Listeners (Escape & Tab Trap)
     useEffect(() => {
         const handleEscape = (e) => {
             if (e.key === 'Escape') onClose();
@@ -54,14 +55,6 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth, size
             document.addEventListener('keydown', handleEscape);
             document.addEventListener('keydown', handleTab);
             document.body.style.overflow = 'hidden';
-            
-            // Auto focus
-            setTimeout(() => {
-                const focusableElements = modalRef.current?.querySelectorAll(
-                    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-                );
-                focusableElements?.[0]?.focus();
-            }, 50);
         }
         return () => {
             document.removeEventListener('keydown', handleEscape);
@@ -69,6 +62,23 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth, size
             document.body.style.overflow = 'auto';
         };
     }, [isOpen, onClose]);
+
+    // Auto focus - Trigger ONLY when isOpen changes to true
+    // This prevents focus jumping back to X when props/functions update during typing
+    useEffect(() => {
+        if (isOpen) {
+            const timer = setTimeout(() => {
+                const focusableElements = modalRef.current?.querySelectorAll(
+                    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                );
+                // Don't override if user already clicked/focused an input manually
+                if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+                    focusableElements?.[0]?.focus();
+                }
+            }, 50);
+            return () => clearTimeout(timer);
+        }
+    }, [isOpen]);
 
     if (!isOpen) return null;
 

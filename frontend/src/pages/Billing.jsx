@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Users, LayoutDashboard, Receipt, Briefcase, TrendingDown, Home } from 'lucide-react';
 import DoctorRevenue from '@/features/billing/DoctorRevenue';
@@ -103,13 +103,16 @@ export default function Billing() {
             toast.error(t('billing.alerts.delete_error'));
         }
     };
-    const openStaffProfile = (staffMember) => {
+    const openStaffProfile = useCallback((staffMember) => {
         setSelectedStaff(staffMember);
         setEditStaffSalary(staffMember.fixed_salary || 0);
         setEditStaffPerAppointment(staffMember.per_appointment_fee || 0);
         setStaffModalOpen(true);
-    };
-    const saveStaffCompensation = async () => {
+    }, []);
+
+    const closeStaffModal = useCallback(() => setStaffModalOpen(false), []);
+    const closeExpenseModal = useCallback(() => setIsExpenseModalOpen(false), []);
+    const saveStaffCompensation = useCallback(async () => {
         if (!selectedStaff) return;
         setSavingStaff(true);
         try {
@@ -123,7 +126,7 @@ export default function Billing() {
         } finally {
             setSavingStaff(false);
         }
-    };
+    }, [selectedStaff, editStaffSalary, editStaffPerAppointment, queryClient, t]);
     const loadSalaries = async () => {
         setSalariesLoading(true);
         try {
@@ -173,20 +176,20 @@ export default function Billing() {
             <SkeletonBox className="h-[400px] w-full rounded-2xl" />
         </div>
     );
-    const tabs = [
+    const tabs = useMemo(() => [
         { id: 'doctors', label: t('billing.tabs.doctors'), icon: Users },
         { id: 'staff', label: t('billing.tabs.staff'), icon: Briefcase },
-        //{ id: 'salaries', label: 'المرتبات', icon: CreditCard }, // Merged into expenses
         { id: 'expenses', label: t('billing.tabs.expenses'), icon: TrendingDown },
         { id: 'summary', label: t('billing.tabs.summary'), icon: LayoutDashboard },
         { id: 'payments', label: t('billing.tabs.payments'), icon: Receipt },
-    ];
-    const roleLabels = {
+    ], [t]);
+
+    const roleLabels = useMemo(() => ({
         assistant: t('billing.roles.assistant'),
         receptionist: t('billing.roles.receptionist'),
         accountant: t('billing.roles.accountant'),
         nurse: t('billing.roles.nurse')
-    };
+    }), [t]);
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <PageHeader
@@ -265,14 +268,14 @@ export default function Billing() {
             {/* Modals */}
             <ExpenseModal
                 isOpen={isExpenseModalOpen}
-                onClose={() => setIsExpenseModalOpen(false)}
+                onClose={closeExpenseModal}
                 newExpense={newExpense}
                 setNewExpense={setNewExpense}
                 handleCreateExpense={handleCreateExpense}
             />
             <StaffModal
                 isOpen={staffModalOpen}
-                onClose={() => setStaffModalOpen(false)}
+                onClose={closeStaffModal}
                 selectedStaff={selectedStaff}
                 roleLabels={roleLabels}
                 editStaffSalary={editStaffSalary}
