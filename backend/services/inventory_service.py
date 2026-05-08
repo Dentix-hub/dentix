@@ -608,6 +608,8 @@ class InventoryService:
             # 1. Open Check
             session = self.get_active_session(si.id, db)
             mat_type = si.batch.material.type
+            mat_name = si.batch.material.name
+            logger.info(f"[CONSUME_DEBUG] Processing stock_item={si.id}, material={mat_name}, type={mat_type}, qty={si.quantity}, session={session is not None}")
 
             if not session:
                 # FIXED: Only enforce opening for DIVISIBLE items
@@ -624,8 +626,8 @@ class InventoryService:
                         raise ValueError(
                             f"CONFIRM_OPEN_REQUIRED:{si.id}:{si.batch.material.name} - Batch {si.batch.batch_number}"
                         )
-
-                # For NON_DIVISIBLE, we proceed to consumption directly without session.
+                else:
+                    logger.info(f"[CONSUME_DEBUG] Material {mat_name} is NON_DIVISIBLE, proceeding to direct consumption")
 
             # 2. Consume Logic
             # FIX: If ANY material has an active session -> It is 'Virtual Consumption'
@@ -648,6 +650,7 @@ class InventoryService:
 
             # 3. Standard Consumption (Non-Divisible or Divisible-but-legacy? No, Divisible enforced above)
             consume_amount = min(si.quantity, remaining_to_consume)
+            logger.info(f"[CONSUME_DEBUG] Standard consumption: consume_amount={consume_amount}, stock_qty={si.quantity}, remaining={remaining_to_consume}")
 
             si.quantity -= consume_amount
             remaining_to_consume -= consume_amount
@@ -662,6 +665,7 @@ class InventoryService:
             )
             db.add(move)
             movements.append(move)
+            logger.info(f"[CONSUME_DEBUG] Stock deducted: material={mat_name}, amount={consume_amount}, new_qty={si.quantity}")
 
             # 4. Close Check (Non-Divisible Auto Close)
             if mat_type == "NON_DIVISIBLE" and si.quantity <= 0:
@@ -798,24 +802,32 @@ class InventoryService:
             .first()
         )
         if not mat:
+            logger.warning(f"[DELETE_DEBUG] Material {material_id} not found for tenant {tenant_id}")
             raise ValueError("Material not found")
 
+        logger.info(f"[DELETE_DEBUG] Attempting to delete material {material_id} ({mat.name}), type={mat.type}")
+
         # 2. Check Active Stock
-        has_stock = db.query(StockItem).join(Batch).filter(
+        stock_items = db.query(StockItem).join(Batch).filter(
             Batch.material_id == material_id,
             StockItem.quantity > 0
-        ).count() > 0
+        ).all()
+        has_stock = len(stock_items) > 0
+        logger.info(f"[DELETE_DEBUG] Active stock check: {len(stock_items)} items with qty > 0")
+        for si in stock_items:
+            logger.info(f"[DELETE_DEBUG]   - StockItem {si.id}: qty={si.quantity}")
 
         if has_stock:
-            raise ValueError("Cannot delete material with active stock. Please consume or adjust stock to zero first.")
+            raise ValueError(f"Cannot delete material '{mat.name}' with active stock ({len(stock_items)} items). Please consume or adjust stock to zero first.")
 
         # 3. Check History (Movements) - with tenant isolation
-        has_history = db.query(StockMovement).join(StockItem).join(Batch).filter(
+        history_count = db.query(StockMovement).join(StockItem).join(Batch).filter(
             Batch.material_id == material_id, Batch.tenant_id == tenant_id
-        ).count() > 0
+        ).count()
+        logger.info(f"[DELETE_DEBUG] History check: {history_count} movements found")
 
-        if has_history:
-            raise ValueError("Cannot delete material with historical movements (Audit trail protected).")
+        if history_count > 0:
+            raise ValueError(f"Cannot delete material '{mat.name}' with {history_count} historical movements (Audit trail protected).")
 
         # 4. Cleanup (Cascade Delete logic if strict checks pass)
         # Wrap in transaction to ensure atomicity
