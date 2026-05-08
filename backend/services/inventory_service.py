@@ -2,8 +2,11 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Tuple
 from datetime import datetime, timezone
 from sqlalchemy import func
+import logging
 
 from backend import schemas
+
+logger = logging.getLogger(__name__)
 from backend.models.inventory import (
     Warehouse,
     Material,
