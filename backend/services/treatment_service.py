@@ -160,7 +160,6 @@ class TreatmentService:
                 logger.error(f"Stock Consumption Error: {e}", exc_info=True)
                 error_msg = str(e)
 
-                # Handle CONFIRM_OPEN_REQUIRED as business logic error (409)
                 if error_msg.startswith("CONFIRM_OPEN_REQUIRED:"):
                     parts = error_msg.split(":", 2)
                     stock_item_id = int(parts[1]) if len(parts) > 1 else None
@@ -175,6 +174,9 @@ class TreatmentService:
                         },
                     )
 
+                if isinstance(e, ValueError):
+                    raise HTTPException(status_code=400, detail=error_msg)
+                
                 raise HTTPException(status_code=500, detail=f"Stock Error: {error_msg}")
 
     # --- Treatment CRUD ---
