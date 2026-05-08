@@ -5,6 +5,7 @@ import TrackSessionModal from '@/features/inventory/components/TrackSessionModal
 import { EnhancedMaterialConsumption } from '@/features/inventory/components/EnhancedMaterialConsumption';
 import MaterialConsumptionPanel from '@/features/inventory/MaterialConsumptionPanel';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { addTreatmentSession } from '@/api';
 import { MultiSessionPanel } from '../components/MultiSessionPanel';
 export default function TreatmentModal({
@@ -18,6 +19,7 @@ export default function TreatmentModal({
     setSelectedToothCondition
 }) {
     const [treatment, setTreatment] = useState(initialData);
+    const [isSaving, setIsSaving] = useState(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [isManualProcedure, setIsManualProcedure] = useState(false);
     const safeProcedures = Array.isArray(procedures) ? procedures : [];
@@ -124,6 +126,7 @@ export default function TreatmentModal({
     if (!isOpen) return null;
     const handleSave = async (e) => {
         if (e) e.preventDefault();
+        setIsSaving(true);
         
         // Clean and validate consumed materials
         const cleanedMaterials = (consumedMaterials || [])
@@ -624,8 +627,10 @@ export default function TreatmentModal({
                     )}
 
                     <div className="flex justify-end gap-3 text-lg font-bold pt-4 border-t border-slate-100">
-                        <button onClick={onClose} className="px-4 py-2 hover:bg-slate-100 rounded-lg">إلغاء</button>
-                        <button onClick={handleSave} className="px-6 py-2 bg-primary text-white rounded-lg">حفظ</button>
+                        <button onClick={onClose} disabled={isSaving} className="px-4 py-2 hover:bg-slate-100 rounded-lg disabled:opacity-50">إلغاء</button>
+                        <button onClick={handleSave} disabled={isSaving} className="px-6 py-2 bg-primary text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                            {isSaving ? 'جاري الحفظ...' : 'حفظ'}
+                        </button>
                     </div>
                 </div>
             </div>
