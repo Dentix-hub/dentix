@@ -95,6 +95,8 @@ export const useTreatmentOperations = ({
 
             const finalMsg = typeof msg === 'object' ? JSON.stringify(msg) : (msg || t('patient_details.alerts.treatment_save_fail'));
             toast.error(finalMsg);
+            err.alreadyNotified = true;
+            throw err;
         }
     }, [patientId, editingTreatmentId, refetchHistory, refetchTeeth, selectedToothCondition, setIsTreatmentModalOpen, setEditingTreatmentId, t]);
 

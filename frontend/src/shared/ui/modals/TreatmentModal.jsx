@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Package, Plus, Trash2, Clock, FileText } from 'lucide-react';
 import { getMaterials, getStockSummary, getProcedureWeights, getActiveSessions } from '@/api/inventory';
 import TrackSessionModal from '@/features/inventory/components/TrackSessionModal';
@@ -20,6 +20,7 @@ export default function TreatmentModal({
 }) {
     const [treatment, setTreatment] = useState(initialData);
     const [isSaving, setIsSaving] = useState(false);
+    const isSavingRef = useRef(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [isManualProcedure, setIsManualProcedure] = useState(false);
     const safeProcedures = Array.isArray(procedures) ? procedures : [];
@@ -45,6 +46,7 @@ export default function TreatmentModal({
     const [isTrackSessionOpen, setIsTrackSessionOpen] = useState(false);
     const [trackSessionMode, setTrackSessionMode] = useState('OPEN');
     const [trackSessionMaterial, setTrackSessionMaterial] = useState(null);
+    const [trackSessionStockItem, setTrackSessionStockItem] = useState(null);
     const [trackSessionData, setTrackSessionData] = useState(null);
     // Fetch Materials on Mount
     useEffect(() => {
@@ -124,8 +126,58 @@ export default function TreatmentModal({
         }
     };
     if (!isOpen) return null;
+
+    const getConfirmOpenDetail = (error) => {
+        const data = error.response?.data;
+        const candidates = [
+            data?.error?.details,
+            typeof data?.detail === 'object' ? data.detail : null,
+            data?.details,
+            data?.data,
+            data
+        ];
+        const structured = candidates.find(item => item?.code === 'CONFIRM_OPEN_REQUIRED');
+        if (structured) return structured;
+
+        const message = [
+            typeof data?.detail === 'string' ? data.detail : '',
+            data?.error?.message,
+            data?.message
+        ].find(value => typeof value === 'string' && value.includes('CONFIRM_OPEN_REQUIRED'));
+
+        if (!message) return null;
+
+        const [, rest = ''] = message.split('CONFIRM_OPEN_REQUIRED:');
+        const [stockId, ...nameParts] = rest.split(':');
+        return {
+            code: 'CONFIRM_OPEN_REQUIRED',
+            stock_item_id: parseInt(stockId, 10),
+            material_info: nameParts.join(':') || 'Material'
+        };
+    };
+
+    const openTrackSessionForConflict = (detail) => {
+        const stockItemId = Number(detail.stock_item_id || detail.stockItemId || detail.stock_item?.id);
+        const materialName = detail.material_info || detail.material_name || detail.message || 'Material';
+
+        setTrackSessionMode('OPEN');
+        setTrackSessionMaterial({
+            id: detail.material_id,
+            name: materialName,
+            material_name: materialName
+        });
+        setTrackSessionStockItem(stockItemId ? {
+            id: stockItemId,
+            name: materialName,
+            material_name: materialName
+        } : null);
+        setIsTrackSessionOpen(true);
+    };
+
     const handleSave = async (e) => {
         if (e) e.preventDefault();
+        if (isSavingRef.current) return;
+        isSavingRef.current = true;
         setIsSaving(true);
         
         // Clean and validate consumed materials
@@ -163,38 +215,24 @@ export default function TreatmentModal({
                 message: error.message
             });
 
-            const errDetail = error.response?.data?.detail;
-            
-            // Case 1: Structured Detail (Latest Backend 409 Conflict)
-            if (errDetail && typeof errDetail === 'object' && errDetail.code === 'CONFIRM_OPEN_REQUIRED') {
-                setTrackSessionMode('OPEN');
-                setTrackSessionMaterial({
-                    id: errDetail.stock_item_id,
-                    name: errDetail.material_info
-                });
-                setIsTrackSessionOpen(true);
-                return;
-            }
-
-            // Case 2: Legacy String Detail
-            const errorMsg = typeof errDetail === 'string' ? errDetail : '';
-            if (errorMsg.includes('CONFIRM_OPEN_REQUIRED')) {
-                const parts = errorMsg.split(':');
-                setTrackSessionMode('OPEN');
-                setTrackSessionMaterial({
-                    id: parseInt(parts[1]),
-                    name: parts[2] || 'Material'
-                });
-                setIsTrackSessionOpen(true);
+            const confirmOpenDetail = getConfirmOpenDetail(error);
+            if (confirmOpenDetail) {
+                openTrackSessionForConflict(confirmOpenDetail);
                 return;
             }
 
             // Case 3: Generic Error (400 Bad Request or 500)
+            const responseData = error.response?.data;
+            const errDetail = responseData?.detail;
+            const errorEnvelope = responseData?.error;
             const friendlyMsg = typeof errDetail === 'string' ? errDetail : 
-                               (errDetail?.message || error.message || 'فشل حفظ العلاج');
+                               (errDetail?.message || errorEnvelope?.message || error.message || 'فشل حفظ العلاج');
             
-            toast.error(friendlyMsg);
+            if (!error.alreadyNotified) {
+                toast.error(friendlyMsg);
+            }
         } finally {
+            isSavingRef.current = false;
             setIsSaving(false);
         }
     };
@@ -670,10 +708,12 @@ export default function TreatmentModal({
                 isOpen={isTrackSessionOpen}
                 onClose={() => {
                     setIsTrackSessionOpen(false);
+                    setTrackSessionStockItem(null);
                     refetchSessions(); // Refresh status after close
                 }}
                 mode={trackSessionMode}
                 material={trackSessionMaterial}
+                stockItem={trackSessionStockItem}
                 session={trackSessionData}
                 onSuccess={() => {
                     // Auto-retry save after opening session
@@ -685,4 +725,3 @@ export default function TreatmentModal({
         </div>
     );
 }
-
