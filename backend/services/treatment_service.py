@@ -155,6 +155,7 @@ class TreatmentService:
                     reference_id=f"TREATMENT:{treatment_id}",
                     patient_id=patient_id,
                     db=self.db,
+                    commit=False,
                 )
             except Exception as e:
                 logger.error(f"Stock Consumption Error: {e}", exc_info=True)
@@ -261,46 +262,64 @@ class TreatmentService:
         Update treatment with stock validation and consumption.
 
         Flow:
-        1. Validate stock (pre-check)
-        2. Update treatment (deferred commit)
-        3. Consume stock (post-update)
-        4. Commit transaction
+        1. Reverse old stock movements
+        2. Validate new stock (pre-check)
+        3. Update treatment (deferred commit)
+        4. Consume new stock (post-update)
+        5. Commit transaction
         """
         from backend import crud
 
-        # 1. Validate stock (pre-check)
+        # 1. Reverse old stock movements for this treatment
+        inventory_service.reverse_stock_by_reference(
+            reference_id=f"TREATMENT:{treatment_id}",
+            user_id=self.current_user.id,
+            db=self.db,
+        )
+
+        # 2. Validate new stock (pre-check)
         self.validate_treatment_stock(treatment_data.consumedMaterials or [])
 
-        # 2. Update treatment (deferred commit)
+        # 3. Update treatment (deferred commit)
         updated_treatment = crud.update_treatment(
             self.db, treatment_id, treatment_data, self.tenant_id, commit=False
         )
 
-        # 3. Consume stock (post-update)
+        # 4. Consume new stock (post-update)
         self.consume_treatment_stock(
             treatment_id,
             treatment_data.consumedMaterials or [],
             patient_id=treatment_data.patient_id
         )
 
-        # 4. Commit transaction
+        # 5. Commit transaction
         self.db.commit()
         self.db.refresh(updated_treatment)
 
         return updated_treatment
 
     def delete_treatment(self, treatment_id: int) -> dict:
-        """Delete a treatment record."""
+        """Delete a treatment record and reverse its stock movements."""
         from backend import crud
 
+        # 1. Reverse stock movements for this treatment
+        inventory_service.reverse_stock_by_reference(
+            reference_id=f"TREATMENT:{treatment_id}",
+            user_id=self.current_user.id,
+            db=self.db,
+        )
+
+        # 2. Log the action
         log_admin_action(
             db=self.db,
             admin_user=self.current_user,
             action="delete",
             entity_type="treatment",
             entity_id=treatment_id,
-            details=f"Deleted treatment #{treatment_id}",
+            details=f"Deleted treatment #{treatment_id} (stock reversed)",
         )
+
+        # 3. Delete treatment
         return crud.delete_treatment(self.db, treatment_id, self.tenant_id)
 
     def add_session(self, session_data: schemas.clinical.TreatmentSessionCreate) -> models.TreatmentSession:

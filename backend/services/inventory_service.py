@@ -363,7 +363,7 @@ class InventoryService:
         )
 
     def open_session(
-        self, stock_item_id: int, user_id: int, patient_id: Optional[int] = None, db: Session = None
+        self, stock_item_id: int, user_id: int, patient_id: Optional[int] = None, db: Session = None, commit: bool = True
     ) -> MaterialSession:
         """
         Explicitly open a material package (Session).
@@ -421,8 +421,9 @@ class InventoryService:
             patient_id=patient_id,
         )
         db.add(session)
-        db.commit()
-        db.refresh(session)
+        if commit:
+            db.commit()
+            db.refresh(session)
 
         # TODO: Trigger Notification "Material Opened"
         return session
@@ -484,6 +485,7 @@ class InventoryService:
         reference_id: Optional[str] = None,
         patient_id: Optional[int] = None,
         db: Session = None,
+        commit: bool = True,
     ) -> List[StockMovement]:
         """
         Consume material (FIFO).
@@ -610,7 +612,7 @@ class InventoryService:
                     if auto_open:
                         # This will decrement stock by packaging_ratio
                         try:
-                            session = self.open_session(si.id, user_id, db=db)
+                            session = self.open_session(si.id, user_id, db=db, commit=False)
                             db.refresh(si)
                         except ValueError as e:
                             raise e
@@ -680,8 +682,61 @@ class InventoryService:
 
             # --- SMART LOGIC END ---
 
-        db.commit()
+        if commit:
+            db.commit()
         return movements
+
+    def reverse_stock_by_reference(
+        self,
+        reference_id: str,
+        user_id: int,
+        db: Session = None,
+    ) -> List[StockMovement]:
+        """
+        Reverse all stock movements for a given reference_id.
+        Used when updating or deleting treatments to undo previous stock deductions.
+        """
+        db = self._get_db(db)
+
+        movements = (
+            db.query(StockMovement)
+            .filter(StockMovement.reference_id == reference_id)
+            .all()
+        )
+
+        if not movements:
+            return []
+
+        reversals = []
+        reverse_ref = f"REVERSE:{reference_id}"
+
+        # Prevent double reversal
+        already_reversed = (
+            db.query(StockMovement)
+            .filter(StockMovement.reference_id == reverse_ref)
+            .count()
+        )
+        if already_reversed > 0:
+            return []
+
+        for move in movements:
+            reverse_move = StockMovement(
+                stock_item_id=move.stock_item_id,
+                change_amount=-move.change_amount,
+                reason="REVERSAL",
+                performed_by=user_id,
+                reference_id=reverse_ref,
+            )
+            db.add(reverse_move)
+
+            # Restore stock item quantity
+            stock_item = db.query(StockItem).get(move.stock_item_id)
+            if stock_item:
+                stock_item.quantity -= move.change_amount  # e.g. -(-2) = +2
+
+            reversals.append(reverse_move)
+
+        return reversals
 
     def get_expiry_alerts(self, tenant_id: int, days: int = 30, db: Session = None):
         """
@@ -743,23 +798,21 @@ class InventoryService:
             raise ValueError("Material not found")
 
         # 2. Check Active Stock
-        # DEV NOTE: Disabled for testing upon request.
-        # has_stock = db.query(StockItem).join(Batch).filter(
-        #     Batch.material_id == material_id,
-        #     StockItem.quantity > 0
-        # ).count() > 0
+        has_stock = db.query(StockItem).join(Batch).filter(
+            Batch.material_id == material_id,
+            StockItem.quantity > 0
+        ).count() > 0
 
-        # if has_stock:
-        #     raise ValueError("Cannot delete material with active stock. Please consume or adjust stock to zero first.")
+        if has_stock:
+            raise ValueError("Cannot delete material with active stock. Please consume or adjust stock to zero first.")
 
         # 3. Check History (Movements)
-        # DEV NOTE: Disabled for testing upon request.
-        # has_history = db.query(StockMovement).join(StockItem).join(Batch).filter(
-        #     Batch.material_id == material_id
-        # ).count() > 0
+        has_history = db.query(StockMovement).join(StockItem).join(Batch).filter(
+            Batch.material_id == material_id
+        ).count() > 0
 
-        # if has_history:
-        #      raise ValueError("Cannot delete material with historical movemements (Audit trail protected).")
+        if has_history:
+            raise ValueError("Cannot delete material with historical movements (Audit trail protected).")
 
         # 4. Cleanup (Cascade Delete logic if strict checks pass)
         # Delete Weights (BOM)
@@ -818,7 +871,7 @@ class InventoryService:
             .join(Batch, Batch.id == StockItem.batch_id)
             .join(Material, Material.id == Batch.material_id)
             .filter(
-                StockMovement.reason.in_(["USAGE", "EXPIRED"]),
+                StockMovement.reason.in_(["USAGE", "EXPIRED", "SESSION_OPEN"]),
                 StockMovement.created_at >= start_date,
                 StockMovement.created_at <= end_date,
                 Batch.tenant_id == tenant_id,

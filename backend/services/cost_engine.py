@@ -16,8 +16,8 @@ class CostEngine:
 
     def get_material_average_cost(self, material_id: int) -> float:
         """
-        Calculates the weighted average cost of a MATERIAL UNIT (e.g. per gram).
-        Considers packaging_ratio to convert Batch Cost (Per Box) to Base Unit Cost.
+        Calculates the weighted average cost of a MATERIAL BASE UNIT (e.g. per gram).
+        Batch.cost_per_unit already stores per-base-unit cost (frontend divides package_price / ratio).
         """
         # 1. Active Stock
         stock_query = (
@@ -38,12 +38,11 @@ class CostEngine:
         total_base_qty = sum(item.quantity for item in stock_query)
         total_value = 0.0
 
-        for qty, box_cost, ratio in stock_query:
-            # box_cost is per PACKAGE (e.g. 2000 for 4g)
-            # ratio is package size (e.g. 4.0)
-            # base_unit_cost = box_cost / ratio
-            effective_ratio = ratio if ratio and ratio > 0 else 1.0
-            unit_cost = box_cost / effective_ratio
+        for qty, batch_cost_per_unit, ratio in stock_query:
+            # batch_cost_per_unit is per BASE UNIT (e.g. per gram)
+            # The frontend calculates: package_price / ratio before sending
+            # So this value is already the cost per base unit — NO further division needed
+            unit_cost = batch_cost_per_unit
             total_value += qty * unit_cost
 
         if total_base_qty > 0:
@@ -65,12 +64,8 @@ class CostEngine:
 
         if last_batch:
             batch, mat = last_batch
-            effective_ratio = (
-                mat.packaging_ratio
-                if mat.packaging_ratio and mat.packaging_ratio > 0
-                else 1.0
-            )
-            return batch.cost_per_unit / effective_ratio
+            # cost_per_unit is already per base unit
+            return batch.cost_per_unit
 
         return 0.0
 
