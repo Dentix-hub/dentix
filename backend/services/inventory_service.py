@@ -22,7 +22,10 @@ class InventoryService:
         self.tenant_id = tenant_id
 
     def _get_db(self, db: Session):
-        return db or self.db
+        result = db or self.db
+        if result is None:
+            raise RuntimeError("No database session provided to InventoryService. Please pass db parameter to method calls.")
+        return result
 
     # --- WAREHOUSE ---
     def create_warehouse(
@@ -52,10 +55,10 @@ class InventoryService:
         if not wh:
             raise ValueError("Warehouse not found")
 
-        # Check for active stock
+        # Check for active stock (with tenant isolation)
         has_stock = (
             db.query(StockItem)
-            .filter(StockItem.warehouse_id == warehouse_id, StockItem.quantity > 0)
+            .filter(StockItem.warehouse_id == warehouse_id, StockItem.quantity > 0, StockItem.tenant_id == tenant_id)
             .count()
             > 0
         )
@@ -338,11 +341,11 @@ class InventoryService:
 
         # Check Material Type
 
-        # FIX: If ANY material has an active session, it's available for consumption
+        # If material has an active session, it's available for consumption
         # This applies to both DIVISIBLE and NON_DIVISIBLE materials
-        # Previously only DIVISIBLE was supported, but opened packages should be available
+        # Use infinity to indicate unlimited availability during session
         if has_active_session:
-            return True, 9999.0, mat_name  # Virtual availability
+            return True, float('inf'), mat_name  # Virtual availability
 
         total_available = query.scalar()
 
@@ -806,50 +809,55 @@ class InventoryService:
         if has_stock:
             raise ValueError("Cannot delete material with active stock. Please consume or adjust stock to zero first.")
 
-        # 3. Check History (Movements)
+        # 3. Check History (Movements) - with tenant isolation
         has_history = db.query(StockMovement).join(StockItem).join(Batch).filter(
-            Batch.material_id == material_id
+            Batch.material_id == material_id, Batch.tenant_id == tenant_id
         ).count() > 0
 
         if has_history:
             raise ValueError("Cannot delete material with historical movements (Audit trail protected).")
 
         # 4. Cleanup (Cascade Delete logic if strict checks pass)
-        # Delete Weights (BOM)
-        from ..models.inventory import ProcedureMaterialWeight, MaterialLearningLog
+        # Wrap in transaction to ensure atomicity
+        try:
+            # Delete Weights (BOM)
+            from ..models.inventory import ProcedureMaterialWeight, MaterialLearningLog
 
-        db.query(ProcedureMaterialWeight).filter(
-            ProcedureMaterialWeight.material_id == material_id
-        ).delete()
-        db.query(MaterialLearningLog).filter(
-            MaterialLearningLog.material_id == material_id
-        ).delete()
+            db.query(ProcedureMaterialWeight).filter(
+                ProcedureMaterialWeight.material_id == material_id
+            ).delete()
+            db.query(MaterialLearningLog).filter(
+                MaterialLearningLog.material_id == material_id
+            ).delete()
 
-        # Delete Sessions
-        # Note: If history check passed, there should be no sessions/movements, but safely cleaning empty orphan records
+            # Delete Sessions
+            # Note: If history check passed, there should be no sessions/movements, but safely cleaning empty orphan records
 
-        # Delete StockItems (Empty ones)
-        # This requires finding them first
-        batches = db.query(Batch).filter(Batch.material_id == material_id).all()
-        for b in batches:
-            stock_items = db.query(StockItem).filter(StockItem.batch_id == b.id).all()
-            for si in stock_items:
-                # Delete sessions first (FK dependency)
-                db.query(MaterialSession).filter(
-                    MaterialSession.stock_item_id == si.id
-                ).delete()
-                # Then delete movements
-                db.query(StockMovement).filter(
-                    StockMovement.stock_item_id == si.id
-                ).delete()
+            # Delete StockItems (Empty ones)
+            # This requires finding them first
+            batches = db.query(Batch).filter(Batch.material_id == material_id).all()
+            for b in batches:
+                stock_items = db.query(StockItem).filter(StockItem.batch_id == b.id).all()
+                for si in stock_items:
+                    # Delete sessions first (FK dependency)
+                    db.query(MaterialSession).filter(
+                        MaterialSession.stock_item_id == si.id
+                    ).delete()
+                    # Then delete movements
+                    db.query(StockMovement).filter(
+                        StockMovement.stock_item_id == si.id
+                    ).delete()
 
-            db.query(StockItem).filter(StockItem.batch_id == b.id).delete()
-            db.query(Batch).filter(Batch.id == b.id).delete()
+                db.query(StockItem).filter(StockItem.batch_id == b.id).delete()
+                db.query(Batch).filter(Batch.id == b.id).delete()
 
-        # Finally Delete Material
-        db.delete(mat)
-        db.commit()
-        return True
+            # Finally Delete Material
+            db.delete(mat)
+            db.commit()
+            return True
+        except Exception:
+            db.rollback()
+            raise
 
     def get_cogs_summary(
         self,
@@ -871,7 +879,7 @@ class InventoryService:
             .join(Batch, Batch.id == StockItem.batch_id)
             .join(Material, Material.id == Batch.material_id)
             .filter(
-                StockMovement.reason.in_(["USAGE", "EXPIRED", "SESSION_OPEN"]),
+                StockMovement.reason.in_(["USAGE", "EXPIRED"]),  # Removed SESSION_OPEN to prevent double-counting
                 StockMovement.created_at >= start_date,
                 StockMovement.created_at <= end_date,
                 Batch.tenant_id == tenant_id,
