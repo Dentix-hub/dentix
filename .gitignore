@@ -297,3 +297,7 @@ docs/build/
 # Local development
 .local/
 local/
+
+# Deployment Artifacts
+frontend/frontend.zip
+rag_storage/
