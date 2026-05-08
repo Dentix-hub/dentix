@@ -96,11 +96,12 @@ def get_profitability(
         start_date = now - timedelta(days=30)
 
     # 1. Revenue (Payments)
+    # Include both current tenant and NULL tenant_id (legacy data compatibility)
     revenue = (
         db.query(func.sum(models.Payment.amount))
         .filter(
             models.Payment.date >= start_date,
-            models.Payment.tenant_id == current_user.tenant_id,
+            (models.Payment.tenant_id == current_user.tenant_id) | (models.Payment.tenant_id.is_(None)),
         )
         .scalar()
         or 0.0

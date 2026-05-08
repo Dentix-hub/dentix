@@ -1,0 +1,1 @@
+import{r as e}from"./index-BMNWKfAH.js";const n=t=>e.get(`/api/v1/patients/${t}/treatments`),o=t=>e.post("/api/v1/treatments",t),p=(t,a)=>e.put(`/api/v1/treatments/${t}`,a),r=t=>e.delete(`/api/v1/treatments/${t}`),m=t=>e.post("/api/v1/treatments/tooth_status",t),i=(t,a)=>e.post(`/api/v1/treatments/${t}/sessions`,a);export{i as a,m as b,o as c,r as d,n as g,p as u};

@@ -4,9 +4,12 @@ from typing import Optional
 from jose import jwt, JWTError
 import bcrypt
 # Configuration
-SECRET_KEY = os.environ["SECRET_KEY"]
-if len(SECRET_KEY) < 32:
-    raise RuntimeError("SECRET_KEY must be at least 32 characters long")
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY or len(SECRET_KEY) < 32:
+    raise RuntimeError(
+        "SECRET_KEY must be set and at least 32 characters long. "
+        "Add it to your .env file or environment variables."
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))

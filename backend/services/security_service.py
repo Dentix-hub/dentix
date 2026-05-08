@@ -236,7 +236,9 @@ class SecurityService:
             if filters.get("user_id"):
                 query = query.filter(models.AuditLog.performed_by_id == filters["user_id"])
             if filters.get("action"):
-                query = query.filter(models.AuditLog.action.ilike(f"%{filters['action']}%"))
+                # Sanitize input to prevent SQL injection via wildcard characters
+                safe_action = filters['action'].replace('%', '\\%').replace('_', '\\_')
+                query = query.filter(models.AuditLog.action.ilike(f"%{safe_action}%", escape='\\'))
             if filters.get("entity_type"):
                 query = query.filter(models.AuditLog.entity_type == filters["entity_type"])
             if filters.get("start_date"):
