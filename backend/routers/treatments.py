@@ -160,7 +160,15 @@ def save_treatment_materials(
     if not treatment:
         raise HTTPException(status_code=404, detail="Treatment not found")
 
-    # Clear existing materials for this treatment
+    # 1. Reverse old stock movements for this treatment (prevent double deduction)
+    reference_id = f"TREATMENT_MATERIALS:{treatment_id}"
+    inventory_service.reverse_stock_by_reference(
+        reference_id=reference_id,
+        user_id=current_user.id,
+        db=db,
+    )
+
+    # 2. Clear existing usage records
     db.query(inv_models.TreatmentMaterialUsage).filter(
         inv_models.TreatmentMaterialUsage.treatment_id == treatment_id,
         inv_models.TreatmentMaterialUsage.tenant_id == tenant_id,
@@ -175,7 +183,7 @@ def save_treatment_materials(
         if not material:
             continue
 
-        # For NON_DIVISIBLE: deduct stock immediately
+        # 3. For NON_DIVISIBLE: deduct stock with reference_id
         if material.type == "NON_DIVISIBLE" and item.quantity_used:
             try:
                 inventory_service.consume_stock(
@@ -184,13 +192,15 @@ def save_treatment_materials(
                     tenant_id=tenant_id,
                     user_id=current_user.id,
                     patient_id=treatment.patient_id,
+                    reference_id=reference_id,
                     db=db,
+                    commit=False,
                 )
             except ValueError as e:
                 logger.error(f"Stock consumption failed: {e}")
                 raise HTTPException(status_code=400, detail=str(e))
 
-        # Create usage record
+        # 4. Create usage record
         usage = inv_models.TreatmentMaterialUsage(
             treatment_id=treatment_id,
             material_id=item.material_id,
@@ -203,6 +213,7 @@ def save_treatment_materials(
         db.add(usage)
         results.append(usage)
 
+    # 5. Single commit for the entire operation
     db.commit()
     for r in results:
         db.refresh(r)

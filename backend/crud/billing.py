@@ -237,8 +237,6 @@ def update_treatment(
 
         for key, value in treatment_dict.items():
             setattr(db_treatment, key, value)
-        for key, value in treatment_dict.items():
-            setattr(db_treatment, key, value)
 
         if commit:
             db.commit()
