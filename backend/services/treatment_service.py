@@ -142,10 +142,14 @@ class TreatmentService:
         """
         from fastapi import HTTPException
 
+        logger.info(f"[STOCK_DEBUG] consume_treatment_stock called for treatment {treatment_id} with {len(consumed_materials or [])} materials")
+
         if not consumed_materials:
+            logger.info("[STOCK_DEBUG] No consumed materials provided, skipping stock consumption")
             return
 
         for item in consumed_materials:
+            logger.info(f"[STOCK_DEBUG] Processing material_id={item.material_id}, quantity={item.quantity}")
             try:
                 inventory_service.consume_stock(
                     material_id=item.material_id,
