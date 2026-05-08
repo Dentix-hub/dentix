@@ -263,7 +263,7 @@ def open_session(
     """Open a new material session (Explicit Approval)"""
     try:
         session = inventory_service.open_session(
-            data.stock_item_id, current_user.id, db
+            data.stock_item_id, current_user.id, db=db
         )
         return success_response(data=session, message="Session opened")
     except ValueError as e:

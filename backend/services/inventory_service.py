@@ -610,7 +610,7 @@ class InventoryService:
                     if auto_open:
                         # This will decrement stock by packaging_ratio
                         try:
-                            session = self.open_session(si.id, user_id, db)
+                            session = self.open_session(si.id, user_id, db=db)
                             db.refresh(si)
                         except ValueError as e:
                             raise e
