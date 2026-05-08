@@ -342,13 +342,13 @@ class InventoryService:
             > 0
         )
 
-        # Check Material Type
-
-        # If material has an active session, it's available for consumption
-        # This applies to both DIVISIBLE and NON_DIVISIBLE materials
-        # Use infinity to indicate unlimited availability during session
+        # Check Material Type - only DIVISIBLE/REUSABLE materials have virtual availability via sessions
+        # NON_DIVISIBLE materials must check actual physical stock
         if has_active_session:
-            return True, float('inf'), mat_name  # Virtual availability
+            mat = db.query(Material).filter(Material.id == material_id).first()
+            if mat and mat.type in ("DIVISIBLE", "REUSABLE"):
+                return True, float('inf'), mat_name  # Virtual availability for DIVISIBLE/REUSABLE
+            # For NON_DIVISIBLE, fall through to check actual stock
 
         total_available = query.scalar()
 
@@ -633,10 +633,9 @@ class InventoryService:
                     logger.info(f"[CONSUME_DEBUG] Material {mat_name} is NON_DIVISIBLE, proceeding to direct consumption")
 
             # 2. Consume Logic
-            # FIX: If ANY material has an active session -> It is 'Virtual Consumption'
-            # We do NOT decrement stock (because we already decremented on OPEN)
-            # We do NOT record USAGE movement (because we track via Weights/Treatments later)
-            if session:
+            # FIX: Only DIVISIBLE/REUSABLE materials use Virtual Consumption (no stock deduction)
+            # NON_DIVISIBLE materials must always deduct stock directly per unit consumed
+            if session and mat_type in ("DIVISIBLE", "REUSABLE"):
                 # 1. Increment Usage Counter for Reusable Tools
                 mat = si.batch.material
                 if mat and (mat.type == "REUSABLE" or mat.max_uses > 1):
@@ -645,11 +644,14 @@ class InventoryService:
                     # Note: We removed the hard limit check as requested
                     # Doctors will manually discard tools
 
-                # Satisfy request fully from this open session
+                # Satisfy request fully from this open session (Virtual Consumption)
                 # Assume infinite capacity until closed manually
                 remaining_to_consume = 0
                 # The caller (treatment) records the 'consumption' in its own logic via BOM.
+                logger.info(f"[CONSUME_DEBUG] Virtual consumption for {mat_name} (type={mat_type}) via session")
                 continue
+
+            # For NON_DIVISIBLE materials (even with session), proceed to direct stock deduction below
 
             # 3. Standard Consumption (Non-Divisible or Divisible-but-legacy? No, Divisible enforced above)
             consume_amount = min(si.quantity, remaining_to_consume)
