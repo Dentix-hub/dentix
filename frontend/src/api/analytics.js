@@ -1,7 +1,7 @@
 import { api } from './apiClient';
 
 export const getProfitability = async (period = '30d') => {
-    const response = await api.get('/metrics/profitability', { params: { period } });
+    const response = await api.get('/api/v1/metrics/profitability', { params: { period } });
     return response.data;
 };
 
