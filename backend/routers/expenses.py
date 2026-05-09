@@ -40,7 +40,7 @@ def create_expense(
         action="create",
         entity_type="expense",
         entity_id=result.id if hasattr(result, 'id') else None,
-        details=f"Expense: {expense.description} - {expense.amount}",
+        details=f"Expense: {expense.item_name} - {expense.cost}",
     )
     return success_response(result)
 

@@ -2,7 +2,7 @@ import logging
 from sqlalchemy.orm import Session, joinedload
 from typing import Dict, Any, List
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from backend.models.inventory import ProcedureMaterialWeight, Batch, StockItem, Material, TreatmentMaterialUsage
 from backend.models.clinical import Procedure
 
@@ -196,7 +196,14 @@ class CostEngine:
         Optimized to avoid N+1 where possible, but reuses core logic for consistency.
         """
         procedures = (
-            self.db.query(Procedure).filter(Procedure.tenant_id == self.tenant_id).all()
+            self.db.query(Procedure)
+            .filter(
+                or_(
+                    Procedure.tenant_id == self.tenant_id,
+                    Procedure.tenant_id.is_(None),
+                )
+            )
+            .all()
         )
         results = []
 

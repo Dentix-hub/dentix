@@ -14,10 +14,22 @@ const SmartDashboard = () => {
     const [activeTab, setActiveTab] = useState('financials'); // financials, procedures
     const { data, isLoading, error } = useQuery({
         queryKey: ['profitability', period],
-        queryFn: () => getProfitability(period),
-        refetchOnWindowFocus: false,
-        staleTime: 5 * 60 * 1000 // 5 minutes
+        queryFn: async () => {
+            try {
+                const res = await getProfitability(period);
+                console.log('[Analytics] Profitability response:', res);
+                return res;
+            } catch (err) {
+                console.error('[Analytics] Profitability error:', err);
+                throw err;
+            }
+        },
+        refetchOnWindowFocus: true,
+        staleTime: 0,
+        retry: 1
     });
+
+    console.log('[Analytics] data:', data, 'isLoading:', isLoading, 'error:', error);
     return (
         <div className="p-4 md:p-8 space-y-6 max-w-[1920px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
             {/* Header Area */}
