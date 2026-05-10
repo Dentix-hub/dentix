@@ -173,144 +173,120 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
                 return (
                     <div
                         key={sugg.category_id}
-                        className={`p-4 rounded-lg border ${sugg.has_active_session ? 'border-green-500 bg-green-50' : 'border-border bg-surface'}`}
+                        className={`p-2.5 rounded-xl border transition-all ${selected ? 'border-primary bg-primary/5 shadow-sm' : 'border-slate-200 bg-white'}`}
                     >
-                        {/* Category Header */}
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                                {(isDivisible || isReusable) ? <Droplets size={16} /> : <Package size={16} />}
-                                <span className="font-medium">{sugg.category_name_ar}</span>
-                                <span className="text-xs text-text-secondary">({sugg.category_name_en})</span>
+                        <div className="flex flex-col gap-2">
+                            {/* Top Row: Category Name & Quantity */}
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    {(isDivisible || isReusable) ? <Droplets size={16} className={selected ? 'text-primary' : 'text-slate-400'} /> : <Package size={16} className={selected ? 'text-primary' : 'text-slate-400'} />}
+                                    <span className="font-bold text-slate-700 text-sm">{sugg.category_name_ar}</span>
+                                </div>
+                                
+                                <div className="flex items-center gap-2">
+                                    {/* Weight / Quantity Controls */}
+                                    {isDivisible ? (
+                                        <div className="flex items-center gap-1">
+                                            {isManual ? (
+                                                <input
+                                                    type="number"
+                                                    step="0.1"
+                                                    value={selected?.weight || sugg.weight}
+                                                    onChange={(e) => handleWeightChange(sugg.category_id, e.target.value)}
+                                                    className="w-16 px-1.5 py-0.5 text-sm border rounded"
+                                                />
+                                            ) : (
+                                                <span className="text-sm font-bold bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm text-slate-700">
+                                                    {selected?.weight || sugg.weight} {sugg.base_unit}
+                                                </span>
+                                            )}
+                                            <button
+                                                onClick={() => toggleManualOverride(sugg.category_id)}
+                                                className={`p-1 rounded transition-colors ${isManual ? 'bg-primary text-white' : 'bg-slate-50 hover:bg-slate-100 text-slate-500 border border-slate-200 shadow-sm'}`}
+                                                title={t('inventory.materials.manual_override')}
+                                            >
+                                                <Edit3 size={14} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-1 bg-white rounded border border-slate-200 p-0.5 shadow-sm">
+                                            <button
+                                                onClick={() => handleQuantityChange(sugg.category_id, -1)}
+                                                className="p-1 hover:bg-slate-50 rounded text-slate-600 transition-colors"
+                                            >
+                                                <Minus size={14} />
+                                            </button>
+                                            <span className="w-6 text-center text-sm font-bold text-slate-700">
+                                                {selected?.quantity || 0}
+                                            </span>
+                                            <button
+                                                onClick={() => handleQuantityChange(sugg.category_id, 1)}
+                                                className="p-1 hover:bg-slate-50 rounded text-slate-600 transition-colors"
+                                            >
+                                                <Plus size={14} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                            {sugg.has_active_session && (
-                                <span className="text-xs bg-green-500 text-white px-2 py-1 rounded-full flex items-center gap-1">
-                                    <CheckCircle2 size={12} />
-                                    {t('inventory.materials.active_session')}
-                                </span>
-                            )}
-                        </div>
 
-                        {/* Material Selection */}
-                        <div className="mb-3">
-                            <label className="block text-sm text-text-secondary mb-1">
-                                {t('inventory.materials.select_material')}
-                            </label>
+                            {/* Bottom Row: Material Select & Badges */}
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="flex-1 min-w-[180px]">
+                                    {(sugg.material_id || sugg.alternatives?.length > 0) ? (
+                                        <select 
+                                            className={`w-full text-xs p-1.5 rounded border focus:bg-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all ${selected ? 'bg-white border-primary/20 text-slate-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
+                                            value={selected?.material_id || sugg.material_id || ''}
+                                            onChange={(e) => {
+                                                const selectedId = e.target.value;
+                                                if (!selectedId) return;
+                                                let mat = sugg.material_id?.toString() === selectedId 
+                                                    ? {id: sugg.material_id, name: sugg.material_name, brand: sugg.brand} 
+                                                    : sugg.alternatives?.find(a => a.id?.toString() === selectedId);
+                                                if (mat) handleMaterialSelect(sugg.category_id, mat);
+                                            }}
+                                        >
+                                            <option value="" disabled>{t('inventory.materials.select_material')}</option>
+                                            {sugg.material_id && (
+                                                <option value={sugg.material_id}>
+                                                    {sugg.material_name} {sugg.brand ? `(${sugg.brand})` : ''}
+                                                </option>
+                                            )}
+                                            {sugg.alternatives?.map(alt => (
+                                                <option key={alt.id} value={alt.id}>
+                                                    {alt.name} {alt.brand ? `(${alt.brand})` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <div className="text-[10px] text-amber-600 bg-amber-50 px-2 py-1.5 rounded border border-amber-100">
+                                            {t('inventory.materials.no_materials_in_category')}
+                                        </div>
+                                    )}
+                                </div>
 
-                            {/* Primary option */}
-                            {sugg.material_id && (
-                                <label className="flex items-center gap-2 p-2 rounded bg-background mb-1 cursor-pointer hover:bg-surface-hover">
-                                    <input
-                                        type="radio"
-                                        name={`material-${sugg.category_id}`}
-                                        checked={selected?.material_id === sugg.material_id}
-                                        onChange={() => handleMaterialSelect(sugg.category_id, {
-                                            id: sugg.material_id,
-                                            name: sugg.material_name,
-                                            brand: sugg.brand
-                                        })}
-                                        className="text-primary"
-                                    />
-                                    <span className="flex-1">
-                                        {sugg.material_name}
-                                        {sugg.brand && <span className="text-xs text-text-secondary ml-1">({sugg.brand})</span>}
-                                    </span>
+                                <div className="flex items-center gap-1.5">
+                                    {/* Session info */}
                                     {sugg.has_active_session && (
-                                        <span className="text-xs text-green-600">
-                                            {t('inventory.materials.session_linked')}
+                                        <span className="text-[10px] font-bold px-1.5 py-1 bg-green-50 text-green-700 rounded flex items-center gap-1 border border-green-100 whitespace-nowrap">
+                                            <CheckCircle2 size={10} />
+                                            {t('inventory.materials.active_session')}
                                             {(sugg.max_uses > 1 || isReusable) && (
-                                                <span className="ml-2 px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-100 font-bold">
-                                                    {sugg.current_uses} / {isReusable ? '∞' : sugg.max_uses} استخدام
+                                                <span className="ml-0.5 opacity-80 border-l border-green-200 pl-1">
+                                                    {sugg.current_uses}/{isReusable ? '∞' : sugg.max_uses}
                                                 </span>
                                             )}
                                         </span>
                                     )}
-                                </label>
-                            )}
-
-                            {/* Alternatives */}
-                            {sugg.alternatives?.map(alt => (
-                                <label
-                                    key={alt.id}
-                                    className="flex items-center gap-2 p-2 rounded bg-background mb-1 cursor-pointer hover:bg-surface-hover"
-                                >
-                                    <input
-                                        type="radio"
-                                        name={`material-${sugg.category_id}`}
-                                        checked={selected?.material_id === alt.id}
-                                        onChange={() => handleMaterialSelect(sugg.category_id, alt)}
-                                        className="text-primary"
-                                    />
-                                    <span className="flex-1">
-                                        {alt.name}
-                                        {alt.brand && <span className="text-xs text-text-secondary ml-1">({alt.brand})</span>}
-                                    </span>
-                                </label>
-                            ))}
-
-                            {/* No materials available */}
-                            {!sugg.material_id && sugg.alternatives?.length === 0 && (
-                                <div className="p-2 text-sm text-amber-600 bg-amber-50 rounded">
-                                    {t('inventory.materials.no_materials_in_category')}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Weight / Quantity Controls */}
-                        <div className="flex items-center justify-between">
-                            {isDivisible ? (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm text-text-secondary">
-                                        {t('inventory.materials.weight_score')}:
-                                    </span>
-                                    {isManual ? (
-                                        <input
-                                            type="number"
-                                            step="0.1"
-                                            value={selected?.weight || sugg.weight}
-                                            onChange={(e) => handleWeightChange(sugg.category_id, e.target.value)}
-                                            className="w-20 px-2 py-1 text-sm border rounded"
-                                        />
-                                    ) : (
-                                        <span className="font-medium">{selected?.weight || sugg.weight}</span>
-                                    )}
-                                    <button
-                                        onClick={() => toggleManualOverride(sugg.category_id)}
-                                        className={`p-1 rounded ${isManual ? 'bg-primary text-white' : 'bg-surface-hover'}`}
-                                        title={t('inventory.materials.manual_override')}
-                                    >
-                                        <Edit3 size={14} />
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="flex items-center gap-3">
-                                    <span className="text-sm text-text-secondary">
-                                        {t('inventory.materials.quantity')}:
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => handleQuantityChange(sugg.category_id, -1)}
-                                            className="p-1 rounded bg-surface-hover hover:bg-border"
-                                        >
-                                            <Minus size={16} />
-                                        </button>
-                                        <span className="w-8 text-center font-medium">
-                                            {selected?.quantity || 0}
+                                    
+                                    {/* Confidence indicator (Only if there is a material) */}
+                                    {sugg.material_id && sugg.reason && (
+                                        <span className={`text-[10px] px-1.5 py-1 rounded border whitespace-nowrap ${sugg.confidence > 0.8 ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`} title={sugg.reason}>
+                                            {sugg.confidence > 0.8 ? 'مقترح' : 'بديل'}
                                         </span>
-                                        <button
-                                            onClick={() => handleQuantityChange(sugg.category_id, 1)}
-                                            className="p-1 rounded bg-surface-hover hover:bg-border"
-                                        >
-                                            <Plus size={16} />
-                                        </button>
-                                    </div>
-                                    <span className="text-xs text-text-secondary">{sugg.base_unit}</span>
+                                    )}
                                 </div>
-                            )}
-
-                            {/* Confidence indicator */}
-                            <span className={`text-xs px-2 py-1 rounded ${sugg.confidence > 0.8 ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                                {sugg.reason}
-                            </span>
+                            </div>
                         </div>
                     </div>
                 );
