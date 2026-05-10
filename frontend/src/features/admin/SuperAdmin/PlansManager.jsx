@@ -128,7 +128,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                         <input
                                             type="checkbox"
                                             checked={editedPlanData.is_ai_enabled ?? plan.is_ai_enabled ?? false}
-                                            onChange={(e) => setEditedPlanData({ ...editedPlanData, i_ai_enabled: e.target.checked })}
+                                            onChange={(e) => setEditedPlanData({ ...editedPlanData, is_ai_enabled: e.target.checked })}
                                             className="w-5 h-5 accent-indigo-600 rounded-lg cursor-pointer"
                                         />
                                     </div>

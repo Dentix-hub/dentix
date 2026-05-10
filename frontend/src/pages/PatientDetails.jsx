@@ -218,6 +218,9 @@ export default function PatientDetails() {
         } catch { /* ignore */ }
 
         setNewTreatment({
+            id: item.id,
+            patient_id: item.patient_id,
+            doctor_id: item.doctor_id,
             date: item.date ? new Date(item.date).toLocaleDateString('en-CA') : getTodayStr(),
             diagnosis: item.diagnosis || '',
             procedure: item.procedure || '',
@@ -229,6 +232,8 @@ export default function PatientDetails() {
             sessions: item.sessions || '',
             complications: item.complications || '',
             notes: item.notes || '',
+            status: item.status || 'Done',
+            consumedMaterials: item.consumedMaterials || [],
             default_price_list_id: patient?.default_price_list_id
         });
         setIsTreatmentModalOpen(true);

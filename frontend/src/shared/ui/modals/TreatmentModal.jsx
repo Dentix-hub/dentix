@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Package, Plus, Trash2, Clock, FileText } from 'lucide-react';
 import { getMaterials, getStockSummary, getProcedureWeights, getActiveSessions } from '@/api/inventory';
+import { palmerToFdi } from '@/utils/toothUtils';
 import TrackSessionModal from '@/features/inventory/components/TrackSessionModal';
 import { EnhancedMaterialConsumption } from '@/features/inventory/components/EnhancedMaterialConsumption';
 import MaterialConsumptionPanel from '@/features/inventory/MaterialConsumptionPanel';
@@ -75,15 +76,13 @@ export default function TreatmentModal({
     useEffect(() => {
         if (isOpen) {
             setTreatment(initialData);
-            // FIX: Initialize consumed materials from initialData when editing
-            if (isEditing && initialData.consumedMaterials) {
+            // FIX: Always reset consumed materials when opening modal to prevent stale data
+            if (isEditing && initialData.consumedMaterials && initialData.consumedMaterials.length > 0) {
                 console.log("[TreatmentModal] Loading existing materials:", initialData.consumedMaterials);
                 setConsumedMaterials(initialData.consumedMaterials);
-                if (initialData.consumedMaterials.length > 0) {
-                    setShowInventory(true);
-                }
-            } else if (!isEditing) {
-                // Reset for new entry
+                setShowInventory(true);
+            } else {
+                // Reset for new entry or if no materials exist
                 setConsumedMaterials([]);
                 setShowInventory(false);
             }
@@ -192,7 +191,7 @@ export default function TreatmentModal({
             ...treatment,
             patient_id: treatment.patient_id,
             doctor_id: treatment.doctor_id,
-            tooth_number: !isNaN(parseInt(treatment.tooth_number)) ? parseInt(treatment.tooth_number, 10) : null,
+            tooth_number: palmerToFdi(treatment.tooth_number) || null,
             procedure_id: safeProcedures.find(p => p.name === treatment.procedure)?.id,
             cost: parseFloat(treatment.cost) || 0,
             discount: parseFloat(treatment.discount) || 0,
@@ -620,6 +619,7 @@ export default function TreatmentModal({
                             <div className="p-3 bg-white">
                                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">اقتراحات حسب الإجراء</div>
                                 <MaterialConsumptionPanel
+                                    key={`mat-panel-${treatment.id || 'new'}-${treatment.procedure || 'none'}`}
                                     procedureId={safeProcedures.find(p => p.name === treatment.procedure)?.id}
                                     doctorId={treatment.doctor_id}
                                     initialMaterials={consumedMaterials}
