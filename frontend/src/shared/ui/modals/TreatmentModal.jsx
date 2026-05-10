@@ -599,7 +599,7 @@ export default function TreatmentModal({
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm font-bold bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm text-slate-700">
-                                                    {item.quantity} {isDivisible ? (item.unit ? item.unit : 'g/ml') : (item.unit ? item.unit : 'وحدة')}
+                                                    {item.quantity} {isDivisible ? (item.unit || 'وزن نسبي') : (item.unit || 'وحدة')}
                                                 </span>
                                                 <button
                                                     onClick={() => {
