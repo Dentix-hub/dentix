@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Package, Plus, Trash2, Clock, FileText } from 'lucide-react';
+import { X, Package, Plus, Trash2, Clock, FileText, Droplets } from 'lucide-react';
 import { getMaterials, getStockSummary, getProcedureWeights, getActiveSessions } from '@/api/inventory';
 import { palmerToFdi } from '@/utils/toothUtils';
 import TrackSessionModal from '@/features/inventory/components/TrackSessionModal';
@@ -590,12 +590,16 @@ export default function TreatmentModal({
                                     const isDivisible = ['g', 'ml', 'cm'].includes(item.unit?.toLowerCase()) ||
                                         matInfo?.type === 'DIVISIBLE' ||
                                         matInfo?.material_type === 'DIVISIBLE';
+                                    const isReusable = matInfo?.type === 'REUSABLE' || matInfo?.material_type === 'REUSABLE';
                                     return (
-                                        <div key={idx} className="flex justify-between items-center text-sm p-2 bg-primary/5 rounded-lg border border-primary/10">
-                                            <span className="font-bold text-slate-700">{matName}</span>
+                                        <div key={idx} className="p-2.5 rounded-xl border border-primary/20 bg-primary/5 shadow-sm transition-all flex items-center justify-between">
                                             <div className="flex items-center gap-2">
-                                                <span className="bg-white px-2 py-0.5 rounded border border-primary/20 text-primary font-mono font-bold text-xs">
-                                                    {item.quantity} {isDivisible ? '× وزن نسبي' : (item.unit ? item.unit : 'وحدة')}
+                                                {(isDivisible || isReusable) ? <Droplets size={16} className="text-primary" /> : <Package size={16} className="text-primary" />}
+                                                <span className="font-bold text-slate-700 text-sm">{matName}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm font-bold bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm text-slate-700">
+                                                    {item.quantity} {isDivisible ? (item.unit ? item.unit : 'g/ml') : (item.unit ? item.unit : 'وحدة')}
                                                 </span>
                                                 <button
                                                     onClick={() => {
@@ -603,7 +607,7 @@ export default function TreatmentModal({
                                                         newMats.splice(idx, 1);
                                                         setConsumedMaterials(newMats);
                                                     }}
-                                                    className="text-red-400 hover:text-red-500 p-1"
+                                                    className="p-1 rounded text-red-400 hover:bg-white hover:text-red-600 transition-colors shadow-sm border border-transparent hover:border-red-100"
                                                 >
                                                     <Trash2 size={14} />
                                                 </button>
