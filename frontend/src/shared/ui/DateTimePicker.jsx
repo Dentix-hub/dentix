@@ -1,4 +1,4 @@
-import React, { useState, useMemo, Fragment } from 'react';
+import React, { useState, useMemo, Fragment, useRef, useEffect } from 'react';
 import { Dialog, Transition, TransitionChild } from '@headlessui/react';
 import { Calendar as CalendarIcon, Clock, ChevronLeft, ChevronRight, Check, ChevronDown, X } from 'lucide-react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday, parseISO, isValid } from 'date-fns';
@@ -24,7 +24,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
         return isValid(d) ? d : new Date();
     }, [value, isMonthOnly]);
 
-    const [viewMode, setViewMode] = useState('days'); // 'days', 'months', 'years'
+    const [viewMode, setViewMode] = useState(isMonthOnly ? 'months' : 'days'); // 'days', 'months', 'years'
     const [viewDate, setViewDate] = useState(initialDate);
     const [selectedDate, setSelectedDate] = useState(initialDate);
     const [tempTime, setTempTime] = useState({
@@ -32,6 +32,14 @@ export default function DateTimePicker({ value, onChange, label, error, required
         minutes: Math.floor(initialDate.getMinutes() / 5) * 5,
         ampm: initialDate.getHours() >= 12 ? 'PM' : 'AM'
     });
+
+    const activeYearRef = useRef(null);
+
+    useEffect(() => {
+        if (viewMode === 'years' && activeYearRef.current) {
+            activeYearRef.current.scrollIntoView({ block: 'center', behavior: 'instant' });
+        }
+    }, [viewMode]);
 
     const days = useMemo(() => {
         const start = startOfWeek(startOfMonth(viewDate));
@@ -99,6 +107,8 @@ export default function DateTimePicker({ value, onChange, label, error, required
         setViewDate(new Date(newDate));
         if (isMonthOnly) {
             setSelectedDate(new Date(newDate));
+            onChange({ target: { value: format(newDate, 'yyyy-MM') } });
+            setIsOpen(false);
         } else {
             setViewMode('days');
         }
@@ -167,7 +177,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                 leave="ease-in duration-200"
                                 leaveFrom="opacity-100 scale-100 translate-y-0"
                                 leaveTo="opacity-0 scale-95 translate-y-4"
-                                afterLeave={() => setViewMode('days')}
+                                afterLeave={() => setViewMode(isMonthOnly ? 'months' : 'days')}
                             >
                                 <Dialog.Panel className="w-full max-w-fit transform overflow-hidden rounded-[2.5rem] bg-white dark:bg-slate-900 text-left align-middle shadow-[0_20px_50px_rgba(0,0,0,0.3)] transition-all border border-slate-200 dark:border-white/10">
                                     <div className={`flex flex-col md:flex-row ${isDateOnly || isMonthOnly ? 'w-[320px]' : 'w-[320px] md:w-[600px]'} max-h-[90vh] overflow-hidden`}>
@@ -218,9 +228,11 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                                         {years.map(y => (
                                                             <button
                                                                 key={y}
+                                                                ref={viewDate.getFullYear() === y ? activeYearRef : null}
                                                                 type="button"
                                                                 onClick={() => handleYearSelect(y)}
                                                                 className={`py-3 rounded-xl text-sm font-bold transition-all ${viewDate.getFullYear() === y ? 'bg-primary text-white shadow-lg' : 'hover:bg-primary/10 text-text-primary'}`}
+                                                                id={viewDate.getFullYear() === y ? "active-year-btn" : null}
                                                             >
                                                                 {y}
                                                             </button>

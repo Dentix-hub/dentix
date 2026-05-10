@@ -54,8 +54,32 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
         }
     }, [suggestions]);
 
-    // REMOVED automatic useEffect to prevent overwriting materials added by other components (e.g. Picker)
-    // Parent is now notified explicitly in interaction handlers
+    // Initialize from initialMaterials when procedureId changes (new treatment modal opened)
+    useEffect(() => {
+        if (Array.isArray(initialMaterials) && initialMaterials.length > 0) {
+            const initial = {};
+            initialMaterials.forEach(mat => {
+                if (mat.category_id || mat.material_id) {
+                    initial[mat.category_id || mat.material_id] = {
+                        category_id: mat.category_id,
+                        material_id: mat.material_id || mat.id,
+                        material_name: mat.material_name || mat.name,
+                        weight: mat.weight || 1.0,
+                        quantity: Number.isFinite(parseFloat(mat.quantity)) ? parseFloat(mat.quantity) : 1,
+                        material_type: mat.material_type || 'NON_DIVISIBLE',
+                        base_unit: mat.base_unit,
+                        has_active_session: mat.has_active_session,
+                        session_id: mat.session_id,
+                        is_manual_override: !!mat.is_manual_override
+                    };
+                }
+            });
+            setSelectedMaterials(initial);
+        } else if (procedureId) {
+            // Reset when switching to a new treatment with no materials
+            setSelectedMaterials({});
+        }
+    }, [procedureId]);
 
     const handleMaterialSelect = (categoryId, material) => {
         setSelectedMaterials(prev => {

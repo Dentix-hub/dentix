@@ -394,6 +394,12 @@
             "canal_unit": "مم",
             "lengths": "الأطوال:",
             "sessions": "الجلسات:",
+            "status": "الحالة",
+            "statuses": {
+                "Done": "تم الإنجاز",
+                "In Progress": "جاري التنفيذ",
+                "Pending": "معلق"
+            },
             "empty": "لا يوجد سجل تاريخي للعلاج"
         },
         "files": {

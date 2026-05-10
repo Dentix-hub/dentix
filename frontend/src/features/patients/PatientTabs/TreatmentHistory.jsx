@@ -24,6 +24,7 @@ const TreatmentHistory = ({
                             <th className="p-4 whitespace-nowrap">{t('patientDetails.treatment_history.tooth')}</th>
                             <th className="p-4 whitespace-nowrap min-w-[150px]">{t('patientDetails.treatment_history.diagnosis')}</th>
                             <th className="p-4 whitespace-nowrap min-w-[150px]">{t('patientDetails.treatment_history.treatment')}</th>
+                            <th className="p-4 whitespace-nowrap">{t('patientDetails.treatment_history.status')}</th>
                             <th className="p-4 whitespace-nowrap">{t('patientDetails.treatment_history.details')}</th>
                             <th className="p-4 whitespace-nowrap">{t('patientDetails.treatment_history.actions')}</th>
                         </tr>
@@ -35,6 +36,16 @@ const TreatmentHistory = ({
                                 <td className="p-4 font-mono text-slate-500 whitespace-nowrap">{fdiToPalmer(item.tooth_number) || '-'}</td>
                                 <td className="p-4 font-bold text-slate-700 whitespace-nowrap">{item.diagnosis}</td>
                                 <td className="p-4 whitespace-nowrap">{item.procedure}</td>
+                                <td className="p-4 whitespace-nowrap">
+                                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${
+                                        item.status === 'Done' ? 'bg-green-100 text-green-700' :
+                                        item.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
+                                        item.status === 'Pending' ? 'bg-amber-100 text-amber-700' :
+                                        'bg-slate-100 text-slate-600'
+                                    }`}>
+                                        {t(`patientDetails.treatment_history.statuses.${item.status || 'Done'}`)}
+                                    </span>
+                                </td>
                                 <td className="p-4 text-sm text-slate-700">
                                     {item.canal_count && <div className="font-bold mb-1 text-blue-700">{t('patientDetails.treatment_history.canal_count')} {item.canal_count}</div>}
                                     {(() => {
