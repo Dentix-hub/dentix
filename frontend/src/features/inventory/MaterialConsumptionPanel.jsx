@@ -197,7 +197,7 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
                                                 />
                                             ) : (
                                                 <span className="text-sm font-bold bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm text-slate-700">
-                                                    {selected?.weight || sugg.weight} {sugg.base_unit}
+                                                    {selected?.weight || sugg.weight} {sugg.base_unit || 'وزن نسبي'}
                                                 </span>
                                             )}
                                             <button
