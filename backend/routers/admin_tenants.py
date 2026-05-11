@@ -230,19 +230,25 @@ def get_tenant_details(
 @router.post("/{tenant_id}/impersonate", response_model=StandardResponse[dict])
 def impersonate_tenant(
     tenant_id: int,
+    user_id: int = None,
     current_user: models.User = Depends(require_super_admin),
     db: Session = Depends(get_db),
 ):
-    """Generate a temporary token to log in as a clinic manager."""
-    # 1. Find the manager or any active admin for this tenant
-    target_user = db.query(models.User).filter(
+    """Generate a temporary token to log in as a clinic manager or specific user."""
+    query = db.query(models.User).filter(
         models.User.tenant_id == tenant_id,
         models.User.is_active == True,
         models.User.is_deleted == False
-    ).order_by(models.User.role == Role.MANAGER.value).first()
+    )
 
-    if not target_user:
-        raise HTTPException(status_code=404, detail="No active users found for this clinic")
+    if user_id:
+        target_user = query.filter(models.User.id == user_id).first()
+        if not target_user:
+            raise HTTPException(status_code=404, detail="المستخدم غير موجود أو غير نشط في هذه العيادة")
+    else:
+        target_user = query.order_by((models.User.role == Role.MANAGER.value).desc()).first()
+        if not target_user:
+            raise HTTPException(status_code=404, detail="No active users found for this clinic")
 
     # 2. Create impersonation token (Valid for 30 minutes)
     access_token = create_access_token(
