@@ -42,9 +42,13 @@ export default function TenantsPage() {
         fetchData();
     }, []);
 
-    const handleImpersonate = async (tenantId) => {
+    const handleImpersonate = async (tenantId, userId) => {
         try {
-            const res = await api.post(`/api/v1/admin/tenants/${tenantId}/impersonate`);
+            const url = userId 
+                ? `/api/v1/admin/tenants/${tenantId}/impersonate?user_id=${userId}`
+                : `/api/v1/admin/tenants/${tenantId}/impersonate`;
+                
+            const res = await api.post(url);
             const { access_token } = res.data;
 
             // Save original admin token to return later
@@ -53,7 +57,7 @@ export default function TenantsPage() {
 
             // Set new token and redirect
             setToken(access_token);
-            toast.success('جاري الدخول بصفة مدير العيادة...');
+            toast.success('جاري الدخول للنظام...');
             
             setTimeout(() => {
                 window.location.href = '/dashboard';

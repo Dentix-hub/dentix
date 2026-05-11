@@ -18,6 +18,8 @@ import { ar } from 'date-fns/locale';
 
 const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, onImpersonate }) {
     const [data, setData] = useState(null);
+    const [users, setUsers] = useState([]);
+    const [selectedUser, setSelectedUser] = useState('');
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -25,8 +27,13 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
         const fetchDetails = async () => {
             try {
                 setLoading(true);
-                const res = await api.get(`/api/v1/admin/tenants/${tenantId}/details`);
-                setData(res.data);
+                const [detailsRes, usersRes] = await Promise.all([
+                    api.get(`/api/v1/admin/tenants/${tenantId}/details`),
+                    api.get(`/api/v1/admin/tenants/${tenantId}/users`)
+                ]);
+                setData(detailsRes.data);
+                setUsers(usersRes.data.users || []);
+                setSelectedUser('');
             } catch (err) {
                 console.error(err);
             } finally {
@@ -79,17 +86,31 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                                             <Globe size={14} />
                                             {data.tenant?.domain || 'portal'}.dentix.com
                                         </p>
-                                        <div className="mt-6 flex gap-4">
-                                            <button 
-                                                onClick={() => onImpersonate(data.tenant?.id)}
-                                                className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-md px-4 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
+                                        <div className="mt-6 flex flex-col gap-3">
+                                            <select
+                                                className="w-full bg-white/20 text-white placeholder-white/50 border border-white/20 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-white/50 [&>option]:text-slate-800"
+                                                value={selectedUser}
+                                                onChange={(e) => setSelectedUser(e.target.value)}
                                             >
-                                                <Shield size={16} />
-                                                دخول كمدير
-                                            </button>
-                                            <button className="p-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-xl transition-all">
-                                                <ExternalLink size={18} />
-                                            </button>
+                                                <option value="">دخول تلقائي (المدير)</option>
+                                                {users.filter(u => u.is_active).map(u => (
+                                                    <option key={u.id} value={u.id}>
+                                                        {u.username || u.email} ({u.role})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <div className="flex gap-4">
+                                                <button 
+                                                    onClick={() => onImpersonate(data.tenant?.id, selectedUser)}
+                                                    className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-md px-4 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
+                                                >
+                                                    <Shield size={16} />
+                                                    دخول للنظام
+                                                </button>
+                                                <button className="p-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-xl transition-all">
+                                                    <ExternalLink size={18} />
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
 
