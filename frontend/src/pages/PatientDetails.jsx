@@ -193,6 +193,7 @@ export default function PatientDetails() {
         try {
             await createPaymentMutate({ ...data, patient_id: parseInt(id, 10) });
             setIsPaymentModalOpen(false);
+            toast.success(t('finance.pay_success', 'تم الدفع بنجاح'));
             // refetchPayments is handled by onSettled in hook
         } catch (err) {
             toast.error(err.response?.data?.detail || t('patient_details.alerts.payment_save_fail'));
@@ -244,6 +245,7 @@ export default function PatientDetails() {
         try {
             await deleteTreatment(treatmentId);
             refetchHistory();
+            toast.success(t('common.delete_success', 'تم الحذف بنجاح'));
         } catch (err) {
             toast.error(err.response?.data?.detail || t('patient_details.alerts.delete_treatment_fail'));
         }
@@ -253,6 +255,7 @@ export default function PatientDetails() {
         if (!window.confirm(t('patient_details.alerts.delete_payment_confirm'))) return;
         try {
             await deletePaymentMutate({ paymentId, patientId: parseInt(id, 10) });
+            toast.success(t('common.delete_success', 'تم الحذف بنجاح'));
             // refetchPayments is handled by onSettled in hook
         } catch (err) {
             toast.error(err.response?.data?.detail || t('patient_details.alerts.delete_payment_fail'));
