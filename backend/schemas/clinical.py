@@ -91,6 +91,7 @@ class ConsumedMaterialItem(BaseModel):
 
 class TreatmentCreate(TreatmentBase):
     consumedMaterials: Optional[list[ConsumedMaterialItem]] = None
+    skip_stock_check: Optional[bool] = False
 
     model_config = ConfigDict(
         json_schema_extra={

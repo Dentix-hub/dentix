@@ -210,8 +210,12 @@ class TreatmentService:
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
 
-        # 2. Validate stock (pre-check)
-        self.validate_treatment_stock(treatment_data.consumedMaterials or [])
+        # 2. Validate stock (pre-check) — skip if requested
+        skip_stock = getattr(treatment_data, 'skip_stock_check', False)
+        if not skip_stock:
+            self.validate_treatment_stock(treatment_data.consumedMaterials or [])
+        else:
+            logger.info("[TREATMENT] Skipping stock validation (skip_stock_check=True)")
 
         # 3. Calculate price and snapshot
         price_list_id = getattr(treatment_data, "price_list_id", None)
@@ -234,12 +238,15 @@ class TreatmentService:
             commit=False,
         )
 
-        # 6. Consume stock (post-creation)
-        self.consume_treatment_stock(
-            created_treatment.id,
-            treatment_data.consumedMaterials or [],
-            patient_id=treatment_data.patient_id
-        )
+        # 6. Consume stock (post-creation) — skip if requested
+        if not skip_stock:
+            self.consume_treatment_stock(
+                created_treatment.id,
+                treatment_data.consumedMaterials or [],
+                patient_id=treatment_data.patient_id
+            )
+        else:
+            logger.info("[TREATMENT] Skipping stock consumption (skip_stock_check=True)")
 
         # 7. Commit transaction
         self.db.commit()
@@ -281,20 +288,27 @@ class TreatmentService:
             db=self.db,
         )
 
-        # 2. Validate new stock (pre-check)
-        self.validate_treatment_stock(treatment_data.consumedMaterials or [])
+        # 2. Validate new stock (pre-check) — skip if requested
+        skip_stock = getattr(treatment_data, 'skip_stock_check', False)
+        if not skip_stock:
+            self.validate_treatment_stock(treatment_data.consumedMaterials or [])
+        else:
+            logger.info("[TREATMENT] Skipping stock validation on update (skip_stock_check=True)")
 
         # 3. Update treatment (deferred commit)
         updated_treatment = crud.update_treatment(
             self.db, treatment_id, treatment_data, self.tenant_id, commit=False
         )
 
-        # 4. Consume new stock (post-update)
-        self.consume_treatment_stock(
-            treatment_id,
-            treatment_data.consumedMaterials or [],
-            patient_id=treatment_data.patient_id
-        )
+        # 4. Consume new stock (post-update) — skip if requested
+        if not skip_stock:
+            self.consume_treatment_stock(
+                treatment_id,
+                treatment_data.consumedMaterials or [],
+                patient_id=treatment_data.patient_id
+            )
+        else:
+            logger.info("[TREATMENT] Skipping stock consumption on update (skip_stock_check=True)")
 
         # 5. Commit transaction
         self.db.commit()

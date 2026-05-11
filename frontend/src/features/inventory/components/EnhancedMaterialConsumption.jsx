@@ -168,12 +168,7 @@ export function EnhancedMaterialConsumption({
     };
     return (
         <Modal isOpen={isOpen} onClose={onClose} size="lg" title={`المواد المستخدمة: ${procedure?.name || ''}`}>
-            {/* DEBUG BANNER - ALWAYS VISIBLE IF DATA EXISTS */}
-            {availableMaterials?.length > 0 && (
-                <div className="bg-red-600 text-white p-1 text-[10px] text-center font-bold">
-                    DEBUG: {availableMaterials.length} مواد متوفرة | {availableMaterialsList.length} مصفاة
-                </div>
-            )}
+            {/* DEBUG BANNER removed - production-ready */}
             <div className="space-y-6">
                 {/* Warnings */}
                 {warnings.length > 0 && (
@@ -224,6 +219,9 @@ export function EnhancedMaterialConsumption({
                                             const name = m.material_name || m.name;
                                             const unitDisplay = m.unit || m.base_unit || '';
                                             const qtyDisplay = m.total_quantity !== undefined ? m.total_quantity : (m.quantity || 0);
+                                            const alertStatus = m.alert_status || (qtyDisplay <= 0 ? 'CRITICAL' : 'OK');
+                                            const isCritical = alertStatus === 'CRITICAL' || qtyDisplay <= 0;
+                                            const isLow = alertStatus === 'LOW';
                                             
                                             if (!id) return null;
 
@@ -234,16 +232,41 @@ export function EnhancedMaterialConsumption({
                                                         console.log('[EMC_ACTION] Adding material:', id);
                                                         addManualMaterial(id);
                                                     }}
-                                                    className="flex justify-between items-center p-3 bg-white border border-blue-200 rounded-lg hover:border-primary hover:shadow-sm transition-all text-right group"
+                                                    className={cn(
+                                                        "flex justify-between items-center p-3 border rounded-lg hover:shadow-sm transition-all text-right group",
+                                                        isCritical 
+                                                            ? "bg-red-50/50 border-red-200 hover:border-red-400" 
+                                                            : isLow 
+                                                                ? "bg-amber-50/50 border-amber-200 hover:border-amber-400" 
+                                                                : "bg-white border-blue-200 hover:border-primary"
+                                                    )}
                                                 >
                                                     <div className="flex flex-col items-end">
-                                                        <span className="font-bold text-slate-800 group-hover:text-primary transition-colors">{name}</span>
+                                                        <span className={cn(
+                                                            "font-bold transition-colors",
+                                                            isCritical ? "text-red-700 group-hover:text-red-800" : "text-slate-800 group-hover:text-primary"
+                                                        )}>{name}</span>
                                                         <span className="text-[10px] text-slate-500">{m.brand || ''}</span>
                                                     </div>
-                                                    <div className="flex flex-col items-start text-left">
-                                                        <Badge variant="outline" className="text-[10px] bg-slate-50">
+                                                    <div className="flex flex-col items-start text-left gap-1">
+                                                        <Badge variant="outline" className={cn(
+                                                            "text-[10px]",
+                                                            isCritical ? "bg-red-100 text-red-700 border-red-300" :
+                                                            isLow ? "bg-amber-100 text-amber-700 border-amber-300" :
+                                                            "bg-slate-50"
+                                                        )}>
                                                             {qtyDisplay} {unitDisplay} متوفر
                                                         </Badge>
+                                                        {isCritical && (
+                                                            <span className="text-[9px] text-red-500 font-bold flex items-center gap-0.5">
+                                                                <AlertTriangle size={10} /> نفد المخزون
+                                                            </span>
+                                                        )}
+                                                        {isLow && !isCritical && (
+                                                            <span className="text-[9px] text-amber-600 font-bold flex items-center gap-0.5">
+                                                                <AlertTriangle size={10} /> مخزون منخفض
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </button>
                                             );
