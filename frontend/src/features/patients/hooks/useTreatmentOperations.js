@@ -83,14 +83,21 @@ export const useTreatmentOperations = ({
             const envelope = res?.error;
             const msg = envelope?.details?.message || envelope?.message || detail || res?.message;
 
-            // SPECIAL HANDLING: If generic error, show alert. 
-            // If "CONFIRM_OPEN_REQUIRED", rethrow so TreatmentModal can handle it.
-            if (
+            // SPECIAL HANDLING: Rethrow specific errors so TreatmentModal can handle them.
+            // 1. CONFIRM_OPEN_REQUIRED — TreatmentModal shows session tracking modal
+            // 2. Stock validation errors — TreatmentModal shows "save without stock" option
+            const isConfirmOpen = (
                 detail?.code === "CONFIRM_OPEN_REQUIRED" ||
                 envelope?.details?.code === "CONFIRM_OPEN_REQUIRED" ||
                 (typeof msg === 'string' && msg.includes('CONFIRM_OPEN_REQUIRED'))
-            ) {
-                throw err;
+            );
+            const isStockError = err.response?.status === 400 && (
+                (typeof detail === 'string' && (detail.includes('مخزون') || detail.includes('stock') || detail.includes('Insufficient'))) ||
+                (typeof msg === 'string' && (msg.includes('مخزون') || msg.includes('Insufficient')))
+            );
+
+            if (isConfirmOpen || isStockError) {
+                throw err; // Let TreatmentModal handle with specialized UI
             }
 
             const finalMsg = typeof msg === 'object' ? JSON.stringify(msg) : (msg || t('patient_details.alerts.treatment_save_fail'));

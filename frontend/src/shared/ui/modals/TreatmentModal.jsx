@@ -173,7 +173,7 @@ export default function TreatmentModal({
         setIsTrackSessionOpen(true);
     };
 
-    const handleSave = async (e) => {
+    const handleSave = async (e, forceSkipStock = false) => {
         if (e) e.preventDefault();
         if (isSavingRef.current) return;
         isSavingRef.current = true;
@@ -200,7 +200,8 @@ export default function TreatmentModal({
             canal_count: !isNaN(parseInt(treatment.canal_count)) ? parseInt(treatment.canal_count, 10) : null,
             sessions: treatment.sessions,
             complications: treatment.complications,
-            consumedMaterials: cleanedMaterials
+            consumedMaterials: cleanedMaterials,
+            skip_stock_check: forceSkipStock
         };
 
         console.log('[TREATMENT] Saving with payload:', payload);
@@ -220,9 +221,48 @@ export default function TreatmentModal({
                 return;
             }
 
-            // Case 3: Generic Error (400 Bad Request or 500)
+            // Case: Stock validation failure (400 with stock-related message)
             const responseData = error.response?.data;
             const errDetail = responseData?.detail;
+            const isStockError = error.response?.status === 400 && (
+                (typeof errDetail === 'string' && (errDetail.includes('مخزون') || errDetail.includes('stock') || errDetail.includes('Insufficient'))) ||
+                (typeof responseData?.message === 'string' && responseData.message.includes('مخزون'))
+            );
+
+            if (isStockError && !forceSkipStock) {
+                // Show rich toast with retry option
+                toast((t) => (
+                    <div className="flex flex-col gap-2 max-w-xs" dir="rtl">
+                        <div className="flex items-center gap-2 text-red-700 font-bold text-sm">
+                            <span>⚠️</span>
+                            <span>نقص في المخزون</span>
+                        </div>
+                        <p className="text-xs text-slate-600 leading-relaxed">
+                            {typeof errDetail === 'string' ? errDetail : 'بعض المواد غير متوفرة في المخزن حالياً.'}
+                        </p>
+                        <div className="flex gap-2 pt-1 border-t border-slate-100">
+                            <button
+                                onClick={() => {
+                                    toast.dismiss(t.id);
+                                    handleSave(null, true);
+                                }}
+                                className="flex-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-colors"
+                            >
+                                حفظ بدون خصم مخزون
+                            </button>
+                            <button
+                                onClick={() => toast.dismiss(t.id)}
+                                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold transition-colors"
+                            >
+                                إلغاء
+                            </button>
+                        </div>
+                    </div>
+                ), { duration: 15000 });
+                return;
+            }
+
+            // Case: Generic Error (other 400 or 500)
             const errorEnvelope = responseData?.error;
             const friendlyMsg = typeof errDetail === 'string' ? errDetail : 
                                (errDetail?.message || errorEnvelope?.message || error.message || 'فشل حفظ العلاج');

@@ -28,6 +28,7 @@ def create_treatment(
 
     # Remove fields that are not part of the Treatment model
     treatment_dict.pop("consumedMaterials", None)
+    treatment_dict.pop("skip_stock_check", None)
 
     # Auto-fill doctor_id if not provided
     if not treatment_dict.get("doctor_id") and doctor_id:
@@ -228,6 +229,7 @@ def update_treatment(
         treatment_dict = treatment.dict()
         # Remove fields that are not part of the Treatment model
         treatment_dict.pop("consumedMaterials", None)
+        treatment_dict.pop("skip_stock_check", None)
         # Preserve doctor_id if not provided in update
         if not treatment_dict.get("doctor_id") and db_treatment.doctor_id:
             treatment_dict["doctor_id"] = db_treatment.doctor_id
