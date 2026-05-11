@@ -114,7 +114,7 @@ export function useDeletePayment() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: deletePayment,
+        mutationFn: ({ paymentId }) => deletePayment(paymentId),
         onMutate: async ({ paymentId, patientId }) => {
             await queryClient.cancelQueries({ queryKey: ['patient', patientId, 'payments'] });
             const previousPayments = queryClient.getQueryData(['patient', patientId, 'payments']);
