@@ -7,10 +7,13 @@ principles.
 """
 
 import os
+import logging
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -24,19 +27,19 @@ load_dotenv(env_path)
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not SQLALCHEMY_DATABASE_URL:
-    print("[CRITICAL] DATABASE_URL environment variable is missing!")
-    print("Please add it to your environment variables or HuggingFace Secrets.")
+    logger.critical("DATABASE_URL environment variable is missing!")
+    logger.critical("Please add it to your environment variables or HuggingFace Secrets.")
     raise RuntimeError("DATABASE_URL is required but not set.")
 
 # Diagnostic logging (Masked for security)
 try:
     if "@" in SQLALCHEMY_DATABASE_URL:
         host_part = SQLALCHEMY_DATABASE_URL.split("@")[-1].split("/")[0]
-        print(f"[DB_DIAGNOSTIC] Connecting to host: {host_part}")
+        logger.info("Connecting to host: %s", host_part)
     else:
-        print("[DB_DIAGNOSTIC] Connecting to local/sqlite database")
+        logger.info("Connecting to local/sqlite database")
 except Exception as e:
-    print(f"[DB_DIAGNOSTIC] Could not parse DB URL for diagnosis: {e}")
+    logger.warning("Could not parse DB URL for diagnosis: %s", e)
 
 
 # Normalize PostgreSQL URL format
@@ -57,6 +60,11 @@ if ASYNC_DATABASE_URL.startswith("postgresql"):
     ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace(
         "postgresql://", "postgresql+asyncpg://", 1
     )
+    # asyncpg doesn't support 'sslmode', but supports 'ssl=require'
+    if "sslmode=" in ASYNC_DATABASE_URL:
+        ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace("sslmode=require", "ssl=require")
+        ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace("sslmode=disable", "ssl=disable")
+        ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace("sslmode=prefer", "ssl=prefer")
 elif ASYNC_DATABASE_URL.startswith("sqlite"):
     ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace(
         "sqlite://", "sqlite+aiosqlite://", 1

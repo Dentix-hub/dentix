@@ -87,6 +87,11 @@ class TreatmentBase(BaseModel):
 class ConsumedMaterialItem(BaseModel):
     material_id: int
     quantity: float
+    session_id: Optional[int] = None
+    weight_score: Optional[float] = 1.0
+    is_manual_override: Optional[bool] = False
+    material_type: Optional[str] = None
+    category_id: Optional[int] = None
 
 
 class TreatmentCreate(TreatmentBase):

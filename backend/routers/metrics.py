@@ -4,7 +4,7 @@ Metrics API Endpoint for Smart Clinic.
 Exposes application metrics for monitoring dashboards.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from backend.core.permissions import Permission, require_permission
 from typing import Dict, Any
 from sqlalchemy.orm import Session
@@ -16,6 +16,7 @@ from backend.models import User
 from backend import models
 from backend.database import get_db
 from backend.services.inventory_service import inventory_service
+from backend.core.response import success_response
 
 router = APIRouter(prefix="/metrics", tags=["Metrics"])
 
@@ -23,51 +24,51 @@ router = APIRouter(prefix="/metrics", tags=["Metrics"])
 @router.get("/stats")
 async def get_metrics_stats(
     current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
-) -> Dict[str, Any]:
+):
     """
     Get application metrics and statistics.
 
     Requires authentication (admin or super_admin role).
     """
     if current_user.role not in ["admin", "super_admin"]:
-        return {"error": "Insufficient permissions"}
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
-    return metrics.get_stats()
+    return success_response(data=metrics.get_stats())
 
 
 @router.get("/alerts")
 async def get_active_alerts(
     current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
-) -> Dict[str, Any]:
+):
     """
     Get current active alerts.
 
     Returns any threshold violations.
     """
     if current_user.role not in ["admin", "super_admin"]:
-        return {"error": "Insufficient permissions"}
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     alerts = metrics.check_alerts()
-    return {"alerts": alerts, "count": len(alerts)}
+    return success_response(data={"alerts": alerts, "count": len(alerts)})
 
 
 @router.get("/business")
 async def get_business_metrics(
     current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
-) -> Dict[str, Any]:
+):
     """
     Get business-specific metrics.
 
     Returns patient counts, appointment stats, etc.
     """
     if current_user.role not in ["admin", "super_admin", "doctor"]:
-        return {"error": "Insufficient permissions"}
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     stats = metrics.get_stats()
-    return {
+    return success_response(data={
         "business_metrics": stats.get("business_metrics", {}),
         "timestamp": stats.get("timestamp"),
-    }
+    })
 
 
 @router.get("/profitability")
@@ -80,7 +81,7 @@ def get_profitability(
     Get Net Profit Breakdown (Revenue - Expenses - Labs - Materials).
     """
     if current_user.role not in ["admin", "super_admin"]:
-        return {"error": "Insufficient permissions"}
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     # Calculate Dates
     now = datetime.now(timezone.utc)
@@ -139,7 +140,7 @@ def get_profitability(
     net_profit = revenue - total_costs
     margin_percent = (net_profit / revenue * 100) if revenue > 0 else 0.0
 
-    return {
+    return success_response(data={
         "period": period,
         "revenue": round(revenue, 2),
         "breakdown": {
@@ -150,4 +151,4 @@ def get_profitability(
         "total_costs": round(total_costs, 2),
         "net_profit": round(net_profit, 2),
         "margin_percent": round(margin_percent, 1),
-    }
+    })

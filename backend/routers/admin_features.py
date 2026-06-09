@@ -45,12 +45,10 @@ def create_flag(
 
 @router.post("/override", response_model=schemas.TenantFeature)
 def set_tenant_override(
-    override: schemas.TenantFeature,  # We might need a simpler Create schema
+    override: schemas.TenantFeatureOverride,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_super_admin),
 ):
-    # override schema currently has id, tenant_id, feature_key, is_enabled
-    # We should probably ignore ID for creation.
     return FeatureFlagService.set_tenant_override(
         db, override.tenant_id, override.feature_key, override.is_enabled
     )

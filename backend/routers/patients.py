@@ -98,19 +98,41 @@ def search_patients(
 def read_patients(
     skip: int = 0,
     limit: int = 100,
+    cursor: str = None,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(require_permission(Permission.PATIENT_READ)),
 ):
     """Get patients for current user (filtered by visibility)."""
     visibility = get_visibility_service(db, current_user, current_user.tenant_id)
-    results = (
-        visibility.get_visible_patient_query()
-        .order_by(models.Patient.id.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
-    return success_response(data=results, message="Patients retrieved successfully")
+    query = visibility.get_visible_patient_query()
+
+    if cursor is not None or limit != 100:
+        # Use cursor pagination if explicitly requested or custom limit
+        from backend.core.pagination import CursorParams, apply_cursor_pagination, build_cursor_response
+        from backend.core.response import cursor_paginated_response
+        
+        # If cursor is given or they want cursor pagination style
+        cursor_params = CursorParams(cursor=cursor, limit=limit if limit != 100 else 20)
+        paginated_query = apply_cursor_pagination(query, models.Patient, cursor_params, descending=True)
+        results = paginated_query.all()
+        
+        items, next_cursor, has_more = build_cursor_response(results, cursor_params.limit)
+        return cursor_paginated_response(
+            data=items,
+            limit=cursor_params.limit,
+            next_cursor=next_cursor,
+            has_more=has_more,
+            message="Patients retrieved successfully"
+        )
+    else:
+        results = (
+            query
+            .order_by(models.Patient.id.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        return success_response(data=results, message="Patients retrieved successfully")
 
 
 @router.get(

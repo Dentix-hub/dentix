@@ -49,6 +49,9 @@ class MaterialResolutionService:
         """
         Returns list of suggested materials with confidence levels.
         """
+        import os
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        log_path = os.path.join(project_root, "suggestion_debug.log")
         suggestions = []
 
         # 1. Resolve Procedure
@@ -56,7 +59,7 @@ class MaterialResolutionService:
         if not proc:
             # LOG THE FAILURE
             try:
-                with open("suggestion_debug.log", "a", encoding="utf-8") as f:
+                with open(log_path, "a", encoding="utf-8") as f:
                     from datetime import datetime
                     f.write(f"[{datetime.now()}] !!! PROCEDURE NOT FOUND IN DB: ID={procedure_id}\n")
             except Exception:
@@ -67,7 +70,7 @@ class MaterialResolutionService:
 
         # DEBUG LOGGING
         try:
-            with open("suggestion_debug.log", "a", encoding="utf-8") as f:
+            with open(log_path, "a", encoding="utf-8") as f:
                 import datetime
                 f.write(f"[{datetime.datetime.now()}] RESOLVE: id={procedure_id} name='{proc.name}'\n")
                 f.write(f"  -> Normalized Request: '{proc_norm}'\n")
@@ -110,7 +113,7 @@ class MaterialResolutionService:
                     weights_by_cat[cat_id] = w
 
         try:
-            with open("suggestion_debug.log", "a", encoding="utf-8") as f:
+            with open(log_path, "a", encoding="utf-8") as f:
                 f.write(f"  -> Matches Found: {matches_found}, Unique Categories: {len(weights_by_cat)}\n")
                 if matches_found == 0 and all_potential_weights:
                     f.write("  -> NO MATCHES. Sample weights names:\n")

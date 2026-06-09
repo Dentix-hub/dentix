@@ -301,3 +301,72 @@ local/
 # Deployment Artifacts
 frontend/frontend.zip
 rag_storage/
+
+# ===== DENTIX-SPECIFIC IGNORES =====
+
+# Scratch / debug scripts (one-off utilities)
+scratch/
+backend/scratch/
+
+# Debug & test output files
+pytest_output.txt
+test_output.txt
+test_ai_output.json
+db_logs.json
+changed_files.txt
+backend/sync_test.txt
+backend/test_out.txt
+
+# Legacy build/deployment scripts (not part of core app)
+DENTIX_Offline.spec
+build_offline.py
+desktop_app.py
+vercel.json.draft
+
+# Uploads directory (runtime data, not source code)
+uploads/
+
+# HF deployment staging artifacts
+.hf-deploy-*/
+
+# AI agent/IDE config directories (per-developer)
+.adal/
+.augment/
+.bob/
+.claude/
+.codebuddy/
+.commandcode/
+.continue/
+.cortex/
+.crush/
+.cursor/
+.factory/
+.goose/
+.iflow/
+.junie/
+.kilo/
+.kilocode/
+.kiro/
+.kode/
+.mcpjam/
+.mux/
+.neovate/
+.openhands/
+.pi/
+.pochi/
+.qoder/
+.qwen/
+.roo/
+.trae/
+.vibe/
+.windsurf/
+.zencoder/
+.agent/
+.agents/
+ruflo-sandbox/
+skills/
+skills-lock.json
+
+# Runtime-generated files
+.ruff_cache/
+.graphifyignore

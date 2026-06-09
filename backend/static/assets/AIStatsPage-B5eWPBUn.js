@@ -1,0 +1,1 @@
+import{j as t}from"./vendor-ui-_37tUqbp.js";import"./vendor-react-ImU8DIlI.js";import r from"./AIAdminDashboard-CJxWf6RE.js";import"./index-gB-boojy.js";import"./vendor-query-wRDvfk-4.js";import"./vendor-i18n-BpDx-_Yd.js";import"./vendor-charts-fstp6IVM.js";function n(){return t.jsx("div",{className:"container mx-auto",children:t.jsx(r,{})})}export{n as default};

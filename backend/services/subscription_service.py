@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 from sqlalchemy.orm import Session
 from backend import models, schemas
 from fastapi import HTTPException
@@ -201,6 +202,18 @@ class SubscriptionService:
     def record_payment(
         db: Session, payment_data: schemas.SubscriptionPaymentCreate, created_by: str
     ):
+        if payment_data.provider_payment_id:
+            existing = (
+                db.query(models.SubscriptionPayment)
+                .filter(
+                    models.SubscriptionPayment.provider == payment_data.provider,
+                    models.SubscriptionPayment.provider_payment_id == payment_data.provider_payment_id,
+                )
+                .first()
+            )
+            if existing:
+                return existing
+
         tenant = (
             db.query(models.Tenant)
             .filter(models.Tenant.id == payment_data.tenant_id)
@@ -237,11 +250,60 @@ class SubscriptionService:
         )
         tenant.subscription_end_date = target_date + timedelta(days=plan.duration_days)
         tenant.plan = plan.name
+        tenant.plan_id = plan.id
         tenant.is_active = True
+        tenant.subscription_status = "active"
 
         db.commit()
         db.refresh(payment)
         return payment
+
+    @staticmethod
+    def create_checkout_session(
+        db: Session, checkout: schemas.SubscriptionCheckoutCreate
+    ) -> schemas.SubscriptionCheckoutSession:
+        tenant = db.query(models.Tenant).filter(models.Tenant.id == checkout.tenant_id).first()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        plan = (
+            db.query(models.SubscriptionPlan)
+            .filter(models.SubscriptionPlan.id == checkout.plan_id, models.SubscriptionPlan.is_active == True)
+            .first()
+        )
+        if not plan:
+            raise HTTPException(status_code=404, detail="Plan not found")
+
+        provider_reference = f"sub_{tenant.id}_{plan.id}_{uuid4().hex[:12]}"
+        checkout_url = (
+            checkout.success_url
+            or f"/billing/checkout/{checkout.provider}/{provider_reference}"
+        )
+        return schemas.SubscriptionCheckoutSession(
+            provider=checkout.provider,
+            provider_reference=provider_reference,
+            checkout_url=checkout_url,
+            amount=float(plan.price or 0),
+        )
+
+    @staticmethod
+    def handle_provider_webhook(
+        db: Session, event: schemas.SubscriptionWebhookEvent
+    ) -> models.SubscriptionPayment:
+        if event.provider_status.lower() not in {"paid", "succeeded", "success", "completed"}:
+            raise HTTPException(status_code=202, detail="Payment event ignored until it is paid")
+
+        payment = schemas.SubscriptionPaymentCreate(
+            tenant_id=event.tenant_id,
+            plan_id=event.plan_id,
+            amount=event.amount,
+            payment_method=event.provider,
+            paid_by=event.paid_by,
+            notes=event.notes,
+            provider=event.provider,
+            provider_payment_id=event.provider_payment_id,
+            provider_status=event.provider_status,
+        )
+        return SubscriptionService.record_payment(db, payment, created_by=f"{event.provider}:webhook")
 
     @staticmethod
     def delete_payment(db: Session, payment_id: int):

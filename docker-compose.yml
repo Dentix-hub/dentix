@@ -1,0 +1,177 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.do
+    restart: always
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - DB_SSL_MODE=${DB_SSL_MODE:-require}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      - REDIS_URL=redis://redis:6379/0  # Points to internal redis service
+      - SECRET_KEY=${SECRET_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENVIRONMENT=production
+      - ENABLE_IN_PROCESS_WORKERS=false
+      - LOG_LEVEL=INFO
+      - FRONTEND_URL=${FRONTEND_URL}
+      - BACKEND_PUBLIC_URL=${BACKEND_PUBLIC_URL}
+      - DD_AGENT_HOST=datadog
+      - DD_SERVICE=dentix-backend
+      - DD_ENV=production
+      - WHATSAPP_PROVIDER=${WHATSAPP_PROVIDER:-openwa}
+      - OPENWA_URL=http://openwa:7860
+      - OPENWA_SESSION_ID=${OPENWA_SESSION_ID:-dentix}
+      - OPENWA_API_KEY=${OPENWA_API_KEY}
+      - OPENWA_WEBHOOK_SECRET=${OPENWA_WEBHOOK_SECRET}
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./uploads:/app/backend/uploads
+    depends_on:
+      - redis
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.do
+    command: ["/app/startup.sh", "ddtrace-run", "celery", "-A", "backend.core.celery_app", "worker", "--loglevel=info"]
+    restart: always
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379/0
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      - SECRET_KEY=${SECRET_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - DD_AGENT_HOST=datadog
+      - DD_SERVICE=dentix-worker
+      - DD_ENV=production
+      - WHATSAPP_PROVIDER=${WHATSAPP_PROVIDER:-openwa}
+      - OPENWA_URL=http://openwa:7860
+      - OPENWA_SESSION_ID=${OPENWA_SESSION_ID:-dentix}
+      - OPENWA_API_KEY=${OPENWA_API_KEY}
+      - OPENWA_WEBHOOK_SECRET=${OPENWA_WEBHOOK_SECRET}
+    volumes:
+      - ./uploads:/app/backend/uploads
+    depends_on:
+      - redis
+
+  domain-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.do
+    command: ["ddtrace-run", "python", "-m", "backend.workers.run", "--workers", "all"]
+    restart: always
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - DB_SSL_MODE=${DB_SSL_MODE:-require}
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+      - DENTIX_WORKERS=all
+      - EVENT_WORKER_POLL_INTERVAL_SECONDS=${EVENT_WORKER_POLL_INTERVAL_SECONDS:-5}
+      - SUBSCRIPTION_CHECK_INTERVAL_HOURS=${SUBSCRIPTION_CHECK_INTERVAL_HOURS:-12}
+      - DD_AGENT_HOST=datadog
+      - DD_SERVICE=dentix-domain-worker
+      - DD_ENV=production
+      - WHATSAPP_PROVIDER=${WHATSAPP_PROVIDER:-openwa}
+      - OPENWA_URL=http://openwa:7860
+      - OPENWA_SESSION_ID=${OPENWA_SESSION_ID:-dentix}
+      - OPENWA_API_KEY=${OPENWA_API_KEY}
+      - OPENWA_WEBHOOK_SECRET=${OPENWA_WEBHOOK_SECRET}
+    volumes:
+      - ./uploads:/app/backend/uploads
+    depends_on:
+      - backend
+      - redis
+
+  openwa:
+    build:
+      context: .
+      dockerfile: openwa.Dockerfile
+    restart: unless-stopped
+    ports:
+      - "2785:7860"
+    environment:
+      - PORT=7860
+      - OPENWA_API_KEY=${OPENWA_API_KEY}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7860/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --save 60 1 --loglevel warning # Persistence every 60s if 1 change
+    volumes:
+      - redis_data:/data
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=dentixs.app
+      - ACME_EMAIL=eslam@dentixs.app
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+  datadog:
+    image: datadog/agent:latest
+    restart: always
+    environment:
+      - DD_API_KEY=${DD_API_KEY}
+      - DD_SITE=${DD_SITE:-datadoghq.com}
+      - DD_APM_ENABLED=true
+      - DD_APM_NON_LOCAL_TRAFFIC=true
+      - DD_DOGSTATSD_NON_LOCAL_TRAFFIC=true
+      - DD_LOGS_ENABLED=true
+      - DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true
+      - DD_PROCESS_AGENT_ENABLED=true
+      - DD_CONTAINER_EXCLUDE=image:datadog/agent
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc/:/host/proc/:ro
+      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    ports:
+      - "8126:8126"
+      - "8125:8125/udp"
+
+volumes:
+  redis_data:
+  caddy_data:
+  caddy_config:

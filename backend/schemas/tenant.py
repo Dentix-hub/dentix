@@ -127,6 +127,10 @@ class SubscriptionPaymentBase(BaseModel):
     payment_method: Optional[str] = "Unknown"
     notes: Optional[str] = None
     payment_date: Optional[datetime] = None
+    paid_by: Optional[str] = None
+    provider: Optional[str] = None
+    provider_payment_id: Optional[str] = None
+    provider_status: Optional[str] = None
 
 
 class SubscriptionPaymentCreate(SubscriptionPaymentBase):
@@ -140,5 +144,35 @@ class SubscriptionPayment(SubscriptionPaymentBase):
     id: int
     payment_date: datetime
     created_by: Optional[str] = None
+    provider: Optional[str] = None
+    provider_payment_id: Optional[str] = None
+    provider_status: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SubscriptionCheckoutCreate(BaseModel):
+    tenant_id: int
+    plan_id: int
+    provider: str = "manual"
+    success_url: Optional[str] = None
+    cancel_url: Optional[str] = None
+
+
+class SubscriptionCheckoutSession(BaseModel):
+    provider: str
+    provider_reference: str
+    checkout_url: str
+    amount: float
+    currency: str = "EGP"
+
+
+class SubscriptionWebhookEvent(BaseModel):
+    provider: str
+    provider_payment_id: str
+    provider_status: str
+    tenant_id: int
+    plan_id: int
+    amount: float
+    paid_by: Optional[str] = None
+    notes: Optional[str] = None

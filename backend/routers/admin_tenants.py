@@ -227,14 +227,84 @@ def get_tenant_details(
     })
 
 
-@router.post("/{tenant_id}/impersonate", response_model=StandardResponse[dict])
-def impersonate_tenant(
+@router.post("/{tenant_id}/features/{feature_key}", response_model=StandardResponse[dict])
+def toggle_tenant_feature(
     tenant_id: int,
-    user_id: int = None,
+    feature_key: str,
+    is_enabled: bool,
     current_user: models.User = Depends(require_super_admin),
     db: Session = Depends(get_db),
 ):
-    """Generate a temporary token to log in as a clinic manager or specific user."""
+    """Grant or revoke a specific feature for a tenant."""
+    tenant = db.query(models.Tenant).filter(models.Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+        
+    feature = db.query(models.FeatureFlag).filter(models.FeatureFlag.key == feature_key).first()
+    if not feature:
+        raise HTTPException(status_code=404, detail="Feature flag not found")
+
+    tenant_feature = db.query(models.TenantFeature).filter(
+        models.TenantFeature.tenant_id == tenant_id,
+        models.TenantFeature.feature_key == feature_key
+    ).first()
+
+    if not tenant_feature:
+        tenant_feature = models.TenantFeature(
+            tenant_id=tenant_id,
+            feature_key=feature_key,
+            is_enabled=is_enabled
+        )
+        db.add(tenant_feature)
+    else:
+        tenant_feature.is_enabled = is_enabled
+
+    db.commit()
+    
+    return success_response(
+        data={"feature_key": feature_key, "is_enabled": is_enabled},
+        message=f"Feature '{feature_key}' {'enabled' if is_enabled else 'disabled'} for tenant {tenant.name}"
+    )
+
+
+@router.post("/{tenant_id}/impersonate", response_model=StandardResponse[dict])
+def impersonate_tenant(
+    tenant_id: int,
+    request: "Request",
+    user_id: int = None,
+    reason: str = None,
+    scope: str = "read_only",
+    current_user: models.User = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Generate a temporary token to log in as a clinic user.
+    
+    Security:
+    - Requires mandatory reason (audit trail)
+    - Logs immutable audit record with IP, user-agent
+    - Token valid for 30 minutes max
+    - Default scope is read_only
+    """
+    import logging
+    _logger = logging.getLogger("smart_clinic.impersonation")
+
+    # 1. Require reason for audit trail
+    if not reason or len(reason.strip()) < 5:
+        raise HTTPException(
+            status_code=400,
+            detail="سبب انتحال الشخصية مطلوب (5 أحرف على الأقل) للتوثيق الأمني"
+        )
+
+    # 2. Validate scope
+    allowed_scopes = {"read_only", "full_access"}
+    if scope not in allowed_scopes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"النطاق '{scope}' غير صالح. القيم المسموحة: {allowed_scopes}"
+        )
+
+    # 3. Find target user
     query = db.query(models.User).filter(
         models.User.tenant_id == tenant_id,
         models.User.is_active == True,
@@ -250,21 +320,69 @@ def impersonate_tenant(
         if not target_user:
             raise HTTPException(status_code=404, detail="No active users found for this clinic")
 
-    # 2. Create impersonation token (Valid for 30 minutes)
+    # 4. Extract request metadata for audit
+    client_ip = request.client.host if request.client else "unknown"
+    user_agent = request.headers.get("user-agent", "unknown")
+
+    # 5. Log IMMUTABLE audit record
+    _logger.warning(
+        "[IMPERSONATION_START] admin_id=%s admin_username=%s target_user_id=%s "
+        "target_username=%s tenant_id=%s reason='%s' scope=%s ip=%s user_agent='%s'",
+        current_user.id, current_user.username,
+        target_user.id, target_user.username,
+        tenant_id, reason.strip(), scope,
+        client_ip, user_agent[:200]
+    )
+
+    # 6. Store audit record in database (if AuditLog model exists)
+    try:
+        if hasattr(models, 'AuditLog'):
+            audit = models.AuditLog(
+                user_id=current_user.id,
+                action="IMPERSONATION_START",
+                entity_type="User",
+                entity_id=target_user.id,
+                details=(
+                    f"Admin '{current_user.username}' impersonated '{target_user.username}' "
+                    f"(tenant {tenant_id}). Reason: {reason.strip()}. Scope: {scope}. "
+                    f"IP: {client_ip}"
+                ),
+                tenant_id=tenant_id,
+            )
+            db.add(audit)
+            db.commit()
+    except Exception as e:
+        _logger.error("[IMPERSONATION] Audit log DB write failed: %s", e)
+        # Don't block impersonation if audit log fails — the logger warning above is the backup
+
+    # 7. Create impersonation token (30 minutes)
     access_token = create_access_token(
         data={
             "sub": target_user.username,
             "tenant_id": target_user.tenant_id,
             "role": target_user.role,
             "is_impersonating": True,
-            "admin_id": current_user.id
+            "impersonation_scope": scope,
+            "admin_id": current_user.id,
+            "admin_username": current_user.username,
+            "impersonation_reason": reason.strip()[:200],
         },
         expires_delta=timedelta(minutes=30)
     )
 
+    tenant_name = target_user.tenant.name if target_user.tenant else "Unknown"
+
     return success_response(data={
         "access_token": access_token,
         "token_type": "bearer",
-        "tenant_name": target_user.tenant.name if target_user.tenant else "Unknown"
-    }, message=f"تم إنشاء جلسة دخول مؤقتة لعيادة {target_user.tenant.name if target_user.tenant else ''}")
+        "tenant_name": tenant_name,
+        "target_user": target_user.username,
+        "scope": scope,
+        "expires_in_minutes": 30,
+    }, message=f"تم إنشاء جلسة دخول مؤقتة لعيادة {tenant_name}")
+
+
+# Required import for Request type
+from starlette.requests import Request
+
 

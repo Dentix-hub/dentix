@@ -1,10 +1,11 @@
 from sqlalchemy.orm import Session, joinedload
 from backend import models, schemas
 from backend.services.cache_service import invalidate_dashboard_cache
+from backend.services.event_service import event_service
 
 
 def get_appointments(
-    db: Session, tenant_id: int, skip: int = 0, limit: int = 100, doctor_id: int = None
+    db: Session, tenant_id: int, skip: int = 0, limit: int = 100, doctor_id: int = None, return_query: bool = False
 ):
     query = (
         db.query(models.Appointment)
@@ -19,9 +20,13 @@ def get_appointments(
     if doctor_id:
         query = query.filter(models.Appointment.doctor_id == doctor_id)
 
+    query = query.options(joinedload(models.Appointment.patient))
+    
+    if return_query:
+        return query
+
     return (
-        query.options(joinedload(models.Appointment.patient))
-        .order_by(models.Appointment.date_time.desc())
+        query.order_by(models.Appointment.date_time.desc())
         .offset(skip)
         .limit(limit)
         .all()
@@ -54,6 +59,19 @@ def create_appointment(db: Session, appointment: schemas.AppointmentCreate):
     patient = db.query(models.Patient).filter(models.Patient.id == db_appointment.patient_id).first()
     if patient:
         invalidate_dashboard_cache(patient.tenant_id)
+        event_service.emit_event(
+            db,
+            event_type="appointment.created",
+            aggregate_type="appointment",
+            aggregate_id=str(db_appointment.id),
+            payload={
+                "appointment_id": db_appointment.id,
+                "patient_id": db_appointment.patient_id,
+                "time": db_appointment.date_time.isoformat() if db_appointment.date_time else None,
+            },
+            tenant_id=patient.tenant_id,
+        )
+        db.commit()
     return db_appointment
 
 

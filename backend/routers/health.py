@@ -368,10 +368,10 @@ def get_stress_metrics():
                 "memory_percent": round(process.memory_percent(), 2),
             },
         }
-        return metrics
+        return success_response(data=metrics)
     except Exception as e:
         logger.error(f"Error fetching stress metrics: {e}")
-        return success_response(data={"error": str(e)})
+        raise HTTPException(status_code=500, detail="Failed to fetch metrics")
 
 
 @router.get("/debug/procedures")
@@ -392,13 +392,23 @@ async def debug_procedures(db: AsyncSession = Depends(get_async_db)):
             text("SELECT COUNT(*) FROM price_list_items")
         )).scalar()
 
-        return {
+        # Fetch procedure details (first 50)
+        procs_res = (await db.execute(text("SELECT id, name, tenant_id FROM procedures ORDER BY id ASC LIMIT 50"))).fetchall()
+        procedures_list = [{"id": r[0], "name": r[1], "tenant_id": r[2]} for r in procs_res]
+
+        # Fetch tenant details
+        tenants_res = (await db.execute(text("SELECT id, name FROM tenants"))).fetchall()
+        tenants_list = [{"id": r[0], "name": r[1]} for r in tenants_res]
+
+        return success_response(data={
             "total_procedures": total_procs,
             "global_procedures": global_procs,
             "tenant_count": tenant_count,
             "price_list_count": price_list_count,
             "price_list_item_count": price_list_item_count,
-        }
+            "procedures": procedures_list,
+            "tenants": tenants_list,
+        })
     except Exception as e:
         logger.error(f"Error in debug/procedures: {e}")
-        return success_response(data={"error": str(e)})
+        return error_response(message="Debug procedures failed")

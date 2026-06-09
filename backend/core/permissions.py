@@ -46,6 +46,7 @@ class Permission(str, Enum):
     PATIENT_UPDATE = "patient:update"
     PATIENT_DELETE = "patient:delete"
     PATIENT_SEARCH = "patient:search"
+    PATIENT_VIEW = "patient:read"
 
     # Clinical Data (Strictly regulated)
     CLINICAL_READ = "clinical:read"
@@ -57,6 +58,7 @@ class Permission(str, Enum):
     APPOINTMENT_READ = "appointment:read"
     APPOINTMENT_UPDATE = "appointment:update"
     APPOINTMENT_CANCEL = "appointment:cancel"
+    APPOINTMENT_DELETE = "appointment:cancel"
 
     # Financial
     FINANCIAL_READ = "financial:read"

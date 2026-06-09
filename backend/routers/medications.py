@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from backend import models, schemas
-from backend.routers.auth import get_db
+from backend.routers.auth.dependencies import get_db
 from backend.core.permissions import Permission, require_permission
 from backend.core.response import success_response, StandardResponse
 

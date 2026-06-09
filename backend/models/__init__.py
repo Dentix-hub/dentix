@@ -53,3 +53,4 @@ from .inventory import (
     ProcedureMaterialWeight,
     TreatmentMaterialUsage,
 )
+from .domain_event import DomainEvent

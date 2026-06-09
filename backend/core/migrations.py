@@ -69,8 +69,21 @@ def run_migration_health_check():
 
 
 def check_and_migrate_tables():
-    """Auto-migrate schema for cloud deployments (Legacy Ad-hoc + Alembic)."""
-    logger.info('[MIGRATION] Starting schema checks...')
+    """Auto-migrate schema for cloud deployments (Legacy Ad-hoc + Alembic).
+
+    DEPRECATED: This function contains ad-hoc ALTER TABLE statements that
+    should be converted to Alembic revisions. In production, migrations
+    must be run via scripts/preflight_migrations.py before app startup.
+    """
+    _env = os.getenv("ENVIRONMENT", "development").lower()
+    if _env == "production":
+        logger.warning(
+            "[MIGRATION] DEPRECATED: check_and_migrate_tables() called in production. "
+            "This is a no-op. Use scripts/preflight_migrations.py instead."
+        )
+        return
+
+    logger.info('[MIGRATION] Starting schema checks (DEV/STAGING mode)...')
 
     # 1. Run Alembic first (Standard way)
     run_alembic_migrations()
