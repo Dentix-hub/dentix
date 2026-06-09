@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from backend import models
 from .dependencies import get_db
 from backend.services.cache_service import cached
+from backend.core.response import success_response
 
 router = APIRouter()
 
@@ -18,4 +19,4 @@ def get_public_settings(db: Session = Depends(get_db)):
         .all()
     )
 
-    return {s.key: s.value for s in settings}
+    return success_response(data={s.key: s.value for s in settings}, message="Public settings retrieved")

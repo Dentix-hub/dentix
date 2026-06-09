@@ -53,6 +53,9 @@ class SubscriptionPayment(Base):
     notes = Column(Text, nullable=True)
     created_by = Column(String, nullable=True)
     paid_by = Column(String, nullable=True)
+    provider = Column(String, nullable=True)
+    provider_payment_id = Column(String, nullable=True, index=True)
+    provider_status = Column(String, nullable=True)
 
     tenant = relationship("Tenant", back_populates="payments")
     plan = relationship("SubscriptionPlan", back_populates="payments")

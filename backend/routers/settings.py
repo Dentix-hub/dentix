@@ -490,6 +490,26 @@ def get_tenant_settings(
     return success_response(data=current_user.tenant)
 
 
+@router.get("/features", response_model=StandardResponse[dict])
+def get_tenant_features(
+    db: Session = Depends(get_db),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
+    """
+    Get the list of active features for the current clinic.
+    """
+    if not current_user.tenant:
+        return success_response(data={"features": []})
+
+    tenant_features = db.query(models.TenantFeature).filter(
+        models.TenantFeature.tenant_id == current_user.tenant.id,
+        models.TenantFeature.is_enabled == True
+    ).all()
+
+    feature_keys = [f.feature_key for f in tenant_features]
+    return success_response(data={"features": feature_keys})
+
+
 @router.put("/tenant", response_model=StandardResponse[schemas.Tenant])
 def update_tenant_settings(
     config: schemas.TenantUpdate,

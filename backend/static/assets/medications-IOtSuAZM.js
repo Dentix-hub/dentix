@@ -1,0 +1,1 @@
+import{v as a}from"./index-gB-boojy.js";const s=()=>a.get("/api/v1/medications/saved"),t=e=>a.post("/api/v1/medications/saved",e),d=e=>a.delete(`/api/v1/medications/saved/${e}`);export{d,s as g,t as s};

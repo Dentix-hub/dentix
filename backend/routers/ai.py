@@ -7,8 +7,9 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 import logging
 
+from backend.core.response import success_response
 from backend import models
-from backend.routers.auth import get_db
+from backend.routers.auth.dependencies import get_db
 from backend.services.ai_service import AIService
 from backend.schemas.ai import AIQueryRequest, AIQueryResponse
 from backend.ai.tools.registry import tool_registry
@@ -49,9 +50,7 @@ async def list_tools(
 ):
     """List all available AI tools."""
     tools = tool_registry.all()
-    return {
-        "tools": [
-            {"name": t.name, "description": t.description, "parameters": t.parameters}
-            for t in tools
-        ]
-    }
+    return success_response(data=[
+        {"name": t.name, "description": t.description, "parameters": t.parameters}
+        for t in tools
+    ], message="Tools retrieved")

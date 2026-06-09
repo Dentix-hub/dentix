@@ -13,6 +13,7 @@ from ..models import User
 from .auth import get_db
 from ..core.permissions import PatientVisibilityMode
 from backend.core.permissions import Permission, require_permission
+from backend.core.response import success_response
 
 
 router = APIRouter(prefix="/admin/doctors", tags=["Admin - Doctors"])
@@ -56,7 +57,7 @@ def get_all_doctors_visibility(
         .all()
     )
 
-    return [
+    return success_response(data=[
         {
             "doctor_id": d.id,
             "doctor_name": d.full_name or d.username,
@@ -64,7 +65,7 @@ def get_all_doctors_visibility(
             "can_view_other_doctors_history": d.can_view_other_doctors_history or False,
         }
         for d in doctors
-    ]
+    ])
 
 
 @router.put("/visibility/{doctor_id}")
@@ -107,13 +108,12 @@ def update_doctor_visibility(
     db.commit()
     db.refresh(doctor)
 
-    return {
+    return success_response(data={
         "doctor_id": doctor.id,
         "doctor_name": doctor.full_name or doctor.username,
         "patient_visibility_mode": doctor.patient_visibility_mode,
         "can_view_other_doctors_history": doctor.can_view_other_doctors_history,
-        "message": "Settings updated successfully",
-    }
+    }, message="Settings updated successfully")
 
 
 @router.get("/visibility-modes")
@@ -121,7 +121,7 @@ def get_visibility_modes(
     current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Get available visibility modes."""
-    return {
+    return success_response(data={
         "modes": [
             {
                 "value": PatientVisibilityMode.ALL_ASSIGNED.value,
@@ -139,4 +139,4 @@ def get_visibility_modes(
                 "description": "Doctor sees both assigned patients and appointment patients",
             },
         ]
-    }
+    })

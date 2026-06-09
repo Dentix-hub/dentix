@@ -200,22 +200,26 @@ def debug_login(
         # 1. Get User
         user = crud.get_user(db, username)
         if not user:
-            return {
-                "status": "failed",
-                "step": "get_user",
-                "error": "User not found",
-                "logs": logs,
-            }
+            return error_response(
+                message="User not found",
+                data={
+                    "status": "failed",
+                    "step": "get_user",
+                    "logs": logs,
+                }
+            )
         log(f"User found: {user.id} - Role: {user.role}")
 
         # 2. Verify Password
         if not auth.verify_password(password, user.hashed_password):
-            return {
-                "status": "failed",
-                "step": "verify_password",
-                "error": "Incorrect password",
-                "logs": logs,
-            }
+            return error_response(
+                message="Incorrect password",
+                data={
+                    "status": "failed",
+                    "step": "verify_password",
+                    "logs": logs,
+                }
+            )
         log("Password verified.")
 
         # 3. Check System Settings (Maintenance Mode)
@@ -228,12 +232,14 @@ def debug_login(
             log(f"Maintenance check: {maintenance.value if maintenance else 'None'}")
         except Exception as e:
             log(f"ERROR checking SystemSetting: {e}")
-            return {
-                "status": "error",
-                "step": "check_maintenance",
-                "error": str(e),
-                "logs": logs,
-            }
+            return error_response(
+                message=str(e),
+                data={
+                    "status": "error",
+                    "step": "check_maintenance",
+                    "logs": logs,
+                }
+            )
 
         # 4. Check 2FA
         log(f"2FA Enabled: {getattr(user, 'is_2fa_enabled', 'N/A')}")
@@ -252,21 +258,26 @@ def debug_login(
             log("Session created successfully.")
         except Exception as e:
             log(f"ERROR creating session: {e}")
-            return {
-                "status": "error",
-                "step": "create_session",
-                "error": str(e),
+            return error_response(
+                message=str(e),
+                data={
+                    "status": "error",
+                    "step": "create_session",
+                    "logs": logs,
+                }
+            )
+
+        return success_response(
+            message="Login logic verified. No 500 error detected.",
+            data={
+                "status": "success",
                 "logs": logs,
             }
-
-        return {
-            "status": "success",
-            "message": "Login logic verified. No 500 error detected.",
-            "logs": logs,
-        }
+        )
 
     except Exception as e:
-        return success_response(data={"status": "critical_error", "error": str(e), "logs": logs})
+        logger.error(f"Debug login critical error: {str(e)}", exc_info=True)
+        return error_response(message="Critical error during login debug", data={"status": "critical_error", "logs": logs})
 
 
 @router.get("/reset-password")
@@ -281,7 +292,7 @@ def reset_password(
     """Force reset password for a user."""
     user = crud.get_user(db, username)
     if not user:
-        return success_response(data={"status": "error", "message": "User not found"})
+        return error_response(message="User not found")
 
     validate_password(new_password)
 
@@ -298,9 +309,12 @@ def reset_password(
             user.failed_login_attempts = 0
 
         db.commit()
-        return {
-            "status": "success",
-            "message": f"Password reset successfully for {username}",
-        }
+        return success_response(
+            message=f"Password reset successfully for {username}",
+            data={
+                "status": "success",
+            }
+        )
     except Exception as e:
-        return success_response(data={"status": "error", "message": str(e)})
+        logger.error(f"Password reset failed: {str(e)}", exc_info=True)
+        return error_response(message="Password reset failed")

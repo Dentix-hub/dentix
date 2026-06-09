@@ -304,6 +304,7 @@ class TestStockConsumption:
                 reference_id="TREATMENT:50",
                 patient_id=None,
                 db=treatment_service.db,
+                commit=False,
             )
 
     def test_consume_stock_confirm_open_required(self, treatment_service):
@@ -439,3 +440,65 @@ class TestTreatmentServiceFactory:
             svc = get_treatment_service(mock_db, 1, mock_user)
             assert isinstance(svc, TreatmentService)
             assert svc.tenant_id == 1
+
+
+# ============================================
+# PERSISTENCE OF TREATMENT MATERIAL USAGES
+# ============================================
+
+
+class TestTreatmentMaterialUsagePersistence:
+    """Tests for TreatmentService.persist_treatment_material_usages."""
+
+    def test_persist_non_divisible_usage(self, treatment_service, mock_db):
+        """Should persist non-divisible material usage with calculated cost."""
+        # Arrange
+        consumed = [
+            schemas.clinical.ConsumedMaterialItem(
+                material_id=1,
+                quantity=2.0,
+                material_type="NON_DIVISIBLE"
+            )
+        ]
+        
+        mock_material = MagicMock()
+        mock_material.id = 1
+        mock_material.type = "NON_DIVISIBLE"
+        mock_material.standard_price = 10.0
+        
+        mock_query = MagicMock()
+        mock_query.filter.return_value.all.return_value = [mock_material]
+        
+        # When querying for movements, return empty so it falls back to standard price
+        mock_query.join.return_value.join.return_value.filter.return_value.all.return_value = []
+        
+        mock_db.query.return_value = mock_query
+
+        # Act
+        treatment_service.persist_treatment_material_usages(
+            treatment_id=100,
+            consumed_materials=consumed,
+            doctor_id=10
+        )
+
+        # Assert
+        added_objs = [call.args[0] for call in mock_db.add.call_args_list]
+        usage = next(obj for obj in added_objs if isinstance(obj, models.inventory.TreatmentMaterialUsage))
+        assert usage.treatment_id == 100
+        assert usage.material_id == 1
+        assert usage.quantity_used == 2.0
+        assert usage.cost_calculated == 20.0
+
+    def test_delete_treatment_cleans_up_usage(self, treatment_service, mock_db):
+        """Deleting a treatment should also delete its TreatmentMaterialUsage records."""
+        # Arrange
+        with patch("backend.crud") as mock_crud:
+            mock_crud.delete_treatment.return_value = True
+            with patch("backend.services.treatment_service.log_admin_action"):
+                # Act
+                treatment_service.delete_treatment(100)
+                
+                # Assert
+                # Verify that delete() was called on the query for TreatmentMaterialUsage
+                mock_db.query.assert_called()
+

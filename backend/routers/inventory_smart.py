@@ -44,7 +44,7 @@ def get_material_suggestions(
         tenant_id=current_user.tenant_id,
         doctor_id=effective_doctor_id,
     )
-    return {"data": suggestions, "success": True}
+    return success_response(data=suggestions)
 
 
 @router.get("/suggestions-categories/{procedure_id}", response_model=StandardResponse[List[Dict]])
@@ -187,15 +187,17 @@ def check_availability(
             }
         )
 
-    return {"data": results, "success": True}
+    return success_response(data=results)
 @router.get("/debug/logs", tags=["debug"])
 def get_suggestion_logs():
     _ensure_not_production()
     """Debug endpoint to see what's happening with suggestions."""
 
     import os
-    if not os.path.exists("suggestion_debug.log"):
-        return {"message": "No logs found"}
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    log_path = os.path.join(project_root, "suggestion_debug.log")
+    if not os.path.exists(log_path):
+        return success_response(data={"message": "No logs found"})
 
-    with open("suggestion_debug.log", "r", encoding="utf-8") as f:
-        return {"logs": f.read().splitlines()[-100:]}  # Return last 100 lines
+    with open(log_path, "r", encoding="utf-8") as f:
+        return success_response(data={"logs": f.read().splitlines()[-100:]})  # Return last 100 lines

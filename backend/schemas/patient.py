@@ -4,7 +4,6 @@ from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from datetime import datetime
 
-
 class PatientBase(BaseModel):
     name: str
     gender: Optional[str] = None
@@ -16,7 +15,6 @@ class PatientBase(BaseModel):
     notes: Optional[str] = None
     assigned_doctor_id: Optional[int] = None
     default_price_list_id: Optional[int] = None
-
 
 class PatientCreate(PatientBase):
     model_config = ConfigDict(
@@ -35,7 +33,6 @@ class PatientCreate(PatientBase):
             ]
         }
     )
-
 
 class PatientUpdate(BaseModel):
     name: Optional[str] = None
@@ -59,13 +56,11 @@ class PatientUpdate(BaseModel):
         }
     )
 
-
 class Patient(PatientBase):
     id: int
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
-
 
 class PatientSummary(BaseModel):
     id: int
@@ -77,16 +72,13 @@ class PatientSummary(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-
 class AttachmentBase(BaseModel):
     patient_id: int
     filename: str
     file_type: str
 
-
 class AttachmentCreate(AttachmentBase):
     file_path: str
-
 
 class Attachment(AttachmentBase):
     id: int

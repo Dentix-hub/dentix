@@ -266,10 +266,12 @@ class PatientService:
             tenant_id=_tid,
             name=patient_data.name,
             phone=patient_data.phone,
+            email=patient_data.email,
             age=patient_data.age,
             address=patient_data.address,
             medical_history=patient_data.medical_history,
             assigned_doctor_id=patient_data.assigned_doctor_id,
+            default_price_list_id=patient_data.default_price_list_id,
             notes=f"{patient_data.notes or ''} [Gender: {patient_data.gender}]"
             if patient_data.gender
             else patient_data.notes,

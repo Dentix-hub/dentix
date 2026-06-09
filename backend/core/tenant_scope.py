@@ -1,26 +1,27 @@
-import contextvars
+"""
+ORM-level tenant scope filter — automatically scopes all queries by tenant_id.
+
+This module registers a SQLAlchemy event listener that injects tenant_id
+filtering into every ORM query. It reads the tenant context from the
+UNIFIED tenancy module (core/tenancy.py).
+
+IMPORTANT: Do NOT create ContextVars in this module. All tenant state
+is managed by core/tenancy.py.
+"""
+
 from sqlalchemy import event
 from sqlalchemy.orm import Session, with_loader_criteria
 from backend.database import Base
+from backend.core.tenancy import (
+    get_current_tenant_id,
+    is_super_admin_bypass,
+    set_current_tenant_id,
+    set_super_admin_bypass,
+    clear_tenant_context,
+)
 
-# Context variables for request-level storage
-current_tenant_id = contextvars.ContextVar("current_tenant_id", default=None)
-super_admin_bypass = contextvars.ContextVar("super_admin_bypass", default=False)
-
-def set_current_tenant(tenant_id: int):
-    """Set the current tenant ID for the context of this request."""
-    return current_tenant_id.set(tenant_id)
-
-def set_super_admin_bypass(bypass: bool = True):
-    """Enable or disable bypass for the tenant scope filter (e.g. for super admin tasks)."""
-    return super_admin_bypass.set(bypass)
-
-def clear_tenant_context(tenant_token=None, admin_token=None):
-    """Clear tenant context to prevent bleeding across async tasks."""
-    if tenant_token:
-        current_tenant_id.reset(tenant_token)
-    if admin_token:
-        super_admin_bypass.reset(admin_token)
+# Re-export for backward compatibility (modules that imported from here)
+set_current_tenant = set_current_tenant_id
 
 
 @event.listens_for(Session, "do_orm_execute")
@@ -33,11 +34,11 @@ def _add_tenant_filter(execute_state):
     if execute_state.is_select or execute_state.is_update or execute_state.is_delete:
 
         # 1. Super Admin checking all tenants
-        if super_admin_bypass.get():
+        if is_super_admin_bypass():
             return
 
-        # 2. Extract tenant ID from context
-        tenant_id = current_tenant_id.get()
+        # 2. Extract tenant ID from unified context
+        tenant_id = get_current_tenant_id()
         if tenant_id is None:
             return  # Allow execution (might be auth login or initial system setup)
 

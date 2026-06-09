@@ -7,6 +7,7 @@ from .dependencies import get_db
 from sqlalchemy import text
 from backend.core.permissions import Permission, require_permission
 import traceback
+from backend.core.response import success_response, error_response
 
 router = APIRouter()
 
@@ -22,17 +23,18 @@ def debug_token_validation(token: str, db: Session = Depends(get_db), current_us
 
         user = crud.get_user(db, username=username)
         if not user:
-            return {"valid": False, "error": "User not found in DB", "payload": payload}
+            return error_response(message="User not found in DB", data={"valid": False})
 
-        return {
+        return success_response(data={
             "valid": True,
             "username": username,
             "role": user.role,
             "user_id": user.id,
             "tenant_id": user.tenant_id,
-        }
+        })
     except Exception as e:
-        return {"valid": False, "error": str(e)}
+        logger.error(f"Token validation failed: {str(e)}")
+        return error_response(message="Token validation failed", data={"valid": False})
 
 
 @router.get("/debug-auth-info")
@@ -68,7 +70,7 @@ def debug_auth_info(db: Session = Depends(get_db), current_user: models.User = D
         if first_user:
             user_cols = list(first_user.__dict__.keys())
 
-        return {
+        return success_response(data={
             "status": "ok",
             "db_connected": True,
             "tables": tables,
@@ -77,15 +79,16 @@ def debug_auth_info(db: Session = Depends(get_db), current_user: models.User = D
             if first_user
             else False,
             "user_cols_raw": str(user_cols),
-        }
+        })
     except Exception as e:
-        return {"status": "error", "error": str(e), "traceback": traceback.format_exc()}
+        logger.error(f"DB inspection failed: {str(e)}", exc_info=True)
+        return error_response(message="DB inspection failed", data={"status": "error"})
 
 
 @router.get("/debug/ping")
 def debug_ping():
     """Simple ping to verify router is active."""
-    return {"message": "pong", "router": "auth"}
+    return success_response(data={"message": "pong", "router": "auth"})
 
 
 @router.get("/debug/manual-db")
@@ -97,11 +100,12 @@ def debug_manual_db(current_user: models.User = Depends(require_permission(Permi
         db = SessionLocal()
         try:
             db.execute(text("SELECT 1"))
-            return {"status": "ok", "message": "Manual DB Session Successful"}
+            return success_response(data={"status": "ok", "message": "Manual DB Session Successful"})
         finally:
             db.close()
     except Exception as e:
-        return {"status": "error", "error": str(e), "traceback": traceback.format_exc()}
+        logger.error(f"DB inspection failed: {str(e)}", exc_info=True)
+        return error_response(message="DB inspection failed", data={"status": "error"})
 
 
 @router.get("/debug/fix-schema")
@@ -159,6 +163,7 @@ def fix_staging_schema(
         db.commit()
     except Exception as e:
         db.rollback()
-        return {"status": "error", "message": str(e), "trace": traceback.format_exc()}
+        logger.error(f"Staging schema fix failed: {str(e)}", exc_info=True)
+        return error_response(message="Staging schema fix failed", data={"status": "error"})
 
-    return {"status": "ok", "results": results}
+    return success_response(data={"status": "ok", "results": results})

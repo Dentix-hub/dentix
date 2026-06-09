@@ -97,6 +97,12 @@ class TenantFeature(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class TenantFeatureOverride(BaseModel):
+    tenant_id: int
+    feature_key: str
+    is_enabled: bool
+
+
 class ActivityFeedItem(BaseModel):
     id: int
     type: str  # tenant, payment, error, audit

@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import StaleDataError
 from pydantic import TypeAdapter
 from typing import List
+import os
+from datetime import datetime, timezone
 import logging
 
 from .. import schemas, crud
@@ -72,16 +74,38 @@ def read_appointments(
     request: Request,
     skip: int = 0,
     limit: int = 100,
+    cursor: str = None,
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(require_permission(Permission.APPOINTMENT_READ)),
 ):
     """Get all appointments for current tenant."""
     try:
         doctor_id = current_user.id if current_user.role == "doctor" else None
-        results = crud.get_appointments(
-            db, current_user.tenant_id, skip=skip, limit=limit, doctor_id=doctor_id
-        )
-        return success_response(data=results, message="Appointments retrieved successfully")
+        
+        if cursor is not None or limit != 100:
+            from backend.core.pagination import CursorParams, apply_cursor_pagination, build_cursor_response
+            from backend.core.response import cursor_paginated_response
+            from backend import models
+            
+            query = crud.get_appointments(db, current_user.tenant_id, doctor_id=doctor_id, return_query=True)
+            cursor_params = CursorParams(cursor=cursor, limit=limit if limit != 100 else 20)
+            
+            paginated_query = apply_cursor_pagination(query, models.Appointment, cursor_params, sort_column_name="date_time", descending=True)
+            results = paginated_query.all()
+            
+            items, next_cursor, has_more = build_cursor_response(results, cursor_params.limit, sort_column_name="date_time")
+            return cursor_paginated_response(
+                data=items,
+                limit=cursor_params.limit,
+                next_cursor=next_cursor,
+                has_more=has_more,
+                message="Appointments retrieved successfully"
+            )
+        else:
+            results = crud.get_appointments(
+                db, current_user.tenant_id, skip=skip, limit=limit, doctor_id=doctor_id
+            )
+            return success_response(data=results, message="Appointments retrieved successfully")
     except Exception as e:
         error_log = SystemError(
             level=ErrorLevel.ERROR,
@@ -99,17 +123,14 @@ def read_appointments(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/debug-errors", response_model=List[dict])
+@router.get("/debug-errors")
 def get_debug_errors(
     db: Session = Depends(get_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Retrieve last 10 system errors for debugging."""
     errors = db.query(SystemError).order_by(SystemError.created_at.desc()).limit(10).all()
-    import os
-    from datetime import datetime, timezone
-    return {
-        "success": True,
+    return success_response(data={
         "environment": os.getenv("ENVIRONMENT", "development"),
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "errors": [
@@ -123,7 +144,7 @@ def get_debug_errors(
             }
             for e in errors
         ]
-    }
+    })
 
 
 @router.put(

@@ -13,6 +13,7 @@ from .auth import get_db
 from backend.core.permissions import Permission, require_permission
 from backend.core.limiter import limiter
 from backend.core.response import success_response, StandardResponse
+from backend.core.idempotency import idempotent
 from ..utils.audit_logger import log_admin_action
 
 logger = logging.getLogger("smart_clinic")
@@ -31,6 +32,7 @@ router = APIRouter(prefix="/payments", tags=["Payments"])
     description="Record a new payment for a patient. Auto-assigns doctor if not provided. Audit logged.",
 )
 @limiter.limit("15/minute")
+@idempotent(expire=120)
 def create_payment(
     request: Request,
     payment: schemas.PaymentCreate,

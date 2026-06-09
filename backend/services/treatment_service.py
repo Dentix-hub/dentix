@@ -248,6 +248,13 @@ class TreatmentService:
         else:
             logger.info("[TREATMENT] Skipping stock consumption (skip_stock_check=True)")
 
+        # 6.5. Persist material usage records (for reports/learning)
+        self.persist_treatment_material_usages(
+            created_treatment.id,
+            treatment_data.consumedMaterials or [],
+            doctor_id=doctor_id
+        )
+
         # 7. Commit transaction
         self.db.commit()
         self.db.refresh(created_treatment)
@@ -310,6 +317,13 @@ class TreatmentService:
         else:
             logger.info("[TREATMENT] Skipping stock consumption on update (skip_stock_check=True)")
 
+        # 4.5. Persist material usage records (for reports/learning)
+        self.persist_treatment_material_usages(
+            treatment_id,
+            treatment_data.consumedMaterials or [],
+            doctor_id=updated_treatment.doctor_id or self.current_user.id
+        )
+
         # 5. Commit transaction
         self.db.commit()
         self.db.refresh(updated_treatment)
@@ -319,6 +333,7 @@ class TreatmentService:
     def delete_treatment(self, treatment_id: int) -> dict:
         """Delete a treatment record and reverse its stock movements."""
         from backend import crud
+        from backend.models import inventory as inv_models
 
         # 1. Reverse stock movements for this treatment
         inventory_service.reverse_stock_by_reference(
@@ -326,6 +341,12 @@ class TreatmentService:
             user_id=self.current_user.id,
             db=self.db,
         )
+
+        # 1.5. Clear associated usage records
+        self.db.query(inv_models.TreatmentMaterialUsage).filter(
+            inv_models.TreatmentMaterialUsage.treatment_id == treatment_id,
+            inv_models.TreatmentMaterialUsage.tenant_id == self.tenant_id,
+        ).delete()
 
         # 2. Log the action
         log_admin_action(
@@ -339,6 +360,121 @@ class TreatmentService:
 
         # 3. Delete treatment
         return crud.delete_treatment(self.db, treatment_id, self.tenant_id)
+
+    def persist_treatment_material_usages(
+        self,
+        treatment_id: int,
+        consumed_materials: List[schemas.clinical.ConsumedMaterialItem],
+        doctor_id: Optional[int] = None,
+    ) -> None:
+        """
+        Create and persist TreatmentMaterialUsage records for a treatment.
+        """
+        from backend.models import inventory as inv_models
+
+        # Clear existing usage records for this treatment
+        self.db.query(inv_models.TreatmentMaterialUsage).filter(
+            inv_models.TreatmentMaterialUsage.treatment_id == treatment_id,
+            inv_models.TreatmentMaterialUsage.tenant_id == self.tenant_id,
+        ).delete()
+
+        if not consumed_materials:
+            return
+
+        # Fetch materials to determine type (DIVISIBLE / NON_DIVISIBLE)
+        material_ids = [m.material_id for m in consumed_materials]
+        materials = (
+            self.db.query(inv_models.Material)
+            .filter(
+                inv_models.Material.id.in_(material_ids),
+                inv_models.Material.tenant_id == self.tenant_id,
+            )
+            .all()
+        )
+        material_map = {m.id: m for m in materials}
+
+        for item in consumed_materials:
+            mat = material_map.get(item.material_id)
+            if not mat:
+                continue
+
+            mat_type = getattr(item, 'material_type', None) or mat.type
+            session_id = getattr(item, 'session_id', None)
+
+            # Auto-resolve session_id for divisible/reusable materials if not provided
+            if mat_type in ("DIVISIBLE", "REUSABLE") and not session_id:
+                # Look for active session in the database
+                active_session_query = (
+                    self.db.query(inv_models.MaterialSession)
+                    .join(inv_models.StockItem)
+                    .join(inv_models.Batch)
+                    .filter(
+                        inv_models.MaterialSession.status == "ACTIVE",
+                        inv_models.StockItem.tenant_id == self.tenant_id,
+                        inv_models.Batch.material_id == item.material_id,
+                    )
+                )
+                if doctor_id:
+                    # Try to match the doctor first
+                    doc_session = active_session_query.filter(
+                        inv_models.MaterialSession.doctor_id == doctor_id
+                    ).first()
+                    if doc_session:
+                        session_id = doc_session.id
+                    else:
+                        fallback_sess = active_session_query.first()
+                        session_id = fallback_sess.id if fallback_sess else None
+                else:
+                    fallback_sess = active_session_query.first()
+                    session_id = fallback_sess.id if fallback_sess else None
+
+            # Calculate quantities and costs
+            quantity_used = None
+            cost_calculated = None
+
+            if mat_type == "NON_DIVISIBLE":
+                # For non-divisible, quantity is used immediately
+                quantity_used = item.quantity
+                
+                # Fetch stock movements created for this treatment to find batch costs
+                movements = (
+                    self.db.query(inv_models.StockMovement)
+                    .join(inv_models.StockItem)
+                    .join(inv_models.Batch)
+                    .filter(
+                        inv_models.StockMovement.reference_id == f"TREATMENT:{treatment_id}",
+                        inv_models.Batch.material_id == item.material_id,
+                    )
+                    .all()
+                )
+                
+                if movements:
+                    total_cost = 0.0
+                    for move in movements:
+                        # move.change_amount is negative for consumption
+                        cost_per_unit = move.stock_item.batch.cost_per_unit or 0.0
+                        total_cost += abs(move.change_amount) * cost_per_unit
+                    cost_calculated = total_cost
+                else:
+                    # Fallback to standard price
+                    standard_price = mat.standard_price or 0.0
+                    cost_calculated = quantity_used * standard_price
+            else:
+                # For divisible/reusable, quantity_used & cost_calculated will be set upon session close
+                quantity_used = None
+                cost_calculated = None
+
+            usage = inv_models.TreatmentMaterialUsage(
+                treatment_id=treatment_id,
+                material_id=item.material_id,
+                session_id=session_id,
+                weight_score=getattr(item, 'weight_score', None) or 1.0,
+                quantity_used=quantity_used,
+                cost_calculated=cost_calculated,
+                is_manual_override=getattr(item, 'is_manual_override', None) or False,
+                tenant_id=self.tenant_id,
+            )
+            self.db.add(usage)
 
     def add_session(self, session_data: schemas.clinical.TreatmentSessionCreate) -> models.TreatmentSession:
         """Add a treatment session."""

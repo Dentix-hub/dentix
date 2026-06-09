@@ -1,0 +1,1 @@
+import{v as r}from"./index-gB-boojy.js";const p=(e,t={})=>{const{context:s=null,last_patient_name:a=null,scribe_mode:n=!1}=t;return r.post("/api/v1/ai/query",{text:e,context:s,last_patient_name:a,scribe_mode:n},{skipUnwrap:!0})};export{p as s};

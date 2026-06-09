@@ -85,6 +85,25 @@ def record_payment(
     return success_response(data=data, message="Payment recorded successfully")
 
 
+@router.post("/checkout", response_model=StandardResponse[schemas.SubscriptionCheckoutSession])
+def create_checkout_session(
+    checkout: schemas.SubscriptionCheckoutCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    data = SubscriptionService.create_checkout_session(db, checkout)
+    return success_response(data=data, message="Checkout session created successfully")
+
+
+@router.post("/webhooks/provider", response_model=StandardResponse[schemas.SubscriptionPayment])
+def receive_provider_webhook(
+    event: schemas.SubscriptionWebhookEvent,
+    db: Session = Depends(get_db),
+):
+    data = SubscriptionService.handle_provider_webhook(db, event)
+    return success_response(data=data, message="Subscription payment webhook processed")
+
+
 @router.delete("/payments/{payment_id}", response_model=StandardResponse[dict])
 def delete_payment(
     payment_id: int,

@@ -183,7 +183,12 @@ export default function TreatmentModal({
         const cleanedMaterials = (consumedMaterials || [])
             .map(m => ({
                 material_id: m.material_id || m.id,
-                quantity: Number.isFinite(parseFloat(m.quantity)) ? parseFloat(m.quantity) : 1
+                quantity: Number.isFinite(parseFloat(m.quantity)) ? parseFloat(m.quantity) : 1,
+                session_id: m.session_id || null,
+                weight_score: Number.isFinite(parseFloat(m.weight_score)) ? parseFloat(m.weight_score) : (Number.isFinite(parseFloat(m.weight)) ? parseFloat(m.weight) : 1.0),
+                is_manual_override: m.is_manual_override || false,
+                material_type: m.material_type || null,
+                category_id: m.category_id || null
             }))
             .filter(m => m.quantity > 0 && m.material_id);
 
@@ -672,6 +677,7 @@ export default function TreatmentModal({
                                             material_id: m.material_id,
                                             quantity: m.material_type === 'NON_DIVISIBLE' ? m.quantity : m.weight,
                                             unit: m.base_unit,
+                                            material_type: m.material_type,
                                             weight_score: m.weight,
                                             is_manual_override: m.is_manual_override,
                                             session_id: m.session_id,

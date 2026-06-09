@@ -36,8 +36,9 @@ from backend.core.response import success_response
 # Configure Sentry - DEPRECATED (Replaced by Internal Logging)
 # sentry_sdk removed.
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure structured logging
+from backend.core.logging import setup_logging, set_trace_id
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -46,90 +47,96 @@ async def lifespan(app: FastAPI):
     """Application lifecycle manager for startup and shutdown events."""
     logger.info("[STARTUP] Server Starting...")
     logger.info("[DEPLOY_VERIFY] DENTIX V2.0.8 IS LIVE")
-    print("[DEPLOY_VERIFY] DENTIX V2.0.8 IS LIVE")
 
-    # --- STAGING/DEV ONLY: AUTO-WIPE OPTION ---
-    # To trigger: set RESET_DB_ON_STARTUP=true in environment
-    # SAFETY: Blocked in PRODUCTION
-    if os.getenv("RESET_DB_ON_STARTUP", "false").lower() == "true":
-        env = os.getenv("ENVIRONMENT", "development").lower()
-        if env == "production":
-            logger.critical("[STARTUP] DB WIPE BLOCKED IN PRODUCTION!")
-        else:
+    _env = os.getenv("ENVIRONMENT", "development").lower()
+    _is_production = _env == "production"
+
+    # ================================================================
+    # PRODUCTION SAFETY: Schema mutation and seeding are BLOCKED
+    # in production. Use Alembic via the deployment entrypoint script.
+    # ================================================================
+    if not _is_production:
+        # --- STAGING/DEV ONLY: AUTO-WIPE OPTION ---
+        if os.getenv("RESET_DB_ON_STARTUP", "false").lower() == "true":
             logger.warning("[STARTUP] DEEP CLEAN DETECTED: Wiping Database...")
             try:
                 models.Base.metadata.drop_all(bind=database.engine)
                 models.Base.metadata.create_all(bind=database.engine)
                 logger.info("[STARTUP] Database Wiped & Re-Created.")
-                # Seeding will happen in step 3 below
             except Exception:
                 logger.exception("[STARTUP] Wipe failed", exc_info=True)
-    # --- END WIPE ---
 
-    # 1. Create Database Tables
-    try:
-        models.Base.metadata.create_all(bind=database.engine)
-        logger.info("[STARTUP] Database tables verified/created.")
-    except Exception:
-        logger.exception("[STARTUP] Failed to create database tables", exc_info=True)
-
-    # 2. Run Auto-Migrations
-    try:
-        logger.info("[STARTUP] Running schema migrations...")
-        migrations.check_and_migrate_tables()
-    except Exception:
-        logger.warning("[STARTUP] Schema migration failed", exc_info=True)
-
-    # 3. Run Startup Schema Patches (extracted to core/startup.py)
-    try:
-        from backend.core.startup import run_startup_patches
-
-        run_startup_patches()
-    except Exception:
-        logger.warning("[STARTUP] Startup patches failed", exc_info=True)
-
-    # 3. Seed Initial Data
-    try:
-        logger.info("[STARTUP] Seeding initial data...")
-        seeding.seed_subscription_plans()
-        seeding.create_first_admin()
-
-        # Run other seeders (legacy seed.py)
-        db = database.SessionLocal()
+        # 1. Create Database Tables (DEV/STAGING ONLY)
         try:
-            from backend.scripts.seeds import seed
+            models.Base.metadata.create_all(bind=database.engine)
+            logger.info("[STARTUP] Database tables verified/created.")
+        except Exception:
+            logger.exception("[STARTUP] Failed to create database tables", exc_info=True)
 
-            seed.seed_data(db)
-        finally:
-            db.close()
-    except Exception:
-        logger.error("[STARTUP] Seed failed", exc_info=True)
+        # 2. Run Legacy Ad-hoc Migrations (DEV/STAGING ONLY)
+        # DEPRECATED: These should be converted to Alembic revisions.
+        try:
+            logger.info("[STARTUP] Running legacy schema migrations...")
+            migrations.check_and_migrate_tables()
+        except Exception:
+            logger.warning("[STARTUP] Schema migration failed", exc_info=True)
 
-    # 4. FIX: Seed Global Procedures + Propagate to Tenants
-    try:
-        from backend.scripts.seed_procedures import seed_procedures
-        from backend.scripts.seed_material_categories import seed_material_categories
-        from backend.scripts.seed_procedure_material_defaults import seed_procedure_material_defaults
+        # 3. Run Startup Schema Patches (DEV/STAGING ONLY)
+        try:
+            from backend.core.startup import run_startup_patches
+            run_startup_patches()
+        except Exception:
+            logger.warning("[STARTUP] Startup patches failed", exc_info=True)
 
-        logger.info("[STARTUP] Seeding Global Procedures...")
-        seed_procedures()
+        # 4. Seed Initial Data (DEV/STAGING ONLY)
+        try:
+            logger.info("[STARTUP] Seeding initial data...")
+            seeding.seed_subscription_plans()
+            seeding.create_first_admin()
 
-        logger.info("[STARTUP] Seeding Material Categories...")
-        seed_material_categories()
+            db = database.SessionLocal()
+            try:
+                from backend.scripts.seeds import seed
+                seed.seed_data(db)
+            finally:
+                db.close()
+        except Exception:
+            logger.error("[STARTUP] Seed failed", exc_info=True)
 
-        logger.info("[STARTUP] Seeding Procedure-Material Defaults...")
-        seed_procedure_material_defaults()
-        logger.info("[STARTUP] Global Procedures Seeded.")
+        # 5. Seed Global Procedures + Propagate (DEV/STAGING ONLY)
+        try:
+            from backend.scripts.fix_procedures_tenant import fix_procedures_tenant
+            from backend.scripts.seed_procedures import seed_procedures
+            from backend.scripts.seed_material_categories import seed_material_categories
+            from backend.scripts.seed_procedure_material_defaults import seed_procedure_material_defaults
 
-        logger.info("[STARTUP] Running Global Procedure Propagation...")
-        from backend.scripts.fix_global_procedures import fix_global_procedures
+            logger.info("[STARTUP] Converting tenant-1 procedures to global...")
+            try:
+                fix_procedures_tenant()
+            except Exception:
+                logger.warning("[STARTUP] Failed to run fix_procedures_tenant", exc_info=True)
 
-        fix_global_procedures()
-        logger.info("[STARTUP] Global Procedure Propagation Complete.")
-    except Exception:
-        logger.error("[STARTUP] Global Procedure Seeding/Propagation failed", exc_info=True)
+            logger.info("[STARTUP] Seeding Global Procedures...")
+            seed_procedures()
 
-    # 5. Initialize Firebase
+            logger.info("[STARTUP] Seeding Material Categories...")
+            seed_material_categories()
+
+            logger.info("[STARTUP] Seeding Procedure-Material Defaults...")
+            seed_procedure_material_defaults()
+            logger.info("[STARTUP] Global Procedures Seeded.")
+
+            logger.info("[STARTUP] Running Global Procedure Propagation...")
+            from backend.scripts.fix_global_procedures import fix_global_procedures
+            fix_global_procedures()
+            logger.info("[STARTUP] Global Procedure Propagation Complete.")
+        except Exception:
+            logger.error("[STARTUP] Global Procedure Seeding/Propagation failed", exc_info=True)
+    else:
+        logger.info("[STARTUP] PRODUCTION MODE — schema mutation and seeding SKIPPED.")
+        logger.info("[STARTUP] Migrations must be run via deployment entrypoint script.")
+
+    # === ALWAYS RUN: Firebase initialization (safe, no schema changes) ===
     try:
         logger.info("[STARTUP] Initializing Firebase...")
         from backend.utils.firebase_manager import firebase_manager
@@ -140,9 +147,27 @@ async def lifespan(app: FastAPI):
     logger.info("[STARTUP] System Ready.")
     logger.info("BACKEND V3 LOADED | CWD: %s | Routes: %d", os.getcwd(), len(app.routes))
 
+    import asyncio
+    from backend.workers.event_processor import poll_outbox
+    from backend.workers.subscription_checker import start_subscription_checker_loop
+    # Start the event processor background task
+    logger.info("[STARTUP] Starting Domain Event Processor...")
+    worker_task = asyncio.create_task(poll_outbox(poll_interval=5))
+
+    logger.info("[STARTUP] Starting Subscription Checker...")
+    subscription_task = asyncio.create_task(start_subscription_checker_loop(interval_hours=12))
+
     yield  # Application runs here
 
-    # Shutdown cleanup can be added here if needed
+    # Shutdown cleanup
+    logger.info("[SHUTDOWN] Stopping Background Workers...")
+    worker_task.cancel()
+    subscription_task.cancel()
+    try:
+        await asyncio.gather(worker_task, subscription_task, return_exceptions=True)
+    except asyncio.CancelledError:
+        pass
+    logger.info("[SHUTDOWN] Background Workers stopped successfully.")
 
 
 # Initialize FastAPI app with lifespan
@@ -179,7 +204,7 @@ app.add_middleware(
     allow_origin_regex=get_allow_origin_regex(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Trace-ID", "Accept"],
+    allow_headers=["Authorization", "Content-Type", "X-Trace-ID", "Accept", "Idempotency-Key"],
 )
 
 
@@ -209,9 +234,12 @@ async def add_process_time_header(request: Request, call_next):
 
 @app.middleware("http")
 async def add_correlation_id(request: Request, call_next):
-    """Add unique Trace ID to every request for debugging."""
-    trace_id = request.headers.get("X-Trace-ID") or str(uuid.uuid4())
+    """Add unique Trace ID to every request for debugging and log correlation."""
+    trace_id = request.headers.get("X-Trace-ID") or uuid.uuid4().hex[:12]
     request.state.trace_id = trace_id
+
+    # Inject trace_id into structured logging context
+    set_trace_id(trace_id)
 
     response = await call_next(request)
     response.headers["X-Trace-ID"] = trace_id
@@ -230,7 +258,9 @@ os.makedirs(upload_dir, exist_ok=True)
 os.makedirs(static_dir / "logos", exist_ok=True)
 os.makedirs(static_dir / "assets", exist_ok=True)
 
-app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
+# SECURITY: /uploads is NOT mounted publicly. Files are served through
+# authenticated endpoints in routers/upload.py (GET /upload/file/{path})
+# This prevents unauthorized access to patient files (PHI).
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 app.mount("/assets", StaticFiles(directory=str(static_dir / "assets")), name="assets")
 

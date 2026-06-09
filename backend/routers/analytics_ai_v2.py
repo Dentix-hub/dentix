@@ -69,13 +69,13 @@ def get_ai_stats(
         or 0
     )
 
-    return {
+    return success_response(data={
         "period": period,
         "total_requests": total_requests,
         "success_rate": round(success_rate, 1),
         "avg_latency_ms": int(avg_latency),
         "total_tokens": total_tokens,
-    }
+    })
 
 
 @router.get("/intents")
@@ -123,7 +123,7 @@ def get_intent_analytics(
             }
         )
 
-    return result
+    return success_response(data=result)
 
 
 @router.get("/failures")
@@ -154,10 +154,10 @@ def get_failure_analytics(
         .all()
     )
 
-    return {
+    return success_response(data={
         "by_type": [{"type": e[0] or "unknown", "count": e[1]} for e in error_stats],
         "by_tool": [{"tool": t[0] or "chat", "count": t[1]} for t in tool_failures],
-    }
+    })
 
 
 @router.get("/heatmap")
@@ -208,7 +208,7 @@ def get_confidence_heatmap(
                 {"intent": k, "low": v["low"], "medium": v["medium"], "high": v["high"]}
             )
 
-    return formatted
+    return success_response(data=formatted)
 
 
 @router.get("/costs")
@@ -291,7 +291,7 @@ def get_cost_analytics(
     # 3. Daily Trend (Last 7 intervals)
     # ... Simplified for MVP: Just global stats
 
-    return {
+    return success_response(data={
         "period": period,
         "total_tokens": total_in + total_out,
         "estimated_cost_usd": round(estimated_cost, 4),
@@ -300,7 +300,7 @@ def get_cost_analytics(
             "money_saved_usd": money_saved_usd,
             "net_benefit_usd": round(money_saved_usd - estimated_cost, 2),
         },
-    }
+    })
 
 
 @router.get("/suggestions")
@@ -318,7 +318,7 @@ def get_ai_suggestions(
     ai_learning_service = get_ai_learning_service(db)
     suggestions = ai_learning_service.generate_suggestions(days=30)
 
-    return suggestions
+    return success_response(data=suggestions)
 
 
 @router.get("/governance")
@@ -347,7 +347,7 @@ def get_ai_governance(
         )
         settings[key] = setting.value if setting else default_val
 
-    return settings
+    return success_response(data=settings)
 
 
 @router.post("/governance")
@@ -420,7 +420,7 @@ def get_ai_logs(
         .all()
     )
 
-    return {
+    return success_response(data={
         "data": [
             {
                 "id": log.id,
@@ -439,7 +439,7 @@ def get_ai_logs(
         "total": total,
         "page": page,
         "limit": limit,
-    }
+    })
 
 
 @router.get("/logs/{log_id}")
@@ -457,7 +457,7 @@ def get_log_details(
     if not log:
         raise HTTPException(status_code=404, detail="Log not found")
 
-    return {
+    return success_response(data={
         "id": log.id,
         "trace_id": log.trace_id,
         "timestamp": log.timestamp,
@@ -468,7 +468,7 @@ def get_log_details(
         "error_details": log.error_details,
         "confidence": log.confidence or 1.0,
         "scribe_mode": log.scribe_mode,
-    }
+    })
 
 
 # --- Phase 2: Strategic Intelligence ---

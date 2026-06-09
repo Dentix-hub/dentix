@@ -160,12 +160,12 @@ def get_current_user(
                         )
 
     # SECURE: Inject tenant explicitly into Request Context for automatic SQLAlchemy scoping
-    from backend.core.tenant_scope import set_current_tenant, set_super_admin_bypass
+    from backend.core.tenancy import set_current_tenant_id, set_super_admin_bypass
 
     if user.role == Role.SUPER_ADMIN.value:
         set_super_admin_bypass(True)
     elif user.tenant_id:
-        set_current_tenant(user.tenant_id)
+        set_current_tenant_id(user.tenant_id)
         set_super_admin_bypass(False)
 
     return user
