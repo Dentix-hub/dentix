@@ -162,34 +162,43 @@ On every push to `main`:
 
 ```
 dentix/
-├── backend/
-│   ├── main.py              # FastAPI app entry point
-│   ├── database.py          # DB engine & session
-│   ├── ai/                  # AI agent, tools, RAG
-│   ├── core/                # Config, permissions, cache, response
-│   ├── crud/                # Database operations
-│   ├── middleware/           # Auth, logging, tenant
-│   ├── models/              # SQLAlchemy ORM models
-│   ├── routers/             # API endpoints (30+ routers)
-│   ├── schemas/             # Pydantic validation models
-│   ├── services/            # Business logic layer (25+ services)
-│   ├── tasks/               # Background jobs
-│   ├── tests/               # pytest test suites
-│   └── utils/               # Helpers (audit, encryption)
-├── frontend/
+├── backend/             # FastAPI App (Python 3.11+)
+│   ├── main.py          # FastAPI app entry point
+│   ├── database.py      # DB engine & session configuration
+│   ├── ai/              # Clinical AI agent, tools, RAG logic
+│   ├── core/            # Security, JWT auth, RBAC permissions, config
+│   ├── crud/            # Database query & mutation methods
+│   ├── middleware/      # Auth headers, logging, and tenant context
+│   ├── models/          # SQLAlchemy Database ORM models
+│   ├── routers/         # API endpoints (30+ routers)
+│   ├── schemas/         # Pydantic schemas for request/response validation
+│   ├── services/        # Business logic layer (25+ services)
+│   ├── tasks/           # Celery / background worker jobs
+│   └── tests/           # pytest test suites
+├── frontend/            # React Client (Vite, TailwindCSS)
 │   ├── src/
-│   │   ├── api/             # API client (Axios)
-│   │   ├── components/      # Reusable UI
-│   │   ├── contexts/        # React context (Auth, Theme)
-│   │   ├── features/        # Feature modules
-│   │   ├── hooks/           # Custom hooks
-│   │   ├── pages/           # Route pages
-│   │   └── shared/          # Shared UI components
-│   └── vite.config.js
-├── docs/                    # Architecture & API docs
-├── .github/workflows/       # CI pipeline
-└── .env.example             # Environment template
+│   │   ├── api/         # Axios configurations & endpoints
+│   │   ├── components/  # Reusable common UI components
+│   │   ├── contexts/    # React context providers (Auth, Language, Theme)
+│   │   ├── features/    # Page-specific business features
+│   │   ├── hooks/       # Custom React hooks
+│   │   └── pages/       # Route pages
+│   └── vite.config.js   # Vite configuration file
+├── legacy/              # 📦 Archive for legacy scripts (Desktop App, PyInstaller specs)
+├── docs/                # Architecture design maps & API specifications
+├── .github/workflows/   # CI/CD pipelines
+├── rag_storage/         # ChromaDB SQLite vector files (RAG)
+└── uploads/             # Patient clinical media and assets
 ```
+
+## 🧹 Codebase Hygiene Guidelines
+
+To keep the codebase clean and avoid clutter from various AI code assistants (Cursor, Windsurf, Roo Code, Continue, etc.), please follow these hygiene rules:
+
+1. **AI Workspaces Cache**: Always keep tool configurations limited to your local IDE. Do not commit directories such as `.cursor/`, `.windsurf/`, `.roo/`, `.continue/`, `.cortex/`, or `.agent/`.
+2. **Ignored Frontend Builds**: The FastAPI production image builds the React application inside Docker during container assembly. Do not track `backend/static/assets/` or `backend/static/index.html` locally in Git.
+3. **Database Files**: Keep database instances inside the `/backend/` local storage context and do not copy them to the root workspace.
+4. **Temporary Script Cleanup**: Store any ad-hoc database migration tools or debugging utilities inside `legacy/` or `backend/scratch/` (both are gitignored).
 
 ## 📄 License
 
