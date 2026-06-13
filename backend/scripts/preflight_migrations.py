@@ -58,6 +58,8 @@ def run_alembic_upgrade():
         # Normalize postgres:// -> postgresql://
         if db_url.startswith("postgres://"):
             db_url = db_url.replace("postgres://", "postgresql://", 1)
+        # Escape percent signs for ConfigParser interpolation
+        db_url = db_url.replace("%", "%%")
         alembic_cfg.set_main_option("sqlalchemy.url", db_url)
 
     try:
