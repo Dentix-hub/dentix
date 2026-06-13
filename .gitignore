@@ -367,6 +367,13 @@ ruflo-sandbox/
 skills/
 skills-lock.json
 
+# Legacy / archived files (desktop app, old build scripts)
+legacy/
+
 # Runtime-generated files
 .ruff_cache/
 .graphifyignore
+
+# Compiled frontend assets in backend
+backend/static/assets/
+backend/static/index.html

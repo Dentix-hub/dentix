@@ -26,6 +26,8 @@ def run_alembic_migrations():
         # Ensure it uses the current database URL
         db_url = os.getenv("DATABASE_URL")
         if db_url:
+            # Escape percent signs for ConfigParser interpolation
+            db_url = db_url.replace("%", "%%")
             alembic_cfg.set_main_option("sqlalchemy.url", db_url)
 
         command.upgrade(alembic_cfg, "head")
