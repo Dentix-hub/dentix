@@ -79,7 +79,7 @@ def test_account_lockout(db_session, client, test_tenant):
         data={"username": "lockout_user", "password": "ValidPass1!"},
     )
     assert resp_success.status_code == 200, f"Expected 200 after lockout expiry, got {resp_success.status_code} — {resp_success.text[:200]}"
-    assert "access_token" in resp_success.json()
+    assert resp_success.cookies.get("access_token") is not None
 
 
 def test_refresh_token_rotation(db_session, client, test_tenant):
@@ -107,7 +107,8 @@ def test_refresh_token_rotation(db_session, client, test_tenant):
         data={"username": "rotate_user", "password": "ValidPass1!"},
     )
     assert resp.status_code == 200, f"Login failed: {resp.text[:200]}"
-    original_refresh = resp.json()["refresh_token"]
+    original_refresh = resp.cookies.get("refresh_token")
+    assert original_refresh is not None
 
     # Use refresh token to get new tokens
     refresh_resp = client.post(
@@ -115,7 +116,8 @@ def test_refresh_token_rotation(db_session, client, test_tenant):
         data={"refresh_token": original_refresh},
     )
     assert refresh_resp.status_code == 200, f"Refresh failed: {refresh_resp.text[:200]}"
-    new_refresh = refresh_resp.json()["refresh_token"]
+    new_refresh = refresh_resp.cookies.get("refresh_token")
+    assert new_refresh is not None
     assert new_refresh != original_refresh, "New refresh token should differ from old one"
 
     # Old refresh token should now be invalid
@@ -152,7 +154,8 @@ def test_single_session_second_login_invalidates_first_token(
         data={"username": uname, "password": "ValidPass1!"},
     )
     assert r1.status_code == 200
-    token1 = r1.json()["access_token"]
+    token1 = r1.cookies.get("access_token")
+    assert token1 is not None
 
     me1 = client.get(
         "/api/v1/users/me",
@@ -165,7 +168,8 @@ def test_single_session_second_login_invalidates_first_token(
         data={"username": uname, "password": "ValidPass1!"},
     )
     assert r2.status_code == 200
-    token2 = r2.json()["access_token"]
+    token2 = r2.cookies.get("access_token")
+    assert token2 is not None
     assert token2 != token1
 
     stale = client.get(
@@ -228,8 +232,7 @@ def test_2fa_wrong_code_then_correct(db_session, client, test_tenant):
         headers={"Authorization": f"Bearer {temp}"},
     )
     assert good.status_code == 200, good.text
-    final = good.json()
-    assert final.get("refresh_token")
+    assert good.cookies.get("refresh_token") is not None
 
 
 def test_register_clinic_rejects_weak_password(client):
@@ -246,3 +249,17 @@ def test_register_clinic_rejects_weak_password(client):
         },
     )
     assert resp.status_code == 400
+
+
+def test_2fa_endpoint_rate_limit(client):
+    """Verify that the 2FA endpoint is rate-limited to 5/minute."""
+    for i in range(6):
+        resp = client.post(
+            "/api/v1/auth/login/2fa",
+            data={"code": "123456"},
+            headers={"Authorization": "Bearer fake_token"},
+        )
+        if i >= 5:
+            assert resp.status_code == 429, f"Request {i+1} did not trigger 429: {resp.status_code}"
+        else:
+            assert resp.status_code == 401, f"Request {i+1} expected 401, got {resp.status_code}"

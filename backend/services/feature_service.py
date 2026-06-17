@@ -1,11 +1,12 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from backend import models, schemas
 from fastapi import HTTPException
 
 
 class FeatureFlagService:
     @staticmethod
-    def is_feature_enabled(db: Session, key: str, tenant_id: int = None) -> bool:
+    async def is_feature_enabled(db: AsyncSession, key: str, tenant_id: int = None) -> bool:
         """
         Determines if a feature is enabled.
         Priority:
@@ -15,21 +16,17 @@ class FeatureFlagService:
         """
         # 1. Check Tenant Override
         if tenant_id:
-            override = (
-                db.query(models.TenantFeature)
-                .filter(
-                    models.TenantFeature.tenant_id == tenant_id,
-                    models.TenantFeature.feature_key == key,
-                )
-                .first()
+            stmt = select(models.TenantFeature).where(
+                models.TenantFeature.tenant_id == tenant_id,
+                models.TenantFeature.feature_key == key,
             )
+            override = (await db.execute(stmt)).scalar_one_or_none()
             if override:
                 return override.is_enabled
 
         # 2. Check Global Flag
-        flag = (
-            db.query(models.FeatureFlag).filter(models.FeatureFlag.key == key).first()
-        )
+        stmt = select(models.FeatureFlag).where(models.FeatureFlag.key == key)
+        flag = (await db.execute(stmt)).scalar_one_or_none()
         if not flag:
             return False  # Feature doesn't exist -> Disabled by default (Fail-safe)
 
@@ -51,53 +48,45 @@ class FeatureFlagService:
         return True
 
     @staticmethod
-    def create_flag(db: Session, flag_data: schemas.FeatureFlagCreate):
-        existing = (
-            db.query(models.FeatureFlag)
-            .filter(models.FeatureFlag.key == flag_data.key)
-            .first()
-        )
+    async def create_flag(db: AsyncSession, flag_data: schemas.FeatureFlagCreate):
+        stmt = select(models.FeatureFlag).where(models.FeatureFlag.key == flag_data.key)
+        existing = (await db.execute(stmt)).scalar_one_or_none()
         if existing:
             raise HTTPException(status_code=400, detail="Feature flag already exists")
 
         new_flag = models.FeatureFlag(**flag_data.model_dump())
         db.add(new_flag)
-        db.commit()
-        db.refresh(new_flag)
+        await db.commit()
+        await db.refresh(new_flag)
         return new_flag
 
     @staticmethod
-    def update_flag(db: Session, key: str, update_data: dict):
-        flag = (
-            db.query(models.FeatureFlag).filter(models.FeatureFlag.key == key).first()
-        )
+    async def update_flag(db: AsyncSession, key: str, update_data: dict):
+        stmt = select(models.FeatureFlag).where(models.FeatureFlag.key == key)
+        flag = (await db.execute(stmt)).scalar_one_or_none()
         if not flag:
             raise HTTPException(status_code=404, detail="Feature flag not found")
 
         for k, v in update_data.items():
             setattr(flag, k, v)
 
-        db.commit()
-        db.refresh(flag)
+        await db.commit()
+        await db.refresh(flag)
         return flag
 
     @staticmethod
-    def set_tenant_override(db: Session, tenant_id: int, key: str, is_enabled: bool):
+    async def set_tenant_override(db: AsyncSession, tenant_id: int, key: str, is_enabled: bool):
         # Ensure flag exists
-        flag = (
-            db.query(models.FeatureFlag).filter(models.FeatureFlag.key == key).first()
-        )
+        stmt = select(models.FeatureFlag).where(models.FeatureFlag.key == key)
+        flag = (await db.execute(stmt)).scalar_one_or_none()
         if not flag:
             raise HTTPException(status_code=404, detail="Feature flag not found")
 
-        override = (
-            db.query(models.TenantFeature)
-            .filter(
-                models.TenantFeature.tenant_id == tenant_id,
-                models.TenantFeature.feature_key == key,
-            )
-            .first()
+        stmt = select(models.TenantFeature).where(
+            models.TenantFeature.tenant_id == tenant_id,
+            models.TenantFeature.feature_key == key,
         )
+        override = (await db.execute(stmt)).scalar_one_or_none()
 
         if override:
             override.is_enabled = is_enabled
@@ -107,9 +96,11 @@ class FeatureFlagService:
             )
             db.add(override)
 
-        db.commit()
+        await db.commit()
         return override
 
     @staticmethod
-    def get_all_flags(db: Session):
-        return db.query(models.FeatureFlag).all()
+    async def get_all_flags(db: AsyncSession):
+        stmt = select(models.FeatureFlag)
+        res = await db.execute(stmt)
+        return list(res.scalars().all())

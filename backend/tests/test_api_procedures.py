@@ -14,7 +14,7 @@ def test_api():
             print(f"Login failed: {resp.text}")
             return
 
-        token = resp.json()["access_token"]
+        token = resp.cookies.get("access_token") or resp.json().get("access_token")
         print("Login success.")
 
         # Get Procedures

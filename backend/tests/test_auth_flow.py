@@ -13,12 +13,12 @@ def test_auth_login_and_access(client, super_admin_user, super_admin_headers):
     response = client.post("/api/v1/auth/token", data=login_payload)
     assert response.status_code == 200, f"Login failed: {response.text}"
 
-    tokens = response.json()
-    assert "access_token" in tokens
-    assert "refresh_token" in tokens
+    access_token = response.cookies.get("access_token")
+    refresh_token = response.cookies.get("refresh_token")
+    assert access_token is not None
+    assert refresh_token is not None
 
     # 2. Access Protected Route with returned token
-    access_token = tokens["access_token"]
     headers = {"Authorization": f"Bearer {access_token}"}
     response = client.get("/api/v1/users/me", headers=headers)
     assert response.status_code == 200

@@ -2,7 +2,10 @@ import sys
 import os
 
 sys.path.append(os.getcwd())
-from backend.database import SessionLocal
+from sqlalchemy.orm import sessionmaker
+from backend.database import async_engine
+engine = async_engine.sync_engine
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 from backend.services.inventory_service import inventory_service
 from backend.schemas.inventory import BatchBase
 from backend.models.inventory import Batch

@@ -7,10 +7,12 @@ from sqlalchemy import (
     ForeignKey,
     Boolean,
     Float,
+    column,
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from .base import Base
+from rls.schemas import Permissive, ConditionArg, Command
 
 
 class AILog(Base):
@@ -27,6 +29,14 @@ class AILog(Base):
     """
 
     __tablename__ = "ai_logs"
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
 
     # Core Identity
     id = Column(Integer, primary_key=True, index=True)

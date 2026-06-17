@@ -62,7 +62,7 @@ export default function SupportModal({ isOpen, onClose, isDarkMode }) {
                                 </div>
                             )}
                             <div>
-                                <label className={`block text-sm font-bold uppercase tracking-wider mb-3 pr-1 ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>الموضوع</label>
+                                <label className={`block text-sm font-bold uppercase tracking-wider mb-3 pe-1 ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>الموضوع</label>
                                 <input
                                     type="text"
                                     required
@@ -73,7 +73,7 @@ export default function SupportModal({ isOpen, onClose, isDarkMode }) {
                                 />
                             </div>
                             <div>
-                                <label className={`block text-sm font-bold uppercase tracking-wider mb-3 pr-1 ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>رسالتك</label>
+                                <label className={`block text-sm font-bold uppercase tracking-wider mb-3 pe-1 ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>رسالتك</label>
                                 <textarea
                                     required
                                     rows="10"

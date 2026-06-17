@@ -1,11 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { shouldSidebarBeOpenByDefault } from '../utils/pwa';
 
 export const useUIStore = create(
     persist(
         (set) => ({
             darkMode: false,
-            sidebarOpen: false,
+            sidebarOpen: shouldSidebarBeOpenByDefault(),
 
             toggleDarkMode: () => set((state) => {
                 const newMode = !state.darkMode;

@@ -1,6 +1,6 @@
 from typing import Dict
 from datetime import datetime, timedelta
-from sqlalchemy import text
+from sqlalchemy import select, text
 from ... import models
 from .base import BaseHandler
 from backend.services.patient_service import PatientService
@@ -43,22 +43,16 @@ class FinanceHandler(BaseHandler):
         patient = patients[0]
 
         # Calculate totals
-        total_cost = (
-            self.db.query(models.Treatment)
-            .filter(models.Treatment.patient_id == patient.id)
-            .with_entities(models.Treatment.cost)
-            .all()
-        )
+        stmt_cost = select(models.Treatment.cost).where(models.Treatment.patient_id == patient.id)
+        res_cost = await self.db.execute(stmt_cost)
+        total_cost = res_cost.scalars().all()
 
-        total_paid = (
-            self.db.query(models.Payment)
-            .filter(models.Payment.patient_id == patient.id)
-            .with_entities(models.Payment.amount)
-            .all()
-        )
+        stmt_paid = select(models.Payment.amount).where(models.Payment.patient_id == patient.id)
+        res_paid = await self.db.execute(stmt_paid)
+        total_paid = res_paid.scalars().all()
 
-        cost_sum = sum(t.cost or 0 for t in total_cost)
-        paid_sum = sum(p.amount or 0 for p in total_paid)
+        cost_sum = sum(cost or 0 for cost in total_cost)
+        paid_sum = sum(paid or 0 for paid in total_paid)
         remaining = cost_sum - paid_sum
 
         return {
@@ -119,15 +113,17 @@ class FinanceHandler(BaseHandler):
             doctor_id = self.user.id
         else:
             # Try to get from most recent treatment
-            recent_treatment = (
-                self.db.query(models.Treatment)
-                .filter(
+            stmt_recent = (
+                select(models.Treatment)
+                .where(
                     models.Treatment.patient_id == patient.id,
                     models.Treatment.doctor_id.isnot(None),
                 )
                 .order_by(models.Treatment.date.desc())
-                .first()
+                .limit(1)
             )
+            res_recent = await self.db.execute(stmt_recent)
+            recent_treatment = res_recent.scalars().first()
             if recent_treatment:
                 doctor_id = recent_treatment.doctor_id
 
@@ -142,10 +138,10 @@ class FinanceHandler(BaseHandler):
                 tenant_id=self.tenant_id,
             )
             self.db.add(payment)
-            self.db.commit()
-            self.db.refresh(payment)
+            await self.db.commit()
+            await self.db.refresh(payment)
         except Exception as e:
-            self.db.rollback()
+            await self.db.rollback()
             return {
                 "error": "payment_creation_failed",
                 "message": f"حدث خطأ أثناء تسجيل الدفعة: {str(e)}",
@@ -175,11 +171,12 @@ class FinanceHandler(BaseHandler):
             return {"message": "يرجى تحديد اسم الإجراء."}
 
         # 1. Official Catalog Search
-        catalog_query = self.db.query(models.Procedure).filter(
+        stmt_catalog = select(models.Procedure).where(
             models.Procedure.tenant_id == self.tenant_id,
             models.Procedure.name.ilike(f"%{procedure_name}%"),
         )
-        catalog_procedures = catalog_query.all()
+        res_catalog = await self.db.execute(stmt_catalog)
+        catalog_procedures = res_catalog.scalars().all()
 
         found_prices = []
         for p in catalog_procedures:
@@ -194,10 +191,11 @@ class FinanceHandler(BaseHandler):
                 AND procedure LIKE :proc
                 ORDER BY date DESC LIMIT 5
             """)
-            history = self.db.execute(
+            res_history = await self.db.execute(
                 history_query,
                 {"tenant_id": self.tenant_id, "proc": f"%{procedure_name}%"},
-            ).fetchall()
+            )
+            history = res_history.fetchall()
             if history:
                 avg = sum([h.cost for h in history]) / len(history)
                 found_prices.append(
@@ -242,30 +240,27 @@ class FinanceHandler(BaseHandler):
         """Get today's payments."""
         today = datetime.now().date()
 
-        payments = (
-            self.db.query(models.Payment)
+        stmt_pay = (
+            select(models.Payment)
             .join(models.Patient)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Payment.date >= datetime.combine(today, datetime.min.time()),
             )
-            .all()
         )
+        res_pay = await self.db.execute(stmt_pay)
+        payments = res_pay.scalars().all()
 
         total = sum(p.amount or 0 for p in payments)
 
         # Get patient names
         patient_ids = [p.patient_id for p in payments]
-        patients = (
-            {
-                p.id: p.name
-                for p in self.db.query(models.Patient)
-                .filter(models.Patient.id.in_(patient_ids))
-                .all()
-            }
-            if patient_ids
-            else {}
-        )
+        if patient_ids:
+            stmt_p = select(models.Patient).where(models.Patient.id.in_(patient_ids))
+            res_p = await self.db.execute(stmt_p)
+            patients = {p.id: p.name for p in res_p.scalars().all()}
+        else:
+            patients = {}
 
         return {
             "message": f"مدفوعات اليوم: {total:.2f} جنيه",
@@ -295,14 +290,15 @@ class FinanceHandler(BaseHandler):
         else:  # month
             start_date = today - timedelta(days=30)
 
-        expenses = (
-            self.db.query(models.Expense)
-            .filter(
+        stmt_exp = (
+            select(models.Expense)
+            .where(
                 models.Expense.tenant_id == self.tenant_id,
                 models.Expense.date >= start_date,
             )
-            .all()
         )
+        res_exp = await self.db.execute(stmt_exp)
+        expenses = res_exp.scalars().all()
 
         total = sum(e.cost or 0 for e in expenses)
 
@@ -335,15 +331,16 @@ class FinanceHandler(BaseHandler):
         if not procedure_name:
             return {"message": "يرجى تحديد اسم الإجراء لتحليله."}
 
-        # Find procedure logic similar to get_procedure_price
-        proc = (
-            self.db.query(models.Procedure)
-            .filter(
+        # Find procedure
+        stmt_proc = (
+            select(models.Procedure)
+            .where(
                 models.Procedure.tenant_id == self.tenant_id,
                 models.Procedure.name.ilike(f"%{procedure_name}%"),
             )
-            .first()
         )
+        res_proc = await self.db.execute(stmt_proc)
+        proc = res_proc.scalars().first()
 
         if not proc:
             return {"message": f"لم يتم العثور على إجراء باسم '{procedure_name}'."}
@@ -352,7 +349,7 @@ class FinanceHandler(BaseHandler):
         from backend.services.cost_engine import CostEngine
 
         engine = CostEngine(self.db, self.tenant_id)
-        analysis = engine.calculate_procedure_cost(proc.id)
+        analysis = await engine.calculate_procedure_cost(proc.id)
 
         # AI Recommendations
         cost = analysis["total_estimated_cost"]

@@ -8,7 +8,8 @@ This performs a FULL REPLACEMENT: deletes all existing tenant data, then imports
 import json
 from datetime import datetime
 from typing import Dict
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
 
 from .. import models
 from ..models.price_list import InsuranceProvider, PriceList, PriceListItem
@@ -65,7 +66,7 @@ def validate_backup_file(data: Dict, tenant_id: int) -> Dict:
     return {"valid": True, "error": None}
 
 
-def delete_tenant_data(db: Session, tenant_id: int) -> Dict[str, int]:
+async def delete_tenant_data(db: AsyncSession, tenant_id: int) -> Dict[str, int]:
     """
     Delete all data for a specific tenant.
     Order matters due to foreign key constraints.
@@ -78,231 +79,150 @@ def delete_tenant_data(db: Session, tenant_id: int) -> Dict[str, int]:
     # Order: child tables first, parent tables last
 
     # 1. MaterialSessions (via StockItem)
-    stock_item_ids = [
-        si.id
-        for si in db.query(models.StockItem.id)
-        .filter(models.StockItem.tenant_id == tenant_id)
-        .all()
-    ]
+    stmt_stock_items = select(models.StockItem.id).where(models.StockItem.tenant_id == tenant_id)
+    res_stock_items = await db.execute(stmt_stock_items)
+    stock_item_ids = list(res_stock_items.scalars().all())
+
     if stock_item_ids:
-        count = (
-            db.query(models.MaterialSession)
-            .filter(models.MaterialSession.stock_item_id.in_(stock_item_ids))
-            .delete(synchronize_session=False)
-        )
-        deleted_counts["material_sessions"] = count
+        stmt = delete(models.MaterialSession).where(models.MaterialSession.stock_item_id.in_(stock_item_ids))
+        res = await db.execute(stmt)
+        deleted_counts["material_sessions"] = res.rowcount
 
         # StockMovements
-        count = (
-            db.query(models.StockMovement)
-            .filter(models.StockMovement.stock_item_id.in_(stock_item_ids))
-            .delete(synchronize_session=False)
-        )
-        deleted_counts["stock_movements"] = count
+        stmt = delete(models.StockMovement).where(models.StockMovement.stock_item_id.in_(stock_item_ids))
+        res = await db.execute(stmt)
+        deleted_counts["stock_movements"] = res.rowcount
 
     # 2. StockItems
-    count = (
-        db.query(models.StockItem)
-        .filter(models.StockItem.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["stock_items"] = count
+    stmt = delete(models.StockItem).where(models.StockItem.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["stock_items"] = res.rowcount
 
     # 3. Batches
-    count = (
-        db.query(models.Batch)
-        .filter(models.Batch.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["batches"] = count
+    stmt = delete(models.Batch).where(models.Batch.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["batches"] = res.rowcount
 
     # 4. Materials
-    count = (
-        db.query(models.Material)
-        .filter(models.Material.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["materials"] = count
+    stmt = delete(models.Material).where(models.Material.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["materials"] = res.rowcount
 
     # 5. Warehouses
-    count = (
-        db.query(models.Warehouse)
-        .filter(models.Warehouse.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["warehouses"] = count
+    stmt = delete(models.Warehouse).where(models.Warehouse.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["warehouses"] = res.rowcount
 
     # 6. ProcedureMaterialWeights
-    count = (
-        db.query(models.ProcedureMaterialWeight)
-        .filter(models.ProcedureMaterialWeight.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["procedure_material_weights"] = count
+    stmt = delete(models.ProcedureMaterialWeight).where(models.ProcedureMaterialWeight.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["procedure_material_weights"] = res.rowcount
 
     # 7. PriceListItems (via PriceList)
-    price_list_ids = [
-        pl.id
-        for pl in db.query(PriceList.id).filter(PriceList.tenant_id == tenant_id).all()
-    ]
+    stmt_price_lists = select(PriceList.id).where(PriceList.tenant_id == tenant_id)
+    res_price_lists = await db.execute(stmt_price_lists)
+    price_list_ids = list(res_price_lists.scalars().all())
+
     if price_list_ids:
-        count = (
-            db.query(PriceListItem)
-            .filter(PriceListItem.price_list_id.in_(price_list_ids))
-            .delete(synchronize_session=False)
-        )
-        deleted_counts["price_list_items"] = count
+        stmt = delete(PriceListItem).where(PriceListItem.price_list_id.in_(price_list_ids))
+        res = await db.execute(stmt)
+        deleted_counts["price_list_items"] = res.rowcount
 
     # 8. PriceLists
-    count = (
-        db.query(PriceList)
-        .filter(PriceList.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["price_lists"] = count
+    stmt = delete(PriceList).where(PriceList.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["price_lists"] = res.rowcount
 
     # 9. InsuranceProviders
-    count = (
-        db.query(InsuranceProvider)
-        .filter(InsuranceProvider.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["insurance_providers"] = count
+    stmt = delete(InsuranceProvider).where(InsuranceProvider.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["insurance_providers"] = res.rowcount
 
     # 10. LabPayments
-    count = (
-        db.query(LabPayment)
-        .filter(LabPayment.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["lab_payments"] = count
+    stmt = delete(LabPayment).where(LabPayment.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["lab_payments"] = res.rowcount
 
     # 11. LabOrders
-    count = (
-        db.query(models.LabOrder)
-        .filter(models.LabOrder.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["lab_orders"] = count
+    stmt = delete(models.LabOrder).where(models.LabOrder.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["lab_orders"] = res.rowcount
 
     # 12. Laboratories
-    count = (
-        db.query(models.Laboratory)
-        .filter(models.Laboratory.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["laboratories"] = count
+    stmt = delete(models.Laboratory).where(models.Laboratory.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["laboratories"] = res.rowcount
 
     # 13. SalaryPayments
-    count = (
-        db.query(models.SalaryPayment)
-        .filter(models.SalaryPayment.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["salary_payments"] = count
+    stmt = delete(models.SalaryPayment).where(models.SalaryPayment.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["salary_payments"] = res.rowcount
 
     # 14. SavedMedications
-    count = (
-        db.query(models.SavedMedication)
-        .filter(models.SavedMedication.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["saved_medications"] = count
+    stmt = delete(models.SavedMedication).where(models.SavedMedication.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["saved_medications"] = res.rowcount
 
     # 15. Expenses
-    count = (
-        db.query(models.Expense)
-        .filter(models.Expense.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["expenses"] = count
+    stmt = delete(models.Expense).where(models.Expense.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["expenses"] = res.rowcount
 
     # 16. Payments
-    count = (
-        db.query(models.Payment)
-        .filter(models.Payment.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["payments"] = count
+    stmt = delete(models.Payment).where(models.Payment.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["payments"] = res.rowcount
 
     # 17. Treatments
-    count = (
-        db.query(models.Treatment)
-        .filter(models.Treatment.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["treatments"] = count
+    stmt = delete(models.Treatment).where(models.Treatment.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["treatments"] = res.rowcount
 
     # 18. Procedures
-    count = (
-        db.query(models.Procedure)
-        .filter(models.Procedure.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["procedures"] = count
+    stmt = delete(models.Procedure).where(models.Procedure.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["procedures"] = res.rowcount
 
     # 19. Prescriptions, ToothStatus, Attachments, Appointments (via Patient cascade)
-    # Get patient IDs first
-    patient_ids = [
-        p.id
-        for p in db.query(models.Patient.id)
-        .filter(models.Patient.tenant_id == tenant_id)
-        .all()
-    ]
+    stmt_patients = select(models.Patient.id).where(models.Patient.tenant_id == tenant_id)
+    res_patients = await db.execute(stmt_patients)
+    patient_ids = list(res_patients.scalars().all())
 
     if patient_ids:
         # Prescriptions
-        count = (
-            db.query(models.Prescription)
-            .filter(models.Prescription.patient_id.in_(patient_ids))
-            .delete(synchronize_session=False)
-        )
-        deleted_counts["prescriptions"] = count
+        stmt = delete(models.Prescription).where(models.Prescription.patient_id.in_(patient_ids))
+        res = await db.execute(stmt)
+        deleted_counts["prescriptions"] = res.rowcount
 
         # ToothStatus
-        count = (
-            db.query(models.ToothStatus)
-            .filter(models.ToothStatus.patient_id.in_(patient_ids))
-            .delete(synchronize_session=False)
-        )
-        deleted_counts["tooth_statuses"] = count
+        stmt = delete(models.ToothStatus).where(models.ToothStatus.patient_id.in_(patient_ids))
+        res = await db.execute(stmt)
+        deleted_counts["tooth_statuses"] = res.rowcount
 
         # Attachments
-        count = (
-            db.query(models.Attachment)
-            .filter(models.Attachment.patient_id.in_(patient_ids))
-            .delete(synchronize_session=False)
-        )
-        deleted_counts["attachments"] = count
+        stmt = delete(models.Attachment).where(models.Attachment.patient_id.in_(patient_ids))
+        res = await db.execute(stmt)
+        deleted_counts["attachments"] = res.rowcount
 
         # Appointments
-        count = (
-            db.query(models.Appointment)
-            .filter(models.Appointment.patient_id.in_(patient_ids))
-            .delete(synchronize_session=False)
-        )
-        deleted_counts["appointments"] = count
+        stmt = delete(models.Appointment).where(models.Appointment.patient_id.in_(patient_ids))
+        res = await db.execute(stmt)
+        deleted_counts["appointments"] = res.rowcount
 
     # 20. Patients
-    count = (
-        db.query(models.Patient)
-        .filter(models.Patient.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["patients"] = count
+    stmt = delete(models.Patient).where(models.Patient.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["patients"] = res.rowcount
 
     # 21. Users (tenant staff - NOT super_admin)
-    count = (
-        db.query(models.User)
-        .filter(models.User.tenant_id == tenant_id)
-        .delete(synchronize_session=False)
-    )
-    deleted_counts["users"] = count
+    stmt = delete(models.User).where(models.User.tenant_id == tenant_id)
+    res = await db.execute(stmt)
+    deleted_counts["users"] = res.rowcount
 
     return deleted_counts
 
 
-def import_tenant_data(db: Session, tenant_id: int, backup_data: Dict) -> Dict:
+async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict) -> Dict:
     """
     Import tenant data from backup.
     This is a FULL REPLACEMENT operation.
@@ -346,7 +266,7 @@ def import_tenant_data(db: Session, tenant_id: int, backup_data: Dict) -> Dict:
 
         user = models.User(**user_data)
         db.add(user)
-        db.flush()
+        await db.flush()
         if old_id:
             id_maps["users"][old_id] = user.id
     imported_counts["users"] = len(data.get("users", []))
@@ -367,7 +287,7 @@ def import_tenant_data(db: Session, tenant_id: int, backup_data: Dict) -> Dict:
 
         patient = models.Patient(**patient_data)
         db.add(patient)
-        db.flush()
+        await db.flush()
         if old_id:
             id_maps["patients"][old_id] = patient.id
     imported_counts["patients"] = len(data.get("patients", []))
@@ -380,7 +300,7 @@ def import_tenant_data(db: Session, tenant_id: int, backup_data: Dict) -> Dict:
 
         lab = models.Laboratory(**lab_data)
         db.add(lab)
-        db.flush()
+        await db.flush()
         if old_id:
             id_maps["laboratories"][old_id] = lab.id
     imported_counts["laboratories"] = len(data.get("laboratories", []))
@@ -392,7 +312,7 @@ def import_tenant_data(db: Session, tenant_id: int, backup_data: Dict) -> Dict:
 
         proc = models.Procedure(**proc_data)
         db.add(proc)
-        db.flush()
+        await db.flush()
         if old_id:
             id_maps["procedures"][old_id] = proc.id
     imported_counts["procedures"] = len(data.get("procedures", []))
@@ -405,7 +325,7 @@ def import_tenant_data(db: Session, tenant_id: int, backup_data: Dict) -> Dict:
 
         ip = InsuranceProvider(**ip_data)
         db.add(ip)
-        db.flush()
+        await db.flush()
         if old_id:
             id_maps["insurance_providers"][old_id] = ip.id
     imported_counts["insurance_providers"] = len(data.get("insurance_providers", []))
@@ -426,7 +346,7 @@ def import_tenant_data(db: Session, tenant_id: int, backup_data: Dict) -> Dict:
 
         pl = PriceList(**pl_data)
         db.add(pl)
-        db.flush()
+        await db.flush()
         if old_id:
             id_maps["price_lists"][old_id] = pl.id
     imported_counts["price_lists"] = len(data.get("price_lists", []))
@@ -455,7 +375,7 @@ def import_tenant_data(db: Session, tenant_id: int, backup_data: Dict) -> Dict:
 
         wh = models.Warehouse(**wh_data)
         db.add(wh)
-        db.flush()
+        await db.flush()
         if old_id:
             id_maps["warehouses"][old_id] = wh.id
     imported_counts["warehouses"] = len(data.get("warehouses", []))
@@ -467,7 +387,7 @@ def import_tenant_data(db: Session, tenant_id: int, backup_data: Dict) -> Dict:
 
         mat = models.Material(**mat_data)
         db.add(mat)
-        db.flush()
+        await db.flush()
         if old_id:
             id_maps["materials"][old_id] = mat.id
     imported_counts["materials"] = len(data.get("materials", []))
@@ -485,7 +405,7 @@ def import_tenant_data(db: Session, tenant_id: int, backup_data: Dict) -> Dict:
         if batch_data["material_id"]:
             batch = models.Batch(**batch_data)
             db.add(batch)
-            db.flush()
+            await db.flush()
             if old_id:
                 id_maps["batches"][old_id] = batch.id
     imported_counts["batches"] = len(data.get("batches", []))
@@ -500,7 +420,7 @@ def import_tenant_data(db: Session, tenant_id: int, backup_data: Dict) -> Dict:
         if si_data["warehouse_id"] and si_data["batch_id"]:
             si = models.StockItem(**si_data)
             db.add(si)
-            db.flush()
+            await db.flush()
             if old_id:
                 id_maps["stock_items"][old_id] = si.id
     imported_counts["stock_items"] = len(data.get("stock_items", []))
@@ -559,9 +479,6 @@ def import_tenant_data(db: Session, tenant_id: int, backup_data: Dict) -> Dict:
         exp = models.Expense(**exp_data)
         db.add(exp)
     imported_counts["expenses"] = len(data.get("expenses", []))
-
-    # 16. Import remaining tables (simplified for brevity)
-    # Prescriptions, ToothStatus, Attachments, LabOrders, LabPayments, SalaryPayments, SavedMedications, etc.
 
     for pres_data in data.get("prescriptions", []):
         pres_data.pop("id", None)
@@ -631,7 +548,7 @@ def import_tenant_data(db: Session, tenant_id: int, backup_data: Dict) -> Dict:
     return imported_counts
 
 
-def restore_tenant_from_json(db: Session, tenant_id: int, json_content: str) -> Dict:
+async def restore_tenant_from_json(db: AsyncSession, tenant_id: int, json_content: str) -> Dict:
     """
     Full restore of tenant data from JSON backup.
 
@@ -661,17 +578,17 @@ def restore_tenant_from_json(db: Session, tenant_id: int, json_content: str) -> 
 
     # 3. Delete existing data
     try:
-        deleted_counts = delete_tenant_data(db, tenant_id)
+        deleted_counts = await delete_tenant_data(db, tenant_id)
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         return {"success": False, "error": f"Failed to delete existing data: {str(e)}"}
 
     # 4. Import new data
     try:
-        imported_counts = import_tenant_data(db, tenant_id, backup_data)
-        db.commit()
+        imported_counts = await import_tenant_data(db, tenant_id, backup_data)
+        await db.commit()
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         return {"success": False, "error": f"Failed to import data: {str(e)}"}
 
     return {

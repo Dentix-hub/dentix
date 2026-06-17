@@ -108,4 +108,14 @@ export default {
         },
     },
     plugins: [],
+    safelist: [
+        'bg-indigo-50', 'dark:bg-indigo-900/20', 'text-indigo-600', 'dark:text-indigo-400',
+        'bg-emerald-50', 'dark:bg-emerald-900/20', 'text-emerald-600', 'dark:text-emerald-400',
+        'bg-amber-50', 'dark:bg-amber-900/20', 'text-amber-600', 'dark:text-amber-400',
+        'bg-red-50', 'dark:bg-red-900/20', 'text-red-600', 'dark:text-red-400',
+        'bg-blue-50', 'dark:bg-blue-900/20', 'text-blue-600', 'dark:text-blue-400',
+        'bg-teal-50', 'dark:bg-teal-900/20', 'text-teal-600', 'dark:text-teal-400',
+        'bg-violet-50', 'dark:bg-violet-900/20', 'text-violet-600', 'dark:text-violet-400',
+        'bg-sky-50', 'dark:bg-sky-900/20', 'text-sky-600', 'dark:text-sky-400',
+    ],
 }

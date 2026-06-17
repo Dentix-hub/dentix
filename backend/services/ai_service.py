@@ -1,5 +1,5 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 from datetime import datetime
 import json
 import logging
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class AIService:
-    def __init__(self, db: Session, user: models.User):
+    def __init__(self, db: AsyncSession, user: models.User):
         self.db = db
         self.user = user
         self.tenant = user.tenant
@@ -100,7 +100,7 @@ class AIService:
             safe_text, aliases = AIValidationLayer.scrub_input(text)
 
             # 1. Check Subscription & Quotas
-            quota_error = self._check_subscription_quota()
+            quota_error = await self._check_subscription_quota()
             if quota_error:
                 return quota_error
 
@@ -246,7 +246,7 @@ class AIService:
                     final_response_data["message"]
                 )
 
-            self._log_usage(
+            await self._log_usage(
                 query=text,
                 response_data=final_response_data,
                 ai_result=ai_result,
@@ -259,7 +259,7 @@ class AIService:
 
         return AIQueryResponse(**final_response_data)
 
-    def _check_subscription_quota(self) -> Optional[AIQueryResponse]:
+    async def _check_subscription_quota(self) -> Optional[AIQueryResponse]:
         """Check if tenant has access and quota."""
         if not self.tenant or not self.tenant.subscription_plan:
             return None
@@ -277,14 +277,11 @@ class AIService:
             today_start = datetime.now().replace(
                 hour=0, minute=0, second=0, microsecond=0
             )
-            usage_count = (
-                self.db.query(func.count(models.AIUsageLog.id))
-                .filter(
-                    models.AIUsageLog.tenant_id == self.tenant.id,
-                    models.AIUsageLog.created_at >= today_start,
-                )
-                .scalar()
+            stmt = select(func.count(models.AIUsageLog.id)).where(
+                models.AIUsageLog.tenant_id == self.tenant.id,
+                models.AIUsageLog.created_at >= today_start,
             )
+            usage_count = await self.db.scalar(stmt) or 0
 
             if usage_count >= plan.ai_daily_limit:
                 return AIQueryResponse(
@@ -483,7 +480,7 @@ class AIService:
             logger.error(f"Intent detection error: {e}")
         return None
 
-    def _log_usage(
+    async def _log_usage(
         self,
         query,
         response_data,
@@ -532,7 +529,7 @@ class AIService:
                 scribe_mode=scribe_mode,
             )
             self.db.add(log_entry)
-            self.db.commit()
+            await self.db.commit()
         except Exception as e:
             logger.error("Failed to log AI usage: %s", e)
 

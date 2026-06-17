@@ -1,12 +1,13 @@
 import sys
 import os
+import asyncio
+from sqlalchemy import select, or_
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from backend.database import SessionLocal
+from backend.database import AsyncSessionLocal
 from backend.models.inventory import MaterialCategory, ProcedureMaterialWeight
 from backend.models.clinical import Procedure
-from sqlalchemy import or_
 
 # Maps procedure name (exact match to seed_procedures.py) → list of (category_name_en, weight)
 PROCEDURE_MATERIAL_DEFAULTS = {
@@ -216,66 +217,69 @@ PROCEDURE_MATERIAL_DEFAULTS = {
 }
 
 
-def seed_procedure_material_defaults():
-    db = SessionLocal()
-    try:
-        # Build category lookup: name_en → id
-        categories = db.query(MaterialCategory).all()
-        cat_map = {c.name_en: c.id for c in categories}
+async def seed_procedure_material_defaults():
+    async with AsyncSessionLocal() as db:
+        try:
+            # Build category lookup: name_en → id
+            res_cats = await db.execute(select(MaterialCategory))
+            categories = res_cats.scalars().all()
+            cat_map = {c.name_en: c.id for c in categories}
 
-        # Build procedure lookup: name → id
-        procedures = db.query(Procedure).filter(
-            Procedure.tenant_id.is_(None)
-        ).all()
-        proc_map = {p.name: p.id for p in procedures}
+            # Build procedure lookup: name → id
+            res_procs = await db.execute(
+                select(Procedure).filter(Procedure.tenant_id.is_(None))
+            )
+            procedures = res_procs.scalars().all()
+            proc_map = {p.name: p.id for p in procedures}
 
-        added_count = 0
-        skipped_count = 0
+            added_count = 0
+            skipped_count = 0
 
-        print("Seeding procedure-material defaults...")
-        for proc_name, materials in PROCEDURE_MATERIAL_DEFAULTS.items():
-            proc_id = proc_map.get(proc_name)
-            if not proc_id:
-                print(f"  ⚠ Procedure not found: {proc_name}")
-                skipped_count += 1
-                continue
-
-            for cat_name_en, weight in materials:
-                cat_id = cat_map.get(cat_name_en)
-                if not cat_id:
-                    print(f"  ⚠ Category not found: {cat_name_en}")
+            print("Seeding procedure-material defaults...")
+            for proc_name, materials in PROCEDURE_MATERIAL_DEFAULTS.items():
+                proc_id = proc_map.get(proc_name)
+                if not proc_id:
+                    print(f"  ⚠ Procedure not found: {proc_name}")
                     skipped_count += 1
                     continue
 
-                # Check if already exists (procedure_id + category_id, global tenant_id=NULL)
-                exists = db.query(ProcedureMaterialWeight).filter(
-                    ProcedureMaterialWeight.procedure_id == proc_id,
-                    ProcedureMaterialWeight.category_id == cat_id,
-                    ProcedureMaterialWeight.tenant_id.is_(None),
-                ).first()
+                for cat_name_en, weight in materials:
+                    cat_id = cat_map.get(cat_name_en)
+                    if not cat_id:
+                        print(f"  ⚠ Category not found: {cat_name_en}")
+                        skipped_count += 1
+                        continue
 
-                if exists:
-                    continue
+                    # Check if already exists (procedure_id + category_id, global tenant_id=NULL)
+                    res_exists = await db.execute(
+                        select(ProcedureMaterialWeight).filter(
+                            ProcedureMaterialWeight.procedure_id == proc_id,
+                            ProcedureMaterialWeight.category_id == cat_id,
+                            ProcedureMaterialWeight.tenant_id.is_(None),
+                        )
+                    )
+                    exists = res_exists.scalars().first()
 
-                pmw = ProcedureMaterialWeight(
-                    procedure_id=proc_id,
-                    category_id=cat_id,
-                    material_id=None,  # Global defaults use category, not specific material
-                    tenant_id=None,     # Global — applies to all clinics
-                    weight=weight,
-                )
-                db.add(pmw)
-                added_count += 1
+                    if exists:
+                        continue
 
-        db.commit()
-        print(f"Done! Added {added_count} new procedure-material defaults. Skipped {skipped_count}.")
+                    pmw = ProcedureMaterialWeight(
+                        procedure_id=proc_id,
+                        category_id=cat_id,
+                        material_id=None,  # Global defaults use category, not specific material
+                        tenant_id=None,     # Global — applies to all clinics
+                        weight=weight,
+                    )
+                    db.add(pmw)
+                    added_count += 1
 
-    except Exception as e:
-        print(f"Error seeding procedure-material defaults: {e}")
-        db.rollback()
-    finally:
-        db.close()
+            await db.commit()
+            print(f"Done! Added {added_count} new procedure-material defaults. Skipped {skipped_count}.")
+
+        except Exception as e:
+            print(f"Error seeding procedure-material defaults: {e}")
+            await db.rollback()
 
 
 if __name__ == "__main__":
-    seed_procedure_material_defaults()
+    asyncio.run(seed_procedure_material_defaults())

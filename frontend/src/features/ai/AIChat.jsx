@@ -4,6 +4,7 @@
  * Features: Context Memory, Medical Scribe Mode
  */
 import { useState, useRef, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { Send, X, Bot, Loader2, Mic, MicOff, Calendar, Users, DollarSign, Building2, Volume2, VolumeX, FileEdit } from 'lucide-react';
 import { sendAIQuery } from '@/api';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
@@ -116,7 +117,7 @@ export default function AIChat() {
                 setLastPatientName(response.data.data.patient_name);
             }
         } catch (err) {
-            console.error('AI Query Error:', err);
+            logger.error('AI Query Error:', err);
             setMessages(prev => [...prev, {
                 role: 'assistant',
                 content: err.response?.data?.detail || t('ai_chat.chat.connection_error'),
@@ -158,7 +159,7 @@ export default function AIChat() {
             {/* Floating Button */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className={`fixed bottom-6 z-50 p-0 rounded-full shadow-2xl transition-all duration-300 ltr:right-6 rtl:left-6 ${isOpen
+                className={`fixed bottom-6 z-50 p-0 rounded-full shadow-2xl transition-all duration-300 end-6 ${isOpen
                     ? 'bg-slate-700 hover:bg-slate-800 rotate-90 w-14 h-14 flex items-center justify-center'
                     : 'bg-transparent animate-bounce-slow hover:scale-110'
                     }`}
@@ -179,7 +180,7 @@ export default function AIChat() {
             </button>
             {/* Chat Window */}
             {isOpen && (
-                <div className="fixed bottom-24 z-50 w-96 max-w-[calc(100vw-3rem)] h-[500px] max-h-[70vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300 ltr:right-6 rtl:left-6">
+                <div className="fixed bottom-24 z-50 w-96 max-w-[calc(100vw-3rem)] h-[500px] max-h-[70vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-300 end-6">
                     {/* Header */}
                     <div className="bg-gradient-to-r from-cyan-600 to-indigo-600 p-4 flex items-center gap-3">
                         <div className="bg-white/10 rounded-full border border-white/20 w-12 h-12 flex items-center justify-center overflow-hidden shrink-0">

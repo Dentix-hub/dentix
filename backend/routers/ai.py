@@ -4,12 +4,12 @@ Handles AI query endpoint via AIService.
 """
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 
 from backend.core.response import success_response
 from backend import models
-from backend.routers.auth.dependencies import get_db
+from backend.database import get_async_db
 from backend.services.ai_service import AIService
 from backend.schemas.ai import AIQueryRequest, AIQueryResponse
 from backend.ai.tools.registry import tool_registry
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/ai", tags=["AI Assistant"])
 async def ai_query(
     query_data: AIQueryRequest,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
 ):
     """

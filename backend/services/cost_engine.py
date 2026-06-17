@@ -1,8 +1,9 @@
 import logging
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 from typing import Dict, Any, List
 
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, select
 from backend.models.inventory import ProcedureMaterialWeight, Batch, StockItem, Material, TreatmentMaterialUsage
 from backend.models.clinical import Procedure
 
@@ -10,38 +11,36 @@ logger = logging.getLogger(__name__)
 
 
 class CostEngine:
-    def __init__(self, db: Session, tenant_id: int):
+    def __init__(self, db: AsyncSession, tenant_id: int):
         self.db = db
         self.tenant_id = tenant_id
 
-    def get_material_average_cost(self, material_id: int) -> float:
+    async def get_material_average_cost(self, material_id: int) -> float:
         """
         Calculates the weighted average cost of a MATERIAL BASE UNIT (e.g. per gram).
         Batch.cost_per_unit already stores per-base-unit cost (frontend divides package_price / ratio).
         """
         # 1. Active Stock
-        stock_query = (
-            self.db.query(
+        stmt = (
+            select(
                 StockItem.quantity, Batch.cost_per_unit, Material.packaging_ratio
             )
             .select_from(StockItem)
             .join(Batch, StockItem.batch_id == Batch.id)
             .join(Material, Batch.material_id == Material.id)
-            .filter(
+            .where(
                 StockItem.tenant_id == self.tenant_id,
                 Batch.material_id == material_id,
                 StockItem.quantity > 0,
             )
-            .all()
         )
+        result = await self.db.execute(stmt)
+        stock_query = result.all()
 
         total_base_qty = sum(item.quantity for item in stock_query)
         total_value = 0.0
 
         for qty, batch_cost_per_unit, ratio in stock_query:
-            # batch_cost_per_unit is per BASE UNIT (e.g. per gram)
-            # The frontend calculates: package_price / ratio before sending
-            # So this value is already the cost per base unit — NO further division needed
             unit_cost = batch_cost_per_unit
             total_value += qty * unit_cost
 
@@ -49,46 +48,49 @@ class CostEngine:
             return total_value / total_base_qty
 
         # 2. Fallback: Latest Batch
-        last_batch = (
-            self.db.query(Batch, Material)
+        stmt_fallback = (
+            select(Batch, Material)
             .select_from(Batch)
             .join(Material, Batch.material_id == Material.id)
-            .filter(
+            .where(
                 Batch.tenant_id == self.tenant_id,
                 Batch.material_id == material_id,
                 Batch.cost_per_unit > 0,
             )
             .order_by(Batch.created_at.desc())
-            .first()
+            .limit(1)
         )
+        res_fallback = await self.db.execute(stmt_fallback)
+        last_batch = res_fallback.first()
 
         if last_batch:
             batch, mat = last_batch
-            # cost_per_unit is already per base unit
             return batch.cost_per_unit
 
         return 0.0
 
-    def calculate_procedure_cost(self, procedure_id: int) -> Dict[str, Any]:
+    async def calculate_procedure_cost(self, procedure_id: int) -> Dict[str, Any]:
         """
         Calculates the theoretical cost of a procedure based on its BOM.
         Includes Coverage Analysis (how many procedures per pack).
         """
         # 1. Get Procedure Info
-        proc = self.db.query(Procedure).filter(Procedure.id == procedure_id).first()
+        stmt_proc = select(Procedure).where(Procedure.id == procedure_id)
+        proc = (await self.db.execute(stmt_proc)).scalars().first()
         if not proc:
             return {"error": "Procedure not found"}
 
         # 2. Get BOM (Weights)
-        weights = (
-            self.db.query(ProcedureMaterialWeight)
+        stmt_w = (
+            select(ProcedureMaterialWeight)
             .options(joinedload(ProcedureMaterialWeight.material))
-            .filter(
+            .where(
                 ProcedureMaterialWeight.procedure_id == procedure_id,
                 ProcedureMaterialWeight.tenant_id == self.tenant_id,
             )
-            .all()
         )
+        result_w = await self.db.execute(stmt_w)
+        weights = result_w.scalars().all()
 
         total_cost = 0.0
         total_actual_cost = 0.0
@@ -98,7 +100,7 @@ class CostEngine:
             if not w.material:
                 continue
 
-            unit_cost = self.get_material_average_cost(w.material_id)
+            unit_cost = await self.get_material_average_cost(w.material_id)
 
             # AI / Actual Usage Logic
             # 1. Try learned average from ProcedureMaterialWeight
@@ -106,35 +108,27 @@ class CostEngine:
 
             # 2. Fallback: Calculate from actual TreatmentMaterialUsage records if no learning data
             if not current_avg or current_avg == 0:
-                actual_usage_stats = (
-                    self.db.query(func.avg(TreatmentMaterialUsage.quantity_used))
-                    .filter(
+                stmt_avg = (
+                    select(func.avg(TreatmentMaterialUsage.quantity_used))
+                    .where(
                         TreatmentMaterialUsage.material_id == w.material_id,
                         TreatmentMaterialUsage.tenant_id == self.tenant_id,
                         TreatmentMaterialUsage.quantity_used.isnot(None),
                     )
-                    .scalar()
                 )
+                actual_usage_stats = await self.db.scalar(stmt_avg)
                 if actual_usage_stats:
                     current_avg = float(actual_usage_stats)
 
             actual_usage = current_avg if current_avg and current_avg > 0 else 0.0
             actual_material_cost = actual_usage * unit_cost
 
-            # Theoretical Cost logic:
-            # Since 'weight' is a Relative Score (not grams), we cannot calculate standard cost directly from it
-            # without a "Grams per Score" factor.
-            # For now, we assume the AI-Learned cost IS the best estimate.
-            # So estimated_cost converges to actual_cost.
             estimated_cost = actual_material_cost
 
             # Coverage Analysis
-            # Pack Size = packaging_ratio
             pkg_ratio_val = getattr(w.material, "packaging_ratio", 1.0)
             pkg_ratio = pkg_ratio_val if pkg_ratio_val and pkg_ratio_val > 0 else 1.0
 
-            # Coverage: How many services per Pack using ACTUAL usage?
-            # If actual usage is 0, we can't estimate coverage yet.
             coverage_per_pack = pkg_ratio / actual_usage if actual_usage > 0 else 0
 
             cost_per_pack = unit_cost * pkg_ratio
@@ -147,16 +141,14 @@ class CostEngine:
                     "material_id": w.material_id,
                     "material_name": w.material.name,
                     "base_unit": w.material.base_unit,
-                    "weight_score": w.weight,  # Renamed key to emphasize it is a Score
-                    "weight_used": w.weight,  # Keep backward compat for UI just in case, but value is Score
+                    "weight_score": w.weight,
+                    "weight_used": w.weight,
                     "unit_cost": round(unit_cost, 2),
                     "estimated_cost": round(estimated_cost, 2),
-                    # AI Data
                     "actual_usage": round(actual_usage, 4),
                     "actual_cost": round(actual_material_cost, 2),
                     "sample_size": w.sample_size or 0,
                     "source": "learning" if (w.current_average_usage or 0) > 0 else ("actual_usage" if actual_usage > 0 else "estimated"),
-                    # Coverage Info
                     "pack_size": pkg_ratio,
                     "cost_per_pack": round(cost_per_pack, 2),
                     "coverage_per_pack": round(coverage_per_pack, 1),
@@ -170,8 +162,6 @@ class CostEngine:
         margin_percent = (margin / current_price * 100) if current_price > 0 else 0.0
 
         # Actual Margin (AI)
-        # If total_actual_cost is 0 (no data), we might show 0 or null?
-        # Let's calculate it purely.
         actual_margin = current_price - total_actual_cost
         actual_margin_percent = (
             (actual_margin / current_price * 100) if current_price > 0 else 0.0
@@ -190,37 +180,33 @@ class CostEngine:
             "breakdown": details,
         }
 
-    def calculate_all_procedures_costs(self) -> List[Dict[str, Any]]:
+    async def calculate_all_procedures_costs(self) -> List[Dict[str, Any]]:
         """
         Calculates cost analysis for ALL procedures.
-        Optimized to avoid N+1 where possible, but reuses core logic for consistency.
         """
-        procedures = (
-            self.db.query(Procedure)
-            .filter(
+        stmt_p = (
+            select(Procedure)
+            .where(
                 or_(
                     Procedure.tenant_id == self.tenant_id,
                     Procedure.tenant_id.is_(None),
                 )
             )
-            .all()
         )
+        res_p = await self.db.execute(stmt_p)
+        procedures = res_p.scalars().all()
         results = []
 
         for proc in procedures:
-            # We reuse the single calculation to ensure logic consistency (DRY)
-            # Performance note: If this becomes slow, we should bulk-fetch material costs first.
             try:
-                analysis = self.calculate_procedure_cost(proc.id)
+                analysis = await self.calculate_procedure_cost(proc.id)
                 if "error" not in analysis:
                     results.append(
                         {
                             "id": proc.id,
                             "name": proc.name,
                             "price": analysis["current_price"],
-                            "cost": analysis[
-                                "total_actual_cost"
-                            ],  # Using AI/Actual cost as the source of truth
+                            "cost": analysis["total_actual_cost"],
                             "margin": analysis["actual_profit_margin"],
                             "margin_percent": analysis["actual_margin_percentage"],
                             "materials_count": len(analysis["breakdown"]),
@@ -230,6 +216,5 @@ class CostEngine:
                 logger.error("[COST_ENGINE] Procedure %s: %s", proc.id, e, exc_info=True)
                 continue
 
-        # Sort by lowest margin percent by default to highlight issues
         results.sort(key=lambda x: x["margin_percent"])
         return results

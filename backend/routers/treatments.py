@@ -8,10 +8,11 @@ Thin router layer - all business logic delegated to TreatmentService.
 import logging
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
 
 from .. import schemas, crud, models
-from .auth import get_db
+from backend.database import get_async_db
 from backend.models import inventory as inv_models
 from backend.core.permissions import Permission, require_permission
 from backend.core.limiter import limiter
@@ -30,15 +31,16 @@ router = APIRouter(prefix="/treatments", tags=["Treatments"])
     summary="Create treatment",
     description="Create a new dental treatment record. Auto-calculates price from price list and deducts stock for consumed materials. Requires TREATMENT_PLAN_WRITE permission. Field 'cost' represents total before discount; 'tooth_number' is mandatory for dental procedures.",
 )
-def create_treatment(
+async def create_treatment(
     request: Request,
     treatment: schemas.TreatmentCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
 ):
     """Create a new treatment record."""
     treatment_svc = get_treatment_service(db, current_user.tenant_id, current_user)
-    return success_response(data=treatment_svc.create_treatment(treatment), message="Treatment created successfully")
+    result = await treatment_svc.create_treatment(treatment)
+    return success_response(data=result, message="Treatment created successfully")
 
 
 @router.put(
@@ -47,15 +49,16 @@ def create_treatment(
     summary="Update treatment",
     description="Update an existing treatment. Re-validates stock and re-consumes materials. Requires TREATMENT_PLAN_WRITE permission.",
 )
-def update_treatment(
+async def update_treatment(
     treatment_id: int,
     treatment: schemas.TreatmentCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
 ):
     """Update a treatment record."""
     treatment_svc = get_treatment_service(db, current_user.tenant_id, current_user)
-    return success_response(data=treatment_svc.update_treatment(treatment_id, treatment), message="Treatment updated successfully")
+    result = await treatment_svc.update_treatment(treatment_id, treatment)
+    return success_response(data=result, message="Treatment updated successfully")
 
 
 @router.delete(
@@ -64,14 +67,15 @@ def update_treatment(
     summary="Delete treatment",
     description="Delete a treatment record. Logs the action for audit trail. Requires CLINICAL_WRITE permission.",
 )
-def delete_treatment(
+async def delete_treatment(
     treatment_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     """Delete a treatment record."""
     treatment_svc = get_treatment_service(db, current_user.tenant_id, current_user)
-    return success_response(data=treatment_svc.delete_treatment(treatment_id), message="Treatment deleted successfully")
+    result = await treatment_svc.delete_treatment(treatment_id)
+    return success_response(data=result, message="Treatment deleted successfully")
 
 
 @router.post(
@@ -80,17 +84,18 @@ def delete_treatment(
     summary="Add treatment session",
     description="Add a new session log to an existing treatment (e.g., RCT visit). Requires TREATMENT_PLAN_WRITE permission.",
 )
-def add_treatment_session(
+async def add_treatment_session(
     treatment_id: int,
     session: schemas.TreatmentSessionCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
 ):
     """Add a session to a treatment."""
     if session.treatment_id != treatment_id:
         raise HTTPException(status_code=400, detail="Treatment ID mismatch")
     treatment_svc = get_treatment_service(db, current_user.tenant_id, current_user)
-    return success_response(data=treatment_svc.add_session(session), message="Session added successfully")
+    result = await treatment_svc.add_session(session)
+    return success_response(data=result, message="Session added successfully")
 
 
 # --- Tooth Status ---
@@ -100,16 +105,17 @@ def add_treatment_session(
     summary="Update tooth status",
     description="Update or create a tooth status entry in the dental chart. Requires CLINICAL_WRITE permission.",
 )
-def update_tooth_status(
+async def update_tooth_status(
     status: schemas.ToothStatusCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     """Update tooth status in dental chart."""
-    patient = crud.get_patient(db, status.patient_id, current_user.tenant_id)
+    patient = await crud.get_patient(db, status.patient_id, current_user.tenant_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    return success_response(data=crud.update_tooth_status(db, status, current_user.tenant_id), message="Tooth status updated")
+    result = await crud.update_tooth_status(db, status, current_user.tenant_id)
+    return success_response(data=result, message="Tooth status updated")
 
 
 # --- Treatment Material Usage ---
@@ -119,20 +125,21 @@ def update_tooth_status(
     summary="Get treatment materials",
     description="Get all material usage records for a treatment. Requires TREATMENT_PLAN_READ permission.",
 )
-def get_treatment_materials(
+async def get_treatment_materials(
     treatment_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
 ):
     """Get material usage for a treatment."""
-    usages = (
-        db.query(inv_models.TreatmentMaterialUsage)
-        .filter(
+    stmt = (
+        select(inv_models.TreatmentMaterialUsage)
+        .where(
             inv_models.TreatmentMaterialUsage.treatment_id == treatment_id,
             inv_models.TreatmentMaterialUsage.tenant_id == (current_user.tenant_id or 1),
         )
-        .all()
     )
+    result = await db.execute(stmt)
+    usages = result.scalars().all()
     return success_response(data=usages)
 
 
@@ -142,10 +149,10 @@ def get_treatment_materials(
     summary="Save treatment materials",
     description="Save material usage for a treatment. For DIVISIBLE materials: links to active session with weight. For NON_DIVISIBLE: deducts stock immediately. Requires TREATMENT_PLAN_WRITE permission.",
 )
-def save_treatment_materials(
+async def save_treatment_materials(
     treatment_id: int,
     materials: List[schemas.inventory.TreatmentMaterialUsageCreate],
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
 ):
     """Save material usage for a treatment."""
@@ -153,40 +160,43 @@ def save_treatment_materials(
     results = []
 
     # Verify treatment exists
-    treatment = db.query(models.Treatment).filter(
+    stmt_t = select(models.Treatment).where(
         models.Treatment.id == treatment_id,
         models.Treatment.tenant_id == tenant_id,
-    ).first()
+    )
+    treatment = (await db.execute(stmt_t)).scalars().first()
     if not treatment:
         raise HTTPException(status_code=404, detail="Treatment not found")
 
     # 1. Reverse old stock movements for this treatment (prevent double deduction)
     reference_id = f"TREATMENT_MATERIALS:{treatment_id}"
-    inventory_service.reverse_stock_by_reference(
+    await inventory_service.reverse_stock_by_reference(
         reference_id=reference_id,
         user_id=current_user.id,
         db=db,
     )
 
     # 2. Clear existing usage records
-    db.query(inv_models.TreatmentMaterialUsage).filter(
+    stmt_del = delete(inv_models.TreatmentMaterialUsage).where(
         inv_models.TreatmentMaterialUsage.treatment_id == treatment_id,
         inv_models.TreatmentMaterialUsage.tenant_id == tenant_id,
-    ).delete()
+    )
+    await db.execute(stmt_del)
 
     for item in materials:
         # Get material details
-        material = db.query(inv_models.Material).filter(
+        stmt_mat = select(inv_models.Material).where(
             inv_models.Material.id == item.material_id,
             inv_models.Material.tenant_id == tenant_id,
-        ).first()
+        )
+        material = (await db.execute(stmt_mat)).scalars().first()
         if not material:
             continue
 
         # 3. For NON_DIVISIBLE: deduct stock with reference_id
         if material.type == "NON_DIVISIBLE" and item.quantity_used:
             try:
-                inventory_service.consume_stock(
+                await inventory_service.consume_stock(
                     material_id=item.material_id,
                     quantity=item.quantity_used,
                     tenant_id=tenant_id,
@@ -214,8 +224,8 @@ def save_treatment_materials(
         results.append(usage)
 
     # 5. Single commit for the entire operation
-    db.commit()
+    await db.commit()
     for r in results:
-        db.refresh(r)
+        await db.refresh(r)
 
     return success_response(data=results, message="Materials saved successfully")

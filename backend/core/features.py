@@ -34,7 +34,7 @@ def require_feature(feature_key: str):
                     return await result
                 return result
 
-            if not FeatureFlagService.is_feature_enabled(db, feature_key, user.tenant_id):
+            if not await FeatureFlagService.is_feature_enabled(db, feature_key, user.tenant_id):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=f"Tenant does not have access to feature '{feature_key}'.",

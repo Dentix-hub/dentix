@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import logger from '@/utils/logger';
 import {
     Search, Plus, Package, ArrowDownLeft, Brain, Play, Square, AlertCircle, Trash2, Edit
 } from 'lucide-react';
@@ -43,7 +44,7 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
             alert(t('inventory.messages.delete_success'));
         },
         onError: (err) => {
-            console.error(err);
+            logger.error(err);
             const msg = err.response?.data?.detail
                 || err.response?.data?.error?.message
                 || t('inventory.messages.delete_fail');
@@ -112,7 +113,7 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
             {/* Header Actions */}
             <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-surface p-4 rounded-xl shadow-sm border border-border">
                 <div className="relative w-full md:w-96">
-                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary" size={20} />
+                    <Search className="absolute end-3 top-1/2 -translate-y-1/2 text-text-secondary" size={20} />
                     <input
                         type="text"
                         placeholder={t('inventory.actions.search_placeholder')}
@@ -121,7 +122,7 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                             setSearchQuery(e.target.value);
                             setCurrentPage(1);
                         }}
-                        className="w-full pr-10 pl-4 py-2 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                        className="w-full pe-10 ps-4 py-2 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                     />
                 </div>
                 <div className="flex gap-2 w-full md:w-auto">
@@ -243,7 +244,7 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                                                         >
                                                             <Square size={18} />
                                                             {sessions.length > 1 && (
-                                                                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] text-white">
+                                                                <span className="absolute -top-1 -end-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] text-white">
                                                                     {sessions.length}
                                                                 </span>
                                                             )}

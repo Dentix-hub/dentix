@@ -40,7 +40,7 @@ const StaffModal = ({ isOpen, onClose, selectedStaff, roleLabels, editStaffSalar
                 <div className="flex justify-end gap-3 mt-6">
                     <Button variant="ghost" onClick={onClose} type="button">{t('common.cancel')}</Button>
                     <Button onClick={saveStaffCompensation} disabled={savingStaff} type="submit">
-                        <Save size={16} className="mr-2" />
+                        <Save size={16} className="me-2" />
                         {savingStaff ? t('common.loading') : t('common.save')}
                     </Button>
                 </div>

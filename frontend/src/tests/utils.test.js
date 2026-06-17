@@ -1,10 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { parseJwt, getToken, getRefreshToken, setToken, removeToken } from '../utils';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { parseJwt, getToken, getRefreshToken, setToken, removeToken, getAdminToken, setAdminToken, removeAdminToken, logout } from '../utils';
+
 describe('utils', () => {
     beforeEach(() => {
         localStorage.clear();
         sessionStorage.clear();
+        vi.resetModules();
     });
+
     describe('parseJwt', () => {
         it('returns null for empty/null token', () => {
             expect(parseJwt(null)).toBeNull();
@@ -23,36 +26,47 @@ describe('utils', () => {
             expect(parseJwt('only.two')).toBeNull();
         });
     });
-    describe('setToken / getToken / getRefreshToken', () => {
-        it('stores token in sessionStorage', () => {
+
+    describe('Main auth tokens (httpOnly cookies - not stored in sessionStorage)', () => {
+        it('getToken returns null (cannot read httpOnly cookie)', () => {
+            expect(getToken()).toBeNull();
+        });
+        it('getRefreshToken returns null (cannot read httpOnly cookie)', () => {
+            expect(getRefreshToken()).toBeNull();
+        });
+        it('setToken is no-op for main auth tokens', () => {
             setToken('access123', 'refresh456');
-            expect(sessionStorage.getItem('token')).toBe('access123');
-            expect(sessionStorage.getItem('refresh_token')).toBe('refresh456');
-        });
-        it('getToken retrieves from sessionStorage', () => {
-            sessionStorage.setItem('token', 'ss-token');
-            expect(getToken()).toBe('ss-token');
-        });
-        it('getRefreshToken retrieves from sessionStorage', () => {
-            sessionStorage.setItem('refresh_token', 'ss-refresh');
-            expect(getRefreshToken()).toBe('ss-refresh');
-        });
-        it('setToken without refreshToken skips refresh storage', () => {
-            setToken('access-only');
-            expect(sessionStorage.getItem('token')).toBe('access-only');
-            expect(sessionStorage.getItem('refresh_token')).toBeNull();
-        });
-    });
-    describe('removeToken', () => {
-        it('clears tokens from sessionStorage', () => {
-            sessionStorage.setItem('token', 'c');
-            sessionStorage.setItem('refresh_token', 'd');
-            removeToken();
+            // Should not store in sessionStorage
             expect(sessionStorage.getItem('token')).toBeNull();
             expect(sessionStorage.getItem('refresh_token')).toBeNull();
         });
-        it('does not throw when no tokens exist', () => {
-            expect(() => removeToken()).not.toThrow();
+        it('removeToken is no-op for main auth tokens', () => {
+            removeToken();
+            // Should not throw
         });
     });
+
+    describe('Admin impersonation token (sessionStorage - temporary)', () => {
+        it('stores admin token in sessionStorage', () => {
+            setAdminToken('admin-token-123');
+            expect(sessionStorage.getItem('admin_token')).toBe('admin-token-123');
+        });
+        it('getAdminToken retrieves from sessionStorage', () => {
+            sessionStorage.setItem('admin_token', 'ss-admin-token');
+            expect(getAdminToken()).toBe('ss-admin-token');
+        });
+        it('removeAdminToken clears from sessionStorage', () => {
+            sessionStorage.setItem('admin_token', 'to-remove');
+            removeAdminToken();
+            expect(sessionStorage.getItem('admin_token')).toBeNull();
+        });
+        it('setAdminToken with null removes the token', () => {
+            sessionStorage.setItem('admin_token', 'to-remove');
+            setAdminToken(null);
+            expect(sessionStorage.getItem('admin_token')).toBeNull();
+        });
+    });
+
+    // Note: logout() is an async function that calls the API
+    // It's tested in integration tests, not unit tests
 });

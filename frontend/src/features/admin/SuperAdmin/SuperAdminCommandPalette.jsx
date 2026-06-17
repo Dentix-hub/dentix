@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import logger from '@/utils/logger';
 import { Search, Building2, Users, CreditCard, Terminal, Cpu, ArrowRight, Command, User } from 'lucide-react';
 import { api } from '@/api';
 import { useNavigate } from 'react-router-dom';
@@ -21,7 +22,7 @@ export default function CommandPalette({ isOpen, onClose }) {
             setResults(res.data || []);
             setSelectedIndex(0);
         } catch (err) {
-            console.error('Search failed:', err);
+            logger.error('Search failed:', err);
         } finally {
             setLoading(false);
         }

@@ -24,6 +24,8 @@ from .base import (
     datetime,
     timezone,
 )
+from sqlalchemy import column
+from rls.schemas import Permissive, ConditionArg, Command
 
 
 class PriceListType(str, Enum):
@@ -42,6 +44,14 @@ class InsuranceProvider(Base):
 
     __tablename__ = "insurance_providers"
     __table_args__ = (Index("idx_insurance_tenant", "tenant_id"),)
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
@@ -76,6 +86,14 @@ class PriceList(Base):
         Index("idx_pricelist_tenant_type", "tenant_id", "type"),
         Index("idx_pricelist_active", "tenant_id", "is_active"),
     )
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)

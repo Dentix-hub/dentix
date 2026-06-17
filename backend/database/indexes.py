@@ -12,7 +12,8 @@ Usage:
     python -c "from backend.database.indexes import analyze_slow_queries; analyze_slow_queries()\"
 """
 from sqlalchemy import text
-from backend.database import engine
+from backend.database import async_engine
+engine = async_engine.sync_engine
 import logging
 logger = logging.getLogger(__name__)
 INDEX_DEFINITIONS = {

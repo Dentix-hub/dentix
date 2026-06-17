@@ -5,7 +5,10 @@ from sqlalchemy import text
 # Add parent directory to path to import backend modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.database import SessionLocal, engine
+from sqlalchemy.orm import sessionmaker
+from backend.database import async_engine
+engine = async_engine.sync_engine
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
 def fix_null_values():

@@ -1,10 +1,12 @@
 import sys
 import os
+import asyncio
+from sqlalchemy import select
 
 # Ensure backend structure is visible
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from backend.database import SessionLocal
+from backend.database import AsyncSessionLocal
 from backend.models.clinical import Procedure
 
 PROCEDURES_LIST = [
@@ -45,37 +47,38 @@ PROCEDURES_LIST = [
 ]
 
 
-def seed_procedures():
-    db = SessionLocal()
-    try:
-        tenant_id = None  # Global procedures
-        added_count = 0
-        existing_count = 0
+async def seed_procedures():
+    async with AsyncSessionLocal() as db:
+        try:
+            tenant_id = None  # Global procedures
+            added_count = 0
+            existing_count = 0
 
-        print("Checking procedures...")
-        for proc_name in PROCEDURES_LIST:
-            # Check if exists
-            exists = db.query(Procedure).filter(Procedure.name == proc_name).first()
-            if exists:
-                existing_count += 1
-                continue
+            print("Checking procedures...")
+            for proc_name in PROCEDURES_LIST:
+                # Check if exists
+                res = await db.execute(
+                    select(Procedure).filter(Procedure.name == proc_name)
+                )
+                exists = res.scalars().first()
+                if exists:
+                    existing_count += 1
+                    continue
 
-            # Create new
-            new_proc = Procedure(name=proc_name, price=0.0, tenant_id=tenant_id)
-            db.add(new_proc)
-            added_count += 1
+                # Create new
+                new_proc = Procedure(name=proc_name, price=0.0, tenant_id=tenant_id)
+                db.add(new_proc)
+                added_count += 1
 
-        db.commit()
-        print(
-            f"Done! Added {added_count} new procedures. Skipped {existing_count} existing."
-        )
+            await db.commit()
+            print(
+                f"Done! Added {added_count} new procedures. Skipped {existing_count} existing."
+            )
 
-    except Exception as e:
-        print(f"Error seeding procedures: {e}")
-        db.rollback()
-    finally:
-        db.close()
+        except Exception as e:
+            print(f"Error seeding procedures: {e}")
+            await db.rollback()
 
 
 if __name__ == "__main__":
-    seed_procedures()
+    asyncio.run(seed_procedures())

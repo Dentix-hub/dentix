@@ -32,7 +32,7 @@ class AIPermissionContext:
     can_view_other_history: bool = False
 
     @classmethod
-    def from_user(
+    async def from_user(
         cls, db: Session, user: User, tenant_id: int
     ) -> "AIPermissionContext":
         """
@@ -50,7 +50,7 @@ class AIPermissionContext:
             user_role=user.role,
             tenant_id=tenant_id,
             visibility_mode=user.patient_visibility_mode or "all_assigned",
-            visible_patient_ids=visibility_service.get_visible_patient_ids(),
+            visible_patient_ids=await visibility_service.get_visible_patient_ids(),
             can_view_other_history=user.can_view_other_doctors_history or False,
         )
 
@@ -102,12 +102,12 @@ STRICT RULES:
         return "ليس لدي صلاحية للوصول لهذه المعلومات"
 
 
-def create_ai_context(db: Session, user: User, tenant_id: int) -> AIPermissionContext:
+async def create_ai_context(db: Session, user: User, tenant_id: int) -> AIPermissionContext:
     """
     Factory function to create AI context.
 
     Usage:
-        context = create_ai_context(db, current_user, tenant_id)
+        context = await create_ai_context(db, current_user, tenant_id)
         system_prompt = base_prompt + context.get_system_prompt_rules()
     """
-    return AIPermissionContext.from_user(db, user, tenant_id)
+    return await AIPermissionContext.from_user(db, user, tenant_id)

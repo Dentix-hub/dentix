@@ -1,5 +1,7 @@
 import { useEffect, Suspense, lazy, useCallback, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import logger from '@/utils/logger';
+import { AnimatePresence } from 'framer-motion';
+import { motion } from '@/lib/motion';
 import { useLocation, Link, useNavigate, Outlet } from 'react-router-dom';
 import {
     Home, Users, Banknote, Calendar, Menu, Settings as SettingsIcon, Package, LineChart, Globe,
@@ -40,8 +42,24 @@ const Layout = () => {
     const { user: currentUser, logout } = useAuth();
     
     useEffect(() => {
-        console.log(`[LAYOUT] Rendering Layout (Path: ${location.pathname})`);
-    }, [location.pathname]);
+        logger.log(`[LAYOUT] Rendering Layout (Path: ${location.pathname})`);
+        if (window.innerWidth < 1024) {
+            setSidebarOpen(false);
+        }
+    }, [location.pathname, setSidebarOpen]);
+
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth < 1024) {
+                setSidebarOpen(false);
+            } else {
+                setSidebarOpen(true);
+            }
+        };
+        window.addEventListener('resize', handleResize);
+        handleResize(); // run immediately on mount
+        return () => window.removeEventListener('resize', handleResize);
+    }, [setSidebarOpen]);
 
     const [logoError, setLogoError] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -184,7 +202,7 @@ const Layout = () => {
     return (
         <div className={`flex h-screen bg-background`}>
             {/* Global & Subscription Banners */}
-            <div className="fixed top-0 left-0 right-0 z-[60]">
+            <div className="fixed top-0 start-0 end-0 z-[60]">
                 <GlobalBanner />
                 <SubscriptionBanner />
             </div>
@@ -209,22 +227,22 @@ const Layout = () => {
             {/* Mobile Sidebar Overlay */}
             {sidebarOpen && (
                 <div
-                    className="fixed inset-0 bg-black/50 z-20 md:hidden"
+                    className="fixed inset-0 bg-black/50 z-20 lg:hidden"
                     onClick={() => setSidebarOpen(false)}
                 />
             )}
             {/* Sidebar */}
             <aside className={`
-                fixed inset-y-0 right-0 z-30 bg-white dark:bg-slate-900 border-l border-border/50 transform transition-all duration-300 ease-in-out md:translate-x-0 md:static shadow-2xl shadow-black/5 flex flex-col
-                ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'}
+                fixed inset-y-0 start-0 z-30 bg-white dark:bg-slate-900 border-e border-border/50 transform transition-all duration-300 ease-in-out lg:translate-x-0 lg:static shadow-2xl shadow-black/5 flex flex-col
+                ${sidebarOpen ? 'translate-x-0' : 'ltr:-translate-x-full rtl:translate-x-full'}
                 ${isSidebarCollapsed ? 'w-20' : 'w-72'}
             `}>
                 <button
                     onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
                     aria-label={t('common.toggle_sidebar', 'Toggle Sidebar')}
-                    className="absolute -left-3 top-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-1 hidden md:flex hover:bg-slate-50 transition-colors z-40 text-slate-500"
+                    className="absolute -end-3 top-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-1 hidden lg:flex hover:bg-slate-50 transition-colors z-40 text-slate-500 rtl:rotate-180"
                 >
-                    {isSidebarCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+                    {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
                 </button>
                 <div className={`flex flex-col items-center justify-center border-b border-border p-4 transition-all duration-300`}>
                     <div className={`${isSidebarCollapsed ? 'h-12' : 'h-28'} w-full overflow-hidden flex items-center justify-center mb-2 transition-all duration-300`}>
@@ -284,7 +302,11 @@ const Layout = () => {
                                 key={item.path}
                                 id={`nav-${item.path.replace(/\//g, '') || 'dashboard'}`}
                                 to={item.path}
-                                onClick={() => setSidebarOpen(false)}
+                                onClick={() => {
+                                    if (window.innerWidth < 1024) {
+                                        setSidebarOpen(false);
+                                    }
+                                }}
                                 onMouseEnter={() => handlePrefetch(item.path)}
                                 className={`
                                     relative flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 group
@@ -295,7 +317,7 @@ const Layout = () => {
                                 `}
                             >
                                 {isActive && (
-                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 bg-primary rounded-r-full" />
+                                    <div className="absolute start-0 top-1/2 -translate-y-1/2 h-8 w-1 bg-primary rounded-e-full" />
                                 )}
                                 <Icon size={22} className={`shrink-0 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
                                 {!isSidebarCollapsed && <span className="text-sm animate-in fade-in">{item.label}</span>}
@@ -352,15 +374,19 @@ const Layout = () => {
                         </div>
                         <Link
                             to="/support"
-                            onClick={() => setSidebarOpen(false)}
-                            className={`w-full flex items-center justify-center md:justify-start gap-3 px-4 py-3 rounded-2xl transition-colors text-slate-600 dark:text-slate-300 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400 ${location.pathname === '/support' ? 'bg-indigo-50 dark:bg-indigo-900/20 font-bold text-indigo-600' : 'font-medium'}`}
+                            onClick={() => {
+                                if (window.innerWidth < 1024) {
+                                    setSidebarOpen(false);
+                                }
+                            }}
+                            className={`w-full flex items-center justify-center lg:justify-start gap-3 px-4 py-3 rounded-2xl transition-colors text-slate-600 dark:text-slate-300 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400 ${location.pathname === '/support' ? 'bg-indigo-50 dark:bg-indigo-900/20 font-bold text-indigo-600' : 'font-medium'}`}
                         >
                             <HelpCircle size={22} className="shrink-0" />
                             {!isSidebarCollapsed && <span className="text-sm font-medium animate-in fade-in">{t('common.help_support')}</span>}
                         </Link>
                         <button
                             onClick={() => logout()}
-                            className="w-full flex items-center justify-center md:justify-start gap-3 px-4 py-3.5 rounded-2xl transition-all text-red-500 hover:bg-red-50 hover:text-red-600 hover:scale-[1.02] mt-2 active:scale-95"
+                            className="w-full flex items-center justify-center lg:justify-start gap-3 px-4 py-3.5 rounded-2xl transition-all text-red-500 hover:bg-red-50 hover:text-red-600 hover:scale-[1.02] mt-2 active:scale-95"
                         >
                             <LogOut size={22} className="shrink-0" />
                             {!isSidebarCollapsed && <span className="text-sm font-bold animate-in fade-in">{t('sidebar.logout')}</span>}
@@ -376,7 +402,7 @@ const Layout = () => {
             {/* Main Content */}
             <div className="flex-1 flex flex-col h-screen overflow-hidden bg-background/50">
                 <header className={`h-16 border-b flex items-center justify-between px-6 md:px-8 shrink-0 sticky top-0 z-20 shadow-sm bg-surface/90 backdrop-blur-xl border-border/60`}>
-                    <div className="flex items-center gap-4 md:hidden">
+                    <div className="flex items-center gap-4 lg:hidden">
                         <button
                             onClick={() => setSidebarOpen(true)}
                             aria-label={t('common.open_menu', 'Open Menu')}
@@ -390,11 +416,11 @@ const Layout = () => {
                     </div>
                     <div className="flex-1 flex max-w-xl mx-auto gap-4 items-center">
                         <GlobalSearch />
-                        <div className="hidden md:block">
+                        <div className="hidden lg:block">
                             <NotificationBell />
                         </div>
                     </div>
-                    <div className="md:hidden">
+                    <div className="lg:hidden">
                         <NotificationBell />
                     </div>
                 </header>

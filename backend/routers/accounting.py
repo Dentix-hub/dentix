@@ -4,11 +4,12 @@ Handles doctor revenue and compensation calculations.
 """
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 
 from .. import models, schemas
 from ..crud import billing as billing_crud
-from .auth import get_db
+from .auth import get_async_db
 from backend.core.permissions import Permission, require_permission
 from backend.core.response import success_response, StandardResponse, error_response
 from ..services.accounting_service import AccountingService
@@ -18,10 +19,10 @@ router = APIRouter(prefix="/accounting", tags=["Accounting"])
 
 
 @router.get("/doctor-revenue", response_model=StandardResponse[dict])
-def get_doctor_revenue(
+async def get_doctor_revenue(
     start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
     end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """
@@ -34,16 +35,16 @@ def get_doctor_revenue(
     except ValueError:
         return error_response(message="Invalid date format", details={"doctors": []})
 
-    doctors = service.get_doctor_revenue_analytics(start, end)
+    doctors = await service.get_doctor_revenue_analytics(start, end)
     return success_response(data={"doctors": doctors}, message="Doctor revenue retrieved successfully")
 
 
 @router.get("/doctor-details/{doctor_id}", response_model=StandardResponse[dict])
-def get_doctor_details(
+async def get_doctor_details(
     doctor_id: int,
     start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
     end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """
@@ -55,7 +56,7 @@ def get_doctor_details(
     except ValueError:
         return error_response(message="Invalid date format")
 
-    details = service.get_doctor_details_data(doctor_id, start, end)
+    details = await service.get_doctor_details_data(doctor_id, start, end)
     if not details:
         return error_response(message="Doctor not found", status_code=404)
 
@@ -63,17 +64,17 @@ def get_doctor_details(
 
 
 @router.put("/staff-compensation/{user_id}", response_model=StandardResponse[dict])
-def update_staff_compensation(
+async def update_staff_compensation(
     user_id: int,
     commission_percent: float = 0.0,
     fixed_salary: float = 0.0,
     per_appointment_fee: float = 0.0,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Update compensation settings for a staff member."""
     service = AccountingService(db, current_user.tenant_id)
-    success = service.update_staff_compensation_settings(
+    success = await service.update_staff_compensation_settings(
         user_id, current_user, commission_percent, fixed_salary, per_appointment_fee
     )
 
@@ -84,10 +85,10 @@ def update_staff_compensation(
 
 
 @router.get("/staff-revenue", response_model=StandardResponse[dict])
-def get_staff_revenue(
+async def get_staff_revenue(
     start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
     end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """Get revenue for non-doctor staff (assistants, receptionists, etc.)."""
@@ -99,15 +100,15 @@ def get_staff_revenue(
     except ValueError:
         return error_response(message="Invalid date format", details={"staff": []})
 
-    staff_list = service.get_staff_list_revenue()
+    staff_list = await service.get_staff_list_revenue()
     return success_response(data={"staff": staff_list}, message="Staff revenue retrieved successfully")
 
 
 @router.get("/comprehensive-stats", response_model=StandardResponse[dict])
-def get_comprehensive_stats(
+async def get_comprehensive_stats(
     start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
     end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """
@@ -120,52 +121,43 @@ def get_comprehensive_stats(
         return error_response(message="Invalid date format")
 
     # 1. Basic Income Stats
-    total_income = service.get_total_income(start, end)
-    total_collected = service.get_total_collected(start, end)
+    total_income = await service.get_total_income(start, end)
+    total_collected = await service.get_total_collected(start, end)
 
-    # 2. Get appointments count (needed for staff dues)
-    # Using service query manually or adding a helper?
-    # Let's add a quick helper or just query it here since it's simple?
-    # Actually, let's keep it simple here and query.
-    # But wait, we want to move logic out.
-    # Let's add `get_appointments_count` to service or just use what we have.
-    # Service doesn't have `get_appointments_count` yet.
-    # I can query it using count on treatments.
     # 2a. Get Appointments Count (for staff dues calculation)
-    total_appointments = (
-        db.query(models.Treatment.id)
+    total_appointments_stmt = (
+        select(func.count(models.Treatment.id))
         .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
-        .filter(
+        .where(
             models.Patient.tenant_id == current_user.tenant_id,
             models.Patient.is_deleted == False,  # noqa: E712
             models.Treatment.date >= start,
             models.Treatment.date <= end,
         )
-        .count()
     )
+    total_appointments = (await db.execute(total_appointments_stmt)).scalar() or 0
 
     # 2b. Get Unique Patients Count (for UI display)
-    unique_patients_count = (
-        db.query(models.Treatment.patient_id)
+    unique_patients_stmt = (
+        select(func.count(models.Treatment.patient_id.distinct()))
         .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
-        .filter(
+        .where(
             models.Patient.tenant_id == current_user.tenant_id,
             models.Patient.is_deleted == False,  # noqa: E712
             models.Treatment.date >= start,
             models.Treatment.date <= end,
         )
-        .distinct()
-        .count()
     )
+    unique_patients_count = (await db.execute(unique_patients_stmt)).scalar() or 0
 
     # 3. Dues & Expenses
-    doctor_dues, total_doctor_dues = service.calculate_doctor_dues(start, end)
-    staff_dues, total_staff_dues = service.calculate_staff_dues(
+    doctor_dues, total_doctor_dues = await service.calculate_doctor_dues(start, end)
+    staff_dues, total_staff_dues = await service.calculate_staff_dues(
         start, end, total_appointments
     )
 
-    total_expenses = service.get_total_expenses(start, end)
-    total_lab_costs = service.get_total_lab_costs(start, end)
+    total_expenses = await service.get_total_expenses(start, end)
+    total_lab_costs = await service.get_total_lab_costs(start, end)
 
     # 4. Net Profit
     # Net Profit = Collected (Cash In) - Expenses (Cash Out)
@@ -179,8 +171,7 @@ def get_comprehensive_stats(
 
     # 5. ALL TIME Outstanding (Total Debt)
     # The user wants "Remaining" to be the actual debt, not period math.
-
-    all_time_stats = billing_crud.get_financial_stats(db, current_user.tenant_id)
+    all_time_stats = await billing_crud.get_financial_stats(db, current_user.tenant_id)
     real_outstanding = all_time_stats["outstanding"]
 
     return success_response(data={
@@ -206,9 +197,9 @@ def get_comprehensive_stats(
 
 
 @router.get("/salaries", response_model=StandardResponse[dict])
-def get_salaries_status(
+async def get_salaries_status(
     month: str = Query(..., description="Month in format YYYY-MM"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """
@@ -216,25 +207,26 @@ def get_salaries_status(
     """
     service = AccountingService(db, current_user.tenant_id)
     try:
-        return success_response(data=service.get_salary_status_for_month(month), message="Salaries status retrieved")
+        status_data = await service.get_salary_status_for_month(month)
+        return success_response(data=status_data, message="Salaries status retrieved")
     except ValueError:
         return error_response(message="Invalid month format. Use YYYY-MM")
 
 
 @router.post("/salaries", response_model=StandardResponse[dict])
-def record_salary_payment(
+async def record_salary_payment(
     user_id: int,
     month: str = Query(..., description="Month in format YYYY-MM"),
     amount: float = 0.0,
     is_partial: bool = False,
     days_worked: int = None,
     notes: str = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
 ):
     """Record a salary payment for an employee."""
     service = AccountingService(db, current_user.tenant_id)
-    result = service.process_salary_payment(
+    result = await service.process_salary_payment(
         user_id, current_user, month, amount, is_partial, days_worked, notes
     )
     if "error" in result:
@@ -247,14 +239,14 @@ def record_salary_payment(
 
 
 @router.delete("/salaries/{payment_id}", response_model=StandardResponse[dict])
-def delete_salary_payment(
+async def delete_salary_payment(
     payment_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
 ):
     """Delete/Cancel a salary payment record."""
     service = AccountingService(db, current_user.tenant_id)
-    success = service.remove_salary_payment(payment_id, current_user)
+    success = await service.remove_salary_payment(payment_id, current_user)
 
     if not success:
         return error_response(message="لم يتم العثور على سجل الدفع", status_code=404)
@@ -263,15 +255,15 @@ def delete_salary_payment(
 
 
 @router.put("/staff/{user_id}/hire-date", response_model=StandardResponse[dict])
-def update_hire_date(
+async def update_hire_date(
     user_id: int,
     hire_date: str = Query(..., description="Hire date in format YYYY-MM-DD"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Update the hire date for an employee."""
     service = AccountingService(db, current_user.tenant_id)
-    success = service.update_employee_hire_date(user_id, hire_date, current_user)
+    success = await service.update_employee_hire_date(user_id, hire_date, current_user)
 
     if not success:
         return error_response(message="حدث خطأ. تأكد من وجود الموظف وصحة التاريخ (YYYY-MM-DD)", status_code=400)

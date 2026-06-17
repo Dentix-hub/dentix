@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { api } from '@/api';
 import { 
     Monitor, Globe, Clock, Shield, LogOut, Search, 
@@ -21,7 +22,7 @@ export default function SessionManager() {
             const res = await api.get('/api/v1/admin/security/sessions');
             setSessions(res.data);
         } catch (err) {
-            console.error('Failed to fetch sessions:', err);
+            logger.error('Failed to fetch sessions:', err);
             toast.error('فشل تحميل الجلسات النشطة');
         } finally {
             setLoading(false);
@@ -78,13 +79,13 @@ export default function SessionManager() {
                         <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
                     </button>
                     <div className="relative">
-                        <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                        <Search className="absolute end-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                         <input 
                             type="text"
                             placeholder="بحث بالاسم، العيادة، أو IP..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pr-12 pl-4 py-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm outline-none focus:ring-2 focus:ring-emerald-500 w-64 md:w-80 font-bold text-right"
+                            className="pe-12 ps-4 py-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm outline-none focus:ring-2 focus:ring-emerald-500 w-64 md:w-80 font-bold text-right"
                         />
                     </div>
                 </div>

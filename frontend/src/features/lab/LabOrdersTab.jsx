@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { FlaskConical, CheckCircle, Clock, AlertCircle, Plus, Edit2, Trash2, X } from 'lucide-react';
 import { getPatientLabOrders, getLaboratories, createLabOrder, updateLabOrder, deleteLabOrder } from '@/api';
 import { useTranslation } from 'react-i18next';
@@ -27,7 +28,7 @@ const LabOrdersTab = ({ patientId }) => {
             setLabOrders(ordersRes.data);
             setLaboratories(labsRes.data);
         } catch (err) {
-            console.error("Failed to load lab data", err);
+            logger.error("Failed to load lab data", err);
         } finally {
             setLoading(false);
         }
@@ -70,7 +71,7 @@ const LabOrdersTab = ({ patientId }) => {
             loadData();
         } catch (err) {
             alert(t('patientDetails.lab_orders.save_error'));
-            console.error(err);
+            logger.error(err);
         }
     };
     if (loading && labOrders.length === 0) return <div className="p-10 text-center">Loading...</div>;
@@ -134,7 +135,7 @@ const LabOrdersTab = ({ patientId }) => {
                                     <td className="p-4 font-bold text-slate-700 whitespace-nowrap">{order.laboratory_name}</td>
                                     <td className="p-4 whitespace-nowrap">
                                         <span className="bg-teal-50 text-teal-700 px-2 py-1 rounded-lg text-sm font-medium">{order.work_type}</span>
-                                        {order.material && <span className="text-slate-500 text-xs ml-1">({order.material})</span>}
+                                        {order.material && <span className="text-slate-500 text-xs ms-1">({order.material})</span>}
                                     </td>
                                     <td className="p-4 font-bold text-slate-600 whitespace-nowrap">{order.tooth_number || '-'}</td>
                                     <td className="p-4 whitespace-nowrap">{order.shade || '-'}</td>

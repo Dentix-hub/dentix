@@ -9,7 +9,10 @@ from sqlalchemy import text
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.database import SessionLocal
+from sqlalchemy.orm import sessionmaker
+from backend.database import async_engine
+engine = async_engine.sync_engine
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
 def fix_schema():

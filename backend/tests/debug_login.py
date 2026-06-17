@@ -15,7 +15,7 @@ def debug_login():
 
         if resp.status_code == 200:
             print("[SUCCESS] Login worked!")
-            token = resp.json().get("access_token")
+            token = resp.cookies.get("access_token") or resp.json().get("access_token")
             print(f"Token: {token[:20]}...")
         else:
             print("[FAIL] Login failed.")

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import logger from '@/utils/logger';
 import { Bell, Info, AlertTriangle, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import { getNotifications, markNotificationRead, dismissNotification } from '@/api';
 import { useAuth } from '@/auth/useAuth';
@@ -33,7 +34,7 @@ const NotificationBell = () => {
             }
         } catch (error) {
             if (error.response?.status !== 401) {
-                console.error('Failed to sync notifications:', error);
+                logger.error('Failed to sync notifications:', error);
             }
         }
     };
@@ -66,7 +67,7 @@ const NotificationBell = () => {
             ));
             setUnreadCount(prev => Math.max(0, prev - 1));
         } catch (error) {
-            console.error('Error marking notification as read:', error);
+            logger.error('Error marking notification as read:', error);
         }
     };
     const handleDismiss = async (id) => {
@@ -80,7 +81,7 @@ const NotificationBell = () => {
             });
             await dismissNotification(id);
         } catch (error) {
-            console.error('Error dismissing notification:', error);
+            logger.error('Error dismissing notification:', error);
             fetchNotifications(); // Revert on error
         }
     };
@@ -101,13 +102,13 @@ const NotificationBell = () => {
             >
                 <Bell size={22} />
                 {unreadCount > 0 && (
-                    <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white">
+                    <span className="absolute top-1.5 end-1.5 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white">
                         {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                 )}
             </button>
             {showDropdown && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-50 overflow-hidden max-h-[450px] flex flex-col">
+                <div className="absolute end-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-50 overflow-hidden max-h-[450px] flex flex-col">
                     <div className="px-4 py-2 border-b border-slate-50 flex justify-between items-center">
                         <h3 className="font-bold text-slate-800">الإشعارات</h3>
                         {unreadCount > 0 && <span className="text-xs text-blue-600 font-medium">{unreadCount} جديد</span>}
@@ -122,7 +123,7 @@ const NotificationBell = () => {
                             notifications.map((notification) => (
                                 <div
                                     key={notification.id}
-                                    className={`px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer border-l-4 ${notification.is_read ? 'border-transparent bg-white' : 'border-blue-500 bg-blue-50/30'}`}
+                                    className={`px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer border-s-4 ${notification.is_read ? 'border-transparent bg-white' : 'border-blue-500 bg-blue-50/30'}`}
                                     onClick={() => !notification.is_read && handleMarkAsRead(notification.id)}
                                 >
                                     <div className="flex gap-3 relative group">

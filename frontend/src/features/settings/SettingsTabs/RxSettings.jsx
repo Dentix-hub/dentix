@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { Save, Plus, Trash2, Printer } from 'lucide-react';
 import { getSavedMedications, saveMedication, deleteSavedMedication, updateTenantSettings, getTenantSettings } from '@/api';
@@ -31,7 +32,7 @@ export default function RxSettings({ setMessage }) {
             });
             setMedications(medsRes.data);
         } catch (err) {
-            console.error(err);
+            logger.error(err);
         }
     };
     const handleSaveHeader = async () => {
@@ -192,10 +193,10 @@ export default function RxSettings({ setMessage }) {
                     <table className="w-full text-right">
                         <thead>
                             <tr className="border-b border-slate-100 dark:border-slate-700 text-slate-500 text-sm">
-                                <th className="pb-3 pr-2 text-left">{t('rx_settings.table.name')}</th>
+                                <th className="pb-3 pe-2 text-left">{t('rx_settings.table.name')}</th>
                                 <th className="pb-3 px-2">{t('rx_settings.table.dose')}</th>
                                 <th className="pb-3 px-2">{t('rx_settings.table.notes')}</th>
-                                <th className="pb-3 pl-2 w-20"></th>
+                                <th className="pb-3 ps-2 w-20"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -206,10 +207,10 @@ export default function RxSettings({ setMessage }) {
                             ) : (
                                 medications.map(med => (
                                     <tr key={med.id} className="group hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                                        <td className="py-3 pr-2 font-bold text-slate-800 dark:text-slate-200 text-left" dir="ltr">{med.name}</td>
+                                        <td className="py-3 pe-2 font-bold text-slate-800 dark:text-slate-200 text-left" dir="ltr">{med.name}</td>
                                         <td className="py-3 px-2 text-slate-600 dark:text-slate-400">{med.default_dose}</td>
                                         <td className="py-3 px-2 text-slate-500 text-sm">{med.notes}</td>
-                                        <td className="py-3 pl-2 text-left">
+                                        <td className="py-3 ps-2 text-left">
                                             <button
                                                 onClick={() => handleDeleteMed(med.id)}
                                                 className="text-red-400 hover:text-red-500 p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"

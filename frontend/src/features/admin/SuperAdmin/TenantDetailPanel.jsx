@@ -1,4 +1,5 @@
 import { memo, useEffect, useState } from 'react';
+import logger from '@/utils/logger';
 import { 
     X, 
     Users, 
@@ -35,7 +36,7 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                 setUsers(usersRes.data.users || []);
                 setSelectedUser('');
             } catch (err) {
-                console.error(err);
+                logger.error(err);
             } finally {
                 setLoading(false);
             }
@@ -46,7 +47,7 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
     if (!tenantId) return null;
 
     return (
-        <div className={`fixed inset-y-0 right-0 w-full max-w-md bg-white dark:bg-slate-900 shadow-2xl z-50 transform transition-transform duration-300 ${tenantId ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className={`fixed inset-y-0 end-0 w-full max-w-md bg-white dark:bg-slate-900 shadow-2xl z-50 transform transition-transform duration-300 ${tenantId ? 'translate-x-0' : 'translate-x-full'}`}>
             <div className="h-full flex flex-col">
                 {/* Header */}
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">

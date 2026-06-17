@@ -1,11 +1,20 @@
-from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, Date, Float, DateTime, Text
+from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, Date, Float, DateTime, Text, column
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from .base import Base
+from rls.schemas import Permissive, ConditionArg, Command
 
 
 class Warehouse(Base):
     __tablename__ = "warehouses"
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
@@ -30,6 +39,14 @@ class MaterialCategory(Base):
 
 class Material(Base):
     __tablename__ = "materials"
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
@@ -56,6 +73,14 @@ class Material(Base):
 class Batch(Base):
     __tablename__ = "batches"
 
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
     id = Column(Integer, primary_key=True, index=True)
     material_id = Column(
         Integer, ForeignKey("materials.id"), nullable=False, index=True
@@ -74,6 +99,14 @@ class Batch(Base):
 
 class StockItem(Base):
     __tablename__ = "stock_items"
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
 
     id = Column(Integer, primary_key=True, index=True)
     warehouse_id = Column(
@@ -150,6 +183,14 @@ class ProcedureMaterialWeight(Base):
 
     __tablename__ = "procedure_material_weights"
 
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
     id = Column(Integer, primary_key=True, index=True)
     procedure_id = Column(
         Integer, ForeignKey("procedures.id"), nullable=False, index=True
@@ -181,6 +222,14 @@ class MaterialLearningLog(Base):
 
     __tablename__ = "material_learning_logs"
 
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     session_id = Column(Integer, ForeignKey("material_sessions.id"), nullable=False)
@@ -204,6 +253,14 @@ class TreatmentMaterialUsage(Base):
     """Links each treatment to the materials used."""
 
     __tablename__ = "treatment_material_usages"
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
 
     id = Column(Integer, primary_key=True, index=True)
     treatment_id = Column(Integer, ForeignKey("treatments.id"), nullable=False, index=True)

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import logger from '@/utils/logger';
 import StockList from '@/features/inventory/StockList';
 import WarehouseList from '@/features/inventory/WarehouseList';
 import AddMaterialModal from '@/features/inventory/AddMaterialModal';
@@ -23,7 +24,7 @@ const Inventory = () => {
                 const res = await getExpiryAlerts();
                 return Array.isArray(res.data) ? res.data : [];
             } catch (e) {
-                console.error("Alerts fetch error", e);
+                logger.error("Alerts fetch error", e);
                 return [];
             }
         },

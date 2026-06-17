@@ -1,6 +1,7 @@
 import logging
 from typing import List, Dict, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from .. import models
 from ..core.firebase_client import firebase_client
 
@@ -8,11 +9,12 @@ logger = logging.getLogger("smart_clinic")
 
 class NotificationService:
     @staticmethod
-    def send_to_user(db: Session, user_id: int, title: str, body: str, data: dict = None):
+    async def send_to_user(db: AsyncSession, user_id: int, title: str, body: str, data: dict = None):
         """
         Sends a push notification to a specific user using their stored FCM token.
         """
-        user = db.query(models.User).filter(models.User.id == user_id, models.User.is_active).first()
+        stmt = select(models.User).where(models.User.id == user_id, models.User.is_active == True)  # noqa: E712
+        user = (await db.execute(stmt)).scalar_one_or_none()
 
         if not user or not user.fcm_token:
             logger.warning(f"Cannot send notification to user {user_id}: No FCM token found.")
@@ -26,15 +28,16 @@ class NotificationService:
         )
 
     @staticmethod
-    def broadcast_to_role(db: Session, role: str, title: str, body: str, data: dict = None):
+    async def broadcast_to_role(db: AsyncSession, role: str, title: str, body: str, data: dict = None):
         """
         Sends push notifications to all active users with a specific role.
         """
-        users = db.query(models.User).filter(
+        stmt = select(models.User).where(
             models.User.role == role,
-            models.User.is_active,
+            models.User.is_active == True,  # noqa: E712
             models.User.fcm_token.isnot(None)
-        ).all()
+        )
+        users = (await db.execute(stmt)).scalars().all()
 
         success_count = 0
         for user in users:
@@ -45,13 +48,14 @@ class NotificationService:
         return success_count
 
     @staticmethod
-    def register_token(db: Session, user_id: int, token: str):
+    async def register_token(db: AsyncSession, user_id: int, token: str):
         """
         Updates the FCM token for a user.
         """
-        user = db.query(models.User).filter(models.User.id == user_id).first()
+        stmt = select(models.User).where(models.User.id == user_id)
+        user = (await db.execute(stmt)).scalar_one_or_none()
         if user:
             user.fcm_token = token
-            db.commit()
+            await db.commit()
             return True
         return False

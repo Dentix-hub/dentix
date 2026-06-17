@@ -9,14 +9,15 @@ logger = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends, HTTPException
 from backend.core.permissions import Permission, require_permission
 from backend.core.response import success_response, StandardResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update
 from pydantic import BaseModel
 from typing import Optional
 from datetime import date
 
 from ..models import PriceList, PriceListItem, Procedure, User
 from ..core.permissions import ADMIN_ROLES
-from .auth import get_db
+from backend.database import get_async_db
 from ..services.pricing_service import get_pricing_service
 
 router = APIRouter(prefix="/price-lists", tags=["Price Lists"])
@@ -63,13 +64,13 @@ class PriceListResponse(BaseModel):
 
 
 @router.get("", response_model=StandardResponse[list])
-def get_price_lists(
-    db: Session = Depends(get_db),
+async def get_price_lists(
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """Get available price lists for current user."""
     pricing = get_pricing_service(db, current_user.tenant_id)
-    lists = pricing.get_available_price_lists(current_user)
+    lists = await pricing.get_available_price_lists(current_user)
 
     return success_response(
         data=[
@@ -86,13 +87,13 @@ def get_price_lists(
 
 
 @router.get("/default", response_model=StandardResponse[dict])
-def get_default_price_list(
-    db: Session = Depends(get_db),
+async def get_default_price_list(
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """Get default (cash) price list."""
     pricing = get_pricing_service(db, current_user.tenant_id)
-    default = pricing.get_default_price_list()
+    default = await pricing.get_default_price_list()
 
     if not default:
         raise HTTPException(status_code=404, detail="No default price list found")
@@ -101,31 +102,28 @@ def get_default_price_list(
 
 
 @router.get("/{price_list_id}", response_model=StandardResponse[dict])
-def get_price_list(
+async def get_price_list(
     price_list_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """Get a specific price list with items."""
     try:
-        price_list = (
-            db.query(PriceList)
-            .filter(
-                PriceList.id == price_list_id,
-                PriceList.tenant_id == current_user.tenant_id,
-            )
-            .first()
+        stmt_pl = select(PriceList).where(
+            PriceList.id == price_list_id,
+            PriceList.tenant_id == current_user.tenant_id,
         )
+        price_list = (await db.execute(stmt_pl)).scalars().first()
 
         if not price_list:
             raise HTTPException(status_code=404, detail="Price list not found")
 
-        items = (
-            db.query(PriceListItem)
+        stmt_items = (
+            select(PriceListItem)
             .join(Procedure)
-            .filter(PriceListItem.price_list_id == price_list_id)
-            .all()
+            .where(PriceListItem.price_list_id == price_list_id)
         )
+        items = (await db.execute(stmt_items)).scalars().all()
 
         return success_response(
             data={
@@ -157,17 +155,18 @@ def get_price_list(
 
 
 @router.get("/procedure/{procedure_id}/prices", response_model=StandardResponse[dict])
-def get_procedure_prices(
+async def get_procedure_prices(
     procedure_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """Get all prices for a procedure across price lists."""
     pricing = get_pricing_service(db, current_user.tenant_id)
-    prices = pricing.get_all_prices_for_procedure(procedure_id)
+    prices = await pricing.get_all_prices_for_procedure(procedure_id)
 
     # Also get legacy price
-    procedure = db.query(Procedure).filter(Procedure.id == procedure_id).first()
+    stmt_proc = select(Procedure).where(Procedure.id == procedure_id)
+    procedure = (await db.execute(stmt_proc)).scalars().first()
     legacy_price = procedure.price if procedure else 0
 
     return success_response(
@@ -184,9 +183,9 @@ def get_procedure_prices(
 
 
 @router.post("", response_model=StandardResponse[dict])
-def create_price_list(
+async def create_price_list(
     data: PriceListCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Create a new price list (Admin only)."""
@@ -195,9 +194,15 @@ def create_price_list(
 
     # If setting as default, unset other defaults
     if data.is_default:
-        db.query(PriceList).filter(
-            PriceList.tenant_id == current_user.tenant_id, PriceList.is_default
-        ).update({"is_default": False})
+        stmt_upd = (
+            update(PriceList)
+            .where(
+                PriceList.tenant_id == current_user.tenant_id,
+                PriceList.is_default == True
+            )
+            .values(is_default=False)
+        )
+        await db.execute(stmt_upd)
 
     price_list = PriceList(
         tenant_id=current_user.tenant_id,
@@ -215,8 +220,8 @@ def create_price_list(
     )
 
     db.add(price_list)
-    db.commit()
-    db.refresh(price_list)
+    await db.commit()
+    await db.refresh(price_list)
 
     return success_response(
         data={"id": price_list.id, "name": price_list.name}, message="Created"
@@ -224,10 +229,10 @@ def create_price_list(
 
 
 @router.post("/{price_list_id}/items", response_model=StandardResponse[dict])
-def add_price_list_item(
+async def add_price_list_item(
     price_list_id: int,
     data: PriceListItemCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Add procedure price to a price list (Admin only)."""
@@ -235,26 +240,21 @@ def add_price_list_item(
         raise HTTPException(status_code=403, detail="Admin access required")
 
     # Verify price list exists
-    price_list = (
-        db.query(PriceList)
-        .filter(
-            PriceList.id == price_list_id, PriceList.tenant_id == current_user.tenant_id
-        )
-        .first()
+    stmt_pl = select(PriceList).where(
+        PriceList.id == price_list_id,
+        PriceList.tenant_id == current_user.tenant_id,
     )
+    price_list = (await db.execute(stmt_pl)).scalars().first()
 
     if not price_list:
         raise HTTPException(status_code=404, detail="Price list not found")
 
     # Check if item already exists
-    existing = (
-        db.query(PriceListItem)
-        .filter(
-            PriceListItem.price_list_id == price_list_id,
-            PriceListItem.procedure_id == data.procedure_id,
-        )
-        .first()
+    stmt_exist = select(PriceListItem).where(
+        PriceListItem.price_list_id == price_list_id,
+        PriceListItem.procedure_id == data.procedure_id,
     )
+    existing = (await db.execute(stmt_exist)).scalars().first()
 
     if existing:
         # Update existing
@@ -262,7 +262,7 @@ def add_price_list_item(
         existing.discount_percent = data.discount_percent
         existing.insurance_code = data.insurance_code
         existing.requires_approval = data.requires_approval
-        db.commit()
+        await db.commit()
         return success_response(data={"id": existing.id}, message="Updated")
 
     # Create new
@@ -276,30 +276,28 @@ def add_price_list_item(
     )
 
     db.add(item)
-    db.commit()
-    db.refresh(item)
+    await db.commit()
+    await db.refresh(item)
 
     return success_response(data={"id": item.id}, message="Created")
 
 
 @router.put("/{price_list_id}", response_model=StandardResponse[dict])
-def update_price_list(
+async def update_price_list(
     price_list_id: int,
     data: PriceListCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Update a price list (Admin only)."""
     if current_user.role not in (ADMIN_ROLES + ["accountant"]):
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    price_list = (
-        db.query(PriceList)
-        .filter(
-            PriceList.id == price_list_id, PriceList.tenant_id == current_user.tenant_id
-        )
-        .first()
+    stmt_pl = select(PriceList).where(
+        PriceList.id == price_list_id,
+        PriceList.tenant_id == current_user.tenant_id,
     )
+    price_list = (await db.execute(stmt_pl)).scalars().first()
 
     if not price_list:
         raise HTTPException(status_code=404, detail="Price list not found")
@@ -315,33 +313,37 @@ def update_price_list(
 
     # Handle default flag
     if data.is_default and not price_list.is_default:
-        db.query(PriceList).filter(
-            PriceList.tenant_id == current_user.tenant_id, PriceList.is_default
-        ).update({"is_default": False})
+        stmt_upd = (
+            update(PriceList)
+            .where(
+                PriceList.tenant_id == current_user.tenant_id,
+                PriceList.is_default == True
+            )
+            .values(is_default=False)
+        )
+        await db.execute(stmt_upd)
         price_list.is_default = True
 
-    db.commit()
+    await db.commit()
 
     return success_response(data={"id": price_list.id}, message="Updated")
 
 
 @router.delete("/{price_list_id}", response_model=StandardResponse[dict])
-def deactivate_price_list(
+async def deactivate_price_list(
     price_list_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Deactivate a price list (Admin only). Does not delete."""
     if current_user.role not in ADMIN_ROLES:
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    price_list = (
-        db.query(PriceList)
-        .filter(
-            PriceList.id == price_list_id, PriceList.tenant_id == current_user.tenant_id
-        )
-        .first()
+    stmt_pl = select(PriceList).where(
+        PriceList.id == price_list_id,
+        PriceList.tenant_id == current_user.tenant_id,
     )
+    price_list = (await db.execute(stmt_pl)).scalars().first()
 
     if not price_list:
         raise HTTPException(status_code=404, detail="Price list not found")
@@ -352,6 +354,6 @@ def deactivate_price_list(
         )
 
     price_list.is_active = False
-    db.commit()
+    await db.commit()
 
     return success_response(message="Deactivated")

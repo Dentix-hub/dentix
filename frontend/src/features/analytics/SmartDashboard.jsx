@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import logger from '@/utils/logger';
 import { useQuery } from '@tanstack/react-query';
 import { getProfitability } from '@/api/analytics';
 import KPIGrid from './components/KPIGrid';
@@ -17,10 +18,10 @@ const SmartDashboard = () => {
         queryFn: async () => {
             try {
                 const res = await getProfitability(period);
-                console.log('[Analytics] Profitability response:', res);
+                logger.log('[Analytics] Profitability response:', res);
                 return res;
             } catch (err) {
-                console.error('[Analytics] Profitability error:', err);
+                logger.error('[Analytics] Profitability error:', err);
                 throw err;
             }
         },
@@ -29,7 +30,7 @@ const SmartDashboard = () => {
         retry: 1
     });
 
-    console.log('[Analytics] data:', data, 'isLoading:', isLoading, 'error:', error);
+    logger.log('[Analytics] data:', data, 'isLoading:', isLoading, 'error:', error);
     return (
         <div className="p-4 md:p-8 space-y-6 max-w-[1920px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
             {/* Header Area */}
@@ -89,7 +90,7 @@ const SmartDashboard = () => {
             )}
             {/* Tab: Financial Overview */}
             {activeTab === 'financials' && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+                <div className="space-y-6 animate-in fade-in slide-in-from-end-4 duration-300">
                     {isLoading && !data ? (
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -131,7 +132,7 @@ const SmartDashboard = () => {
             )}
             {/* Tab: Procedure Analytics */}
             {activeTab === 'procedures' && (
-                <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-300">
+                <div className="space-y-8 animate-in fade-in slide-in-from-end-4 duration-300">
                     {/* Top: General Analysis (All Procedures) */}
                     <GeneralCostAnalysis />
                     <div className="border-t border-slate-200 dark:border-slate-700 my-8"></div>

@@ -20,6 +20,5 @@ export { default as Breadcrumb } from './Breadcrumb';
 export { default as TabGroup } from './TabGroup';
 export { default as PageHeader } from './PageHeader';
 export { default as PatientSelect } from './PatientSelect';
-export { default as WeeklyCalendar } from './WeeklyCalendar';
 export { default as DateTimePicker } from './DateTimePicker';
 export { default as AdvancedTable } from './AdvancedTable';

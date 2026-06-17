@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import logger from '@/utils/logger';
 import { Search, User, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -30,7 +31,7 @@ export default function GlobalSearch() {
                     setResults(res.data);
                     setIsOpen(true);
                 } catch (err) {
-                    console.error("Search Error", err);
+                    logger.error("Search Error", err);
                 } finally {
                     setLoading(false);
                 }
@@ -49,11 +50,11 @@ export default function GlobalSearch() {
     return (
         <div className="relative w-full max-w-md mx-auto block" ref={searchRef}>
             <div className="relative">
-                <Search className="absolute right-4 top-3.5 text-slate-500" size={20} />
+                <Search className="absolute end-4 top-3.5 text-slate-500" size={20} />
                 <input
                     type="text"
                     placeholder={t('common.search', 'بحث...')}
-                    className="w-full pl-4 pr-12 py-3 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-transparent focus:bg-white dark:focus:bg-slate-900 focus:border-primary/20 outline-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 shadow-sm"
+                    className="w-full ps-4 pe-12 py-3 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-transparent focus:bg-white dark:focus:bg-slate-900 focus:border-primary/20 outline-none transition-all text-sm font-bold text-slate-700 dark:text-slate-200 shadow-sm"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     onFocus={() => query.length > 1 && setIsOpen(true)}
@@ -61,7 +62,7 @@ export default function GlobalSearch() {
                 {query && (
                     <button
                         onClick={() => { setQuery(''); setIsOpen(false); }}
-                        className="absolute left-3 top-3.5 text-slate-500 hover:text-red-500 transition-colors"
+                        className="absolute start-3 top-3.5 text-slate-500 hover:text-red-500 transition-colors"
                     >
                         <X size={18} />
                     </button>

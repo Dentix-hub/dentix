@@ -3,7 +3,7 @@ import logging
 import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from .. import models
 from ..core.permissions import Role
 
@@ -53,7 +53,7 @@ class InternalNotificationService:
             return False
 
     @staticmethod
-    def notify_super_admins(db: Session, title: str, body: str):
+    async def notify_super_admins(db: AsyncSession, title: str, body: str):
         """
         Notify all Super Admins via multiple channels (Email, FCM).
         """
@@ -62,4 +62,4 @@ class InternalNotificationService:
 
         # 2. FCM (Push)
         from .notification_service import NotificationService
-        NotificationService.broadcast_to_role(db, Role.SUPER_ADMIN.value, title, body)
+        await NotificationService.broadcast_to_role(db, Role.SUPER_ADMIN.value, title, body)

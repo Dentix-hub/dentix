@@ -18,6 +18,8 @@ def get_cache_key(*args, **kwargs) -> str:
     return hashlib.sha256(key_data.encode()).hexdigest()
 
 
+import asyncio
+
 def cache_response(ttl_seconds: int = 60):
     """
     Decorator to cache function responses.
@@ -29,29 +31,54 @@ def cache_response(ttl_seconds: int = 60):
     """
 
     def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            # Generate cache key from function name and args
-            cache_key = f"{func.__name__}:{get_cache_key(*args[1:], **kwargs)}"  # Skip db session
+        if asyncio.iscoroutinefunction(func):
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                # Generate cache key from function name and args
+                cache_key = f"{func.__name__}:{get_cache_key(*args[1:], **kwargs)}"  # Skip db session
 
-            # Check cache
-            if cache_key in _cache:
-                cached = _cache[cache_key]
-                if datetime.now(timezone.utc) < cached["expires"]:
-                    return cached["data"]
-                else:
-                    # Expired, remove
-                    del _cache[cache_key]
+                # Check cache
+                if cache_key in _cache:
+                    cached = _cache[cache_key]
+                    if datetime.now(timezone.utc) < cached["expires"]:
+                        return cached["data"]
+                    else:
+                        # Expired, remove
+                        del _cache[cache_key]
 
-            # Call function and cache result
-            result = func(*args, **kwargs)
-            _cache[cache_key] = {
-                "data": result,
-                "expires": datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds),
-            }
-            return result
+                # Call function and cache result
+                result = await func(*args, **kwargs)
+                _cache[cache_key] = {
+                    "data": result,
+                    "expires": datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds),
+                }
+                return result
 
-        return wrapper
+            return async_wrapper
+        else:
+            @wraps(func)
+            def sync_wrapper(*args, **kwargs):
+                # Generate cache key from function name and args
+                cache_key = f"{func.__name__}:{get_cache_key(*args[1:], **kwargs)}"  # Skip db session
+
+                # Check cache
+                if cache_key in _cache:
+                    cached = _cache[cache_key]
+                    if datetime.now(timezone.utc) < cached["expires"]:
+                        return cached["data"]
+                    else:
+                        # Expired, remove
+                        del _cache[cache_key]
+
+                # Call function and cache result
+                result = func(*args, **kwargs)
+                _cache[cache_key] = {
+                    "data": result,
+                    "expires": datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds),
+                }
+                return result
+
+            return sync_wrapper
 
     return decorator
 

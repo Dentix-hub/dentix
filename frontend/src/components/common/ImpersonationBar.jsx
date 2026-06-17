@@ -1,14 +1,14 @@
 import { Shield, LogOut } from 'lucide-react';
-import { setToken } from '@/utils';
+import { getAdminToken, setAdminToken, removeAdminToken } from '@/utils';
 
 export default function ImpersonationBar() {
-    const adminToken = sessionStorage.getItem('admin_token');
+    const adminToken = getAdminToken();
     if (!adminToken) return null;
 
     const handleReturn = () => {
         // Return to admin session
-        setToken(adminToken);
-        sessionStorage.removeItem('admin_token');
+        setAdminToken(adminToken);
+        removeAdminToken();
         window.location.href = '/admin/tenants';
     };
 
@@ -18,7 +18,7 @@ export default function ImpersonationBar() {
                 <Shield size={18} className="animate-pulse" />
                 <span className="font-bold text-sm">وضع المحاكاة: أنت تتصفح النظام الآن بصلاحيات "مدير العيادة"</span>
             </div>
-            <button 
+            <button
                 onClick={handleReturn}
                 className="bg-white/20 hover:bg-white/30 backdrop-blur-md px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all active:scale-95"
             >

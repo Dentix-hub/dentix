@@ -26,7 +26,7 @@ class ClinicalHandler(BaseHandler):
     @risk_level(RiskLevel.SAFE)
     async def get_recent_treatments(self, params: Dict) -> Dict:
         """Get recent treatments."""
-        treatments = self.clinical.get_recent_treatments()
+        treatments = await self.clinical.get_recent_treatments()
         return {
             "message": f"آخر العلاجات: {len(treatments)} علاج",
             "treatments": treatments,
@@ -36,7 +36,7 @@ class ClinicalHandler(BaseHandler):
     async def get_lab_orders(self, params: Dict) -> Dict:
         """Get lab orders."""
         status = params.get("status", "all")
-        orders = self.clinical.get_lab_orders(status)
+        orders = await self.clinical.get_lab_orders(status)
         return {"message": f"طلبات المعمل: {len(orders)} طلب", "orders": orders}
 
     @risk_level(RiskLevel.WRITE)
@@ -58,7 +58,7 @@ class ClinicalHandler(BaseHandler):
             return patient
 
         if patient:
-            self.clinical.record_medical_note(patient, spoken_note, note_type)
+            await self.clinical.record_medical_note(patient, spoken_note, note_type)
             return {
                 "message": f"✅ تم تسجيل الملاحظة لـ {patient.name}",
                 "action": "note_recorded",
@@ -87,7 +87,7 @@ class ClinicalHandler(BaseHandler):
             return {"error": "not_found", "message": "المريض غير موجود"}
 
         try:
-            result = self.clinical.update_tooth_status(
+            result = await self.clinical.update_tooth_status(
                 patient,
                 tooth_number,
                 params.get("condition", "Healthy"),
@@ -138,7 +138,7 @@ class ClinicalHandler(BaseHandler):
             }
 
         # Create Treatment
-        treatment = self.clinical.add_treatment(
+        treatment = await self.clinical.add_treatment(
             patient,
             procedure,
             cost,
@@ -169,7 +169,7 @@ class ClinicalHandler(BaseHandler):
                     amount=paid_amount,
                     notes=f"دفعة تلقائية مع علاج: {procedure} [AI]",
                 )
-                billing_service.create_payment(payment_data, doctor_id=self.user.id)
+                await billing_service.create_payment(payment_data, doctor_id=self.user.id)
                 response_msg += f"\n💰 تم تسجيل دفعة: {paid_amount}"
             except Exception as e:
                 response_msg += f"\n⚠️ فشل تسجيل الدفعة: {str(e)}"
@@ -219,7 +219,7 @@ class ClinicalHandler(BaseHandler):
     async def _find_single_patient(self, name: str):
         if not name:
             return None
-        patients = self.patient_service.search_patients_by_name(name)
+        patients = await self.patient_service.search_patients_by_name(name)
         if not patients:
             return None
 

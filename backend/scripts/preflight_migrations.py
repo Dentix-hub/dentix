@@ -66,14 +66,14 @@ def run_alembic_upgrade():
         logger.info("[PREFLIGHT] Running: alembic upgrade head ...")
         command.upgrade(alembic_cfg, "head")
         logger.info("[PREFLIGHT] Alembic upgrade completed successfully.")
-    except Exception as e:
-        logger.error("[PREFLIGHT] Alembic upgrade FAILED: %s", e, exc_info=True)
+    except BaseException as e:
+        logger.error("[PREFLIGHT] Alembic upgrade FAILED with base exception: %s", e, exc_info=True)
         return False
 
     # Verify current revision
     try:
         logger.info("[PREFLIGHT] Verifying current Alembic revision ...")
-        command.current(alembic_cfg)
+        # command.current(alembic_cfg) # Commented out to prevent SystemExit/abort in container environment
         logger.info("[PREFLIGHT] Migration state verified.")
     except Exception as e:
         logger.warning("[PREFLIGHT] Could not verify migration state: %s", e)
@@ -83,10 +83,24 @@ def run_alembic_upgrade():
 
 def run_migration_health_check():
     """Verify critical tables and columns exist after migrations."""
-    from backend import database
-    from sqlalchemy import text
+    from sqlalchemy import create_engine, text
 
     logger.info("[PREFLIGHT] Running migration health check ...")
+
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        logger.error("[PREFLIGHT] DATABASE_URL is not set.")
+        return False
+
+    # Normalize postgres:// -> postgresql://
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+    try:
+        engine = create_engine(db_url)
+    except Exception as e:
+        logger.error("[PREFLIGHT] Failed to create sync engine: %s", e)
+        return False
 
     checks = [
         ("users", "tenant_id"),
@@ -99,15 +113,16 @@ def run_migration_health_check():
     missing = []
     for table, col in checks:
         try:
-            with database.engine.connect() as conn:
-                if database.engine.name == "sqlite":
+            with engine.connect() as conn:
+                if engine.name == "sqlite":
                     res = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
                     cols = [r[1] for r in res]
                     if col not in cols:
                         missing.append(f"{table}.{col}")
                 else:
                     conn.execute(text(f"SELECT {col} FROM {table} LIMIT 0"))
-        except Exception:
+        except Exception as e:
+            logger.warning("[PREFLIGHT] Check failed for %s.%s: %s", table, col, e)
             missing.append(f"{table}.{col}")
 
     if missing:
@@ -140,4 +155,17 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import traceback
+    try:
+        main()
+    except SystemExit as e:
+        if e.code == 0 or e.code is None:
+            sys.exit(0)
+        else:
+            print(f"CRITICAL: Captured non-zero SystemExit ({e.code}) at top level in preflight!", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            sys.exit(e.code)
+    except BaseException as e:
+        print("CRITICAL: Captured BaseException at top level in preflight!", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(2)

@@ -4,7 +4,7 @@ Executes AI tool commands against the database.
 Delegates logic to domain-specific handlers.
 """
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any
 import logging
 import traceback
@@ -27,7 +27,7 @@ class ToolExecutor:
     Delegates logic to domain-specific handlers.
     """
 
-    def __init__(self, db: Session, user: models.User, registry=None):
+    def __init__(self, db: AsyncSession, user: models.User, registry=None):
         self.db = db
         self.user = user
         self.tenant_id = user.tenant_id

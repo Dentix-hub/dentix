@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { useNavigate } from 'react-router-dom';
 import { User, Calendar, Calculator } from 'lucide-react';
 import { getDoctorRevenue, getDoctorDetails, updateStaffCompensation } from '@/api';
@@ -34,7 +35,7 @@ export default function DoctorRevenue() {
             const res = await getDoctorRevenue(startDate, endDate);
             setDoctors((res.data.doctors || []).filter(d => d.doctor_name !== 'غير محدد'));
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             toast.error(t('billing.alerts.doctors_load_fail'));
         } finally {
             setLoading(false);
@@ -55,7 +56,7 @@ export default function DoctorRevenue() {
             const res = await getDoctorDetails(doc.doctor_id, startDate, endDate);
             setDoctorDetails(res.data);
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             toast.error(t('billing.alerts.doctor_details_load_fail'));
         } finally {
             setDetailsLoading(false);
@@ -75,7 +76,7 @@ export default function DoctorRevenue() {
             setDetailsModalOpen(false);
             toast.success(t('billing.alerts.save_success'), { id: toastId });
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             toast.error(t('billing.alerts.save_fail'), { id: toastId });
         } finally {
             setSaving(false);

@@ -8,7 +8,10 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ["DATABASE_URL"] = "sqlite:///./debug_auth.db"
 
 from backend.main import app
-from backend.database import Base, engine, SessionLocal
+from backend.database import Base, async_engine
+from sqlalchemy.orm import sessionmaker
+engine = async_engine.sync_engine
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 from backend.models import User
 from backend.auth import create_access_token
 from fastapi.testclient import TestClient

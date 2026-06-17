@@ -1,7 +1,7 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, desc, select
 from datetime import date, timedelta, datetime
-from typing import Dict, Any
+from typing import Dict, Any, List
 from .. import models
 
 
@@ -11,67 +11,69 @@ class AnalyticsService:
     Optimized for heavy reads.
     """
 
-    def __init__(self, db: Session, tenant_id: int):
+    def __init__(self, db: AsyncSession, tenant_id: int):
         self.db = db
         self.tenant_id = tenant_id
 
-    def get_doctor_ranking(self, period: str, metric: str) -> Dict[str, Any]:
+    async def get_doctor_ranking(self, period: str, metric: str) -> Dict[str, Any]:
         """Rank doctors by revenue or patient volume."""
         date_filter = self._get_date_filter(period, models.Treatment.date)
 
         if metric == "revenue":
             # Rank by Income (Sum of Treatment Cost)
-            query = (
-                self.db.query(
+            stmt = (
+                select(
                     models.User.username, func.sum(models.Treatment.cost).label("score")
                 )
                 .join(models.User, models.User.id == models.Treatment.doctor_id)
-                .filter(models.Treatment.tenant_id == self.tenant_id)
-                .filter(date_filter)
+                .where(models.Treatment.tenant_id == self.tenant_id)
+                .where(date_filter)
                 .group_by(models.User.username)
                 .order_by(desc("score"))
             )
 
         elif metric == "patients":
             # Rank by Unique Patients
-            query = (
-                self.db.query(
+            stmt = (
+                select(
                     models.User.username,
                     func.count(func.distinct(models.Treatment.patient_id)).label(
                         "score"
                     ),
                 )
                 .join(models.User, models.User.id == models.Treatment.doctor_id)
-                .filter(models.Treatment.tenant_id == self.tenant_id)
-                .filter(date_filter)
+                .where(models.Treatment.tenant_id == self.tenant_id)
+                .where(date_filter)
                 .group_by(models.User.username)
                 .order_by(desc("score"))
             )
 
-        results = query.all()
+        res = await self.db.execute(stmt)
+        results = res.all()
         return {
             "period": period,
             "metric": metric,
             "ranking": [{"name": r[0], "value": r[1] or 0} for r in results],
         }
 
-    def get_top_procedures(self, period: str, limit: int = 5) -> Dict[str, Any]:
+    async def get_top_procedures(self, period: str, limit: int = 5) -> Dict[str, Any]:
         """Get most popular procedures."""
         date_filter = self._get_date_filter(period, models.Treatment.date)
 
-        results = (
-            self.db.query(
+        stmt = (
+            select(
                 models.Treatment.procedure,
                 func.count(models.Treatment.id).label("count"),
                 func.sum(models.Treatment.cost).label("revenue"),
             )
-            .filter(models.Treatment.tenant_id == self.tenant_id)
-            .filter(date_filter)
+            .where(models.Treatment.tenant_id == self.tenant_id)
+            .where(date_filter)
             .group_by(models.Treatment.procedure)
             .order_by(desc("count"))
             .limit(limit)
-            .all()
         )
+        res = await self.db.execute(stmt)
+        results = res.all()
 
         return {
             "period": period,
@@ -82,7 +84,7 @@ class AnalyticsService:
             ],
         }
 
-    def get_revenue_trend(self, period: str) -> Dict[str, Any]:
+    async def get_revenue_trend(self, period: str) -> Dict[str, Any]:
         """Get revenue grouped by time (Day/Month)."""
         # Determine grouping
         if period == "year":
@@ -92,17 +94,18 @@ class AnalyticsService:
             group_col = func.date(models.Payment.date)
             date_filter = models.Payment.date >= (date.today() - timedelta(days=30))
 
-        results = (
-            self.db.query(
+        stmt = (
+            select(
                 group_col.label("time_unit"),
                 func.sum(models.Payment.amount).label("revenue"),
             )
-            .filter(models.Payment.tenant_id == self.tenant_id)
-            .filter(date_filter)
+            .where(models.Payment.tenant_id == self.tenant_id)
+            .where(date_filter)
             .group_by(group_col)
             .order_by(group_col)
-            .all()
         )
+        res = await self.db.execute(stmt)
+        results = res.all()
 
         return {
             "period": period,
@@ -122,42 +125,38 @@ class AnalyticsService:
             return col >= (today - timedelta(days=365))
         return True  # All time
 
-    def get_dashboard_summary(self, period: str) -> Dict[str, Any]:
+    async def get_dashboard_summary(self, period: str) -> Dict[str, Any]:
         """Get high-level dashboard stats."""
         date_filter_app = self._get_date_filter(period, models.Appointment.date_time)
         date_filter_pay = self._get_date_filter(period, models.Payment.date)
         date_filter_patient = self._get_date_filter(period, models.Patient.created_at)
 
         # 1. Total Patients
-        total_patients = (
-            self.db.query(models.Patient)
-            .filter(models.Patient.tenant_id == self.tenant_id)
-            .count()
-        )
+        stmt_tot = select(func.count(models.Patient.id)).where(models.Patient.tenant_id == self.tenant_id)
+        total_patients = await self.db.scalar(stmt_tot) or 0
 
         # 2. New Patients
-        new_patients = (
-            self.db.query(models.Patient)
-            .filter(models.Patient.tenant_id == self.tenant_id, date_filter_patient)
-            .count()
+        stmt_new = select(func.count(models.Patient.id)).where(
+            models.Patient.tenant_id == self.tenant_id,
+            date_filter_patient
         )
+        new_patients = await self.db.scalar(stmt_new) or 0
 
         # 3. Appointments
-        period_appointments = (
-            self.db.query(models.Appointment)
+        stmt_app = (
+            select(func.count(models.Appointment.id))
             .join(models.Patient)
-            .filter(models.Patient.tenant_id == self.tenant_id, date_filter_app)
-            .count()
+            .where(models.Patient.tenant_id == self.tenant_id, date_filter_app)
         )
+        period_appointments = await self.db.scalar(stmt_app) or 0
 
         # 4. Revenue
-        period_revenue = (
-            self.db.query(func.sum(models.Payment.amount))
+        stmt_rev = (
+            select(func.sum(models.Payment.amount))
             .join(models.Patient)
-            .filter(models.Patient.tenant_id == self.tenant_id, date_filter_pay)
-            .scalar()
-            or 0
+            .where(models.Patient.tenant_id == self.tenant_id, date_filter_pay)
         )
+        period_revenue = await self.db.scalar(stmt_rev) or 0
 
         return {
             "period": period,
@@ -167,26 +166,18 @@ class AnalyticsService:
             "period_revenue": float(period_revenue),
         }
 
-    def get_clinic_summary(self) -> Dict[str, Any]:
+    async def get_clinic_summary(self) -> Dict[str, Any]:
         """Get clinic info and counts."""
-        tenant = (
-            self.db.query(models.Tenant)
-            .filter(models.Tenant.id == self.tenant_id)
-            .first()
-        )
+        stmt_tenant = select(models.Tenant).where(models.Tenant.id == self.tenant_id)
+        tenant = (await self.db.execute(stmt_tenant)).scalar_one_or_none()
         if not tenant:
             return None
 
-        users_count = (
-            self.db.query(models.User)
-            .filter(models.User.tenant_id == self.tenant_id)
-            .count()
-        )
-        patients_count = (
-            self.db.query(models.Patient)
-            .filter(models.Patient.tenant_id == self.tenant_id)
-            .count()
-        )
+        stmt_users = select(func.count(models.User.id)).where(models.User.tenant_id == self.tenant_id)
+        users_count = await self.db.scalar(stmt_users) or 0
+
+        stmt_patients = select(func.count(models.Patient.id)).where(models.Patient.tenant_id == self.tenant_id)
+        patients_count = await self.db.scalar(stmt_patients) or 0
 
         return {
             "name": tenant.name,
@@ -197,26 +188,27 @@ class AnalyticsService:
             "created_at": str(tenant.created_at),
         }
 
-    def get_ai_stats(self, period: str) -> Dict[str, Any]:
+    async def get_ai_stats(self, period: str) -> Dict[str, Any]:
         """Get AI usage statistics."""
-        query = self.db.query(models.AIUsageLog).filter(
+        stmt = select(models.AIUsageLog).where(
             models.AIUsageLog.tenant_id == self.tenant_id
         )
 
         # Date Filter
         if period == "week":
             start_date = datetime.now() - timedelta(days=7)
-            query = query.filter(models.AIUsageLog.created_at >= start_date)
+            stmt = stmt.where(models.AIUsageLog.created_at >= start_date)
         elif period == "month":
             start_date = datetime.now() - timedelta(days=30)
-            query = query.filter(models.AIUsageLog.created_at >= start_date)
+            stmt = stmt.where(models.AIUsageLog.created_at >= start_date)
         elif period == "today":
             today_start = datetime.now().replace(
                 hour=0, minute=0, second=0, microsecond=0
             )
-            query = query.filter(models.AIUsageLog.created_at >= today_start)
+            stmt = stmt.where(models.AIUsageLog.created_at >= today_start)
 
-        logs = query.all()
+        res = await self.db.execute(stmt)
+        logs = res.scalars().all()
 
         total_requests = len(logs)
         success_count = sum(1 for log in logs if log.success)
@@ -244,7 +236,7 @@ class AnalyticsService:
             "top_tools": [{"name": k, "count": v} for k, v in top_tools],
         }
 
-    def compare_periods(
+    async def compare_periods(
         self, period1: str, period2: str, metric: str
     ) -> Dict[str, Any]:
         """Compare two periods."""
@@ -265,47 +257,46 @@ class AnalyticsService:
         start1, end1 = get_range(period1)
         start2, end2 = get_range(period2)
 
-        def calculate_metric(s, e):
+        async def calculate_metric(s, e):
             if metric == "revenue":
-                return (
-                    self.db.query(func.sum(models.Payment.amount))
+                stmt = (
+                    select(func.sum(models.Payment.amount))
                     .join(models.Patient)
-                    .filter(
+                    .where(
                         models.Patient.tenant_id == self.tenant_id,
                         models.Payment.date >= datetime.combine(s, datetime.min.time()),
                         models.Payment.date < datetime.combine(e, datetime.min.time()),
                     )
-                    .scalar()
-                    or 0
                 )
+                return await self.db.scalar(stmt) or 0
             elif metric == "patients":
-                return (
-                    self.db.query(models.Patient)
-                    .filter(
+                stmt = (
+                    select(func.count(models.Patient.id))
+                    .where(
                         models.Patient.tenant_id == self.tenant_id,
                         models.Patient.created_at
                         >= datetime.combine(s, datetime.min.time()),
                         models.Patient.created_at
                         < datetime.combine(e, datetime.min.time()),
                     )
-                    .count()
                 )
+                return await self.db.scalar(stmt) or 0
             else:  # appointments
-                return (
-                    self.db.query(models.Appointment)
+                stmt = (
+                    select(func.count(models.Appointment.id))
                     .join(models.Patient)
-                    .filter(
+                    .where(
                         models.Patient.tenant_id == self.tenant_id,
                         models.Appointment.date_time
                         >= datetime.combine(s, datetime.min.time()),
                         models.Appointment.date_time
                         < datetime.combine(e, datetime.min.time()),
                     )
-                    .count()
                 )
+                return await self.db.scalar(stmt) or 0
 
-        val1 = calculate_metric(start1, end1)
-        val2 = calculate_metric(start2, end2)
+        val1 = await calculate_metric(start1, end1)
+        val2 = await calculate_metric(start2, end2)
 
         change_pct = 0
         if val2 > 0:

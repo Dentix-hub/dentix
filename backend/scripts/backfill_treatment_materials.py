@@ -4,7 +4,10 @@ import os
 # Setup sys.path so we can import from backend
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from backend.database import SyncSessionLocal
+from sqlalchemy.orm import sessionmaker
+from backend.database import async_engine
+engine = async_engine.sync_engine
+SyncSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 from backend.models import clinical as clinical_models
 from backend.models import inventory as inv_models
 from backend.services.inventory_learning_service import InventoryLearningService

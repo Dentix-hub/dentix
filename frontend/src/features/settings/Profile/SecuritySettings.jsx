@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { api } from '@/api';
 import { Shield, Smartphone, Monitor, Smartphone as PhoneIcon, X } from 'lucide-react';
 export default function SecuritySettings() {
@@ -23,7 +24,7 @@ export default function SecuritySettings() {
             setUser(userRes.data);
             setSessions(sessionRes.data);
         } catch (error) {
-            console.error(error);
+            logger.error(error);
         } finally {
             setLoading(false);
         }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import {
     getPriceLists,
     createPriceList,
@@ -31,7 +32,7 @@ const PriceListEditor = ({ priceListId, onClose }) => {
             setListDetails(listRes.data);
             setProcedures(procRes.data || []);
         } catch (error) {
-            console.error("Error loading details:", error);
+            logger.error("Error loading details:", error);
         } finally {
             setLoading(false);
         }
@@ -56,7 +57,7 @@ const PriceListEditor = ({ priceListId, onClose }) => {
                 return { ...prev, items: newItems };
             });
         } catch (error) {
-            console.error("Error updating price:", error);
+            logger.error("Error updating price:", error);
             toast.error("Failed to update price");
         }
     };
@@ -165,7 +166,7 @@ export default function PriceLists() {
             setPriceLists(listsRes.data || []);
             setInsuranceProviders(providersRes.data || []);
         } catch (error) {
-            console.error(error);
+            logger.error(error);
         } finally {
             setLoading(false);
         }
@@ -237,7 +238,7 @@ export default function PriceLists() {
             setIsModalOpen(false);
             fetchData();
         } catch (error) {
-            console.error(error);
+            logger.error(error);
             toast.error("Error saving price list");
         }
     };
@@ -247,7 +248,7 @@ export default function PriceLists() {
             await deactivatePriceList(list.id);
             fetchData();
         } catch (error) {
-            console.error(error);
+            logger.error(error);
             toast.error(error.response?.data?.detail || "فشل تعطيل قائمة الأسعار");
         }
     };

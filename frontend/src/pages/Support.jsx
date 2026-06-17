@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { MessageSquare, Send, Smartphone, AlertCircle, CheckCircle2, Mail, Clock } from 'lucide-react';
 import { api, submitFeedback } from '../api';
 import { useTranslation } from 'react-i18next';
@@ -28,7 +29,7 @@ export default function Support() {
                     });
                 }
             } catch (err) {
-                console.error("Failed to fetch support info", err);
+                logger.error("Failed to fetch support info", err);
             }
         };
         fetchSettings();
@@ -134,7 +135,7 @@ export default function Support() {
                                     )}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="col-span-2">
-                                            <label className="block text-sm font-bold uppercase tracking-wider mb-3 pr-1 text-slate-500 dark:text-slate-400">{t('static.support.subject')}</label>
+                                            <label className="block text-sm font-bold uppercase tracking-wider mb-3 pe-1 text-slate-500 dark:text-slate-400">{t('static.support.subject')}</label>
                                             <input
                                                 type="text"
                                                 required
@@ -145,7 +146,7 @@ export default function Support() {
                                             />
                                         </div>
                                         <div className="col-span-2">
-                                            <label className="block text-sm font-bold uppercase tracking-wider mb-3 pr-1 text-slate-500 dark:text-slate-400">{t('static.support.message')}</label>
+                                            <label className="block text-sm font-bold uppercase tracking-wider mb-3 pe-1 text-slate-500 dark:text-slate-400">{t('static.support.message')}</label>
                                             <textarea
                                                 required
                                                 rows="8"

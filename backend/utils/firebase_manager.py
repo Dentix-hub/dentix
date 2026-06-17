@@ -22,18 +22,13 @@ class FirebaseManager:
 
         try:
             # 1. Try to load from environment variable (JSON string)
-            cert_json = os.getenv("FIREBASE_SERVICE_ACCOUNT")
+            cert_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON") or os.getenv("FIREBASE_SERVICE_ACCOUNT")
             if cert_json:
                 cert_dict = json.loads(cert_json)
                 cred = credentials.Certificate(cert_dict)
             else:
-                # 2. Try to load from file path
-                cert_path = os.getenv("FIREBASE_CREDENTIALS_PATH", "firebase-service-account.json")
-                if os.path.exists(cert_path):
-                    cred = credentials.Certificate(cert_path)
-                else:
-                    logger.warning("Firebase credentials not found. Push notifications will be disabled.")
-                    return
+                logger.warning("Firebase credentials not found. Push notifications will be disabled.")
+                return
 
             firebase_admin.initialize_app(cred)
             self._initialized = True

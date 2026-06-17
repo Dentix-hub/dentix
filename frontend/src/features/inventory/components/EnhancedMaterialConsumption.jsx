@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import logger from '@/utils/logger';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Modal, Button, Badge } from '@/shared/ui';
 import { SmartMaterialRow } from './SmartMaterialRow';
@@ -27,7 +28,7 @@ export function EnhancedMaterialConsumption({
     const [pickerOpen, setPickerOpen] = useState(false);
     // Auto-open picker for manual mode
     useEffect(() => {
-        console.log('[EMC_DEBUG] Picker effect triggered:', { isOpen, mode, materialsCount: availableMaterials?.length });
+        logger.log('[EMC_DEBUG] Picker effect triggered:', { isOpen, mode, materialsCount: availableMaterials?.length });
         if (isOpen && mode === 'manual') {
             setPickerOpen(true);
         } else {
@@ -55,7 +56,7 @@ export function EnhancedMaterialConsumption({
         const shouldInitialize = !hasInitializedRef.current || (materials.length === 0 && initialMaterials?.length > 0);
         
         if (shouldInitialize && Array.isArray(initialMaterials) && initialMaterials.length > 0) {
-            console.log('[EMC_DEBUG] Initializing/Syncing materials from:', initialMaterials.length, 'items');
+            logger.log('[EMC_DEBUG] Initializing/Syncing materials from:', initialMaterials.length, 'items');
             const mapped = initialMaterials.map(m => {
                 const targetId = parseInt(m.material_id || m.id || m.materialId);
                 const matInfo = availableMaterials.find(am => (am.material_id || am.id) === targetId) || {};
@@ -71,7 +72,7 @@ export function EnhancedMaterialConsumption({
             });
             setMaterials(mapped);
             hasInitializedRef.current = true;
-            console.log('[EMC_DEBUG] Materials State Updated:', mapped);
+            logger.log('[EMC_DEBUG] Materials State Updated:', mapped);
         }
     }, [isOpen, initialMaterials, availableMaterials]); // Removed materials from deps to avoid loop, using internal check
 
@@ -96,18 +97,18 @@ export function EnhancedMaterialConsumption({
     const stockCheckData = Array.isArray(rawStockCheckData) ? rawStockCheckData : [];
 
     const addManualMaterial = (materialId) => {
-        console.log('[EMC_ACTION] addManualMaterial called for ID:', materialId);
+        logger.log('[EMC_ACTION] addManualMaterial called for ID:', materialId);
         const mat = availableMaterials.find(m => (m.material_id || m.id) === parseInt(materialId));
         
         if (!mat) {
-            console.error('[EMC_ERROR] Material not found in available list:', materialId);
+            logger.error('[EMC_ERROR] Material not found in available list:', materialId);
             return;
         }
 
         // Prevent duplicates using normalized IDs
         const normalizedTargetId = parseInt(mat.material_id || mat.id);
         if (materials.some(m => parseInt(m.material_id || m.id) === normalizedTargetId)) {
-            console.warn('[EMC_WARN] Material already added:', normalizedTargetId);
+            logger.warn('[EMC_WARN] Material already added:', normalizedTargetId);
             toast.error("هذه المادة مضافة بالفعل");
             setPickerOpen(false);
             return;
@@ -125,7 +126,7 @@ export function EnhancedMaterialConsumption({
             is_manual: true
         };
 
-        console.log('[EMC_ACTION] Adding new entry to state:', newEntry);
+        logger.log('[EMC_ACTION] Adding new entry to state:', newEntry);
         setMaterials(prev => [...prev, newEntry]);
         setPickerOpen(false);
     };
@@ -153,7 +154,7 @@ export function EnhancedMaterialConsumption({
             onSave(materials);
             onClose();
         } catch (error) {
-            console.error("Save failed", error);
+            logger.error("Save failed", error);
         }
     };
     const updateMaterial = (index, updated) => {
@@ -190,7 +191,7 @@ export function EnhancedMaterialConsumption({
                         </Button>
                     </div>
                 ) : (
-                    <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                    <div className="space-y-3 max-h-[60vh] overflow-y-auto pe-1">
                         {materials.map((mat, idx) => (
                             <SmartMaterialRow
                                 key={mat.material_id || mat.id || idx}
@@ -229,7 +230,7 @@ export function EnhancedMaterialConsumption({
                                                 <button
                                                     key={`${id}-${idx}`}
                                                     onClick={() => {
-                                                        console.log('[EMC_ACTION] Adding material:', id);
+                                                        logger.log('[EMC_ACTION] Adding material:', id);
                                                         addManualMaterial(id);
                                                     }}
                                                     className={cn(
@@ -293,7 +294,7 @@ export function EnhancedMaterialConsumption({
                                         variant="outline" 
                                         size="sm"
                                         onClick={() => {
-                                            console.log('[EMC_DEBUG_MANUAL] Current State:', { availableMaterials, materials, initialMaterials });
+                                            logger.log('[EMC_DEBUG_MANUAL] Current State:', { availableMaterials, materials, initialMaterials });
                                             queryClient.invalidateQueries(['stock-summary']);
                                         }}
                                         title="تحديث المخزون"
@@ -301,7 +302,7 @@ export function EnhancedMaterialConsumption({
                                         <Clock size={16} />
                                     </Button>
                                     <Button variant="outline" onClick={() => setPickerOpen(true)}>
-                                        <Plus size={18} className="ml-2" />
+                                        <Plus size={18} className="ms-2" />
                                         مادة أخرى
                                     </Button>
                                 </div>
@@ -330,7 +331,7 @@ export function EnhancedMaterialConsumption({
             {/* Visual Diagnostic for Debugging */}
             {process.env.NODE_ENV === 'development' && (
                 <div style={{ display: 'none' }}>
-                    {console.log('[EMC_DIAGNOSTIC]', { 
+                    {logger.log('[EMC_DIAGNOSTIC]', { 
                         available: availableMaterials?.length,
                         filtered: availableMaterialsList?.length,
                         selected: materials?.length

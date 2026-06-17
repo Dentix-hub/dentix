@@ -1,6 +1,7 @@
 import sys
+import pytest
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent.parent.parent))
@@ -32,11 +33,12 @@ def test_error_explainer():
     print("✅ Error Explainer Passed")
 
 
-def test_autocomplete_logic():
+@pytest.mark.asyncio
+async def test_autocomplete_logic():
     print("\nTesting Autocomplete Logic (Mocked)...")
 
     # Mock dependencies
-    mock_db = MagicMock()
+    mock_db = AsyncMock()
     mock_user = MagicMock()
     mock_user.id = 101
     tenant_id = 1
@@ -54,12 +56,12 @@ def test_autocomplete_logic():
     mock_patient.name = "Ahmed Ali"
     mock_patient.phone = "0123456789"
 
-    mock_query = MagicMock()
-    mock_query.filter.return_value.limit.return_value.all.return_value = [mock_patient]
-    mock_db.query.return_value = mock_query
+    mock_res = MagicMock()
+    mock_res.scalars.return_value.all.return_value = [mock_patient]
+    mock_db.execute.return_value = mock_res
 
     # Call function
-    results = ai_autocomplete(
+    results = await ai_autocomplete(
         q="Ah", context="test", db=mock_db, current_user=mock_user, tenant_id=tenant_id
     )
 
@@ -77,9 +79,10 @@ def test_autocomplete_logic():
 
 
 if __name__ == "__main__":
+    import asyncio
     try:
         test_error_explainer()
-        test_autocomplete_logic()
+        asyncio.run(test_autocomplete_logic())
         print("\n✅ All Tests Passed")
     except Exception as e:
         print(f"\n❌ Test Failed: {e}")

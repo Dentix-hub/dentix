@@ -17,7 +17,8 @@ import sys
 # Add parent directory to path to import models
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.database import engine
+from backend.database import async_engine
+engine = async_engine.sync_engine
 
 
 def migrate_lab_payments():

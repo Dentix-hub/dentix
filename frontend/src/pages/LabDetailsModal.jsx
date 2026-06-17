@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { X, FlaskConical, Plus } from 'lucide-react';
 import { getLabStats, getLabOrders, getLabPayments, createLabPayment } from '../api';
@@ -40,7 +41,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
             setOrders(ordersRes.data);
             setPayments(paymentsRes.data);
         } catch (error) {
-            console.error("Failed to load lab details", error);
+            logger.error("Failed to load lab details", error);
         } finally {
             setLoading(false);
         }
@@ -50,7 +51,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
             const res = await getLabOrders({ laboratory_id: lab.id, status: orderStatus || undefined });
             setOrders(res.data);
         } catch (error) {
-            console.error("Failed to filter orders", error);
+            logger.error("Failed to filter orders", error);
         }
     };
     const handleAddPayment = async (e) => {

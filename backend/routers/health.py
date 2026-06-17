@@ -26,7 +26,7 @@ import os
 import logging
 import shutil
 import psutil
-from backend.database import get_async_db, engine
+from backend.database import get_async_db, async_engine
 from backend.core.permissions import Permission, require_permission
 from backend import models
 
@@ -357,10 +357,10 @@ def get_stress_metrics():
         metrics = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "db_connections": {
-                "active": engine.pool.checkedout(),
-                "available": engine.pool.size() - engine.pool.checkedout(),
-                "overflow": engine.pool.overflow(),
-                "pool_size": engine.pool.size(),
+                "active": async_engine.pool.checkedout(),
+                "available": async_engine.pool.size() - async_engine.pool.checkedout(),
+                "overflow": async_engine.pool.overflow(),
+                "pool_size": async_engine.pool.size(),
             },
             "system_resources": {
                 "cpu_percent": psutil.cpu_percent(),

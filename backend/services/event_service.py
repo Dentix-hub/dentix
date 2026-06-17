@@ -1,7 +1,8 @@
 import json
 import logging
 from typing import Any, Dict
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone, timedelta
 from backend.models.domain_event import DomainEvent
 
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 class EventService:
     @staticmethod
     def emit_event(
-        db: Session,
+        db: AsyncSession,
         event_type: str,
         aggregate_type: str,
         aggregate_id: str,
@@ -35,13 +36,13 @@ class EventService:
         return event
 
     @staticmethod
-    def get_pending_events(db: Session, limit: int = 50) -> list[DomainEvent]:
+    async def get_pending_events(db: AsyncSession, limit: int = 50) -> list[DomainEvent]:
         """
         Fetch pending events that are ready to be processed.
         """
         now = datetime.now(timezone.utc)
-        events = (
-            db.query(DomainEvent)
+        stmt = (
+            select(DomainEvent)
             .filter(
                 DomainEvent.status == "pending",
                 DomainEvent.available_at <= now
@@ -49,33 +50,38 @@ class EventService:
             .order_by(DomainEvent.created_at.asc())
             .with_for_update(skip_locked=True) # Prevent concurrent workers from picking the same events
             .limit(limit)
-            .all()
         )
-        
+        result = await db.execute(stmt)
+        events = result.scalars().all()
+
         # Mark them as processing
         for event in events:
             event.status = "processing"
-            
-        db.commit()
+
+        await db.commit()
         return events
 
     @staticmethod
-    def mark_completed(db: Session, event_id: int):
+    async def mark_completed(db: AsyncSession, event_id: int):
         """Mark an event as successfully processed."""
-        event = db.query(DomainEvent).filter(DomainEvent.id == event_id).first()
+        stmt = select(DomainEvent).filter(DomainEvent.id == event_id)
+        result = await db.execute(stmt)
+        event = result.scalars().first()
         if event:
             event.status = "completed"
             event.processed_at = datetime.now(timezone.utc)
-            db.commit()
+            await db.commit()
 
     @staticmethod
-    def mark_failed(db: Session, event_id: int, error_message: str):
+    async def mark_failed(db: AsyncSession, event_id: int, error_message: str):
         """Mark an event as failed. Handle retries if max_attempts not reached."""
-        event = db.query(DomainEvent).filter(DomainEvent.id == event_id).first()
+        stmt = select(DomainEvent).filter(DomainEvent.id == event_id)
+        result = await db.execute(stmt)
+        event = result.scalars().first()
         if event:
             event.attempts += 1
             event.error_message = str(error_message)[:2000] # Limit size
-            
+
             if event.attempts >= event.max_attempts:
                 event.status = "failed"
             else:
@@ -83,7 +89,7 @@ class EventService:
                 # Simple exponential backoff for next attempt
                 backoff_seconds = 2 ** event.attempts * 60 # 2m, 4m, 8m, etc.
                 event.available_at = datetime.now(timezone.utc) + timedelta(seconds=backoff_seconds)
-                
-            db.commit()
+
+            await db.commit()
 
 event_service = EventService()

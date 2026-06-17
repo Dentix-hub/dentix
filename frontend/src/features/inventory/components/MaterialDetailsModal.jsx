@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import logger from '@/utils/logger';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getMaterialStock, updateMaterial } from '@/api/inventory';
 import { X, Package, Calendar, Truck, AlertCircle, Square, Settings } from 'lucide-react';
@@ -57,7 +58,7 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
             // Close modal to force refresh of parent component
             onClose();
         } catch (error) {
-            console.error("Failed to update material", error);
+            logger.error("Failed to update material", error);
             toast.error(t('inventory.material_details.messages.update_fail'));
         }
     };

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import logger from '@/utils/logger';
 import { api } from '@/api';
 import DashboardStats from '@/features/admin/SuperAdmin/DashboardStats';
 import SystemHealth from '@/features/admin/SuperAdmin/SystemHealth';
@@ -17,7 +18,7 @@ export default function Overview() {
                 const res = await api.get('/api/v1/admin/stats');
                 setStats(res.data);
             } catch (err) {
-                console.error(err);
+                logger.error(err);
             } finally {
                 setLoading(false);
             }
@@ -49,7 +50,7 @@ export default function Overview() {
         <div className="space-y-8 animate-fade-in-up pb-12">
             {/* Header section */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div className="flex items-center gap-4 bg-white dark:bg-slate-900 p-6 pr-8 pl-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-4 bg-white dark:bg-slate-900 p-6 pe-8 ps-8 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
                     <div className="bg-gradient-to-br from-indigo-500 to-teal-600 p-4 rounded-2xl shadow-lg shadow-indigo-500/20 text-white">
                         <ShieldCheck size={32} />
                     </div>

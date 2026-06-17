@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import { registerClinic } from '../api';
@@ -70,7 +71,7 @@ const RegisterClinic = ({ isDarkMode }) => {
             await registerClinic(data);
             navigate('/', { state: { message: t('auth.register.success') } });
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             const serverDetail = err.response?.data?.detail;
             
             if (serverDetail) {
@@ -113,14 +114,14 @@ const RegisterClinic = ({ isDarkMode }) => {
                     <div className="space-y-2">
                         <label className={`text-sm font-medium text-text-secondary`}>{t('auth.register.clinic_name')}</label>
                         <div className="relative">
-                            <Building2 className={`absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary`} />
+                            <Building2 className={`absolute end-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary`} />
                             <input
                                 type="text"
                                 name="clinic_name"
                                 required
                                 value={formData.clinic_name}
                                 onChange={handleChange}
-                                className={`w-full pr-10 pl-4 py-3 rounded-xl outline-none focus:ring-2 transition-all bg-input border-border text-text-primary focus:ring-primary/20 focus:border-primary border`}
+                                className={`w-full pe-10 ps-4 py-3 rounded-xl outline-none focus:ring-2 transition-all bg-input border-border text-text-primary focus:ring-primary/20 focus:border-primary border`}
                                 placeholder={t('auth.register.clinic_name_placeholder')}
                             />
                         </div>
@@ -128,14 +129,14 @@ const RegisterClinic = ({ isDarkMode }) => {
                     <div className="space-y-2">
                         <label className={`text-sm font-medium text-text-secondary`}>{t('auth.register.contact_phone')}</label>
                         <div className="relative">
-                            <Phone className={`absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary`} />
+                            <Phone className={`absolute end-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary`} />
                             <input
                                 type="tel"
                                 name="contact_phone"
                                 required
                                 value={formData.contact_phone}
                                 onChange={handleChange}
-                                className={`w-full pr-10 pl-4 py-3 rounded-xl outline-none focus:ring-2 transition-all bg-input border-border text-text-primary focus:ring-primary/20 focus:border-primary border`}
+                                className={`w-full pe-10 ps-4 py-3 rounded-xl outline-none focus:ring-2 transition-all bg-input border-border text-text-primary focus:ring-primary/20 focus:border-primary border`}
                                 placeholder={t('auth.register.contact_phone_placeholder')}
                                 dir="ltr"
                             />
@@ -150,7 +151,7 @@ const RegisterClinic = ({ isDarkMode }) => {
                                 required
                                 value={formData.admin_email}
                                 onChange={handleChange}
-                                className={`w-full pr-4 pl-4 py-3 rounded-xl outline-none focus:ring-2 transition-all bg-input border-border text-text-primary focus:ring-primary/20 focus:border-primary border`}
+                                className={`w-full pe-4 ps-4 py-3 rounded-xl outline-none focus:ring-2 transition-all bg-input border-border text-text-primary focus:ring-primary/20 focus:border-primary border`}
                                 placeholder="example@email.com"
                                 dir="ltr"
                             />
@@ -160,14 +161,14 @@ const RegisterClinic = ({ isDarkMode }) => {
                     <div className="space-y-2">
                         <label className={`text-sm font-medium text-text-secondary`}>{t('auth.register.username')}</label>
                         <div className="relative">
-                            <User className={`absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary`} />
+                            <User className={`absolute end-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary`} />
                             <input
                                 type="text"
                                 name="admin_username"
                                 required
                                 value={formData.admin_username}
                                 onChange={handleChange}
-                                className={`w-full pr-10 pl-4 py-3 rounded-xl outline-none focus:ring-2 transition-all bg-input border-border text-text-primary focus:ring-primary/20 focus:border-primary border`}
+                                className={`w-full pe-10 ps-4 py-3 rounded-xl outline-none focus:ring-2 transition-all bg-input border-border text-text-primary focus:ring-primary/20 focus:border-primary border`}
                                 placeholder={t('auth.register.username_placeholder')}
                             />
                         </div>
@@ -175,14 +176,14 @@ const RegisterClinic = ({ isDarkMode }) => {
                     <div className="space-y-2">
                         <label className={`text-sm font-medium text-text-secondary`}>{t('auth.register.password')}</label>
                         <div className="relative">
-                            <Lock className={`absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary`} />
+                            <Lock className={`absolute end-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary`} />
                             <input
                                 type="password"
                                 name="admin_password"
                                 required
                                 value={formData.admin_password}
                                 onChange={handleChange}
-                                className={`w-full pr-10 pl-4 py-3 rounded-xl outline-none focus:ring-2 transition-all bg-input border-border text-text-primary focus:ring-primary/20 focus:border-primary border`}
+                                className={`w-full pe-10 ps-4 py-3 rounded-xl outline-none focus:ring-2 transition-all bg-input border-border text-text-primary focus:ring-primary/20 focus:border-primary border`}
                                 placeholder="••••••••"
                             />
                         </div>
@@ -190,14 +191,14 @@ const RegisterClinic = ({ isDarkMode }) => {
                     <div className="space-y-2">
                         <label className={`text-sm font-medium text-text-secondary`}>{t('auth.register.confirm_password')}</label>
                         <div className="relative">
-                            <Lock className={`absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary`} />
+                            <Lock className={`absolute end-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary`} />
                             <input
                                 type="password"
                                 name="confirm_password"
                                 required
                                 value={formData.confirm_password}
                                 onChange={handleChange}
-                                className={`w-full pr-10 pl-4 py-3 rounded-xl outline-none focus:ring-2 transition-all bg-input border-border text-text-primary focus:ring-primary/20 focus:border-primary border`}
+                                className={`w-full pe-10 ps-4 py-3 rounded-xl outline-none focus:ring-2 transition-all bg-input border-border text-text-primary focus:ring-primary/20 focus:border-primary border`}
                                 placeholder="••••••••"
                             />
                         </div>
@@ -210,7 +211,7 @@ const RegisterClinic = ({ isDarkMode }) => {
                                 id="terms"
                                 className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-slate-300 transition-all checked:border-primary checked:bg-primary hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
                             />
-                            <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 transition-opacity peer-checked:opacity-100">
+                            <div className="pointer-events-none absolute start-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 transition-opacity peer-checked:opacity-100">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" stroke="currentColor" strokeWidth="1">
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"></path>
                                 </svg>

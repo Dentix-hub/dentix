@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { FlaskConical, Plus, Edit2, Trash2, X, Phone, MapPin, Mail, User, Search, Building2, Crown } from 'lucide-react';
 import { getLaboratories, createLaboratory, updateLaboratory, deleteLaboratory, getLabOrdersStats } from '../api';
@@ -41,16 +42,16 @@ export default function Labs() {
             if (labsRes.status === 'fulfilled') {
                 setLabs(labsRes.value.data);
             } else {
-                console.error('Failed to load labs:', labsRes.reason);
+                logger.error('Failed to load labs:', labsRes.reason);
             }
 
             if (statsRes.status === 'fulfilled') {
                 setStats(statsRes.value.data);
             } else {
-                console.warn('Failed to load lab stats (likely permission issue):', statsRes.reason);
+                logger.warn('Failed to load lab stats (likely permission issue):', statsRes.reason);
             }
         } catch (err) {
-            console.error('Critical error loading labs data:', err);
+            logger.error('Critical error loading labs data:', err);
         } finally {
             setLoading(false);
         }
@@ -97,7 +98,7 @@ export default function Labs() {
             loadData();
         } catch (err) {
             alert(t('labs.messages.save_error'));
-            console.error(err);
+            logger.error(err);
         }
     };
     const handleDelete = async (id) => {
@@ -107,7 +108,7 @@ export default function Labs() {
             loadData();
         } catch (err) {
             alert(t('labs.messages.delete_error'));
-            console.error(err);
+            logger.error(err);
         }
     };
     const filteredLabs = labs.filter(lab =>
@@ -207,13 +208,13 @@ export default function Labs() {
             )}
             {/* Search */}
             <div className="relative">
-                <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
+                <Search className="absolute end-4 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
                 <input
                     type="text"
                     placeholder={t('labs.search_placeholder')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pr-12 pl-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
+                    className="w-full pe-12 ps-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
                 />
             </div>
             {/* Labs Grid */}

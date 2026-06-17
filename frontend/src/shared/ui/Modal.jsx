@@ -103,7 +103,7 @@ export default function Modal({ isOpen, onClose, title, children, maxWidth, size
                 ${className}
             `}>
                 <div className="flex justify-between items-center mb-6 sticky top-0 bg-white dark:bg-slate-900 z-10 py-2 -mt-2">
-                    <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto md:hidden absolute -top-4 left-1/2 -translate-x-1/2 mb-4" />
+                    <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto md:hidden absolute -top-4 start-1/2 -translate-x-1/2 mb-4" />
                     <h3 id={titleId} className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">{title}</h3>
                     <button
                         onClick={onClose}

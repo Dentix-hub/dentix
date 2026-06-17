@@ -2,11 +2,12 @@ import os
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from ..core.response import success_response, error_response
-from sqlalchemy import text, inspect
-from sqlalchemy.orm import Session
+from sqlalchemy import text, inspect, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from .. import database, schemas, crud, models, auth
 from ..core import migrations
-from .auth.dependencies import validate_password, get_current_user, get_db
+from .auth.dependencies import validate_password, get_current_user
+from backend.database import get_async_db
 from ..core.permissions import Permission, require_permission
 from ..services.auth_service import AuthService
 
@@ -20,7 +21,8 @@ def _ensure_not_production():
 
 
 @router.get("/schema")
-def repair_schema_verbose(
+async def repair_schema_verbose(
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
 ):
     if current_user.role != "super_admin":
@@ -31,9 +33,8 @@ def repair_schema_verbose(
     def log(msg):
         logs.append(str(msg))
 
-    try:
-        inspector = inspect(database.engine)
-
+    def _sync_repair(conn):
+        inspector = inspect(conn)
         schema_changes = []
 
         # 1. Inspect Users Table
@@ -62,7 +63,7 @@ def repair_schema_verbose(
         if "last_login" not in columns:
             schema_changes.append({"table": "users", "def": "last_login TIMESTAMP"})
 
-            # 1.5 Inspect Tenants Table
+        # 1.5 Inspect Tenants Table
         t_columns = [c["name"] for c in inspector.get_columns("tenants")]
         log(f"Current 'tenants' columns: {t_columns}")
 
@@ -130,7 +131,6 @@ def repair_schema_verbose(
             )
 
         # 1.9 Inspect Subscription Payments
-        # Be careful, table name might be plural or singular depending on previous migrations, but model says 'subscription_payments'
         if "subscription_payments" in inspector.get_table_names():
             pay_columns = [
                 c["name"] for c in inspector.get_columns("subscription_payments")
@@ -150,27 +150,28 @@ def repair_schema_verbose(
             logger.info("[REPAIR] No missing columns detected.")
 
         # 2. Add them
-        with database.engine.connect() as conn:
-            for change in schema_changes:
-                try:
-                    table_name = change["table"]
-                    col_def = change["def"]
+        for change in schema_changes:
+            try:
+                table_name = change["table"]
+                col_def = change["def"]
 
-                    log(f"Attempting to add to {table_name}: {col_def}")
-                    logger.debug("[REPAIR] Adding to %s: %s", table_name, col_def)
-                    conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_def}"))
-                    conn.commit()
-                    log("SUCCESS")
-                except Exception as e:
-                    log(f"ERROR: {e}")
-                    logger.error("[REPAIR ERROR] %s", e)
+                log(f"Attempting to add to {table_name}: {col_def}")
+                logger.debug("[REPAIR] Adding to %s: %s", table_name, col_def)
+                conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_def}"))
+                conn.commit()
+                log("SUCCESS")
+            except Exception as e:
+                log(f"ERROR: {e}")
+                logger.error("[REPAIR ERROR] %s", e)
 
-            # 3. Force auto-migration check as well
-            log("Running standard auto-migration...")
-            logger.info("[REPAIR] Triggering standard migrations...")
-            migrations.check_and_migrate_tables()
-            log("Auto-migration finished (check console for silent errors).")
+        # 3. Force auto-migration check as well
+        log("Running standard auto-migration...")
+        logger.info("[REPAIR] Triggering standard migrations...")
+        migrations.check_and_migrate_tables()
+        log("Auto-migration finished (check console for silent errors).")
 
+    try:
+        await db.run_sync(_sync_repair)
         return success_response(data={"status": "completed", "logs": logs})
 
     except Exception as e:
@@ -179,10 +180,10 @@ def repair_schema_verbose(
 
 
 @router.get("/debug-login")
-def debug_login(
+async def debug_login(
     username: str,
     password: str,
-    db: Session = Depends(database.get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
 ):
     _ensure_not_production()
@@ -198,7 +199,7 @@ def debug_login(
         log(f"Attempting login for: {username}")
 
         # 1. Get User
-        user = crud.get_user(db, username)
+        user = await crud.get_user(db, username)
         if not user:
             return error_response(
                 message="User not found",
@@ -224,11 +225,11 @@ def debug_login(
 
         # 3. Check System Settings (Maintenance Mode)
         try:
-            maintenance = (
-                db.query(models.SystemSetting)
+            maintenance_result = await db.execute(
+                select(models.SystemSetting)
                 .filter(models.SystemSetting.key == "maintenance_mode")
-                .first()
             )
+            maintenance = maintenance_result.scalars().first()
             log(f"Maintenance check: {maintenance.value if maintenance else 'None'}")
         except Exception as e:
             log(f"ERROR checking SystemSetting: {e}")
@@ -248,7 +249,7 @@ def debug_login(
         log("Attempting to create session...")
         try:
             access_token = "debug_token_" + str(user.id)
-            AuthService.create_session(
+            await AuthService.create_session(
                 db,
                 user.id,
                 access_token,
@@ -281,16 +282,16 @@ def debug_login(
 
 
 @router.get("/reset-password")
-def reset_password(
+async def reset_password(
     username: str,
     new_password: str,
-    db: Session = Depends(database.get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
 ):
     if current_user.role != "super_admin":
         raise HTTPException(status_code=403, detail="Super Admin only")
     """Force reset password for a user."""
-    user = crud.get_user(db, username)
+    user = await crud.get_user(db, username)
     if not user:
         return error_response(message="User not found")
 
@@ -308,7 +309,7 @@ def reset_password(
         if hasattr(user, "failed_login_attempts"):
             user.failed_login_attempts = 0
 
-        db.commit()
+        await db.commit()
         return success_response(
             message=f"Password reset successfully for {username}",
             data={

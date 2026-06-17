@@ -376,7 +376,7 @@ export default function PatientDetails() {
                                             className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${isPediatric ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
                                             title={t('patient_details.chart.pediatric_mode')}
                                         >
-                                            <Baby size={16} className="inline-block scale-x-[-1] ml-2 rtl:ml-0 rtl:mr-2" />
+                                            <Baby size={16} className="inline-block scale-x-[-1] ms-2 rtl:ms-0 rtl:me-2" />
                                             {isPediatric ? t('patient_details.chart.child') : t('patient_details.chart.adult')}
                                         </button>
                                         <button

@@ -12,52 +12,60 @@ from .base import (
     relationship,
     datetime,
     timezone,
+    Mapped,
+    mapped_column,
 )
+from datetime import date
+from rls.schemas import Permissive, ConditionArg, Command
+from sqlalchemy import column
 
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(
-        String, index=True
-    )  # Non-unique to allow duplicates across tenants or same user
-    full_name = Column(String, nullable=True)
-    email = Column(String, unique=True, index=True)  # Email MUST be unique now
-    hashed_password = Column(String)
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    username: Mapped[str] = mapped_column(String, index=True)
+    full_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    email: Mapped[str] = mapped_column(String, unique=True, index=True)
+    hashed_password: Mapped[str] = mapped_column(String)
 
     # Enterprise Security Fields
-    failed_login_attempts = Column(Integer, default=0)
-    last_failed_login = Column(DateTime, nullable=True)
-    account_locked_until = Column(DateTime, nullable=True)
-    is_2fa_enabled = Column(Boolean, default=False)
-    otp_secret = Column(String, nullable=True)
+    failed_login_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_failed_login: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    account_locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    is_2fa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    otp_secret: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Session Security
-    active_session_id = Column(String, nullable=True)
+    active_session_id: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    role = Column(String, default="doctor")
-    permissions = Column(Text, nullable=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
-    fcm_token = Column(String, nullable=True)
+    role: Mapped[str] = mapped_column(String, default="doctor")
+    permissions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    tenant_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("tenants.id"), nullable=True)
+    fcm_token: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    # Doctor Visibility Settings (Multi-Doctor Support)
-    # ALL_ASSIGNED = see assigned patients only
-    # APPOINTMENTS_ONLY = see patients with appointments only
-    # MIXED = see both assigned and appointment patients
-    patient_visibility_mode = Column(String, default="all_assigned")
-    can_view_other_doctors_history = Column(Boolean, default=False)
+    # Doctor Visibility Settings
+    patient_visibility_mode: Mapped[str] = mapped_column(String, default="all_assigned")
+    can_view_other_doctors_history: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Compensation settings
-    commission_percent = Column(Float, default=0.0)
-    fixed_salary = Column(Float, default=0.0)
-    per_appointment_fee = Column(Float, default=0.0)
-    hire_date = Column(Date, nullable=True)
+    commission_percent: Mapped[float] = mapped_column(Float, default=0.0)
+    fixed_salary: Mapped[float] = mapped_column(Float, default=0.0)
+    per_appointment_fee: Mapped[float] = mapped_column(Float, default=0.0)
+    hire_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Status Fields
-    is_active = Column(Boolean, default=True)
-    is_deleted = Column(Boolean, default=False)
-    deleted_at = Column(DateTime, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     tenant = relationship("Tenant", back_populates="users")
     lab_orders = relationship("LabOrder", back_populates="doctor")
@@ -69,12 +77,12 @@ class User(Base):
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
 
-    id = Column(Integer, primary_key=True, index=True)
-    token = Column(String, unique=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), index=True)
-    expires_at = Column(DateTime)
-    used = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    token: Mapped[str] = mapped_column(String, unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    used: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     user = relationship("User", back_populates="password_reset_tokens")
 
@@ -82,12 +90,12 @@ class PasswordResetToken(Base):
 class LoginHistory(Base):
     __tablename__ = "login_history"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), index=True)
-    ip_address = Column(String, index=True)
-    user_agent = Column(String, nullable=True)
-    status = Column(String)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    ip_address: Mapped[str] = mapped_column(String, index=True)
+    user_agent: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     user = relationship("User")
 
@@ -95,15 +103,15 @@ class LoginHistory(Base):
 class UserSession(Base):
     __tablename__ = "user_sessions"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), index=True)
-    token_hash = Column(String, unique=True, index=True)
-    ip_address = Column(String, nullable=True)
-    user_agent = Column(String, nullable=True)
-    device_info = Column(String, nullable=True)
-    last_active_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    expires_at = Column(DateTime)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String, unique=True, index=True)
+    ip_address: Mapped[str | None] = mapped_column(String, nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String, nullable=True)
+    device_info: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_active_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     user = relationship("User", backref="sessions")

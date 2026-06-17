@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import or_, select
 from typing import List, Dict, Any
 import logging
 
@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/autocomplete")
-def ai_autocomplete(
+async def ai_autocomplete(
     q: str = Query(..., min_length=1),
     context: str = Query(None),  # e.g., 'registration', 'search'
-    db: Session = Depends(database.get_db),
+    db: AsyncSession = Depends(database.get_async_db),
     current_user: User = Depends(require_permission(Permission.AI_CHAT)),
     tenant_id: int = Depends(get_current_tenant_id),
 ) -> Dict[str, List[Dict[str, Any]]]:
@@ -31,8 +31,8 @@ def ai_autocomplete(
     # 1. Patient Fuzzy Search
     if len(q) >= 2:
         # Simple ILIKE for now, can be upgraded to Trigram/Fuzzy
-        patients = (
-            db.query(models.Patient)
+        stmt = (
+            select(models.Patient)
             .filter(
                 models.Patient.tenant_id == tenant_id,
                 or_(
@@ -41,8 +41,9 @@ def ai_autocomplete(
                 ),
             )
             .limit(5)
-            .all()
         )
+        res = await db.execute(stmt)
+        patients = res.scalars().all()
 
         for p in patients:
             results["patients"].append(

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { Plus, Trash2, DollarSign, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
 import { getExpenses, createExpense, deleteExpense, getFinancialStats } from '../api';
 import { getTodayStr } from '../utils/toothUtils';
@@ -25,7 +26,7 @@ export default function Expenses() {
             setExpenses(eRes.data);
             setStats(sRes.data);
         } catch (err) {
-            console.error(err);
+            logger.error(err);
         } finally {
             setLoading(false);
         }
@@ -47,7 +48,7 @@ export default function Expenses() {
             await deleteExpense(id);
             loadData();
         } catch (err) {
-            console.error(err);
+            logger.error(err);
         }
     };
     return (
@@ -71,21 +72,21 @@ export default function Expenses() {
                         <p className="text-slate-500 font-bold mb-1">{t('billing.stats.total_income')}</p>
                         <h3 className="text-3xl font-bold text-emerald-600">{stats.total_received.toLocaleString()}</h3>
                     </div>
-                    <TrendingUp className="absolute left-4 bottom-4 text-emerald-100" size={60} />
+                    <TrendingUp className="absolute start-4 bottom-4 text-emerald-100" size={60} />
                 </div>
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative overflow-hidden">
                     <div className="relative z-10">
                         <p className="text-slate-500 font-bold mb-1">{t('billing.stats.total_expenses')}</p>
                         <h3 className="text-3xl font-bold text-red-500">{stats.total_expenses.toLocaleString()}</h3>
                     </div>
-                    <TrendingDown className="absolute left-4 bottom-4 text-red-100" size={60} />
+                    <TrendingDown className="absolute start-4 bottom-4 text-red-100" size={60} />
                 </div>
                 <div className={`p-6 rounded-2xl shadow-sm border relative overflow-hidden ${stats.net_profit >= 0 ? 'bg-gradient-to-br from-blue-500 to-blue-600 border-blue-400 text-white' : 'bg-red-50 border-red-200 text-red-600'}`}>
                     <div className="relative z-10">
                         <p className={`font-bold mb-1 ${stats.net_profit >= 0 ? 'text-blue-100' : 'text-red-400'}`}>{t('billing.stats.net_profit')}</p>
                         <h3 className="text-3xl font-bold">{stats.net_profit.toLocaleString()}</h3>
                     </div>
-                    <DollarSign className={`absolute left-4 bottom-4 ${stats.net_profit >= 0 ? 'text-white/20' : 'text-red-200'}`} size={60} />
+                    <DollarSign className={`absolute start-4 bottom-4 ${stats.net_profit >= 0 ? 'text-white/20' : 'text-red-200'}`} size={60} />
                 </div>
             </div>
             {/* Expenses Table */}

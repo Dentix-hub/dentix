@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { api } from '@/api';
 import { Activity, Server, Clock, CheckCircle, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -29,7 +30,7 @@ export default function SystemHealth() {
             setJobs(Array.isArray(res.data) ? res.data : []);
             setLoading(false);
         } catch (error) {
-            console.error("Failed to fetch jobs", error);
+            logger.error("Failed to fetch jobs", error);
         }
     };
 
@@ -38,7 +39,7 @@ export default function SystemHealth() {
             const res = await api.get('/api/v1/admin/health/alerts');
             setHealth(res.data);
         } catch (error) {
-            console.error("Failed to fetch health", error);
+            logger.error("Failed to fetch health", error);
         }
     };
 
@@ -106,7 +107,7 @@ export default function SystemHealth() {
 
             {/* Health Score Overview */}
             <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                <div className="absolute top-0 end-0 p-4 opacity-5 pointer-events-none">
                     <Activity size={200} />
                 </div>
                 

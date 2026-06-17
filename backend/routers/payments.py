@@ -4,12 +4,12 @@ Handles billing, payments, and financial reporting.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 from typing import List
 
 from .. import schemas, crud
-from .auth import get_db
+from backend.database import get_async_db
 from backend.core.permissions import Permission, require_permission
 from backend.core.limiter import limiter
 from backend.core.response import success_response, StandardResponse
@@ -33,10 +33,10 @@ router = APIRouter(prefix="/payments", tags=["Payments"])
 )
 @limiter.limit("15/minute")
 @idempotent(expire=120)
-def create_payment(
+async def create_payment(
     request: Request,
     payment: schemas.PaymentCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
 ):
     """Record a new payment."""
@@ -46,7 +46,7 @@ def create_payment(
     doctor_id = payment.doctor_id if payment.doctor_id else current_user.id
 
     try:
-        result = service.create_payment(payment, doctor_id=doctor_id)
+        result = await service.create_payment(payment, doctor_id=doctor_id, commit=False)
         log_admin_action(
             db=db,
             admin_user=current_user,
@@ -55,6 +55,20 @@ def create_payment(
             entity_id=result.id if hasattr(result, 'id') else None,
             details=f"Payment of {payment.amount} for patient {payment.patient_id}",
         )
+        await db.commit()
+
+        # Re-fetch with patient loaded to prevent MissingGreenlet on serialization
+        from sqlalchemy import select
+        from sqlalchemy.orm import joinedload
+        from backend import models
+        stmt = (
+            select(models.Payment)
+            .where(models.Payment.id == result.id)
+            .options(joinedload(models.Payment.patient))
+        )
+        db_res = await db.execute(stmt)
+        result = db_res.scalars().first()
+
         return success_response(data=result, message="Payment recorded successfully")
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -66,23 +80,26 @@ def create_payment(
     summary="List payments",
     description="Get payments visible to the current user based on their role.",
 )
-def read_payments(
+async def read_payments(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """Get payments for current user (filtered by role)."""
     visibility = get_financial_visibility_service(
         db, current_user, current_user.tenant_id
     )
-    return success_response(data=visibility.get_visible_payments_query().offset(skip).limit(limit).all(), message="Payments retrieved successfully")
+    query = visibility.get_visible_payments_query().offset(skip).limit(limit)
+    result = await db.execute(query)
+    payments = result.scalars().all()
+    return success_response(data=payments, message="Payments retrieved successfully")
 
 
 @router.delete("/{payment_id}", response_model=StandardResponse[dict])
-def delete_payment(
+async def delete_payment(
     payment_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
 ):
     """Delete a payment record."""
@@ -94,7 +111,7 @@ def delete_payment(
         entity_id=payment_id,
         details=f"Deleted payment #{payment_id}",
     )
-    crud.delete_payment(db, payment_id, current_user.tenant_id)
+    await crud.delete_payment(db, payment_id, current_user.tenant_id)
     return success_response(
         data={"payment_id": payment_id},
         message="Payment deleted successfully",
@@ -102,20 +119,22 @@ def delete_payment(
 
 
 @router.get("/today/payments", response_model=StandardResponse[List[dict]])
-def get_today_payments_list(
-    db: Session = Depends(get_db),
+async def get_today_payments_list(
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """Get list of payments made today."""
     service = BillingService(db, current_user.tenant_id)
-    return success_response(data=service.get_today_payments_list(), message="Today's payments retrieved")
+    payments = await service.get_today_payments_list()
+    return success_response(data=payments, message="Today's payments retrieved")
 
 
 @router.get("/today/debtors", response_model=StandardResponse[List[dict]])
-def get_today_debtors_list(
-    db: Session = Depends(get_db),
+async def get_today_debtors_list(
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """Get list of patients who incurred debt today."""
     service = BillingService(db, current_user.tenant_id)
-    return success_response(data=service.get_today_debtors_list(), message="Today's debtors retrieved")
+    debtors = await service.get_today_debtors_list()
+    return success_response(data=debtors, message="Today's debtors retrieved")

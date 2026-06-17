@@ -42,14 +42,14 @@ class TestGovernanceRegression(unittest.IsolatedAsyncioTestCase):
         policy = policy_engine.get_policy("financial_record")
         self.assertEqual(policy.required_permission, Permission.FINANCIAL_WRITE)
 
-    def test_service_layer_rbac_enforcement(self):
+    async def test_service_layer_rbac_enforcement(self):
         """Regression: Verify PatientService enforces RBAC."""
         service = PatientService(db=MagicMock(), tenant_id=1)
 
         # 1. Test Create Patient
         # Doctor -> Allowed
         try:
-            service.create_patient(
+            await service.create_patient(
                 PatientCreate(name="Test", phone="123", age=30), creator_role="doctor"
             )
         except PermissionError:
@@ -60,7 +60,7 @@ class TestGovernanceRegression(unittest.IsolatedAsyncioTestCase):
 
         # Guest -> Denied
         with self.assertRaises(PermissionError):
-            service.create_patient(
+            await service.create_patient(
                 PatientCreate(name="Test", phone="123", age=30), creator_role="guest"
             )
 
@@ -88,28 +88,13 @@ class TestGovernanceRegression(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(result["success"])
             self.assertEqual(result["error_code"], "ai_disabled")
 
-    def test_update_patient_rbac(self):
+    async def test_update_patient_rbac(self):
         """Regression: Verify Update Constraints."""
         service = PatientService(db=MagicMock(), tenant_id=1)
 
-        # Receptionist trying to update notes (Sensitive) -> Should Fail?
-        # Current Policy: update_patient allowed tools -> update_patient_record
-        # PolicyRule says: allowed_fields=["phone", "age", "address", "notes"]
-        # But required_permission is PATIENT_UPDATE.
-        # Receptionist HAS PATIENT_UPDATE.
-        # Wait, does Receptionist have PATIENT_UPDATE?
-        # permissions.py: Role.RECEPTIONIST: {..., PATIENT_UPDATE, ...}
-        # So Receptionist CAN update.
-
-        # However, Policy Rule allows "notes".
-        # Ideally, we should restrict "clinical_notes" vs "admin_notes".
-        # Currently the system assumes "notes" are general.
-
-        # Let's check a role WITHOUT update, e.g. Nurse (Permissions: READ ONLY for Patient?)
-        # Role.NURSE: {PATIENT_READ, ...} NO PATIENT_UPDATE.
-
+        # Let's check a role WITHOUT update, e.g. Nurse
         with self.assertRaises(PermissionError):
-            service.update_patient(
+            await service.update_patient(
                 patient_id=1,
                 updates=PatientUpdate(name="New Name"),
                 updater_role="nurse",
@@ -122,6 +107,7 @@ class TestGovernanceRegression(unittest.IsolatedAsyncioTestCase):
 
         # Setup
         mock_db = MagicMock()
+        mock_db.commit = AsyncMock()
         mock_user = MagicMock()
         mock_user.id = 1
         mock_user.tenant_id = 1
@@ -129,7 +115,7 @@ class TestGovernanceRegression(unittest.IsolatedAsyncioTestCase):
 
         service = AIService(db=mock_db, user=mock_user)
         # Mock dependencies to reach log step
-        service._check_subscription_quota = MagicMock(return_value=None)
+        service._check_subscription_quota = AsyncMock(return_value=None)
         service._detect_confirmation = AsyncMock(return_value=None)
         service._detect_intent = MagicMock(return_value=None)
         service.executor = AsyncMock()

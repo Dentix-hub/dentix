@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getTenantSettings } from '../api';
 import { Stethoscope, MapPin, Phone } from 'lucide-react';
@@ -24,7 +25,7 @@ export default function PrintRx() {
                     clinic_phone: res.data.clinic_phone || '0000000000',
                 });
             }
-        }).catch(err => console.error("Failed to fetch rx header info", err));
+        }).catch(err => logger.error("Failed to fetch rx header info", err));
         // In a real app, you'd fetch the specific prescription by an ID
         // For now, let's look for state passed via router or fetch last one
         const data = sessionStorage.getItem('print_rx_data');
@@ -44,7 +45,7 @@ export default function PrintRx() {
         <div className="min-h-screen bg-white p-4 sm:p-10 font-['Cairo']" dir="rtl">
             <div className="max-w-2xl mx-auto border-2 border-slate-900 min-h-[90vh] flex flex-col p-8 relative overflow-hidden">
                 {/* Header Decoration */}
-                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 -mr-16 -mt-16 rounded-full"></div>
+                <div className="absolute top-0 end-0 w-32 h-32 bg-primary/5 -me-16 -mt-16 rounded-full"></div>
                 {/* Header */}
                 <div className="flex justify-between items-start border-b-2 border-slate-900 pb-6 mb-8 relative z-10">
                     <div>
@@ -75,7 +76,7 @@ export default function PrintRx() {
                     {medications.map((med, index) => (
                         <div key={index} className="border-b border-slate-100 pb-4 last:border-0">
                             <h3 className="text-xl font-bold text-slate-900 mb-2 text-left" dir="auto">{med.name}</h3>
-                            <p className="text-slate-600 mr-4 flex items-center gap-2 italic">
+                            <p className="text-slate-600 me-4 flex items-center gap-2 italic">
                                 <span>-</span>
                                 <span>{med.dose}</span>
                             </p>
@@ -84,7 +85,7 @@ export default function PrintRx() {
                 </div>
                 {/* Doctor's Notes */}
                 {prescription.notes && (
-                    <div className="mt-10 p-4 bg-yellow-50/50 rounded-lg border-r-4 border-yellow-400">
+                    <div className="mt-10 p-4 bg-yellow-50/50 rounded-lg border-e-4 border-yellow-400">
                         <h4 className="font-bold text-slate-700 mb-1 text-sm">ملاحظات إضافية:</h4>
                         <p className="text-slate-600">{prescription.notes}</p>
                     </div>

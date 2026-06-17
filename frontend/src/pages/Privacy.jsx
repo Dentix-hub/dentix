@@ -44,7 +44,7 @@ export default function Privacy() {
                         <div className="mt-4 space-y-4">
                             <div>
                                 <strong className="text-text-primary">{t('static.privacy.sections.1.clinic.title')}</strong>
-                                <ul className="list-disc list-inside mt-1 mr-4">
+                                <ul className="list-disc list-inside mt-1 me-4">
                                     {(t('static.privacy.sections.1.clinic.items', { returnObjects: true }) || []).map((item, i) => (
                                         <li key={i}>{item}</li>
                                     ))}
@@ -53,7 +53,7 @@ export default function Privacy() {
 
                             <div>
                                 <strong className="text-text-primary">{t('static.privacy.sections.1.users.title')}</strong>
-                                <ul className="list-disc list-inside mt-1 mr-4">
+                                <ul className="list-disc list-inside mt-1 me-4">
                                     {(t('static.privacy.sections.1.users.items', { returnObjects: true }) || []).map((item, i) => (
                                         <li key={i}>{item}</li>
                                     ))}
@@ -62,7 +62,7 @@ export default function Privacy() {
 
                             <div>
                                 <strong className="text-text-primary">{t('static.privacy.sections.1.patients.title')}</strong>
-                                <ul className="list-disc list-inside mt-1 mr-4">
+                                <ul className="list-disc list-inside mt-1 me-4">
                                     {(t('static.privacy.sections.1.patients.items', { returnObjects: true }) || []).map((item, i) => (
                                         <li key={i}>{item}</li>
                                     ))}

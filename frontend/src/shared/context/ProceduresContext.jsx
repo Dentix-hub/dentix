@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import logger from '@/utils/logger';
 import { getProcedures } from '@/api';
 const ProceduresContext = createContext(null);
 export function ProceduresProvider({ children }) {
@@ -18,7 +19,7 @@ export function ProceduresProvider({ children }) {
             setLastFetched(Date.now());
             return res.data || [];
         } catch (err) {
-            console.error('Failed to fetch procedures:', err);
+            logger.error('Failed to fetch procedures:', err);
             return procedures; // Return cached on error
         } finally {
             setLoading(false);

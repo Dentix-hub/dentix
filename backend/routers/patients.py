@@ -5,11 +5,12 @@ Handles patient CRUD operations.
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List
 
 from .. import models, schemas, crud
-from .auth import get_db
+from backend.database import get_async_db
 from backend.core.permissions import Permission, require_permission
 from backend.core.limiter import limiter
 from backend.utils.audit_logger import log_admin_action
@@ -29,10 +30,10 @@ router = APIRouter(prefix="/patients", tags=["Patients"])
     description="Register a new patient into the current tenant. Requires authentication.",
 )
 @limiter.limit("10/minute")
-def create_patient(
+async def create_patient(
     request: Request,
     patient: schemas.PatientCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.PATIENT_CREATE)),
 ):
     """Create a new patient (Gov-Enforced)."""
@@ -46,13 +47,14 @@ def create_patient(
         ):
             patient_data.assigned_doctor_id = current_user.id
 
+        created_patient = await patient_service.create_patient(
+            db=db,
+            patient_data=patient_data,
+            tenant_id=current_user.tenant_id,
+            creator_role=current_user.role,
+        )
         return success_response(
-            data=patient_service.create_patient(
-                db=db,
-                patient_data=patient_data,
-                tenant_id=current_user.tenant_id,
-                creator_role=current_user.role,
-            ),
+            data=created_patient,
             message="Patient created successfully"
         )
     except PermissionError as e:
@@ -67,24 +69,25 @@ def create_patient(
     summary="Search patients",
     description="Search patients by name or phone number. Results filtered by doctor visibility.",
 )
-def search_patients(
+async def search_patients(
     q: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.PATIENT_SEARCH)),
 ):
     """Search patients by name or phone (filtered by visibility)."""
     # Get visibility-filtered patients
     visibility = get_visibility_service(db, current_user, current_user.tenant_id)
-    visible_query = visibility.get_visible_patient_query()
+    visible_query = await visibility.get_visible_patient_query()
 
     # Apply search filter
-    results = (
-        visible_query.filter(
+    stmt = (
+        visible_query.where(
             models.Patient.name.ilike(f"%{q}%") | models.Patient.phone.ilike(f"%{q}%")
         )
         .limit(50)
-        .all()
     )
+    result = await db.execute(stmt)
+    results = result.scalars().all()
 
     return success_response(data=results, message="Patients retrieved successfully")
 
@@ -95,27 +98,28 @@ def search_patients(
     summary="List patients",
     description="Get all patients visible to the current user. Doctors see only their assigned patients.",
 )
-def read_patients(
+async def read_patients(
     skip: int = 0,
     limit: int = 100,
     cursor: str = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.PATIENT_READ)),
 ):
     """Get patients for current user (filtered by visibility)."""
     visibility = get_visibility_service(db, current_user, current_user.tenant_id)
-    query = visibility.get_visible_patient_query()
+    query = await visibility.get_visible_patient_query()
 
     if cursor is not None or limit != 100:
         # Use cursor pagination if explicitly requested or custom limit
         from backend.core.pagination import CursorParams, apply_cursor_pagination, build_cursor_response
         from backend.core.response import cursor_paginated_response
-        
+
         # If cursor is given or they want cursor pagination style
         cursor_params = CursorParams(cursor=cursor, limit=limit if limit != 100 else 20)
         paginated_query = apply_cursor_pagination(query, models.Patient, cursor_params, descending=True)
-        results = paginated_query.all()
-        
+        result = await db.execute(paginated_query)
+        results = result.scalars().all()
+
         items, next_cursor, has_more = build_cursor_response(results, cursor_params.limit)
         return cursor_paginated_response(
             data=items,
@@ -125,13 +129,14 @@ def read_patients(
             message="Patients retrieved successfully"
         )
     else:
-        results = (
+        stmt = (
             query
             .order_by(models.Patient.id.desc())
             .offset(skip)
             .limit(limit)
-            .all()
         )
+        result = await db.execute(stmt)
+        results = result.scalars().all()
         return success_response(data=results, message="Patients retrieved successfully")
 
 
@@ -141,18 +146,18 @@ def read_patients(
     summary="Get patient details",
     description="Get a specific patient by ID. Subject to visibility restrictions.",
 )
-def read_patient(
+async def read_patient(
     patient_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.PATIENT_READ)),
 ):
     """Get a specific patient by ID (with visibility check)."""
     # Check visibility permission
     visibility = get_visibility_service(db, current_user, current_user.tenant_id)
-    if not visibility.can_view_patient(patient_id):
+    if not await visibility.can_view_patient(patient_id):
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    db_patient = patient_service.get_patient(db, patient_id)
+    db_patient = await patient_service.get_patient(db, patient_id)
     if not db_patient or db_patient.tenant_id != current_user.tenant_id:
         raise HTTPException(status_code=404, detail="Patient not found")
     return success_response(data=db_patient, message="Patient retrieved successfully")
@@ -164,22 +169,23 @@ def read_patient(
     summary="Update patient",
     description="Update patient information. Requires PATIENT_UPDATE permission.",
 )
-def update_patient(
+async def update_patient(
     patient_id: int,
     patient: schemas.PatientUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.PATIENT_UPDATE)),
 ):
     """Update a patient's information (Gov-Enforced)."""
     try:
+        updated_patient = await patient_service.update_patient(
+            db=db,
+            patient_id=patient_id,
+            updates=patient,
+            tenant_id=current_user.tenant_id,
+            updater_role=current_user.role,
+        )
         return success_response(
-            data=patient_service.update_patient(
-                db=db,
-                patient_id=patient_id,
-                updates=patient,
-                tenant_id=current_user.tenant_id,
-                updater_role=current_user.role,
-            ),
+            data=updated_patient,
             message="Patient updated successfully"
         )
     except PermissionError as e:
@@ -195,21 +201,21 @@ def update_patient(
     summary="Soft-delete patient",
     description="Soft-delete a patient record. Data is preserved but marked as deleted.",
 )
-def delete_patient(
+async def delete_patient(
     patient_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.PATIENT_DELETE)),
 ):
     """Delete a patient."""
     # 1. Get Patient for logging (before delete)
-    patient = crud.get_patient(db, patient_id, current_user.tenant_id)
+    patient = await crud.get_patient(db, patient_id, current_user.tenant_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 
     patient_name = patient.name
 
     # 2. Delete
-    result = crud.delete_patient(db, patient_id, tenant_id=current_user.tenant_id)
+    result = await crud.delete_patient(db, patient_id, tenant_id=current_user.tenant_id)
 
     # 3. Log Action
     log_admin_action(
@@ -230,9 +236,9 @@ def delete_patient(
     summary="Hard-delete patient",
     description="Permanently delete a patient and ALL related data. Irreversible. Requires SYSTEM_CONFIG permission.",
 )
-def delete_patient_permanently(
+async def delete_patient_permanently(
     patient_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
@@ -241,14 +247,15 @@ def delete_patient_permanently(
     """
     # 1. Get Patient for logging (before delete)
     # We use a custom query because get_patient might filter out soft-deleted ones
-    patient = (
-        db.query(models.Patient)
-        .filter(
+    stmt = (
+        select(models.Patient)
+        .where(
             models.Patient.id == patient_id,
             models.Patient.tenant_id == current_user.tenant_id,
         )
-        .first()
     )
+    result = await db.execute(stmt)
+    patient = result.scalars().first()
 
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -256,7 +263,7 @@ def delete_patient_permanently(
     patient_name = patient.name
 
     # 2. Delete
-    result = crud.delete_patient_permanently(
+    res = await crud.delete_patient_permanently(
         db, patient_id, tenant_id=current_user.tenant_id
     )
 
@@ -270,70 +277,75 @@ def delete_patient_permanently(
         details=f"PERMANENTLY deleted user {patient_name} and all data",
     )
 
-    return success_response(data=result, message="Patient hard-deleted successfully")
+    return success_response(data=res, message="Patient hard-deleted successfully")
 
 
 # --- Patient Sub-Resources ---
 @router.get("/{patient_id}/tooth_status", response_model=StandardResponse[List[schemas.ToothStatus]])
-def get_patient_tooth_status(
+async def get_patient_tooth_status(
     patient_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.CLINICAL_READ)),
 ):
     """Get dental chart for a patient."""
-    patient = crud.get_patient(db, patient_id, current_user.tenant_id)
+    patient = await crud.get_patient(db, patient_id, current_user.tenant_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    return success_response(data=crud.get_tooth_status(db, patient_id, current_user.tenant_id), message="Tooth status retrieved")
+    data = await crud.get_tooth_status(db, patient_id, current_user.tenant_id)
+    return success_response(data=data, message="Tooth status retrieved")
 
 
 @router.get("/{patient_id}/treatments", response_model=StandardResponse[List[schemas.Treatment]])
-def get_patient_treatments(
+async def get_patient_treatments(
     patient_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.CLINICAL_READ)),
 ):
     """Get all treatments for a patient."""
-    patient = crud.get_patient(db, patient_id, current_user.tenant_id)
+    patient = await crud.get_patient(db, patient_id, current_user.tenant_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    return success_response(data=crud.get_treatments(db, patient_id, current_user.tenant_id), message="Treatments retrieved")
+    data = await crud.get_treatments(db, patient_id, current_user.tenant_id)
+    return success_response(data=data, message="Treatments retrieved")
 
 
 @router.get("/{patient_id}/payments", response_model=StandardResponse[List[schemas.Payment]])
-def get_patient_payments(
+async def get_patient_payments(
     patient_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """Get all payments for a patient."""
-    patient = crud.get_patient(db, patient_id, current_user.tenant_id)
+    patient = await crud.get_patient(db, patient_id, current_user.tenant_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    return success_response(data=crud.get_payments(db, patient_id, current_user.tenant_id), message="Payments retrieved")
+    data = await crud.get_payments(db, patient_id, current_user.tenant_id)
+    return success_response(data=data, message="Payments retrieved")
 
 
 @router.get("/{patient_id}/attachments", response_model=StandardResponse[List[schemas.Attachment]])
-def get_patient_attachments(
+async def get_patient_attachments(
     patient_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.PATIENT_READ)),
 ):
     """Get all attachments for a patient."""
-    patient = crud.get_patient(db, patient_id, current_user.tenant_id)
+    patient = await crud.get_patient(db, patient_id, current_user.tenant_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    return success_response(data=crud.get_patient_attachments(db, patient_id, current_user.tenant_id), message="Attachments retrieved")
+    data = await crud.get_patient_attachments(db, patient_id, current_user.tenant_id)
+    return success_response(data=data, message="Attachments retrieved")
 
 
 @router.get("/{patient_id}/prescriptions", response_model=StandardResponse[List[schemas.Prescription]])
-def get_patient_prescriptions(
+async def get_patient_prescriptions(
     patient_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.CLINICAL_READ)),
 ):
     """Get all prescriptions for a patient."""
-    patient = crud.get_patient(db, patient_id, current_user.tenant_id)
+    patient = await crud.get_patient(db, patient_id, current_user.tenant_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
-    return success_response(data=crud.get_prescriptions(db, patient_id, current_user.tenant_id), message="Prescriptions retrieved")
+    data = await crud.get_prescriptions(db, patient_id, current_user.tenant_id)
+    return success_response(data=data, message="Prescriptions retrieved")

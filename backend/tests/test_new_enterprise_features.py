@@ -1,148 +1,110 @@
-import sys
-import os
-
-# Setup paths
-sys.path.append(os.getcwd())
-
+import pytest
+from sqlalchemy import select
 from backend.models import User, FeatureFlag, TenantFeature, Tenant
 from backend.services.security_service import SecurityService
 from backend.services.feature_service import FeatureFlagService
 from backend import schemas
+from backend.database import Base
 
 
-def test_security_service(db_session):
-    print("\n>>> Testing SecurityService...")
-    # db fixture is passed in
-    try:
-        # 1. Test Block IP
-        test_ip = "192.168.1.999"
-        print(f"Blocking IP {test_ip}...")
-        try:
-            SecurityService.block_ip(db_session, test_ip, "Test Block", "admin", minutes=1)
-            print(" - Blocked IP successfully.")
-        except Exception as e:
-            print(f" - Failed to block IP (might already exist): {e}")
-
-        # Verify Block
-        blocked = SecurityService.check_ip_blocked(db_session, test_ip)
-        if blocked:
-            print(" - check_ip_blocked: PASS (IP is blocked)")
-        else:
-            print(" - check_ip_blocked: FAIL (IP not found)")
-
-        # Unblock
-        print("Unblocking IP...")
-        SecurityService.unblock_ip(db_session, test_ip)
-        blocked = SecurityService.check_ip_blocked(db_session, test_ip)
-        if not blocked:
-            print(" - unblock_ip: PASS")
-        else:
-            print(" - unblock_ip: FAIL")
-
-        # 2. Test Login Attempts
-        print("Testing Login Attempts...")
-        # Clean up previous run artifacts
-        existing_user = db_session.query(User).filter_by(username="security_test_user").first()
-        if existing_user:
-            db_session.delete(existing_user)
-            db_session.commit()
-
-        # Create a temp user
-        temp_user = User(username="security_test_user", hashed_password="pw")
-        db_session.add(temp_user)
-        db_session.commit()
-
-        # Fail 5 times
-        for i in range(5):
-            SecurityService.record_login_attempt(
-                db_session, "127.0.0.1", temp_user.username, False, temp_user
-            )
-
-        db_session.refresh(temp_user)
-        print(f"Failed attempts: {temp_user.failed_login_attempts}")
-
-        if SecurityService.is_account_locked(temp_user):
-            print(" - Account Locking: PASS (User is locked)")
-        else:
-            print(" - Account Locking: FAIL (User should be locked)")
-
-        # Cleanup
-        db_session.delete(temp_user)
-        db_session.commit()
-
-    finally:
-        pass  # Fixture handles closing
+@pytest.fixture(autouse=True)
+async def setup_tables(async_engine_fixture):
+    async with async_engine_fixture.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
 
-def test_feature_flags(db_session):
-    print("\n>>> Testing FeatureFlags...")
-    # db fixture passed in
-    try:
-        # 1. Create Flag
-        key = "test_feature_ai"
-        print(f"Creating flag '{key}'...")
+@pytest.mark.anyio
+async def test_security_service(async_db_session):
+    # 1. Test Block IP
+    test_ip = "192.168.1.99"
+    await SecurityService.block_ip(async_db_session, test_ip, "Test Block", "admin", minutes=1)
+    
+    blocked = await SecurityService.check_ip_blocked(async_db_session, test_ip)
+    assert blocked is not None
+    
+    await SecurityService.unblock_ip(async_db_session, test_ip)
+    blocked = await SecurityService.check_ip_blocked(async_db_session, test_ip)
+    assert blocked is None
 
-        # Cleanup first
-        existing = db_session.query(FeatureFlag).filter_by(key=key).first()
-        if existing:
-            db_session.delete(existing)
-            db_session.commit()
+    # 2. Test Lockout
+    existing_user_stmt = select(User).where(User.username == "security_test_user")
+    existing_user = (await async_db_session.execute(existing_user_stmt)).scalar_one_or_none()
+    if existing_user:
+        await async_db_session.delete(existing_user)
+        await async_db_session.commit()
 
-        flag_data = schemas.FeatureFlagCreate(
-            key=key,
-            description="Test AI",
-            is_global_enabled=False,
-            rollout_percentage=0,
+    temp_user = User(
+        username="security_test_user", 
+        email="sectest@example.com", 
+        hashed_password="pw"
+    )
+    async_db_session.add(temp_user)
+    await async_db_session.commit()
+
+    for i in range(5):
+        await SecurityService.record_login_attempt(
+            async_db_session, "127.0.0.1", temp_user.username, False, temp_user
         )
-        FeatureFlagService.create_flag(db_session, flag_data)
 
-        # Check Default (Should be False)
-        if not FeatureFlagService.is_feature_enabled(db_session, key):
-            print(" - Default Disabled: PASS")
-        else:
-            print(" - Default Disabled: FAIL")
+    await async_db_session.refresh(temp_user)
+    assert temp_user.failed_login_attempts == 5
+    assert SecurityService.is_account_locked(temp_user) is True
 
-        # 2. Enable Global
-        print("Enabling globally...")
-        FeatureFlagService.update_flag(db_session, key, {"is_global_enabled": True})
-        if FeatureFlagService.is_feature_enabled(db_session, key):
-            print(" - Global Enable: PASS")
-        else:
-            print(" - Global Enable: FAIL")
-
-        # 3. Test Tenant Override
-        print("Testing Tenant Override (Disable for tenant 999)...")
-        # We don't need real tenant table for logic check if FK constraints don't block us?
-        # FK constraints might block us if tenant_id 999 doesn't exist.
-        # Let's check logic implies we insert into TenantFeature.
-        # We need a valid tenant ID.
-        tenant = db_session.query(Tenant).first()
-        if tenant:
-            t_id = tenant.id
-            FeatureFlagService.set_tenant_override(db_session, t_id, key, False)
-
-            is_enabled = FeatureFlagService.is_feature_enabled(db_session, key, t_id)
-            if not is_enabled:
-                print(f" - Tenant Override (Disable): PASS for tenant {t_id}")
-            else:
-                print(f" - Tenant Override (Disable): FAIL for tenant {t_id}")
-
-            # Clean override
-            db_session.query(TenantFeature).filter_by(tenant_id=t_id, feature_key=key).delete()
-            db_session.commit()
-        else:
-            print(" - SKIP: No tenants found to test overrides.")
-
-        # Cleanup Flag
-        db_session.query(FeatureFlag).filter_by(key=key).delete()
-        db_session.commit()
-
-    except Exception as e:
-        print(f"ERROR: {e}")
-    finally:
-        pass
+    # Cleanup
+    await async_db_session.delete(temp_user)
+    await async_db_session.commit()
 
 
-if __name__ == "__main__":
-    test_security_service()
-    test_feature_flags()
+@pytest.mark.anyio
+async def test_feature_flags(async_db_session):
+    key = "test_feature_ai"
+
+    # Cleanup first
+    existing_stmt = select(FeatureFlag).where(FeatureFlag.key == key)
+    existing = (await async_db_session.execute(existing_stmt)).scalar_one_or_none()
+    if existing:
+        await async_db_session.delete(existing)
+        await async_db_session.commit()
+
+    flag_data = schemas.FeatureFlagCreate(
+        key=key,
+        description="Test AI",
+        is_global_enabled=False,
+        rollout_percentage=0,
+    )
+    await FeatureFlagService.create_flag(async_db_session, flag_data)
+
+    # Check Default (Should be False)
+    is_enabled = await FeatureFlagService.is_feature_enabled(async_db_session, key)
+    assert is_enabled is False
+
+    # Enable Global
+    await FeatureFlagService.update_flag(async_db_session, key, {"is_global_enabled": True})
+    is_enabled = await FeatureFlagService.is_feature_enabled(async_db_session, key)
+    assert is_enabled is True
+
+    # Test Tenant Override
+    tenant_stmt = select(Tenant)
+    tenant = (await async_db_session.execute(tenant_stmt)).scalars().first()
+    if tenant:
+        t_id = tenant.id
+        await FeatureFlagService.set_tenant_override(async_db_session, t_id, key, False)
+        is_enabled = await FeatureFlagService.is_feature_enabled(async_db_session, key, t_id)
+        assert is_enabled is False
+
+        # Clean override
+        delete_override_stmt = select(TenantFeature).where(
+            TenantFeature.tenant_id == t_id,
+            TenantFeature.feature_key == key
+        )
+        override = (await async_db_session.execute(delete_override_stmt)).scalar_one_or_none()
+        if override:
+            await async_db_session.delete(override)
+            await async_db_session.commit()
+
+    # Cleanup flag
+    flag_stmt = select(FeatureFlag).where(FeatureFlag.key == key)
+    flag = (await async_db_session.execute(flag_stmt)).scalar_one_or_none()
+    if flag:
+        await async_db_session.delete(flag)
+        await async_db_session.commit()

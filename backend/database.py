@@ -8,9 +8,9 @@ principles.
 
 import os
 import logging
-from sqlalchemy import create_engine
+import re
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import declarative_base
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
@@ -56,15 +56,20 @@ if ":6543" in SQLALCHEMY_DATABASE_URL and "?" not in SQLALCHEMY_DATABASE_URL:
 
 # Async URL configuration
 ASYNC_DATABASE_URL = SQLALCHEMY_DATABASE_URL
+
+# Extract ssl mode BEFORE URL conversion
+_ssl_match = re.search(r'sslmode=(\w+)', ASYNC_DATABASE_URL)
+_ssl_mode = _ssl_match.group(1) if _ssl_match else None
+
+# Strip sslmode from DSN entirely — asyncpg uses connect_args not URL params
+if _ssl_mode:
+    ASYNC_DATABASE_URL = re.sub(r'[?&]sslmode=\w+', '', ASYNC_DATABASE_URL)
+    ASYNC_DATABASE_URL = re.sub(r'\?$', '', ASYNC_DATABASE_URL)
+
 if ASYNC_DATABASE_URL.startswith("postgresql"):
     ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace(
         "postgresql://", "postgresql+asyncpg://", 1
     )
-    # asyncpg doesn't support 'sslmode', but supports 'ssl=require'
-    if "sslmode=" in ASYNC_DATABASE_URL:
-        ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace("sslmode=require", "ssl=require")
-        ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace("sslmode=disable", "ssl=disable")
-        ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace("sslmode=prefer", "ssl=prefer")
 elif ASYNC_DATABASE_URL.startswith("sqlite"):
     ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace(
         "sqlite://", "sqlite+aiosqlite://", 1
@@ -116,44 +121,94 @@ if "sqlite" not in SQLALCHEMY_DATABASE_URL:
 # it causes spurious reconnects that trip the circuit breaker.
 _pre_ping = not is_supabase_pooler
 
-sync_engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    pool_pre_ping=_pre_ping,
-    connect_args=connect_args,
-    **sync_pool_args,
-)
+from pydantic import BaseModel
+from rls.register_rls import register_rls
+from rls.rls_session import AsyncRlsSession
+from backend.core.tenancy import get_current_tenant_id, is_super_admin_bypass
+
+class RlsContext(BaseModel):
+    tenant_id: int | None
+
+# Configure extra connection arguments for asyncpg/sqlite
+connect_args_async = {}
+if "postgresql" in ASYNC_DATABASE_URL:
+    connect_args_async["statement_cache_size"] = 0
+    # asyncpg expects ssl=True/False (bool), or an ssl.SSLContext object
+    if _ssl_mode in ("require", "prefer", "allow"):
+        import ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        connect_args_async["ssl"] = ctx
+    elif _ssl_mode == "disable":
+        connect_args_async["ssl"] = False
+    elif _ssl_mode in ("verify-ca", "verify-full"):
+        connect_args_async["ssl"] = True
+elif "sqlite" in ASYNC_DATABASE_URL:
+    connect_args_async["check_same_thread"] = False
 
 async_engine = create_async_engine(
-    ASYNC_DATABASE_URL, pool_pre_ping=_pre_ping, echo=False, **async_pool_args
+    ASYNC_DATABASE_URL, pool_pre_ping=_pre_ping, echo=False, connect_args=connect_args_async, **async_pool_args
 )
 
+# Strip timezone info from datetimes before sending to database
+from sqlalchemy import event
+import datetime
+
+@event.listens_for(async_engine.sync_engine, "before_cursor_execute", retval=True)
+def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    if parameters:
+        if isinstance(parameters, dict):
+            for key, val in parameters.items():
+                if isinstance(val, datetime.datetime) and val.tzinfo is not None:
+                    parameters[key] = val.replace(tzinfo=None)
+        elif isinstance(parameters, list):
+            for i, val in enumerate(parameters):
+                if isinstance(val, datetime.datetime) and val.tzinfo is not None:
+                    parameters[i] = val.replace(tzinfo=None)
+        elif isinstance(parameters, tuple):
+            new_params = []
+            for val in parameters:
+                if isinstance(val, datetime.datetime) and val.tzinfo is not None:
+                    new_params.append(val.replace(tzinfo=None))
+                else:
+                    new_params.append(val)
+            parameters = tuple(new_params)
+    return statement, parameters
+
+class CustomAsyncRlsSession(AsyncRlsSession):
+    async def _execute_set_statements(self):
+        bind = self.bind
+        if bind and bind.dialect.name != "postgresql":
+            self._rls_dirty = False
+            return
+        await super()._execute_set_statements()
+
 # Create session makers
-SyncSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)
 AsyncSessionLocal = async_sessionmaker(
-    bind=async_engine, class_=AsyncSession, expire_on_commit=False, autoflush=False
+    bind=async_engine, class_=CustomAsyncRlsSession, expire_on_commit=False, autoflush=False
 )
 
 # Base for models
 Base = declarative_base()
-
-# Backward-compatible aliases (deprecated, use SyncSessionLocal)
-SessionLocal = SyncSessionLocal
-engine = sync_engine
-
-
-# --- DEPENDENCIES ---
-def get_db():
-    """Dependency for synchronous database sessions."""
-    db = SyncSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+if "postgresql" in ASYNC_DATABASE_URL:
+    register_rls(Base)
 
 
 async def get_async_db():
     """Dependency for asynchronous database sessions."""
-    async with AsyncSessionLocal() as session:
-        yield session
+    tenant_id = get_current_tenant_id()
+    context = RlsContext(tenant_id=tenant_id)
+    async with AsyncSessionLocal(context=context) as session:
+        if is_super_admin_bypass():
+            async with session.bypass_rls() as bypassed_session:
+                yield bypassed_session
+        else:
+            yield session
 
 # Register SQLAlchemy event listeners
+
+
+# Sync engine alias for dev/staging startup operations only
+# (metadata.create_all, drop_all, Alembic). Production path never uses this.
+engine = async_engine.sync_engine

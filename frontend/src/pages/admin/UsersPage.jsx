@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import logger from '@/utils/logger';
 import { api } from '@/api';
 import UsersManager from '@/features/admin/SuperAdmin/UsersManager';
 import { Users } from 'lucide-react';
@@ -24,11 +25,11 @@ export default function UsersPage() {
                 // Handle case where API returns { users: [...] }
                 setGlobalUsers(res.data.users);
             } else {
-                console.error("Unexpected API response format:", res.data);
+                logger.error("Unexpected API response format:", res.data);
                 setGlobalUsers([]);
             }
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             toast.error("فشل البحث");
         } finally {
             setUsersLoading(false);
@@ -46,7 +47,7 @@ export default function UsersPage() {
             ));
             toast.success(`تم ${action} المستخدم بنجاح`);
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             toast.error("فشل تغيير حالة المستخدم");
         }
     };

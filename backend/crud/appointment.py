@@ -1,16 +1,20 @@
-from sqlalchemy.orm import Session, joinedload
+import asyncio
+from sqlalchemy.orm import joinedload
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from backend import models, schemas
 from backend.services.cache_service import invalidate_dashboard_cache
+from backend.crud.billing import precompute_dashboard_cache
 from backend.services.event_service import event_service
 
 
-def get_appointments(
-    db: Session, tenant_id: int, skip: int = 0, limit: int = 100, doctor_id: int = None, return_query: bool = False
+async def get_appointments(
+    db: AsyncSession, tenant_id: int, skip: int = 0, limit: int = 100, doctor_id: int = None, return_query: bool = False
 ):
-    query = (
-        db.query(models.Appointment)
+    stmt = (
+        select(models.Appointment)
         .join(models.Patient)
-        .filter(
+        .where(
             models.Patient.tenant_id == tenant_id,
             models.Patient.is_deleted == False,  # noqa: E712
             models.Appointment.is_deleted == False,  # noqa: E712
@@ -18,47 +22,61 @@ def get_appointments(
     )
 
     if doctor_id:
-        query = query.filter(models.Appointment.doctor_id == doctor_id)
+        stmt = stmt.where(models.Appointment.doctor_id == doctor_id)
 
-    query = query.options(joinedload(models.Appointment.patient))
-    
+    stmt = stmt.options(joinedload(models.Appointment.patient))
+
     if return_query:
-        return query
+        return stmt
 
-    return (
-        query.order_by(models.Appointment.date_time.desc())
+    stmt = (
+        stmt.order_by(models.Appointment.date_time.desc())
         .offset(skip)
         .limit(limit)
-        .all()
     )
+    result = await db.execute(stmt)
+    return result.scalars().all()
 
 
-def create_appointment(db: Session, appointment: schemas.AppointmentCreate):
+async def create_appointment(
+    db: AsyncSession,
+    appointment: schemas.AppointmentCreate,
+    tenant_id: int,
+):
     # Double Booking Prevention
     if appointment.doctor_id:
         # Check if doctor has an appointment at the exact same time
-        existing = (
-            db.query(models.Appointment)
-            .filter(
+        stmt = (
+            select(models.Appointment)
+            .where(
                 models.Appointment.doctor_id == appointment.doctor_id,
                 models.Appointment.date_time == appointment.date_time,
                 models.Appointment.is_deleted == False,  # noqa: E712
                 models.Appointment.status != "Cancelled",
             )
-            .first()
         )
+        result = await db.execute(stmt)
+        existing = result.scalars().first()
 
         if existing:
             raise ValueError("Doctor is already booked at this time.")
 
-    db_appointment = models.Appointment(**appointment.model_dump())
+    data = appointment.model_dump()
+    data["tenant_id"] = tenant_id
+    db_appointment = models.Appointment(**data)
     db.add(db_appointment)
-    db.commit()
-    db.refresh(db_appointment)
+    await db.commit()
+    await db.refresh(db_appointment)
+
     # Fetch tenant_id from patient for cache invalidation
-    patient = db.query(models.Patient).filter(models.Patient.id == db_appointment.patient_id).first()
+    stmt_patient = select(models.Patient).where(models.Patient.id == db_appointment.patient_id)
+    result_patient = await db.execute(stmt_patient)
+    patient = result_patient.scalars().first()
     if patient:
         invalidate_dashboard_cache(patient.tenant_id)
+        asyncio.create_task(
+            precompute_dashboard_cache(tenant_id=patient.tenant_id, db=db)
+        )
         event_service.emit_event(
             db,
             event_type="appointment.created",
@@ -71,68 +89,81 @@ def create_appointment(db: Session, appointment: schemas.AppointmentCreate):
             },
             tenant_id=patient.tenant_id,
         )
-        db.commit()
+        await db.commit()
     return db_appointment
 
 
-def update_appointment_status(
-    db: Session, appointment_id: int, status: str, tenant_id: int
+async def update_appointment_status(
+    db: AsyncSession, appointment_id: int, status: str, tenant_id: int
 ):
-    db_appt = (
-        db.query(models.Appointment)
+    stmt = (
+        select(models.Appointment)
         .join(models.Patient)
-        .filter(
+        .where(
             models.Appointment.id == appointment_id,
             models.Appointment.is_deleted == False,  # noqa: E712
         )
-        .first()
+        .options(joinedload(models.Appointment.patient))
     )
+    result = await db.execute(stmt)
+    db_appt = result.scalars().first()
     if not db_appt or not db_appt.patient or db_appt.patient.tenant_id != tenant_id:
         return None
 
     db_appt.status = status
-    db.commit()
-    db.refresh(db_appt)
+    await db.commit()
+    await db.refresh(db_appt)
     invalidate_dashboard_cache(tenant_id)
+    asyncio.create_task(
+        precompute_dashboard_cache(tenant_id=tenant_id, db=db)
+    )
     return db_appt
 
 
-def delete_appointment(db: Session, appointment_id: int, tenant_id: int):
+async def delete_appointment(db: AsyncSession, appointment_id: int, tenant_id: int):
     """Soft Delete Appointment."""
     from datetime import datetime, timezone
 
-    db_appt = (
-        db.query(models.Appointment)
+    stmt = (
+        select(models.Appointment)
         .join(models.Patient)
-        .filter(
+        .where(
             models.Appointment.id == appointment_id,
             models.Appointment.is_deleted == False,  # noqa: E712
         )
-        .first()
+        .options(joinedload(models.Appointment.patient))
     )
+    result = await db.execute(stmt)
+    db_appt = result.scalars().first()
     if not db_appt or not db_appt.patient or db_appt.patient.tenant_id != tenant_id:
         return None
 
     db_appt.is_deleted = True
     db_appt.deleted_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(db_appt)
+    await db.commit()
+    await db.refresh(db_appt)
     invalidate_dashboard_cache(tenant_id)
+    asyncio.create_task(
+        precompute_dashboard_cache(tenant_id=tenant_id, db=db)
+    )
     return db_appt
 
-def update_appointment(
-    db: Session, appointment_id: int, appointment: schemas.AppointmentUpdate, tenant_id: int
+
+async def update_appointment(
+    db: AsyncSession, appointment_id: int, appointment: schemas.AppointmentUpdate, tenant_id: int
 ):
     """Update appointment details."""
-    db_appt = (
-        db.query(models.Appointment)
+    stmt = (
+        select(models.Appointment)
         .join(models.Patient)
-        .filter(
+        .where(
             models.Appointment.id == appointment_id,
             models.Appointment.is_deleted == False,  # noqa: E712
         )
-        .first()
+        .options(joinedload(models.Appointment.patient))
     )
+    result = await db.execute(stmt)
+    db_appt = result.scalars().first()
 
     if not db_appt or not db_appt.patient or db_appt.patient.tenant_id != tenant_id:
         return None
@@ -142,10 +173,13 @@ def update_appointment(
         setattr(db_appt, key, value)
 
     try:
-        db.commit()
-        db.refresh(db_appt)
+        await db.commit()
+        await db.refresh(db_appt)
         invalidate_dashboard_cache(tenant_id)
+        asyncio.create_task(
+            precompute_dashboard_cache(tenant_id=tenant_id, db=db)
+        )
         return db_appt
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise e

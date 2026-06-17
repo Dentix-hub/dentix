@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from backend import models, schemas
-from backend.database import get_db
+from backend.database import get_async_db
 from backend.services.feature_service import FeatureFlagService
 from backend.core.permissions import Role
 from backend.core.permissions import Permission, require_permission
@@ -28,37 +28,37 @@ def get_super_admin(current_user: models.User = Depends(require_permission(Permi
 
 
 @router.get("", response_model=List[schemas.FeatureFlag])
-def get_all_flags(
-    db: Session = Depends(get_db), current_user: models.User = Depends(get_super_admin)
+async def get_all_flags(
+    db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(get_super_admin)
 ):
-    return FeatureFlagService.get_all_flags(db)
+    return await FeatureFlagService.get_all_flags(db)
 
 
 @router.post("", response_model=schemas.FeatureFlag)
-def create_flag(
+async def create_flag(
     flag: schemas.FeatureFlagCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(get_super_admin),
 ):
-    return FeatureFlagService.create_flag(db, flag)
+    return await FeatureFlagService.create_flag(db, flag)
 
 
 @router.post("/override", response_model=schemas.TenantFeature)
-def set_tenant_override(
+async def set_tenant_override(
     override: schemas.TenantFeatureOverride,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(get_super_admin),
 ):
-    return FeatureFlagService.set_tenant_override(
+    return await FeatureFlagService.set_tenant_override(
         db, override.tenant_id, override.feature_key, override.is_enabled
     )
 
 
 @router.put("/{key}", response_model=schemas.FeatureFlag)
-def update_flag(
+async def update_flag(
     key: str,
     update_data: dict,  # Using dict for flexibility or a specific UpdateSchema
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(get_super_admin),
 ):
-    return FeatureFlagService.update_flag(db, key, update_data)
+    return await FeatureFlagService.update_flag(db, key, update_data)

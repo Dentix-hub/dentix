@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { 
     Cpu, Activity, DollarSign, Users, ShieldCheck, 
     BarChart3, Clock, AlertCircle, Sparkles, Filter, 
@@ -8,8 +9,8 @@ import { useTranslation } from 'react-i18next';
 import { api } from '@/api';
 import { 
     LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area
-} from 'recharts';
+    BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area, LazyChart
+} from '@/components/charts/LazyChart';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 
 export default function AIAdminDashboard() {
@@ -31,7 +32,7 @@ export default function AIAdminDashboard() {
                 setStats(statsRes.data);
                 setLogs(logsRes.data);
             } catch (error) {
-                console.error("AI Analytics error:", error);
+                logger.error("AI Analytics error:", error);
             } finally {
                 setLoading(false);
             }
@@ -45,8 +46,8 @@ export default function AIAdminDashboard() {
         <div className="space-y-8 animate-in fade-in duration-700">
             {/* Header with Glassmorphism */}
             <div className="relative p-8 rounded-[2.5rem] bg-indigo-600 overflow-hidden shadow-2xl shadow-indigo-500/20">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-400 rounded-full blur-[100px] opacity-20 -mr-20 -mt-20" />
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-900 rounded-full blur-[80px] opacity-30 -ml-20 -mb-20" />
+                <div className="absolute top-0 end-0 w-96 h-96 bg-indigo-400 rounded-full blur-[100px] opacity-20 -me-20 -mt-20" />
+                <div className="absolute bottom-0 start-0 w-64 h-64 bg-indigo-900 rounded-full blur-[80px] opacity-30 -ms-20 -mb-20" />
                 
                 <div className={`relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6 ${isRtl ? 'md:flex-row-reverse' : ''}`}>
                     <div className={isRtl ? 'text-right' : 'text-left'}>
@@ -92,7 +93,7 @@ export default function AIAdminDashboard() {
                 ].map((m, i) => (
                     <div key={i} className="group p-6 rounded-[2rem] bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
                         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform ${
-                            isRtl ? 'mr-auto' : 'ml-auto'
+                            isRtl ? 'me-auto' : 'ms-auto'
                         } ${
                             m.color === 'blue' ? 'bg-blue-50 text-blue-500 dark:bg-blue-500/10' :
                             m.color === 'emerald' ? 'bg-emerald-50 text-emerald-500 dark:bg-emerald-500/10' :
@@ -122,18 +123,20 @@ export default function AIAdminDashboard() {
                     </div>
                     
                     <div className="h-80 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={stats?.tool_usage || []}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 10, fontWeight: 700}} />
-                                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 10, fontWeight: 700}} />
-                                <Tooltip 
-                                    cursor={{fill: '#F8FAFC'}}
-                                    contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', direction: isRtl ? 'rtl' : 'ltr'}}
-                                />
-                                <Bar dataKey="value" fill="#6366F1" radius={[8, 8, 0, 0]} barSize={40} />
-                            </BarChart>
-                        </ResponsiveContainer>
+                        <LazyChart>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={stats?.tool_usage || []}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 10, fontWeight: 700}} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 10, fontWeight: 700}} />
+                                    <Tooltip 
+                                        cursor={{fill: '#F8FAFC'}}
+                                        contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', direction: isRtl ? 'rtl' : 'ltr'}}
+                                    />
+                                    <Bar dataKey="value" fill="#6366F1" radius={[8, 8, 0, 0]} barSize={40} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </LazyChart>
                     </div>
                 </div>
 
@@ -148,29 +151,31 @@ export default function AIAdminDashboard() {
                     </div>
                     
                     <div className="h-80 w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={stats?.usage_trends || []}>
-                                <defs>
-                                    <linearGradient id="usageGradient" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
-                                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" opacity={0.5} />
-                                <XAxis 
-                                    dataKey="date" 
-                                    axisLine={false} 
-                                    tickLine={false} 
-                                    tick={{fill: '#94A3B8', fontSize: 10, fontWeight: 700}}
-                                    tickFormatter={(val) => new Date(val).toLocaleDateString(isRtl ? 'ar-EG' : 'en-US', {day: 'numeric', month: 'short'})}
-                                />
-                                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 10, fontWeight: 700}} />
-                                <Tooltip 
-                                    contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
-                                />
-                                <Area type="monotone" dataKey="count" stroke="#10b981" strokeWidth={4} fillOpacity={1} fill="url(#usageGradient)" />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                        <LazyChart>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={stats?.usage_trends || []}>
+                                    <defs>
+                                        <linearGradient id="usageGradient" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" opacity={0.5} />
+                                    <XAxis 
+                                        dataKey="date" 
+                                        axisLine={false} 
+                                        tickLine={false} 
+                                        tick={{fill: '#94A3B8', fontSize: 10, fontWeight: 700}}
+                                        tickFormatter={(val) => new Date(val).toLocaleDateString(isRtl ? 'ar-EG' : 'en-US', {day: 'numeric', month: 'short'})}
+                                    />
+                                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#94A3B8', fontSize: 10, fontWeight: 700}} />
+                                    <Tooltip 
+                                        contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                                    />
+                                    <Area type="monotone" dataKey="count" stroke="#10b981" strokeWidth={4} fillOpacity={1} fill="url(#usageGradient)" />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        </LazyChart>
                     </div>
                 </div>
             </div>
@@ -224,16 +229,16 @@ export default function AIAdminDashboard() {
                         <table className={`w-full ${isRtl ? 'text-right' : 'text-left'}`} dir={isRtl ? 'rtl' : 'ltr'}>
                             <thead>
                                 <tr className="text-slate-400 text-xs font-bold uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
-                                    <th className="pb-4 pr-4">{t('super_admin.ai.logs.user')}</th>
+                                    <th className="pb-4 pe-4">{t('super_admin.ai.logs.user')}</th>
                                     <th className="pb-4">{t('super_admin.ai.logs.tool')}</th>
                                     <th className="pb-4">{t('super_admin.ai.logs.status')}</th>
-                                    <th className={`pb-4 pl-4 ${isRtl ? 'text-left' : 'text-right'}`}>{t('super_admin.ai.logs.time')}</th>
+                                    <th className={`pb-4 ps-4 ${isRtl ? 'text-left' : 'text-right'}`}>{t('super_admin.ai.logs.time')}</th>
                                 </tr>
                             </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                             {logs.map((log) => (
                                 <tr key={log.id} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                    <td className="py-4 pr-4">
+                                    <td className="py-4 pe-4">
                                         <div className="font-bold text-slate-700 dark:text-slate-200">{log.username}</div>
                                         <div className="text-[10px] text-slate-400 font-bold">Tenant ID: {log.tenant_id}</div>
                                     </td>
@@ -255,7 +260,7 @@ export default function AIAdminDashboard() {
                                                 </div>
                                             )}
                                     </td>
-                                        <td className={`py-4 pl-4 ${isRtl ? 'text-left' : 'text-right'}`}>
+                                        <td className={`py-4 ps-4 ${isRtl ? 'text-left' : 'text-right'}`}>
                                             <div className={`flex items-center gap-2 text-slate-400 font-medium text-xs ${isRtl ? 'justify-end' : 'justify-end'}`}>
                                                 <span>{new Date(log.created_at).toLocaleTimeString(isRtl ? 'ar-SA' : 'en-US')}</span>
                                                 <Clock size={14} />

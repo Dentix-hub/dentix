@@ -1,18 +1,21 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from ..core.response import success_response, error_response
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 from typing import List
 import os
 import json
 from datetime import datetime
 
 from backend import models, schemas
-from backend.database import get_db
+from backend.database import get_async_db
 from backend.core.permissions import Role
 from backend.utils.audit_logger import log_admin_action
 from backend.core.permissions import Permission, require_permission
 from backend.services.backup_service import run_backup_task
+from backend.services.auth_service import AuthService
 
 router = APIRouter(
     prefix="/admin",
@@ -22,7 +25,6 @@ router = APIRouter(
 
 # Lazy import to avoid circular dependency with main.py
 _drive_client = None
-
 
 def get_drive_client():
     global _drive_client
@@ -42,32 +44,34 @@ def require_super_admin(current_user: models.User = Depends(require_permission(P
 
 # --- Global User Management ---
 @router.get("/users", response_model=List[schemas.UserAdminView])
-def get_global_users(
+async def get_global_users(
     search_query: str = None,
     role: str = None,
     skip: int = 0,
     limit: int = 50,
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    query = (
-        db.query(models.User)
-        .filter(models.User.is_deleted == False)  # noqa: E712
+    stmt = (
+        select(models.User)
+        .where(models.User.is_deleted == False)  # noqa: E712
         .options(joinedload(models.User.tenant))
     )
 
     if search_query:
         search = f"%{search_query}%"
-        query = query.join(models.Tenant, isouter=True).filter(
+        stmt = stmt.join(models.Tenant, isouter=True).where(
             (models.User.username.ilike(search))
             | (models.User.email.ilike(search))
             | (models.Tenant.name.ilike(search))
         )
 
     if role and role != "all":
-        query = query.filter(models.User.role == role)
+        stmt = stmt.where(models.User.role == role)
 
-    users = query.offset(skip).limit(limit).all()
+    stmt = stmt.offset(skip).limit(limit)
+    res = await db.execute(stmt)
+    users = list(res.scalars().all())
 
     result = []
     for u in users:
@@ -82,12 +86,13 @@ def get_global_users(
 
 
 @router.post("/users/{user_id}/toggle-status")
-def toggle_user_status(
+async def toggle_user_status(
     user_id: int,
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    res = await db.execute(select(models.User).where(models.User.id == user_id))
+    user = res.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -96,6 +101,14 @@ def toggle_user_status(
 
     new_status = not user.is_active
     user.is_active = new_status
+
+    # REVOKE ALL SESSIONS when user is disabled
+    if not new_status:
+        revoked_count = await AuthService.revoke_all_user_sessions(db, user.id)
+        if revoked_count > 0:
+            import logging
+            logger = logging.getLogger("smart_clinic")
+            logger.info(f"Admin {current_user.username} revoked {revoked_count} sessions for disabled user {user.username}")
 
     log_admin_action(
         db,
@@ -108,7 +121,7 @@ def toggle_user_status(
         new_value={"is_active": new_status},
     )
 
-    db.commit()
+    await db.commit()
     return success_response({
         "message": f"User {'enabled' if new_status else 'disabled'} successfully",
         "is_active": new_status,
@@ -117,63 +130,67 @@ def toggle_user_status(
 
 # --- System Settings ---
 @router.get("/settings", response_model=List[schemas.SystemSetting])
-def get_system_settings(
+async def get_system_settings(
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    return db.query(models.SystemSetting).all()
+    res = await db.execute(select(models.SystemSetting))
+    return list(res.scalars().all())
 
 
 @router.put("/settings/{key}", response_model=schemas.SystemSetting)
-def update_system_setting(
+async def update_system_setting(
     key: str,
     setting_update: schemas.SystemSetting,
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    setting = (
-        db.query(models.SystemSetting).filter(models.SystemSetting.key == key).first()
+    res = await db.execute(
+        select(models.SystemSetting).where(models.SystemSetting.key == key)
     )
+    setting = res.scalar_one_or_none()
     if not setting:
         setting = models.SystemSetting(key=key, value=setting_update.value)
         db.add(setting)
-        db.commit()
-        db.refresh(setting)
+        await db.commit()
+        await db.refresh(setting)
         return setting
 
     setting.value = setting_update.value
-    db.commit()
-    db.refresh(setting)
+    await db.commit()
+    await db.refresh(setting)
     return setting
 
 
 @router.get("/system/backup/google-status")
-def get_google_drive_status(
-    db: Session = Depends(get_db),
+async def get_google_drive_status(
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    setting = (
-        db.query(models.SystemSetting)
-        .filter(models.SystemSetting.key == "google_refresh_token_super_admin")
-        .first()
+    res_setting = await db.execute(
+        select(models.SystemSetting)
+        .where(models.SystemSetting.key == "google_refresh_token_super_admin")
     )
+    setting = res_setting.scalar_one_or_none()
 
     # Fetch status
-    last_status = (
-        db.query(models.SystemSetting)
-        .filter(models.SystemSetting.key == "backup_last_status")
-        .first()
+    res_status = await db.execute(
+        select(models.SystemSetting)
+        .where(models.SystemSetting.key == "backup_last_status")
     )
-    last_message = (
-        db.query(models.SystemSetting)
-        .filter(models.SystemSetting.key == "backup_last_message")
-        .first()
+    last_status = res_status.scalar_one_or_none()
+
+    res_message = await db.execute(
+        select(models.SystemSetting)
+        .where(models.SystemSetting.key == "backup_last_message")
     )
-    last_run = (
-        db.query(models.SystemSetting)
-        .filter(models.SystemSetting.key == "backup_last_run")
-        .first()
+    last_message = res_message.scalar_one_or_none()
+
+    res_run = await db.execute(
+        select(models.SystemSetting)
+        .where(models.SystemSetting.key == "backup_last_run")
     )
+    last_run = res_run.scalar_one_or_none()
 
     return success_response({
         "connected": bool(setting and setting.value),
@@ -186,7 +203,7 @@ def get_google_drive_status(
 
 
 @router.get("/system/backup/google-auth")
-def get_system_google_auth_url(
+async def get_system_google_auth_url(
     current_user: models.User = Depends(require_super_admin),
 ):
     auth_url = get_drive_client().get_auth_url(state="super_admin")
@@ -194,16 +211,16 @@ def get_system_google_auth_url(
 
 
 @router.post("/system/backup/google-upload", status_code=202)
-def upload_to_google_drive(
+async def upload_to_google_drive(
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    setting = (
-        db.query(models.SystemSetting)
-        .filter(models.SystemSetting.key == "google_refresh_token_super_admin")
-        .first()
+    res_setting = await db.execute(
+        select(models.SystemSetting)
+        .where(models.SystemSetting.key == "google_refresh_token_super_admin")
     )
+    setting = res_setting.scalar_one_or_none()
     if not setting or not setting.value:
         raise HTTPException(
             status_code=400, detail="Google Drive not connected. Please connect first."
@@ -222,37 +239,38 @@ def upload_to_google_drive(
 
 
 @router.delete("/system/backup/google-auth")
-def disconnect_google_drive(
-    db: Session = Depends(get_db),
+async def disconnect_google_drive(
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
     """Disconnect the Google Drive account."""
-    setting = (
-        db.query(models.SystemSetting)
-        .filter(models.SystemSetting.key == "google_refresh_token_super_admin")
-        .first()
+    res_setting = await db.execute(
+        select(models.SystemSetting)
+        .where(models.SystemSetting.key == "google_refresh_token_super_admin")
     )
+    setting = res_setting.scalar_one_or_none()
     if setting:
-        db.delete(setting)
-        db.commit()
+        await db.delete(setting)
+        await db.commit()
         return success_response(data={"success": True, "message": "Google Drive disconnected successfully"})
     else:
         return success_response(data={"success": True, "message": "Google Drive was not connected"})
 
 
 @router.get("/backup")
-def download_backup(
+async def download_backup(
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Download system JSON backup."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"smart_clinic_json_backup_{timestamp}.json"
 
-    def iter_json(db_session: Session):
+    async def iter_json(db_session: AsyncSession):
         yield "{\n"
         yield '  "tenants": [\n'
-        tenants = db_session.query(models.Tenant).all()
+        res_tenants = await db_session.execute(select(models.Tenant))
+        tenants = list(res_tenants.scalars().all())
         for i, t in enumerate(tenants):
             data = {
                 "id": t.id,
@@ -264,7 +282,8 @@ def download_backup(
             yield f"    {json.dumps(data)}" + (",\n" if i < len(tenants) - 1 else "\n")
         yield "  ],\n"
         yield '  "users": [\n'
-        users = db_session.query(models.User).all()
+        res_users = await db_session.execute(select(models.User))
+        users = list(res_users.scalars().all())
         for i, u in enumerate(users):
             data = {
                 "id": u.id,
@@ -284,39 +303,42 @@ def download_backup(
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
+
 # --- Security Management (Sessions & IP Blocking) ---
 @router.get("/security/sessions")
-def get_global_sessions(
+async def get_global_sessions(
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """List all active user sessions across all tenants."""
     from backend.services.security_service import SecurityService
     service = SecurityService(db)
-    return success_response(service.get_active_sessions())
+    sessions = await service.get_active_sessions()
+    return success_response(sessions)
 
 
 @router.delete("/security/sessions/{session_id}")
-def terminate_session(
+async def terminate_session(
     session_id: int,
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Terminate a specific user session."""
     from backend.services.security_service import SecurityService
     service = SecurityService(db)
-    if service.terminate_session(session_id):
+    if await service.terminate_session(session_id):
         return success_response({"message": "Session terminated successfully"})
     raise HTTPException(status_code=404, detail="Session not found")
 
 
 @router.get("/security/blocked-ips")
-def get_blocked_ips(
+async def get_blocked_ips(
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Get list of all blocked IP addresses."""
-    blocked = db.query(models.BlockedIP).all()
+    res = await db.execute(select(models.BlockedIP))
+    blocked = list(res.scalars().all())
     return success_response([
         {
             "id": b.id,
@@ -331,10 +353,10 @@ def get_blocked_ips(
 
 
 @router.post("/security/ip-block")
-def block_ip(
+async def block_ip(
     block_data: dict,
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Block an IP address."""
     from backend.services.security_service import SecurityService
@@ -344,17 +366,17 @@ def block_ip(
     if not ip:
         raise HTTPException(status_code=400, detail="IP address required")
 
-    SecurityService.block_ip(db, ip, reason, current_user.username)
+    await SecurityService.block_ip(db, ip, reason, current_user.username)
     return success_response({"message": f"IP {ip} blocked successfully"})
 
 
 @router.delete("/security/ip-block/{ip_address}")
-def unblock_ip(
+async def unblock_ip(
     ip_address: str,
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Unblock an IP address."""
     from backend.services.security_service import SecurityService
-    SecurityService.unblock_ip(db, ip_address)
+    await SecurityService.unblock_ip(db, ip_address)
     return success_response({"message": f"IP {ip_address} unblocked successfully"})

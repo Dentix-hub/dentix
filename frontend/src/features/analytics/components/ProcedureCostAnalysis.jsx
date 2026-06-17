@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { getProcedures } from '@/api';
 import { getProcedureFinancials } from '@/api/financials';
@@ -26,7 +27,7 @@ const ProcedureCostAnalysis = () => {
             const res = await getProcedures();
             setProcedures(res.data || []);
         } catch (err) {
-            console.error("Failed to load procedures", err);
+            logger.error("Failed to load procedures", err);
         }
     };
     const loadFinancials = async (procId) => {
@@ -35,7 +36,7 @@ const ProcedureCostAnalysis = () => {
             const res = await getProcedureFinancials(procId);
             setAnalysis(res.data);
         } catch (err) {
-            console.error("Failed to load financials", err);
+            logger.error("Failed to load financials", err);
             setAnalysis(null);
         } finally {
             setLoading(false);
@@ -90,7 +91,7 @@ const ProcedureCostAnalysis = () => {
                     </div>
                     {/* ANALYSIS TAB */}
                     {activeTab === 'analysis' && (
-                        <div className="animate-in fade-in slide-in-from-right-4 space-y-4">
+                        <div className="animate-in fade-in slide-in-from-end-4 space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                 {/* Service Price */}
                                 <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 text-center shadow-sm">
@@ -100,7 +101,7 @@ const ProcedureCostAnalysis = () => {
                                 </div>
                                 {/* Actual Cost (AI) */}
                                 <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-800 text-center shadow-sm relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[9px] px-2 py-0.5 rounded-bl-lg">AI Learn</div>
+                                    <div className="absolute top-0 end-0 bg-indigo-600 text-white text-[9px] px-2 py-0.5 rounded-bl-lg">AI Learn</div>
                                     <div className="text-xs text-indigo-800 dark:text-indigo-300 font-bold mb-1">{t('analytics.procedure_analysis.metrics.actual_cost')}</div>
                                     <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-400">{analysis.total_actual_cost}</div>
                                     <div className="text-[10px] text-indigo-400">{t('analytics.procedure_analysis.metrics.actual_margin')}</div>
@@ -138,7 +139,7 @@ const ProcedureCostAnalysis = () => {
                                             </div>
                                             {/* Comparison Grid */}
                                             <div className="flex bg-slate-50 dark:bg-slate-900 rounded-lg p-1 gap-4 text-center w-full sm:w-auto justify-center">
-                                                <div className="px-2 border-r border-slate-200 dark:border-slate-700">
+                                                <div className="px-2 border-e border-slate-200 dark:border-slate-700">
                                                     <div className="text-[10px] text-slate-500">{t('analytics.procedure_analysis.comparison.weight_score')}</div>
                                                     <div className="font-bold text-slate-600 dark:text-slate-300">{item.weight_used} <span className="text-[9px] font-normal">{t('analytics.procedure_analysis.comparison.points')}</span></div>
                                                     {/* Cost removed as Score is unitless */}
@@ -157,7 +158,7 @@ const ProcedureCostAnalysis = () => {
                     )}
                     {/* COVERAGE TAB */}
                     {activeTab === 'coverage' && (
-                        <div className="animate-in fade-in slide-in-from-right-4">
+                        <div className="animate-in fade-in slide-in-from-end-4">
                             <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 p-4 rounded-xl mb-6">
                                 <h4 className="font-bold text-indigo-900 dark:text-indigo-100 flex items-center gap-2 mb-2">
                                     <Package size={18} />

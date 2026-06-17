@@ -12,7 +12,9 @@ from datetime import datetime, timedelta, timezone
 # Add project root to path (parent of backend)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.database import SessionLocal
+from backend.database import async_engine
+from sqlalchemy.orm import sessionmaker
+SessionLocal = sessionmaker(bind=async_engine.sync_engine)
 from backend import models, auth
 
 # Force utf-8 for stdout if possible, though we will avoid non-ascii logs

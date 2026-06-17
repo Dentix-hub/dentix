@@ -111,7 +111,7 @@ export default function ResetPassword() {
                                         <button
                                             type="button"
                                             onClick={() => setShowPassword(!showPassword)}
-                                            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-600"
+                                            className="absolute start-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-600"
                                         >
                                             {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                                         </button>

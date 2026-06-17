@@ -1,10 +1,10 @@
 import logging
 logger = logging.getLogger(__name__)
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from backend import models, schemas, crud, auth
-from .dependencies import get_db
-from sqlalchemy import text
+from .dependencies import get_async_db
+from sqlalchemy import text, select, func
 from backend.core.permissions import Permission, require_permission
 import traceback
 from backend.core.response import success_response, error_response
@@ -14,14 +14,14 @@ router = APIRouter()
 
 # --- Debug Endpoints ---
 @router.get("/debug-token")
-def debug_token_validation(token: str, db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+async def debug_token_validation(token: str, db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
     """Debug endpoint to validate a token manually and see the error."""
     try:
         logger.info(f"DEBUG: Validating token: {token}")
         payload = auth.jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
         username = payload.get("sub")
 
-        user = crud.get_user(db, username=username)
+        user = await crud.get_user(db, username=username)
         if not user:
             return error_response(message="User not found in DB", data={"valid": False})
 
@@ -38,23 +38,23 @@ def debug_token_validation(token: str, db: Session = Depends(get_db), current_us
 
 
 @router.get("/debug-auth-info")
-def debug_auth_info(db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+async def debug_auth_info(db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
     """Debug endpoint to check DB and Schema status."""
     try:
         # Check connection
-        db.execute(text("SELECT 1"))
+        await db.execute(text("SELECT 1"))
 
         # Check Tables
         # Simple cross-db compatible check
         try:
             # SQLite
-            result = db.execute(
+            result = await db.execute(
                 text("SELECT name FROM sqlite_master WHERE type='table'")
             )
             tables = [row[0] for row in result]
         except Exception:
             # Postgres
-            result = db.execute(
+            result = await db.execute(
                 text(
                     "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
                 )
@@ -62,8 +62,13 @@ def debug_auth_info(db: Session = Depends(get_db), current_user: models.User = D
             tables = [row[0] for row in result]
 
         # Check Users
-        user_count = db.query(models.User).count()
-        first_user = db.query(models.User).first()
+        user_count_stmt = select(func.count(models.User.id))
+        result_user_count = await db.execute(user_count_stmt)
+        user_count = result_user_count.scalar() or 0
+
+        first_user_stmt = select(models.User).limit(1)
+        result_first_user = await db.execute(first_user_stmt)
+        first_user = result_first_user.scalars().first()
 
         # Check Columns in User
         user_cols = []
@@ -92,17 +97,14 @@ def debug_ping():
 
 
 @router.get("/debug/manual-db")
-def debug_manual_db(current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+async def debug_manual_db(current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
     """Manually create session to test DB connection without Depends()."""
     try:
-        from backend.database import SessionLocal
+        from backend.database import AsyncSessionLocal
 
-        db = SessionLocal()
-        try:
-            db.execute(text("SELECT 1"))
+        async with AsyncSessionLocal() as db:
+            await db.execute(text("SELECT 1"))
             return success_response(data={"status": "ok", "message": "Manual DB Session Successful"})
-        finally:
-            db.close()
     except Exception as e:
         logger.error(f"DB inspection failed: {str(e)}", exc_info=True)
         return error_response(message="DB inspection failed", data={"status": "error"})
@@ -110,8 +112,8 @@ def debug_manual_db(current_user: models.User = Depends(require_permission(Permi
 
 @router.get("/debug/fix-schema")
 @router.get("/auth/debug/fix-schema")
-def fix_staging_schema(
-    db: Session = Depends(get_db),
+async def fix_staging_schema(
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Force run schema fixes for staging (GET for easy browser access)."""
@@ -120,7 +122,7 @@ def fix_staging_schema(
     try:
         # 1. Fix Appointments doctor_id and price_list_id
         try:
-            db.execute(
+            await db.execute(
                 text(
                     "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS doctor_id INTEGER REFERENCES users(id);"
                 )
@@ -130,7 +132,7 @@ def fix_staging_schema(
             results.append(f"appointments doctor_id fix failed: {e}")
 
         try:
-            db.execute(
+            await db.execute(
                 text(
                     "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS price_list_id INTEGER REFERENCES price_lists(id);"
                 )
@@ -141,7 +143,7 @@ def fix_staging_schema(
 
         # 2. Fix Patients columns
         try:
-            db.execute(
+            await db.execute(
                 text(
                     "ALTER TABLE patients ADD COLUMN IF NOT EXISTS assigned_doctor_id INTEGER REFERENCES users(id);"
                 )
@@ -151,7 +153,7 @@ def fix_staging_schema(
             results.append(f"patients assigned_doctor_id fix failed: {e}")
 
         try:
-            db.execute(
+            await db.execute(
                 text(
                     "ALTER TABLE patients ADD COLUMN IF NOT EXISTS default_price_list_id INTEGER REFERENCES price_lists(id);"
                 )
@@ -160,9 +162,9 @@ def fix_staging_schema(
         except Exception as e:
             results.append(f"patients default_price_list_id fix failed: {e}")
 
-        db.commit()
+        await db.commit()
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Staging schema fix failed: {str(e)}", exc_info=True)
         return error_response(message="Staging schema fix failed", data={"status": "error"})
 

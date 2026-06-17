@@ -1,3 +1,4 @@
+import logger from '@/utils/logger';
 /**
  * Format AI API response into chat message structure
  */
@@ -63,7 +64,7 @@ export const formatAIResponse = (data) => {
                 type = 'error';
                 content = `❌ **خطأ في النظام**\n\n${data.message}`;
                 if (data.data?.trace) {
-                    console.error("AI Trace:", data.data.trace);
+                    logger.error("AI Trace:", data.data.trace);
                 }
         }
 

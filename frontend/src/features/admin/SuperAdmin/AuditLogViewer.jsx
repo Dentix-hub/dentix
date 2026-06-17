@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { User, Activity, Calendar, Search, RotateCcw, Filter, Download, ChevronRight, ChevronLeft, Eye, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DateTimePicker } from '@/shared/ui';
@@ -42,7 +43,7 @@ const AuditLogViewer = ({ tenants = [] }) => {
                 current_page: responseData.current_page || 1
             });
         } catch (err) {
-            console.error('Fetch logs error:', err);
+            logger.error('Fetch logs error:', err);
         } finally {
             setLoading(false);
         }
@@ -346,13 +347,13 @@ const AuditLogViewer = ({ tenants = [] }) => {
                                     <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest">{t('super_admin.audit.data_diff')}</h4>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-3">
-                                            <p className={`text-xs font-black text-rose-500 bg-rose-50 dark:bg-rose-900/20 px-3 py-1 rounded-full w-fit ${isRtl ? 'mr-0 ml-auto' : ''}`}>{t('super_admin.audit.old_value')}</p>
+                                            <p className={`text-xs font-black text-rose-500 bg-rose-50 dark:bg-rose-900/20 px-3 py-1 rounded-full w-fit ${isRtl ? 'me-0 ms-auto' : ''}`}>{t('super_admin.audit.old_value')}</p>
                                             <pre className="p-6 bg-slate-900 text-emerald-400 rounded-3xl font-mono text-xs overflow-x-auto min-h-[200px]" dir="ltr">
                                                 {formatJSON(selectedLog.old_value) || t('super_admin.audit.no_data')}
                                             </pre>
                                         </div>
                                         <div className="space-y-3">
-                                            <p className={`text-xs font-black text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 rounded-full w-fit ${isRtl ? 'mr-0 ml-auto' : ''}`}>{t('super_admin.audit.new_value')}</p>
+                                            <p className={`text-xs font-black text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 rounded-full w-fit ${isRtl ? 'me-0 ms-auto' : ''}`}>{t('super_admin.audit.new_value')}</p>
                                             <pre className="p-6 bg-slate-900 text-amber-400 rounded-3xl font-mono text-xs overflow-x-auto min-h-[200px]" dir="ltr">
                                                 {formatJSON(selectedLog.new_value) || t('super_admin.audit.no_data')}
                                             </pre>

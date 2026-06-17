@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import logger from '@/utils/logger';
 import { api, broadcastNotification, deleteNotification, deleteSupportMessage } from '@/api';
 import SupportInbox from '@/features/admin/SuperAdmin/SupportInbox';
 import NotificationsManager from '@/features/admin/SuperAdmin/NotificationsManager';
@@ -23,7 +24,7 @@ export default function CommunicationsPage() {
             setNotifications(Array.isArray(notifRes.data) ? notifRes.data : []);
             setTenants(Array.isArray(tenRes.data) ? tenRes.data : []);
         } catch (err) {
-            console.error(err);
+            logger.error(err);
         } finally {
             setLoading(false);
         }

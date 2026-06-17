@@ -11,7 +11,7 @@ class ErrorBoundary extends Component {
     componentDidCatch(error, errorInfo) {
         this.setState({ errorInfo });
         // Log to internal backend logger
-        import('@/lib/logger').then(({ logger }) => {
+        import('@/utils/logger').then(({ logger }) => {
             logger.error(error, errorInfo.componentStack);
         });
     }

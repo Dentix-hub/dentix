@@ -1,12 +1,12 @@
 """
-Billing Service (Refactored)
+Billing Service (Refactored to Async)
 
 Financial calculations and payment processing for tenants.
 Follows Single Responsibility Principle with extracted helper methods.
 """
 
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 from datetime import datetime, date, timezone
 from typing import Optional
 from backend import models, schemas
@@ -16,19 +16,20 @@ from backend.crud import billing as billing_crud
 class BillingService:
     """Service layer for billing and financial operations."""
 
-    def __init__(self, db: Session, tenant_id: int):
+    def __init__(self, db: AsyncSession, tenant_id: int):
         self.db = db
         self.tenant_id = tenant_id
         self._today_start = datetime.now(timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0
-        )
+        ).replace(tzinfo=None)
 
-    def _scalar(self, query) -> float:
+    async def _scalar(self, query) -> float:
         """Execute query and return scalar result as float, defaulting to 0.0."""
-        return float(query.scalar() or 0.0)
+        res = await self.db.scalar(query)
+        return float(res or 0.0)
 
     # --- Payment Operations ---
-    def create_payment(self, payment: schemas.PaymentCreate, doctor_id: int = None):
+    async def create_payment(self, payment: schemas.PaymentCreate, doctor_id: int = None, commit: bool = True):
         """
         Create a payment record.
 
@@ -36,25 +37,22 @@ class BillingService:
         - Patient must belong to this tenant
         - Payment amount must be positive
         """
-        patient = (
-            self.db.query(models.Patient)
-            .filter(
-                models.Patient.id == payment.patient_id,
-                models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,  # noqa: E712
-            )
-            .first()
+        stmt = select(models.Patient).where(
+            models.Patient.id == payment.patient_id,
+            models.Patient.tenant_id == self.tenant_id,
+            models.Patient.is_deleted == False,  # noqa: E712
         )
+        patient = (await self.db.execute(stmt)).scalars().first()
 
         if not patient:
             raise ValueError("Patient not found")
 
-        return billing_crud.create_payment(
-            db=self.db, payment=payment, tenant_id=self.tenant_id, doctor_id=doctor_id
+        return await billing_crud.create_payment(
+            db=self.db, payment=payment, tenant_id=self.tenant_id, doctor_id=doctor_id, commit=commit
         )
 
     # --- Revenue Calculations ---
-    def _calculate_revenue(self, for_today: bool = False) -> float:
+    async def _calculate_revenue(self, for_today: bool = False) -> float:
         """
         Calculate revenue from treatments.
         Revenue = Cost - Discounts
@@ -62,82 +60,85 @@ class BillingService:
         Args:
             for_today: If True, only calculate today's revenue
         """
-        query = (
-            self.db.query(func.sum(models.Treatment.cost - models.Treatment.discount))
+        stmt = (
+            select(func.sum(models.Treatment.cost - models.Treatment.discount))
             .join(models.Patient)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
             )
         )
 
         if for_today:
-            query = query.filter(models.Treatment.date >= self._today_start)
+            stmt = stmt.where(models.Treatment.date >= self._today_start)
 
-        return self._scalar(query)
+        return await self._scalar(stmt)
 
-    def _calculate_total_cost(self) -> float:
+    async def _calculate_total_cost(self) -> float:
         """Calculate total treatment cost (before discounts)."""
-        return self._scalar(
-            self.db.query(func.sum(models.Treatment.cost))
+        stmt = (
+            select(func.sum(models.Treatment.cost))
             .join(models.Patient)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
             )
         )
+        return await self._scalar(stmt)
 
-    def _calculate_total_discount(self) -> float:
+    async def _calculate_total_discount(self) -> float:
         """Calculate total discounts applied."""
-        return self._scalar(
-            self.db.query(func.sum(models.Treatment.discount))
+        stmt = (
+            select(func.sum(models.Treatment.discount))
             .join(models.Patient)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
             )
         )
+        return await self._scalar(stmt)
 
-    def _calculate_monthly_revenue(self) -> float:
+    async def _calculate_monthly_revenue(self) -> float:
         """Calculate revenue for the current month."""
         # Get first day of current month
         today = datetime.now(timezone.utc)
-        month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0).replace(tzinfo=None)
 
-        return self._scalar(
-            self.db.query(func.sum(models.Treatment.cost - models.Treatment.discount))
+        stmt = (
+            select(func.sum(models.Treatment.cost - models.Treatment.discount))
             .join(models.Patient)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
                 models.Treatment.date >= month_start,
             )
         )
+        return await self._scalar(stmt)
 
     # --- Payment Calculations ---
-    def _calculate_payments(self, for_today: bool = False) -> float:
+    async def _calculate_payments(self, for_today: bool = False) -> float:
         """
         Calculate total payments received.
 
         Args:
             for_today: If True, only calculate today's payments
         """
-        query = (
-            self.db.query(func.sum(models.Payment.amount))
+        stmt = (
+            select(func.sum(models.Payment.amount))
             .join(models.Patient)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
             )
         )
 
         if for_today:
-            query = query.filter(models.Payment.date >= self._today_start)
+            stmt = stmt.where(models.Payment.date >= self._today_start)
 
-        return self._scalar(query)
+        return await self._scalar(stmt)
 
     # --- Expense Calculations ---
-    def _calculate_expenses(self, for_today: bool = False) -> dict:
+    async def _calculate_expenses(self, for_today: bool = False) -> dict:
         """
         Calculate expenses breakdown.
 
@@ -145,26 +146,26 @@ class BillingService:
             dict with 'lab_costs' and 'other_expenses' keys
         """
         # Lab costs
-        lab_query = self.db.query(func.sum(models.LabOrder.cost)).filter(
+        lab_stmt = select(func.sum(models.LabOrder.cost)).where(
             models.LabOrder.tenant_id == self.tenant_id
         )
 
         if for_today:
-            lab_query = lab_query.filter(
+            lab_stmt = lab_stmt.where(
                 models.LabOrder.order_date >= self._today_start
             )
 
-        lab_costs = self._scalar(lab_query)
+        lab_costs = await self._scalar(lab_stmt)
 
         # Other expenses
-        expense_query = self.db.query(func.sum(models.Expense.cost)).filter(
+        expense_stmt = select(func.sum(models.Expense.cost)).where(
             models.Expense.tenant_id == self.tenant_id
         )
 
         if for_today:
-            expense_query = expense_query.filter(models.Expense.date == date.today())
+            expense_stmt = expense_stmt.where(models.Expense.date == date.today())
 
-        other_expenses = self._scalar(expense_query)
+        other_expenses = await self._scalar(expense_stmt)
 
         return {
             "lab_costs": lab_costs,
@@ -173,29 +174,29 @@ class BillingService:
         }
 
     # --- Aggregate Statistics ---
-    def get_financial_stats(self) -> dict:
+    async def get_financial_stats(self) -> dict:
         """
         Get comprehensive financial statistics for the tenant.
 
         Returns aggregated data from all sub-calculations.
         """
         # Revenue
-        total_cost = self._calculate_total_cost()
-        total_discount = self._calculate_total_discount()
+        total_cost = await self._calculate_total_cost()
+        total_discount = await self._calculate_total_discount()
         total_revenue = total_cost - total_discount
-        today_revenue = self._calculate_revenue(for_today=True)
+        today_revenue = await self._calculate_revenue(for_today=True)
 
         # Payments
-        total_received = self._calculate_payments()
-        today_received = self._calculate_payments(for_today=True)
+        total_received = await self._calculate_payments()
+        today_received = await self._calculate_payments(for_today=True)
 
         # Outstanding
         outstanding = max(0, total_revenue - total_received)
         today_outstanding = max(0, today_revenue - today_received)
 
         # Expenses
-        all_expenses = self._calculate_expenses()
-        today_expenses = self._calculate_expenses(for_today=True)
+        all_expenses = await self._calculate_expenses()
+        today_expenses = await self._calculate_expenses(for_today=True)
 
         # Profit
         net_profit = total_received - all_expenses["total"]
@@ -206,14 +207,14 @@ class BillingService:
             "outstanding": outstanding,
             "total_expenses": all_expenses["total"],
             "net_profit": net_profit,
-            "monthly_revenue": self._calculate_monthly_revenue(),
+            "monthly_revenue": await self._calculate_monthly_revenue(),
             "today_revenue": today_revenue,
             "today_received": today_received,
             "today_outstanding": today_outstanding,
             "today_expenses": today_expenses["total"],
         }
 
-    def get_outstanding_balance(self, patient_id: Optional[int] = None) -> float:
+    async def get_outstanding_balance(self, patient_id: Optional[int] = None) -> float:
         """
         Get outstanding balance for a patient or entire tenant.
 
@@ -221,51 +222,52 @@ class BillingService:
             patient_id: If provided, calculate for specific patient only
         """
         # Revenue query
-        revenue_query = (
-            self.db.query(func.sum(models.Treatment.cost - models.Treatment.discount))
+        revenue_stmt = (
+            select(func.sum(models.Treatment.cost - models.Treatment.discount))
             .join(models.Patient)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
             )
         )
 
         # Payment query
-        payment_query = (
-            self.db.query(func.sum(models.Payment.amount))
+        payment_stmt = (
+            select(func.sum(models.Payment.amount))
             .join(models.Patient)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
             )
         )
 
         if patient_id:
-            revenue_query = revenue_query.filter(
+            revenue_stmt = revenue_stmt.where(
                 models.Treatment.patient_id == patient_id
             )
-            payment_query = payment_query.filter(
+            payment_stmt = payment_stmt.where(
                 models.Payment.patient_id == patient_id
             )
 
-        revenue = self._scalar(revenue_query)
-        payments = self._scalar(payment_query)
+        revenue = await self._scalar(revenue_stmt)
+        payments = await self._scalar(payment_stmt)
 
         return max(0, revenue - payments)
 
-    def get_today_payments_list(self) -> list:
+    async def get_today_payments_list(self) -> list:
         """Get list of payments made today."""
-        results = (
-            self.db.query(models.Payment, models.Patient.name)
+        stmt = (
+            select(models.Payment, models.Patient.name)
             .join(models.Patient)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
                 models.Payment.date >= self._today_start,
             )
             .order_by(models.Payment.date.desc())
-            .all()
         )
+        result = await self.db.execute(stmt)
+        results = result.all()
 
         return [
             {
@@ -278,54 +280,79 @@ class BillingService:
             for p, name in results
         ]
 
-    def get_today_debtors_list(self) -> list:
+    async def get_today_debtors_list(self) -> list:
         """Get list of patients who incurred debt today (Treatment Cost Today > Payment Today)."""
         # 1. Get patients with treatments today
-        today_treatments = (
-            self.db.query(models.Treatment)
+        stmt = (
+            select(models.Treatment)
             .join(models.Patient)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
                 models.Treatment.date >= self._today_start,
             )
-            .all()
         )
+        result = await self.db.execute(stmt)
+        today_treatments = result.scalars().all()
 
         patient_ids = set(t.patient_id for t in today_treatments)
         debtors = []
 
-        for pid in patient_ids:
-            # Calculate today's cost for this patient
-            cost = self._scalar(
-                self.db.query(
-                    func.sum(models.Treatment.cost - models.Treatment.discount)
-                ).filter(
-                    models.Treatment.patient_id == pid,
-                    models.Treatment.date >= self._today_start,
-                )
+        # Query 1 — costs bulk
+        _cost_stmt = (
+            select(
+                models.Treatment.patient_id,
+                func.sum(models.Treatment.cost - models.Treatment.discount).label("total_cost"),
             )
-
-            # Calculate today's payment for this patient
-            paid = self._scalar(
-                self.db.query(func.sum(models.Payment.amount)).filter(
-                    models.Payment.patient_id == pid,
-                    models.Payment.date >= self._today_start,
-                )
+            .where(
+                models.Treatment.patient_id.in_(patient_ids),
+                models.Treatment.date >= self._today_start,
             )
+            .group_by(models.Treatment.patient_id)
+        )
+        _cost_rows = await self.db.execute(_cost_stmt)
+        costs_by_pid = {r.patient_id: float(r.total_cost or 0) for r in _cost_rows.fetchall()}
 
-            balance = cost - paid
-            if balance > 0:
-                patient = self.db.query(models.Patient).get(pid)
-                debtors.append(
-                    {
-                        "id": patient.id,
-                        "name": patient.name,
-                        "phone": str(patient.phone),  # basic serialization
-                        "amount": balance,
+        # Query 2 — payments bulk
+        _paid_stmt = (
+            select(
+                models.Payment.patient_id,
+                func.sum(models.Payment.amount).label("total_paid"),
+            )
+            .where(
+                models.Payment.patient_id.in_(patient_ids),
+                models.Payment.date >= self._today_start,
+            )
+            .group_by(models.Payment.patient_id)
+        )
+        _paid_rows = await self.db.execute(_paid_stmt)
+        paid_by_pid = {r.patient_id: float(r.total_paid or 0) for r in _paid_rows.fetchall()}
+
+        # تحديد المدينين
+        debtor_ids = [
+            pid for pid in patient_ids
+            if (costs_by_pid.get(pid, 0) - paid_by_pid.get(pid, 0)) > 0
+        ]
+
+        # Query 3 — patient details bulk
+        debtors = []
+        if debtor_ids:
+            _pat_stmt = select(models.Patient).where(models.Patient.id.in_(debtor_ids))
+            _pat_rows = await self.db.execute(_pat_stmt)
+            patients_by_id = {p.id: p for p in _pat_rows.scalars().all()}
+
+            for pid in debtor_ids:
+                patient = patients_by_id.get(pid)
+                if patient:
+                    cost = costs_by_pid.get(pid, 0)
+                    paid = paid_by_pid.get(pid, 0)
+                    debtors.append({
+                        "id":         patient.id,
+                        "name":       patient.name,
+                        "phone":      str(patient.phone),
+                        "amount":     cost - paid,
                         "total_cost": cost,
                         "total_paid": paid,
-                    }
-                )
+                    })
 
         return debtors

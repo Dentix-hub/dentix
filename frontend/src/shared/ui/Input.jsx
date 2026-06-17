@@ -26,7 +26,7 @@ const Input = ({
 
             <div className="relative group">
                 {Icon && (
-                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-500 group-focus-within:text-primary transition-colors">
+                    <div className="absolute inset-y-0 end-0 pe-3 flex items-center pointer-events-none text-slate-500 group-focus-within:text-primary transition-colors">
                         {isValidElement(Icon) ? Icon : <Icon size={18} />}
                     </div>
                 )}
@@ -37,7 +37,7 @@ const Input = ({
                     className={`
                         w-full rounded-xl border bg-input text-text-primary outline-none transition-all duration-200
                         placeholder:text-slate-500
-                        ${Icon ? 'pr-10 pl-3' : 'px-3'}
+                        ${Icon ? 'pe-10 ps-3' : 'px-3'}
                         ${error
                             ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500'
                             : 'border-border focus:border-primary focus:ring-1 focus:ring-primary hover:border-slate-300 dark:hover:border-slate-600'

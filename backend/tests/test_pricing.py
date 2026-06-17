@@ -1,15 +1,5 @@
-"""
-Tests for Multi Price List System
-
-Test Scenarios:
-1. Procedure price lookup (Cash vs Insurance)
-2. Treatment pricing application (Snapshot)
-3. Insurance share calculation
-4. Admin vs Doctor access to price lists
-5. AI Context restrictions
-"""
-
-from unittest.mock import MagicMock, patch
+import pytest
+from unittest.mock import MagicMock, patch, AsyncMock
 from backend.models import Treatment
 from backend.services.pricing_service import PricingService
 from backend.services.ai.ai_price_context import AIPriceContext
@@ -18,10 +8,11 @@ from backend.services.ai.ai_price_context import AIPriceContext
 class TestPricingService:
     """Tests for PricingService business logic."""
 
-    def test_get_procedure_price_priority(self):
+    @pytest.mark.asyncio
+    async def test_get_procedure_price_priority(self):
         """Should prioritize PriceListItem over Procedure.price."""
         # Setup
-        mock_db = MagicMock()
+        mock_db = AsyncMock()
         mock_tenant_id = 1
         service = PricingService(mock_db, mock_tenant_id)
 
@@ -29,38 +20,45 @@ class TestPricingService:
         mock_item = MagicMock()
         mock_item.final_price = 450.0  # Insurance price
 
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_item
+        mock_res = MagicMock()
+        mock_res.scalars.return_value.first.return_value = mock_item
+        mock_db.execute.return_value = mock_res
 
         # Test
-        price = service.get_procedure_price(procedure_id=1, price_list_id=10)
+        price = await service.get_procedure_price(procedure_id=1, price_list_id=10)
         assert price == 450.0
 
-    def test_fallback_to_default_list(self):
+    @pytest.mark.asyncio
+    async def test_fallback_to_default_list(self):
         """Should fallback to Default List if not in specific list."""
         # Setup
-        mock_db = MagicMock()
+        mock_db = AsyncMock()
         mock_tenant_id = 1
         service = PricingService(mock_db, mock_tenant_id)
 
         # Specific list returns None
-        mock_db.query.return_value.filter.return_value.first.side_effect = [
-            None,
-            MagicMock(final_price=500.0),
-        ]
+        mock_res1 = MagicMock()
+        mock_res1.scalars.return_value.first.return_value = None
+
+        mock_res2 = MagicMock()
+        mock_res2.scalars.return_value.first.return_value = MagicMock(final_price=500.0)
+
+        mock_db.execute.side_effect = [mock_res1, mock_res2]
 
         # Mock default list
         mock_default = MagicMock()
         mock_default.id = 99
-        service.get_default_price_list = MagicMock(return_value=mock_default)
+        service.get_default_price_list = AsyncMock(return_value=mock_default)
 
         # Test
-        price = service.get_procedure_price(procedure_id=1, price_list_id=10)
+        price = await service.get_procedure_price(procedure_id=1, price_list_id=10)
         assert price == 500.0
 
-    def test_apply_price_to_treatment_snapshot(self):
+    @pytest.mark.asyncio
+    async def test_apply_price_to_treatment_snapshot(self):
         """Should create JSON snapshot in treatment."""
         # Setup
-        mock_db = MagicMock()
+        mock_db = AsyncMock()
         mock_tenant_id = 1
         service = PricingService(mock_db, mock_tenant_id)
 
@@ -68,16 +66,16 @@ class TestPricingService:
         treatment.discount = 0.0
 
         # Mock price lookup
-        service.get_procedure_price = MagicMock(return_value=1000.0)
+        service.get_procedure_price = AsyncMock(return_value=1000.0)
 
         # Mock price list
         mock_list = MagicMock()
         mock_list.name = "Test List"
         mock_list.type = "cash"
-        service.get_price_list = MagicMock(return_value=mock_list)
+        service.get_price_list = AsyncMock(return_value=mock_list)
 
         # Test
-        updated_treatment = service.apply_price_to_treatment(
+        updated_treatment = await service.apply_price_to_treatment(
             treatment, price_list_id=5, procedure_id=1
         )
 
@@ -106,17 +104,24 @@ class TestPricingService:
 class TestAIPriceContext:
     """Tests for AI security context."""
 
-    def test_admin_sees_all_lists(self):
-        mock_db = MagicMock()
+    @pytest.mark.asyncio
+    async def test_admin_sees_all_lists(self):
+        mock_db = AsyncMock()
         user = MagicMock(role="admin", id=1)
 
-        context = AIPriceContext.from_user(mock_db, user, 1)
-        assert context.can_compare_prices
-        assert context.can_access_price_list(999)
+        with patch(
+            "backend.services.pricing_service.PricingService.get_available_price_lists",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
+            context = await AIPriceContext.from_user(mock_db, user, 1)
+            assert context.can_compare_prices
+            assert context.can_access_price_list(999)
 
-    def test_doctor_restricted_access(self):
+    @pytest.mark.asyncio
+    async def test_doctor_restricted_access(self):
         """Doctor should verify allowed lists."""
-        mock_db = MagicMock()
+        mock_db = AsyncMock()
         user = MagicMock(role="doctor", id=2)
 
         # Mock available lists
@@ -125,9 +130,10 @@ class TestAIPriceContext:
 
         with patch(
             "backend.services.pricing_service.PricingService.get_available_price_lists",
+            new_callable=AsyncMock,
             return_value=[pl1, pl2],
         ):
-            context = AIPriceContext.from_user(mock_db, user, 1)
+            context = await AIPriceContext.from_user(mock_db, user, 1)
 
             assert not context.can_compare_prices
             assert context.can_access_price_list(10)

@@ -145,8 +145,8 @@ export default memo(function DentalChartSVG({ teethStatus, onToothClick, isPedia
                 {/* Upper Arch */}
                 <div className="flex justify-center gap-1 relative">
                     {/* Cross line for Palmer */}
-                    <div className="absolute inset-y-0 left-1/2 w-0.5 bg-slate-300"></div>
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-300"></div>
+                    <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300"></div>
+                    <div className="absolute bottom-0 start-0 end-0 h-0.5 bg-slate-300"></div>
                     {/* Left Slot: Patient Left (UL) */}
                     <div className="flex gap-1 px-4 pb-4">
                         {upperLeft.map(n => (
@@ -164,8 +164,8 @@ export default memo(function DentalChartSVG({ teethStatus, onToothClick, isPedia
                 {/* Lower Arch */}
                 <div className="flex justify-center gap-1 relative">
                     {/* Cross line for Palmer */}
-                    <div className="absolute inset-y-0 left-1/2 w-0.5 bg-slate-300"></div>
-                    <div className="absolute top-0 left-0 right-0 h-0.5 bg-slate-300"></div>
+                    <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300"></div>
+                    <div className="absolute top-0 start-0 end-0 h-0.5 bg-slate-300"></div>
                     {/* Left Slot: Patient Left (LL) */}
                     <div className="flex gap-1 px-4 pt-4">
                         {lowerLeft.map(n => (

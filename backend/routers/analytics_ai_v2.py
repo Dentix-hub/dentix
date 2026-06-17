@@ -4,10 +4,10 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from ..core.response import success_response, error_response
-from sqlalchemy import func, desc, case
-from sqlalchemy.orm import Session
+from sqlalchemy import func, desc, case, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database import get_db
+from ..database import get_async_db
 from .. import models
 from ..core.permissions import Permission, Role, require_permission
 from backend.services.cost_engine import CostEngine
@@ -25,9 +25,9 @@ def ensure_super_admin(user: models.User):
 
 
 @router.get("/stats")
-def get_ai_stats(
+async def get_ai_stats(
     period: str = "24h",
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
 ):
     """
@@ -47,27 +47,31 @@ def get_ai_stats(
     else:
         start_time = now - timedelta(hours=24)  # Default
 
-    # Base Query
-    query = db.query(models.AILog).filter(models.AILog.timestamp >= start_time)
-
-    total_requests = query.count()
+    # Base Queries using SQLAlchemy 2.0 select and async execution
+    total_requests = (await db.execute(
+        select(func.count(models.AILog.id)).filter(models.AILog.timestamp >= start_time)
+    )).scalar() or 0
 
     # Success Rate
-    success_count = query.filter(models.AILog.status == "SUCCESS").count()
+    success_count = (await db.execute(
+        select(func.count(models.AILog.id)).filter(
+            models.AILog.timestamp >= start_time,
+            models.AILog.status == "SUCCESS"
+        )
+    )).scalar() or 0
     success_rate = (success_count / total_requests * 100) if total_requests > 0 else 100
 
     # Avg Latency
-    avg_latency = (
-        query.with_entities(func.avg(models.AILog.execution_time_ms)).scalar() or 0
-    )
+    avg_latency = (await db.execute(
+        select(func.avg(models.AILog.execution_time_ms)).filter(models.AILog.timestamp >= start_time)
+    )).scalar() or 0
 
     # Token Usage
-    total_tokens = (
-        query.with_entities(
-            func.sum(models.AILog.tokens_in) + func.sum(models.AILog.tokens_out)
-        ).scalar()
-        or 0
-    )
+    total_tokens = (await db.execute(
+        select(func.sum(models.AILog.tokens_in) + func.sum(models.AILog.tokens_out)).filter(
+            models.AILog.timestamp >= start_time
+        )
+    )).scalar() or 0
 
     return success_response(data={
         "period": period,
@@ -79,8 +83,8 @@ def get_ai_stats(
 
 
 @router.get("/intents")
-def get_intent_analytics(
-    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.AI_CHAT))
+async def get_intent_analytics(
+    db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_permission(Permission.AI_CHAT))
 ):
     """
     Group performance by Intent/Tool.
@@ -88,33 +92,28 @@ def get_intent_analytics(
     """
     ensure_super_admin(current_user)
 
-    # Group by tool/intent
-    # Select tool, count(*), avg(latency), sum(status=failure)
-    # SQLAlchemy grouping
-
-    # Safe aggregation
-    stats = (
-        db.query(
+    # Group by tool/intent using safe aggregation and async execute
+    stmt = (
+        select(
             models.AILog.tool,
             func.count(models.AILog.id).label("count"),
             func.avg(models.AILog.execution_time_ms).label("avg_latency"),
-            func.sum(case((models.AILog.status != "SUCCESS", 1), else_=0)).label(
-                "failure_count"
-            ),
+            func.sum(case((models.AILog.status != "SUCCESS", 1), else_=0)).label("failure_count"),
         )
         .group_by(models.AILog.tool)
         .order_by(desc("count"))
         .limit(10)
-        .all()
     )
+    result = await db.execute(stmt)
+    stats = result.all()
 
-    result = []
+    result_data = []
     for tool, count, latency, failures in stats:
         tool_name = tool if tool else "chat_unknown"
         fail_count = failures if failures else 0
         fail_rate = (fail_count / count * 100) if count > 0 else 0
 
-        result.append(
+        result_data.append(
             {
                 "intent": tool_name,
                 "usage": count,
@@ -123,12 +122,12 @@ def get_intent_analytics(
             }
         )
 
-    return success_response(data=result)
+    return success_response(data=result_data)
 
 
 @router.get("/failures")
-def get_failure_analytics(
-    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.AI_CHAT))
+async def get_failure_analytics(
+    db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_permission(Permission.AI_CHAT))
 ):
     """
     Phase 2: Failure Analysis Engine.
@@ -137,22 +136,24 @@ def get_failure_analytics(
     ensure_super_admin(current_user)
 
     # 1. Breakdown by Error Type
-    error_stats = (
-        db.query(models.AILog.error_type, func.count(models.AILog.id).label("count"))
+    stmt_error = (
+        select(models.AILog.error_type, func.count(models.AILog.id).label("count"))
         .filter(models.AILog.status != "SUCCESS", models.AILog.error_type.isnot(None))
         .group_by(models.AILog.error_type)
-        .all()
     )
+    res_error = await db.execute(stmt_error)
+    error_stats = res_error.all()
 
     # 2. Breakdown by Tool (where status=FAILURE)
-    tool_failures = (
-        db.query(models.AILog.tool, func.count(models.AILog.id).label("count"))
+    stmt_tool = (
+        select(models.AILog.tool, func.count(models.AILog.id).label("count"))
         .filter(models.AILog.status != "SUCCESS")
         .group_by(models.AILog.tool)
         .order_by(desc("count"))
         .limit(5)
-        .all()
     )
+    res_tool = await db.execute(stmt_tool)
+    tool_failures = res_tool.all()
 
     return success_response(data={
         "by_type": [{"type": e[0] or "unknown", "count": e[1]} for e in error_stats],
@@ -161,8 +162,8 @@ def get_failure_analytics(
 
 
 @router.get("/heatmap")
-def get_confidence_heatmap(
-    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.AI_CHAT))
+async def get_confidence_heatmap(
+    db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_permission(Permission.AI_CHAT))
 ):
     """
     Phase 2: Confidence Heatmap.
@@ -171,18 +172,13 @@ def get_confidence_heatmap(
     """
     ensure_super_admin(current_user)
 
-    # We need to manually bucket or use a complex query.
-    # For MVP (SQLite/Postgres compat), fetching raw aggregates is safer.
-
-    # Intent | Confidence | Count
-    # Actually just filtering is easier for now:
-
-    results = (
-        db.query(models.AILog.tool, models.AILog.confidence)
+    stmt = (
+        select(models.AILog.tool, models.AILog.confidence)
         .filter(models.AILog.tool.isnot(None))
         .limit(1000)
-        .all()
     )
+    result = await db.execute(stmt)
+    results = result.all()
 
     heatmap = {}  # { intent: { low: 0, medium: 0, high: 0 } }
 
@@ -212,9 +208,9 @@ def get_confidence_heatmap(
 
 
 @router.get("/costs")
-def get_cost_analytics(
+async def get_cost_analytics(
     period: str = "30d",
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
 ):
     """
@@ -235,20 +231,19 @@ def get_cost_analytics(
         start_time = now - timedelta(days=30)
 
     # 1. Total Usage & Cost
-    # Assuming rough cost: $0.05 per 1M tokens (Llama 3 8B is cheap, but let's use a proxy)
-    # let's map: Input $0.50 / 1M, Output $1.50 / 1M (Example Pricing)
     INPUT_COST_PER_1M = 0.50
     OUTPUT_COST_PER_1M = 1.50
 
-    usage_stats = (
-        db.query(
+    stmt_usage = (
+        select(
             func.sum(models.AILog.tokens_in).label("total_in"),
             func.sum(models.AILog.tokens_out).label("total_out"),
             func.count(models.AILog.id).label("total_reqs"),
         )
         .filter(models.AILog.timestamp >= start_time)
-        .first()
     )
+    result_usage = await db.execute(stmt_usage)
+    usage_stats = result_usage.first()
 
     total_in = usage_stats.total_in or 0
     total_out = usage_stats.total_out or 0
@@ -258,11 +253,6 @@ def get_cost_analytics(
     )
 
     # 2. ROI Calculation (Time Saved)
-    # Assumptions:
-    # - Appointment Booking: Saves 3 mins
-    # - Patient Creation: Saves 5 mins
-    # - General Chat: Saves 1 min
-
     roi_map = {
         "appointment_booking": 3,
         "smart_book_appointment": 3,
@@ -274,12 +264,13 @@ def get_cost_analytics(
     }
 
     # Get tool usage counts
-    tool_counts = (
-        db.query(models.AILog.tool, func.count(models.AILog.id))
+    stmt_counts = (
+        select(models.AILog.tool, func.count(models.AILog.id))
         .filter(models.AILog.timestamp >= start_time, models.AILog.status == "SUCCESS")
         .group_by(models.AILog.tool)
-        .all()
     )
+    result_counts = await db.execute(stmt_counts)
+    tool_counts = result_counts.all()
 
     minutes_saved = 0
     for tool, count in tool_counts:
@@ -287,9 +278,6 @@ def get_cost_analytics(
 
     hours_saved = round(minutes_saved / 60, 1)
     money_saved_usd = round(hours_saved * 15, 2)  # Assuming $15/hr labor cost
-
-    # 3. Daily Trend (Last 7 intervals)
-    # ... Simplified for MVP: Just global stats
 
     return success_response(data={
         "period": period,
@@ -304,8 +292,8 @@ def get_cost_analytics(
 
 
 @router.get("/suggestions")
-def get_ai_suggestions(
-    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.AI_CHAT))
+async def get_ai_suggestions(
+    db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_permission(Permission.AI_CHAT))
 ):
     """
     Phase 4: AI Improvement Suggestions Engine.
@@ -313,17 +301,15 @@ def get_ai_suggestions(
     """
     ensure_super_admin(current_user)
 
-    # Using service with generic metrics (no tenant_id filters) since this is a super admin endpoint
-    # that currently analyzes system-wide behavior
     ai_learning_service = get_ai_learning_service(db)
-    suggestions = ai_learning_service.generate_suggestions(days=30)
+    suggestions = await ai_learning_service.generate_suggestions(days=30)
 
     return success_response(data=suggestions)
 
 
 @router.get("/governance")
-def get_ai_governance(
-    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.AI_CHAT))
+async def get_ai_governance(
+    db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_permission(Permission.AI_CHAT))
 ):
     """
     Phase 5: AI Governance & Safety.
@@ -340,20 +326,18 @@ def get_ai_governance(
 
     settings = {}
     for key, default_val in defaults.items():
-        setting = (
-            db.query(models.SystemSetting)
-            .filter(models.SystemSetting.key == key)
-            .first()
-        )
+        stmt = select(models.SystemSetting).filter(models.SystemSetting.key == key)
+        result = await db.execute(stmt)
+        setting = result.scalars().first()
         settings[key] = setting.value if setting else default_val
 
     return success_response(data=settings)
 
 
 @router.post("/governance")
-def update_ai_governance(
+async def update_ai_governance(
     settings: dict,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
 ):
     """
@@ -372,11 +356,9 @@ def update_ai_governance(
     for key, value in settings.items():
         if key in allowed_keys:
             # Check if exists
-            setting = (
-                db.query(models.SystemSetting)
-                .filter(models.SystemSetting.key == key)
-                .first()
-            )
+            stmt = select(models.SystemSetting).filter(models.SystemSetting.key == key)
+            result = await db.execute(stmt)
+            setting = result.scalars().first()
             if setting:
                 setting.value = str(value)
             else:
@@ -386,17 +368,17 @@ def update_ai_governance(
                 db.add(new_setting)
             updated[key] = str(value)
 
-    db.commit()
+    await db.commit()
     return success_response(data={"status": "success", "updated": updated})
 
 
 @router.get("/logs")
-def get_ai_logs(
+async def get_ai_logs(
     page: int = 1,
     limit: int = 20,
     trace_id: Optional[str] = None,
     status: Optional[str] = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
 ):
     """
@@ -404,21 +386,24 @@ def get_ai_logs(
     """
     ensure_super_admin(current_user)
 
-    query = db.query(models.AILog)
+    query_stmt = select(models.AILog)
 
     if trace_id:
-        query = query.filter(models.AILog.trace_id.ilike(f"%{trace_id}%"))
+        query_stmt = query_stmt.filter(models.AILog.trace_id.ilike(f"%{trace_id}%"))
     if status:
-        query = query.filter(models.AILog.status == status)
+        query_stmt = query_stmt.filter(models.AILog.status == status)
 
-    total = query.count()
+    # Get count
+    count_stmt = select(func.count()).select_from(query_stmt.subquery())
+    total = (await db.execute(count_stmt)).scalar() or 0
 
-    logs = (
-        query.order_by(desc(models.AILog.timestamp))
+    stmt = (
+        query_stmt.order_by(desc(models.AILog.timestamp))
         .offset((page - 1) * limit)
         .limit(limit)
-        .all()
     )
+    result = await db.execute(stmt)
+    logs = result.scalars().all()
 
     return success_response(data={
         "data": [
@@ -443,9 +428,9 @@ def get_ai_logs(
 
 
 @router.get("/logs/{log_id}")
-def get_log_details(
+async def get_log_details(
     log_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
 ):
     """
@@ -453,7 +438,9 @@ def get_log_details(
     """
     ensure_super_admin(current_user)
 
-    log = db.query(models.AILog).filter(models.AILog.id == log_id).first()
+    stmt = select(models.AILog).filter(models.AILog.id == log_id)
+    result = await db.execute(stmt)
+    log = result.scalars().first()
     if not log:
         raise HTTPException(status_code=404, detail="Log not found")
 
@@ -484,9 +471,8 @@ class ClinicStats(BaseModel):
     margin_percent: float
 
 
-def get_detailed_analytics(db: Session, tenant_id: int, days: int = 30) -> str:
+async def get_detailed_analytics(db: AsyncSession, tenant_id: int, days: int = 30) -> str:
     """Fetch deep KPIs: Margins, High-Cost procedures, and Efficiency."""
-    # Ensure dependencies are available locally if needed, but they are imported at top
     start_date = datetime.now(timezone.utc) - timedelta(days=days)
     cost_engine = CostEngine(db, tenant_id)
 
@@ -495,7 +481,7 @@ def get_detailed_analytics(db: Session, tenant_id: int, days: int = 30) -> str:
         # Check if is_deleted exists on Treatment
         has_deleted_col = hasattr(models.Treatment, "is_deleted")
 
-        top_procs_query = db.query(
+        top_procs_query = select(
             models.Treatment.procedure,
             func.count(models.Treatment.id).label("proc_count"),
             func.sum(models.Treatment.cost).label("total_revenue"),
@@ -505,15 +491,12 @@ def get_detailed_analytics(db: Session, tenant_id: int, days: int = 30) -> str:
 
         if has_deleted_col:
             top_procs_query = top_procs_query.filter(
-                models.Treatment.is_deleted == False  # noqa: E712
+                models.Treatment.is_deleted == False
             )
 
-        top_procs = (
-            top_procs_query.group_by(models.Treatment.procedure)
-            .order_by(desc("proc_count"))
-            .limit(5)
-            .all()
-        )
+        stmt = top_procs_query.group_by(models.Treatment.procedure).order_by(desc("proc_count")).limit(5)
+        result = await db.execute(stmt)
+        top_procs = result.all()
 
         proc_details = []
         for p in top_procs:
@@ -521,19 +504,17 @@ def get_detailed_analytics(db: Session, tenant_id: int, days: int = 30) -> str:
                 continue
 
             # Find base procedure ID to calculate margin
-            proc_obj = (
-                db.query(models.Procedure)
-                .filter(
-                    models.Procedure.name == p.procedure,
-                    models.Procedure.tenant_id == tenant_id,
-                )
-                .first()
+            proc_stmt = select(models.Procedure).filter(
+                models.Procedure.name == p.procedure,
+                models.Procedure.tenant_id == tenant_id,
             )
+            proc_res = await db.execute(proc_stmt)
+            proc_obj = proc_res.scalars().first()
 
             theoretical_margin = 0.0
             if proc_obj:
                 try:
-                    analysis = cost_engine.calculate_procedure_cost(proc_obj.id)
+                    analysis = await cost_engine.calculate_procedure_cost(proc_obj.id)
                     theoretical_margin = analysis.get("margin_percentage", 0.0)
                 except Exception:
                     pass
@@ -553,10 +534,8 @@ def get_detailed_analytics(db: Session, tenant_id: int, days: int = 30) -> str:
     # 2. Lab Usage vs Revenue
     lab_by_doctor = []
     try:
-        # Check if User table has username (Standard) or needs fallback
-        # Traceback indicated issues with User attributes previously
         stmt = (
-            db.query(
+            select(
                 models.User.username, func.sum(models.LabOrder.cost).label("lab_total")
             )
             .join(models.LabOrder, models.LabOrder.doctor_id == models.User.id)
@@ -566,21 +545,22 @@ def get_detailed_analytics(db: Session, tenant_id: int, days: int = 30) -> str:
             )
             .group_by(models.User.username)
         )
-
-        lab_by_doctor = stmt.all()
+        res = await db.execute(stmt)
+        lab_by_doctor = res.all()
     except Exception as e:
         logger.error(f"Error fetching lab usage: {e}")
         lab_by_doctor = []
 
     # 3. Low Stock Alerts for Critical Materials
     try:
-        low_stock = (
-            db.query(Material.name)
+        stmt = (
+            select(Material.name)
             .filter(Material.tenant_id == tenant_id)
             .order_by(Material.alert_threshold.desc())
             .limit(3)
-            .all()
         )
+        res = await db.execute(stmt)
+        low_stock = res.all()
     except Exception:
         low_stock = []
 
@@ -598,7 +578,6 @@ def get_detailed_analytics(db: Session, tenant_id: int, days: int = 30) -> str:
         details += "\n**Lab Spend by Doctor:**\n"
         for item in lab_by_doctor:
             try:
-                # SAFE ACCESS: Use username if available
                 doc_name = getattr(item, "username", "Unknown Doctor")
                 val = getattr(item, "lab_total", 0.0) or 0.0
                 details += f"- {doc_name}: ${val:,.0f}\n"
@@ -615,24 +594,22 @@ def get_detailed_analytics(db: Session, tenant_id: int, days: int = 30) -> str:
 @router.post("/analyze-clinic")
 async def analyze_clinic(
     stats: ClinicStats,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
 ):
     """
     Generate AI insights based on financial stats.
     """
-    # ensure_super_admin(current_user) # Optional: Allow Managers?
-
     service = AIService(db, current_user)
 
     # Enrich with deep KPIs
     try:
-        detailed_context = get_detailed_analytics(db, current_user.tenant_id)
+        detailed_context = await get_detailed_analytics(db, current_user.tenant_id)
     except Exception as e:
         logger.error(f"Failed to get detailed context: {e}")
         detailed_context = ""
 
-    # Safeguard stats (Pydantic might allow partial data if configured, better safe than 500)
+    # Safeguard stats
     rev = stats.revenue or 0.0
     exp = stats.breakdown.get("expenses", 0) or 0.0
     lab = stats.breakdown.get("lab_costs", 0) or 0.0

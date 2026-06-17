@@ -1,7 +1,8 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from backend.core.limiter import limiter
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from datetime import datetime, timedelta, timezone
 import secrets
 
@@ -10,15 +11,15 @@ from ..email_service import send_password_reset_email
 from ..core.firebase_client import firebase_client
 from ..auth import get_password_hash
 from .auth.dependencies import validate_password
-from backend.core.response import success_response
+from ..services.auth_service import AuthService
+from backend.core.response import success_response, error_response
 import os
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Authentication"])
 
-
-from ..database import get_db
+from ..database import get_async_db
 
 
 @router.post(
@@ -27,21 +28,22 @@ from ..database import get_db
     description="Sends a password reset email. Rate limited to 5 requests/minute.",
 )
 @limiter.limit("5/minute")
-def forgot_password(
+async def forgot_password(
     request: Request,
     email: str = Query(..., description="User email address"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Request password reset. Sends email with reset link.
     """
     # Find user by email
-    user = db.query(models.User).filter(models.User.email == email).first()
+    result = await db.execute(select(models.User).filter(models.User.email == email))
+    user = result.scalars().first()
 
     if not user:
         # Don't reveal if email exists or not (security)
         return success_response(
-            message="Ø¥Ø°Ø§ ÙƒØ§Ù† Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ Ù…Ø³Ø¬Ù„Ø§Ù‹ Ù„Ø¯ÙŠÙ†Ø§ØŒ Ø³ØªØµÙ„Ùƒ Ø±Ø³Ø§Ù„Ø© Ù„Ø¥Ø¹Ø§Ø¯Ø© ØªØ¹ÙŠÙŠÙ† ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ±"
+            message="إذا كان البريد الإلكتروني موجوداً لدى النظام، ستصل رسالة لإعادة تعيين كلمة المرور"
         )
 
     # 1. Generate Firebase Reset Link
@@ -52,7 +54,7 @@ def forgot_password(
         email_sent = send_password_reset_email(email, firebase_link, user.username, is_firebase_link=True)
         if email_sent:
             return success_response(
-                message="ØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ø±Ø§Ø¨Ø· Ø¥Ø¹Ø§Ø¯Ø© ØªØ¹ÙŠÙŠÙ† ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ø¥Ù„Ù‰ Ø¨Ø±ÙŠØ¯Ùƒ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ Ø¹Ø¨Ø± Firebase"
+                message="تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني عبر Firebase"
             )
 
     # Fallback to legacy system if Firebase is not ready or fails
@@ -68,13 +70,13 @@ def forgot_password(
         expires_at=expires_at
     )
     db.add(reset_token)
-    db.commit()
+    await db.commit()
 
     email_sent = send_password_reset_email(email, token, user.username)
     if email_sent:
-        return success_response(message="ØªÙ… Ø¥Ø±Ø³Ø§Ù„ Ø±Ø§Ø¨Ø· Ø¥Ø¹Ø§Ø¯Ø© ØªØ¹ÙŠÙŠÙ† ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± (Legacy SMTP)")
+        return success_response(message="تم إرسال رابط إعادة تعيين كلمة المرور (Legacy SMTP)")
 
-    raise HTTPException(status_code=500, detail="ÙØ´Ù„ Ø¥Ø±Ø³Ø§Ù„ Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ")
+    raise HTTPException(status_code=500, detail="فشل إرسال البريد الإلكتروني")
 
 
 @router.post(
@@ -83,27 +85,27 @@ def forgot_password(
     description="Reset password using the token received via email. Rate limited to 5 requests/minute.",
 )
 @limiter.limit("5/minute")
-def reset_password(
+async def reset_password(
     request: Request,
     token: str = Query(..., description="Reset token from email"),
     new_password: str = Query(..., description="New password"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Reset password using token from email.
     """
     # Find and validate token
-    reset_token = (
-        db.query(models.PasswordResetToken)
+    result = await db.execute(
+        select(models.PasswordResetToken)
         .filter(
             models.PasswordResetToken.token == token,
             models.PasswordResetToken.used == False,  # noqa: E712
         )
-        .first()
     )
+    reset_token = result.scalars().first()
 
     if not reset_token:
-        raise HTTPException(status_code=400, detail="Ø±Ø§Ø¨Ø· ØºÙŠØ± ØµØ§Ù„Ø­ Ø£Ùˆ Ù…Ù†ØªÙ‡ÙŠ Ø§Ù„ØµÙ„Ø§Ø­ÙŠØ©")
+        raise HTTPException(status_code=400, detail="رابط غير صحيح أو منتهي الصلاحية")
 
     # Check expiration
     now = datetime.now(timezone.utc)
@@ -112,15 +114,16 @@ def reset_password(
         expires = expires.replace(tzinfo=timezone.utc)
     if now > expires:
         reset_token.used = True
-        db.commit()
+        await db.commit()
         raise HTTPException(
-            status_code=400, detail="Ø§Ù†ØªÙ‡Øª ØµÙ„Ø§Ø­ÙŠØ© Ø§Ù„Ø±Ø§Ø¨Ø·. ÙŠØ±Ø¬Ù‰ Ø·Ù„Ø¨ Ø±Ø§Ø¨Ø· Ø¬Ø¯ÙŠØ¯"
+            status_code=400, detail="انتهت صلاحية الرابط. يرجى طلب رابط جديد"
         )
 
     # Get user and update password
-    user = db.query(models.User).filter(models.User.id == reset_token.user_id).first()
+    user_result = await db.execute(select(models.User).filter(models.User.id == reset_token.user_id))
+    user = user_result.scalars().first()
     if not user:
-        raise HTTPException(status_code=400, detail="Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯")
+        raise HTTPException(status_code=400, detail="المستخدم غير موجود")
 
     # Validate new password strength using central logic
     validate_password(new_password)
@@ -128,36 +131,43 @@ def reset_password(
     # Update password
     user.hashed_password = get_password_hash(new_password)
 
+    # REVOKE ALL SESSIONS: Force logout on all devices after password reset
+    revoked_count = await AuthService.revoke_all_user_sessions(db, user.id)
+    if revoked_count > 0:
+        logger.info(f"Revoked {revoked_count} sessions for user {user.username} after password reset")
+
     # Mark token as used
     reset_token.used = True
 
-    db.commit()
+    await db.commit()
 
     return success_response(
-        message="ØªÙ… ØªØºÙŠÙŠØ± ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ø¨Ù†Ø¬Ø§Ø­. ÙŠÙ…ÙƒÙ†Ùƒ Ø§Ù„Ø¢Ù† ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„"
+        message="تم تغيير كلمة المرور بنجاح. يرجى تسجيل الدخول من جديد"
     )
 
 
 @router.get("/verify-reset-token")
-def verify_reset_token(
+async def verify_reset_token(
     token: str = Query(..., description="Reset token to verify"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Verify if a reset token is valid (for frontend validation before showing form).
     """
-    reset_token = (
-        db.query(models.PasswordResetToken)
+    result = await db.execute(
+        select(models.PasswordResetToken)
         .filter(
             models.PasswordResetToken.token == token,
             models.PasswordResetToken.used == False,  # noqa: E712
         )
-        .first()
     )
+    reset_token = result.scalars().first()
 
     if not reset_token:
-        return success_response(
-            success=False, data={"valid": False}, message="Ø±Ø§Ø¨Ø· ØºÙŠØ± ØµØ§Ù„Ø­"
+        return error_response(
+            message="رابط غير صحيح",
+            status_code=400,
+            details={"valid": False}
         )
 
     now = datetime.now(timezone.utc)
@@ -165,8 +175,10 @@ def verify_reset_token(
     if expires and expires.tzinfo is None:
         expires = expires.replace(tzinfo=timezone.utc)
     if now > expires:
-        return success_response(
-            success=False, data={"valid": False}, message="Ø§Ù†ØªÙ‡Øª ØµÙ„Ø§Ø­ÙŠØ© Ø§Ù„Ø±Ø§Ø¨Ø·"
+        return error_response(
+            message="انتهت صلاحية الرابط",
+            status_code=400,
+            details={"valid": False}
         )
 
-    return success_response(data={"valid": True}, message="Ø§Ù„Ø±Ø§Ø¨Ø· ØµØ§Ù„Ø­")
+    return success_response(data={"valid": True}, message="الرابط صحيح")

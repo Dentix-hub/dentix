@@ -28,7 +28,7 @@ export default function PatientSelect({ patients = [], value, onChange, onQuickA
             {label && (
                 <label className="block text-sm font-bold text-text-primary">
                     {label}
-                    {required && <span className="text-red-500 ml-1">*</span>}
+                    {required && <span className="text-red-500 ms-1">*</span>}
                 </label>
             )}
             <Combobox 
@@ -40,15 +40,15 @@ export default function PatientSelect({ patients = [], value, onChange, onQuickA
                     <Combobox.Button className="w-full text-left">
                         <div className={`relative w-full cursor-default overflow-hidden rounded-xl bg-surface border ${error ? 'border-red-300' : 'border-border'} text-left focus:outline-none focus-within:ring-2 focus-within:ring-primary/20 sm:text-sm transition-all shadow-sm`}>
                             <ComboboxInput
-                                className="w-full border-none py-3 pl-10 pr-10 text-sm font-bold leading-5 text-text-primary focus:ring-0 bg-transparent outline-none placeholder:text-slate-500"
+                                className="w-full border-none py-3 ps-10 pe-10 text-sm font-bold leading-5 text-text-primary focus:ring-0 bg-transparent outline-none placeholder:text-slate-500"
                                 displayValue={(patient) => patient?.name || ''}
                                 onChange={(event) => setQuery(event.target.value)}
                                 placeholder={placeholder || t('common.search_patient', 'Search patient...')}
                             />
-                            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                            <div className="absolute inset-y-0 start-0 flex items-center ps-3 pointer-events-none">
                                 <Search className="h-4 w-4 text-slate-500" aria-hidden="true" />
                             </div>
-                            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                            <div className="absolute inset-y-0 end-0 flex items-center pe-3 pointer-events-none">
                                 <ChevronDown className="h-4 w-4 text-slate-500" aria-hidden="true" />
                             </div>
                         </div>
@@ -70,7 +70,7 @@ export default function PatientSelect({ patients = [], value, onChange, onQuickA
                                     <ComboboxOption
                                         key={patient.id}
                                         className={({ active }) =>
-                                            `relative cursor-default select-none py-3 pl-10 pr-4 transition-all mx-2 rounded-xl mb-1 ${
+                                            `relative cursor-default select-none py-3 ps-10 pe-4 transition-all mx-2 rounded-xl mb-1 ${
                                                 active ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]' : 'text-text-primary hover:bg-slate-50 dark:hover:bg-slate-800'
                                             }`
                                         }
@@ -94,7 +94,7 @@ export default function PatientSelect({ patients = [], value, onChange, onQuickA
                                                     </div>
                                                 </div>
                                                 {selected ? (
-                                                    <span className={`absolute inset-y-0 left-0 flex items-center pl-3 ${active ? 'text-white' : 'text-primary'}`}>
+                                                    <span className={`absolute inset-y-0 start-0 flex items-center ps-3 ${active ? 'text-white' : 'text-primary'}`}>
                                                         <Check className="h-4 w-4" aria-hidden="true" />
                                                     </span>
                                                 ) : null}

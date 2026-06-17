@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { Camera, X, Check, Loader2, Info, Scan } from 'lucide-react';
 import { performOCR } from '@/api';
 export default function PatientScanner({ onScanComplete, onClose }) {
@@ -43,7 +44,7 @@ export default function PatientScanner({ onScanComplete, onClose }) {
                 setIsReady(true);
             }
         } catch (err) {
-            console.error("Camera error:", err);
+            logger.error("Camera error:", err);
             setErrorHeader('حدث خطأ في الكاميرا. يمكنك رفع الصورة بدلاً من ذلك.');
         }
     };
@@ -112,7 +113,7 @@ export default function PatientScanner({ onScanComplete, onClose }) {
             setExtractedData(parsed);
             setIsReviewing(true);
         } catch (err) {
-            console.error("OCR Error:", err);
+            logger.error("OCR Error:", err);
             let msg = "فشل الاتصال بمحرك القراءة.";
             if (err.code === 'ECONNABORTED') {
                 msg = "انتهى وقت المحاولة (Timeout)";

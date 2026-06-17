@@ -4,10 +4,10 @@ Handles expense tracking.
 """
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import schemas, crud
-from .auth import get_db
+from backend.database import get_async_db
 from backend.core.permissions import Permission, require_permission
 from ..utils.audit_logger import log_admin_action
 from backend.core.response import success_response
@@ -16,24 +16,25 @@ router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
 
 @router.get("")
-def get_expenses(
+async def get_expenses(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """Get all expenses for current tenant."""
-    return success_response(crud.get_expenses(db, current_user.tenant_id, skip=skip, limit=limit))
+    data = await crud.get_expenses(db, current_user.tenant_id, skip=skip, limit=limit)
+    return success_response(data)
 
 
 @router.post("")
-def create_expense(
+async def create_expense(
     expense: schemas.ExpenseCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
 ):
     """Create a new expense record."""
-    result = crud.create_expense(db=db, expense=expense, tenant_id=current_user.tenant_id)
+    result = await crud.create_expense(db=db, expense=expense, tenant_id=current_user.tenant_id)
     log_admin_action(
         db=db,
         admin_user=current_user,
@@ -46,9 +47,9 @@ def create_expense(
 
 
 @router.delete("/{expense_id}")
-def delete_expense(
+async def delete_expense(
     expense_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
 ):
     """Delete an expense record."""
@@ -60,14 +61,16 @@ def delete_expense(
         entity_id=expense_id,
         details=f"Deleted expense #{expense_id}",
     )
-    return success_response(crud.delete_expense(db, expense_id, current_user.tenant_id), message="Deleted successfully")
+    data = await crud.delete_expense(db, expense_id, current_user.tenant_id)
+    return success_response(data, message="Deleted successfully")
 
 
 @router.get("/stats")
-def get_stats(
-    db: Session = Depends(get_db),
+async def get_stats(
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """Get financial statistics (expenses vs payments)."""
     # Use the comprehensive stats from crud
-    return success_response(crud.get_financial_stats(db, current_user.tenant_id))
+    data = await crud.get_financial_stats(db, current_user.tenant_id)
+    return success_response(data)

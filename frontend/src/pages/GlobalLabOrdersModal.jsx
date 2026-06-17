@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { X, FlaskConical, Search } from 'lucide-react';
 import { getLabOrders } from '../api';
 const GlobalLabOrdersModal = ({ isOpen, onClose, initialStatus = '', title = '' }) => {
@@ -18,7 +19,7 @@ const GlobalLabOrdersModal = ({ isOpen, onClose, initialStatus = '', title = '' 
             const res = await getLabOrders({ status: status || undefined });
             setOrders(res.data);
         } catch (error) {
-            console.error("Failed to load global orders", error);
+            logger.error("Failed to load global orders", error);
         } finally {
             setLoading(false);
         }
@@ -55,13 +56,13 @@ const GlobalLabOrdersModal = ({ isOpen, onClose, initialStatus = '', title = '' 
                 {/* Filters */}
                 <div className="p-4 border-b flex gap-4 bg-white">
                     <div className="relative flex-1">
-                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                        <Search className="absolute end-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
                         <input
                             type="text"
                             placeholder="بحث باسم المريض أو المعمل..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pr-10 pl-4 py-2 bg-slate-50 rounded-lg border outline-none focus:ring-2 focus:ring-teal-500/20"
+                            className="w-full pe-10 ps-4 py-2 bg-slate-50 rounded-lg border outline-none focus:ring-2 focus:ring-teal-500/20"
                         />
                     </div>
                     <select

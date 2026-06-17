@@ -5,8 +5,8 @@ Handles all doctor revenue, compensation, and salary calculations.
 Extracted from routers/accounting.py to follow service layer pattern.
 """
 
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 from datetime import datetime
 from typing import List, Dict, Any
 
@@ -18,7 +18,7 @@ from backend.utils.audit_logger import log_admin_action
 class AccountingService:
     """Service for accounting and revenue calculations."""
 
-    def __init__(self, db: Session, tenant_id: int):
+    def __init__(self, db: AsyncSession, tenant_id: int):
         self.db = db
         self.tenant_id = tenant_id
 
@@ -32,24 +32,23 @@ class AccountingService:
         )
         return start, end
 
-    def get_relevant_users(self, roles: List[str] = None) -> List[models.User]:
+    async def get_relevant_users(self, roles: List[str] = None) -> List[models.User]:
         """Get all users with specified roles for the tenant."""
         if roles is None:
             roles = DOCTOR_ROLES
-        return (
-            self.db.query(models.User)
-            .filter(
-                models.User.tenant_id == self.tenant_id, models.User.role.in_(roles)
-            )
-            .all()
+        stmt = select(models.User).where(
+            models.User.tenant_id == self.tenant_id,
+            models.User.role.in_(roles)
         )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
 
-    def get_treatment_stats_by_doctor(
+    async def get_treatment_stats_by_doctor(
         self, start: datetime, end: datetime, doctor_ids: List[int]
     ) -> Dict[int, Dict[str, Any]]:
         """Get treatment statistics grouped by doctor."""
-        results = (
-            self.db.query(
+        stmt = (
+            select(
                 models.Treatment.doctor_id,
                 func.count(models.Treatment.id).label("treatment_count"),
                 func.sum(models.Treatment.cost).label("gross_cost"),
@@ -59,16 +58,18 @@ class AccountingService:
                 ),
             )
             .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
                 models.Treatment.date >= start,
                 models.Treatment.date <= end,
-                models.Treatment.doctor_id.in_(doctor_ids) if doctor_ids else True,
             )
-            .group_by(models.Treatment.doctor_id)
-            .all()
         )
+        if doctor_ids:
+            stmt = stmt.where(models.Treatment.doctor_id.in_(doctor_ids))
+        stmt = stmt.group_by(models.Treatment.doctor_id)
+
+        results = (await self.db.execute(stmt)).all()
 
         return {
             r.doctor_id: {
@@ -80,89 +81,91 @@ class AccountingService:
             for r in results
         }
 
-    def get_lab_costs_by_doctor(
+    async def get_lab_costs_by_doctor(
         self, start: datetime, end: datetime, doctor_ids: List[int]
     ) -> Dict[int, float]:
         """Get lab costs grouped by doctor."""
-        results = (
-            self.db.query(
+        stmt = (
+            select(
                 models.LabOrder.doctor_id,
                 func.sum(models.LabOrder.cost).label("lab_cost"),
             )
-            .filter(
+            .where(
                 models.LabOrder.tenant_id == self.tenant_id,
                 models.LabOrder.order_date >= start,
                 models.LabOrder.order_date <= end,
-                models.LabOrder.doctor_id.in_(doctor_ids) if doctor_ids else True,
             )
-            .group_by(models.LabOrder.doctor_id)
-            .all()
         )
+        if doctor_ids:
+            stmt = stmt.where(models.LabOrder.doctor_id.in_(doctor_ids))
+        stmt = stmt.group_by(models.LabOrder.doctor_id)
+
+        results = (await self.db.execute(stmt)).all()
 
         return {r[0]: float(r[1] or 0) for r in results}
 
-    def get_total_income(self, start: datetime, end: datetime) -> float:
+    async def get_total_income(self, start: datetime, end: datetime) -> float:
         """Calculate total income from treatments in date range."""
-        return float(
-            self.db.query(func.sum(models.Treatment.cost - models.Treatment.discount))
+        stmt = (
+            select(func.sum(models.Treatment.cost - models.Treatment.discount))
             .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
                 models.Treatment.date >= start,
                 models.Treatment.date <= end,
             )
-            .scalar()
-            or 0.0
         )
+        res = await self.db.execute(stmt)
+        return float(res.scalar() or 0.0)
 
-    def get_total_collected(self, start: datetime, end: datetime) -> float:
+    async def get_total_collected(self, start: datetime, end: datetime) -> float:
         """Calculate total collected payments in date range."""
-        return float(
-            self.db.query(func.sum(models.Payment.amount))
+        stmt = (
+            select(func.sum(models.Payment.amount))
             .join(models.Patient, models.Payment.patient_id == models.Patient.id)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
                 models.Payment.date >= start,
                 models.Payment.date <= end,
             )
-            .scalar()
-            or 0.0
         )
+        res = await self.db.execute(stmt)
+        return float(res.scalar() or 0.0)
 
-    def get_total_expenses(self, start: datetime, end: datetime) -> float:
+    async def get_total_expenses(self, start: datetime, end: datetime) -> float:
         """Calculate total expenses in date range."""
-        return float(
-            self.db.query(func.sum(models.Expense.cost))
-            .filter(
+        stmt = (
+            select(func.sum(models.Expense.cost))
+            .where(
                 models.Expense.tenant_id == self.tenant_id,
                 models.Expense.date >= start.date(),
                 models.Expense.date <= end.date(),
             )
-            .scalar()
-            or 0.0
         )
+        res = await self.db.execute(stmt)
+        return float(res.scalar() or 0.0)
 
-    def get_total_lab_costs(self, start: datetime, end: datetime) -> float:
+    async def get_total_lab_costs(self, start: datetime, end: datetime) -> float:
         """Calculate total lab costs in date range."""
-        return float(
-            self.db.query(func.sum(models.LabOrder.cost))
-            .filter(
+        stmt = (
+            select(func.sum(models.LabOrder.cost))
+            .where(
                 models.LabOrder.tenant_id == self.tenant_id,
                 models.LabOrder.order_date >= start,
                 models.LabOrder.order_date <= end,
             )
-            .scalar()
-            or 0.0
         )
+        res = await self.db.execute(stmt)
+        return float(res.scalar() or 0.0)
 
-    def calculate_doctor_dues(
+    async def calculate_doctor_dues(
         self, start: datetime, end: datetime
     ) -> tuple[List[Dict[str, Any]], float]:
         """Calculate dues for all doctors in date range using COLLECTED amount."""
         # Use existing analytics to get accurate 'collected' amount
-        doctors_analytics = self.get_doctor_revenue_analytics(start, end)
+        doctors_analytics = await self.get_doctor_revenue_analytics(start, end)
 
         doctor_dues = []
         total_dues = 0.0
@@ -207,7 +210,7 @@ class AccountingService:
 
         return doctor_dues, total_dues
 
-    def get_doctor_revenue_analytics(
+    async def get_doctor_revenue_analytics(
         self, start: datetime, end: datetime
     ) -> List[Dict[str, Any]]:
         """
@@ -218,37 +221,36 @@ class AccountingService:
         - Net revenue
         """
         # 1. Get ALL relevant users (Doctors + Admins)
-        relevant_users = self.get_relevant_users(
+        relevant_users = await self.get_relevant_users(
             DOCTOR_ROLES + ["admin", "super_admin"]
         )
         relevant_user_ids = [u.id for u in relevant_users]
 
         # 2. Main Stats Query
-        stats_map = self.get_treatment_stats_by_doctor(start, end, relevant_user_ids)
+        stats_map = await self.get_treatment_stats_by_doctor(start, end, relevant_user_ids)
 
         # 3. Lab Costs
-        lab_cost_map = self.get_lab_costs_by_doctor(start, end, relevant_user_ids)
+        lab_cost_map = await self.get_lab_costs_by_doctor(start, end, relevant_user_ids)
 
         # 4. Treatment Costs per Patient (for ratio calculation)
-        treatment_costs = (
-            self.db.query(
+        stmt = (
+            select(
                 models.Treatment.doctor_id,
                 models.Treatment.patient_id,
                 func.sum(models.Treatment.cost).label("cost"),
             )
             .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
                 models.Treatment.date >= start,
                 models.Treatment.date <= end,
-                models.Treatment.doctor_id.in_(relevant_user_ids)
-                if relevant_user_ids
-                else True,
             )
-            .group_by(models.Treatment.doctor_id, models.Treatment.patient_id)
-            .all()
         )
+        if relevant_user_ids:
+            stmt = stmt.where(models.Treatment.doctor_id.in_(relevant_user_ids))
+        stmt = stmt.group_by(models.Treatment.doctor_id, models.Treatment.patient_id)
+        treatment_costs = (await self.db.execute(stmt)).all()
 
         doctor_patient_costs = {}
         patient_total_costs = {}
@@ -260,22 +262,22 @@ class AccountingService:
             patient_total_costs[pat_id] = patient_total_costs.get(pat_id, 0) + cost_val
 
         # 5. Payments
-        payments_with_doctor = (
-            self.db.query(
+        stmt = (
+            select(
                 models.Payment.doctor_id,
                 models.Payment.patient_id,
                 models.Payment.amount,
             )
             .join(models.Patient, models.Payment.patient_id == models.Patient.id)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
                 models.Payment.date >= start,
                 models.Payment.date <= end,
                 models.Payment.doctor_id.isnot(None),
             )
-            .all()
         )
+        payments_with_doctor = (await self.db.execute(stmt)).all()
 
         doctor_payments_direct = {}
         for doc_id, pat_id, amount in payments_with_doctor:
@@ -284,17 +286,17 @@ class AccountingService:
                     doc_id, 0
                 ) + float(amount or 0)
 
-        payments_all = (
-            self.db.query(models.Payment.patient_id, models.Payment.amount)
+        stmt = (
+            select(models.Payment.patient_id, models.Payment.amount)
             .join(models.Patient, models.Payment.patient_id == models.Patient.id)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
                 models.Payment.date >= start,
                 models.Payment.date <= end,
             )
-            .all()
         )
+        payments_all = (await self.db.execute(stmt)).all()
 
         # 6. Build Result
         doctors = []
@@ -348,46 +350,47 @@ class AccountingService:
                     "collected": collected,
                     "lab_cost": lab_cost,
                     "net_revenue": net_revenue,
-                    "commission_percent": user.commission_percent or 0,
-                    "fixed_salary": user.fixed_salary or 0,
+                    "commission_percent": user.commission_percent or 0.0,
+                    "fixed_salary": user.fixed_salary or 0.0,
                 }
             )
 
         return doctors
 
-    def get_doctor_details_data(
+    async def get_doctor_details_data(
         self, doctor_id: int, start: datetime, end: datetime
     ) -> Dict[str, Any]:
         """Get detailed breakdown for a specific doctor."""
-        doctor = self.db.query(models.User).filter(models.User.id == doctor_id).first()
+        stmt = select(models.User).where(models.User.id == doctor_id)
+        doctor = (await self.db.execute(stmt)).scalar_one_or_none()
         if not doctor:
             return None
 
-        treatments = (
-            self.db.query(models.Treatment, models.Patient.name)
+        stmt = (
+            select(models.Treatment, models.Patient.name)
             .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
-            .filter(
+            .where(
                 models.Treatment.doctor_id == doctor_id,
                 models.Treatment.date >= start,
                 models.Treatment.date <= end,
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
             )
-            .all()
         )
+        treatments = (await self.db.execute(stmt)).all()
 
-        lab_orders = (
-            self.db.query(models.LabOrder, models.Patient.name)
+        stmt = (
+            select(models.LabOrder, models.Patient.name)
             .join(models.Patient, models.LabOrder.patient_id == models.Patient.id)
-            .filter(
+            .where(
                 models.LabOrder.doctor_id == doctor_id,
                 models.LabOrder.order_date >= start,
                 models.LabOrder.order_date <= end,
                 models.LabOrder.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
             )
-            .all()
         )
+        lab_orders = (await self.db.execute(stmt)).all()
 
         return {
             "doctor_name": doctor.username,
@@ -417,7 +420,7 @@ class AccountingService:
             ],
         }
 
-    def update_staff_compensation_settings(
+    async def update_staff_compensation_settings(
         self,
         user_id: int,
         current_user: models.User,
@@ -426,11 +429,11 @@ class AccountingService:
         fee: float,
     ) -> bool:
         """Update compensation settings for a staff member."""
-        user = (
-            self.db.query(models.User)
-            .filter(models.User.id == user_id, models.User.tenant_id == self.tenant_id)
-            .first()
+        stmt = select(models.User).where(
+            models.User.id == user_id,
+            models.User.tenant_id == self.tenant_id
         )
+        user = (await self.db.execute(stmt)).scalar_one_or_none()
 
         if not user:
             return False
@@ -458,19 +461,16 @@ class AccountingService:
                 "per_appointment_fee": fee,
             },
         )
-        self.db.commit()
+        await self.db.commit()
         return True
 
-    def get_staff_list_revenue(self) -> List[Dict[str, Any]]:
+    async def get_staff_list_revenue(self) -> List[Dict[str, Any]]:
         """Get revenue settings for non-doctor staff."""
-        staff = (
-            self.db.query(models.User)
-            .filter(
-                models.User.tenant_id == self.tenant_id,
-                models.User.role.notin_(DOCTOR_ROLES + ["super_admin", "admin"]),
-            )
-            .all()
+        stmt = select(models.User).where(
+            models.User.tenant_id == self.tenant_id,
+            models.User.role.notin_(DOCTOR_ROLES + ["super_admin", "admin"]),
         )
+        staff = (await self.db.execute(stmt)).scalars().all()
         return [
             {
                 "id": s.id,
@@ -483,18 +483,15 @@ class AccountingService:
             for s in staff
         ]
 
-    def calculate_staff_dues(
+    async def calculate_staff_dues(
         self, start: datetime, end: datetime, total_appointments: int
     ) -> tuple[List[Dict[str, Any]], float]:
         """Calculate dues for staff based on fixed salary and appointment fees."""
-        staff_members = (
-            self.db.query(models.User)
-            .filter(
-                models.User.tenant_id == self.tenant_id,
-                models.User.role.notin_(DOCTOR_ROLES + ["super_admin", "admin"]),
-            )
-            .all()
+        stmt = select(models.User).where(
+            models.User.tenant_id == self.tenant_id,
+            models.User.role.notin_(DOCTOR_ROLES + ["super_admin", "admin"]),
         )
+        staff_members = (await self.db.execute(stmt)).scalars().all()
 
         staff_dues = []
         total_staff_dues = 0.0
@@ -521,7 +518,7 @@ class AccountingService:
 
         return staff_dues, total_staff_dues
 
-    def get_salary_status_for_month(self, month: str) -> Dict[str, Any]:
+    async def get_salary_status_for_month(self, month: str) -> Dict[str, Any]:
         """Get salary payment status for all employees for a specific month."""
         from calendar import monthrange
 
@@ -531,23 +528,17 @@ class AccountingService:
         except Exception:
             raise ValueError("Invalid month format")
 
-        employees = (
-            self.db.query(models.User)
-            .filter(
-                models.User.tenant_id == self.tenant_id,
-                models.User.role != "super_admin",
-            )
-            .all()
+        stmt = select(models.User).where(
+            models.User.tenant_id == self.tenant_id,
+            models.User.role != "super_admin",
         )
+        employees = (await self.db.execute(stmt)).scalars().all()
 
-        payments = (
-            self.db.query(models.SalaryPayment)
-            .filter(
-                models.SalaryPayment.tenant_id == self.tenant_id,
-                models.SalaryPayment.month == month,
-            )
-            .all()
+        stmt = select(models.SalaryPayment).where(
+            models.SalaryPayment.tenant_id == self.tenant_id,
+            models.SalaryPayment.month == month,
         )
+        payments = (await self.db.execute(stmt)).scalars().all()
         payments_map = {p.user_id: p for p in payments}
 
         result = []
@@ -594,7 +585,7 @@ class AccountingService:
             )
         return {"month": month, "employees": result}
 
-    def process_salary_payment(
+    async def process_salary_payment(
         self,
         user_id: int,
         current_user: models.User,
@@ -605,15 +596,12 @@ class AccountingService:
         notes: str,
     ) -> Dict[str, Any]:
         """Record a salary payment."""
-        existing = (
-            self.db.query(models.SalaryPayment)
-            .filter(
-                models.SalaryPayment.user_id == user_id,
-                models.SalaryPayment.month == month,
-                models.SalaryPayment.tenant_id == self.tenant_id,
-            )
-            .first()
+        stmt = select(models.SalaryPayment).where(
+            models.SalaryPayment.user_id == user_id,
+            models.SalaryPayment.month == month,
+            models.SalaryPayment.tenant_id == self.tenant_id,
         )
+        existing = (await self.db.execute(stmt)).scalar_one_or_none()
 
         if existing:
             return {"error": "Paid already", "payment_id": existing.id}
@@ -642,20 +630,17 @@ class AccountingService:
                 "notes": notes,
             },
         )
-        self.db.commit()
-        self.db.refresh(payment)
+        await self.db.commit()
+        await self.db.refresh(payment)
         return {"success": True, "payment_id": payment.id}
 
-    def remove_salary_payment(self, payment_id: int, current_user: models.User) -> bool:
+    async def remove_salary_payment(self, payment_id: int, current_user: models.User) -> bool:
         """Delete a salary payment."""
-        payment = (
-            self.db.query(models.SalaryPayment)
-            .filter(
-                models.SalaryPayment.id == payment_id,
-                models.SalaryPayment.tenant_id == self.tenant_id,
-            )
-            .first()
+        stmt = select(models.SalaryPayment).where(
+            models.SalaryPayment.id == payment_id,
+            models.SalaryPayment.tenant_id == self.tenant_id,
         )
+        payment = (await self.db.execute(stmt)).scalar_one_or_none()
 
         if not payment:
             return False
@@ -670,19 +655,19 @@ class AccountingService:
             old_value={"month": payment.month, "amount": payment.amount},
         )
 
-        self.db.delete(payment)
-        self.db.commit()
+        await self.db.delete(payment)
+        await self.db.commit()
         return True
 
-    def update_employee_hire_date(
+    async def update_employee_hire_date(
         self, user_id: int, hire_date_str: str, current_user: models.User
     ) -> bool:
         """Update employee hire date."""
-        user = (
-            self.db.query(models.User)
-            .filter(models.User.id == user_id, models.User.tenant_id == self.tenant_id)
-            .first()
+        stmt = select(models.User).where(
+            models.User.id == user_id,
+            models.User.tenant_id == self.tenant_id
         )
+        user = (await self.db.execute(stmt)).scalar_one_or_none()
 
         if not user:
             return False
@@ -700,7 +685,7 @@ class AccountingService:
                 old_value={"hire_date": old_hire_date},
                 new_value={"hire_date": hire_date_str},
             )
-            self.db.commit()
+            await self.db.commit()
             return True
         except ValueError:
             return False

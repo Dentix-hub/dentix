@@ -10,7 +10,6 @@ Handlers receive the DomainEvent ORM object and should be async functions.
 import logging
 from backend.workers.event_processor import register_handler
 from backend.models.domain_event import DomainEvent
-from backend.database import SessionLocal
 from backend import models
 
 logger = logging.getLogger("smart_clinic.events")

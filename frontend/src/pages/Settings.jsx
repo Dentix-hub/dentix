@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { Database, List, User, Settings as SettingsIcon, CreditCard, CheckCircle, AlertTriangle, Printer, Home } from 'lucide-react';
 import { getMe, getBackupStatus } from '../api';
@@ -57,7 +58,7 @@ export default function Settings() {
             const res = await getMe();
             setCurrentUser(res.data);
         } catch (err) {
-            console.error('Failed to load user info', err);
+            logger.error('Failed to load user info', err);
         }
     };
     const tabs = useMemo(() => [
@@ -93,7 +94,7 @@ export default function Settings() {
                     {/* Header Banner */}
                     <div className="h-32 bg-gradient-to-r from-primary to-cyan-600 relative overflow-hidden">
                         <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'linear-gradient(45deg, currentColor 25%, transparent 25%), linear-gradient(-45deg, currentColor 25%, transparent 25%), linear-gradient(45deg, transparent 75%, currentColor 75%), linear-gradient(-45deg, transparent 75%, currentColor 75%)', backgroundSize: '20px 20px', backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px'}}></div>
-                        <div className="absolute -bottom-6 right-8">
+                        <div className="absolute -bottom-6 end-8">
                             <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-lg border-4 border-white dark:border-slate-800">
                                 {activeTab === 'general' && <User size={32} className="text-primary" />}
                                 {activeTab === 'subscription' && <CreditCard size={32} className="text-primary" />}
@@ -155,7 +156,7 @@ export default function Settings() {
             </div>
             {/* Toast Message */}
             {message && (
-                <div className={`fixed bottom-8 left-8 p-4 rounded-2xl flex items-center gap-3 shadow-2xl animate-in slide-in-from-bottom-10 z-[100] ${message.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+                <div className={`fixed bottom-8 start-8 p-4 rounded-2xl flex items-center gap-3 shadow-2xl animate-in slide-in-from-bottom-10 z-[100] ${message.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
                     {message.type === 'success' ? <CheckCircle size={24} /> : <AlertTriangle size={24} />}
                     <span className="font-bold text-lg">{message.text}</span>
                 </div>

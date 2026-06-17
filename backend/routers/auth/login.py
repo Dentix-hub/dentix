@@ -1,25 +1,74 @@
 import os
-from fastapi import APIRouter, Depends, HTTPException, status, Form, Request, Response, Cookie
+from fastapi import APIRouter, Depends, HTTPException, status, Form, Request, Response, Cookie, Header
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, update
 from backend import models, schemas, crud, auth
 from backend.services.auth_service import AuthService
 from backend.core.permissions import Role
 from backend.core.limiter import limiter
-from .dependencies import get_db, get_current_user, oauth2_scheme
+from .dependencies import get_async_db, get_current_user, oauth2_scheme
 import uuid
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger("smart_clinic")
 
 router = APIRouter()
 
-
 # Cookie security settings
 _COOKIE_SECURE = os.getenv("ENVIRONMENT", "development").lower() == "production"
-_COOKIE_SAMESITE = "strict" if _COOKIE_SECURE else "lax"
+_COOKIE_SAMESITE = "lax"  # Lax is sufficient and safer for UX
 
+# CSRF token cookie name (non-httpOnly so JS can read it)
+_CSRF_COOKIE_NAME = "csrf_token"
+_CSRF_HEADER_NAME = "X-CSRF-Token"
+
+def _generate_csrf_token() -> str:
+    """Generate a secure CSRF token."""
+    return secrets.token_urlsafe(32)
+
+def _set_csrf_cookie(response: Response) -> str:
+    """Set CSRF token cookie (readable by JavaScript for double-submit pattern)."""
+    token = _generate_csrf_token()
+    response.set_cookie(
+        key=_CSRF_COOKIE_NAME,
+        value=token,
+        httponly=False,  # IMPORTANT: Must be readable by JavaScript
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
+        path="/",
+        max_age=60 * 60 * 24 * 30,  # 30 days
+    )
+    return token
+
+def _get_csrf_token(request: Request) -> str | None:
+    """Get CSRF token from cookie."""
+    return request.cookies.get(_CSRF_COOKIE_NAME)
+
+def _validate_csrf(request: Request, x_csrf_token: str | None = Header(None, alias="X-CSRF-Token")) -> bool:
+    """Validate CSRF token using double-submit pattern."""
+    cookie_token = request.cookies.get(_CSRF_COOKIE_NAME)
+    if not cookie_token:
+        return False
+    
+    # If called manually from middleware, x_csrf_token is a Header object instead of a string
+    if not isinstance(x_csrf_token, str):
+        x_csrf_token = request.headers.get("X-CSRF-Token")
+
+    if not x_csrf_token:
+        return False
+    # Timing-safe comparison
+    return secrets.compare_digest(cookie_token, x_csrf_token)
+
+def require_csrf(request: Request, x_csrf_token: str | None = Header(None, alias="X-CSRF-Token")) -> None:
+    """Dependency that raises 403 if CSRF validation fails."""
+    if not _validate_csrf(request, x_csrf_token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CSRF token validation failed"
+        )
 
 def _set_auth_cookies(
     response: Response, access_token: str, refresh_token: str | None = None
@@ -32,17 +81,18 @@ def _set_auth_cookies(
         secure=_COOKIE_SECURE,
         samesite=_COOKIE_SAMESITE,
         path="/",
-        max_age=60 * 60 * 24 * 7,  # 7 days
+        max_age=15 * 60,  # 15 minutes
     )
     if refresh_token:
+        from backend.core.config import API_V1_STR
         response.set_cookie(
             key="refresh_token",
             value=refresh_token,
             httponly=True,
             secure=_COOKIE_SECURE,
             samesite=_COOKIE_SAMESITE,
-            path="/",
-            max_age=60 * 60 * 24 * 30,  # 30 days
+            path=f"{API_V1_STR}/auth/refresh",  # restrict to refresh endpoint only
+            max_age=7 * 24 * 60 * 60,  # 7 days
         )
 
 
@@ -55,17 +105,17 @@ def _request_client_ip(request: Request | None) -> str | None:
 # --- Login ---
 @router.post("/token", response_model=schemas.Token)
 @limiter.limit("20/minute")
-def login_for_access_token(
+async def login_for_access_token(
     response: Response,
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Authenticate user and return JWT token."""
     try:
         # 1. Fetch User safely
         try:
-            user = crud.get_user(db, form_data.username)
+            user = await crud.get_user(db, form_data.username)
         except Exception as db_err:
             logger.error(f"DB Error fetching user: {db_err}")
             raise HTTPException(status_code=500, detail="Database connection error")
@@ -85,7 +135,7 @@ def login_for_access_token(
                 # Lockout expired, reset it
                 user.account_locked_until = None
                 user.failed_login_attempts = 0
-                db.commit()
+                await db.commit()
 
         # 3. Verify Credentials
         # Use explicit check to distinguish generic errors from bad password
@@ -105,8 +155,8 @@ def login_for_access_token(
             if user:
                 user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
                 if user.failed_login_attempts >= 5:
-                    user.account_locked_until = datetime.now(timezone.utc) + timedelta(minutes=15)
-                db.commit()
+                    user.account_locked_until = (datetime.now(timezone.utc) + timedelta(minutes=15)).replace(tzinfo=None)
+                await db.commit()
 
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -117,11 +167,9 @@ def login_for_access_token(
         # Check for Global Maintenance Mode
         if user.role != Role.SUPER_ADMIN.value:
             try:
-                maintenance_mode = (
-                    db.query(models.SystemSetting)
-                    .filter(models.SystemSetting.key == "maintenance_mode")
-                    .first()
-                )
+                stmt_m = select(models.SystemSetting).where(models.SystemSetting.key == "maintenance_mode")
+                result_m = await db.execute(stmt_m)
+                maintenance_mode = result_m.scalars().first()
                 if maintenance_mode and maintenance_mode.value.lower() == "true":
                     raise HTTPException(
                         status_code=503,
@@ -182,7 +230,7 @@ def login_for_access_token(
         user.active_session_id = session_id
         user.failed_login_attempts = 0
         user.account_locked_until = None
-        db.commit()
+        await db.commit()
 
         access_token = auth.create_access_token(
             data={
@@ -199,13 +247,17 @@ def login_for_access_token(
         # SINGLE SESSION POLICY: Invalidate all previous sessions for this user
         try:
             # This prevents the same account from being used on multiple devices simultaneously
-            db.query(models.UserSession).filter(
-                models.UserSession.user_id == user.id,
-                models.UserSession.is_active,
-            ).update({"is_active": False})
+            await db.execute(
+                update(models.UserSession)
+                .where(
+                    models.UserSession.user_id == user.id,
+                    models.UserSession.is_active == True,  # noqa: E712
+                )
+                .values(is_active=False)
+            )
 
             # Record Session (with Refresh Token)
-            AuthService.create_session(
+            await AuthService.create_session(
                 db,
                 user.id,
                 refresh_token,
@@ -217,15 +269,20 @@ def login_for_access_token(
             # Fallback if UserSessions table doesn't exist or other DB error
             logger.error(f"Session Management Failed: {session_error}")
 
-        _set_auth_cookies(response, access_token, refresh_token)
-
-        return {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "refresh_token": refresh_token,
-            "role": user.role,
-            "username": user.username,
-        }
+        from fastapi.responses import JSONResponse
+        res = JSONResponse(content={
+            "user": {
+                "id": str(user.id),
+                "name": user.full_name or user.username,
+                "email": user.email,
+                "role": user.role,
+                "tenant_id": str(user.tenant_id) if user.tenant_id else None,
+            },
+            "session_id": session_id,
+        })
+        _set_auth_cookies(res, access_token, refresh_token)
+        _set_csrf_cookie(res)
+        return res
     except HTTPException as he:
         raise he
     except Exception as e:
@@ -235,12 +292,12 @@ def login_for_access_token(
 
 @router.post("/refresh", response_model=schemas.Token)
 @limiter.limit("10/minute")
-def refresh_token(
+async def refresh_token(
     response: Response,
     request: Request,
     refresh_token: str = Form(""),
     refresh_token_cookie: str | None = Cookie(None, alias="refresh_token"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Exchange refresh token for new access token.
@@ -267,11 +324,11 @@ def refresh_token(
         # Looking up by refresh token is safer
 
         # For performance, maybe decoded SID is enough, but we should verify it exists in DB
-        db_session = AuthService.get_session_by_token(db, effective_refresh_token)
+        db_session = await AuthService.get_session_by_token(db, effective_refresh_token)
 
         if not db_session or not db_session.is_active:
             # Check if user has a newer session (Single session policy)
-            user = crud.get_user(db, username=username)
+            user = await crud.get_user(db, username=username)
             if user and user.active_session_id != sid:
                 raise HTTPException(
                     status_code=401, detail="Session Mismatch (Logged in elsewhere)"
@@ -280,7 +337,7 @@ def refresh_token(
             raise HTTPException(status_code=401, detail="Session expired or revoked")
 
         # Check User
-        user = crud.get_user(db, username=username)
+        user = await crud.get_user(db, username=username)
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
 
@@ -305,7 +362,7 @@ def refresh_token(
         # REFRESH TOKEN ROTATION
         # 1. Invalidate old session
         db_session.is_active = False
-        db.commit()
+        await db.commit()
 
         # 2. Generate new refresh token
         new_refresh_token = auth.create_refresh_token(
@@ -314,7 +371,7 @@ def refresh_token(
 
         # 3. Create new session DB record
         try:
-            AuthService.create_session(
+            await AuthService.create_session(
                 db,
                 user.id,
                 new_refresh_token,
@@ -325,15 +382,20 @@ def refresh_token(
         except Exception as e:
             logger.error(f"Failed to save rotated session: {e}")
 
-        _set_auth_cookies(response, access_token, new_refresh_token)
-
-        return {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "refresh_token": new_refresh_token,  # Return NEW refresh token
-            "role": user.role,
-            "username": user.username,
-        }
+        from fastapi.responses import JSONResponse
+        res = JSONResponse(content={
+            "user": {
+                "id": str(user.id),
+                "name": user.full_name or user.username,
+                "email": user.email,
+                "role": user.role,
+                "tenant_id": str(user.tenant_id) if user.tenant_id else None,
+            },
+            "session_id": sid,
+        })
+        _set_auth_cookies(res, access_token, new_refresh_token)
+        _set_csrf_cookie(res)
+        return res
     except HTTPException:
         raise
     except auth.JWTError:
@@ -347,33 +409,80 @@ def refresh_token(
         raise e
 
 
+@router.get("/session")
+async def get_auth_session(
+    current_user: models.User = Depends(get_current_user)
+):
+    """Get the current authenticated user's session details."""
+    from backend.core.response import success_response
+    return success_response(data={
+        "id": current_user.id,
+        "name": current_user.full_name or current_user.username,
+        "role": current_user.role,
+        "tenant_id": current_user.tenant_id,
+    })
+
+
 @router.get("/sessions")
-def get_sessions(
-    current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+async def get_sessions(
+
+    current_user: models.User = Depends(get_current_user), db: AsyncSession = Depends(get_async_db)
 ):
     """Get active sessions for current user."""
-    return AuthService.get_user_sessions(db, current_user.id)
+    return await AuthService.get_user_sessions(db, current_user.id)
 
 
 @router.delete("/sessions/{session_id}")
-def revoke_session(
+async def revoke_session(
     session_id: int,
     current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Revoke a specific session."""
-    AuthService.revoke_session(db, session_id, current_user.id)
+    await AuthService.revoke_session(db, session_id, current_user.id)
     return {"message": "Session revoked"}
+
+
+@router.post("/logout")
+async def logout(response: Response):
+    """Logout user by clearing auth cookies."""
+    # Clear access_token cookie
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        httponly=True,
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
+    )
+    # Clear refresh_token cookie
+    from backend.core.config import API_V1_STR
+    response.delete_cookie(
+        key="refresh_token",
+        path=f"{API_V1_STR}/auth/refresh",
+        httponly=True,
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
+    )
+    # Clear CSRF token cookie
+    response.delete_cookie(
+        key=_CSRF_COOKIE_NAME,
+        path="/",
+        httponly=False,
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
+    )
+    return {"message": "Logged out successfully"}
 
 
 # --- 2FA Endpoints ---
 @router.post("/login/2fa", response_model=schemas.Token)
-def login_2fa(
+@limiter.limit("5/minute")
+async def login_2fa(
     response: Response,
     request: Request,
     code: str = Form(...),
     token: str = Depends(oauth2_scheme),  # Temp token from first step
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     try:
         # Decode temp token
@@ -382,7 +491,7 @@ def login_2fa(
             raise HTTPException(status_code=401, detail="Invalid 2FA token")
 
         username = payload.get("sub")
-        user = crud.get_user(db, username=username)
+        user = await crud.get_user(db, username=username)
 
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
@@ -399,7 +508,7 @@ def login_2fa(
 
         # Update Session
         user.active_session_id = session_id
-        db.commit()
+        await db.commit()
 
         access_token = auth.create_access_token(
             data={
@@ -415,7 +524,7 @@ def login_2fa(
 
         # Record Session
         try:
-            AuthService.create_session(
+            await AuthService.create_session(
                 db,
                 user.id,
                 refresh_token,
@@ -426,15 +535,20 @@ def login_2fa(
         except Exception:
             pass
 
-        _set_auth_cookies(response, access_token, refresh_token)
-
-        return {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "refresh_token": refresh_token,
-            "role": user.role,
-            "username": user.username,
-        }
+        from fastapi.responses import JSONResponse
+        res = JSONResponse(content={
+            "user": {
+                "id": str(user.id),
+                "name": user.full_name or user.username,
+                "email": user.email,
+                "role": user.role,
+                "tenant_id": str(user.tenant_id) if user.tenant_id else None,
+            },
+            "session_id": session_id,
+        })
+        _set_auth_cookies(res, access_token, refresh_token)
+        _set_csrf_cookie(res)
+        return res
     except Exception as e:
         logger.error("2FA Error for user %s: %s", payload.get("sub") if 'payload' in locals() else "unknown", e, exc_info=True)
         raise HTTPException(status_code=401, detail="Invalid 2FA code or session expired")

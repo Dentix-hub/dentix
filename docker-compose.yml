@@ -1,11 +1,22 @@
 version: '3.8'
 
+# NOTE ON DATABASE:
+# This project uses an external/managed Postgres database (e.g., Supabase/RDS).
+# Do not run a local Postgres container in production; instead, configure the 
+# DATABASE_URL and DB_SSL_MODE environment variables in the .env file.
+# Refer to `.env.example` for details and instructions.
+
 services:
   backend:
     build:
       context: .
       dockerfile: Dockerfile.do
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 512M
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - DB_SSL_MODE=${DB_SSL_MODE:-require}
@@ -20,6 +31,7 @@ services:
       - ENABLE_IN_PROCESS_WORKERS=false
       - LOG_LEVEL=INFO
       - FRONTEND_URL=${FRONTEND_URL}
+      - CORS_ORIGINS=${FRONTEND_URL}
       - BACKEND_PUBLIC_URL=${BACKEND_PUBLIC_URL}
       - DD_AGENT_HOST=datadog
       - DD_SERVICE=dentix-backend
@@ -41,12 +53,18 @@ services:
         max-size: "10m"
         max-file: "3"
 
+
   worker:
     build:
       context: .
       dockerfile: Dockerfile.do
-    command: ["/app/startup.sh", "ddtrace-run", "celery", "-A", "backend.core.celery_app", "worker", "--loglevel=info"]
+    command: ["ddtrace-run", "python", "-m", "backend.workers.prefect_worker"]
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=redis://redis:6379/0
@@ -75,6 +93,11 @@ services:
       dockerfile: Dockerfile.do
     command: ["ddtrace-run", "python", "-m", "backend.workers.run", "--workers", "all"]
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - DB_SSL_MODE=${DB_SSL_MODE:-require}
@@ -100,11 +123,17 @@ services:
       - backend
       - redis
 
+
   openwa:
     build:
       context: .
       dockerfile: openwa.Dockerfile
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
     ports:
       - "2785:7860"
     environment:
@@ -124,6 +153,11 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
     command: redis-server --save 60 1 --loglevel warning # Persistence every 60s if 1 change
     volumes:
       - redis_data:/data
@@ -136,6 +170,11 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
     ports:
       - "80:80"
       - "443:443"
@@ -149,9 +188,15 @@ services:
     depends_on:
       - backend
 
+
   datadog:
-    image: datadog/agent:latest
+    image: datadog/agent:7.58.0
     restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
     environment:
       - DD_API_KEY=${DD_API_KEY}
       - DD_SITE=${DD_SITE:-datadoghq.com}

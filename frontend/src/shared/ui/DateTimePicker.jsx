@@ -125,7 +125,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
             {!compact && label && (
                 <label className="block text-sm font-bold text-text-primary">
                     {label}
-                    {required && <span className="text-red-500 ml-1">*</span>}
+                    {required && <span className="text-red-500 ms-1">*</span>}
                 </label>
             )}
             
@@ -284,7 +284,7 @@ export default function DateTimePicker({ value, onChange, label, error, required
                                                                     >
                                                                         {format(day, 'd')}
                                                                         {today && !isSelected && (
-                                                                            <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full" />
+                                                                            <div className="absolute top-1 end-1 w-1.5 h-1.5 bg-primary rounded-full" />
                                                                         )}
                                                                     </button>
                                                                 );

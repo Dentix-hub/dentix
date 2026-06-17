@@ -1,6 +1,7 @@
 import os
 from fastapi import APIRouter
-from .dependencies import get_current_user, get_db, oauth2_scheme, validate_password
+from .dependencies import get_current_user, oauth2_scheme, validate_password
+from backend.database import get_async_db
 from . import login, register, security, settings
 
 # Create Main Router
@@ -18,4 +19,4 @@ if os.getenv("ENVIRONMENT", "development").lower() != "production":
     router.include_router(debug.router)
 
 # Export for external usage
-__all__ = ["router", "get_current_user", "get_db", "oauth2_scheme", "validate_password"]
+__all__ = ["router", "get_current_user", "get_async_db", "oauth2_scheme", "validate_password"]

@@ -58,7 +58,7 @@ const ActivityFeed = memo(function ActivityFeed({ activities = [] }) {
                                         <h4 className="font-bold text-slate-800 dark:text-slate-200 truncate">
                                             {activity.title}
                                         </h4>
-                                        <span className={`text-[11px] text-slate-400 whitespace-nowrap bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full ${isRtl ? 'mr-2' : 'ml-2'}`}>
+                                        <span className={`text-[11px] text-slate-400 whitespace-nowrap bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full ${isRtl ? 'me-2' : 'ms-2'}`}>
                                             {formatDistanceToNow(new Date(activity.timestamp), { 
                                                 addSuffix: true, 
                                                 locale: isRtl ? ar : enUS 

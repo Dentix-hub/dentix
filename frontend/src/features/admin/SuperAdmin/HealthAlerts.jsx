@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { api } from '@/api';
 import { Activity, AlertTriangle, ShieldAlert, Database, CheckCircle2, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -14,7 +15,7 @@ export default function HealthAlerts() {
             const res = await api.get('/api/v1/admin/health/alerts');
             setHealth(res.data);
         } catch (err) {
-            console.error(err);
+            logger.error(err);
         } finally {
             setLoading(false);
         }
@@ -28,7 +29,7 @@ export default function HealthAlerts() {
 
     if (loading) return (
         <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 animate-pulse">
-            <div className={`h-8 w-48 bg-slate-100 dark:bg-slate-800 rounded-lg mb-6 ${isRtl ? 'ml-auto' : ''}`}></div>
+            <div className={`h-8 w-48 bg-slate-100 dark:bg-slate-800 rounded-lg mb-6 ${isRtl ? 'ms-auto' : ''}`}></div>
             <div className="space-y-4">
                 <div className="h-16 bg-slate-50 dark:bg-slate-800/50 rounded-2xl"></div>
                 <div className="h-16 bg-slate-50 dark:bg-slate-800/50 rounded-2xl"></div>
@@ -50,7 +51,7 @@ export default function HealthAlerts() {
     return (
         <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden relative group">
             {/* Background Glow */}
-            <div className={`absolute -top-24 ${isRtl ? '-left-24' : '-right-24'} w-64 h-64 bg-${config.color}-500/5 blur-[100px] rounded-full group-hover:bg-${config.color}-500/10 transition-all duration-700`}></div>
+            <div className={`absolute -top-24 ${isRtl ? '-start-24' : '-end-24'} w-64 h-64 bg-${config.color}-500/5 blur-[100px] rounded-full group-hover:bg-${config.color}-500/10 transition-all duration-700`}></div>
             
             <div className={`flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 relative z-10 ${isRtl ? 'md:flex-row-reverse' : ''}`}>
                 <div className={`flex items-center gap-4 ${isRtl ? 'flex-row-reverse' : ''}`}>

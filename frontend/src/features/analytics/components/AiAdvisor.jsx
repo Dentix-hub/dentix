@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import logger from '@/utils/logger';
 import { Sparkles, Brain, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { analyzeClinic } from '@/api/analytics';
@@ -14,7 +15,7 @@ const AiAdvisor = ({ stats }) => {
             const data = await analyzeClinic(stats);
             setInsights(data.insights);
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             toast.error(t('analytics.advisor.error') + ' ' + (err.response?.data?.message || err.message));
         } finally {
             setLoading(false);
@@ -64,8 +65,8 @@ const AiAdvisor = ({ stats }) => {
                 )}
             </div>
             {/* Background Decoration */}
-            <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-teal-200 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
-            <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-64 h-64 bg-indigo-200 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
+            <div className="absolute top-0 end-0 -mt-20 -me-20 w-64 h-64 bg-teal-200 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
+            <div className="absolute bottom-0 start-0 -mb-20 -ms-20 w-64 h-64 bg-indigo-200 rounded-full blur-3xl opacity-20 pointer-events-none"></div>
         </div>
     );
 };

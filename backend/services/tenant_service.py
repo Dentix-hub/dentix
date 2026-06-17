@@ -5,9 +5,10 @@ Business logic for tenant management, extracted from routers/admin.py.
 Follows Clean Architecture: Router → Service → CRUD/Models
 """
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List
 from backend import models, schemas
 from backend.utils.audit_logger import log_admin_action
 from backend.core.permissions import Role
@@ -16,7 +17,7 @@ from backend.core.permissions import Role
 class TenantService:
     """Service layer for tenant management operations."""
 
-    def __init__(self, db: Session, actor: models.User = None):
+    def __init__(self, db: AsyncSession, actor: models.User = None):
         """
         Initialize TenantService.
 
@@ -27,17 +28,19 @@ class TenantService:
         self.db = db
         self.actor = actor
 
-    def get_tenant(self, tenant_id: int) -> Optional[models.Tenant]:
+    async def get_tenant(self, tenant_id: int) -> Optional[models.Tenant]:
         """Get a tenant by ID."""
-        return (
-            self.db.query(models.Tenant).filter(models.Tenant.id == tenant_id).first()
-        )
+        stmt = select(models.Tenant).where(models.Tenant.id == tenant_id)
+        result = await self.db.execute(stmt)
+        return result.scalars().first()
 
-    def get_all_tenants(self, skip: int = 0, limit: int = 100) -> list:
+    async def get_all_tenants(self, skip: int = 0, limit: int = 100) -> List[models.Tenant]:
         """Get all tenants with pagination."""
-        return self.db.query(models.Tenant).offset(skip).limit(limit).all()
+        stmt = select(models.Tenant).offset(skip).limit(limit)
+        result = await self.db.execute(stmt)
+        return result.scalars().all()
 
-    def update_tenant(
+    async def update_tenant(
         self, tenant_id: int, update_data: schemas.TenantUpdate
     ) -> models.Tenant:
         """
@@ -51,7 +54,7 @@ class TenantService:
         Raises:
             ValueError: If tenant not found
         """
-        tenant = self.get_tenant(tenant_id)
+        tenant = await self.get_tenant(tenant_id)
         if not tenant:
             raise ValueError("Tenant not found")
 
@@ -94,11 +97,11 @@ class TenantService:
                 new_value=new_values,
             )
 
-        self.db.commit()
-        self.db.refresh(tenant)
+        await self.db.commit()
+        await self.db.refresh(tenant)
         return tenant
 
-    def soft_delete_tenant(self, tenant_id: int) -> dict:
+    async def soft_delete_tenant(self, tenant_id: int) -> dict:
         """
         Soft delete (archive) a tenant.
 
@@ -111,7 +114,7 @@ class TenantService:
         Raises:
             ValueError: If tenant not found
         """
-        tenant = self.get_tenant(tenant_id)
+        tenant = await self.get_tenant(tenant_id)
         if not tenant:
             raise ValueError("Tenant not found")
 
@@ -122,14 +125,12 @@ class TenantService:
 
         # Cascade soft delete to manager/admin
         # Fix: Register triggers 'admin' role, not 'manager'
-        admin_user = (
-            self.db.query(models.User)
-            .filter(
-                models.User.tenant_id == tenant.id,
-                models.User.role.in_([Role.ADMIN.value, Role.MANAGER.value]),
-            )
-            .first()
+        stmt_user = select(models.User).where(
+            models.User.tenant_id == tenant.id,
+            models.User.role.in_([Role.ADMIN.value, Role.MANAGER.value]),
         )
+        res_user = await self.db.execute(stmt_user)
+        admin_user = res_user.scalars().first()
 
         if admin_user:
             admin_user.is_deleted = True
@@ -146,7 +147,7 @@ class TenantService:
                 details=f"Archived tenant {tenant.name}",
             )
 
-        self.db.commit()
+        await self.db.commit()
 
         return {
             "message": "Tenant archived successfully",
@@ -154,7 +155,7 @@ class TenantService:
             "cascaded_users": 1 if admin_user else 0,
         }
 
-    def reactivate_tenant(self, tenant_id: int) -> models.Tenant:
+    async def reactivate_tenant(self, tenant_id: int) -> models.Tenant:
         """
         Reactivate a soft-deleted tenant.
 
@@ -163,7 +164,7 @@ class TenantService:
         - Sets is_active = True
         - Does NOT automatically reactivate users (security)
         """
-        tenant = self.get_tenant(tenant_id)
+        tenant = await self.get_tenant(tenant_id)
         if not tenant:
             raise ValueError("Tenant not found")
 
@@ -181,6 +182,6 @@ class TenantService:
                 details=f"Reactivated tenant {tenant.name}",
             )
 
-        self.db.commit()
-        self.db.refresh(tenant)
+        await self.db.commit()
+        await self.db.refresh(tenant)
         return tenant

@@ -1,6 +1,7 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 from backend import models, schemas
+from sqlalchemy.orm import selectinload
 
 def normalize_username(username: str) -> str:
     """Normalize username: trim, lowercase, and basic Arabic normalization."""
@@ -14,53 +15,53 @@ def normalize_username(username: str) -> str:
 
 
 # --- Tenant CRUD ---
-def get_tenant_by_name(db: Session, name: str):
-    return db.query(models.Tenant).filter(models.Tenant.name == name).first()
+async def get_tenant_by_name(db: AsyncSession, name: str):
+    stmt = select(models.Tenant).where(models.Tenant.name == name)
+    result = await db.execute(stmt)
+    return result.scalars().first()
 
 
-def create_tenant(db: Session, tenant: schemas.TenantCreate):
+async def create_tenant(db: AsyncSession, tenant: schemas.TenantCreate):
     db_tenant = models.Tenant(
         name=tenant.name,
         subscription_status=tenant.subscription_status,
         logo=tenant.logo,
     )
     db.add(db_tenant)
-    db.commit()
-    db.refresh(db_tenant)
+    await db.commit()
+    await db.refresh(db_tenant)
     return db_tenant
 
 
 # --- User CRUD ---
-def get_user(db: Session, username: str):
+async def get_user(db: AsyncSession, username: str):
     """Search by Email (Priority) OR Username."""
     clean_username = normalize_username(username)
-    return (
-        db.query(models.User)
-        .filter(
+    stmt = (
+        select(models.User)
+        .where(
             (func.lower(models.User.email) == clean_username)
             | (func.lower(models.User.username) == clean_username)
         )
-        .first()
+        .options(selectinload(models.User.tenant))
     )
+    result = await db.execute(stmt)
+    return result.scalars().first()
 
 
-def get_user_by_email(db: Session, email: str):
-    return (
-        db.query(models.User)
-        .filter(func.lower(models.User.email) == email.lower())
-        .first()
-    )
+async def get_user_by_email(db: AsyncSession, email: str):
+    stmt = select(models.User).where(func.lower(models.User.email) == email.lower())
+    result = await db.execute(stmt)
+    return result.scalars().first()
 
 
-def get_user_by_id(db: Session, user_id: int, tenant_id: int):
-    return (
-        db.query(models.User)
-        .filter(models.User.id == user_id, models.User.tenant_id == tenant_id)
-        .first()
-    )
+async def get_user_by_id(db: AsyncSession, user_id: int, tenant_id: int):
+    stmt = select(models.User).where(models.User.id == user_id, models.User.tenant_id == tenant_id)
+    result = await db.execute(stmt)
+    return result.scalars().first()
 
 
-def create_user(db: Session, user: schemas.User, password_hash: str, tenant_id: int):
+async def create_user(db: AsyncSession, user: schemas.User, password_hash: str, tenant_id: int):
     db_user = models.User(
         username=user.username,
         full_name=user.full_name,
@@ -70,28 +71,30 @@ def create_user(db: Session, user: schemas.User, password_hash: str, tenant_id: 
         tenant_id=tenant_id,
     )
     db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
+    await db.commit()
+    await db.refresh(db_user)
     return db_user
 
 
-def get_users(
-    db: Session, tenant_id: int, skip: int = 0, limit: int = 100, role: str = None
+async def get_users(
+    db: AsyncSession, tenant_id: int, skip: int = 0, limit: int = 100, role: str = None
 ):
-    query = db.query(models.User).filter(models.User.tenant_id == tenant_id)
-    if role:
-        query = query.filter(models.User.role == role)
-    return query.offset(skip).limit(limit).all()
-
-
-def update_user(
-    db: Session, user_id: int, user_update: schemas.UserUpdate, tenant_id: int
-):
-    db_user = (
-        db.query(models.User)
-        .filter(models.User.id == user_id, models.User.tenant_id == tenant_id)
-        .first()
+    stmt = select(models.User).where(models.User.tenant_id == tenant_id).options(
+        selectinload(models.User.tenant).selectinload(models.Tenant.subscription_plan)
     )
+    if role:
+        stmt = stmt.where(models.User.role == role)
+    stmt = stmt.offset(skip).limit(limit)
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+async def update_user(
+    db: AsyncSession, user_id: int, user_update: schemas.UserUpdate, tenant_id: int
+):
+    stmt = select(models.User).where(models.User.id == user_id, models.User.tenant_id == tenant_id)
+    result = await db.execute(stmt)
+    db_user = result.scalars().first()
     if db_user:
         update_data = user_update.dict(exclude_unset=True)
         # Handle password hashing if provided
@@ -105,18 +108,16 @@ def update_user(
         for key, value in update_data.items():
             setattr(db_user, key, value)
 
-        db.commit()
-        db.refresh(db_user)
+        await db.commit()
+        await db.refresh(db_user)
     return db_user
 
 
-def delete_user(db: Session, user_id: int, tenant_id: int):
-    user = (
-        db.query(models.User)
-        .filter(models.User.id == user_id, models.User.tenant_id == tenant_id)
-        .first()
-    )
+async def delete_user(db: AsyncSession, user_id: int, tenant_id: int):
+    stmt = select(models.User).where(models.User.id == user_id, models.User.tenant_id == tenant_id)
+    result = await db.execute(stmt)
+    user = result.scalars().first()
     if user:
-        db.delete(user)
-        db.commit()
+        await db.delete(user)
+        await db.commit()
     return user

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from typing import Callable, Dict, Awaitable
-from backend.database import SessionLocal
+from backend.database import AsyncSessionLocal
 from backend.services.event_service import event_service
 from backend.models.domain_event import DomainEvent
 import traceback
@@ -32,30 +32,38 @@ async def process_event(event: DomainEvent):
         logger.error(f"Error processing event {event.id} ({event.event_type}): {e}\n{traceback.format_exc()}")
         raise e
 
-async def poll_outbox(poll_interval: int = 5):
-    """
-    Infinite loop that polls the domain_events table for pending events.
-    Runs as an asyncio task within the FastAPI lifespan.
-    """
+from prefect import task, flow
+from sqlalchemy.ext.asyncio import AsyncSession
+
+@task(retries=3, retry_delay_seconds=60, log_prints=True)
+async def process_pending_events(session: AsyncSession):
+    """Prefect task to process pending outbox events."""
     # Import handlers to trigger @register_handler decorators
     import backend.workers.handlers  # noqa: F401
-    logger.info("Event Processor started polling. Registered handlers: %s", list(_handlers.keys()))
+    events = await event_service.get_pending_events(session, limit=20)
+    for event in events:
+        try:
+            await process_event(event)
+            await event_service.mark_completed(session, event.id)
+            logger.info(f"Successfully processed event {event.id} ({event.event_type})")
+        except Exception as e:
+            await event_service.mark_failed(session, event.id, str(e))
+
+@flow(name="outbox-event-processor", log_prints=True)
+async def event_processor_flow():
+    """Prefect flow to run the outbox event processing cycle."""
+    async with AsyncSessionLocal() as session:
+        await process_pending_events(session)
+
+async def poll_outbox(poll_interval: int = 5):
+    """
+    Loop runner that periodically triggers the Prefect flow.
+    Runs as an asyncio task within the FastAPI lifespan.
+    """
+    logger.info("Event Processor daemon started. Registered handlers: %s", list(_handlers.keys()))
     while True:
         try:
-            with SessionLocal() as db:
-                events = event_service.get_pending_events(db, limit=20)
-                if not events:
-                    pass # Nothing to do
-
-                for event in events:
-                    try:
-                        await process_event(event)
-                        event_service.mark_completed(db, event.id)
-                        logger.info(f"Successfully processed event {event.id} ({event.event_type})")
-                    except Exception as e:
-                        event_service.mark_failed(db, event.id, str(e))
-                        
+            await event_processor_flow()
         except Exception as e:
-            logger.error(f"Outbox polling encountered a critical error: {e}")
-            
+            logger.error(f"Outbox polling flow failed: {e}")
         await asyncio.sleep(poll_interval)

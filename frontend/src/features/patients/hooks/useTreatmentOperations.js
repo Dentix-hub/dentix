@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { createTreatment, updateTreatment, updateToothStatus } from '@/api';
 import { palmerToFdi } from '@/utils/toothUtils';
@@ -46,14 +47,14 @@ export const useTreatmentOperations = ({
             // 2. Update Tooth Status if applicable
             if (data.tooth_number && selectedToothCondition) {
                 try {
-                    console.log("[DEBUG] Updating Tooth Status:", {
+                    logger.log("[DEBUG] Updating Tooth Status:", {
                         patientId,
                         tooth: data.tooth_number,
                         condition: selectedToothCondition
                     });
 
                     let fdiNumber = palmerToFdi(data.tooth_number);
-                    console.log("[DEBUG] FDI Number:", fdiNumber);
+                    logger.log("[DEBUG] FDI Number:", fdiNumber);
 
                     if (fdiNumber) {
                         await updateToothStatus({
@@ -61,13 +62,13 @@ export const useTreatmentOperations = ({
                             tooth_number: fdiNumber,
                             condition: selectedToothCondition
                         });
-                        console.log("[DEBUG] Tooth status updated successfully");
+                        logger.log("[DEBUG] Tooth status updated successfully");
                         await refetchTeeth(); // Await refetch
                     } else {
-                        console.warn("[DEBUG] Failed to convert to FDI:", data.tooth_number);
+                        logger.warn("[DEBUG] Failed to convert to FDI:", data.tooth_number);
                     }
                 } catch (e) {
-                    console.error("Failed to update tooth status", e);
+                    logger.error("Failed to update tooth status", e);
                     toast.error(t('patient_details.alerts.tooth_update_fail'));
                 }
             }
@@ -77,7 +78,7 @@ export const useTreatmentOperations = ({
             refetchHistory();
             toast.success(t('patient_details.alerts.treatment_save_success'));
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             const res = err.response?.data;
             const detail = res?.detail;
             const envelope = res?.error;

@@ -1,5 +1,6 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import logger from '@/utils/logger';
 
 export const useVoiceInput = (onFinalTranscript) => {
     const [isListening, setIsListening] = useState(false);
@@ -67,7 +68,7 @@ export const useVoiceInput = (onFinalTranscript) => {
             };
 
             recognition.onerror = (event) => {
-                console.warn('Speech recognition error:', event.error);
+                logger.warn('Speech recognition error:', event.error);
                 if (event.error === 'not-allowed') {
                     setIsListening(false);
                     alert('يرجى السماح بالوصول للميكروفون 🎤');
@@ -102,7 +103,7 @@ export const useVoiceInput = (onFinalTranscript) => {
             setIsListening(true);
         } catch (error) {
             // If failed (e.g. already running/zombie), then force reset
-            console.warn("Speech start failed, resetting:", error);
+            logger.warn("Speech start failed, resetting:", error);
             try { recognitionRef.current.abort(); } catch (e) { /* ignore */ }
 
             setTimeout(() => {
@@ -110,7 +111,7 @@ export const useVoiceInput = (onFinalTranscript) => {
                     recognitionRef.current.start();
                     setIsListening(true);
                 } catch (retryError) {
-                    console.error("Speech retry start error:", retryError);
+                    logger.error("Speech retry start error:", retryError);
                 }
             }, 50);
         }
