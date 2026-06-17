@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
@@ -35,7 +36,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                 navigate('/admin', { replace: true });
             }
         } catch (err) {
-            console.error("Login Error:", err);
+            logger.error("Login Error:", err);
             setError(err.response?.data?.detail || t('auth.login.errors.server'));
         } finally {
             setIsSubmitting(false);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Users, Calendar, Settings, Home, Package, Command, X, ArrowRight, Zap } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
+import { motion } from '@/lib/motion';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 

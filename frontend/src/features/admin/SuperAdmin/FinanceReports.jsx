@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/api';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-    PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
-} from 'recharts';
+    PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, LazyChart
+} from '@/components/charts/LazyChart';
 import { 
     TrendingUp, AlertTriangle, PieChart as PieIcon, FileText, 
     Download, Calendar, Filter, DollarSign, Users, ChevronRight
@@ -29,7 +30,7 @@ export default function FinanceReports() {
             const res = await api.get('/api/v1/admin/finance/reports');
             setData(res.data);
         } catch (err) {
-            console.error('Failed to fetch finance reports:', err);
+            logger.error('Failed to fetch finance reports:', err);
             toast.error(t('super_admin.finance.error_fetch'));
         } finally {
             setLoading(false);
@@ -82,14 +83,14 @@ export default function FinanceReports() {
             {/* Header / Stats Summary */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-emerald-500/20 relative overflow-hidden group col-span-1 md:col-span-2">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700"></div>
+                    <div className="absolute top-0 end-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -me-16 -mt-16 group-hover:scale-150 transition-transform duration-700"></div>
                     <div className={isRtl ? 'text-right' : 'text-left'}>
                         <p className="text-emerald-100 font-bold text-xs uppercase tracking-widest mb-1">{t('super_admin.finance.monthly_forecast_title')}</p>
                         <div className={`flex items-baseline gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
                             <h3 className="text-4xl font-black">{data?.monthly_forecast?.toLocaleString()}</h3>
                             <span className="text-xl font-bold">{t('super_admin.finance.currency')}</span>
                         </div>
-                        <div className={`mt-4 flex items-center gap-2 text-xs font-bold bg-white/20 backdrop-blur-md w-fit px-3 py-1.5 rounded-full ${isRtl ? 'flex-row-reverse mr-auto ml-0' : 'ml-auto mr-0'}`}>
+                        <div className={`mt-4 flex items-center gap-2 text-xs font-bold bg-white/20 backdrop-blur-md w-fit px-3 py-1.5 rounded-full ${isRtl ? 'flex-row-reverse me-auto ms-0' : 'ms-auto me-0'}`}>
                             <TrendingUp size={14} />
                             <span>{t('super_admin.finance.mrr_desc')}</span>
                         </div>
@@ -137,27 +138,29 @@ export default function FinanceReports() {
                     </div>
                     
                     <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={data?.revenue_by_plan || []}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={80}
-                                    outerRadius={110}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {(data?.revenue_by_plan || []).map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip 
-                                    contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', direction: isRtl ? 'rtl' : 'ltr'}}
-                                    formatter={(value) => `${value.toLocaleString()} ${t('super_admin.finance.currency')}`}
-                                />
-                            </PieChart>
-                        </ResponsiveContainer>
+                        <LazyChart>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={data?.revenue_by_plan || []}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={80}
+                                        outerRadius={110}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                    >
+                                        {(data?.revenue_by_plan || []).map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip 
+                                        contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', direction: isRtl ? 'rtl' : 'ltr'}}
+                                        formatter={(value) => `${value.toLocaleString()} ${t('super_admin.finance.currency')}`}
+                                    />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </LazyChart>
                     </div>
 
                     <div className={`grid grid-cols-2 gap-4 mt-4 ${isRtl ? 'text-right' : 'text-left'}`}>
@@ -182,7 +185,7 @@ export default function FinanceReports() {
                         </button>
                     </div>
 
-                    <div className="flex-1 space-y-4 overflow-y-auto max-h-[400px] pr-2 custom-scrollbar">
+                    <div className="flex-1 space-y-4 overflow-y-auto max-h-[400px] pe-2 custom-scrollbar">
                         {data?.overdue_clinics?.length > 0 ? data.overdue_clinics.map((clinic) => (
                             <div key={clinic.id} className={`flex items-center justify-between p-4 rounded-2xl bg-red-50/50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20 group hover:bg-red-50 dark:hover:bg-red-900/20 transition-all ${isRtl ? 'flex-row-reverse' : ''}`}>
                                 <div className={`flex items-center gap-4 ${isRtl ? 'flex-row-reverse text-right' : 'text-left'}`}>
@@ -255,42 +258,44 @@ export default function FinanceReports() {
                     </div>
 
                 <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={data?.growth_trends || []}>
-                            <defs>
-                                <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                            <XAxis 
-                                dataKey="month" 
-                                axisLine={false} 
-                                tickLine={false} 
-                                tick={{fill: '#94A3B8', fontSize: 12, fontWeight: 700}} 
-                                dy={10} 
-                            />
-                            <YAxis 
-                                axisLine={false} 
-                                tickLine={false} 
-                                tick={{fill: '#94A3B8', fontSize: 12, fontWeight: 700}} 
-                                formatter={(value) => `${value / 1000}k`}
-                            />
-                            <Tooltip 
-                                contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', direction: isRtl ? 'rtl' : 'ltr'}}
-                                formatter={(value) => [`${value.toLocaleString()} ${t('super_admin.finance.currency')}`, t('super_admin.finance.title')]}
-                            />
-                            <Area 
-                                type="monotone" 
-                                dataKey="revenue" 
-                                stroke="#6366f1" 
-                                strokeWidth={4}
-                                fillOpacity={1} 
-                                fill="url(#colorRev)" 
-                            />
-                        </AreaChart>
-                    </ResponsiveContainer>
+                    <LazyChart>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={data?.growth_trends || []}>
+                                <defs>
+                                    <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                                <XAxis 
+                                    dataKey="month" 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{fill: '#94A3B8', fontSize: 12, fontWeight: 700}} 
+                                    dy={10} 
+                                />
+                                <YAxis 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{fill: '#94A3B8', fontSize: 12, fontWeight: 700}} 
+                                    formatter={(value) => `${value / 1000}k`}
+                                />
+                                <Tooltip 
+                                    contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', direction: isRtl ? 'rtl' : 'ltr'}}
+                                    formatter={(value) => [`${value.toLocaleString()} ${t('super_admin.finance.currency')}`, t('super_admin.finance.title')]}
+                                />
+                                <Area 
+                                    type="monotone" 
+                                    dataKey="revenue" 
+                                    stroke="#6366f1" 
+                                    strokeWidth={4}
+                                    fillOpacity={1} 
+                                    fill="url(#colorRev)" 
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </LazyChart>
                 </div>
             </div>
         </div>

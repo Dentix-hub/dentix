@@ -272,7 +272,7 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
                                             <CheckCircle2 size={10} />
                                             {t('inventory.materials.active_session')}
                                             {(sugg.max_uses > 1 || isReusable) && (
-                                                <span className="ml-0.5 opacity-80 border-l border-green-200 pl-1">
+                                                <span className="ms-0.5 opacity-80 border-s border-green-200 ps-1">
                                                     {sugg.current_uses}/{isReusable ? '∞' : sugg.max_uses}
                                                 </span>
                                             )}

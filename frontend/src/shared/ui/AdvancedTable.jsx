@@ -142,13 +142,13 @@ const AdvancedTable = ({
                 )}
                 <div className="flex items-center gap-3 flex-1 md:max-w-md">
                     <div className="relative flex-1">
-                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" size={18} />
+                        <Search className="absolute end-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400" size={18} />
                         <input
                             type="text"
                             value={globalFilter ?? ''}
                             onChange={(e) => setGlobalFilter(e.target.value)}
                             placeholder={t('common.search', 'Search...')}
-                            className="w-full pr-10 pl-4 py-2 bg-surface dark:bg-white/5 border border-border rounded-xl text-sm focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none"
+                            className="w-full pe-10 ps-4 py-2 bg-surface dark:bg-white/5 border border-border rounded-xl text-sm focus:border-primary focus:ring-1 focus:ring-primary transition-all outline-none"
                         />
                     </div>
                     {actions && <div className="flex items-center gap-2">{actions}</div>}

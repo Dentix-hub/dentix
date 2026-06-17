@@ -6,7 +6,9 @@ sys.path.append(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
 
-from backend.database import SessionLocal
+from backend.database import async_engine
+from sqlalchemy.orm import sessionmaker
+SessionLocal = sessionmaker(bind=async_engine.sync_engine)
 from backend.models.inventory import Material, Warehouse, Batch, StockItem
 
 

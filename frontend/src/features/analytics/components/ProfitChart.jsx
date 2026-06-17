@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LazyChart } from '@/components/charts/LazyChart';
 
 const ProfitChart = ({ data }) => {
     const { t } = useTranslation();
@@ -41,31 +41,33 @@ const ProfitChart = ({ data }) => {
 
             <div className="h-[250px] relative">
                 {costData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                            <Pie
-                                data={costData}
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={60}
-                                outerRadius={80}
-                                paddingAngle={5}
-                                dataKey="value"
-                                stroke="none"
-                            >
-                                {costData.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                ))}
-                            </Pie>
-                            <Tooltip content={<CustomTooltip />} />
-                            <Legend
-                                verticalAlign="bottom"
-                                height={36}
-                                iconType="circle"
-                                wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }}
-                            />
-                        </PieChart>
-                    </ResponsiveContainer>
+                    <LazyChart>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={costData}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                    stroke="none"
+                                >
+                                    {costData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip content={<CustomTooltip />} />
+                                <Legend
+                                    verticalAlign="bottom"
+                                    height={36}
+                                    iconType="circle"
+                                    wrapperStyle={{ fontSize: '12px', paddingTop: '20px' }}
+                                />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </LazyChart>
                 ) : (
                     <div className="flex items-center justify-center h-full text-slate-300">
                         {t('analytics.chart.no_data')}
@@ -74,7 +76,7 @@ const ProfitChart = ({ data }) => {
 
                 {/* Center Label */}
                 {costData.length > 0 && (
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -mt-4 text-center pointer-events-none">
+                    <div className="absolute top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2 -mt-4 text-center pointer-events-none">
                         <p className="text-[10px] text-slate-500">{t('analytics.chart.total')}</p>
                         <p className="text-sm font-bold text-slate-700">${data.total_costs > 1000 ? (data.total_costs / 1000).toFixed(1) + 'k' : data.total_costs}</p>
                     </div>

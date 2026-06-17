@@ -1,6 +1,7 @@
 import sys
 import os
-from sqlalchemy import create_engine
+import pytest
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 # Add project root to path
@@ -16,8 +17,9 @@ from backend.services.inventory_service import inventory_service
 from backend.services.cost_engine import CostEngine
 from backend import schemas
 
-def test_smart_costing_flow(db_session):
-    db = db_session
+@pytest.mark.asyncio
+async def test_smart_costing_flow(async_db_session):
+    db = async_db_session
     import uuid
     uid = str(uuid.uuid4())[:8]
     mat_name = f"Gold Amalgam {uid}"
@@ -29,7 +31,7 @@ def test_smart_costing_flow(db_session):
 
         # 1. Setup Material & Stock with Cost
         from backend.models.inventory import Material
-        mat = inventory_service.create_material(
+        mat = await inventory_service.create_material(
             schemas.inventory.MaterialCreate(
                 name=mat_name, type="DIVISIBLE", base_unit="g"
             ),
@@ -38,14 +40,15 @@ def test_smart_costing_flow(db_session):
         )
 
         from backend.models.inventory import Warehouse
-        wh = db.query(Warehouse).filter(Warehouse.tenant_id == tenant_id).first()
+        stmt = select(Warehouse).where(Warehouse.tenant_id == tenant_id)
+        wh = (await db.execute(stmt)).scalars().first()
         if not wh:
             wh = Warehouse(name=f"Main Warehouse {uid}", tenant_id=tenant_id)
             db.add(wh)
-            db.commit()
-            db.refresh(wh)
+            await db.commit()
+            await db.refresh(wh)
 
-        inventory_service.add_stock(
+        await inventory_service.add_stock(
             material_id=mat.id,
             warehouse_id=wh.id,
             batch_data=schemas.inventory.BatchBase(
@@ -62,8 +65,8 @@ def test_smart_costing_flow(db_session):
         # 2. Setup Procedure
         proc = Procedure(name=proc_name, price=1200.0, tenant_id=tenant_id)
         db.add(proc)
-        db.commit()
-        db.refresh(proc)
+        await db.commit()
+        await db.refresh(proc)
 
         # 3. Link them (BOM)
         bom = ProcedureMaterialWeight(
@@ -74,11 +77,11 @@ def test_smart_costing_flow(db_session):
             current_average_usage=2.0  # Crucial: Set learned usage to 2g
         )
         db.add(bom)
-        db.commit()
+        await db.commit()
 
         # 4. Run Cost Engine
         cost_engine = CostEngine(db, tenant_id)
-        analysis = cost_engine.calculate_procedure_cost(proc.id)
+        analysis = await cost_engine.calculate_procedure_cost(proc.id)
 
         assert analysis["total_estimated_cost"] == 1000.0
         assert analysis["profit_margin"] == 200.0
@@ -86,13 +89,12 @@ def test_smart_costing_flow(db_session):
         print("✅ SUCCESS: Cost Calculated Correctly!")
 
         # Cleanup: Only what we created
-        db.delete(bom)
-        db.delete(proc)
-        # We don't delete the material to avoid foreign key issues with logs,
-        # but since the name is unique it won't collide.
-        db.commit()
+        await db.delete(bom)
+        await db.delete(proc)
+        await db.commit()
 
     except Exception as e:
         print(f"❌ FAILED: {e}")
-        db.rollback()
+        await db.rollback()
         raise e
+

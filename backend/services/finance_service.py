@@ -1,5 +1,5 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 from datetime import date, timedelta, datetime
 from typing import Dict, Any
 from .. import models
@@ -12,41 +12,40 @@ class FinanceService:
     Optimized to use SQL Aggregations instead of Python loops.
     """
 
-    def __init__(self, db: Session, tenant_id: int):
+    def __init__(self, db: AsyncSession, tenant_id: int):
         self.db = db
         self.tenant_id = tenant_id
 
-    def get_daily_revenue(self) -> Dict[str, Any]:
+    async def get_daily_revenue(self) -> Dict[str, Any]:
         """Get today's total revenue and breakdown."""
         today = date.today()
 
         # Optimized: Single Query aggregation
-        result = (
-            self.db.query(
+        stmt = (
+            select(
                 func.sum(models.Payment.amount).label("total_income"),
                 func.count(models.Payment.id).label("transaction_count"),
             )
-            .filter(
+            .where(
                 models.Payment.tenant_id == self.tenant_id,
                 func.date(models.Payment.date) == today,
             )
-            .first()
         )
+        res = await self.db.execute(stmt)
+        result = res.first()
 
         total_income = result.total_income or 0
         transaction_count = result.transaction_count or 0
 
         # Expenses
-        expense_result = (
-            self.db.query(func.sum(models.Expense.cost))
-            .filter(
+        stmt_expense = (
+            select(func.sum(models.Expense.cost))
+            .where(
                 models.Expense.tenant_id == self.tenant_id,
                 func.date(models.Expense.date) == today,
             )
-            .scalar()
         )
-
-        total_expenses = expense_result or 0
+        total_expenses = await self.db.scalar(stmt_expense) or 0
         net_profit = total_income - total_expenses
 
         return {
@@ -57,25 +56,26 @@ class FinanceService:
             "transaction_count": transaction_count,
         }
 
-    def get_period_expenses(self, period: str = "this_month") -> Dict[str, Any]:
+    async def get_period_expenses(self, period: str = "this_month") -> Dict[str, Any]:
         """Get expenses filtered by period with category breakdown."""
-        query = self.db.query(models.Expense).filter(
+        stmt = select(models.Expense).where(
             models.Expense.tenant_id == self.tenant_id
         )
 
         today = date.today()
         if period == "today":
-            query = query.filter(func.date(models.Expense.date) == today)
-        elif period == "week" or period == "this_week":
+            stmt = stmt.where(func.date(models.Expense.date) == today)
+        elif period in ("week", "this_week"):
             start_week = today - timedelta(days=today.weekday())
-            query = query.filter(models.Expense.date >= start_week)
-        elif period == "month" or period == "this_month":
-            query = query.filter(
+            stmt = stmt.where(models.Expense.date >= start_week)
+        elif period in ("month", "this_month"):
+            stmt = stmt.where(
                 func.extract("month", models.Expense.date) == today.month,
                 func.extract("year", models.Expense.date) == today.year,
             )
 
-        expenses = query.all()
+        res = await self.db.execute(stmt)
+        expenses = res.scalars().all()
 
         # Calculate Category Breakdown (Python side for now, can be SQL GroupBy)
         breakdown = {}
@@ -92,7 +92,7 @@ class FinanceService:
             "count": len(expenses),
         }
 
-    def create_payment(
+    async def create_payment(
         self, patient_name: str, amount: float, user_id: int
     ) -> Dict[str, Any]:
         """
@@ -100,14 +100,15 @@ class FinanceService:
         Uses explicit transaction management.
         """
         # 1. Find Patient
-        patient = (
-            self.db.query(models.Patient)
-            .filter(
+        stmt = (
+            select(models.Patient)
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.name.ilike(f"%{patient_name}%"),
             )
-            .first()
         )
+        res = await self.db.execute(stmt)
+        patient = res.scalars().first()
 
         if not patient:
             raise ValueError(f"Patient '{patient_name}' not found.")
@@ -124,8 +125,8 @@ class FinanceService:
                 doctor_id=user_id,  # Was recorded_by
             )
             self.db.add(new_payment)
-            self.db.commit()
-            self.db.refresh(new_payment)
+            await self.db.commit()
+            await self.db.refresh(new_payment)
 
             return {
                 "success": True,
@@ -135,5 +136,5 @@ class FinanceService:
                 "date": new_payment.date.isoformat(),
             }
         except Exception as e:
-            self.db.rollback()
+            await self.db.rollback()
             raise e

@@ -1,16 +1,18 @@
 import sys
 import os
+import asyncio
+from sqlalchemy import select
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from backend.database import SessionLocal
+from backend.database import AsyncSessionLocal
 from backend.models.inventory import MaterialCategory
 
 MATERIAL_CATEGORIES = [
     # (name_en, name_ar, default_type, default_unit)
     ("Composite Resin", "كمبوزيت", "DIVISIBLE", "g"),
     ("Dental Adhesive/Bonding", "بوندينج", "DIVISIBLE", "ml"),
-    ("Acid Etchant", "حامض إتشانت", "DIVISIBLE", "ml"),
+    ("Acid Etchant", "حامض إtchant", "DIVISIBLE", "ml"),
     ("Amalgam", "أملجم", "DIVISIBLE", "g"),
     ("Temporary Filling Material", "حشو مؤقت", "DIVISIBLE", "g"),
     ("Glass Ionomer Cement", "جلاس أيونومر", "DIVISIBLE", "g"),
@@ -39,37 +41,38 @@ MATERIAL_CATEGORIES = [
 ]
 
 
-def seed_material_categories():
-    db = SessionLocal()
-    try:
-        added_count = 0
-        existing_count = 0
+async def seed_material_categories():
+    async with AsyncSessionLocal() as db:
+        try:
+            added_count = 0
+            existing_count = 0
 
-        print("Seeding material categories...")
-        for name_en, name_ar, default_type, default_unit in MATERIAL_CATEGORIES:
-            exists = db.query(MaterialCategory).filter(MaterialCategory.name_en == name_en).first()
-            if exists:
-                existing_count += 1
-                continue
+            print("Seeding material categories...")
+            for name_en, name_ar, default_type, default_unit in MATERIAL_CATEGORIES:
+                res = await db.execute(
+                    select(MaterialCategory).filter(MaterialCategory.name_en == name_en)
+                )
+                exists = res.scalars().first()
+                if exists:
+                    existing_count += 1
+                    continue
 
-            cat = MaterialCategory(
-                name_en=name_en,
-                name_ar=name_ar,
-                default_type=default_type,
-                default_unit=default_unit,
-            )
-            db.add(cat)
-            added_count += 1
+                cat = MaterialCategory(
+                    name_en=name_en,
+                    name_ar=name_ar,
+                    default_type=default_type,
+                    default_unit=default_unit,
+                )
+                db.add(cat)
+                added_count += 1
 
-        db.commit()
-        print(f"Done! Added {added_count} new categories. Skipped {existing_count} existing.")
+            await db.commit()
+            print(f"Done! Added {added_count} new categories. Skipped {existing_count} existing.")
 
-    except Exception as e:
-        print(f"Error seeding material categories: {e}")
-        db.rollback()
-    finally:
-        db.close()
+        except Exception as e:
+            print(f"Error seeding material categories: {e}")
+            await db.rollback()
 
 
 if __name__ == "__main__":
-    seed_material_categories()
+    asyncio.run(seed_material_categories())

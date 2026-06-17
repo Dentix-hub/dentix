@@ -50,6 +50,8 @@ def test_patients_list_no_nplus1(db_session, query_counter):
             phone=f"011111111{i}",
             age=25 + i,
             tenant_id=t.id,
+            medical_history="",
+            notes="",
         ))
     db_session.commit()
 
@@ -90,6 +92,8 @@ def test_patients_with_treatments_nplus1(db_session, query_counter):
             phone=f"011222333{i}",
             age=30,
             tenant_id=t.id,
+            medical_history="",
+            notes="",
         )
         db_session.add(p)
         db_session.commit()
@@ -143,6 +147,8 @@ def test_appointments_with_patient_nplus1(db_session, query_counter):
             phone=f"011333444{i}",
             age=40,
             tenant_id=t.id,
+            medical_history="",
+            notes="",
         )
         db_session.add(p)
         patients_data.append(p)

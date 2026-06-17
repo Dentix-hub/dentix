@@ -1,6 +1,5 @@
 from .base import (
     Base,
-    Column,
     Integer,
     String,
     DateTime,
@@ -8,37 +7,50 @@ from .base import (
     relationship,
     datetime,
     timezone,
+    Boolean,
+    Mapped,
+    mapped_column,
 )
-from sqlalchemy import Boolean
 from backend.core.security import EncryptedString
+from rls.schemas import Permissive, ConditionArg, Command
+from sqlalchemy import column
 
 
 class Patient(Base):
     __tablename__ = "patients"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
-    age = Column(Integer)
-    phone = Column(EncryptedString, index=True)  # Encrypted
-    email = Column(EncryptedString, nullable=True, index=True)  # Encrypted
-    address = Column(EncryptedString, nullable=True)  # Encrypted
-    medical_history = Column(EncryptedString)  # Encrypted
-    notes = Column(EncryptedString)  # Encrypted
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String, index=True)
+    age: Mapped[int] = mapped_column(Integer)
+    phone: Mapped[str] = mapped_column(EncryptedString, index=True)  # Encrypted
+    email: Mapped[str | None] = mapped_column(EncryptedString, nullable=True, index=True)  # Encrypted
+    address: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)  # Encrypted
+    medical_history: Mapped[str] = mapped_column(EncryptedString)  # Encrypted
+    notes: Mapped[str] = mapped_column(EncryptedString)  # Encrypted
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Soft Delete
-    is_deleted = Column(Boolean, default=False)
-    deleted_at = Column(DateTime, nullable=True)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     # Doctor assignment (Multi-Doctor Support)
-    assigned_doctor_id = Column(
+    assigned_doctor_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=True, index=True
     )
+    assigned_doctor: Mapped["User | None"] = relationship("User", foreign_keys=[assigned_doctor_id])
 
     # Default Price List (Multi Price List Support)
-    default_price_list_id = Column(Integer, ForeignKey("price_lists.id"), nullable=True)
+    default_price_list_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("price_lists.id"), nullable=True)
 
     appointments = relationship(
         "Appointment", back_populates="patient", cascade="all, delete-orphan"
@@ -66,11 +78,11 @@ class Patient(Base):
 class Attachment(Base):
     __tablename__ = "attachments"
 
-    id = Column(Integer, primary_key=True, index=True)
-    patient_id = Column(Integer, ForeignKey("patients.id"))
-    file_path = Column(String)
-    filename = Column(String)
-    file_type = Column(String)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"))
+    file_path: Mapped[str] = mapped_column(String)
+    filename: Mapped[str] = mapped_column(String)
+    file_type: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     patient = relationship("Patient", back_populates="attachments")

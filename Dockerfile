@@ -60,5 +60,9 @@ RUN chmod +x /app/startup.sh
 # Expose port
 EXPOSE 7860
 
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/api/v1/health')" || exit 1
+
 # Run migrations then start the application
 CMD ["/app/startup.sh", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "7860"]

@@ -103,7 +103,7 @@ export const MultiSessionPanel = ({ sessions = [], onAddSession, isLoading }) =>
                                 <CheckCircle2 size={14} className="text-green-500" />
                             </div>
                             
-                            <p className="text-sm text-slate-600 leading-relaxed pr-8">
+                            <p className="text-sm text-slate-600 leading-relaxed pe-8">
                                 {session.notes}
                             </p>
 

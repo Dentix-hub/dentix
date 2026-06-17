@@ -75,7 +75,7 @@ const PatientFiles = ({
                                 <Trash2 size={16} />
                             </button>
                         </div>
-                        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent text-white text-xs truncate">
+                        <div className="absolute bottom-0 start-0 end-0 p-2 bg-gradient-to-t from-black/60 to-transparent text-white text-xs truncate">
                             {new Date(file.created_at).toLocaleDateString()}
                         </div>
                     </div>

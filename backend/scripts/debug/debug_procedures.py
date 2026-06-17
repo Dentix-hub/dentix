@@ -4,7 +4,10 @@ import os
 # Ensure backend structure is visible
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from backend.database import SessionLocal
+from sqlalchemy.orm import sessionmaker
+from backend.database import async_engine
+engine = async_engine.sync_engine
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 from backend.models.clinical import Procedure
 from backend.models.user import User
 

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
+import logger from '@/utils/logger';
 import { api } from '@/api';
 import { toast } from '@/shared/ui';
 import { Building2, X, Key } from 'lucide-react';
 import TenantsManager from '@/features/admin/SuperAdmin/TenantsManager';
 import TenantDetailPanel from '@/features/admin/SuperAdmin/TenantDetailPanel';
-import { setToken, getToken } from '@/utils';
+import { getToken, getAdminToken, setAdminToken, removeAdminToken } from '@/utils';
 
 export default function TenantsPage() {
     const [tenants, setTenants] = useState([]);
@@ -30,7 +31,7 @@ export default function TenantsPage() {
             setTenants(Array.isArray(tRes.data) ? tRes.data : []);
             setPlans(Array.isArray(pRes.data) ? pRes.data : []);
         } catch (err) {
-            console.error('Error fetching data:', err);
+            logger.error('Error fetching data:', err);
             setTenants([]);
             setPlans([]);
         } finally {
@@ -44,21 +45,27 @@ export default function TenantsPage() {
 
     const handleImpersonate = async (tenantId, userId) => {
         try {
-            const url = userId 
+            const url = userId
                 ? `/api/v1/admin/tenants/${tenantId}/impersonate?user_id=${userId}`
                 : `/api/v1/admin/tenants/${tenantId}/impersonate`;
-                
+
             const res = await api.post(url);
             const { access_token } = res.data;
 
-            // Save original admin token to return later
-            const currentToken = getToken();
-            sessionStorage.setItem('admin_token', currentToken);
+            // Save original admin token to return later (stored in sessionStorage for impersonation only)
+            const currentToken = getToken(); // Returns null with httpOnly cookies
+            // Admin token is stored in sessionStorage for this special case
+            const existingAdminToken = getAdminToken();
+            if (!existingAdminToken) {
+                // We can't read the httpOnly cookie, so we rely on the backend to handle the swap
+                // For now, mark that we're in impersonation mode
+                setAdminToken('impersonating');
+            }
 
-            // Set new token and redirect
-            setToken(access_token);
+            // The backend sets new httpOnly cookies for the impersonated user
+            // We just redirect - cookies handle the auth
             toast.success('جاري الدخول للنظام...');
-            
+
             setTimeout(() => {
                 window.location.href = '/dashboard';
             }, 1000);
@@ -85,7 +92,7 @@ export default function TenantsPage() {
             setShowPasswordResetModal({ tenantId, tenantName: tenant?.name || 'العيادة' });
             setPasswordResetForm({ user_id: '', new_password: '' });
         } catch (err) {
-            console.error('Error in handleResetPassword:', err);
+            logger.error('Error in handleResetPassword:', err);
             toast.error('فشل تحميل مستخدمي العيادة');
         }
     };
@@ -105,7 +112,7 @@ export default function TenantsPage() {
             setPasswordResetForm({ user_id: '', new_password: '' });
             toast.success('تم إعادة تعيين كلمة المرور بنجاح');
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             toast.error('فشل إعادة تعيين كلمة المرور');
         }
     };
@@ -141,7 +148,7 @@ export default function TenantsPage() {
             fetchData();
             toast.success("تم الحذف النهائي بنجاح");
         } catch (error) {
-            console.error(error);
+            logger.error(error);
             toast.error("فشلت عملية الحذف النهائي");
         }
     };
@@ -171,14 +178,14 @@ export default function TenantsPage() {
                 onSelectTenant={(id) => setSelectedTenantId(id)}
             />
 
-            <TenantDetailPanel 
-                tenantId={selectedTenantId} 
+            <TenantDetailPanel
+                tenantId={selectedTenantId}
                 onClose={() => setSelectedTenantId(null)}
                 onImpersonate={handleImpersonate}
             />
-            {/* Payment Modal Logic would arguably live here or in parent, but strict refactor suggests placing it where triggered. 
-                However, for speed, assuming TenantsPage focuses on List. 
-                If existing TenantsManager expects to trigger a modal relative to 'SuperAdmin.jsx', we might need to adapt it. 
+            {/* Payment Modal Logic would arguably live here or in parent, but strict refactor suggests placing it where triggered.
+                However, for speed, assuming TenantsPage focuses on List.
+                If existing TenantsManager expects to trigger a modal relative to 'SuperAdmin.jsx', we might need to adapt it.
                 Currently TenantsManager accepts setShowPaymentModal.
             */}
             {/* Password Reset Modal */}
@@ -240,4 +247,3 @@ export default function TenantsPage() {
         </div>
     );
 }
-

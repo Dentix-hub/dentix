@@ -1,21 +1,23 @@
 import { Routes, Route, useLocation } from 'react-router-dom';
+import logger from '@/utils/logger';
 import { useEffect, Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
 // Auth
 import AuthProvider from '@/auth/AuthProvider';
 import { useAuth } from '@/auth/useAuth';
 import ProtectedRoute from '@/auth/ProtectedRoute';
-import { ToastProvider } from '@/shared/ui';
+import ToastProvider from '@/shared/ui/ToastProvider';
 // Components
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import { ProceduresProvider } from '@/shared/context/ProceduresContext';
-import Layout from '@/layouts/Layout';
+const Layout = lazy(() => import('@/layouts/Layout'));
 import BackgroundWrapper from '@/shared/ui/BackgroundWrapper';
 import RootErrorBoundary from '@/shared/ui/ErrorBoundary';
 import GlobalErrorFallback from '@/shared/ui/GlobalErrorFallback';
 // React Query for data caching
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
+import { MotionProvider } from '@/lib/motion';
 // Lazy load pages
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Patients = lazy(() => import('./pages/Patients'));
@@ -54,6 +56,7 @@ const InsuranceProviders = lazy(() => import('./pages/admin/InsuranceProviders')
 // Stores
 import { useUIStore } from '@/store/ui.store';
 import ImpersonationBar from '@/components/common/ImpersonationBar';
+import { InstallPrompt } from '@/components/InstallPrompt';
 
 function AppRoutes() {
     const { isAuthenticated, isBooting } = useAuth();
@@ -62,12 +65,12 @@ function AppRoutes() {
     const { i18n } = useTranslation();
 
     useEffect(() => {
-        console.log(`[DENTIX] Build ID: 20260508-1447`);
+        logger.log(`[DENTIX] Build ID: 20260508-1447`);
     }, []);
 
     useEffect(() => {
         if (!isBooting) {
-            console.log(`[ROUTER] Navigation detected: ${location.pathname} (Authenticated: ${isAuthenticated})`);
+            logger.log(`[ROUTER] Navigation detected: ${location.pathname} (Authenticated: ${isAuthenticated})`);
         }
     }, [location.pathname, isAuthenticated, isBooting]);
 
@@ -228,8 +231,11 @@ export default function App() {
         <RootErrorBoundary>
             <QueryClientProvider client={queryClient}>
                 <AuthProvider>
-                    <ToastProvider />
-                    <AppRoutes />
+                    <MotionProvider>
+                        <ToastProvider />
+                        <AppRoutes />
+                        <InstallPrompt />
+                    </MotionProvider>
                 </AuthProvider>
             </QueryClientProvider>
         </RootErrorBoundary>

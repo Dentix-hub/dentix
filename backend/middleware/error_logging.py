@@ -2,8 +2,7 @@ import logging
 import traceback
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from sqlalchemy.orm import Session
-from backend.database import SessionLocal
+from backend.database import AsyncSessionLocal, RlsContext
 from backend.models.system import SystemError, ErrorLevel, ErrorSource
 
 logger = logging.getLogger(__name__)
@@ -20,29 +19,26 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
             path = str(request.url)
             method = request.method
 
-            # Log to Database (New Session)
+            # Log to Database (New Async Session)
             try:
-                db: Session = SessionLocal()
-                try:
-                    system_error = SystemError(
-                        level=ErrorLevel.ERROR,
-                        source=ErrorSource.BACKEND,
-                        message=error_msg,
-                        stack_trace=stack_trace,
-                        path=path,
-                        method=method,
-                        ip_address=request.client.host if request.client else None,
-                        user_agent=request.headers.get("user-agent"),
-                    )
-                    db.add(system_error)
-                    db.commit()
-                except Exception as db_exc:
-                    # Fallback to logger if DB logging fails
-                    logger.critical("Failed to log error to DB: %s", db_exc)
-                finally:
-                    db.close()
+                context = RlsContext(tenant_id=None)
+                async with AsyncSessionLocal(context=context) as db:
+                    async with db.bypass_rls() as db:  # system-level, no tenant
+                        system_error = SystemError(
+                            level=ErrorLevel.ERROR,
+                            source=ErrorSource.BACKEND,
+                            message=error_msg,
+                            stack_trace=stack_trace,
+                            path=path,
+                            method=method,
+                            ip_address=request.client.host if request.client else None,
+                            user_agent=request.headers.get("user-agent"),
+                        )
+                        db.add(system_error)
+                        await db.commit()
             except Exception as e:
-                logger.critical("Failed to create DB session for error logging: %s", e)
+                logger.critical("Failed to log error to DB: %s", e)
 
             # Re-raise so FastAPI's exception handler (or other middleware) can still catch it
             raise exc
+

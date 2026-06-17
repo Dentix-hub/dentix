@@ -41,7 +41,7 @@ const ExpensesTab = ({ expenses, stats, setIsExpenseModalOpen, handleDeleteExpen
                         onClick={() => setIsExpenseModalOpen(true)}
                         variant="danger"
                     >
-                        <Plus size={18} className="mr-2" /> {t('billing.expenses.add')}
+                        <Plus size={18} className="me-2" /> {t('billing.expenses.add')}
                     </Button>
                 </div>
                 <div className="overflow-x-auto">
@@ -89,7 +89,7 @@ const ExpensesTab = ({ expenses, stats, setIsExpenseModalOpen, handleDeleteExpen
                             description={t('billing.expenses.no_data_desc')}
                             action={
                                 <Button onClick={() => setIsExpenseModalOpen(true)} variant="outline">
-                                    <Plus size={16} className="mr-2" /> {t('billing.expenses.add_first')}
+                                    <Plus size={16} className="me-2" /> {t('billing.expenses.add_first')}
                                 </Button>
                             }
                         />

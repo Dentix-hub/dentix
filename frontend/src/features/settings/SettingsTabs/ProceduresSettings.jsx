@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { getMaterials, getProcedureWeights, setProcedureWeight, deleteProcedureWeight } from '@/api/inventory';
 import * as api from '@/api';
 import { Package, X, Search, Plus, Edit2, Trash2 } from 'lucide-react';
@@ -24,7 +25,7 @@ const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
             setMaterials(matRes.data);
             setWeights(weightRes.data);
         } catch (err) {
-            console.error("Failed to load inventory data", err);
+            logger.error("Failed to load inventory data", err);
         } finally {
             setLoading(false);
         }
@@ -64,7 +65,7 @@ const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
                     </div>
                     <button onClick={onClose}><X /></button>
                 </div>
-                <div className="space-y-4 animate-in fade-in slide-in-from-left-4">
+                <div className="space-y-4 animate-in fade-in slide-in-from-start-4">
                     <div className="flex gap-2 items-end bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-slate-700">
                         <div className="flex-1">
                             <label className="text-xs font-bold mb-1 block text-slate-600 dark:text-slate-400">المادة</label>
@@ -145,7 +146,7 @@ const ProceduresSettings = ({ setMessage }) => {
             const res = await api.getProcedures();
             setProcedures(res.data);
         } catch (err) {
-            console.error(err);
+            logger.error(err);
         } finally {
             setIsProcLoading(false);
         }
@@ -193,11 +194,11 @@ const ProceduresSettings = ({ setMessage }) => {
         <div className="space-y-6">
             <div className="flex justify-between gap-4">
                 <div className="relative flex-1">
-                    <Search className="absolute right-4 top-3.5 text-slate-500" size={20} />
+                    <Search className="absolute end-4 top-3.5 text-slate-500" size={20} />
                     <input
                         type="text"
                         placeholder="بحث عن إجراء..."
-                        className="w-full p-3 pr-12 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 font-bold"
+                        className="w-full p-3 pe-12 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 outline-none focus:border-indigo-500 font-bold"
                         value={procSearch}
                         onChange={(e) => setProcSearch(e.target.value)}
                     />

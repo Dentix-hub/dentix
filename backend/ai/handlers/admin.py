@@ -24,13 +24,13 @@ class AdminHandler(BaseHandler):
     async def get_dashboard_stats(self, params: Dict) -> Dict:
         """Get dashboard statistics."""
         period = params.get("period", "today")
-        data = self.analytics.get_dashboard_summary(period)
+        data = await self.analytics.get_dashboard_summary(period)
 
         return {"message": f"📊 إحصائيات ({period})", **data}
 
     async def get_subscription_info(self, params: Dict) -> Dict:
         """Get subscription information for the tenant."""
-        data = self.subscription.get_subscription_details(self.db, self.tenant_id)
+        data = await self.subscription.get_subscription_details(self.db, self.tenant_id)
 
         if not data:
             return {"error": "العيادة غير موجودة"}
@@ -39,7 +39,7 @@ class AdminHandler(BaseHandler):
 
     async def get_clinic_info(self, params: Dict) -> Dict:
         """Get clinic information."""
-        data = self.analytics.get_clinic_summary()
+        data = await self.analytics.get_clinic_summary()
 
         if not data:
             return {"error": "العيادة غير موجودة"}
@@ -48,11 +48,10 @@ class AdminHandler(BaseHandler):
 
     async def get_users_list(self, params: Dict) -> Dict:
         """Get list of users/doctors/staff."""
-        users = (
-            self.db.query(models.User)
-            .filter(models.User.tenant_id == self.tenant_id)
-            .all()
-        )
+        from sqlalchemy import select
+        stmt = select(models.User).where(models.User.tenant_id == self.tenant_id)
+        res = await self.db.execute(stmt)
+        users = res.scalars().all()
 
         return {
             "message": f"قائمة المستخدمين: {len(users)} مستخدم",
@@ -74,7 +73,7 @@ class AdminHandler(BaseHandler):
         period = params.get("period", "month")
         metric = params.get("metric", "revenue")
 
-        data = self.analytics.get_doctor_ranking(period, metric)
+        data = await self.analytics.get_doctor_ranking(period, metric)
         rankings = data.get("ranking", [])
 
         # Format message
@@ -97,7 +96,7 @@ class AdminHandler(BaseHandler):
         period1 = params.get("period1", "this_month")
         period2 = params.get("period2", "last_month")
 
-        data = self.analytics.compare_periods(period1, period2, metric)
+        data = await self.analytics.compare_periods(period1, period2, metric)
 
         # Format message
         p1_val = data["period1"]["value"]
@@ -122,7 +121,7 @@ class AdminHandler(BaseHandler):
     async def get_ai_stats(self, params: Dict) -> Dict:
         """Get AI usage statistics."""
         period = params.get("period", "today")
-        data = self.analytics.get_ai_stats(period)
+        data = await self.analytics.get_ai_stats(period)
 
         tool_text = "\n".join(
             [f"• {t['name']}: {t['count']} مرة" for t in data["top_tools"]]
@@ -189,7 +188,7 @@ class AdminHandler(BaseHandler):
         period = params.get("period", "month")
         limit = int(params.get("limit", 5))
 
-        data = self.analytics.get_top_procedures(period, limit)
+        data = await self.analytics.get_top_procedures(period, limit)
         top_list = data.get("top_procedures", [])
 
         message = f"🏆 **أكثر الإجراءات طلباً ({period})**\n"
@@ -201,7 +200,7 @@ class AdminHandler(BaseHandler):
     async def get_revenue_trend(self, params: Dict) -> Dict:
         """Get revenue trend over time."""
         period = params.get("period", "year")
-        data = self.analytics.get_revenue_trend(period)
+        data = await self.analytics.get_revenue_trend(period)
 
         trend = data.get("trend", [])
 

@@ -9,11 +9,12 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete
 
 from backend.core.permissions import Permission, require_permission, Role
 from backend.core import startup
-from ..database import get_db
+from ..database import get_async_db
 from .. import models
 from ..schemas import system_log as schema_system
 from ..auth import get_password_hash
@@ -22,6 +23,7 @@ import shutil
 from ..services.backup_service import run_backup_task
 from ..services.admin_service import AdminService
 from ..services.security_service import SecurityService
+from ..services.auth_service import AuthService
 from .auth.dependencies import validate_password
 from backend.core.response import success_response, StandardResponse
 
@@ -36,8 +38,6 @@ def require_super_admin(
         raise HTTPException(status_code=403, detail="Not authorized")
     return current_user
 
-
-# Valid Log Levels
 
 router = APIRouter(
     prefix="/admin/system",
@@ -54,18 +54,14 @@ class LogEntry(BaseModel):
 
 
 @router.post("/logs", response_model=StandardResponse[dict])
-def submit_frontend_log(
+async def submit_frontend_log(
     log: LogEntry,
-    db: Session = Depends(get_db),
-    # Optional authentication - generic logs might be anonymous
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Receive logs from frontend and save to DB."""
     try:
-        # Determine Source and Level
-        # Frontend ensures uppercase, but safety first
         level = log.level.upper() if log.level else "ERROR"
 
-        # Create Record
         new_log = models.SystemError(
             level=level,
             source="FRONTEND",
@@ -77,82 +73,83 @@ def submit_frontend_log(
         )
 
         db.add(new_log)
-        db.commit()
+        await db.commit()
 
         return success_response(data={"status": "ok"})
     except Exception as e:
-        # Fallback to logger if DB fails
         logger.error("[LOG_FAIL] Could not save log to DB: %s", e)
         return success_response(success=False, message=str(e))
 
 
-
-
 @router.get("/logs", response_model=StandardResponse[List[schema_system.SystemError]])
-def get_system_logs(
+async def get_system_logs(
     skip: int = 0,
     limit: int = 50,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Retrieve system logs from Database."""
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    logs = (
-        db.query(models.SystemError)
+    stmt = (
+        select(models.SystemError)
         .order_by(models.SystemError.created_at.desc())
         .offset(skip)
         .limit(limit)
-        .all()
     )
+    res = await db.execute(stmt)
+    logs = list(res.scalars().all())
 
     return success_response(data=logs)
 
 
 @router.delete("/logs/clear", response_model=StandardResponse[dict])
-def clear_system_logs(
-    db: Session = Depends(get_db),
+async def clear_system_logs(
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Delete all system logs."""
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    db.query(models.SystemError).delete()
-    db.commit()
+    await db.execute(delete(models.SystemError))
+    await db.commit()
     return success_response(message="All system logs cleared successfully")
 
 
 @router.delete("/logs/{log_id}", response_model=StandardResponse[dict])
-def delete_system_log(
+async def delete_system_log(
     log_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Delete a specific system log."""
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    log = db.query(models.SystemError).filter(models.SystemError.id == log_id).first()
+    res = await db.execute(select(models.SystemError).where(models.SystemError.id == log_id))
+    log = res.scalar_one_or_none()
     if not log:
         raise HTTPException(status_code=404, detail="Log not found")
 
-    db.delete(log)
-    db.commit()
+    await db.delete(log)
+    await db.commit()
     return success_response(message="Log deleted successfully")
 
 
 @router.get("/logs/export")
-def export_system_logs(
-    db: Session = Depends(get_db),
+async def export_system_logs(
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Export system logs as CSV."""
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    logs = db.query(models.SystemError).order_by(models.SystemError.created_at.desc()).all()
+    stmt = select(models.SystemError).order_by(models.SystemError.created_at.desc())
+    res = await db.execute(stmt)
+    logs = list(res.scalars().all())
 
     output = io.StringIO()
     writer = csv.writer(output)
@@ -192,16 +189,16 @@ def export_system_logs(
 
 
 @router.put("/profile", response_model=StandardResponse[dict])
-def update_profile(
+async def update_profile(
     profile_data: dict,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # Query fresh user from THIS session to avoid detached instance error
-    user = db.query(models.User).filter(models.User.id == current_user.id).first()
+    res = await db.execute(select(models.User).where(models.User.id == current_user.id))
+    user = res.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -213,7 +210,7 @@ def update_profile(
     if "password" in profile_data and profile_data["password"]:
         user.hashed_password = get_password_hash(profile_data["password"])
 
-    db.commit()
+    await db.commit()
     return success_response(
         data={
             "id": user.id,
@@ -226,7 +223,10 @@ def update_profile(
 
 
 @router.get("/backup")
-def download_backup(current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+async def download_backup(
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+    db: AsyncSession = Depends(get_async_db),
+):
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
@@ -234,12 +234,13 @@ def download_backup(current_user: models.User = Depends(require_permission(Permi
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"smart_clinic_json_backup_{timestamp}.json"
 
-    def iter_json(db_session: Session):
+    async def iter_json(db_session: AsyncSession):
         yield "{\n"
 
         # 1. Tenants
         yield '  "tenants": [\n'
-        tenants = db_session.query(models.Tenant).all()
+        res_tenants = await db_session.execute(select(models.Tenant))
+        tenants = list(res_tenants.scalars().all())
         for i, t in enumerate(tenants):
             data = {
                 "id": t.id,
@@ -253,7 +254,8 @@ def download_backup(current_user: models.User = Depends(require_permission(Permi
 
         # 2. Users (Sanitized)
         yield '  "users": [\n'
-        users = db_session.query(models.User).all()
+        res_users = await db_session.execute(select(models.User))
+        users = list(res_users.scalars().all())
         for i, u in enumerate(users):
             data = {
                 "id": u.id,
@@ -268,7 +270,6 @@ def download_backup(current_user: models.User = Depends(require_permission(Permi
 
         yield "}"
 
-    db = next(get_db())  # Get session
     return StreamingResponse(
         iter_json(db),
         media_type="application/json",
@@ -293,34 +294,36 @@ async def restore_backup(
 
 
 @router.get("/backup/google-status", response_model=StandardResponse[dict])
-def get_google_drive_status(
-    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+async def get_google_drive_status(
+    db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
 ):
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    setting = (
-        db.query(models.SystemSetting)
-        .filter(models.SystemSetting.key == "google_refresh_token_super_admin")
-        .first()
+    res_setting = await db.execute(
+        select(models.SystemSetting)
+        .where(models.SystemSetting.key == "google_refresh_token_super_admin")
     )
+    setting = res_setting.scalar_one_or_none()
 
     # Fetch status
-    last_status = (
-        db.query(models.SystemSetting)
-        .filter(models.SystemSetting.key == "backup_last_status")
-        .first()
+    res_status = await db.execute(
+        select(models.SystemSetting)
+        .where(models.SystemSetting.key == "backup_last_status")
     )
-    last_message = (
-        db.query(models.SystemSetting)
-        .filter(models.SystemSetting.key == "backup_last_message")
-        .first()
+    last_status = res_status.scalar_one_or_none()
+
+    res_message = await db.execute(
+        select(models.SystemSetting)
+        .where(models.SystemSetting.key == "backup_last_message")
     )
-    last_run = (
-        db.query(models.SystemSetting)
-        .filter(models.SystemSetting.key == "backup_last_run")
-        .first()
+    last_message = res_message.scalar_one_or_none()
+
+    res_run = await db.execute(
+        select(models.SystemSetting)
+        .where(models.SystemSetting.key == "backup_last_run")
     )
+    last_run = res_run.scalar_one_or_none()
 
     return success_response(
         data={
@@ -339,26 +342,24 @@ def get_google_auth_url(current_user: models.User = Depends(require_permission(P
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # Pass state='super_admin' to identify this flow in the callback
     auth_url = startup.drive_client.get_auth_url(state="super_admin")
     return success_response(data={"url": auth_url})
 
 
 @router.post("/backup/google-upload", status_code=202, response_model=StandardResponse[dict])
-def upload_to_google_drive(
+async def upload_to_google_drive(
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # 1. Check if Google Drive is connected
-    setting = (
-        db.query(models.SystemSetting)
-        .filter(models.SystemSetting.key == "google_refresh_token_super_admin")
-        .first()
+    res_setting = await db.execute(
+        select(models.SystemSetting)
+        .where(models.SystemSetting.key == "google_refresh_token_super_admin")
     )
+    setting = res_setting.scalar_one_or_none()
     if not setting or not setting.value:
         raise HTTPException(
             status_code=400, detail="Google Drive not connected. Please connect first."
@@ -366,7 +367,6 @@ def upload_to_google_drive(
 
     refresh_token = setting.value
 
-    # 2. Check pg_dump availability (Fast check)
     try:
         check_process = subprocess.run(
             ["which", "pg_dump"], capture_output=True, timeout=5
@@ -377,7 +377,6 @@ def upload_to_google_drive(
                 detail="System tools (pg_dump) are initializing. Please wait 2 minutes and try again.",
             )
     except FileNotFoundError:
-        # On Windows or systems without 'which', try a different approach
         try:
             if not shutil.which("pg_dump"):
                 raise HTTPException(
@@ -385,20 +384,17 @@ def upload_to_google_drive(
                     detail="System tools (pg_dump) are not available on this system.",
                 )
         except Exception:
-            # If shutil.which is also not available, assume tools are not available
             raise HTTPException(
                 status_code=503,
                 detail="System tools (pg_dump) are not available on this system.",
             )
 
-    # 3. Get DB URL
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         raise HTTPException(
             status_code=500, detail="DATABASE_URL configuration missing"
         )
 
-    # 4. Dispatch Background Task
     background_tasks.add_task(run_backup_task, refresh_token, db_url)
 
     return success_response(
@@ -408,25 +404,23 @@ def upload_to_google_drive(
 
 
 @router.delete("/backup/google-auth", response_model=StandardResponse[dict])
-def disconnect_google_drive(
-    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+async def disconnect_google_drive(
+    db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
 ):
     """Disconnect the Google Drive account."""
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # Find and delete the token setting
-    setting = (
-        db.query(models.SystemSetting)
-        .filter(models.SystemSetting.key == "google_refresh_token_super_admin")
-        .first()
+    res_setting = await db.execute(
+        select(models.SystemSetting)
+        .where(models.SystemSetting.key == "google_refresh_token_super_admin")
     )
+    setting = res_setting.scalar_one_or_none()
     if setting:
-        db.delete(setting)
-        db.commit()
+        await db.delete(setting)
+        await db.commit()
         return success_response(message="Google Drive disconnected successfully")
     else:
-        # If already undefined, considering it success
         return success_response(message="Google Drive was not connected")
 
 
@@ -434,16 +428,16 @@ def disconnect_google_drive(
 
 
 @router.delete("/tenants/{tenant_id}", response_model=StandardResponse[dict])
-def archive_tenant(
+async def archive_tenant(
     tenant_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     service = AdminService(db)
-    tenant = service.archive_tenant(tenant_id)
+    tenant = await service.archive_tenant(tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
@@ -451,16 +445,16 @@ def archive_tenant(
 
 
 @router.post("/tenants/{tenant_id}/restore", response_model=StandardResponse[dict])
-def restore_tenant(
+async def restore_tenant(
     tenant_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     service = AdminService(db)
-    tenant = service.restore_tenant(tenant_id)
+    tenant = await service.restore_tenant(tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
@@ -468,9 +462,9 @@ def restore_tenant(
 
 
 @router.delete("/tenants/{tenant_id}/permanent", response_model=StandardResponse[dict])
-def permanently_delete_tenant(
+async def permanently_delete_tenant(
     tenant_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     if current_user.role != Role.SUPER_ADMIN.value:
@@ -478,7 +472,7 @@ def permanently_delete_tenant(
 
     service = AdminService(db)
     try:
-        success = service.permanently_delete_tenant(tenant_id)
+        success = await service.permanently_delete_tenant(tenant_id)
         if not success:
             raise HTTPException(status_code=404, detail="Tenant not found")
     except Exception as e:
@@ -489,10 +483,10 @@ def permanently_delete_tenant(
 
 
 @router.post("/tenants/{tenant_id}/assign-plan", response_model=StandardResponse[dict])
-def assign_tenant_plan(
+async def assign_tenant_plan(
     tenant_id: int,
     plan_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     if current_user.role != Role.SUPER_ADMIN.value:
@@ -500,16 +494,15 @@ def assign_tenant_plan(
 
     service = AdminService(db)
 
-    # Get Plan Name/Object
-    plan = (
-        db.query(models.SubscriptionPlan)
-        .filter(models.SubscriptionPlan.id == plan_id)
-        .first()
+    res = await db.execute(
+        select(models.SubscriptionPlan)
+        .where(models.SubscriptionPlan.id == plan_id)
     )
+    plan = res.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
-    tenant = service.update_tenant(tenant_id, plan=plan.name, plan_id=plan.id)
+    tenant = await service.update_tenant(tenant_id, plan=plan.name, plan_id=plan.id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
@@ -520,9 +513,9 @@ def assign_tenant_plan(
 
 # --- User Management (Super Admin) ---
 @router.get("/tenants/{tenant_id}/users", response_model=StandardResponse[dict])
-def get_tenant_users(
+async def get_tenant_users(
     tenant_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Get all users for a specific tenant (Super Admin only)."""
@@ -531,12 +524,11 @@ def get_tenant_users(
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # Check if tenant exists first
-    tenant = (
-        db.query(models.Tenant)
-        .filter(models.Tenant.id == tenant_id, models.Tenant.is_deleted == False)  # noqa: E712
-        .first()
+    res_tenant = await db.execute(
+        select(models.Tenant)
+        .where(models.Tenant.id == tenant_id, models.Tenant.is_deleted == False)  # noqa: E712
     )
+    tenant = res_tenant.scalar_one_or_none()
 
     if not tenant:
         raise HTTPException(
@@ -544,11 +536,11 @@ def get_tenant_users(
             detail=f"Tenant with ID {tenant_id} not found or has been deleted",
         )
 
-    users = (
-        db.query(models.User)
-        .filter(models.User.tenant_id == tenant_id, models.User.is_deleted == False)  # noqa: E712
-        .all()
+    res_users = await db.execute(
+        select(models.User)
+        .where(models.User.tenant_id == tenant_id, models.User.is_deleted == False)  # noqa: E712
     )
+    users = list(res_users.scalars().all())
 
     logger.debug("[get_tenant_users] Found %d users for tenant %d", len(users), tenant_id)
 
@@ -573,10 +565,10 @@ def get_tenant_users(
 
 
 @router.post("/users/{user_id}/reset-password", response_model=StandardResponse[dict])
-def reset_user_password(
+async def reset_user_password(
     user_id: int,
     password_data: dict,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Reset password for any user (Super Admin only)."""
@@ -588,23 +580,25 @@ def reset_user_password(
 
     validate_password(new_password)
 
-    # Get user
-    user = db.query(models.User).filter(models.User.id == user_id).first()
+    res = await db.execute(select(models.User).where(models.User.id == user_id))
+    user = res.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Update password
     user.hashed_password = get_password_hash(new_password)
 
-    # Reset login attempts and unlock account
+    revoked_count = await AuthService.revoke_all_user_sessions(db, user.id)
+    if revoked_count > 0:
+        import logging
+        logger = logging.getLogger("smart_clinic")
+        logger.info(f"Super admin {current_user.username} revoked {revoked_count} sessions for user {user.username} after password reset")
+
     user.failed_login_attempts = 0
     user.account_locked_until = None
     user.last_failed_login = None
-
-    # Ensure account is active
     user.is_active = True
 
-    db.commit()
+    await db.commit()
 
     return success_response(
         data={
@@ -617,11 +611,10 @@ def reset_user_password(
     )
 
 
-
 @router.get("/search", response_model=StandardResponse[List[dict]])
-def global_admin_search(
+async def global_admin_search(
     q: str = Query(..., min_length=2),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Global search for Super Admin Command Palette."""
@@ -629,31 +622,35 @@ def global_admin_search(
         raise HTTPException(status_code=403, detail="Not authorized")
 
     service = AdminService(db)
-    results = service.global_search(q)
+    results = await service.global_search(q)
     return success_response(data=results)
 
 
 @router.get("/security/stats", response_model=StandardResponse[dict])
-def get_security_stats(
-    db: Session = Depends(get_db),
+async def get_security_stats(
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
-    return success_response(data=SecurityService.get_security_stats(db))
+    stats = await SecurityService.get_security_stats(db)
+    return success_response(data=stats)
+
 
 @router.get("/security/chart", response_model=StandardResponse[List[dict]])
-def get_security_chart(
+async def get_security_chart(
     days: int = 7,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
-    return success_response(data=SecurityService.get_login_attempts_chart(db, days))
+    chart = await SecurityService.get_login_attempts_chart(db, days)
+    return success_response(data=chart)
+
 
 @router.get("/audit-logs", response_model=StandardResponse[dict])
-def get_audit_logs(
+async def get_audit_logs(
     skip: int = 0,
     limit: int = 50,
     tenant_id: int = None,
@@ -662,7 +659,7 @@ def get_audit_logs(
     entity_type: str = None,
     start_date: datetime.datetime = None,
     end_date: datetime.datetime = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     if current_user.role != Role.SUPER_ADMIN.value:
@@ -676,15 +673,17 @@ def get_audit_logs(
         "start_date": start_date,
         "end_date": end_date
     }
-    return success_response(data=SecurityService.get_audit_logs(db, skip, limit, filters))
+    logs = await SecurityService.get_audit_logs(db, skip, limit, filters)
+    return success_response(data=logs)
+
 
 @router.get("/audit-logs/export")
-def export_audit_logs(
+async def export_audit_logs(
     tenant_id: int = None,
     user_id: int = None,
     action: str = None,
     entity_type: str = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     if current_user.role != Role.SUPER_ADMIN.value:
@@ -696,7 +695,7 @@ def export_audit_logs(
         "action": action,
         "entity_type": entity_type
     }
-    logs_data = SecurityService.get_audit_logs(db, skip=0, limit=10000, filters=filters)
+    logs_data = await SecurityService.get_audit_logs(db, skip=0, limit=10000, filters=filters)
     logs = logs_data["logs"]
 
     output = io.StringIO()

@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
 import logging
-from sqlalchemy import func, case
-from sqlalchemy.orm import Session
+from sqlalchemy import select, func, case
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from backend import models
 from fastapi import HTTPException
 
@@ -12,17 +13,14 @@ class SecurityService:
     MAX_FAILED_ATTEMPTS = 5
     LOCKOUT_DURATION_MINUTES = 15
 
-    def __init__(self, db: Session = None):
+    def __init__(self, db: AsyncSession = None):
         self.db = db
 
     @staticmethod
-    def check_ip_blocked(db: Session, ip_address: str):
+    async def check_ip_blocked(db: AsyncSession, ip_address: str):
         """Check if IP is blocked. Returns blockage details or None."""
-        blocked_entry = (
-            db.query(models.BlockedIP)
-            .filter(models.BlockedIP.ip_address == ip_address)
-            .first()
-        )
+        stmt = select(models.BlockedIP).where(models.BlockedIP.ip_address == ip_address)
+        blocked_entry = (await db.execute(stmt)).scalar_one_or_none()
         if blocked_entry:
             # Check expiry
             expires_at = blocked_entry.expires_at
@@ -32,15 +30,15 @@ class SecurityService:
                     expires_at = expires_at.replace(tzinfo=timezone.utc)
                 if expires_at < now:
                     # Expired, unblock
-                    db.delete(blocked_entry)
-                    db.commit()
+                    await db.delete(blocked_entry)
+                    await db.commit()
                     return None
             return blocked_entry
         return None
 
     @staticmethod
-    def record_login_attempt(
-        db: Session,
+    async def record_login_attempt(
+        db: AsyncSession,
         ip_address: str,
         username: str,
         success: bool,
@@ -59,7 +57,7 @@ class SecurityService:
 
         if not user:
             # Unknown user, just log and return
-            db.commit()
+            await db.commit()
             return
 
         if success:
@@ -67,7 +65,7 @@ class SecurityService:
             if user.failed_login_attempts > 0:
                 user.failed_login_attempts = 0
                 user.account_locked_until = None
-            db.commit()
+            await db.commit()
         else:
             # Handle Failure
             user.failed_login_attempts += 1
@@ -80,7 +78,7 @@ class SecurityService:
                 )
                 # Optional: Log a separate "blocked" status or event
 
-            db.commit()
+            await db.commit()
 
     @staticmethod
     def is_account_locked(user: models.User) -> bool:
@@ -93,18 +91,15 @@ class SecurityService:
         return False
 
     @staticmethod
-    def block_ip(
-        db: Session,
+    async def block_ip(
+        db: AsyncSession,
         ip_address: str,
         reason: str,
         admin_username: str,
         minutes: int = None,
     ):
-        existing = (
-            db.query(models.BlockedIP)
-            .filter(models.BlockedIP.ip_address == ip_address)
-            .first()
-        )
+        stmt = select(models.BlockedIP).where(models.BlockedIP.ip_address == ip_address)
+        existing = (await db.execute(stmt)).scalar_one_or_none()
         if existing:
             raise HTTPException(status_code=400, detail="IP already blocked")
 
@@ -117,37 +112,35 @@ class SecurityService:
             expires_at=expires_at,
         )
         db.add(new_block)
-        db.commit()
+        await db.commit()
         return new_block
 
     @staticmethod
-    def unblock_ip(db: Session, ip_address: str):
-        entry = (
-            db.query(models.BlockedIP)
-            .filter(models.BlockedIP.ip_address == ip_address)
-            .first()
-        )
+    async def unblock_ip(db: AsyncSession, ip_address: str):
+        stmt = select(models.BlockedIP).where(models.BlockedIP.ip_address == ip_address)
+        entry = (await db.execute(stmt)).scalar_one_or_none()
         if not entry:
             raise HTTPException(status_code=404, detail="IP not found in blocklist")
 
-        db.delete(entry)
-        db.commit()
+        await db.delete(entry)
+        await db.commit()
 
     @staticmethod
-    def get_security_stats(db: Session):
+    async def get_security_stats(db: AsyncSession):
         """Get overview stats for dashboard."""
         logger.debug("Accessing Security Stats...")
         try:
-            blocked_ips = db.query(models.BlockedIP).count()
+            stmt = select(func.count(models.BlockedIP.id))
+            blocked_ips = (await db.execute(stmt)).scalar() or 0
             logger.debug("BlockedIP Count: %d", blocked_ips)
 
-            recent_failures_rows = (
-                db.query(models.LoginHistory)
-                .filter(models.LoginHistory.status == "failed")
+            stmt = (
+                select(models.LoginHistory)
+                .where(models.LoginHistory.status == "failed")
                 .order_by(models.LoginHistory.created_at.desc())
                 .limit(50)
-                .all()
             )
+            recent_failures_rows = (await db.execute(stmt)).scalars().all()
             recent_failures = []
             from .geoip_service import GeoIPService
 
@@ -164,12 +157,12 @@ class SecurityService:
                 })
             logger.debug("Recent Failures: %d", len(recent_failures))
 
-            locked_user_rows = (
-                db.query(models.User)
-                .filter(models.User.account_locked_until > datetime.now(timezone.utc))
+            stmt = (
+                select(models.User)
+                .where(models.User.account_locked_until > datetime.now(timezone.utc))
                 .order_by(models.User.account_locked_until.desc())
-                .all()
             )
+            locked_user_rows = (await db.execute(stmt)).scalars().all()
             locked_users = [
                 {
                     "id": user.id,
@@ -192,23 +185,23 @@ class SecurityService:
             raise e
 
     @staticmethod
-    def get_login_attempts_chart(db: Session, days: int = 7):
+    async def get_login_attempts_chart(db: AsyncSession, days: int = 7):
         """Get login attempts aggregated by day for charting."""
         start_date = datetime.now(timezone.utc) - timedelta(days=days)
 
         # Query for counts per day
-        stats = (
-            db.query(
+        stmt = (
+            select(
                 func.date(models.LoginHistory.created_at).label("date"),
                 func.count(models.LoginHistory.id).label("total"),
                 func.sum(case((models.LoginHistory.status == "success", 1), else_=0)).label("success"),
                 func.sum(case((models.LoginHistory.status == "failed", 1), else_=0)).label("failed"),
             )
-            .filter(models.LoginHistory.created_at >= start_date)
+            .where(models.LoginHistory.created_at >= start_date)
             .group_by(func.date(models.LoginHistory.created_at))
             .order_by("date")
-            .all()
         )
+        stats = (await db.execute(stmt)).all()
 
         return [
             {
@@ -221,33 +214,36 @@ class SecurityService:
         ]
 
     @staticmethod
-    def get_audit_logs(
-        db: Session,
+    async def get_audit_logs(
+        db: AsyncSession,
         skip: int = 0,
         limit: int = 100,
         filters: dict = None
     ):
         """Get filtered audit logs."""
-        query = db.query(models.AuditLog)
+        stmt = select(models.AuditLog)
 
         if filters:
             if filters.get("tenant_id"):
-                query = query.filter(models.AuditLog.tenant_id == filters["tenant_id"])
+                stmt = stmt.where(models.AuditLog.tenant_id == filters["tenant_id"])
             if filters.get("user_id"):
-                query = query.filter(models.AuditLog.performed_by_id == filters["user_id"])
+                stmt = stmt.where(models.AuditLog.performed_by_id == filters["user_id"])
             if filters.get("action"):
                 # Sanitize input to prevent SQL injection via wildcard characters
                 safe_action = filters['action'].replace('%', '\\%').replace('_', '\\_')
-                query = query.filter(models.AuditLog.action.ilike(f"%{safe_action}%", escape='\\'))
+                stmt = stmt.where(models.AuditLog.action.ilike(f"%{safe_action}%", escape='\\'))
             if filters.get("entity_type"):
-                query = query.filter(models.AuditLog.entity_type == filters["entity_type"])
+                stmt = stmt.where(models.AuditLog.entity_type == filters["entity_type"])
             if filters.get("start_date"):
-                query = query.filter(models.AuditLog.created_at >= filters["start_date"])
+                stmt = stmt.where(models.AuditLog.created_at >= filters["start_date"])
             if filters.get("end_date"):
-                query = query.filter(models.AuditLog.created_at <= filters["end_date"])
+                stmt = stmt.where(models.AuditLog.created_at <= filters["end_date"])
 
-        total = query.count()
-        audit_logs = query.order_by(models.AuditLog.created_at.desc()).offset(skip).limit(limit).all()
+        total_stmt = select(func.count()).select_from(stmt.subquery())
+        total = (await db.execute(total_stmt)).scalar() or 0
+
+        stmt = stmt.order_by(models.AuditLog.created_at.desc()).offset(skip).limit(limit)
+        audit_logs = (await db.execute(stmt)).scalars().all()
 
         return {
             "total": total,
@@ -273,16 +269,21 @@ class SecurityService:
             "current_page": (skip // limit) + 1 if limit > 0 else 1
         }
 
-    def get_active_sessions(self, limit: int = 50):
+    async def get_active_sessions(self, limit: int = 50):
         """Get list of active sessions for super admin review."""
-        sessions = (
-            self.db.query(models.UserSession)
-            .filter(models.UserSession.is_active == True)
-            .filter(models.UserSession.expires_at > datetime.now(timezone.utc))
+        stmt = (
+            select(models.UserSession)
+            .options(
+                selectinload(models.UserSession.user).selectinload(models.User.tenant)
+            )
+            .where(
+                models.UserSession.is_active == True,  # noqa: E712
+                models.UserSession.expires_at > datetime.now(timezone.utc)
+            )
             .order_by(models.UserSession.last_active_at.desc())
             .limit(limit)
-            .all()
         )
+        sessions = (await self.db.execute(stmt)).scalars().all()
 
         result = []
         from .geoip_service import GeoIPService
@@ -301,14 +302,19 @@ class SecurityService:
             })
         return result
 
-    def terminate_session(self, session_id: int):
+    async def terminate_session(self, session_id: int):
         """Terminate a specific session."""
-        session = self.db.query(models.UserSession).filter(models.UserSession.id == session_id).first()
+        stmt = (
+            select(models.UserSession)
+            .options(selectinload(models.UserSession.user))
+            .where(models.UserSession.id == session_id)
+        )
+        session = (await self.db.execute(stmt)).scalar_one_or_none()
         if session:
             session.is_active = False
             # If this was the active session, clear it from user record to trigger kickout
             if session.user and session.device_info == getattr(session.user, "active_session_id", None):
                 session.user.active_session_id = "revoked_by_admin_" + str(session.id)
-            self.db.commit()
+            await self.db.commit()
             return True
         return False

@@ -7,9 +7,9 @@ import {
 import { useTranslation } from 'react-i18next';
 import {
     AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-    PieChart, Pie, Cell
-} from 'recharts';
-import { motion } from 'framer-motion';
+    PieChart, Pie, Cell, LazyChart
+} from '@/components/charts/LazyChart';
+import { motion } from '@/lib/motion';
 import { getTodayPayments, getTodayDebtors } from '@/api';
 import { useDashboardStats } from '@/hooks/useDashboard';
 import { useAppointments } from '@/hooks/useAppointments';
@@ -38,7 +38,7 @@ const GradientCard = memo(({ title, value, subtext, icon: Icon, gradient, onClic
                 </p>
             </div>
         </div>
-        <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
+        <div className="absolute -bottom-10 -end-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
     </div>
 ));
 GradientCard.displayName = 'GradientCard';
@@ -222,49 +222,51 @@ export default function Dashboard() {
                             {loading ? (
                                 <div className="h-full w-full bg-slate-100 dark:bg-slate-800/50 rounded-3xl animate-pulse"></div>
                             ) : stats.chartData.length > 0 ? (
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={stats.chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                        <defs>
-                                            <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                                                <stop offset="5%" stopColor="#0891B2" stopOpacity={0.3} />
-                                                <stop offset="95%" stopColor="#0891B2" stopOpacity={0} />
-                                            </linearGradient>
-                                        </defs>
-                                        <XAxis 
-                                            dataKey="name" 
-                                            axisLine={false} 
-                                            tickLine={false} 
-                                            tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} 
-                                            dy={10} 
-                                        />
-                                        <YAxis 
-                                            axisLine={false} 
-                                            tickLine={false} 
-                                            tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} 
-                                        />
-                                        <Tooltip
-                                            contentStyle={{ 
-                                                backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                                                borderRadius: '24px', 
-                                                border: 'none', 
-                                                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-                                                padding: '16px'
-                                            }}
-                                            itemStyle={{ color: '#1e293b', fontWeight: '900', fontSize: '14px' }}
-                                            formatter={(value) => [formatCurrency(value), t('dashboard.revenue')]}
-                                            cursor={{ stroke: '#0891B2', strokeWidth: 2, strokeDasharray: '6 6' }}
-                                        />
-                                        <Area
-                                            type="monotone"
-                                            dataKey="revenue"
-                                            stroke="#0891B2"
-                                            strokeWidth={4}
-                                            fillOpacity={1}
-                                            fill="url(#colorRevenue)"
-                                            activeDot={{ r: 8, strokeWidth: 0, fill: '#0891B2' }}
-                                        />
-                                    </AreaChart>
-                                </ResponsiveContainer>
+                                <LazyChart>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={stats.chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                            <defs>
+                                                <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                                                    <stop offset="5%" stopColor="#0891B2" stopOpacity={0.3} />
+                                                    <stop offset="95%" stopColor="#0891B2" stopOpacity={0} />
+                                                </linearGradient>
+                                            </defs>
+                                            <XAxis 
+                                                dataKey="name" 
+                                                axisLine={false} 
+                                                tickLine={false} 
+                                                tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} 
+                                                dy={10} 
+                                            />
+                                            <YAxis 
+                                                axisLine={false} 
+                                                tickLine={false} 
+                                                tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} 
+                                            />
+                                            <Tooltip
+                                                contentStyle={{ 
+                                                    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                                                    borderRadius: '24px', 
+                                                    border: 'none', 
+                                                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                                                    padding: '16px'
+                                                }}
+                                                itemStyle={{ color: '#1e293b', fontWeight: '900', fontSize: '14px' }}
+                                                formatter={(value) => [formatCurrency(value), t('dashboard.revenue')]}
+                                                cursor={{ stroke: '#0891B2', strokeWidth: 2, strokeDasharray: '6 6' }}
+                                            />
+                                            <Area
+                                                type="monotone"
+                                                dataKey="revenue"
+                                                stroke="#0891B2"
+                                                strokeWidth={4}
+                                                fillOpacity={1}
+                                                fill="url(#colorRevenue)"
+                                                activeDot={{ r: 8, strokeWidth: 0, fill: '#0891B2' }}
+                                            />
+                                        </AreaChart>
+                                    </ResponsiveContainer>
+                                </LazyChart>
                             ) : (
                                 <div className="h-full flex flex-col items-center justify-center text-text-secondary gap-4">
                                     <div className="w-16 h-16 bg-surface-hover rounded-full flex items-center justify-center text-3xl">
@@ -284,30 +286,32 @@ export default function Dashboard() {
                                 {t('dashboard.status_distribution')}
                             </h4>
                             <div className="h-[200px] w-full" style={{ direction: 'ltr' }}>
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={[
-                                                { name: t('appointments.status.completed'), value: appointments.filter(a => a.status === 'Completed').length },
-                                                { name: t('appointments.status.scheduled'), value: appointments.filter(a => a.status === 'Scheduled').length },
-                                                { name: t('appointments.status.waiting'), value: appointments.filter(a => a.status === 'Waiting').length },
-                                                { name: t('appointments.status.cancelled'), value: appointments.filter(a => a.status === 'Cancelled' || a.status === 'No Show').length },
-                                            ].filter(d => d.value > 0)}
-                                            innerRadius={60}
-                                            outerRadius={80}
-                                            paddingAngle={8}
-                                            dataKey="value"
-                                        >
-                                            <Cell fill="#10b981" />
-                                            <Cell fill="#0891B2" />
-                                            <Cell fill="#f59e0b" />
-                                            <Cell fill="#ef4444" />
-                                        </Pie>
-                                        <Tooltip 
-                                            contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                                        />
-                                    </PieChart>
-                                </ResponsiveContainer>
+                                <LazyChart>
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={[
+                                                    { name: t('appointments.status.completed'), value: appointments.filter(a => a.status === 'Completed').length },
+                                                    { name: t('appointments.status.scheduled'), value: appointments.filter(a => a.status === 'Scheduled').length },
+                                                    { name: t('appointments.status.waiting'), value: appointments.filter(a => a.status === 'Waiting').length },
+                                                    { name: t('appointments.status.cancelled'), value: appointments.filter(a => a.status === 'Cancelled' || a.status === 'No Show').length },
+                                                ].filter(d => d.value > 0)}
+                                                innerRadius={60}
+                                                outerRadius={80}
+                                                paddingAngle={8}
+                                                dataKey="value"
+                                            >
+                                                <Cell fill="#10b981" />
+                                                <Cell fill="#0891B2" />
+                                                <Cell fill="#f59e0b" />
+                                                <Cell fill="#ef4444" />
+                                            </Pie>
+                                            <Tooltip 
+                                                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                                            />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </LazyChart>
                             </div>
                         </Card>
                         
@@ -344,7 +348,7 @@ export default function Dashboard() {
                                 {t('dashboard.appointments_count', { val: loading ? '...' : stats.todaysAppointments.length })}
                             </span>
                         </div>
-                        <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                        <div className="space-y-4 max-h-[500px] overflow-y-auto pe-2 custom-scrollbar">
                             {loading ? (
                                 <div className="space-y-3">
                                     {Array.from({length: 5}).map((_, i) => (
@@ -354,7 +358,7 @@ export default function Dashboard() {
                             ) : stats.todaysAppointments.length > 0 ? stats.todaysAppointments.map((appt) => (
                                 <div
                                     key={appt.id}
-                                    className="relative pl-4 border-r-2 border-border pr-4 py-1 group cursor-pointer"
+                                    className="relative ps-4 border-e-2 border-border pe-4 py-1 group cursor-pointer"
                                     onClick={() => navigate('/appointments')}
                                 >
                                     <div className={`absolute -right-[9px] top-3 w-4 h-4 rounded-full border-2 border-background ${appt.status === 'Completed' ? 'bg-emerald-500' :
@@ -391,7 +395,7 @@ export default function Dashboard() {
                                 onClick={() => navigate('/appointments')}
                             >
                                 {t('dashboard.view_full_schedule')}
-                                <ChevronLeft size={16} className="mr-2" />
+                                <ChevronLeft size={16} className="me-2" />
                             </Button>
                         )}
                     </Card>

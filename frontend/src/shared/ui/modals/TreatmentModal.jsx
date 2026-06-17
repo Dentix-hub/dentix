@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { addTreatmentSession } from '@/api';
 import { MultiSessionPanel } from '../components/MultiSessionPanel';
+import logger from '@/utils/logger';
 export default function TreatmentModal({
     isOpen,
     onClose,
@@ -52,21 +53,21 @@ export default function TreatmentModal({
     // Fetch Materials on Mount
     useEffect(() => {
         if (isOpen) {
-            console.log('[MATERIALS_DEBUG] TreatmentModal opened, fetching stock summary...');
+            logger.debug('[MATERIALS_DEBUG] TreatmentModal opened, fetching stock summary...');
             setIsMaterialsLoading(true);
             getStockSummary().then(res => {
-                console.log('[MATERIALS_DEBUG] getStockSummary raw response:', JSON.stringify(res.data).substring(0, 500));
+                logger.debug('[MATERIALS_DEBUG] getStockSummary raw response:', JSON.stringify(res.data).substring(0, 500));
                 const materialsList = res.data?.data || res.data || [];
-                console.log('[MATERIALS_DEBUG] Parsed materialsList:', materialsList?.length, 'items', Array.isArray(materialsList));
+                logger.debug('[MATERIALS_DEBUG] Parsed materialsList:', materialsList?.length, 'items', Array.isArray(materialsList));
                 
                 setAvailableMaterials(Array.isArray(materialsList) ? materialsList : []);
             }).catch(err => {
-                console.error("[MATERIALS_DEBUG] getStockSummary FAILED:", err?.response?.status, err?.response?.data || err.message);
+                logger.error("[MATERIALS_DEBUG] getStockSummary FAILED:", err?.response?.status, err?.response?.data || err.message);
                 getMaterials().then(res => {
                     const list = res.data?.data || res.data || [];
                     setAvailableMaterials(Array.isArray(list) ? list : []);
                 }).catch(err2 => {
-                    console.error("[MATERIALS_DEBUG] getMaterials ALSO FAILED:", err2?.response?.status);
+                    logger.error("[MATERIALS_DEBUG] getMaterials ALSO FAILED:", err2?.response?.status);
                 });
             }).finally(() => {
                 setIsMaterialsLoading(false);
@@ -78,7 +79,7 @@ export default function TreatmentModal({
             setTreatment(initialData);
             // FIX: Always reset consumed materials when opening modal to prevent stale data
             if (isEditing && initialData.consumedMaterials && initialData.consumedMaterials.length > 0) {
-                console.log("[TreatmentModal] Loading existing materials:", initialData.consumedMaterials);
+                logger.debug("[TreatmentModal] Loading existing materials:", initialData.consumedMaterials);
                 setConsumedMaterials(initialData.consumedMaterials);
                 setShowInventory(true);
             } else {
@@ -120,7 +121,7 @@ export default function TreatmentModal({
             });
             return true;
         } catch (error) {
-            console.error("Failed to add session:", error);
+            logger.error("Failed to add session:", error);
             return false;
         }
     };
@@ -209,12 +210,12 @@ export default function TreatmentModal({
             skip_stock_check: forceSkipStock
         };
 
-        console.log('[TREATMENT] Saving with payload:', payload);
+        logger.debug('[TREATMENT] Saving with payload:', payload);
 
         try {
             await onSave(payload);
         } catch (error) {
-            console.error('[TREATMENT] Save Error Details:', {
+            logger.error('[TREATMENT] Save Error Details:', {
                 status: error.response?.status,
                 data: error.response?.data,
                 message: error.message
@@ -448,35 +449,35 @@ export default function TreatmentModal({
                                         const baseProcedurePrice = foundProc?.price || 0; // Fallback value
                                         let calculatedPrice = baseProcedurePrice;
                                         let activePriceListId = treatment.price_list_id;
-                                        console.log('[PRICE_DEBUG] Found Procedure:', foundProc?.name, 'Base Price:', baseProcedurePrice);
-                                        console.log('[PRICE_DEBUG] Default Price List ID:', initialData?.default_price_list_id);
+                                        logger.debug('[PRICE_DEBUG] Found Procedure:', foundProc?.name, 'Base Price:', baseProcedurePrice);
+                                        logger.debug('[PRICE_DEBUG] Default Price List ID:', initialData?.default_price_list_id);
                                         // If we have a patient default price list, try to fetch specific price
                                         if (foundProc && initialData?.default_price_list_id) {
                                             try {
                                                 // Dynamic import to avoid circular dependency
                                                 const { getProcedurePrices } = await import('@/api');
                                                 const pricesData = await getProcedurePrices(foundProc.id);
-                                                console.log('[PRICE_DEBUG] Prices Data:', pricesData?.data);
+                                                logger.debug('[PRICE_DEBUG] Prices Data:', pricesData?.data);
                                                 // Check if there's a price for the patient's list
                                                 const specificPrice = pricesData.data?.price_lists?.find(pl =>
                                                     // Loose comparison for ID safety
                                                     String(pl.price_list_id) === String(initialData.default_price_list_id)
                                                 );
-                                                console.log('[PRICE_DEBUG] Specific Price Found:', specificPrice);
+                                                logger.debug('[PRICE_DEBUG] Specific Price Found:', specificPrice);
                                                 if (specificPrice && specificPrice.final_price > 0) {
                                                     // Use price list price ONLY if it's greater than 0
                                                     calculatedPrice = specificPrice.final_price;
                                                     activePriceListId = initialData.default_price_list_id;
                                                 } else if (specificPrice && specificPrice.final_price === 0) {
                                                     // Price list has 0 - fallback to base procedure price
-                                                    console.log('[PRICE_DEBUG] Price list price is 0, using base procedure price:', baseProcedurePrice);
+                                                    logger.debug('[PRICE_DEBUG] Price list price is 0, using base procedure price:', baseProcedurePrice);
                                                     calculatedPrice = baseProcedurePrice;
                                                 }
                                             } catch (err) {
-                                                console.error("Failed to fetch custom prices", err);
+                                                logger.error("Failed to fetch custom prices", err);
                                             }
                                         }
-                                        console.log('[PRICE_DEBUG] Final Calculated Price:', calculatedPrice);
+                                        logger.debug('[PRICE_DEBUG] Final Calculated Price:', calculatedPrice);
                                         // NEW: Auto-load consumed materials (BOM)
                                         if (foundProc) {
                                             const autoMaterials = (foundProc.suggestedMaterials || []).map(sm => ({
@@ -487,7 +488,7 @@ export default function TreatmentModal({
                                                 is_manual: false
                                             }));
                                             if (autoMaterials.length > 0) {
-                                                console.log("[MATERIALS_DEBUG] Auto-loaded materials (BOM):", autoMaterials);
+                                                logger.debug("[MATERIALS_DEBUG] Auto-loaded materials (BOM):", autoMaterials);
                                                 setConsumedMaterials(autoMaterials);
                                                 setShowInventory(true);
                                             }
@@ -507,7 +508,7 @@ export default function TreatmentModal({
                                         <option key={p.id} value={p.name}>{p.name}</option>
                                     ))}
                                 </select>
-                                <div className="absolute left-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                                <div className="absolute start-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                                     <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                     </svg>

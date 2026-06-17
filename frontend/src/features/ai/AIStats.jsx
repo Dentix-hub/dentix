@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { api } from '@/api';
 import {
     Activity, CheckCircle, XCircle, Clock,
@@ -7,8 +8,8 @@ import {
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-    PieChart, Pie, Cell
-} from 'recharts';
+    PieChart, Pie, Cell, LazyChart
+} from '@/components/charts/LazyChart';
 // --- Components ---
 // 1. Overview Tab
 const OverviewTab = ({ stats, costs, suggestions }) => {
@@ -42,8 +43,8 @@ const OverviewTab = ({ stats, costs, suggestions }) => {
                     </div>
                 </div>
                 {/* Decoration */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
-                <div className="absolute bottom-0 left-0 w-48 h-48 bg-teal-500/30 rounded-full -ml-10 -mb-10 blur-xl"></div>
+                <div className="absolute top-0 end-0 w-64 h-64 bg-white/10 rounded-full -me-16 -mt-16 blur-2xl"></div>
+                <div className="absolute bottom-0 start-0 w-48 h-48 bg-teal-500/30 rounded-full -ms-10 -mb-10 blur-xl"></div>
             </div>
             {/* KPI Grid */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -61,7 +62,7 @@ const OverviewTab = ({ stats, costs, suggestions }) => {
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {suggestions.map((sug, idx) => (
-                            <div key={idx} className="bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm border-l-4 border-l-amber-400">
+                            <div key={idx} className="bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm border-s-4 border-s-amber-400">
                                 <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase mb-2 inline-block ${sug.type === 'CRITICAL' ? 'bg-red-100 text-red-600' :
                                     sug.type === 'WARNING' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
                                     }`}>
@@ -226,7 +227,7 @@ const LogsTab = ({ logs, page, setPage, fetchLogDetails, selectedLog, setSelecte
                                 <XCircle size={28} />
                             </button>
                         </div>
-                        <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-6 content-start pr-2">
+                        <div className="flex-1 overflow-y-auto grid grid-cols-2 gap-6 content-start pe-2">
                             <div className="bg-slate-50 dark:bg-slate-800 p-5 rounded-2xl border border-slate-100">
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-3 tracking-wider">مدخلات المستخدم</label>
                                 <p className="text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{selectedLog.input_text || "لا توجد نصوص (تسجيل صوتي أو أمر نظام)"}</p>
@@ -301,13 +302,13 @@ const GovernanceTab = ({ governance, updateGovernance, saving }) => {
                         <label className="text-sm font-bold text-slate-500 mb-4 uppercase tracking-wider">حد الإنفاق اليومي</label>
                         <div className="flex items-end gap-2 mb-2">
                             <div className="flex-1 relative">
-                                <span className="absolute left-0 bottom-2 text-2xl font-bold text-slate-300">$</span>
+                                <span className="absolute start-0 bottom-2 text-2xl font-bold text-slate-300">$</span>
                                 <input
                                     type="number"
                                     step="0.1"
                                     defaultValue={governance?.ai_max_daily_cost}
                                     onBlur={(e) => updateGovernance('ai_max_daily_cost', e.target.value)}
-                                    className="text-5xl font-bold bg-transparent border-b-4 border-slate-200 focus:border-teal-500 outline-none w-full pb-2 ltr pl-6 transition-colors"
+                                    className="text-5xl font-bold bg-transparent border-b-4 border-slate-200 focus:border-teal-500 outline-none w-full pb-2 ltr ps-6 transition-colors"
                                 />
                             </div>
                         </div>
@@ -368,7 +369,7 @@ const AIStats = () => {
             setStats(s.data);
             setCosts(c.data);
             setSuggestions(Array.isArray(sug.data) ? sug.data : []);
-        } catch (e) { console.error(e); }
+        } catch (e) { logger.error(e); }
     };
     const fetchAnalytics = async () => {
         try {
@@ -380,20 +381,20 @@ const AIStats = () => {
             setFailures(f.data || null);
             setHeatmap(Array.isArray(h.data) ? h.data : []);
             setIntents(Array.isArray(i.data) ? i.data : []);
-        } catch (e) { console.error(e); }
+        } catch (e) { logger.error(e); }
     };
     const fetchGovernance = async () => {
         try {
             const res = await api.get('/api/v1/admin/ai/governance');
             setGovernance(res.data);
-        } catch (e) { console.error(e); }
+        } catch (e) { logger.error(e); }
     };
     const fetchLogs = async () => {
         try {
             const res = await api.get(`/api/v1/admin/ai/logs?page=${logsPage}&limit=15`);
             const logsData = res.data?.data;
             setLogs(Array.isArray(logsData) ? logsData : []);
-        } catch (e) { console.error(e); }
+        } catch (e) { logger.error(e); }
     };
     const fetchLogDetails = async (id) => {
         try {
@@ -409,7 +410,7 @@ const AIStats = () => {
         try {
             await api.post('/api/v1/admin/ai/governance', { [key]: value });
         } catch (e) {
-            console.error(e);
+            logger.error(e);
             alert("فشل التحديث");
             fetchGovernance();
         } finally {
@@ -499,7 +500,7 @@ const KPICard = ({ title, value, icon: Icon, color, suffix }) => {
             <div>
                 <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">{title}</p>
                 <h3 className="text-2xl font-bold text-slate-800">
-                    {value || 0}<span className="text-sm text-slate-500 font-medium ml-1">{suffix}</span>
+                    {value || 0}<span className="text-sm text-slate-500 font-medium ms-1">{suffix}</span>
                 </h3>
             </div>
             <div className={`p-4 rounded-2xl ${colors[color]} group-hover:scale-110 transition-transform`}>

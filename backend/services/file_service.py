@@ -80,10 +80,10 @@ def _get_upload_root() -> Path:
 def validate_file(file: UploadFile) -> tuple[str, str]:
     """
     Validate an uploaded file for security.
-    
+
     Returns:
         Tuple of (safe_filename, validated_content_type)
-    
+
     Raises:
         HTTPException 400 if validation fails
     """
@@ -92,7 +92,7 @@ def validate_file(file: UploadFile) -> tuple[str, str]:
 
     # 1. Check extension
     original_ext = os.path.splitext(file.filename)[1].lower()
-    
+
     if original_ext in BLOCKED_EXTENSIONS:
         logger.warning(
             "[FILE_SECURITY] Blocked dangerous file extension: %s (filename: %s)",
@@ -102,7 +102,7 @@ def validate_file(file: UploadFile) -> tuple[str, str]:
             status_code=400,
             detail=f"نوع الملف '{original_ext}' غير مسموح به لأسباب أمنية"
         )
-    
+
     if original_ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
@@ -111,7 +111,7 @@ def validate_file(file: UploadFile) -> tuple[str, str]:
 
     # 2. Check MIME type
     content_type = file.content_type or mimetypes.guess_type(file.filename)[0] or "application/octet-stream"
-    
+
     if content_type not in ALLOWED_MIME_TYPES:
         # Be lenient with MIME types — browsers sometimes send wrong ones
         # But log it for monitoring
@@ -133,20 +133,20 @@ def validate_file(file: UploadFile) -> tuple[str, str]:
     file.file.seek(0, 2)  # Seek to end
     file_size = file.file.tell()
     file.file.seek(0)  # Reset to beginning
-    
+
     if file_size > MAX_FILE_SIZE_BYTES:
         raise HTTPException(
             status_code=400,
             detail=f"حجم الملف ({file_size // (1024*1024)} MB) يتجاوز الحد الأقصى ({MAX_FILE_SIZE_MB} MB)"
         )
-    
+
     if file_size == 0:
         raise HTTPException(status_code=400, detail="الملف فارغ")
 
     # 4. Verify magic bytes (basic check)
     header = file.file.read(16)
     file.file.seek(0)
-    
+
     _verify_magic_bytes(header, original_ext, content_type)
 
     # 5. Generate safe filename (UUID + original extension)
@@ -159,7 +159,7 @@ def _verify_magic_bytes(header: bytes, extension: str, content_type: str):
     """Verify that file header matches expected type (defense against renamed executables)."""
     if not header:
         return
-    
+
     # Check known signatures
     for magic, expected_mime in MAGIC_BYTES.items():
         if header.startswith(magic):
@@ -192,28 +192,28 @@ def save_file_locally(
 ) -> str:
     """
     Save a validated file to the local filesystem.
-    
+
     Args:
         file: The validated upload file
         safe_filename: UUID-based safe filename from validate_file()
         tenant_id: Tenant ID for scoped storage
-    
+
     Returns:
         Relative path for DB storage (e.g., "tenant_5/abc123.jpg")
     """
     upload_root = _get_upload_root()
-    
+
     # Tenant-scoped subdirectory
     if tenant_id:
         tenant_dir = upload_root / f"tenant_{tenant_id}"
     else:
         tenant_dir = upload_root / "system"
-    
+
     tenant_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Write file
     target_path = tenant_dir / safe_filename
-    
+
     try:
         file.file.seek(0)
         with open(target_path, "wb") as f:
@@ -223,7 +223,7 @@ def save_file_locally(
     except Exception as e:
         logger.error("[FILE] Failed to save file: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail="فشل في حفظ الملف")
-    
+
     # Return relative path for DB storage
     if tenant_id:
         return f"tenant_{tenant_id}/{safe_filename}"
@@ -233,28 +233,28 @@ def save_file_locally(
 def get_file_path(relative_path: str) -> Path:
     """
     Resolve a relative file path to an absolute path, with path traversal protection.
-    
+
     Args:
         relative_path: The path stored in the database
-    
+
     Returns:
         Absolute path to the file
-    
+
     Raises:
         HTTPException 404 if file doesn't exist
         HTTPException 400 if path traversal detected
     """
     upload_root = _get_upload_root()
-    
+
     # Normalize and resolve to prevent path traversal
     resolved = (upload_root / relative_path).resolve()
-    
+
     # Verify the resolved path is still under upload_root
     if not str(resolved).startswith(str(upload_root.resolve())):
         logger.warning("[FILE_SECURITY] Path traversal attempt: %s", relative_path)
         raise HTTPException(status_code=400, detail="مسار ملف غير صالح")
-    
+
     if not resolved.exists():
         raise HTTPException(status_code=404, detail="الملف غير موجود")
-    
+
     return resolved

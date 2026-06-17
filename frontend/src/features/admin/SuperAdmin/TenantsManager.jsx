@@ -57,14 +57,14 @@ const TenantsManager = ({
                                                 <select
                                                     value={tenant.plan_id || ''}
                                                     onChange={(e) => handlePlanChange(e, tenant.id)}
-                                                    className={`appearance-none w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 py-2 ${isRtl ? 'pr-4 pl-10' : 'pl-4 pr-10'} rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium cursor-pointer`}
+                                                    className={`appearance-none w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 py-2 ${isRtl ? 'pe-4 ps-10' : 'ps-4 pe-10'} rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium cursor-pointer`}
                                                 >
                                                     <option value="" disabled>{t('super_admin.tenants.select_plan')}</option>
                                                     {(plans || []).map(p => (
                                                         <option key={p.id} value={p.id}>{i18n.language === 'ar' ? p.display_name_ar : p.display_name_en || p.name}</option>
                                                     ))}
                                                 </select>
-                                                <Edit3 size={16} className={`absolute ${isRtl ? 'left-3' : 'right-3'} top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none`} />
+                                                <Edit3 size={16} className={`absolute ${isRtl ? 'start-3' : 'end-3'} top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none`} />
                                             </div>
                                         ) : (
                                             <span className="text-slate-500">-</span>

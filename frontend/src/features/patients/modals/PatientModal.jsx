@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { getDoctors, createPatient } from '@/api';
 import { useAuth } from '@/auth/useAuth';
@@ -23,7 +24,7 @@ export default function PatientModal({ isOpen, onClose, onSuccess }) {
         if (isOpen) {
             getDoctors()
                 .then(res => setDoctors(res.data))
-                .catch(err => console.error("Failed to fetch doctors", err));
+                .catch(err => logger.error("Failed to fetch doctors", err));
             
             if (user?.role === 'doctor') {
                 setFormData(prev => ({ ...prev, assigned_doctor_id: user.id }));

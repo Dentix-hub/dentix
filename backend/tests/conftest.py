@@ -19,14 +19,21 @@ import sys
 import os
 
 # Force SQLite and Test Mode for all backend imports
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["DATABASE_URL"] = "sqlite:///file:testdb?mode=memory&cache=shared&uri=true"
 os.environ["ENVIRONMENT"] = "testing"
+
+# Mock RLS registration for SQLite test environment to prevent syntax errors
+try:
+    import rls.register_rls
+    rls.register_rls.register_rls = lambda *args, **kwargs: None
+except ImportError:
+    pass
 
 # Add backend to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.main import app
-from backend.database import Base, get_db
+from backend.database import Base, get_async_db
 from backend import models
 from backend.auth import create_access_token
 
@@ -40,13 +47,24 @@ from backend.auth import create_access_token
 def engine():
     """Create a persistent in-memory SQLite engine for the whole session."""
     engine = create_engine(
-        "sqlite:///:memory:",
+        "sqlite:///file:testdb?mode=memory&cache=shared&uri=true",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
     Base.metadata.create_all(bind=engine)
     yield engine
-    # No drop_all here to avoid race conditions at session end
+
+
+@pytest.fixture(scope="session")
+def async_engine_fixture():
+    """Create a persistent async SQLite engine for the session."""
+    from sqlalchemy.ext.asyncio import create_async_engine
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///file:testdb?mode=memory&cache=shared&uri=true",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    yield engine
 
 
 @pytest.fixture(scope="function")
@@ -62,16 +80,66 @@ def db_session(engine):
 
 
 @pytest.fixture(scope="function")
-def client(db_session):
+async def async_db_session(async_engine_fixture):
+    """Create an async database session for testing."""
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    TestingAsyncSessionLocal = async_sessionmaker(
+        bind=async_engine_fixture, expire_on_commit=False, autoflush=False
+    )
+    async with TestingAsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.rollback()
+
+
+@pytest.fixture(scope="function", autouse=True)
+def cleanup_database(engine):
+    yield
+    with engine.connect() as conn:
+        trans = conn.begin()
+        try:
+            for table in reversed(Base.metadata.sorted_tables):
+                conn.execute(table.delete())
+            trans.commit()
+        except Exception:
+            trans.rollback()
+            raise
+
+
+@pytest.fixture(scope="function", autouse=True)
+def reset_tenant_context_fixture():
+    from backend.core.tenancy import reset_current_tenant_id, clear_tenant_context
+    yield
+    reset_current_tenant_id()
+    clear_tenant_context()
+
+
+@pytest.fixture(scope="function", autouse=True)
+async def cleanup_async_database(async_engine_fixture):
+
+    yield
+    async with async_engine_fixture.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            await conn.execute(table.delete())
+
+
+@pytest.fixture(scope="function")
+def client(db_session, async_engine_fixture):
     """Create a test client with database override."""
 
-    def override_get_db():
-        try:
-            yield db_session
-        finally:
-            pass
+    async def override_get_async_db():
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+        TestingAsyncSessionLocal = async_sessionmaker(
+            bind=async_engine_fixture, expire_on_commit=False, autoflush=False
+        )
+        async with TestingAsyncSessionLocal() as session:
+            try:
+                yield session
+            finally:
+                await session.rollback()
 
-    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_async_db] = override_get_async_db
 
     # Reset rate limiter state so tests don't get 429 from previous runs
     try:

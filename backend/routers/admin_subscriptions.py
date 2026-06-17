@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from backend import models, schemas
-from backend.database import get_db
+from backend.database import get_async_db
 from backend.services.subscription_service import SubscriptionService
 from backend.core.permissions import Role, Permission, require_permission
 from backend.core.response import success_response, StandardResponse
@@ -24,91 +24,91 @@ def require_super_admin(current_user: models.User = Depends(require_permission(P
 
 # Plans
 @router.get("/plans", response_model=StandardResponse[List[schemas.SubscriptionPlan]])
-def get_all_plans(
-    db: Session = Depends(get_db),
+async def get_all_plans(
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    data = SubscriptionService.get_all_plans(db)
+    data = await SubscriptionService.get_all_plans(db)
     return success_response(data=data)
 
 
 @router.post("/plans", response_model=StandardResponse[schemas.SubscriptionPlan])
-def create_plan(
+async def create_plan(
     plan: schemas.SubscriptionPlanCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    data = SubscriptionService.create_plan(db, plan)
+    data = await SubscriptionService.create_plan(db, plan)
     return success_response(data=data, message="Plan created successfully")
 
 
 @router.put("/plans/{plan_id}", response_model=StandardResponse[schemas.SubscriptionPlan])
-def update_plan(
+async def update_plan(
     plan_id: int,
     plan_update: schemas.SubscriptionPlanUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    data = SubscriptionService.update_plan(db, plan_id, plan_update)
+    data = await SubscriptionService.update_plan(db, plan_id, plan_update)
     return success_response(data=data, message="Plan updated successfully")
 
 
 @router.delete("/plans/{plan_id}", response_model=StandardResponse[dict])
-def delete_plan(
+async def delete_plan(
     plan_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    data = SubscriptionService.delete_plan(db, plan_id)
+    data = await SubscriptionService.delete_plan(db, plan_id)
     return success_response(data=data, message="Plan deleted successfully")
 
 
 # Payments
 @router.get("/payments", response_model=StandardResponse[List[schemas.SubscriptionPayment]])
-def get_payments(
+async def get_payments(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    data = SubscriptionService.get_payments(db, skip, limit)
+    data = await SubscriptionService.get_payments(db, skip, limit)
     return success_response(data=data)
 
 
 @router.post("/payments", response_model=StandardResponse[schemas.SubscriptionPayment])
-def record_payment(
+async def record_payment(
     payment: schemas.SubscriptionPaymentCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    data = SubscriptionService.record_payment(db, payment, current_user.username)
+    data = await SubscriptionService.record_payment(db, payment, current_user.username)
     return success_response(data=data, message="Payment recorded successfully")
 
 
 @router.post("/checkout", response_model=StandardResponse[schemas.SubscriptionCheckoutSession])
-def create_checkout_session(
+async def create_checkout_session(
     checkout: schemas.SubscriptionCheckoutCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    data = SubscriptionService.create_checkout_session(db, checkout)
+    data = await SubscriptionService.create_checkout_session(db, checkout)
     return success_response(data=data, message="Checkout session created successfully")
 
 
 @router.post("/webhooks/provider", response_model=StandardResponse[schemas.SubscriptionPayment])
-def receive_provider_webhook(
+async def receive_provider_webhook(
     event: schemas.SubscriptionWebhookEvent,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-    data = SubscriptionService.handle_provider_webhook(db, event)
+    data = await SubscriptionService.handle_provider_webhook(db, event)
     return success_response(data=data, message="Subscription payment webhook processed")
 
 
 @router.delete("/payments/{payment_id}", response_model=StandardResponse[dict])
-def delete_payment(
+async def delete_payment(
     payment_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    SubscriptionService.delete_payment(db, payment_id)
+    await SubscriptionService.delete_payment(db, payment_id)
     return success_response(message="Payment deleted successfully")

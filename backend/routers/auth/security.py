@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from backend import models
-from .dependencies import get_db, get_current_user
+from .dependencies import get_async_db, get_current_user
+from backend.services.auth_service import AuthService
 import pyotp
 import qrcode
 import io
@@ -12,8 +13,8 @@ router = APIRouter()
 
 # --- 2FA Setup ---
 @router.post("/auth/2fa/setup")
-def setup_2fa(
-    current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)
+async def setup_2fa(
+    current_user: models.User = Depends(get_current_user), db: AsyncSession = Depends(get_async_db)
 ):
     """Generate a secret for 2FA setup."""
     # Generate Secret
@@ -21,7 +22,7 @@ def setup_2fa(
 
     # Save temp secret (don't enable yet)
     current_user.otp_secret = secret
-    db.commit()
+    await db.commit()
 
     # Generate QR Code
     otp_uri = pyotp.totp.TOTP(secret).provisioning_uri(
@@ -37,11 +38,11 @@ def setup_2fa(
 
 
 @router.post("/auth/2fa/verify")
-def verify_2fa_setup(
+async def verify_2fa_setup(
     code: str,
     secret: str,
     current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Confirm 2FA setup with a code."""
     totp = pyotp.TOTP(secret)
@@ -51,18 +52,34 @@ def verify_2fa_setup(
     # Enable 2FA
     current_user.is_2fa_enabled = True
     current_user.otp_secret = secret  # Persist if not already
-    db.commit()
+
+    # REVOKE ALL SESSIONS when 2FA is enabled (security best practice)
+    revoked_count = await AuthService.revoke_all_user_sessions(db, current_user.id)
+    if revoked_count > 0:
+        import logging
+        logger = logging.getLogger("smart_clinic")
+        logger.info(f"Revoked {revoked_count} sessions for user {current_user.username} after 2FA enable")
+
+    await db.commit()
 
     return {"message": "2FA Enabled Successfully"}
 
 
 @router.delete("/auth/2fa/disable")
-def disable_2fa(
+async def disable_2fa(
     current_user: models.User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Disable 2FA for the current user."""
     current_user.is_2fa_enabled = False
     current_user.otp_secret = None
-    db.commit()
+
+    # REVOKE ALL SESSIONS when 2FA is disabled (security best practice)
+    revoked_count = await AuthService.revoke_all_user_sessions(db, current_user.id)
+    if revoked_count > 0:
+        import logging
+        logger = logging.getLogger("smart_clinic")
+        logger.info(f"Revoked {revoked_count} sessions for user {current_user.username} after 2FA disable")
+
+    await db.commit()
     return {"message": "2FA Disabled Successfully"}

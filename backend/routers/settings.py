@@ -20,7 +20,10 @@ from fastapi import (
     BackgroundTasks,
 )
 from fastapi.responses import FileResponse, RedirectResponse, Response
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session as SyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from .. import schemas, database, models
 from ..core.permissions import Permission, Role, require_permission
@@ -28,7 +31,7 @@ from ..core.response import success_response, StandardResponse
 from ..services.backup_service import run_backup_task
 from ..services.import_service import restore_tenant_from_json
 from ..services.export_service import export_tenant_to_json
-from .auth import get_db
+from .auth import get_async_db
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +53,8 @@ router = APIRouter(prefix="/settings", tags=["Settings"])
 
 
 @router.get("/backup/status", response_model=StandardResponse[dict])
-def get_backup_status(
-    db: Session = Depends(get_db),
+async def get_backup_status(
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
@@ -81,7 +84,7 @@ def get_backup_status(
 
 
 @router.get("/backup/auth", response_model=StandardResponse[dict])
-def get_backup_auth_url(
+async def get_backup_auth_url(
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
@@ -94,9 +97,9 @@ def get_backup_auth_url(
 
 
 @router.post("/backup/callback", response_model=StandardResponse[dict])
-def backup_auth_callback_post(
+async def backup_auth_callback_post(
     code: str = Form(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
@@ -110,7 +113,7 @@ def backup_auth_callback_post(
         tenant = current_user.tenant
         if token_data.get("refresh_token"):
             tenant.google_refresh_token = token_data["refresh_token"]
-            db.commit()
+            await db.commit()
             return success_response(message="تم ربط Google Drive بنجاح")
         else:
             return success_response(
@@ -124,10 +127,10 @@ def backup_auth_callback_post(
 
 
 @router.get("/backup/callback")
-def backup_auth_callback_get(
+async def backup_auth_callback_get(
     code: str,
     state: str = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Handle Google OAuth callback (GET redirect from Google).
@@ -148,13 +151,12 @@ def backup_auth_callback_get(
         # 2. Decode user from state and save token
         if status == "success" and state:
             if state == "super_admin":
-                setting = (
-                    db.query(models.SystemSetting)
-                    .filter(
-                        models.SystemSetting.key == "google_refresh_token_super_admin"
-                    )
-                    .first()
+                stmt = select(models.SystemSetting).filter(
+                    models.SystemSetting.key == "google_refresh_token_super_admin"
                 )
+                res = await db.execute(stmt)
+                setting = res.scalars().first()
+
                 if not setting:
                     setting = models.SystemSetting(
                         key="google_refresh_token_super_admin", value=refresh_token
@@ -162,25 +164,24 @@ def backup_auth_callback_get(
                     db.add(setting)
                 else:
                     setting.value = refresh_token
-                db.commit()
+                await db.commit()
             elif state.startswith("user_"):
                 try:
                     user_id = int(state.split("_")[1])
-                    user = (
-                        db.query(models.User).filter(models.User.id == user_id).first()
-                    )
+                    stmt_user = select(models.User).filter(models.User.id == user_id).options(selectinload(models.User.tenant))
+                    res_user = await db.execute(stmt_user)
+                    user = res_user.scalars().first()
+
                     if user and user.tenant:
                         user.tenant.google_refresh_token = refresh_token
-                        db.commit()
+                        await db.commit()
                     elif user and user.role == "super_admin":
-                        setting = (
-                            db.query(models.SystemSetting)
-                            .filter(
-                                models.SystemSetting.key
-                                == "google_refresh_token_super_admin"
-                            )
-                            .first()
+                        stmt = select(models.SystemSetting).filter(
+                            models.SystemSetting.key == "google_refresh_token_super_admin"
                         )
+                        res = await db.execute(stmt)
+                        setting = res.scalars().first()
+
                         if not setting:
                             setting = models.SystemSetting(
                                 key="google_refresh_token_super_admin",
@@ -189,7 +190,7 @@ def backup_auth_callback_get(
                             db.add(setting)
                         else:
                             setting.value = refresh_token
-                        db.commit()
+                        await db.commit()
                     else:
                         status = "no_tenant"
                 except (ValueError, IndexError):
@@ -212,9 +213,9 @@ def backup_auth_callback_get(
 
 
 @router.post("/backup/now", response_model=StandardResponse[dict])
-def trigger_manual_backup(
+async def trigger_manual_backup(
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
@@ -249,9 +250,9 @@ def trigger_manual_backup(
 
 
 @router.put("/backup/schedule", response_model=StandardResponse[dict])
-def update_backup_schedule(
+async def update_backup_schedule(
     frequency: str = Form(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
@@ -259,7 +260,7 @@ def update_backup_schedule(
     """
     tenant = current_user.tenant
     tenant.backup_frequency = frequency
-    db.commit()
+    await db.commit()
 
     return success_response(
         data={"frequency": frequency},
@@ -268,7 +269,7 @@ def update_backup_schedule(
 
 
 @router.get("/backup/download")
-def download_backup(
+async def download_backup(
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
@@ -344,7 +345,7 @@ def download_backup(
 @router.post("/backup/upload", response_model=StandardResponse[dict])
 async def upload_backup(
     file: UploadFile = File(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
@@ -368,7 +369,8 @@ async def upload_backup(
         content = await file.read()
         json_content = content.decode("utf-8")
 
-        result = restore_tenant_from_json(db, current_user.tenant.id, json_content)
+        # Run restoration
+        result = await restore_tenant_from_json(db, current_user.tenant.id, json_content)
 
         if not result["success"]:
             raise HTTPException(status_code=400, detail=result["error"])
@@ -452,8 +454,8 @@ async def upload_backup(
 
 
 @router.get("/backup/export")
-def export_tenant_backup(
-    db: Session = Depends(get_db),
+async def export_tenant_backup(
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
@@ -466,7 +468,7 @@ def export_tenant_backup(
     tenant_id = current_user.tenant.id
     tenant_name = current_user.tenant.name or f"tenant_{tenant_id}"
 
-    json_content = export_tenant_to_json(db, tenant_id)
+    json_content = await export_tenant_to_json(db, tenant_id)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{tenant_name}_backup_{timestamp}.json"
@@ -479,7 +481,7 @@ def export_tenant_backup(
 
 
 @router.get("/tenant", response_model=StandardResponse[schemas.Tenant])
-def get_tenant_settings(
+async def get_tenant_settings(
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
@@ -491,8 +493,8 @@ def get_tenant_settings(
 
 
 @router.get("/features", response_model=StandardResponse[dict])
-def get_tenant_features(
-    db: Session = Depends(get_db),
+async def get_tenant_features(
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
@@ -501,19 +503,21 @@ def get_tenant_features(
     if not current_user.tenant:
         return success_response(data={"features": []})
 
-    tenant_features = db.query(models.TenantFeature).filter(
+    stmt_features = select(models.TenantFeature).filter(
         models.TenantFeature.tenant_id == current_user.tenant.id,
         models.TenantFeature.is_enabled == True
-    ).all()
+    )
+    res_features = await db.execute(stmt_features)
+    tenant_features = res_features.scalars().all()
 
     feature_keys = [f.feature_key for f in tenant_features]
     return success_response(data={"features": feature_keys})
 
 
 @router.put("/tenant", response_model=StandardResponse[schemas.Tenant])
-def update_tenant_settings(
+async def update_tenant_settings(
     config: schemas.TenantUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """
@@ -536,6 +540,6 @@ def update_tenant_settings(
     if config.print_footer_image is not None:
         tenant.print_footer_image = config.print_footer_image
 
-    db.commit()
-    db.refresh(tenant)
+    await db.commit()
+    await db.refresh(tenant)
     return success_response(data=tenant, message="Tenant settings updated")

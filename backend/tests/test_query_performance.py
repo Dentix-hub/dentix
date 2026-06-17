@@ -11,8 +11,8 @@ Usage:
 """
 
 import pytest
-from sqlalchemy import event
-from backend.database import SessionLocal, engine
+from sqlalchemy import event, select
+from backend.database import async_engine
 
 
 class QueryCounter:
@@ -23,11 +23,11 @@ class QueryCounter:
         self.queries = []
 
     def __enter__(self):
-        event.listen(engine, "before_cursor_execute", self._callback)
+        event.listen(async_engine.sync_engine, "before_cursor_execute", self._callback)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        event.remove(engine, "before_cursor_execute", self._callback)
+        event.remove(async_engine.sync_engine, "before_cursor_execute", self._callback)
 
     def _callback(self, conn, cursor, statement, parameters, context, executemany):
         self.count += 1
@@ -39,24 +39,24 @@ class QueryCounter:
 # Patients
 # ---------------------------------------------------------------------------
 
-def test_list_patients_no_n_plus_one():
+@pytest.mark.asyncio
+async def test_list_patients_no_n_plus_one(async_db_session):
     """
     Listing patients and accessing their scalar columns should NOT trigger
     one query per patient. Budget: 1 main query.
     """
     counter = QueryCounter()
     with counter:
-        with SessionLocal() as db:
-            from backend.models import Patient
-            patients = db.query(Patient).filter(
-                Patient.is_deleted == False
-            ).limit(20).all()
+        from backend.models import Patient
+        stmt = select(Patient).where(Patient.is_deleted == False).limit(20)
+        res = await async_db_session.execute(stmt)
+        patients = res.scalars().all()
 
-            # Access scalar columns — these must NOT trigger lazy loads
-            for p in patients:
-                _ = p.name
-                _ = p.tenant_id
-                _ = p.created_at
+        # Access scalar columns — these must NOT trigger lazy loads
+        for p in patients:
+            _ = p.name
+            _ = p.tenant_id
+            _ = p.created_at
 
     assert counter.count <= 2, (
         f"Expected ≤ 2 queries for patient list, got {counter.count}.\n"
@@ -64,7 +64,8 @@ def test_list_patients_no_n_plus_one():
     )
 
 
-def test_list_appointments_with_patient_name():
+@pytest.mark.asyncio
+async def test_list_appointments_with_patient_name(async_db_session):
     """
     Listing appointments and accessing each appointment's patient.name
     is the classic N+1 hotspot. If lazy loading fires, we'll see
@@ -72,21 +73,21 @@ def test_list_appointments_with_patient_name():
     """
     counter = QueryCounter()
     with counter:
-        with SessionLocal() as db:
-            from backend.models.clinical import Appointment
-            from sqlalchemy.orm import joinedload
+        from backend.models.clinical import Appointment
+        from sqlalchemy.orm import joinedload
 
-            appointments = (
-                db.query(Appointment)
-                .options(joinedload(Appointment.patient))
-                .limit(20)
-                .all()
-            )
+        stmt = (
+            select(Appointment)
+            .options(joinedload(Appointment.patient))
+            .limit(20)
+        )
+        res = await async_db_session.execute(stmt)
+        appointments = res.scalars().all()
 
-            # This is the line that triggers N+1 if patient is lazy-loaded
-            for a in appointments:
-                if a.patient:
-                    _ = a.patient.name
+        # This is the line that triggers N+1 if patient is lazy-loaded
+        for a in appointments:
+            if a.patient:
+                _ = a.patient.name
 
     assert counter.count <= 2, (
         f"Expected ≤ 2 queries for appointments+patient, got {counter.count}.\n"
@@ -94,26 +95,27 @@ def test_list_appointments_with_patient_name():
     )
 
 
-def test_list_treatments_with_patient():
+@pytest.mark.asyncio
+async def test_list_treatments_with_patient(async_db_session):
     """
     Listing treatments and accessing patient.name should use eager loading.
     """
     counter = QueryCounter()
     with counter:
-        with SessionLocal() as db:
-            from backend.models.clinical import Treatment
-            from sqlalchemy.orm import joinedload
+        from backend.models.clinical import Treatment
+        from sqlalchemy.orm import joinedload
 
-            treatments = (
-                db.query(Treatment)
-                .options(joinedload(Treatment.patient))
-                .limit(20)
-                .all()
-            )
+        stmt = (
+            select(Treatment)
+            .options(joinedload(Treatment.patient))
+            .limit(20)
+        )
+        res = await async_db_session.execute(stmt)
+        treatments = res.scalars().all()
 
-            for t in treatments:
-                if t.patient:
-                    _ = t.patient.name
+        for t in treatments:
+            if t.patient:
+                _ = t.patient.name
 
     assert counter.count <= 2, (
         f"Expected ≤ 2 queries for treatments+patient, got {counter.count}.\n"
@@ -121,28 +123,30 @@ def test_list_treatments_with_patient():
     )
 
 
-def test_list_payments_with_patient():
+@pytest.mark.asyncio
+async def test_list_payments_with_patient(async_db_session):
     """
     Listing payments and accessing patient should not cause N+1.
     """
     counter = QueryCounter()
     with counter:
-        with SessionLocal() as db:
-            from backend.models.financial import Payment
-            from sqlalchemy.orm import joinedload
+        from backend.models.financial import Payment
+        from sqlalchemy.orm import joinedload
 
-            payments = (
-                db.query(Payment)
-                .options(joinedload(Payment.patient))
-                .limit(20)
-                .all()
-            )
+        stmt = (
+            select(Payment)
+            .options(joinedload(Payment.patient))
+            .limit(20)
+        )
+        res = await async_db_session.execute(stmt)
+        payments = res.scalars().all()
 
-            for p in payments:
-                if p.patient:
-                    _ = p.patient.name
+        for p in payments:
+            if p.patient:
+                _ = p.patient.name
 
     assert counter.count <= 2, (
         f"Expected ≤ 2 queries for payments+patient, got {counter.count}.\n"
         f"Queries:\n" + "\n".join(f"  [{i}] {q}" for i, q in enumerate(counter.queries))
     )
+

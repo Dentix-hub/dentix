@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, AsyncMock, patch
 from backend.services.billing_service import BillingService
 from backend.schemas.billing import PaymentCreate
 from backend.models import Patient
@@ -8,12 +8,20 @@ from backend.models import Patient
 @pytest.fixture
 def mock_db_session():
     """Mocks the SQLAlchemy database session."""
-    session = Mock()
-    session.query.return_value = session.query
-    session.filter.return_value = session.filter
-    session.join.return_value = session.join
-    session.scalar.return_value = 0.0
-    session.first.return_value = None
+    session = MagicMock()
+    session.execute = AsyncMock()
+    session.scalar = AsyncMock()
+    session.commit = AsyncMock()
+    session.rollback = AsyncMock()
+    session.refresh = AsyncMock()
+    session.delete = AsyncMock()
+
+    # Default mock result behavior
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.first.return_value = None
+    mock_result.scalars.return_value.all.return_value = []
+    session.execute.return_value = mock_result
+
     return session
 
 
@@ -22,50 +30,53 @@ def billing_service(mock_db_session):
     return BillingService(db=mock_db_session, tenant_id=1)
 
 
-def test_create_payment_success(billing_service, mock_db_session):
+async def test_create_payment_success(billing_service, mock_db_session):
     """Test successful payment creation."""
     # Setup
     payment_data = PaymentCreate(patient_id=1, amount=100.0, method="cash")
     mock_patient = Patient(id=1, tenant_id=1)
 
     # Mock patient search
-    mock_db_session.query.return_value.filter.return_value.first.return_value = (
-        mock_patient
-    )
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.first.return_value = mock_patient
+    mock_db_session.execute.return_value = mock_result
 
     # Mock crud
     with patch("backend.services.billing_service.billing_crud") as mock_crud:
-        mock_crud.create_payment.return_value = {"id": 1, "status": "success"}
+        mock_crud.create_payment = AsyncMock(return_value={"id": 1, "status": "success"})
 
         # Act
-        result = billing_service.create_payment(payment_data, doctor_id=10)
+        result = await billing_service.create_payment(payment_data, doctor_id=10)
 
         # Assert
         assert result == {"id": 1, "status": "success"}
         mock_crud.create_payment.assert_called_once()
 
 
-def test_create_payment_patient_not_found(billing_service, mock_db_session):
+async def test_create_payment_patient_not_found(billing_service, mock_db_session):
     """Test payment creation for non-existent patient."""
     # Setup
     payment_data = PaymentCreate(patient_id=999, amount=100.0)
-    mock_db_session.query.return_value.filter.return_value.first.return_value = None
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.first.return_value = None
+    mock_db_session.execute.return_value = mock_result
 
     # Act & Assert
     with pytest.raises(ValueError, match="Patient not found"):
-        billing_service.create_payment(payment_data)
+        await billing_service.create_payment(payment_data)
 
 
-def test_get_outstanding_balance_calculation(billing_service, mock_db_session):
+async def test_get_outstanding_balance_calculation(billing_service, mock_db_session):
     """Test outstanding balance logic."""
     # Setup
     # Mocking _scalar returns for revenue and payments
     # First call: Revenue, Second call: Payments
-    billing_service._scalar = Mock(side_effect=[500.0, 200.0])
+    billing_service._scalar = AsyncMock(side_effect=[500.0, 200.0])
 
     # Act
-    balance = billing_service.get_outstanding_balance(patient_id=1)
+    balance = await billing_service.get_outstanding_balance(patient_id=1)
 
     # Assert
     assert balance == 300.0  # 500 - 200
     assert billing_service._scalar.call_count == 2
+

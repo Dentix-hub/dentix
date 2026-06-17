@@ -15,7 +15,8 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.database import engine
+from backend.database import async_engine
+engine = async_engine.sync_engine
 import logging
 
 logging.basicConfig(level=logging.INFO)

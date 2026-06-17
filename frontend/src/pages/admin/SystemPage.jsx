@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import logger from '@/utils/logger';
 import { api } from '@/api';
 import SettingsManager from '@/features/admin/SuperAdmin/SettingsManager';
 import AuditLogViewer from '@/features/admin/SuperAdmin/AuditLogViewer';
@@ -41,7 +42,7 @@ export default function SystemPage() {
             setLastBackupStatus(googleRes.data?.last_backup || null);
             setIs2faEnabled(userRes.data?.is_2fa_enabled || false);
         } catch (err) {
-            console.error(err);
+            logger.error(err);
         } finally {
             setLoading(false);
         }

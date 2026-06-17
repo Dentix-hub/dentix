@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import logger from '@/utils/logger';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LazyChart } from '@/components/charts/LazyChart';
 import { Brain, DollarSign, Activity, Zap, TrendingUp } from 'lucide-react';
 import { getAIStats } from '@/api';
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
@@ -12,7 +13,7 @@ export default function AIStats() {
                 const res = await getAIStats();
                 setStats(res.data);
             } catch (err) {
-                console.error("Failed to load AI stats", err);
+                logger.error("Failed to load AI stats", err);
             } finally {
                 setLoading(false);
             }
@@ -32,8 +33,8 @@ export default function AIStats() {
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20" dir="rtl">
             {/* Header Section */}
             <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 to-cyan-600 rounded-3xl p-8 text-white shadow-xl shadow-indigo-500/20">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-16 -mt-16 blur-3xl"></div>
-                <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full -ml-8 -mb-8 blur-2xl"></div>
+                <div className="absolute top-0 end-0 w-64 h-64 bg-white/10 rounded-full -me-16 -mt-16 blur-3xl"></div>
+                <div className="absolute bottom-0 start-0 w-32 h-32 bg-white/10 rounded-full -ms-8 -mb-8 blur-2xl"></div>
                 <div className="relative z-10">
                     <h1 className="text-3xl font-extrabold mb-2 flex items-center gap-3">
                         <Brain className="w-8 h-8 text-indigo-100" />
@@ -82,33 +83,35 @@ export default function AIStats() {
                             <span className="w-2 h-8 bg-indigo-500 rounded-full"></span>
                             أكثر الأدوات استخداماً
                         </h3>
-                        <p className="text-slate-500 text-sm mt-1 mr-4">توزيع استخدام أدوات النظام المختلفة</p>
+                        <p className="text-slate-500 text-sm mt-1 me-4">توزيع استخدام أدوات النظام المختلفة</p>
                     </div>
                     <div className="h-[400px] w-full" dir="ltr">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={stats.tool_usage} layout="vertical" margin={{ left: 20, right: 30, top: 10, bottom: 10 }}>
-                                <XAxis type="number" hide />
-                                <YAxis
-                                    dataKey="name"
-                                    type="category"
-                                    width={180}
-                                    tick={{ fontSize: 13, fill: '#64748b', fontWeight: 500 }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                />
-                                <Tooltip
-                                    cursor={{ fill: '#f1f5f9', opacity: 0.4 }}
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
-                                />
-                                <Bar
-                                    dataKey="value"
-                                    fill="#6366f1"
-                                    radius={[0, 6, 6, 0]}
-                                    barSize={24}
-                                    background={{ fill: '#f8fafc', radius: [0, 6, 6, 0] }}
-                                />
-                            </BarChart>
-                        </ResponsiveContainer>
+                        <LazyChart>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={stats.tool_usage} layout="vertical" margin={{ left: 20, right: 30, top: 10, bottom: 10 }}>
+                                    <XAxis type="number" hide />
+                                    <YAxis
+                                        dataKey="name"
+                                        type="category"
+                                        width={180}
+                                        tick={{ fontSize: 13, fill: '#64748b', fontWeight: 500 }}
+                                        axisLine={false}
+                                        tickLine={false}
+                                    />
+                                    <Tooltip
+                                        cursor={{ fill: '#f1f5f9', opacity: 0.4 }}
+                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
+                                    />
+                                    <Bar
+                                        dataKey="value"
+                                        fill="#6366f1"
+                                        radius={[0, 6, 6, 0]}
+                                        barSize={24}
+                                        background={{ fill: '#f8fafc', radius: [0, 6, 6, 0] }}
+                                    />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </LazyChart>
                     </div>
                 </div>
                 {/* Users Activity Chart */}
@@ -118,38 +121,40 @@ export default function AIStats() {
                             <span className="w-2 h-8 bg-emerald-500 rounded-full"></span>
                             نشاط المستخدمين
                         </h3>
-                        <p className="text-slate-500 text-sm mt-1 mr-4">نسبة تفاعل كل مستخدم مع النظام</p>
+                        <p className="text-slate-500 text-sm mt-1 me-4">نسبة تفاعل كل مستخدم مع النظام</p>
                     </div>
                     <div className="h-[400px] w-full relative">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                                <Pie
-                                    data={stats.top_users}
-                                    cx="50%"
-                                    cy="45%"
-                                    innerRadius={80}
-                                    outerRadius={120}
-                                    paddingAngle={5}
-                                    dataKey="count"
-                                    stroke="none"
-                                >
-                                    {stats.top_users.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
-                                />
-                                <Legend
-                                    verticalAlign="bottom"
-                                    height={36}
-                                    iconType="circle"
-                                    formatter={(value) => <span className="text-slate-600 dark:text-slate-300 font-medium ml-2">{value}</span>}
-                                />
-                            </PieChart>
-                        </ResponsiveContainer>
+                        <LazyChart>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                                    <Pie
+                                        data={stats.top_users}
+                                        cx="50%"
+                                        cy="45%"
+                                        innerRadius={80}
+                                        outerRadius={120}
+                                        paddingAngle={5}
+                                        dataKey="count"
+                                        stroke="none"
+                                    >
+                                        {stats.top_users.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}
+                                    />
+                                    <Legend
+                                        verticalAlign="bottom"
+                                        height={36}
+                                        iconType="circle"
+                                        formatter={(value) => <span className="text-slate-600 dark:text-slate-300 font-medium ms-2">{value}</span>}
+                                    />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </LazyChart>
                         {/* Center Text */}
-                        <div className="absolute top-[45%] left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                        <div className="absolute top-[45%] start-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
                             <p className="text-3xl font-extrabold text-slate-800 dark:text-white">{stats.total_requests}</p>
                             <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Total</p>
                         </div>

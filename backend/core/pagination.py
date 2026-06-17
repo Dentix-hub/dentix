@@ -37,25 +37,25 @@ def apply_cursor_pagination(
 ) -> Tuple[Query, Optional[str], bool]:
     """
     Apply cursor pagination to an SQLAlchemy query.
-    
+
     Args:
         query: SQLAlchemy Query object
         model: SQLAlchemy model class
         cursor_params: CursorParams object containing limit and cursor
         sort_column_name: Name of the column to sort and paginate by
         descending: Whether to sort descending
-        
+
     Returns:
         Tuple of (paginated_query, next_cursor, has_more)
     """
     sort_column = getattr(model, sort_column_name)
-    
+
     # 1. Apply sort
     if descending:
         query = query.order_by(sort_column.desc())
     else:
         query = query.order_by(sort_column.asc())
-        
+
     # 2. Apply cursor filter
     decoded_cursor = decode_cursor(cursor_params.cursor)
     if decoded_cursor and sort_column_name in decoded_cursor:
@@ -64,13 +64,13 @@ def apply_cursor_pagination(
             query = query.filter(sort_column < cursor_val)
         else:
             query = query.filter(sort_column > cursor_val)
-            
+
     # 3. Apply limit (+1 to check if there are more)
     # limit + 1 allows us to determine has_more
     query = query.limit(cursor_params.limit + 1)
-    
+
     return query
-    
+
 def build_cursor_response(items: list, limit: int, sort_column_name: str = "id") -> Tuple[list, Optional[str], bool]:
     """
     Given a list of items fetched with limit + 1, return the items, next_cursor, and has_more flag.
@@ -78,18 +78,18 @@ def build_cursor_response(items: list, limit: int, sort_column_name: str = "id")
     has_more = len(items) > limit
     if has_more:
         items = items[:limit]
-        
+
     next_cursor = None
     if items:
         last_item = items[-1]
         # Handle both dicts and ORM objects
         val = getattr(last_item, sort_column_name, None) if not isinstance(last_item, dict) else last_item.get(sort_column_name)
-        
+
         # Datetime serialization helper
         if hasattr(val, "isoformat"):
             val = val.isoformat()
-            
+
         if val is not None:
             next_cursor = encode_cursor({sort_column_name: val})
-            
+
     return items, next_cursor, has_more

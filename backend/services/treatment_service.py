@@ -1,5 +1,5 @@
 """
-Treatment Service
+Treatment Service (Refactored to Async)
 
 Central service for all treatment-related operations:
 - Create/update treatments with pricing and stock logic
@@ -13,8 +13,8 @@ import json
 import logging
 from datetime import date, datetime, timezone
 from typing import List, Optional
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import or_, select, delete
 
 from backend import models, schemas
 from backend.services.pricing_service import get_pricing_service
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class TreatmentService:
     """Central treatment logic - SINGLE SOURCE OF TRUTH."""
 
-    def __init__(self, db: Session, tenant_id: int, current_user: models.User):
+    def __init__(self, db: AsyncSession, tenant_id: int, current_user: models.User):
         self.db = db
         self.tenant_id = tenant_id
         self.current_user = current_user
@@ -35,7 +35,7 @@ class TreatmentService:
 
     # --- Pricing & Snapshot ---
 
-    def _calculate_price_and_snapshot(
+    async def _calculate_price_and_snapshot(
         self,
         treatment_data: schemas.TreatmentCreate,
         price_list_id: Optional[int],
@@ -48,37 +48,31 @@ class TreatmentService:
         """
         # Get patient's default price list if not provided
         if not price_list_id:
-            patient = (
-                self.db.query(models.Patient)
-                .filter(
-                    models.Patient.id == treatment_data.patient_id,
-                    models.Patient.tenant_id == self.tenant_id,
-                )
-                .first()
+            stmt_patient = select(models.Patient).where(
+                models.Patient.id == treatment_data.patient_id,
+                models.Patient.tenant_id == self.tenant_id,
             )
+            patient = (await self.db.execute(stmt_patient)).scalars().first()
             price_list_id = patient.default_price_list_id if patient else None
 
         # Find procedure
-        procedure = (
-            self.db.query(models.Procedure)
-            .filter(
-                models.Procedure.name == treatment_data.procedure,
-                or_(
-                    models.Procedure.tenant_id == self.tenant_id,
-                    models.Procedure.tenant_id.is_(None),
-                ),
-            )
-            .first()
+        stmt_proc = select(models.Procedure).where(
+            models.Procedure.name == treatment_data.procedure,
+            or_(
+                models.Procedure.tenant_id == self.tenant_id,
+                models.Procedure.tenant_id.is_(None),
+            ),
         )
+        procedure = (await self.db.execute(stmt_proc)).scalars().first()
 
         unit_price = 0.0
         price_snapshot = None
 
         if procedure:
-            unit_price = self.pricing.get_procedure_price(procedure.id, price_list_id)
+            unit_price = await self.pricing.get_procedure_price(procedure.id, price_list_id)
 
             # Create price snapshot
-            price_list = self.pricing.get_price_list(price_list_id)
+            price_list = await self.pricing.get_price_list(price_list_id)
             snapshot = {
                 "list_id": price_list_id,
                 "list_name": price_list.name if price_list else "Standard",
@@ -91,7 +85,7 @@ class TreatmentService:
 
     # --- Stock Operations ---
 
-    def validate_treatment_stock(
+    async def validate_treatment_stock(
         self, consumed_materials: List[schemas.clinical.ConsumedMaterialItem]
     ) -> None:
         """
@@ -107,7 +101,7 @@ class TreatmentService:
         errors = []
         for item in consumed_materials:
             try:
-                is_valid, available, mat_name = inventory_service.validate_stock(
+                is_valid, available, mat_name = await inventory_service.validate_stock(
                     material_id=item.material_id,
                     quantity=item.quantity,
                     tenant_id=self.tenant_id,
@@ -129,7 +123,7 @@ class TreatmentService:
                 detail="فشل حفظ العلاج بسبب نقص المخزون: " + " | ".join(errors),
             )
 
-    def consume_treatment_stock(
+    async def consume_treatment_stock(
         self,
         treatment_id: int,
         consumed_materials: List[schemas.clinical.ConsumedMaterialItem],
@@ -151,7 +145,7 @@ class TreatmentService:
         for item in consumed_materials:
             logger.info(f"[STOCK_DEBUG] Processing material_id={item.material_id}, quantity={item.quantity}")
             try:
-                inventory_service.consume_stock(
+                await inventory_service.consume_stock(
                     material_id=item.material_id,
                     quantity=item.quantity,
                     tenant_id=self.tenant_id,
@@ -181,45 +175,36 @@ class TreatmentService:
 
                 if isinstance(e, ValueError):
                     raise HTTPException(status_code=400, detail=error_msg)
-                
+
                 raise HTTPException(status_code=500, detail=f"Stock Error: {error_msg}")
 
     # --- Treatment CRUD ---
 
-    def create_treatment(
+    async def create_treatment(
         self,
         treatment_data: schemas.TreatmentCreate,
     ) -> models.Treatment:
         """
         Create treatment with pricing, stock validation, and consumption.
-
-        Flow:
-        1. Validate patient exists
-        2. Validate stock (pre-check)
-        3. Calculate pricing + snapshot
-        4. Create treatment (deferred commit)
-        5. Consume stock (post-creation)
-        6. Commit transaction
-        7. Log admin action
         """
         from fastapi import HTTPException
         from backend import crud
 
         # 1. Verify patient exists
-        patient = crud.get_patient(self.db, treatment_data.patient_id, self.tenant_id)
+        patient = await crud.patient.get_patient(self.db, treatment_data.patient_id, self.tenant_id)
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
 
         # 2. Validate stock (pre-check) — skip if requested
         skip_stock = getattr(treatment_data, 'skip_stock_check', False)
         if not skip_stock:
-            self.validate_treatment_stock(treatment_data.consumedMaterials or [])
+            await self.validate_treatment_stock(treatment_data.consumedMaterials or [])
         else:
             logger.info("[TREATMENT] Skipping stock validation (skip_stock_check=True)")
 
         # 3. Calculate price and snapshot
         price_list_id = getattr(treatment_data, "price_list_id", None)
-        unit_price, price_snapshot = self._calculate_price_and_snapshot(
+        unit_price, price_snapshot = await self._calculate_price_and_snapshot(
             treatment_data, price_list_id
         )
 
@@ -227,7 +212,7 @@ class TreatmentService:
         doctor_id = treatment_data.doctor_id if treatment_data.doctor_id else self.current_user.id
 
         # 5. Create treatment (deferred commit)
-        created_treatment = crud.create_treatment(
+        created_treatment = await crud.billing.create_treatment(
             db=self.db,
             treatment=treatment_data,
             tenant_id=self.tenant_id,
@@ -240,7 +225,7 @@ class TreatmentService:
 
         # 6. Consume stock (post-creation) — skip if requested
         if not skip_stock:
-            self.consume_treatment_stock(
+            await self.consume_treatment_stock(
                 created_treatment.id,
                 treatment_data.consumedMaterials or [],
                 patient_id=treatment_data.patient_id
@@ -249,15 +234,23 @@ class TreatmentService:
             logger.info("[TREATMENT] Skipping stock consumption (skip_stock_check=True)")
 
         # 6.5. Persist material usage records (for reports/learning)
-        self.persist_treatment_material_usages(
+        await self.persist_treatment_material_usages(
             created_treatment.id,
             treatment_data.consumedMaterials or [],
             doctor_id=doctor_id
         )
 
         # 7. Commit transaction
-        self.db.commit()
-        self.db.refresh(created_treatment)
+        await self.db.commit()
+        from sqlalchemy.orm import selectinload
+        stmt = (
+            select(models.Treatment)
+            .where(models.Treatment.id == created_treatment.id)
+            .options(selectinload(models.Treatment.treatment_sessions))
+        )
+        result = await self.db.execute(stmt)
+        created_treatment = result.scalars().first()
+        created_treatment.consumedMaterials = treatment_data.consumedMaterials or []
 
         # 8. Log admin action
         log_admin_action(
@@ -271,25 +264,18 @@ class TreatmentService:
 
         return created_treatment
 
-    def update_treatment(
+    async def update_treatment(
         self,
         treatment_id: int,
         treatment_data: schemas.TreatmentCreate,
     ) -> models.Treatment:
         """
         Update treatment with stock validation and consumption.
-
-        Flow:
-        1. Reverse old stock movements
-        2. Validate new stock (pre-check)
-        3. Update treatment (deferred commit)
-        4. Consume new stock (post-update)
-        5. Commit transaction
         """
         from backend import crud
 
         # 1. Reverse old stock movements for this treatment
-        inventory_service.reverse_stock_by_reference(
+        await inventory_service.reverse_stock_by_reference(
             reference_id=f"TREATMENT:{treatment_id}",
             user_id=self.current_user.id,
             db=self.db,
@@ -298,18 +284,18 @@ class TreatmentService:
         # 2. Validate new stock (pre-check) — skip if requested
         skip_stock = getattr(treatment_data, 'skip_stock_check', False)
         if not skip_stock:
-            self.validate_treatment_stock(treatment_data.consumedMaterials or [])
+            await self.validate_treatment_stock(treatment_data.consumedMaterials or [])
         else:
             logger.info("[TREATMENT] Skipping stock validation on update (skip_stock_check=True)")
 
         # 3. Update treatment (deferred commit)
-        updated_treatment = crud.update_treatment(
+        updated_treatment = await crud.billing.update_treatment(
             self.db, treatment_id, treatment_data, self.tenant_id, commit=False
         )
 
         # 4. Consume new stock (post-update) — skip if requested
         if not skip_stock:
-            self.consume_treatment_stock(
+            await self.consume_treatment_stock(
                 treatment_id,
                 treatment_data.consumedMaterials or [],
                 patient_id=treatment_data.patient_id
@@ -318,35 +304,44 @@ class TreatmentService:
             logger.info("[TREATMENT] Skipping stock consumption on update (skip_stock_check=True)")
 
         # 4.5. Persist material usage records (for reports/learning)
-        self.persist_treatment_material_usages(
+        await self.persist_treatment_material_usages(
             treatment_id,
             treatment_data.consumedMaterials or [],
             doctor_id=updated_treatment.doctor_id or self.current_user.id
         )
 
         # 5. Commit transaction
-        self.db.commit()
-        self.db.refresh(updated_treatment)
+        await self.db.commit()
+        from sqlalchemy.orm import selectinload
+        stmt = (
+            select(models.Treatment)
+            .where(models.Treatment.id == updated_treatment.id)
+            .options(selectinload(models.Treatment.treatment_sessions))
+        )
+        result = await self.db.execute(stmt)
+        updated_treatment = result.scalars().first()
+        updated_treatment.consumedMaterials = treatment_data.consumedMaterials or []
 
         return updated_treatment
 
-    def delete_treatment(self, treatment_id: int) -> dict:
+    async def delete_treatment(self, treatment_id: int) -> dict:
         """Delete a treatment record and reverse its stock movements."""
         from backend import crud
         from backend.models import inventory as inv_models
 
         # 1. Reverse stock movements for this treatment
-        inventory_service.reverse_stock_by_reference(
+        await inventory_service.reverse_stock_by_reference(
             reference_id=f"TREATMENT:{treatment_id}",
             user_id=self.current_user.id,
             db=self.db,
         )
 
         # 1.5. Clear associated usage records
-        self.db.query(inv_models.TreatmentMaterialUsage).filter(
+        stmt_del = delete(inv_models.TreatmentMaterialUsage).where(
             inv_models.TreatmentMaterialUsage.treatment_id == treatment_id,
             inv_models.TreatmentMaterialUsage.tenant_id == self.tenant_id,
-        ).delete()
+        )
+        await self.db.execute(stmt_del)
 
         # 2. Log the action
         log_admin_action(
@@ -359,9 +354,9 @@ class TreatmentService:
         )
 
         # 3. Delete treatment
-        return crud.delete_treatment(self.db, treatment_id, self.tenant_id)
+        return await crud.billing.delete_treatment(self.db, treatment_id, self.tenant_id)
 
-    def persist_treatment_material_usages(
+    async def persist_treatment_material_usages(
         self,
         treatment_id: int,
         consumed_materials: List[schemas.clinical.ConsumedMaterialItem],
@@ -373,24 +368,22 @@ class TreatmentService:
         from backend.models import inventory as inv_models
 
         # Clear existing usage records for this treatment
-        self.db.query(inv_models.TreatmentMaterialUsage).filter(
+        stmt_del = delete(inv_models.TreatmentMaterialUsage).where(
             inv_models.TreatmentMaterialUsage.treatment_id == treatment_id,
             inv_models.TreatmentMaterialUsage.tenant_id == self.tenant_id,
-        ).delete()
+        )
+        await self.db.execute(stmt_del)
 
         if not consumed_materials:
             return
 
         # Fetch materials to determine type (DIVISIBLE / NON_DIVISIBLE)
         material_ids = [m.material_id for m in consumed_materials]
-        materials = (
-            self.db.query(inv_models.Material)
-            .filter(
-                inv_models.Material.id.in_(material_ids),
-                inv_models.Material.tenant_id == self.tenant_id,
-            )
-            .all()
+        stmt_mat = select(inv_models.Material).where(
+            inv_models.Material.id.in_(material_ids),
+            inv_models.Material.tenant_id == self.tenant_id,
         )
+        materials = (await self.db.execute(stmt_mat)).scalars().all()
         material_map = {m.id: m for m in materials}
 
         for item in consumed_materials:
@@ -405,10 +398,10 @@ class TreatmentService:
             if mat_type in ("DIVISIBLE", "REUSABLE") and not session_id:
                 # Look for active session in the database
                 active_session_query = (
-                    self.db.query(inv_models.MaterialSession)
+                    select(inv_models.MaterialSession)
                     .join(inv_models.StockItem)
                     .join(inv_models.Batch)
-                    .filter(
+                    .where(
                         inv_models.MaterialSession.status == "ACTIVE",
                         inv_models.StockItem.tenant_id == self.tenant_id,
                         inv_models.Batch.material_id == item.material_id,
@@ -416,16 +409,19 @@ class TreatmentService:
                 )
                 if doctor_id:
                     # Try to match the doctor first
-                    doc_session = active_session_query.filter(
-                        inv_models.MaterialSession.doctor_id == doctor_id
-                    ).first()
+                    doc_session = (await self.db.execute(
+                        active_session_query.where(
+                            inv_models.MaterialSession.doctor_id == doctor_id
+                        )
+                    )).scalars().first()
+
                     if doc_session:
                         session_id = doc_session.id
                     else:
-                        fallback_sess = active_session_query.first()
+                        fallback_sess = (await self.db.execute(active_session_query)).scalars().first()
                         session_id = fallback_sess.id if fallback_sess else None
                 else:
-                    fallback_sess = active_session_query.first()
+                    fallback_sess = (await self.db.execute(active_session_query)).scalars().first()
                     session_id = fallback_sess.id if fallback_sess else None
 
             # Calculate quantities and costs
@@ -435,19 +431,19 @@ class TreatmentService:
             if mat_type == "NON_DIVISIBLE":
                 # For non-divisible, quantity is used immediately
                 quantity_used = item.quantity
-                
+
                 # Fetch stock movements created for this treatment to find batch costs
-                movements = (
-                    self.db.query(inv_models.StockMovement)
+                stmt_moves = (
+                    select(inv_models.StockMovement)
                     .join(inv_models.StockItem)
                     .join(inv_models.Batch)
-                    .filter(
+                    .where(
                         inv_models.StockMovement.reference_id == f"TREATMENT:{treatment_id}",
                         inv_models.Batch.material_id == item.material_id,
                     )
-                    .all()
                 )
-                
+                movements = (await self.db.execute(stmt_moves)).scalars().all()
+
                 if movements:
                     total_cost = 0.0
                     for move in movements:
@@ -476,19 +472,16 @@ class TreatmentService:
             )
             self.db.add(usage)
 
-    def add_session(self, session_data: schemas.clinical.TreatmentSessionCreate) -> models.TreatmentSession:
+    async def add_session(self, session_data: schemas.clinical.TreatmentSessionCreate) -> models.TreatmentSession:
         """Add a treatment session."""
         from fastapi import HTTPException
 
         # Verify treatment exists and belongs to tenant
-        treatment = (
-            self.db.query(models.Treatment)
-            .filter(
-                models.Treatment.id == session_data.treatment_id,
-                models.Treatment.tenant_id == self.tenant_id,
-            )
-            .first()
+        stmt_t = select(models.Treatment).where(
+            models.Treatment.id == session_data.treatment_id,
+            models.Treatment.tenant_id == self.tenant_id,
         )
+        treatment = (await self.db.execute(stmt_t)).scalars().first()
         if not treatment:
             raise HTTPException(status_code=404, detail="Treatment not found")
 
@@ -499,12 +492,12 @@ class TreatmentService:
             tenant_id=self.tenant_id
         )
         self.db.add(session)
-        self.db.commit()
-        self.db.refresh(session)
+        await self.db.commit()
+        await self.db.refresh(session)
         return session
 
 
 # Factory function
-def get_treatment_service(db: Session, tenant_id: int, current_user: models.User) -> TreatmentService:
+def get_treatment_service(db: AsyncSession, tenant_id: int, current_user: models.User) -> TreatmentService:
     """Factory function for treatment service."""
     return TreatmentService(db, tenant_id, current_user)

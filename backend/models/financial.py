@@ -14,10 +14,20 @@ from .base import (
     Index,
     datetime,
 )
+from sqlalchemy import column
+from rls.schemas import Permissive, ConditionArg, Command
 
 
 class Payment(Base):
     __tablename__ = "payments"
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
 
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
@@ -38,6 +48,14 @@ class Expense(Base):
     __tablename__ = "expenses"
     __table_args__ = (Index("idx_expense_tenant_date", "tenant_id", "date"),)
 
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
     id = Column(Integer, primary_key=True, index=True)
     item_name = Column(String)
     cost = Column(Float)
@@ -49,6 +67,14 @@ class Expense(Base):
 
 class SalaryPayment(Base):
     __tablename__ = "salary_payments"
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), index=True)
@@ -65,6 +91,14 @@ class SalaryPayment(Base):
 
 class LabPayment(Base):
     __tablename__ = "lab_payments"
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
 
     id = Column(Integer, primary_key=True, index=True)
     laboratory_id = Column(Integer, ForeignKey("laboratories.id"), index=True)

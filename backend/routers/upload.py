@@ -12,13 +12,13 @@ from pathlib import Path
 
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import cloudinary
 import cloudinary.uploader
 
 from .. import schemas, crud
-from .auth import get_db
+from .auth import get_async_db
 from backend.core.permissions import Permission, require_permission
 from backend.services.file_service import validate_file, save_file_locally, get_file_path
 
@@ -36,23 +36,23 @@ router = APIRouter(prefix="/upload", tags=["Uploads"])
 
 
 @router.post("", response_model=schemas.Attachment)
-def upload_file(
+async def upload_file(
     patient_id: int,
     file: UploadFile = File(...),
     note: str = Query(None),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.PATIENT_UPDATE)),
 ):
     """
     Upload a file for a patient.
-    
+
     Security:
     - File validated (size, type, magic bytes)
     - Stored in tenant-scoped directory
     - Supports Cloudinary (preferred) or local storage (fallback)
     """
     # 1. Verify Patient & Access
-    patient = crud.get_patient(db, patient_id, current_user.tenant_id)
+    patient = await crud.get_patient(db, patient_id, current_user.tenant_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 
@@ -94,18 +94,18 @@ def upload_file(
         file_type=validated_content_type,
     )
 
-    return crud.create_attachment(db, attachment_create)
+    return await crud.create_attachment(db, attachment_create)
 
 
 @router.get("/file/{file_path:path}")
-def serve_file(
+async def serve_file(
     file_path: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.PATIENT_VIEW)),
 ):
     """
     Serve an uploaded file through authenticated endpoint.
-    
+
     This replaces the public StaticFiles mount. Files are only accessible
     to authenticated users with PATIENT_VIEW permission.
     """

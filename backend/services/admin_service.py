@@ -6,8 +6,8 @@ Extracted from routers/admin.py to follow service layer pattern.
 """
 
 import logging
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete, func
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
@@ -20,20 +20,22 @@ logger = logging.getLogger(__name__)
 class AdminService:
     """Service for admin and tenant management operations."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
 
-    def get_all_tenants(self, skip: int = 0, limit: int = 100) -> List[models.Tenant]:
+    async def get_all_tenants(self, skip: int = 0, limit: int = 100) -> List[models.Tenant]:
         """Get all tenants with pagination."""
-        return self.db.query(models.Tenant).offset(skip).limit(limit).all()
+        stmt = select(models.Tenant).offset(skip).limit(limit)
+        res = await self.db.execute(stmt)
+        return list(res.scalars().all())
 
-    def get_tenant_by_id(self, tenant_id: int) -> Optional[models.Tenant]:
+    async def get_tenant_by_id(self, tenant_id: int) -> Optional[models.Tenant]:
         """Get a single tenant by ID."""
-        return (
-            self.db.query(models.Tenant).filter(models.Tenant.id == tenant_id).first()
-        )
+        stmt = select(models.Tenant).where(models.Tenant.id == tenant_id)
+        res = await self.db.execute(stmt)
+        return res.scalar_one_or_none()
 
-    def update_tenant(
+    async def update_tenant(
         self,
         tenant_id: int,
         plan: str = None,
@@ -41,7 +43,7 @@ class AdminService:
         subscription_end_date: datetime = None,
     ) -> Optional[models.Tenant]:
         """Update tenant subscription details."""
-        tenant = self.get_tenant_by_id(tenant_id)
+        tenant = await self.get_tenant_by_id(tenant_id)
         if not tenant:
             return None
 
@@ -52,13 +54,13 @@ class AdminService:
         if subscription_end_date is not None:
             tenant.subscription_end_date = subscription_end_date
 
-        self.db.commit()
-        self.db.refresh(tenant)
+        await self.db.commit()
+        await self.db.refresh(tenant)
         return tenant
 
-    def archive_tenant(self, tenant_id: int) -> Optional[models.Tenant]:
+    async def archive_tenant(self, tenant_id: int) -> Optional[models.Tenant]:
         """Soft delete (archive) a tenant."""
-        tenant = self.get_tenant_by_id(tenant_id)
+        tenant = await self.get_tenant_by_id(tenant_id)
         if not tenant:
             return None
 
@@ -67,59 +69,43 @@ class AdminService:
         tenant.is_active = False
 
         # Also deactivate the manager user
-        manager = (
-            self.db.query(models.User)
-            .filter(
-                models.User.tenant_id == tenant.id, models.User.role == Role.MANAGER.value
-            )
-            .first()
+        stmt = select(models.User).where(
+            models.User.tenant_id == tenant.id,
+            models.User.role == Role.MANAGER.value
         )
+        res = await self.db.execute(stmt)
+        manager = res.scalar_one_or_none()
 
         if manager:
             manager.is_deleted = True
             manager.is_active = False
 
-        self.db.commit()
+        await self.db.commit()
         return tenant
 
-    def get_tenant_detailed_stats(self, tenant_id: int) -> Dict[str, Any]:
+    async def get_tenant_detailed_stats(self, tenant_id: int) -> Dict[str, Any]:
         """Get comprehensive detailed statistics for a specific tenant."""
-        patient_count = (
-            self.db.query(func.count(models.Patient.id))
-            .filter(models.Patient.tenant_id == tenant_id)
-            .scalar()
-            or 0
-        )
+        patient_count_stmt = select(func.count(models.Patient.id)).where(models.Patient.tenant_id == tenant_id)
+        patient_count = (await self.db.execute(patient_count_stmt)).scalar() or 0
 
-        appointment_count = (
-            self.db.query(func.count(models.Appointment.id))
-            .filter(models.Appointment.tenant_id == tenant_id)
-            .scalar()
-            or 0
-        )
+        appointment_count_stmt = select(func.count(models.Appointment.id)).where(models.Appointment.tenant_id == tenant_id)
+        appointment_count = (await self.db.execute(appointment_count_stmt)).scalar() or 0
 
         # Revenue from treatments (internal to the clinic)
-        total_revenue = (
-            self.db.query(func.sum(models.Payment.amount))
-            .filter(models.Payment.tenant_id == tenant_id)
-            .scalar()
-            or 0
-        )
+        total_revenue_stmt = select(func.sum(models.Payment.amount)).where(models.Payment.tenant_id == tenant_id)
+        total_revenue = (await self.db.execute(total_revenue_stmt)).scalar() or 0
 
-        user_count = (
-            self.db.query(func.count(models.User.id))
-            .filter(models.User.tenant_id == tenant_id, models.User.is_deleted == False)  # noqa: E712
-            .scalar()
-            or 0
+        user_count_stmt = select(func.count(models.User.id)).where(
+            models.User.tenant_id == tenant_id,
+            models.User.is_deleted == False  # noqa: E712
         )
+        user_count = (await self.db.execute(user_count_stmt)).scalar() or 0
 
         # Last activity
-        last_activity = (
-            self.db.query(models.AuditLog)
-            .filter(models.AuditLog.tenant_id == tenant_id)
-            .order_by(models.AuditLog.created_at.desc())
-            .first()
-        )
+        last_activity_stmt = select(models.AuditLog).where(
+            models.AuditLog.tenant_id == tenant_id
+        ).order_by(models.AuditLog.created_at.desc()).limit(1)
+        last_activity = (await self.db.execute(last_activity_stmt)).scalars().first()
 
         return {
             "patients_count": patient_count,
@@ -130,41 +116,48 @@ class AdminService:
             "last_activity_desc": last_activity.action if last_activity else None
         }
 
-    def get_users_for_tenant(self, tenant_id: int) -> List[models.User]:
+    async def get_users_for_tenant(self, tenant_id: int) -> List[models.User]:
         """Get all users belonging to a tenant."""
-        return (
-            self.db.query(models.User)
-            .filter(models.User.tenant_id == tenant_id, models.User.is_deleted == False)  # noqa: E712
-            .all()
+        stmt = select(models.User).where(
+            models.User.tenant_id == tenant_id,
+            models.User.is_deleted == False  # noqa: E712
         )
+        res = await self.db.execute(stmt)
+        return list(res.scalars().all())
 
-    def get_all_users(self, skip: int = 0, limit: int = 100) -> List[models.User]:
+    async def get_all_users(self, skip: int = 0, limit: int = 100) -> List[models.User]:
         """Get all users across all tenants (for super admin)."""
-        return self.db.query(models.User).offset(skip).limit(limit).all()
+        stmt = select(models.User).offset(skip).limit(limit)
+        res = await self.db.execute(stmt)
+        return list(res.scalars().all())
 
-    def deactivate_user(self, user_id: int) -> Optional[models.User]:
+    async def deactivate_user(self, user_id: int) -> Optional[models.User]:
         """Deactivate a user account."""
-        user = self.db.query(models.User).filter(models.User.id == user_id).first()
+        stmt = select(models.User).where(models.User.id == user_id)
+        res = await self.db.execute(stmt)
+        user = res.scalar_one_or_none()
         if not user:
             return None
 
         user.is_active = False
-        self.db.commit()
+        await self.db.commit()
         return user
 
-    def activate_user(self, user_id: int) -> Optional[models.User]:
+    async def activate_user(self, user_id: int) -> Optional[models.User]:
         """Activate a user account."""
-        user = self.db.query(models.User).filter(models.User.id == user_id).first()
+        stmt = select(models.User).where(models.User.id == user_id)
+        res = await self.db.execute(stmt)
+        user = res.scalar_one_or_none()
         if not user:
             return None
 
         user.is_active = True
-        self.db.commit()
+        await self.db.commit()
         return user
 
-    def restore_tenant(self, tenant_id: int) -> Optional[models.Tenant]:
+    async def restore_tenant(self, tenant_id: int) -> Optional[models.Tenant]:
         """Restore a soft-deleted tenant."""
-        tenant = self.get_tenant_by_id(tenant_id)
+        tenant = await self.get_tenant_by_id(tenant_id)
         if not tenant:
             return None
 
@@ -173,22 +166,21 @@ class AdminService:
         tenant.is_active = True
 
         # Restore manager user
-        manager = (
-            self.db.query(models.User)
-            .filter(
-                models.User.tenant_id == tenant.id, models.User.role == Role.MANAGER.value
-            )
-            .first()
+        stmt = select(models.User).where(
+            models.User.tenant_id == tenant.id,
+            models.User.role == Role.MANAGER.value
         )
+        res = await self.db.execute(stmt)
+        manager = res.scalar_one_or_none()
 
         if manager:
             manager.is_deleted = False
             manager.is_active = True
 
-        self.db.commit()
+        await self.db.commit()
         return tenant
 
-    def permanently_delete_tenant(self, tenant_id: int) -> bool:
+    async def permanently_delete_tenant(self, tenant_id: int) -> bool:
         """
         Hard delete a tenant and all related data.
         WARNING: This is irreversible.
@@ -199,7 +191,7 @@ class AdminService:
         from backend.models.base import Base
 
         try:
-            tenant = self.get_tenant_by_id(tenant_id)
+            tenant = await self.get_tenant_by_id(tenant_id)
             if not tenant:
                 return False
 
@@ -225,29 +217,20 @@ class AdminService:
                     patient_models.append(model_class)
 
             # 1. Get user IDs for this tenant
-            user_ids = [
-                u.id
-                for u in self.db.query(models.User.id)
-                .filter(models.User.tenant_id == tenant.id)
-                .all()
-            ]
+            stmt = select(models.User.id).where(models.User.tenant_id == tenant.id)
+            user_ids = list((await self.db.execute(stmt)).scalars().all())
 
             # 2. Get patient IDs for this tenant
-            patient_ids = [
-                p.id
-                for p in self.db.query(models.Patient.id)
-                .filter(models.Patient.tenant_id == tenant.id)
-                .all()
-            ]
+            stmt = select(models.Patient.id).where(models.Patient.tenant_id == tenant.id)
+            patient_ids = list((await self.db.execute(stmt)).scalars().all())
 
             # 3. Delete from user-linked tables (no tenant_id)
             if user_ids:
                 for model_class in user_models:
                     try:
-                        with self.db.begin_nested():
-                            self.db.query(model_class).filter(
-                                model_class.user_id.in_(user_ids)
-                            ).delete(synchronize_session=False)
+                        async with self.db.begin_nested():
+                            stmt = delete(model_class).where(model_class.user_id.in_(user_ids))
+                            await self.db.execute(stmt)
                     except Exception as e:
                         logger.warning("Failed to clean %s (user): %s", model_class.__name__, e)
 
@@ -255,10 +238,9 @@ class AdminService:
             if patient_ids:
                 for model_class in patient_models:
                     try:
-                        with self.db.begin_nested():
-                            self.db.query(model_class).filter(
-                                model_class.patient_id.in_(patient_ids)
-                            ).delete(synchronize_session=False)
+                        async with self.db.begin_nested():
+                            stmt = delete(model_class).where(model_class.patient_id.in_(patient_ids))
+                            await self.db.execute(stmt)
                     except Exception as e:
                         logger.warning("Failed to clean %s (patient): %s", model_class.__name__, e)
 
@@ -270,10 +252,9 @@ class AdminService:
                 still_remaining = []
                 for model_class in remaining:
                     try:
-                        with self.db.begin_nested():
-                            self.db.query(model_class).filter(
-                                model_class.tenant_id == tenant.id
-                            ).delete(synchronize_session=False)
+                        async with self.db.begin_nested():
+                            stmt = delete(model_class).where(model_class.tenant_id == tenant.id)
+                            await self.db.execute(stmt)
                     except Exception as e:
                         still_remaining.append(model_class)
                         if pass_num == max_passes - 1:
@@ -284,48 +265,42 @@ class AdminService:
 
             # 6. Delete patients
             try:
-                with self.db.begin_nested():
-                    self.db.query(models.Patient).filter(
-                        models.Patient.tenant_id == tenant.id
-                    ).delete(synchronize_session=False)
+                async with self.db.begin_nested():
+                    stmt = delete(models.Patient).where(models.Patient.tenant_id == tenant.id)
+                    await self.db.execute(stmt)
             except Exception as e:
                 logger.warning("Patient deletion error: %s", e)
 
             # 7. Delete users
             try:
-                with self.db.begin_nested():
-                    self.db.query(models.User).filter(
-                        models.User.tenant_id == tenant.id
-                    ).delete(synchronize_session=False)
+                async with self.db.begin_nested():
+                    stmt = delete(models.User).where(models.User.tenant_id == tenant.id)
+                    await self.db.execute(stmt)
             except Exception as e:
                 logger.warning("User deletion error: %s", e)
 
             # 8. Finally, delete the tenant itself
-            self.db.delete(tenant)
-            self.db.commit()
+            await self.db.delete(tenant)
+            await self.db.commit()
             return True
 
         except Exception as e:
-            self.db.rollback()
+            await self.db.rollback()
             logger.exception("[PERMANENT DELETE ERROR]", exc_info=True)
             raise e
 
-    def global_search(self, query: str) -> List[Dict[str, Any]]:
+    async def global_search(self, query: str) -> List[Dict[str, Any]]:
         """Search across tenants, users, and admin functions."""
         results = []
         if not query or len(query) < 2:
             return results
 
         # 1. Search Tenants
-        tenants = (
-            self.db.query(models.Tenant)
-            .filter(
-                models.Tenant.name.ilike(f"%{query}%")
-                | models.Tenant.domain.ilike(f"%{query}%")
-            )
-            .limit(5)
-            .all()
-        )
+        stmt = select(models.Tenant).where(
+            models.Tenant.name.ilike(f"%{query}%")
+            | models.Tenant.domain.ilike(f"%{query}%")
+        ).limit(5)
+        tenants = (await self.db.execute(stmt)).scalars().all()
 
         for t in tenants:
             results.append(
@@ -340,15 +315,11 @@ class AdminService:
             )
 
         # 2. Search Users (Super Admin context)
-        users = (
-            self.db.query(models.User)
-            .filter(
-                models.User.username.ilike(f"%{query}%")
-                | models.User.email.ilike(f"%{query}%")
-            )
-            .limit(5)
-            .all()
-        )
+        stmt = select(models.User).where(
+            models.User.username.ilike(f"%{query}%")
+            | models.User.email.ilike(f"%{query}%")
+        ).limit(5)
+        users = (await self.db.execute(stmt)).scalars().all()
 
         for u in users:
             results.append(
@@ -383,12 +354,6 @@ class AdminService:
                 "tags": ["finance", "money", "revenue", "مالية"],
             },
             {
-                "title": "سجلات النظام",
-                "url": "/admin/system/logs",
-                "icon": "Terminal",
-                "tags": ["logs", "errors", "debug", "سجلات"],
-            },
-            {
                 "title": "إحصائيات AI",
                 "url": "/ai/stats",
                 "icon": "Cpu",
@@ -413,3 +378,4 @@ class AdminService:
                 )
 
         return results
+

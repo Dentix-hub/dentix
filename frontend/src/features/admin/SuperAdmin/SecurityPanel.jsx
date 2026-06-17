@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { api } from '@/api';
 import { Shield, Lock, Unlock, AlertTriangle, CheckCircle, Search, Ban, History, Globe } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, LazyChart } from '@/components/charts/LazyChart';
 import HealthAlerts from './HealthAlerts';
 
 export default function SecurityPanel() {
@@ -33,7 +34,7 @@ export default function SecurityPanel() {
             setChartData(chartRes.data || []);
             setBlockedIps(Array.isArray(ipsRes.data) ? ipsRes.data : []);
         } catch (error) {
-            console.error(error);
+            logger.error(error);
         } finally {
             setLoading(false);
         }
@@ -72,7 +73,7 @@ export default function SecurityPanel() {
             {/* Header Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
-                    <div className={`absolute ${isRtl ? '-left-4' : '-right-4'} -bottom-4 opacity-10 group-hover:scale-110 transition-transform`}>
+                    <div className={`absolute ${isRtl ? '-start-4' : '-end-4'} -bottom-4 opacity-10 group-hover:scale-110 transition-transform`}>
                         <Ban size={100} />
                     </div>
                     <div className={`flex items-center gap-4 ${isRtl ? 'flex-row-reverse' : ''}`}>
@@ -87,7 +88,7 @@ export default function SecurityPanel() {
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
-                    <div className={`absolute ${isRtl ? '-left-4' : '-right-4'} -bottom-4 opacity-10 group-hover:scale-110 transition-transform`}>
+                    <div className={`absolute ${isRtl ? '-start-4' : '-end-4'} -bottom-4 opacity-10 group-hover:scale-110 transition-transform`}>
                         <Lock size={100} />
                     </div>
                     <div className={`flex items-center gap-4 ${isRtl ? 'flex-row-reverse' : ''}`}>
@@ -102,7 +103,7 @@ export default function SecurityPanel() {
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
-                    <div className={`absolute ${isRtl ? '-left-4' : '-right-4'} -bottom-4 opacity-10 group-hover:scale-110 transition-transform`}>
+                    <div className={`absolute ${isRtl ? '-start-4' : '-end-4'} -bottom-4 opacity-10 group-hover:scale-110 transition-transform`}>
                         <AlertTriangle size={100} />
                     </div>
                     <div className={`flex items-center gap-4 ${isRtl ? 'flex-row-reverse' : ''}`}>
@@ -117,7 +118,7 @@ export default function SecurityPanel() {
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
-                    <div className={`absolute ${isRtl ? '-left-4' : '-right-4'} -bottom-4 opacity-10 group-hover:scale-110 transition-transform`}>
+                    <div className={`absolute ${isRtl ? '-start-4' : '-end-4'} -bottom-4 opacity-10 group-hover:scale-110 transition-transform`}>
                         <Shield size={100} />
                     </div>
                     <div className={`flex items-center gap-4 ${isRtl ? 'flex-row-reverse' : ''}`}>
@@ -152,41 +153,43 @@ export default function SecurityPanel() {
                 </div>
 
                 <div className="h-[350px] w-full" dir="ltr">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={chartData}>
-                            <defs>
-                                <linearGradient id="colorSuccess" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
-                                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                                </linearGradient>
-                                <linearGradient id="colorFailed" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.1}/>
-                                    <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
-                                </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
-                            <XAxis 
-                                dataKey="date" 
-                                axisLine={false}
-                                tickLine={false}
-                                tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }}
-                                dy={10}
-                                tickFormatter={(val) => new Date(val).toLocaleDateString(isRtl ? 'ar-EG' : 'en-US', { day: 'numeric', month: 'short' })}
-                            />
-                            <YAxis 
-                                axisLine={false}
-                                tickLine={false}
-                                tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }}
-                                orientation={isRtl ? 'right' : 'left'}
-                            />
-                            <Tooltip 
-                                contentStyle={{ borderRadius: '1.5rem', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#fff' }}
-                                itemStyle={{ fontWeight: 800 }}
-                            />
-                            <Area type="monotone" dataKey="success" stroke="#6366f1" strokeWidth={4} fillOpacity={1} fill="url(#colorSuccess)" />
-                            <Area type="monotone" dataKey="failed" stroke="#f43f5e" strokeWidth={4} fillOpacity={1} fill="url(#colorFailed)" />
-                        </AreaChart>
-                    </ResponsiveContainer>
+                    <LazyChart>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={chartData}>
+                                <defs>
+                                    <linearGradient id="colorSuccess" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.1}/>
+                                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                                    </linearGradient>
+                                    <linearGradient id="colorFailed" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#f43f5e" stopOpacity={0.1}/>
+                                        <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
+                                <XAxis 
+                                    dataKey="date" 
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }}
+                                    dy={10}
+                                    tickFormatter={(val) => new Date(val).toLocaleDateString(isRtl ? 'ar-EG' : 'en-US', { day: 'numeric', month: 'short' })}
+                                />
+                                <YAxis 
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }}
+                                    orientation={isRtl ? 'right' : 'left'}
+                                />
+                                <Tooltip 
+                                    contentStyle={{ borderRadius: '1.5rem', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', backgroundColor: '#fff' }}
+                                    itemStyle={{ fontWeight: 800 }}
+                                />
+                                <Area type="monotone" dataKey="success" stroke="#6366f1" strokeWidth={4} fillOpacity={1} fill="url(#colorSuccess)" />
+                                <Area type="monotone" dataKey="failed" stroke="#f43f5e" strokeWidth={4} fillOpacity={1} fill="url(#colorFailed)" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </LazyChart>
                 </div>
             </div>
 
@@ -285,7 +288,7 @@ export default function SecurityPanel() {
 
                     {/* Quick Security Actions */}
                     <div className="bg-indigo-600 rounded-[2.5rem] p-8 text-white relative overflow-hidden">
-                        <div className={`absolute ${isRtl ? 'left-0' : 'right-0'} top-0 opacity-10`}>
+                        <div className={`absolute ${isRtl ? 'start-0' : 'end-0'} top-0 opacity-10`}>
                             <Shield size={150} />
                         </div>
                         <div className={isRtl ? 'text-right' : 'text-left'}>
@@ -310,7 +313,7 @@ export default function SecurityPanel() {
             {showBlockModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
                     <div className="bg-white dark:bg-slate-900 rounded-[3rem] p-10 w-full max-w-lg shadow-2xl border border-white/20">
-                        <div className={`w-16 h-16 bg-red-100 text-red-500 rounded-3xl flex items-center justify-center mb-6 ${isRtl ? 'mr-0 ml-auto' : ''}`}>
+                        <div className={`w-16 h-16 bg-red-100 text-red-500 rounded-3xl flex items-center justify-center mb-6 ${isRtl ? 'me-0 ms-auto' : ''}`}>
                             <Ban size={32} />
                         </div>
                         <div className={isRtl ? 'text-right' : 'text-left'}>

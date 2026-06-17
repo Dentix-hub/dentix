@@ -8,12 +8,13 @@ Split from admin_system.py (B3.1).
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from backend.core.response import success_response, StandardResponse
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from sqlalchemy import select, func
 from datetime import datetime, timezone, timedelta
 
 from backend import models, schemas
-from backend.database import get_db
+from backend.database import get_async_db
 from backend.core.permissions import Role, Permission, require_permission
 from backend.services.cache_service import cached
 
@@ -37,32 +38,33 @@ def require_super_admin(
 
 # --- Dashboard Stats ---
 @router.get("/stats", response_model=StandardResponse[schemas.AdminDashboardStats])
-def get_admin_dashboard_stats(
+async def get_admin_dashboard_stats(
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Get admin dashboard statistics (Cached 5 mins)."""
-    return _get_admin_stats_logic(db)
+    return await _get_admin_stats_logic(db)
 
 
 @cached(key_prefix="admin_dashboard_stats", expire=300)
-def _get_admin_stats_logic(db: Session):
-    total_tenants = db.query(models.Tenant).count()
-    active_tenants = (
-        db.query(models.Tenant).filter(models.Tenant.is_active).count()
-    )
-    expired_tenants = (
-        db.query(models.Tenant)
-        .filter(models.Tenant.subscription_end_date < datetime.now(timezone.utc))
-        .count()
-    )
+async def _get_admin_stats_logic(db: AsyncSession):
+    stmt = select(func.count(models.Tenant.id))
+    total_tenants = (await db.execute(stmt)).scalar() or 0
+
+    stmt = select(func.count(models.Tenant.id)).where(models.Tenant.is_active == True)  # noqa: E712
+    active_tenants = (await db.execute(stmt)).scalar() or 0
+
+    stmt = select(func.count(models.Tenant.id)).where(models.Tenant.subscription_end_date < datetime.now(timezone.utc))
+    expired_tenants = (await db.execute(stmt)).scalar() or 0
 
     # Total revenue from all payments
-    total_revenue = db.query(func.sum(models.SubscriptionPayment.amount)).scalar() or 0
+    stmt = select(func.sum(models.SubscriptionPayment.amount))
+    total_revenue = (await db.execute(stmt)).scalar() or 0
 
     # Monthly revenue calculation (Last 12 months)
     monthly_revenue = {}
-    payments = db.query(models.SubscriptionPayment).order_by(models.SubscriptionPayment.payment_date.asc()).all()
+    stmt = select(models.SubscriptionPayment).order_by(models.SubscriptionPayment.payment_date.asc())
+    payments = (await db.execute(stmt)).scalars().all()
     for p in payments:
         if p.payment_date:
             month_key = p.payment_date.strftime("%Y-%m")
@@ -70,7 +72,8 @@ def _get_admin_stats_logic(db: Session):
 
     # Clinic growth calculation
     clinic_growth = {}
-    tenants_raw = db.query(models.Tenant).order_by(models.Tenant.created_at.asc()).all()
+    stmt = select(models.Tenant).order_by(models.Tenant.created_at.asc())
+    tenants_raw = (await db.execute(stmt)).scalars().all()
     for t in tenants_raw:
         if t.created_at:
             month_key = t.created_at.strftime("%Y-%m")
@@ -80,7 +83,8 @@ def _get_admin_stats_logic(db: Session):
     activity_feed = []
 
     # 1. Recent Tenants
-    recent_tenants = db.query(models.Tenant).order_by(models.Tenant.created_at.desc()).limit(5).all()
+    stmt = select(models.Tenant).options(selectinload(models.Tenant.subscription_plan)).order_by(models.Tenant.created_at.desc()).limit(5)
+    recent_tenants = (await db.execute(stmt)).scalars().all()
     for t in recent_tenants:
         activity_feed.append({
             "id": t.id,
@@ -93,7 +97,8 @@ def _get_admin_stats_logic(db: Session):
         })
 
     # 2. Recent Payments
-    recent_payments_raw = db.query(models.SubscriptionPayment).order_by(models.SubscriptionPayment.payment_date.desc()).limit(5).all()
+    stmt = select(models.SubscriptionPayment).options(selectinload(models.SubscriptionPayment.tenant)).order_by(models.SubscriptionPayment.payment_date.desc()).limit(5)
+    recent_payments_raw = (await db.execute(stmt)).scalars().all()
     for p in recent_payments_raw:
         activity_feed.append({
             "id": p.id,
@@ -106,7 +111,8 @@ def _get_admin_stats_logic(db: Session):
         })
 
     # 3. Recent Errors
-    recent_errors = db.query(models.SystemError).order_by(models.SystemError.created_at.desc()).limit(5).all()
+    stmt = select(models.SystemError).order_by(models.SystemError.created_at.desc()).limit(5)
+    recent_errors = (await db.execute(stmt)).scalars().all()
     for e in recent_errors:
         activity_feed.append({
             "id": e.id,
@@ -124,12 +130,12 @@ def _get_admin_stats_logic(db: Session):
 
     # Plan distribution
     plan_distribution = {}
-    plans = (
-        db.query(models.SubscriptionPlan.name, func.count(models.Tenant.id))
+    stmt = (
+        select(models.SubscriptionPlan.name, func.count(models.Tenant.id))
         .join(models.Tenant, models.Tenant.plan_id == models.SubscriptionPlan.id)
         .group_by(models.SubscriptionPlan.name)
-        .all()
     )
+    plans = (await db.execute(stmt)).all()
     for plan_name, count in plans:
         plan_distribution[plan_name] = count
 
@@ -147,9 +153,9 @@ def _get_admin_stats_logic(db: Session):
 
 
 @router.get("/finance/reports")
-def get_financial_reports(
+async def get_financial_reports(
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Get detailed financial reports for admin.
@@ -160,23 +166,24 @@ def get_financial_reports(
     now = datetime.now(timezone.utc)
 
     # 1. Revenue by Plan
-    revenue_by_plan = (
-        db.query(models.SubscriptionPlan.display_name_ar, func.sum(models.SubscriptionPayment.amount))
+    stmt = (
+        select(models.SubscriptionPlan.display_name_ar, func.sum(models.SubscriptionPayment.amount))
         .join(models.SubscriptionPayment, models.SubscriptionPayment.plan_id == models.SubscriptionPlan.id)
         .group_by(models.SubscriptionPlan.display_name_ar)
-        .all()
     )
+    revenue_by_plan = (await db.execute(stmt)).all()
     revenue_plan_data = [{"name": r[0], "value": float(r[1] or 0)} for r in revenue_by_plan]
 
     # 2. Overdue Clinics (Expired but not paid for renewal)
-    overdue_clinics_raw = (
-        db.query(models.Tenant)
-        .filter(models.Tenant.subscription_end_date < now)
-        .filter(models.Tenant.is_active == True)
+    stmt = (
+        select(models.Tenant)
+        .options(selectinload(models.Tenant.subscription_plan))
+        .where(models.Tenant.subscription_end_date < now)
+        .where(models.Tenant.is_active == True)  # noqa: E712
         .order_by(models.Tenant.subscription_end_date.asc())
         .limit(50)
-        .all()
     )
+    overdue_clinics_raw = (await db.execute(stmt)).scalars().all()
     overdue_clinics = [
         {
             "id": t.id,
@@ -190,58 +197,61 @@ def get_financial_reports(
 
     # 3. Revenue Forecast (Estimated monthly revenue from active subscriptions)
     # Simple logic: sum of (active tenant's plan price)
-    forecast_data = (
-        db.query(func.sum(models.SubscriptionPlan.price))
+    stmt = (
+        select(func.sum(models.SubscriptionPlan.price))
         .join(models.Tenant, models.Tenant.plan_id == models.SubscriptionPlan.id)
-        .filter(models.Tenant.is_active == True)
-        .scalar() or 0
+        .where(models.Tenant.is_active == True)  # noqa: E712
     )
+    forecast_data = (await db.execute(stmt)).scalar() or 0
 
     # 4. Growth Trends (Monthly Revenue last 6 months)
     six_months_ago = now - timedelta(days=180)
-    monthly_trends = (
-        db.query(
+    stmt = (
+        select(
             func.date_trunc('month', models.SubscriptionPayment.payment_date).label('month'),
             func.sum(models.SubscriptionPayment.amount)
         )
-        .filter(models.SubscriptionPayment.payment_date >= six_months_ago)
+        .where(models.SubscriptionPayment.payment_date >= six_months_ago)
         .group_by('month')
         .order_by('month')
-        .all()
     )
+    monthly_trends = (await db.execute(stmt)).all()
     trends = [{"month": r[0].strftime("%Y-%m"), "revenue": float(r[1] or 0)} for r in monthly_trends]
 
     # 5. Churn Risks (Clinics with no activity in last 30 days)
     thirty_days_ago = now - timedelta(days=30)
     # Using UserSession to check activity
-    active_tenant_ids = (
-        db.query(models.User.tenant_id)
+    active_tenant_ids_stmt = (
+        select(models.User.tenant_id)
         .join(models.UserSession, models.User.id == models.UserSession.user_id)
-        .filter(models.UserSession.last_active_at >= thirty_days_ago)
+        .where(models.UserSession.last_active_at >= thirty_days_ago)
         .distinct()
     )
+    active_tenant_ids_rows = (await db.execute(active_tenant_ids_stmt)).all()
+    active_ids = [r[0] for r in active_tenant_ids_rows if r[0] is not None]
 
-    churn_risks_raw = (
-        db.query(models.Tenant)
-        .filter(models.Tenant.is_active == True)
-        .filter(~models.Tenant.id.in_(active_tenant_ids))
+    stmt = (
+        select(models.Tenant)
+        .options(selectinload(models.Tenant.subscription_plan))
+        .where(models.Tenant.is_active == True)  # noqa: E712
+        .where(~models.Tenant.id.in_(active_ids))
         .limit(20)
-        .all()
     )
-    churn_risks = [
-        {
+    churn_risks_raw = (await db.execute(stmt)).scalars().all()
+    churn_risks = []
+    for t in churn_risks_raw:
+        last_active_stmt = (
+            select(func.max(models.UserSession.last_active_at))
+            .join(models.User, models.User.id == models.UserSession.user_id)
+            .where(models.User.tenant_id == t.id)
+        )
+        last_active = (await db.execute(last_active_stmt)).scalar()
+        churn_risks.append({
             "id": t.id,
             "name": t.name,
-            "last_active": (
-                db.query(func.max(models.UserSession.last_active_at))
-                .join(models.User, models.User.id == models.UserSession.user_id)
-                .filter(models.User.tenant_id == t.id)
-                .scalar()
-            ),
+            "last_active": last_active,
             "plan_name": t.subscription_plan.display_name_ar if t.subscription_plan else "بدون خطة"
-        }
-        for t in churn_risks_raw
-    ]
+        })
 
     return success_response({
         "revenue_by_plan": revenue_plan_data,
@@ -253,28 +263,28 @@ def get_financial_reports(
 
 
 @router.get("/health/alerts")
-def get_system_health_alerts(
-    db: Session = Depends(get_db),
+async def get_system_health_alerts(
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
     """
     Get system health status and alerts for the super admin dashboard.
     """
     from backend.services.health_monitoring_service import HealthMonitoringService
-    return HealthMonitoringService.calculate_health_score(db)
+    return await HealthMonitoringService.calculate_health_score(db)
 
 
 @router.post("/health/check")
-def trigger_system_health_check(
-    db: Session = Depends(get_db),
+async def trigger_system_health_check(
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
     """
     Trigger a manual health check and send notifications if score is low.
     """
     from backend.services.health_monitoring_service import HealthMonitoringService
-    notified = HealthMonitoringService.check_and_notify(db)
-    health = HealthMonitoringService.calculate_health_score(db)
+    notified = await HealthMonitoringService.check_and_notify(db)
+    health = await HealthMonitoringService.calculate_health_score(db)
 
     return success_response({
         "health": health,
@@ -283,14 +293,14 @@ def trigger_system_health_check(
 
 
 @router.post("/business/check")
-def trigger_business_health_check(
-    db: Session = Depends(get_db),
+async def trigger_business_health_check(
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
     """
     Trigger a manual business health check (expiring subscriptions, churn risks).
     """
     from backend.services.business_alerts_service import BusinessAlertsService
-    results = BusinessAlertsService.run_all_checks(db)
+    results = await BusinessAlertsService.run_all_checks(db)
 
     return success_response(results)

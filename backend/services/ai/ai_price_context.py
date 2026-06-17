@@ -36,10 +36,10 @@ class AIPriceContext:
     SAFE_RESPONSE = "ليس لدي صلاحية للوصول لتفاصيل الأسعار في هذه الحالة"
 
     @classmethod
-    def from_user(cls, db: Session, user: User, tenant_id: int) -> "AIPriceContext":
+    async def from_user(cls, db: Session, user: User, tenant_id: int) -> "AIPriceContext":
         """Create context from user."""
         pricing = get_pricing_service(db, tenant_id)
-        available_lists = pricing.get_available_price_lists(user)
+        available_lists = await pricing.get_available_price_lists(user)
 
         # Determine permissions based on role
         can_compare = user.role in ["admin", "accountant"]
@@ -97,6 +97,6 @@ STRICT RULES FOR PRICING:
         ]
 
 
-def create_ai_price_context(db: Session, user: User, tenant_id: int) -> AIPriceContext:
+async def create_ai_price_context(db: Session, user: User, tenant_id: int) -> AIPriceContext:
     """Factory function for AI price context."""
-    return AIPriceContext.from_user(db, user, tenant_id)
+    return await AIPriceContext.from_user(db, user, tenant_id)

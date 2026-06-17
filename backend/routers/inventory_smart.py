@@ -1,10 +1,11 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException
 import logging
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List, Optional, Dict, Any
 
-from ..database import get_db
+from ..database import get_async_db
 from ..schemas import User
 from ..core.permissions import require_permission, Permission
 from ..services.inventory_learning_service import InventoryLearningService
@@ -22,11 +23,11 @@ def _ensure_not_production():
 
 
 @router.get("/suggestions/{procedure_id}")
-def get_material_suggestions(
+async def get_material_suggestions(
     procedure_id: int,
     patient_age: Optional[int] = None,
     doctor_id: Optional[int] = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
     """
@@ -39,7 +40,7 @@ def get_material_suggestions(
     if not effective_doctor_id and current_user.role == "doctor":
         effective_doctor_id = current_user.id
 
-    suggestions = service.get_suggested_materials(
+    suggestions = await service.get_suggested_materials(
         procedure_id=procedure_id,
         tenant_id=current_user.tenant_id,
         doctor_id=effective_doctor_id,
@@ -48,10 +49,10 @@ def get_material_suggestions(
 
 
 @router.get("/suggestions-categories/{procedure_id}", response_model=StandardResponse[List[Dict]])
-def get_category_based_suggestions(
+async def get_category_based_suggestions(
     procedure_id: int,
     doctor_id: Optional[int] = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
     """
@@ -69,7 +70,7 @@ def get_category_based_suggestions(
         if not effective_doctor_id and current_user.role == "doctor":
             effective_doctor_id = current_user.id
 
-        suggestions = service.resolve_materials_for_procedure(
+        suggestions = await service.resolve_materials_for_procedure(
             procedure_id=procedure_id,
             tenant_id=tenant_id,
         )
@@ -83,9 +84,9 @@ def get_category_based_suggestions(
 
 
 @router.post("/check-availability")
-def check_availability(
+async def check_availability(
     request_data: Dict[str, Any], # Changed from List to Dict to support patient_id
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
     """
@@ -102,17 +103,17 @@ def check_availability(
         qty_needed = item.get("quantity", 0)
 
         # First, get material info directly
-        material = (
-            db.query(inv_models.Material)
+        material_result = await db.execute(
+            select(inv_models.Material)
             .filter(inv_models.Material.id == mat_id)
-            .first()
         )
+        material = material_result.scalars().first()
         material_name = material.name if material else "Unknown Material"
         material_type = material.type if material else "DIVISIBLE"
 
         # Check for active sessions for this material (virtual stock for divisible items)
-        session_query = (
-            db.query(inv_models.MaterialSession)
+        session_base_query = (
+            select(inv_models.MaterialSession)
             .join(inv_models.StockItem)
             .join(inv_models.Batch)
             .filter(
@@ -124,14 +125,21 @@ def check_availability(
         # Patient-specific awareness
         if patient_id:
             # Prioritize sessions for this patient
-            patient_session = session_query.filter(inv_models.MaterialSession.patient_id == patient_id).first()
+            patient_session_res = await db.execute(
+                session_base_query.filter(inv_models.MaterialSession.patient_id == patient_id)
+            )
+            patient_session = patient_session_res.scalars().first()
             if patient_session:
                 active_session = patient_session
             else:
                 # If no patient session, check if there's a GENERAL session (null patient_id)
-                active_session = session_query.filter(inv_models.MaterialSession.patient_id.is_(None)).first()
+                general_session_res = await db.execute(
+                    session_base_query.filter(inv_models.MaterialSession.patient_id.is_(None))
+                )
+                active_session = general_session_res.scalars().first()
         else:
-            active_session = session_query.first()
+            active_session_res = await db.execute(session_base_query)
+            active_session = active_session_res.scalars().first()
 
         has_active_session = active_session is not None
         current_uses = active_session.current_uses if active_session else 0
@@ -142,16 +150,16 @@ def check_availability(
             # If active session, we don't need to check quantity - it's virtual consumption
             total_available = float("inf")  # Virtually unlimited while session is open
         else:
-            stock_items = (
-                db.query(inv_models.StockItem)
+            stock_items_res = await db.execute(
+                select(inv_models.StockItem)
                 .join(inv_models.Batch)
                 .filter(
                     inv_models.StockItem.tenant_id == current_user.tenant_id,
                     inv_models.Batch.material_id == mat_id,
                     inv_models.StockItem.quantity > 0,
                 )
-                .all()
             )
+            stock_items = stock_items_res.scalars().all()
             total_available = sum(s.quantity for s in stock_items)
 
         status = "OK"
@@ -188,6 +196,8 @@ def check_availability(
         )
 
     return success_response(data=results)
+
+
 @router.get("/debug/logs", tags=["debug"])
 def get_suggestion_logs():
     _ensure_not_production()

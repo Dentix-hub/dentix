@@ -13,7 +13,9 @@ from .base import (
     relationship,
     datetime,
 )
+from sqlalchemy import column
 import enum
+from rls.schemas import Permissive, ConditionArg, Command
 
 
 class ErrorLevel(str, enum.Enum):
@@ -30,6 +32,14 @@ class ErrorSource(str, enum.Enum):
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
 
     id = Column(Integer, primary_key=True, index=True)
     action = Column(String, index=True)
@@ -52,6 +62,14 @@ class AuditLog(Base):
 class SupportMessage(Base):
     __tablename__ = "support_messages"
 
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     tenant_id = Column(Integer, ForeignKey("tenants.id"))
@@ -67,6 +85,14 @@ class SupportMessage(Base):
 
 class Notification(Base):
     __tablename__ = "notifications"
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: (column("tenant_id") == x) | (column("is_global") == True) | (column("tenant_id") == None),
+        )
+    ]
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String)
@@ -128,6 +154,14 @@ class FeatureFlag(Base):
 class TenantFeature(Base):
     __tablename__ = "tenant_features"
 
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), index=True)
     feature_key = Column(String, ForeignKey("feature_flags.key"), index=True)
@@ -151,6 +185,14 @@ class DailySystemStats(Base):
 class BackgroundJob(Base):
     __tablename__ = "background_jobs"
 
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
     id = Column(Integer, primary_key=True, index=True)
     job_name = Column(String, index=True)
     status = Column(String, default="running")
@@ -164,6 +206,14 @@ class BackgroundJob(Base):
 
 class SystemError(Base):
     __tablename__ = "system_errors"
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
 
     id = Column(Integer, primary_key=True, index=True)
     level = Column(String, default=ErrorLevel.ERROR, index=True)

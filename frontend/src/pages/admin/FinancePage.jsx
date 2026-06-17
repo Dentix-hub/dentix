@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import logger from '@/utils/logger';
 import { api } from '@/api';
 import PaymentsManager from '@/features/admin/SuperAdmin/PaymentsManager';
 import PlansManager from '@/features/admin/SuperAdmin/PlansManager';
@@ -44,7 +45,7 @@ export default function FinancePage() {
             setTenants(Array.isArray(tenRes.data) ? tenRes.data : []);
             setPlans(Array.isArray(planRes.data) ? planRes.data : []);
         } catch (err) {
-            console.error(err);
+            logger.error(err);
         } finally {
             setLoading(false);
         }
@@ -75,7 +76,7 @@ export default function FinancePage() {
             const res = await api.get(`/api/v1/admin/system/tenants/${tenantId}/users`);
             setTenantUsers(Array.isArray(res.data.users) ? res.data.users : []);
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             setTenantUsers([]);
         }
     };

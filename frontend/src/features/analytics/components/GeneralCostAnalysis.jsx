@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { getAllProceduresFinancials } from '@/api/financials';
 import { TrendingDown, TrendingUp, DollarSign, Activity, ArrowUpDown } from 'lucide-react';
@@ -16,11 +17,11 @@ const GeneralCostAnalysis = () => {
             if (Array.isArray(res.data)) {
                 setData(res.data);
             } else {
-                console.error("GeneralCostAnalysis: API returned non-array", res.data);
+                logger.error("GeneralCostAnalysis: API returned non-array", res.data);
                 setData([]);
             }
         } catch (err) {
-            console.error("Failed to load general analysis", err);
+            logger.error("Failed to load general analysis", err);
         } finally {
             setLoading(false);
         }

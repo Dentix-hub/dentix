@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { api } from '@/api';
 import { ToggleLeft, ToggleRight, Settings, Plus, X, Building2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -26,7 +27,7 @@ export default function FeatureManager({ tenants }) {
             const res = await api.get('/api/v1/admin/features/');
             setFlags(res.data);
         } catch (error) {
-            console.error(error);
+            logger.error(error);
         } finally {
             setLoading(false);
         }

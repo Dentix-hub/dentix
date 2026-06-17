@@ -16,7 +16,7 @@ const UsersManager = ({ users, onSearch, onToggleStatus, loading }) => {
         <div className="space-y-6 animate-fade-in-up" dir={isRtl ? 'rtl' : 'ltr'}>
             {/* Search Header */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-                <form onSubmit={handleSearch} className={`flex items-center gap-2 w-full md:w-1/2 bg-slate-50 dark:bg-slate-800 p-2 ${isRtl ? 'pr-4 pl-4' : 'pl-4 pr-4'} rounded-xl border-2 border-transparent focus-within:border-indigo-500 transition-all`}>
+                <form onSubmit={handleSearch} className={`flex items-center gap-2 w-full md:w-1/2 bg-slate-50 dark:bg-slate-800 p-2 ${isRtl ? 'pe-4 ps-4' : 'ps-4 pe-4'} rounded-xl border-2 border-transparent focus-within:border-indigo-500 transition-all`}>
                     <Search className="text-slate-500" size={20} />
                     <input
                         type="text"

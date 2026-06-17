@@ -16,7 +16,8 @@ Flow:
 import time
 import uuid
 import logging
-from typing import Any, Callable, Optional
+import asyncio
+from typing import Any, Callable, Optional, Awaitable
 
 logger = logging.getLogger("smart_clinic")
 
@@ -110,7 +111,9 @@ class StampedeProtection:
             finally:
                 self._release_lock(cache_key, lock_value)
 
-        # 3. Lock not acquired — poll cache until available
+        # 3. Lock not acquired — poll cache until available.
+        # NOTE: This is the synchronous path, so time.sleep() is correct here.
+        # The async counterpart get_or_compute_async correctly uses asyncio.sleep().
         for attempt in range(self.MAX_RETRIES):
             time.sleep(self.RETRY_DELAY_SECONDS)
             cached_val = cache_instance.get(cache_key)
@@ -124,6 +127,72 @@ class StampedeProtection:
         # 4. Timeout fallback — compute + cache anyway
         logger.warning(f"Stampede: timeout waiting for {cache_key}, computing fallback")
         result = compute_func()
+        try:
+            val = result.model_dump() if hasattr(result, "model_dump") else result
+            cache_instance.set(cache_key, val, expire=expire)
+        except Exception:
+            pass
+        return result
+
+    async def get_or_compute_async(
+        self,
+        cache_key: str,
+        compute_func: Callable[[], Awaitable[Any]],
+        cache_instance,
+        expire: int = 300,
+    ) -> Any:
+        """
+        Async version of get_or_compute.
+        Return cached value or compute it with async stampede protection.
+        """
+        # 1. Fast path — cache hit
+        cached_val = cache_instance.get(cache_key)
+        if cached_val is not None:
+            return cached_val
+
+        # 2. Try to acquire lock
+        acquired, lock_value = self._acquire_lock(cache_key)
+
+        if acquired:
+            try:
+                # Double-check after acquiring
+                cached_val = cache_instance.get(cache_key)
+                if cached_val is not None:
+                    return cached_val
+
+                # Compute
+                result = await compute_func()
+
+                # Serialize for cache
+                if hasattr(result, "model_dump"):
+                    val_to_cache = result.model_dump()
+                elif hasattr(result, "dict"):
+                    val_to_cache = result.dict()
+                else:
+                    val_to_cache = result
+
+                cache_instance.set(cache_key, val_to_cache, expire=expire)
+                logger.info(f"Stampede: computed and cached {cache_key}")
+                return result
+            except Exception:
+                raise
+            finally:
+                self._release_lock(cache_key, lock_value)
+
+        # 3. Lock not acquired — poll cache until available
+        for attempt in range(self.MAX_RETRIES):
+            await asyncio.sleep(self.RETRY_DELAY_SECONDS)
+            cached_val = cache_instance.get(cache_key)
+            if cached_val is not None:
+                logger.debug(
+                    f"Stampede: got cached {cache_key} after "
+                    f"{(attempt + 1) * self.RETRY_DELAY_SECONDS:.2f}s"
+                )
+                return cached_val
+
+        # 4. Timeout fallback — compute + cache anyway
+        logger.warning(f"Stampede: timeout waiting for {cache_key}, computing fallback")
+        result = await compute_func()
         try:
             val = result.model_dump() if hasattr(result, "model_dump") else result
             cache_instance.set(cache_key, val, expire=expire)

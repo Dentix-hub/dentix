@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Form, Request
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
 from backend import models, crud, schemas
 from backend import auth as auth_utils
 from backend.core.limiter import limiter
 from backend.core.response import success_response, StandardResponse
-from .dependencies import get_db, validate_password
+from .dependencies import get_async_db, validate_password
 import logging
 
 logger = logging.getLogger("smart_clinic")
@@ -17,14 +17,14 @@ router = APIRouter()
 # --- Clinic Registration ---
 @router.post("/register_clinic", status_code=status.HTTP_201_CREATED, response_model=StandardResponse[schemas.Token])
 @limiter.limit("3/minute")
-def register_clinic(
+async def register_clinic(
     request: Request,
     clinic_name: str = Form(...),
     admin_username: str = Form(...),
     admin_email: str = Form(...),
     admin_password: str = Form(...),
     contact_phone: str = Form(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Register a new clinic (Tenant) and its Admin User.
@@ -49,17 +49,15 @@ def register_clinic(
     # Start Transaction (all DB operations inside try/except for OperationalError)
     try:
         # Check if username exists globally (username only, NOT email)
-        existing_username = (
-            db.query(models.User)
-            .filter(func.lower(models.User.username) == admin_username)
-            .first()
-        )
+        stmt = select(models.User).where(func.lower(models.User.username) == admin_username)
+        result = await db.execute(stmt)
+        existing_username = result.scalars().first()
         if existing_username:
             logger.warning(f"Registration failed: Username taken: {admin_username}")
             raise HTTPException(status_code=400, detail="Username already taken")
 
         # Check if email exists globally
-        existing_email = crud.get_user_by_email(db, admin_email)
+        existing_email = await crud.get_user_by_email(db, admin_email)
         if existing_email:
             logger.warning(f"Registration failed: Email already registered: {admin_email}")
             raise HTTPException(status_code=400, detail="Email already registered")
@@ -69,14 +67,14 @@ def register_clinic(
 
         # 1. Create Tenant (domain_slug removed as it was unused)
         # Get Default Plan (Basic)
-        default_plan = (
-            db.query(models.SubscriptionPlan)
-            .filter(models.SubscriptionPlan.is_default)
-            .first()
-        )
+        stmt_plan = select(models.SubscriptionPlan).where(models.SubscriptionPlan.is_default)
+        result_plan = await db.execute(stmt_plan)
+        default_plan = result_plan.scalars().first()
         # Fallback if no default plan
         if not default_plan:
-            default_plan = db.query(models.SubscriptionPlan).first()
+            stmt_plan_fallback = select(models.SubscriptionPlan)
+            result_plan_fallback = await db.execute(stmt_plan_fallback)
+            default_plan = result_plan_fallback.scalars().first()
 
         plan_id = default_plan.id if default_plan else None
 
@@ -87,7 +85,7 @@ def register_clinic(
             contact_phone=contact_phone,
         )
         db.add(new_tenant)
-        db.flush()  # Get ID
+        await db.flush()  # Get ID
 
         # 2. Create Admin User
         hashed_password = auth_utils.get_password_hash(admin_password)
@@ -100,8 +98,8 @@ def register_clinic(
             is_active=True,
         )
         db.add(new_user)
-        db.commit()
-        db.refresh(new_user)
+        await db.commit()
+        await db.refresh(new_user)
 
         # Generate Token for immediate login
         access_token = auth_utils.create_access_token(
@@ -123,13 +121,13 @@ def register_clinic(
         )
 
     except OperationalError as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Registration DB error: {e}", exc_info=True)
         raise HTTPException(
             status_code=503,
             detail="Database temporarily unavailable. Please try again in a moment.",
         )
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         logger.error(f"Registration error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

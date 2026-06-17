@@ -5,7 +5,10 @@ from sqlalchemy import text, inspect
 # Add parent directory to path to import backend modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from backend.database import SessionLocal, engine
+from backend.database import async_engine
+from sqlalchemy.orm import sessionmaker
+engine = async_engine.sync_engine
+SessionLocal = sessionmaker(bind=engine)
 
 
 def migrate_soft_delete():

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { getUsers, registerUser, updateUser, deleteUser } from '../api';
 import { UserPlus, Trash2, Shield, User, Edit } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -33,7 +34,7 @@ export default function UsersManager() {
             const res = await getUsers();
             setUsers(res.data);
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             if (err.response && err.response.status === 403) {
                 alert('Access Denied');
             }
@@ -49,7 +50,7 @@ export default function UsersManager() {
                     perms = typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions;
                 }
             } catch (e) {
-                console.error("Error parsing permissions", e);
+                logger.error("Error parsing permissions", e);
             }
             setNewUser({
                 id: user.id,
@@ -93,7 +94,7 @@ export default function UsersManager() {
     };
     const handleDelete = async (id) => {
         if (!id) {
-            console.error('Cannot delete user: id is undefined');
+            logger.error('Cannot delete user: id is undefined');
             return;
         }
         if (!confirm(t('users.form.delete_confirm'))) return;

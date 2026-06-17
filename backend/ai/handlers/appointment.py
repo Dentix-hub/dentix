@@ -1,5 +1,6 @@
 from typing import Dict
 from datetime import datetime, timedelta
+from sqlalchemy import select
 from ... import models
 from .base import BaseHandler
 from backend.services.patient_service import PatientService
@@ -29,10 +30,10 @@ class AppointmentHandler(BaseHandler):
                 target_date = datetime.now().date()
 
         # Get appointments
-        appointments = (
-            self.db.query(models.Appointment)
+        stmt = (
+            select(models.Appointment)
             .join(models.Patient, models.Appointment.patient_id == models.Patient.id)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Appointment.date_time
                 >= datetime.combine(target_date, datetime.min.time()),
@@ -41,20 +42,21 @@ class AppointmentHandler(BaseHandler):
                     target_date + timedelta(days=1), datetime.min.time()
                 ),
             )
-            .all()
         )
+        res = await self.db.execute(stmt)
+        appointments = res.scalars().all()
 
         if not appointments:
             return {"message": f"لا توجد مواعيد في {target_date}", "appointments": []}
 
         # Get patient names
         patient_ids = [a.patient_id for a in appointments]
-        patients = {
-            p.id: p.name
-            for p in self.db.query(models.Patient)
-            .filter(models.Patient.id.in_(patient_ids))
-            .all()
-        }
+        if patient_ids:
+            stmt_p = select(models.Patient).where(models.Patient.id.in_(patient_ids))
+            res_p = await self.db.execute(stmt_p)
+            patients = {p.id: p.name for p in res_p.scalars().all()}
+        else:
+            patients = {}
 
         return {
             "message": f"مواعيد يوم {target_date}: {len(appointments)} موعد",
@@ -90,10 +92,10 @@ class AppointmentHandler(BaseHandler):
                 target_date = datetime.now().date()
 
         # Get existing appointments for that day
-        existing = (
-            self.db.query(models.Appointment)
+        stmt = (
+            select(models.Appointment)
             .join(models.Patient)
-            .filter(
+            .where(
                 models.Patient.tenant_id == self.tenant_id,
                 models.Appointment.date_time
                 >= datetime.combine(target_date, datetime.min.time()),
@@ -102,8 +104,9 @@ class AppointmentHandler(BaseHandler):
                     target_date + timedelta(days=1), datetime.min.time()
                 ),
             )
-            .all()
         )
+        res = await self.db.execute(stmt)
+        existing = res.scalars().all()
 
         busy_times = {a.date_time.strftime("%H:%M") for a in existing}
 
@@ -151,7 +154,7 @@ class AppointmentHandler(BaseHandler):
             return {"error": "missing_name", "message": "اسم المريض مطلوب"}
 
         # Find patient using Service
-        patients = self.patient_service.search_patients_by_name(patient_name)
+        patients = await self.patient_service.search_patients_by_name(patient_name)
 
         if not patients:
             return {
@@ -201,15 +204,16 @@ class AppointmentHandler(BaseHandler):
 
         # Check for conflicts
         if preferred_time:
-            conflict = (
-                self.db.query(models.Appointment)
+            stmt = (
+                select(models.Appointment)
                 .join(models.Patient)
-                .filter(
+                .where(
                     models.Patient.tenant_id == self.tenant_id,
                     models.Appointment.date_time == preferred_time,
                 )
-                .first()
             )
+            res = await self.db.execute(stmt)
+            conflict = res.scalars().first()
 
             if conflict:
                 # Find alternatives
@@ -252,7 +256,7 @@ class AppointmentHandler(BaseHandler):
             notes=notes,
         )
         self.db.add(appointment)
-        self.db.commit()
+        await self.db.commit()
 
         return {
             "message": f"✅ تم حجز موعد لـ {patient.name} يوم {target_date} الساعة {preferred_time.strftime('%H:%M')}",
@@ -320,10 +324,6 @@ class AppointmentHandler(BaseHandler):
             try:
                 target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
             except ValueError:
-                # Try parsing assuming it might be a relative description the LLM failed to convert
-                # But as a safe fallback, if provided date is invalid, better to ASK than Assume Today
-                # For now, default to today but maybe adding a note would be better.
-                # Let's check if the LLM sent "21-01-2026" (DD-MM-YYYY) instead of YYYY-MM-DD
                 try:
                     target_date = datetime.strptime(date_str, "%d-%m-%Y").date()
                 except ValueError:
@@ -345,7 +345,7 @@ class AppointmentHandler(BaseHandler):
             )
 
         # Find patient using Service
-        patients = self.patient_service.search_patients_by_name(patient_name)
+        patients = await self.patient_service.search_patients_by_name(patient_name)
 
         if not patients:
             return {
@@ -374,7 +374,7 @@ class AppointmentHandler(BaseHandler):
             notes="حجز عبر المساعد الذكي",
         )
         self.db.add(appointment)
-        self.db.commit()
+        await self.db.commit()
 
         return {
             "message": f"✅ تم حجز موعد لـ {patient.name} يوم {target_date} الساعة {target_datetime.strftime('%H:%M')}",

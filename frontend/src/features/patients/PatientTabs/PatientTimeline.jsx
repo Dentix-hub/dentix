@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from '@/lib/motion';
 import { Calendar, CreditCard, CheckCircle2, Clock } from 'lucide-react';
 
 const PatientTimeline = ({ history = [], payments = [], t }) => {

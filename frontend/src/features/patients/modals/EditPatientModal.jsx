@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { getDoctors } from '@/api';
 import PriceListSelector from '@/shared/ui/PriceListSelector';
@@ -26,7 +27,7 @@ export default function EditPatientModal({ isOpen, onClose, onSave, initialData 
         if (isOpen) {
             getDoctors()
                 .then(res => setDoctors(res.data))
-                .catch(err => console.error("Failed to fetch doctors", err));
+                .catch(err => logger.error("Failed to fetch doctors", err));
         }
     }, [isOpen]);
 

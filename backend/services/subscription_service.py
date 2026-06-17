@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from sqlalchemy import select, update
 from backend import models, schemas
 from fastapi import HTTPException
 
@@ -9,12 +11,13 @@ class SubscriptionService:
     DEFAULT_GRACE_PERIOD_DAYS = 7
 
     @staticmethod
-    def check_subscription_status(db: Session, tenant_id: int):
+    async def check_subscription_status(db: AsyncSession, tenant_id: int):
         """
         Evaluates the current status of a tenant subscription.
         Returns: 'active', 'grace_period', 'expired', 'suspended'
         """
-        tenant = db.query(models.Tenant).filter(models.Tenant.id == tenant_id).first()
+        stmt = select(models.Tenant).where(models.Tenant.id == tenant_id)
+        tenant = (await db.execute(stmt)).scalar_one_or_none()
         if not tenant:
             return None
 
@@ -46,8 +49,9 @@ class SubscriptionService:
         return "expired"
 
     @staticmethod
-    def extend_grace_period(db: Session, tenant_id: int, days: int, reason: str):
-        tenant = db.query(models.Tenant).filter(models.Tenant.id == tenant_id).first()
+    async def extend_grace_period(db: AsyncSession, tenant_id: int, days: int, reason: str):
+        stmt = select(models.Tenant).where(models.Tenant.id == tenant_id)
+        tenant = (await db.execute(stmt)).scalar_one_or_none()
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found")
 
@@ -55,34 +59,33 @@ class SubscriptionService:
         tenant.manual_override_reason = reason
         tenant.is_active = True
 
-        db.commit()
+        await db.commit()
         return tenant
 
     @staticmethod
-    def manual_suspend(db: Session, tenant_id: int, reason: str):
-        tenant = db.query(models.Tenant).filter(models.Tenant.id == tenant_id).first()
+    async def manual_suspend(db: AsyncSession, tenant_id: int, reason: str):
+        stmt = select(models.Tenant).where(models.Tenant.id == tenant_id)
+        tenant = (await db.execute(stmt)).scalar_one_or_none()
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found")
 
         tenant.is_active = False
         tenant.manual_override_reason = f"Suspended: {reason}"
-        db.commit()
+        await db.commit()
         return tenant
 
     @staticmethod
-    def get_subscription_details(db: Session, tenant_id: int):
+    async def get_subscription_details(db: AsyncSession, tenant_id: int):
         """Get full subscription details for UI/AI."""
-        tenant = db.query(models.Tenant).filter(models.Tenant.id == tenant_id).first()
+        stmt = select(models.Tenant).where(models.Tenant.id == tenant_id)
+        tenant = (await db.execute(stmt)).scalar_one_or_none()
         if not tenant:
             return None
 
         plan = None
         if tenant.plan_id:
-            plan = (
-                db.query(models.SubscriptionPlan)
-                .filter(models.SubscriptionPlan.id == tenant.plan_id)
-                .first()
-            )
+            stmt = select(models.SubscriptionPlan).where(models.SubscriptionPlan.id == tenant.plan_id)
+            plan = (await db.execute(stmt)).scalar_one_or_none()
 
         plan_name = plan.display_name_ar if plan else (tenant.plan or "مجاني")
         plan_price = plan.price if plan else 0
@@ -99,32 +102,26 @@ class SubscriptionService:
         }
 
     @staticmethod
-    def get_all_plans(db: Session):
+    async def get_all_plans(db: AsyncSession):
         """List all active subscription plans."""
-        return (
-            db.query(models.SubscriptionPlan)
-            .filter(models.SubscriptionPlan.is_active)
-            .all()
-        )
+        stmt = select(models.SubscriptionPlan).where(models.SubscriptionPlan.is_active == True)  # noqa: E712
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
 
     @staticmethod
-    def create_plan(db: Session, plan_data: schemas.SubscriptionPlanCreate):
+    async def create_plan(db: AsyncSession, plan_data: schemas.SubscriptionPlanCreate):
         """Create a new subscription plan."""
-        existing = (
-            db.query(models.SubscriptionPlan)
-            .filter(models.SubscriptionPlan.name == plan_data.name)
-            .first()
-        )
+        stmt = select(models.SubscriptionPlan).where(models.SubscriptionPlan.name == plan_data.name)
+        existing = (await db.execute(stmt)).scalar_one_or_none()
         if existing:
             raise HTTPException(
                 status_code=400, detail="Plan with this name already exists"
             )
 
         if getattr(plan_data, "is_default", False):
-            db.query(models.SubscriptionPlan).update(
-                {models.SubscriptionPlan.is_default: False}
-            )
-            db.commit()
+            stmt = update(models.SubscriptionPlan).values(is_default=False)
+            await db.execute(stmt)
+            await db.commit()
 
         new_plan = models.SubscriptionPlan(
             name=plan_data.name,
@@ -141,92 +138,80 @@ class SubscriptionService:
             is_active=True,
         )
         db.add(new_plan)
-        db.commit()
-        db.refresh(new_plan)
+        await db.commit()
+        await db.refresh(new_plan)
         return new_plan
 
     @staticmethod
-    def update_plan(
-        db: Session, plan_id: int, update_data: schemas.SubscriptionPlanUpdate
+    async def update_plan(
+        db: AsyncSession, plan_id: int, update_data: schemas.SubscriptionPlanUpdate
     ):
         """Update an existing plan."""
-        plan = (
-            db.query(models.SubscriptionPlan)
-            .filter(models.SubscriptionPlan.id == plan_id)
-            .first()
-        )
+        stmt = select(models.SubscriptionPlan).where(models.SubscriptionPlan.id == plan_id)
+        plan = (await db.execute(stmt)).scalar_one_or_none()
         if not plan:
             raise HTTPException(status_code=404, detail="Plan not found")
 
-        update_dict = update_data.dict(exclude_unset=True)
+        update_dict = update_data.model_dump(exclude_unset=True)
 
         if update_dict.get("is_default") is True:
-            db.query(models.SubscriptionPlan).filter(
+            stmt = update(models.SubscriptionPlan).where(
                 models.SubscriptionPlan.id != plan_id
-            ).update({models.SubscriptionPlan.is_default: False})
+            ).values(is_default=False)
+            await db.execute(stmt)
 
         for key, value in update_dict.items():
             setattr(plan, key, value)
 
-        db.commit()
-        db.refresh(plan)
+        await db.commit()
+        await db.refresh(plan)
         return plan
 
     @staticmethod
-    def delete_plan(db: Session, plan_id: int):
+    async def delete_plan(db: AsyncSession, plan_id: int):
         """Soft delete a plan (set is_active=False)."""
-        plan = (
-            db.query(models.SubscriptionPlan)
-            .filter(models.SubscriptionPlan.id == plan_id)
-            .first()
-        )
+        stmt = select(models.SubscriptionPlan).where(models.SubscriptionPlan.id == plan_id)
+        plan = (await db.execute(stmt)).scalar_one_or_none()
         if not plan:
             raise HTTPException(status_code=404, detail="Plan not found")
 
         plan.is_active = False
-        db.commit()
+        await db.commit()
         return {"success": True, "message": "Plan deactivated successfully"}
 
     # --- Payment Methods ---
     @staticmethod
-    def get_payments(db: Session, skip: int = 0, limit: int = 100):
-        return (
-            db.query(models.SubscriptionPayment)
+    async def get_payments(db: AsyncSession, skip: int = 0, limit: int = 100):
+        stmt = (
+            select(models.SubscriptionPayment)
+            .options(selectinload(models.SubscriptionPayment.tenant))
             .order_by(models.SubscriptionPayment.payment_date.desc())
             .offset(skip)
             .limit(limit)
-            .all()
         )
+        res = await db.execute(stmt)
+        return list(res.scalars().all())
 
     @staticmethod
-    def record_payment(
-        db: Session, payment_data: schemas.SubscriptionPaymentCreate, created_by: str
+    async def record_payment(
+        db: AsyncSession, payment_data: schemas.SubscriptionPaymentCreate, created_by: str
     ):
         if payment_data.provider_payment_id:
-            existing = (
-                db.query(models.SubscriptionPayment)
-                .filter(
-                    models.SubscriptionPayment.provider == payment_data.provider,
-                    models.SubscriptionPayment.provider_payment_id == payment_data.provider_payment_id,
-                )
-                .first()
+            stmt = select(models.SubscriptionPayment).where(
+                models.SubscriptionPayment.provider == payment_data.provider,
+                models.SubscriptionPayment.provider_payment_id == payment_data.provider_payment_id,
             )
+            existing = (await db.execute(stmt)).scalar_one_or_none()
             if existing:
                 return existing
 
-        tenant = (
-            db.query(models.Tenant)
-            .filter(models.Tenant.id == payment_data.tenant_id)
-            .first()
-        )
+        stmt = select(models.Tenant).where(models.Tenant.id == payment_data.tenant_id)
+        tenant = (await db.execute(stmt)).scalar_one_or_none()
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found")
 
-        plan = (
-            db.query(models.SubscriptionPlan)
-            .filter(models.SubscriptionPlan.id == payment_data.plan_id)
-            .first()
-        )
+        stmt = select(models.SubscriptionPlan).where(models.SubscriptionPlan.id == payment_data.plan_id)
+        plan = (await db.execute(stmt)).scalar_one_or_none()
         if not plan:
             raise HTTPException(status_code=404, detail="Plan not found")
 
@@ -254,22 +239,23 @@ class SubscriptionService:
         tenant.is_active = True
         tenant.subscription_status = "active"
 
-        db.commit()
-        db.refresh(payment)
+        await db.commit()
+        await db.refresh(payment)
         return payment
 
     @staticmethod
-    def create_checkout_session(
-        db: Session, checkout: schemas.SubscriptionCheckoutCreate
+    async def create_checkout_session(
+        db: AsyncSession, checkout: schemas.SubscriptionCheckoutCreate
     ) -> schemas.SubscriptionCheckoutSession:
-        tenant = db.query(models.Tenant).filter(models.Tenant.id == checkout.tenant_id).first()
+        stmt = select(models.Tenant).where(models.Tenant.id == checkout.tenant_id)
+        tenant = (await db.execute(stmt)).scalar_one_or_none()
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found")
-        plan = (
-            db.query(models.SubscriptionPlan)
-            .filter(models.SubscriptionPlan.id == checkout.plan_id, models.SubscriptionPlan.is_active == True)
-            .first()
+        stmt = select(models.SubscriptionPlan).where(
+            models.SubscriptionPlan.id == checkout.plan_id,
+            models.SubscriptionPlan.is_active == True
         )
+        plan = (await db.execute(stmt)).scalar_one_or_none()
         if not plan:
             raise HTTPException(status_code=404, detail="Plan not found")
 
@@ -286,8 +272,8 @@ class SubscriptionService:
         )
 
     @staticmethod
-    def handle_provider_webhook(
-        db: Session, event: schemas.SubscriptionWebhookEvent
+    async def handle_provider_webhook(
+        db: AsyncSession, event: schemas.SubscriptionWebhookEvent
     ) -> models.SubscriptionPayment:
         if event.provider_status.lower() not in {"paid", "succeeded", "success", "completed"}:
             raise HTTPException(status_code=202, detail="Payment event ignored until it is paid")
@@ -303,17 +289,14 @@ class SubscriptionService:
             provider_payment_id=event.provider_payment_id,
             provider_status=event.provider_status,
         )
-        return SubscriptionService.record_payment(db, payment, created_by=f"{event.provider}:webhook")
+        return await SubscriptionService.record_payment(db, payment, created_by=f"{event.provider}:webhook")
 
     @staticmethod
-    def delete_payment(db: Session, payment_id: int):
-        payment = (
-            db.query(models.SubscriptionPayment)
-            .filter(models.SubscriptionPayment.id == payment_id)
-            .first()
-        )
+    async def delete_payment(db: AsyncSession, payment_id: int):
+        stmt = select(models.SubscriptionPayment).where(models.SubscriptionPayment.id == payment_id)
+        payment = (await db.execute(stmt)).scalar_one_or_none()
         if not payment:
             raise HTTPException(status_code=404, detail="Payment not found")
 
-        db.delete(payment)
-        db.commit()
+        await db.delete(payment)
+        await db.commit()

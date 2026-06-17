@@ -54,7 +54,7 @@ def reset_current_tenant_id():
 
 def clear_tenant_context(tenant_token=None, admin_token=None):
     """Clear all tenant context to prevent bleeding across async tasks.
-    
+
     Args:
         tenant_token: Token from set_current_tenant_id() to reset
         admin_token: Token from set_super_admin_bypass() to reset
@@ -63,7 +63,7 @@ def clear_tenant_context(tenant_token=None, admin_token=None):
         _tenant_id_ctx_var.reset(tenant_token)
     else:
         _tenant_id_ctx_var.set(None)
-    
+
     if admin_token:
         _super_admin_bypass_ctx_var.reset(admin_token)
     else:

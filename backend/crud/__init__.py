@@ -48,6 +48,7 @@ from .billing import (
     delete_expense,
     get_financial_stats,
     get_dashboard_stats,
+    precompute_dashboard_cache,
 )
 from .procedure import (
     get_procedures,

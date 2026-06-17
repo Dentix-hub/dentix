@@ -1,5 +1,7 @@
 import logging
-from sqlalchemy.orm import Session, load_only, joinedload
+from sqlalchemy import select
+from sqlalchemy.orm import load_only, joinedload
+from sqlalchemy.ext.asyncio import AsyncSession
 from backend import models, schemas
 from backend.core.tenancy import get_current_tenant_id
 
@@ -9,7 +11,6 @@ logger = logging.getLogger(__name__)
 def _validate_tenant(tenant_id: int):
     ctx_id = get_current_tenant_id()
     if ctx_id is not None and ctx_id != tenant_id:
-        # Log this critical security event
         logger.critical(
             "SECURITY ALERT: Tenant Isolation Violation! Context: %s, Requested: %s",
             ctx_id,
@@ -19,27 +20,25 @@ def _validate_tenant(tenant_id: int):
 
 
 # --- Patient CRUD ---
-def get_patient(db: Session, patient_id: int, tenant_id: int):
+async def get_patient(db: AsyncSession, patient_id: int, tenant_id: int):
     _validate_tenant(tenant_id)
-    return (
-        db.query(models.Patient)
-        .filter(
-            models.Patient.id == patient_id,
+    stmt = select(models.Patient).where(
+        models.Patient.id == patient_id,
+        models.Patient.tenant_id == tenant_id,
+        models.Patient.is_deleted == False,  # noqa: E712
+    )
+    result = await db.execute(stmt)
+    return result.scalars().first()
+
+
+async def get_patients(db: AsyncSession, tenant_id: int, skip: int = 0, limit: int = 100):
+    _validate_tenant(tenant_id)
+    stmt = (
+        select(models.Patient)
+        .where(
             models.Patient.tenant_id == tenant_id,
             models.Patient.is_deleted == False,  # noqa: E712
         )
-        .first()
-    )
-
-
-def get_patients(db: Session, tenant_id: int, skip: int = 0, limit: int = 100):
-    _validate_tenant(tenant_id)
-    return (
-        db.query(models.Patient)
-        .filter(
-            models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False  # noqa: E712
-        )
-        # Defer heavy encrypted fields for list view
         .options(
             load_only(
                 models.Patient.id,
@@ -51,140 +50,115 @@ def get_patients(db: Session, tenant_id: int, skip: int = 0, limit: int = 100):
                 models.Patient.assigned_doctor_id,
             )
         )
-        # Prevent N+1 for doctor name if needed
         .options(joinedload(models.Patient.assigned_doctor))
         .order_by(models.Patient.created_at.desc())
         .offset(skip)
         .limit(limit)
-        .all()
     )
+    result = await db.execute(stmt)
+    return result.scalars().all()
 
 
-def search_patients(db: Session, query: str, tenant_id: int):
+async def search_patients(db: AsyncSession, query: str, tenant_id: int):
+    _validate_tenant(tenant_id)
     search = f"%{query}%"
-    return (
-        db.query(models.Patient)
-        .filter(
+    stmt = (
+        select(models.Patient)
+        .where(
             models.Patient.tenant_id == tenant_id,
             models.Patient.is_deleted == False,  # noqa: E712
             models.Patient.name.ilike(search),
         )
         .limit(5)
-        .all()
     )
+    result = await db.execute(stmt)
+    return result.scalars().all()
 
 
-def create_patient(db: Session, patient: schemas.PatientCreate, tenant_id: int):
-    # 1. Check for Duplicates (Name + Phone) within Tenant
-    # Note: Phone is encrypted, so we can't easily search it without decryption
-    # OR blind index. For now, we'll rely on Name + exact match if possible,
-    # but since phone is encrypted_string, we can't filter by it directly in SQL.
-    # We will enforce Name uniqueness for now as a basic check, or we can fetch all and check in python (slow).
-    # BETTER APPROACH: Just warn on Name duplication.
-    # Given the constraint: "Duplicate detection"
-
-    # Let's check Name at least.
-    existing = (
-        db.query(models.Patient)
-        .filter(
-            models.Patient.tenant_id == tenant_id,
-            models.Patient.name == patient.name,
-            models.Patient.is_deleted == False,  # noqa: E712
-        )
-        .first()
-    )
-
-    if existing:
-        # We allow same name if it's different person, but maybe warn?
-        # For this refactor, let's just proceed but adding a TODO for strict duplicate check
-        pass
-
+async def create_patient(db: AsyncSession, patient: schemas.PatientCreate, tenant_id: int):
+    _validate_tenant(tenant_id)
     patient_data = patient.dict()
-    # Remove gender if present (Model doesn't support it yet)
     if "gender" in patient_data:
         del patient_data["gender"]
 
     db_patient = models.Patient(**patient_data, tenant_id=tenant_id)
     db.add(db_patient)
-    db.commit()
-    db.refresh(db_patient)
+    await db.commit()
+    await db.refresh(db_patient)
     return db_patient
 
 
-def update_patient(
-    db: Session, patient_id: int, patient: schemas.PatientCreate, tenant_id: int
+async def update_patient(
+    db: AsyncSession, patient_id: int, patient: schemas.PatientCreate, tenant_id: int
 ):
-    db_patient = get_patient(db, patient_id, tenant_id)
+    db_patient = await get_patient(db, patient_id, tenant_id)
     if db_patient:
         for key, value in patient.dict().items():
             setattr(db_patient, key, value)
-        db.commit()
-        db.refresh(db_patient)
+        await db.commit()
+        await db.refresh(db_patient)
     return db_patient
 
 
-def delete_patient(db: Session, patient_id: int, tenant_id: int):
+async def delete_patient(db: AsyncSession, patient_id: int, tenant_id: int):
     """Soft Delete Patient."""
     from datetime import datetime, timezone
 
-    db_patient = get_patient(db, patient_id, tenant_id)
+    db_patient = await get_patient(db, patient_id, tenant_id)
     if db_patient:
         db_patient.is_deleted = True
         db_patient.deleted_at = datetime.now(timezone.utc)
-        db.commit()
-        db.refresh(db_patient)
+        await db.commit()
+        await db.refresh(db_patient)
     return db_patient
 
 
-def delete_patient_permanently(db: Session, patient_id: int, tenant_id: int):
+async def delete_patient_permanently(db: AsyncSession, patient_id: int, tenant_id: int):
     """Hard Delete Patient (Cascade)."""
-    db_patient = get_patient(db, patient_id, tenant_id)
+    db_patient = await get_patient(db, patient_id, tenant_id)
     if not db_patient:
-        # Check if it's already soft deleted?
-        # get_patient filters by is_deleted=False. We need to fetch even if deleted.
-        db_patient = (
-            db.query(models.Patient)
-            .filter(
-                models.Patient.id == patient_id, models.Patient.tenant_id == tenant_id
+        stmt = (
+            select(models.Patient)
+            .where(
+                models.Patient.id == patient_id,
+                models.Patient.tenant_id == tenant_id,
             )
-            .first()
         )
+        result = await db.execute(stmt)
+        db_patient = result.scalars().first()
 
     if db_patient:
-        # Cascade should be handled by DB FKs if ON DELETE CASCADE is set.
-        # If not, we might need manual cleanup.
-        # Assuming SQLAlchemy relationship cascade="all, delete-orphan" handles it on app side
-        # if loaded, or DB side if configured.
-        db.delete(db_patient)
-        db.commit()
+        await db.delete(db_patient)
+        await db.commit()
     return db_patient
 
 
 # --- Tooth Status CRUD ---
-def get_tooth_status(db: Session, patient_id: int, tenant_id: int):
-    return (
-        db.query(models.ToothStatus)
+async def get_tooth_status(db: AsyncSession, patient_id: int, tenant_id: int):
+    stmt = (
+        select(models.ToothStatus)
         .join(models.Patient)
-        .filter(
+        .where(
             models.ToothStatus.patient_id == patient_id,
             models.Patient.tenant_id == tenant_id,
         )
-        .all()
     )
+    result = await db.execute(stmt)
+    return result.scalars().all()
 
 
-def update_tooth_status(db: Session, status: schemas.ToothStatusCreate, tenant_id: int):
-    # Check if exists and owned by tenant
-    db_status = (
-        db.query(models.ToothStatus)
+async def update_tooth_status(db: AsyncSession, status: schemas.ToothStatusCreate, tenant_id: int):
+    stmt = (
+        select(models.ToothStatus)
         .join(models.Patient)
-        .filter(
+        .where(
             models.ToothStatus.patient_id == status.patient_id,
             models.ToothStatus.tooth_number == status.tooth_number,
             models.Patient.tenant_id == tenant_id,
         )
-        .first()
     )
+    result = await db.execute(stmt)
+    db_status = result.scalars().first()
 
     if db_status:
         db_status.condition = status.condition
@@ -193,80 +167,85 @@ def update_tooth_status(db: Session, status: schemas.ToothStatusCreate, tenant_i
         db_status = models.ToothStatus(**status.dict())
         db.add(db_status)
 
-    db.commit()
-    db.refresh(db_status)
+    await db.commit()
+    await db.refresh(db_status)
     return db_status
 
 
 # --- Attachments ---
-def create_attachment(db: Session, attachment: schemas.AttachmentCreate):
+async def create_attachment(db: AsyncSession, attachment: schemas.AttachmentCreate):
     db_attachment = models.Attachment(**attachment.dict())
     db.add(db_attachment)
-    db.commit()
-    db.refresh(db_attachment)
+    await db.commit()
+    await db.refresh(db_attachment)
     return db_attachment
 
 
-def get_patient_attachments(db: Session, patient_id: int, tenant_id: int):
-    return (
-        db.query(models.Attachment)
+async def get_patient_attachments(db: AsyncSession, patient_id: int, tenant_id: int):
+    stmt = (
+        select(models.Attachment)
         .join(models.Patient)
-        .filter(
+        .where(
             models.Attachment.patient_id == patient_id,
             models.Patient.tenant_id == tenant_id,
         )
-        .all()
     )
+    result = await db.execute(stmt)
+    return result.scalars().all()
 
 
-def delete_attachment(db: Session, attachment_id: int, tenant_id: int):
-    attachment = (
-        db.query(models.Attachment)
+async def delete_attachment(db: AsyncSession, attachment_id: int, tenant_id: int):
+    stmt = (
+        select(models.Attachment)
         .join(models.Patient)
-        .filter(
-            models.Attachment.id == attachment_id, models.Patient.tenant_id == tenant_id
+        .where(
+            models.Attachment.id == attachment_id,
+            models.Patient.tenant_id == tenant_id,
         )
-        .first()
     )
+    result = await db.execute(stmt)
+    attachment = result.scalars().first()
     if attachment:
-        db.delete(attachment)
-        db.commit()
+        await db.delete(attachment)
+        await db.commit()
     return attachment
 
 
 # --- Prescriptions ---
-def create_prescription(db: Session, prescription: schemas.PrescriptionCreate):
+async def create_prescription(db: AsyncSession, prescription: schemas.PrescriptionCreate):
     db_prescription = models.Prescription(**prescription.dict())
     db.add(db_prescription)
-    db.commit()
-    db.refresh(db_prescription)
+    await db.commit()
+    await db.refresh(db_prescription)
     return db_prescription
 
 
-def get_prescriptions(db: Session, patient_id: int, tenant_id: int):
-    return (
-        db.query(models.Prescription)
+async def get_prescriptions(db: AsyncSession, patient_id: int, tenant_id: int):
+    stmt = (
+        select(models.Prescription)
         .join(models.Patient)
-        .filter(
+        .where(
             models.Prescription.patient_id == patient_id,
             models.Patient.tenant_id == tenant_id,
         )
         .order_by(models.Prescription.date.desc())
-        .all()
     )
+    result = await db.execute(stmt)
+    return result.scalars().all()
 
 
-def delete_prescription(db: Session, prescription_id: int, tenant_id: int):
-    db_prescription = (
-        db.query(models.Prescription)
+async def delete_prescription(db: AsyncSession, prescription_id: int, tenant_id: int):
+    stmt = (
+        select(models.Prescription)
         .join(models.Patient)
-        .filter(
+        .where(
             models.Prescription.id == prescription_id,
             models.Patient.tenant_id == tenant_id,
         )
-        .first()
     )
+    result = await db.execute(stmt)
+    db_prescription = result.scalars().first()
     if db_prescription:
-        db.delete(db_prescription)
-        db.commit()
+        await db.delete(db_prescription)
+        await db.commit()
     return db_prescription

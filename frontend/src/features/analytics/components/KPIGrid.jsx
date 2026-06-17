@@ -3,7 +3,7 @@ import { TrendingUp, TrendingDown, DollarSign, Activity } from 'lucide-react';
 
 const StatCard = ({ title, value, subtext, trend, color, icon: Icon }) => (
     <div className="bg-surface p-6 rounded-2xl border border-border/50 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-        <div className={`absolute -right-4 -top-4 p-4 opacity-5 group-hover:opacity-10 transition-opacity transform rotate-12 ${color}`}>
+        <div className={`absolute -end-4 -top-4 p-4 opacity-5 group-hover:opacity-10 transition-opacity transform rotate-12 ${color}`}>
             <Icon size={100} />
         </div>
         <div className="relative z-10">

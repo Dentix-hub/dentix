@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import logger from '@/utils/logger';
 import { CheckCircle, XCircle, Clock } from 'lucide-react';
 import { getAILogs } from '@/api';
 export default function AILogs() {
@@ -12,7 +13,7 @@ export default function AILogs() {
             setLogs(res.data);
             setPage(pageNum);
         } catch (err) {
-            console.error("Failed to load logs", err);
+            logger.error("Failed to load logs", err);
         } finally {
             setLoading(false);
         }

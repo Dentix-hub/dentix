@@ -25,3 +25,9 @@ Thumbs.db
 # Build
 dist
 build
+
+# Secrets & Keys
+firebase-service-account.json
+*-service-account.json
+*.pem
+*.key

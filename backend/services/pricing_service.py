@@ -1,5 +1,5 @@
 """
-Pricing Service (Multi Price List Support)
+Pricing Service (Multi Price List Support - Refactored to Async)
 
 Central service for all pricing operations:
 - Get procedure prices from price lists
@@ -9,7 +9,9 @@ Central service for all pricing operations:
 SECURITY: Price access respects user permissions.
 """
 
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from typing import Optional, List, Dict, Any
 from datetime import date
 import json
@@ -24,58 +26,44 @@ logger = logging.getLogger(__name__)
 class PricingService:
     """Central pricing logic - SINGLE SOURCE OF TRUTH."""
 
-    def __init__(self, db: Session, tenant_id: int):
+    def __init__(self, db: AsyncSession, tenant_id: int):
         self.db = db
         self.tenant_id = tenant_id
 
     # --- Price Lists ---
 
-    def get_default_price_list(self) -> Optional[PriceList]:
+    async def get_default_price_list(self) -> Optional[PriceList]:
         """Get default (cash) price list for tenant."""
-        return (
-            self.db.query(PriceList)
-            .filter(
-                PriceList.tenant_id == self.tenant_id,
-                PriceList.is_default,
-                PriceList.is_active,
-            )
-            .first()
+        stmt = select(PriceList).where(
+            PriceList.tenant_id == self.tenant_id,
+            PriceList.is_default == True,
+            PriceList.is_active == True,
         )
+        return (await self.db.execute(stmt)).scalars().first()
 
-    def get_price_list(self, price_list_id: int) -> Optional[PriceList]:
+    async def get_price_list(self, price_list_id: int) -> Optional[PriceList]:
         """Get a specific price list."""
-        return (
-            self.db.query(PriceList)
-            .filter(
-                PriceList.id == price_list_id, PriceList.tenant_id == self.tenant_id
-            )
-            .first()
+        stmt = select(PriceList).where(
+            PriceList.id == price_list_id,
+            PriceList.tenant_id == self.tenant_id
         )
+        return (await self.db.execute(stmt)).scalars().first()
 
-    def get_available_price_lists(
+    async def get_available_price_lists(
         self, user: User, include_inactive: bool = False
     ) -> List[PriceList]:
         """Get price lists available for user's role."""
-        query = self.db.query(PriceList).filter(PriceList.tenant_id == self.tenant_id)
+        stmt = select(PriceList).where(PriceList.tenant_id == self.tenant_id)
 
         if not include_inactive:
-            query = query.filter(PriceList.is_active)
+            stmt = stmt.where(PriceList.is_active == True)
 
-        # Admin sees all
-        if user.role == Role.ADMIN.value:
-            return query.all()
-
-        # Accountant sees all
-        if user.role == Role.ACCOUNTANT.value:
-            return query.all()
-
-        # Doctor/Staff: only active cash + allowed insurance
-        # For now, return all active (can add restrictions later)
-        return query.all()
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
 
     # --- Procedure Pricing ---
 
-    def get_procedure_price(
+    async def get_procedure_price(
         self, procedure_id: int, price_list_id: Optional[int] = None
     ) -> float:
         """
@@ -88,52 +76,46 @@ class PricingService:
         """
         # Try specified price list
         if price_list_id:
-            item = (
-                self.db.query(PriceListItem)
-                .filter(
-                    PriceListItem.price_list_id == price_list_id,
-                    PriceListItem.procedure_id == procedure_id,
-                )
-                .first()
+            stmt = select(PriceListItem).where(
+                PriceListItem.price_list_id == price_list_id,
+                PriceListItem.procedure_id == procedure_id,
             )
+            item = (await self.db.execute(stmt)).scalars().first()
 
             if item:
                 return item.final_price
 
         # Try default price list
-        default_list = self.get_default_price_list()
+        default_list = await self.get_default_price_list()
         if default_list:
-            item = (
-                self.db.query(PriceListItem)
-                .filter(
-                    PriceListItem.price_list_id == default_list.id,
-                    PriceListItem.procedure_id == procedure_id,
-                )
-                .first()
+            stmt = select(PriceListItem).where(
+                PriceListItem.price_list_id == default_list.id,
+                PriceListItem.procedure_id == procedure_id,
             )
+            item = (await self.db.execute(stmt)).scalars().first()
 
             if item:
                 return item.final_price
 
         # Fallback to Procedure.price (legacy)
-        procedure = (
-            self.db.query(Procedure).filter(Procedure.id == procedure_id).first()
-        )
+        stmt = select(Procedure).where(Procedure.id == procedure_id)
+        procedure = (await self.db.execute(stmt)).scalars().first()
 
         return procedure.price if procedure and procedure.price else 0.0
 
-    def get_all_prices_for_procedure(self, procedure_id: int) -> List[Dict[str, Any]]:
+    async def get_all_prices_for_procedure(self, procedure_id: int) -> List[Dict[str, Any]]:
         """Get price from all price lists for a procedure."""
-        items = (
-            self.db.query(PriceListItem)
+        stmt = (
+            select(PriceListItem)
             .join(PriceList)
-            .filter(
+            .where(
                 PriceListItem.procedure_id == procedure_id,
                 PriceList.tenant_id == self.tenant_id,
-                PriceList.is_active,
+                PriceList.is_active == True,
             )
-            .all()
         )
+        result = await self.db.execute(stmt)
+        items = result.scalars().all()
 
         return [
             {
@@ -149,7 +131,7 @@ class PricingService:
 
     # --- Treatment Pricing ---
 
-    def apply_price_to_treatment(
+    async def apply_price_to_treatment(
         self,
         treatment: Treatment,
         price_list_id: Optional[int] = None,
@@ -165,14 +147,14 @@ class PricingService:
         """
         # Determine price list
         if not price_list_id:
-            default = self.get_default_price_list()
+            default = await self.get_default_price_list()
             price_list_id = default.id if default else None
 
-        price_list = self.get_price_list(price_list_id) if price_list_id else None
+        price_list = await self.get_price_list(price_list_id) if price_list_id else None
 
         # Get unit price
         if procedure_id:
-            unit_price = self.get_procedure_price(procedure_id, price_list_id)
+            unit_price = await self.get_procedure_price(procedure_id, price_list_id)
         else:
             unit_price = treatment.cost  # Use existing cost
 
@@ -224,7 +206,7 @@ class PricingService:
             }
 
         # Calculate based on coverage
-        total * (price_list.coverage_percent / 100)
+        # total * (price_list.coverage_percent / 100)
 
         # Apply copay
         if price_list.copay_fixed > 0:
@@ -244,6 +226,6 @@ class PricingService:
         }
 
 
-def get_pricing_service(db: Session, tenant_id: int) -> PricingService:
+def get_pricing_service(db: AsyncSession, tenant_id: int) -> PricingService:
     """Factory function for pricing service."""
     return PricingService(db, tenant_id)

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { Save, AlertTriangle, Monitor, Megaphone } from 'lucide-react';
 import { api } from '@/api';
 
@@ -39,7 +40,7 @@ const SettingsManager = ({ settings, fetchData }) => {
 
             alert("تم حفظ الإعدادات بنجاح");
         } catch (error) {
-            console.error(error);
+            logger.error(error);
             alert("فشل حفظ الإعدادات");
         } finally {
             setLoading(false);
@@ -88,7 +89,7 @@ const SettingsManager = ({ settings, fetchData }) => {
                             : 'bg-slate-200 dark:bg-slate-700'
                             }`}
                     >
-                        <span className={`absolute top-1 right-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 ${getSettingValue('maintenance_mode') === 'true'
+                        <span className={`absolute top-1 end-1 bg-white w-6 h-6 rounded-full shadow-sm transition-transform duration-300 ${getSettingValue('maintenance_mode') === 'true'
                             ? '-translate-x-8'
                             : 'translate-x-0'
                             }`} />

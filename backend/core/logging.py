@@ -52,7 +52,7 @@ def _scrub_phi(message: str) -> str:
 
 class StructuredFormatter(logging.Formatter):
     """JSON structured formatter for production logs.
-    
+
     Output format per line:
     {"timestamp": "...", "level": "INFO", "logger": "...", "message": "...", ...}
     """

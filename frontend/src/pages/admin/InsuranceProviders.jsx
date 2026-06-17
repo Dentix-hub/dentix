@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import {
     getInsuranceProviders,
     createInsuranceProvider,
@@ -32,7 +33,7 @@ export default function InsuranceProviders() {
             const response = await getInsuranceProviders();
             setProviders(response.data || []);
         } catch (error) {
-            console.error("Error fetching providers:", error);
+            logger.error("Error fetching providers:", error);
         } finally {
             setLoading(false);
         }
@@ -72,7 +73,7 @@ export default function InsuranceProviders() {
             setIsModalOpen(false);
             fetchProviders();
         } catch (error) {
-            console.error("Error saving provider:", error);
+            logger.error("Error saving provider:", error);
             toast.error("Error saving provider. Please check inputs.");
         }
     };
@@ -82,7 +83,7 @@ export default function InsuranceProviders() {
                 await deactivateInsuranceProvider(id);
                 fetchProviders();
             } catch (error) {
-                console.error("Error deactivating:", error);
+                logger.error("Error deactivating:", error);
                 toast.error(error.response?.data?.detail || "فشل حذف/تعطيل شركة التأمين");
             }
         }

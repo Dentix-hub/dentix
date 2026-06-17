@@ -1,7 +1,7 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional, Tuple
-from datetime import datetime, timezone
-from sqlalchemy import func
+from datetime import datetime, timezone, timedelta
+from sqlalchemy import func, select, or_
 import logging
 
 from backend import schemas
@@ -20,51 +20,50 @@ from backend.models.financial import Expense
 
 
 class InventoryService:
-    def __init__(self, db: Session = None, tenant_id: int = None):
+    def __init__(self, db: AsyncSession = None, tenant_id: int = None):
         self.db = db
         self.tenant_id = tenant_id
 
-    def _get_db(self, db: Session):
+    def _get_db(self, db: AsyncSession):
         result = db or self.db
         if result is None:
             raise RuntimeError("No database session provided to InventoryService. Please pass db parameter to method calls.")
         return result
 
     # --- WAREHOUSE ---
-    def create_warehouse(
-        self, data: schemas.WarehouseCreate, tenant_id: int, db: Session = None
+    async def create_warehouse(
+        self, data: schemas.WarehouseCreate, tenant_id: int, db: AsyncSession = None
     ) -> Warehouse:
         db = self._get_db(db)
         wh = Warehouse(**data.model_dump(), tenant_id=tenant_id)
         db.add(wh)
-        db.commit()
-        db.refresh(wh)
+        await db.commit()
+        await db.refresh(wh)
         return wh
 
-    def get_warehouses(self, tenant_id: int, db: Session = None) -> List[Warehouse]:
+    async def get_warehouses(self, tenant_id: int, db: AsyncSession = None) -> List[Warehouse]:
         db = self._get_db(db)
-        return db.query(Warehouse).filter(Warehouse.tenant_id == tenant_id).all()
+        stmt = select(Warehouse).where(Warehouse.tenant_id == tenant_id)
+        result = await db.execute(stmt)
+        return list(result.scalars().all())
 
-    def delete_warehouse(self, warehouse_id: int, tenant_id: int, db: Session = None):
+    async def delete_warehouse(self, warehouse_id: int, tenant_id: int, db: AsyncSession = None):
         """
         Delete warehouse if empty (no stock items with quantity > 0).
         """
         db = self._get_db(db)
-        wh = (
-            db.query(Warehouse)
-            .filter(Warehouse.id == warehouse_id, Warehouse.tenant_id == tenant_id)
-            .first()
-        )
+        stmt = select(Warehouse).where(Warehouse.id == warehouse_id, Warehouse.tenant_id == tenant_id)
+        wh = (await db.execute(stmt)).scalars().first()
         if not wh:
             raise ValueError("Warehouse not found")
 
         # Check for active stock (with tenant isolation)
-        has_stock = (
-            db.query(StockItem)
-            .filter(StockItem.warehouse_id == warehouse_id, StockItem.quantity > 0, StockItem.tenant_id == tenant_id)
-            .count()
-            > 0
+        stmt_stock = select(func.count(StockItem.id)).where(
+            StockItem.warehouse_id == warehouse_id,
+            StockItem.quantity > 0,
+            StockItem.tenant_id == tenant_id
         )
+        has_stock = (await db.scalar(stmt_stock) or 0) > 0
 
         if has_stock:
             raise ValueError(
@@ -72,59 +71,59 @@ class InventoryService:
             )
 
         # Delete empty stock items (cleanup)
-        db.query(StockItem).filter(StockItem.warehouse_id == warehouse_id).delete()
+        from sqlalchemy import delete
+        stmt_del = delete(StockItem).where(StockItem.warehouse_id == warehouse_id)
+        await db.execute(stmt_del)
 
-        db.delete(wh)
-        db.commit()
+        await db.delete(wh)
+        await db.commit()
         return True
 
     # --- MATERIAL ---
-    def create_material(
-        self, data: schemas.MaterialCreate, tenant_id: int, db: Session = None
+    async def create_material(
+        self, data: schemas.MaterialCreate, tenant_id: int, db: AsyncSession = None
     ) -> Material:
         db = self._get_db(db)
         mat = Material(**data.model_dump(), tenant_id=tenant_id)
         db.add(mat)
-        db.commit()
-        db.refresh(mat)
+        await db.commit()
+        await db.refresh(mat)
         return mat
 
-    def get_materials(self, tenant_id: int, db: Session = None) -> List[Material]:
+    async def get_materials(self, tenant_id: int, db: AsyncSession = None) -> List[Material]:
         db = self._get_db(db)
         from sqlalchemy.orm import joinedload
-        return (
-            db.query(Material)
+        stmt = (
+            select(Material)
             .options(joinedload(Material.category))
-            .filter(Material.tenant_id == tenant_id)
-            .all()
+            .where(Material.tenant_id == tenant_id)
         )
+        result = await db.execute(stmt)
+        return list(result.scalars().all())
 
-    def update_material(
+    async def update_material(
         self,
         material_id: int,
         data: schemas.MaterialUpdate,
         tenant_id: int,
-        db: Session = None,
+        db: AsyncSession = None,
     ) -> Material:
         db = self._get_db(db)
-        mat = (
-            db.query(Material)
-            .filter(Material.id == material_id, Material.tenant_id == tenant_id)
-            .first()
-        )
+        stmt = select(Material).where(Material.id == material_id, Material.tenant_id == tenant_id)
+        mat = (await db.execute(stmt)).scalars().first()
         if not mat:
             raise ValueError("Material not found")
 
         for key, value in data.model_dump(exclude_unset=True).items():
             setattr(mat, key, value)
 
-        db.commit()
-        db.refresh(mat)
+        await db.commit()
+        await db.refresh(mat)
         return mat
 
     # --- STOCK LOGIC ---
-    def get_material_stock_summary(
-        self, tenant_id: int, warehouse_id: Optional[int] = None, db: Session = None
+    async def get_material_stock_summary(
+        self, tenant_id: int, warehouse_id: Optional[int] = None, db: AsyncSession = None
     ) -> List[schemas.MaterialStockSummary]:
         """
         Group by Material + Base Unit.
@@ -136,8 +135,8 @@ class InventoryService:
         # Results: (id, name, type, unit, threshold, total_qty, batch_count)
         # Note: Left Outer Join to include materials with 0 stock
 
-        query = (
-            db.query(
+        stmt = (
+            select(
                 Material.id,
                 Material.name,
                 Material.type,
@@ -154,13 +153,22 @@ class InventoryService:
             .outerjoin(MaterialCategory, MaterialCategory.id == Material.category_id)
             .outerjoin(Batch, Batch.material_id == Material.id)
             .outerjoin(StockItem, StockItem.batch_id == Batch.id)
-            .filter(Material.tenant_id == tenant_id)
+            .where(Material.tenant_id == tenant_id)
         )
 
         if warehouse_id:
-            query = query.filter(StockItem.warehouse_id == warehouse_id)
+            stmt = stmt.where(StockItem.warehouse_id == warehouse_id)
 
-        results = query.group_by(Material.id, Material.brand, Material.standard_price, MaterialCategory.name_ar, MaterialCategory.name_en).all()
+        stmt = stmt.group_by(
+            Material.id,
+            Material.brand,
+            Material.standard_price,
+            MaterialCategory.name_ar,
+            MaterialCategory.name_en
+        )
+
+        result = await db.execute(stmt)
+        results = result.all()
 
         summary = []
         for r in results:
@@ -190,7 +198,7 @@ class InventoryService:
 
         return summary
 
-    def add_stock(
+    async def add_stock(
         self,
         material_id: int,
         warehouse_id: int,
@@ -198,7 +206,7 @@ class InventoryService:
         quantity: float,
         tenant_id: int,
         user_id: int,
-        db: Session = None,
+        db: AsyncSession = None,
     ) -> StockItem:
         """
         Purchase/Receive Stock.
@@ -207,25 +215,23 @@ class InventoryService:
         db = self._get_db(db)
 
         # 1. Check Batch
-        batch = (
-            db.query(Batch)
-            .filter(
-                Batch.batch_number == batch_data.batch_number,
-                Batch.material_id == material_id,
-                Batch.tenant_id == tenant_id,
-            )
-            .first()
+        stmt_batch = select(Batch).where(
+            Batch.batch_number == batch_data.batch_number,
+            Batch.material_id == material_id,
+            Batch.tenant_id == tenant_id,
         )
+        batch = (await db.execute(stmt_batch)).scalars().first()
 
         if not batch:
             batch = Batch(
                 material_id=material_id, tenant_id=tenant_id, **batch_data.model_dump()
             )
             db.add(batch)
-            db.flush()  # get ID
+            await db.flush()  # get ID
 
         # 2. Get Material for ratio and price update
-        mat = db.query(Material).get(material_id)
+        stmt_mat = select(Material).where(Material.id == material_id)
+        mat = (await db.execute(stmt_mat)).scalars().first()
         ratio = mat.packaging_ratio if mat and mat.packaging_ratio > 0 else 1.0
 
         # Update Material Standard Price with latest cost
@@ -247,7 +253,7 @@ class InventoryService:
                 quantity=ratio,  # Each package starts with full ratio
             )
             db.add(stock_item)
-            db.flush()
+            await db.flush()
 
             # Record Movement for each item
             move = StockMovement(
@@ -261,7 +267,6 @@ class InventoryService:
 
         # 4. Add to Expenses automatically
         if batch_data.cost_per_unit > 0:
-            # FIX: cost_per_unit is per Base Unit, so we must multiply by ratio to get Package Price
             total_cost = batch_data.cost_per_unit * ratio * quantity
             expense = Expense(
                 item_name=f"شراء: {mat.name}",
@@ -273,11 +278,11 @@ class InventoryService:
             )
             db.add(expense)
 
-        db.commit()
+        await db.commit()
 
         # Return the first created item (for API compatibility)
         if created_items:
-            db.refresh(created_items[0])
+            await db.refresh(created_items[0])
             return created_items[0]
 
         # Fallback: if quantity was 0 or less, return empty item
@@ -288,13 +293,13 @@ class InventoryService:
             quantity=0,
         )
 
-    def validate_stock(
+    async def validate_stock(
         self,
         material_id: int,
         quantity: float,
         tenant_id: int,
         warehouse_id: Optional[int] = None,
-        db: Session = None,
+        db: AsyncSession = None,
     ) -> Tuple[bool, float, str]:
         """
         Check if stock is sufficient without consuming.
@@ -303,18 +308,15 @@ class InventoryService:
         db = self._get_db(db)
 
         # Get Material Name
-        mat = (
-            db.query(Material)
-            .filter(Material.id == material_id, Material.tenant_id == tenant_id)
-            .first()
-        )
+        stmt_mat = select(Material).where(Material.id == material_id, Material.tenant_id == tenant_id)
+        mat = (await db.execute(stmt_mat)).scalars().first()
         mat_name = mat.name if mat else f"Unknown Material {material_id}"
 
         # Sum Quantity (Global if warehouse_id is None)
-        query = (
-            db.query(func.coalesce(func.sum(StockItem.quantity), 0))
+        stmt_sum = (
+            select(func.coalesce(func.sum(StockItem.quantity), 0))
             .join(Batch)
-            .filter(
+            .where(
                 Batch.material_id == material_id,
                 StockItem.quantity > 0,
                 StockItem.tenant_id == tenant_id,
@@ -322,54 +324,42 @@ class InventoryService:
         )
 
         if warehouse_id:
-            query = query.filter(StockItem.warehouse_id == warehouse_id)
+            stmt_sum = stmt_sum.where(StockItem.warehouse_id == warehouse_id)
 
         # 1. Custom Validation for Divisible Materials with Active Session
-        # Only check active session if we are validating for a specific warehouse/batch context
-        # But 'validate_stock' assumes checking Global or Warehouse availability.
-        # If we have an active session, we consider stock available for consumption (via that session).
-
-        # We need to find if *any* stock item of this material has an active session.
-        # Use helper
-        has_active_session = (
-            db.query(MaterialSession)
+        stmt_sess = (
+            select(func.count(MaterialSession.id))
             .join(StockItem)
             .join(Batch)
-            .filter(
-                Batch.material_id == material_id, MaterialSession.status == "ACTIVE"
+            .where(
+                Batch.material_id == material_id,
+                MaterialSession.status == "ACTIVE"
             )
-            .count()
-            > 0
         )
+        has_active_session = (await db.scalar(stmt_sess) or 0) > 0
 
-        # Check Material Type - only DIVISIBLE/REUSABLE materials have virtual availability via sessions
-        # NON_DIVISIBLE materials must check actual physical stock
         if has_active_session:
-            mat = db.query(Material).filter(Material.id == material_id).first()
             if mat and mat.type in ("DIVISIBLE", "REUSABLE"):
                 return True, float('inf'), mat_name  # Virtual availability for DIVISIBLE/REUSABLE
-            # For NON_DIVISIBLE, fall through to check actual stock
 
-        total_available = query.scalar()
+        total_available = await db.scalar(stmt_sum) or 0.0
 
         return (total_available >= quantity), total_available, mat_name
 
     # --- SESSION MANAGEMENT ---
-    def get_active_session(
-        self, stock_item_id: int, db: Session = None
+    async def get_active_session(
+        self, stock_item_id: int, db: AsyncSession = None
     ) -> Optional[MaterialSession]:
         db = self._get_db(db)
-        return (
-            db.query(MaterialSession)
-            .filter(
-                MaterialSession.stock_item_id == stock_item_id,
-                MaterialSession.status == "ACTIVE",
-            )
-            .first()
+        stmt = select(MaterialSession).where(
+            MaterialSession.stock_item_id == stock_item_id,
+            MaterialSession.status == "ACTIVE",
         )
+        result = await db.execute(stmt)
+        return result.scalars().first()
 
-    def open_session(
-        self, stock_item_id: int, user_id: int, patient_id: Optional[int] = None, db: Session = None, commit: bool = True
+    async def open_session(
+        self, stock_item_id: int, user_id: int, patient_id: Optional[int] = None, db: AsyncSession = None, commit: bool = True
     ) -> MaterialSession:
         """
         Explicitly open a material package (Session).
@@ -377,12 +367,20 @@ class InventoryService:
         - NON_DIVISIBLE: Requires qty >= 1, no deduction (consumption per unit)
         """
         db = self._get_db(db)
-        stock_item = db.query(StockItem).get(stock_item_id)
+
+        # Load stock_item and its batch/material relations
+        from sqlalchemy.orm import joinedload
+        stmt_item = (
+            select(StockItem)
+            .options(joinedload(StockItem.batch).joinedload(Batch.material))
+            .where(StockItem.id == stock_item_id)
+        )
+        stock_item = (await db.execute(stmt_item)).scalars().first()
         if not stock_item:
             raise ValueError("Stock Item not found")
 
         # Check existing
-        existing = self.get_active_session(stock_item_id, db)
+        existing = await self.get_active_session(stock_item_id, db)
         if existing:
             return existing
 
@@ -415,7 +413,6 @@ class InventoryService:
                 raise ValueError(
                     f"Insufficient stock to open session. Need at least 1 unit, Have {stock_item.quantity}"
                 )
-            # No deduction - consumption happens per unit via consume_stock
 
         # Create Session
         session = MaterialSession(
@@ -428,14 +425,13 @@ class InventoryService:
         )
         db.add(session)
         if commit:
-            db.commit()
-            db.refresh(session)
+            await db.commit()
+            await db.refresh(session)
 
-        # TODO: Trigger Notification "Material Opened"
         return session
 
-    def close_material_session_manually(
-        self, session_id: int, user_id: int, db: Session = None
+    async def close_material_session_manually(
+        self, session_id: int, user_id: int, db: AsyncSession = None
     ):
         """
         Manual close for Divisible items (Doctor decides).
@@ -445,41 +441,27 @@ class InventoryService:
 
         learning_service = InventoryLearningService(db)
 
-        # Calculate usage?
-        # The learning service handles the logic of finding treatments and calculating
-        # We just need to trigger it.
-        # But we need 'total_consumed'.
-        session = db.query(MaterialSession).get(session_id)
+        stmt_sess = select(MaterialSession).where(MaterialSession.id == session_id)
+        session = (await db.execute(stmt_sess)).scalars().first()
         if not session:
             raise ValueError("Session not found")
 
-        # For Divisible, total_consumed is whatever was tracked via 'consume_stock'
-        # OR we might calculate it as (Initial - Remaining)?
-        # Actually `consume_stock` decrements `StockItem.quantity`.
-        # So Total Consumed = Initial Qty (from Batch) - Current Qty?
-        # BUT `consume_stock` updates `StockItem`.
-
-        # Wait, if `StockItem` is used, the quantity decreases.
-        # So 'Total Consumed' = (Batch Initial - Current)?
-        # Actually if we assume the bottle is empty now, Total Consumed = SUM(Movements).
-
         # Let's get total usage from movements for this session window
-        total_usage = (
-            db.query(func.abs(func.sum(StockMovement.change_amount)))
-            .filter(
+        stmt_usage = (
+            select(func.abs(func.sum(StockMovement.change_amount)))
+            .where(
                 StockMovement.stock_item_id == session.stock_item_id,
                 StockMovement.change_amount < 0,
                 StockMovement.created_at >= session.opened_at,
                 StockMovement.created_at <= (session.closed_at or datetime.now(timezone.utc)),
             )
-            .scalar()
-            or 0.0
         )
+        total_usage = await db.scalar(stmt_usage) or 0.0
 
-        learning_service.close_session(session_id, float(total_usage), user_id)
+        await learning_service.close_session(session_id, float(total_usage), user_id)
         return True
 
-    def consume_stock(
+    async def consume_stock(
         self,
         material_id: int,
         quantity: float,
@@ -490,7 +472,7 @@ class InventoryService:
         auto_open: bool = False,
         reference_id: Optional[str] = None,
         patient_id: Optional[int] = None,
-        db: Session = None,
+        db: AsyncSession = None,
         commit: bool = True,
     ) -> List[StockMovement]:
         """
@@ -502,36 +484,37 @@ class InventoryService:
 
         # 0. Resolve Warehouse (Default to CLINIC if not specified)
         if not warehouse_id:
-            clinic_wh = (
-                db.query(Warehouse)
-                .filter(Warehouse.tenant_id == tenant_id, Warehouse.type == "CLINIC")
-                .first()
+            clinic_wh_stmt = select(Warehouse).where(
+                Warehouse.tenant_id == tenant_id, Warehouse.type == "CLINIC"
             )
+            clinic_wh = (await db.execute(clinic_wh_stmt)).scalars().first()
             if clinic_wh:
                 warehouse_id = clinic_wh.id
 
         # 1. Validation: Non-Divisible Integer Check (SKIP if active session exists)
-        mat = db.query(Material).filter(Material.id == material_id).first()
+        stmt_mat = select(Material).where(Material.id == material_id)
+        mat = (await db.execute(stmt_mat)).scalars().first()
         if not mat:
             raise ValueError(f"Material {material_id} not found")
 
-        # FIX: Check if this material has an active session - if so, allow fractional amounts
-        has_active_session_for_material = (
-            db.query(MaterialSession)
+        # Check if this material has an active session
+        stmt_active_sess = (
+            select(func.count(MaterialSession.id))
             .join(StockItem)
             .join(Batch)
-            .filter(
-                Batch.material_id == material_id, MaterialSession.status == "ACTIVE"
+            .where(
+                Batch.material_id == material_id,
+                MaterialSession.status == "ACTIVE"
             )
         )
 
         # If patient_id is provided, prioritize sessions for that patient
         if patient_id:
-            has_active_session_for_material = has_active_session_for_material.filter(
+            stmt_active_sess = stmt_active_sess.where(
                 MaterialSession.patient_id == patient_id
             )
 
-        has_active_session_for_material = has_active_session_for_material.count() > 0
+        has_active_session_for_material = (await db.scalar(stmt_active_sess) or 0) > 0
 
         # Only enforce integer check if NO active session
         if (
@@ -547,35 +530,44 @@ class InventoryService:
         remaining_to_consume = quantity
 
         # Find eligible StockItems
-        # Bug Fix: Include 0-quantity items IF they have an ACTIVE session (Divisible)
-        active_session_subquery = db.query(MaterialSession.stock_item_id).filter(
+        active_session_subquery = select(MaterialSession.stock_item_id).where(
             MaterialSession.status == "ACTIVE"
         )
 
-        query = (
-            db.query(StockItem)
+        stmt_items = (
+            select(StockItem)
             .join(Batch)
-            .filter(
+            .where(
                 Batch.material_id == material_id,
                 StockItem.tenant_id == tenant_id,
-                (StockItem.quantity > 0) | (StockItem.id.in_(active_session_subquery)),
+                or_(
+                    StockItem.quantity > 0,
+                    StockItem.id.in_(active_session_subquery)
+                )
             )
         )
 
         if warehouse_id:
-            query = query.filter(StockItem.warehouse_id == warehouse_id)
+            stmt_items = stmt_items.where(StockItem.warehouse_id == warehouse_id)
 
         if batch_id:
-            query = query.filter(Batch.id == batch_id)
+            stmt_items = stmt_items.where(Batch.id == batch_id)
 
-        # FIFO Sort - but items with active sessions come FIRST
-        stock_items_raw = query.order_by(Batch.expiry_date.asc()).all()
+        # FIFO Sort
+        stmt_items = stmt_items.order_by(Batch.expiry_date.asc())
+
+        # Load relations eagerly
+        from sqlalchemy.orm import joinedload
+        stmt_items = stmt_items.options(joinedload(StockItem.batch).joinedload(Batch.material))
+
+        result_items = await db.execute(stmt_items)
+        stock_items_raw = result_items.scalars().all()
 
         # Reorder: Active session items first, then rest by expiry
         items_with_session = []
         items_without_session = []
         for si in stock_items_raw:
-            sess = self.get_active_session(si.id, db)
+            sess = await self.get_active_session(si.id, db)
             if sess:
                 items_with_session.append(si)
             else:
@@ -586,12 +578,10 @@ class InventoryService:
         # S.1: Check for Active Session (Virtual Stock)
         has_active_session = False
         for si in stock_items:
-            sess = self.get_active_session(si.id, db)
+            sess = await self.get_active_session(si.id, db)
             if sess:
-                # If patient-specific tracking is on, ensure it matches
                 if patient_id and sess.patient_id and sess.patient_id != patient_id:
                     continue
-
                 has_active_session = True
                 break
 
@@ -607,53 +597,34 @@ class InventoryService:
             if remaining_to_consume <= 0:
                 break
 
-            # --- SMART LOGIC START ---
-            # 1. Open Check
-            session = self.get_active_session(si.id, db)
+            session = await self.get_active_session(si.id, db)
             mat_type = si.batch.material.type
             mat_name = si.batch.material.name
             logger.info(f"[CONSUME_DEBUG] Processing stock_item={si.id}, material={mat_name}, type={mat_type}, qty={si.quantity}, session={session is not None}")
 
             if not session:
-                # FIXED: Only enforce opening for DIVISIBLE items
                 if mat_type == "DIVISIBLE" or mat_type == "REUSABLE":
                     if auto_open:
-                        # This will decrement stock by packaging_ratio
                         try:
-                            session = self.open_session(si.id, user_id, db=db, commit=False)
-                            db.refresh(si)
+                            session = await self.open_session(si.id, user_id, db=db, commit=False)
+                            await db.refresh(si)
                         except ValueError as e:
                             raise e
                     else:
-                        # BLOCKING Trigger
                         raise ValueError(
                             f"CONFIRM_OPEN_REQUIRED:{si.id}:{si.batch.material.name} - Batch {si.batch.batch_number}"
                         )
-                else:
-                    logger.info(f"[CONSUME_DEBUG] Material {mat_name} is NON_DIVISIBLE, proceeding to direct consumption")
 
-            # 2. Consume Logic
-            # FIX: Only DIVISIBLE/REUSABLE materials use Virtual Consumption (no stock deduction)
-            # NON_DIVISIBLE materials must always deduct stock directly per unit consumed
             if session and mat_type in ("DIVISIBLE", "REUSABLE"):
-                # 1. Increment Usage Counter for Reusable Tools
-                mat = si.batch.material
-                if mat and (mat.type == "REUSABLE" or mat.max_uses > 1):
+                mat_obj = si.batch.material
+                if mat_obj and (mat_obj.type == "REUSABLE" or mat_obj.max_uses > 1):
                     session.current_uses += 1
 
-                    # Note: We removed the hard limit check as requested
-                    # Doctors will manually discard tools
-
-                # Satisfy request fully from this open session (Virtual Consumption)
-                # Assume infinite capacity until closed manually
                 remaining_to_consume = 0
-                # The caller (treatment) records the 'consumption' in its own logic via BOM.
                 logger.info(f"[CONSUME_DEBUG] Virtual consumption for {mat_name} (type={mat_type}) via session")
                 continue
 
-            # For NON_DIVISIBLE materials (even with session), proceed to direct stock deduction below
-
-            # 3. Standard Consumption (Non-Divisible or Divisible-but-legacy? No, Divisible enforced above)
+            # Standard Consumption
             consume_amount = min(si.quantity, remaining_to_consume)
             logger.info(f"[CONSUME_DEBUG] Standard consumption: consume_amount={consume_amount}, stock_qty={si.quantity}, remaining={remaining_to_consume}")
 
@@ -674,47 +645,38 @@ class InventoryService:
 
             # 4. Close Check (Non-Divisible Auto Close)
             if mat_type == "NON_DIVISIBLE" and si.quantity <= 0:
-                # Auto Close logic...
                 if session:
-                    db.flush()
-                    total_usage = (
-                        db.query(func.abs(func.sum(StockMovement.change_amount)))
-                        .filter(
+                    await db.flush()
+                    stmt_sum_move = (
+                        select(func.abs(func.sum(StockMovement.change_amount)))
+                        .where(
                             StockMovement.stock_item_id == si.id,
                             StockMovement.change_amount < 0,
                         )
-                        .scalar()
-                        or 0.0
                     )
+                    total_usage = await db.scalar(stmt_sum_move) or 0.0
 
                     from .inventory_learning_service import InventoryLearningService
-
                     ls = InventoryLearningService(db)
-                    ls.close_session(session.id, float(total_usage), user_id)
-
-            # --- SMART LOGIC END ---
+                    await ls.close_session(session.id, float(total_usage), user_id)
 
         if commit:
-            db.commit()
+            await db.commit()
         return movements
 
-    def reverse_stock_by_reference(
+    async def reverse_stock_by_reference(
         self,
         reference_id: str,
         user_id: int,
-        db: Session = None,
+        db: AsyncSession = None,
     ) -> List[StockMovement]:
         """
         Reverse all stock movements for a given reference_id.
-        Used when updating or deleting treatments to undo previous stock deductions.
         """
         db = self._get_db(db)
 
-        movements = (
-            db.query(StockMovement)
-            .filter(StockMovement.reference_id == reference_id)
-            .all()
-        )
+        stmt_move = select(StockMovement).where(StockMovement.reference_id == reference_id)
+        movements = (await db.execute(stmt_move)).scalars().all()
 
         if not movements:
             return []
@@ -723,11 +685,8 @@ class InventoryService:
         reverse_ref = f"REVERSE:{reference_id}"
 
         # Prevent double reversal
-        already_reversed = (
-            db.query(StockMovement)
-            .filter(StockMovement.reference_id == reverse_ref)
-            .count()
-        )
+        stmt_double = select(func.count(StockMovement.id)).where(StockMovement.reference_id == reverse_ref)
+        already_reversed = await db.scalar(stmt_double) or 0
         if already_reversed > 0:
             return []
 
@@ -742,37 +701,37 @@ class InventoryService:
             db.add(reverse_move)
 
             # Restore stock item quantity
-            stock_item = db.query(StockItem).get(move.stock_item_id)
+            stmt_si = select(StockItem).where(StockItem.id == move.stock_item_id)
+            stock_item = (await db.execute(stmt_si)).scalars().first()
             if stock_item:
-                stock_item.quantity -= move.change_amount  # e.g. -(-2) = +2
+                stock_item.quantity -= move.change_amount
 
             reversals.append(reverse_move)
 
         return reversals
 
-    def get_expiry_alerts(self, tenant_id: int, days: int = 30, db: Session = None):
+    async def get_expiry_alerts(self, tenant_id: int, days: int = 30, db: AsyncSession = None):
         """
         Find batches expiring within 'days' (default 30).
         """
         db = self._get_db(db)
         target_date = datetime.now().date()
-        from datetime import timedelta
-
         limit_date = target_date + timedelta(days=days)
 
         # Find batches with qty > 0 and expiry < limit
-        results = (
-            db.query(Batch, Material, StockItem)
+        stmt = (
+            select(Batch, Material, StockItem)
             .join(Material, Material.id == Batch.material_id)
             .join(StockItem, StockItem.batch_id == Batch.id)
-            .filter(
+            .where(
                 Batch.tenant_id == tenant_id,
                 StockItem.quantity > 0,
                 Batch.expiry_date <= limit_date,
             )
             .order_by(Batch.expiry_date.asc())
-            .all()
         )
+        result = await db.execute(stmt)
+        results = result.all()
 
         alerts = []
         for batch, mat, item in results:
@@ -790,125 +749,109 @@ class InventoryService:
 
         return alerts
 
-    def delete_material(self, material_id: int, tenant_id: int, db: Session = None):
+    async def delete_material(self, material_id: int, tenant_id: int, db: AsyncSession = None):
         """
         Delete material ensuring no dependencies block it.
-        Rules:
-        1. Access Check (Tenant)
-        2. Stock Check (Any quantity > 0) -> Block
-        3. History Check (Any movements) -> Block (or require purge, but blocking is safer)
         """
         db = self._get_db(db)
 
-        # 1. Get Material
-        mat = (
-            db.query(Material)
-            .filter(Material.id == material_id, Material.tenant_id == tenant_id)
-            .first()
-        )
+        stmt_mat = select(Material).where(Material.id == material_id, Material.tenant_id == tenant_id)
+        mat = (await db.execute(stmt_mat)).scalars().first()
         if not mat:
             logger.warning(f"[DELETE_DEBUG] Material {material_id} not found for tenant {tenant_id}")
             raise ValueError("Material not found")
 
         logger.info(f"[DELETE_DEBUG] Attempting to delete material {material_id} ({mat.name}), type={mat.type}")
 
-        # 2. Check Active Stock
-        stock_items = db.query(StockItem).join(Batch).filter(
+        # Check Active Stock
+        stmt_stock = select(StockItem).join(Batch).where(
             Batch.material_id == material_id,
             StockItem.quantity > 0
-        ).all()
+        )
+        stock_items = (await db.execute(stmt_stock)).scalars().all()
         has_stock = len(stock_items) > 0
         logger.info(f"[DELETE_DEBUG] Active stock check: {len(stock_items)} items with qty > 0")
-        for si in stock_items:
-            logger.info(f"[DELETE_DEBUG]   - StockItem {si.id}: qty={si.quantity}")
 
         if has_stock:
             raise ValueError(f"Cannot delete material '{mat.name}' with active stock ({len(stock_items)} items). Please consume or adjust stock to zero first.")
 
-        # 3. Check History (Movements) - with tenant isolation
-        history_count = db.query(StockMovement).join(StockItem).join(Batch).filter(
+        # Check History
+        stmt_history = select(func.count(StockMovement.id)).join(StockItem).join(Batch).where(
             Batch.material_id == material_id, Batch.tenant_id == tenant_id
-        ).count()
+        )
+        history_count = await db.scalar(stmt_history) or 0
         logger.info(f"[DELETE_DEBUG] History check: {history_count} movements found")
 
         if history_count > 0:
             raise ValueError(f"Cannot delete material '{mat.name}' with {history_count} historical movements (Audit trail protected).")
 
-        # 4. Cleanup (Cascade Delete logic if strict checks pass)
-        # Wrap in transaction to ensure atomicity
         try:
-            # Delete Weights (BOM)
             from ..models.inventory import ProcedureMaterialWeight, MaterialLearningLog
+            from sqlalchemy import delete
 
-            db.query(ProcedureMaterialWeight).filter(
-                ProcedureMaterialWeight.material_id == material_id
-            ).delete()
-            db.query(MaterialLearningLog).filter(
-                MaterialLearningLog.material_id == material_id
-            ).delete()
+            # Delete weights and learning logs
+            stmt_pw = delete(ProcedureMaterialWeight).where(ProcedureMaterialWeight.material_id == material_id)
+            await db.execute(stmt_pw)
+            stmt_ll = delete(MaterialLearningLog).where(MaterialLearningLog.material_id == material_id)
+            await db.execute(stmt_ll)
 
-            # Delete Sessions
-            # Note: If history check passed, there should be no sessions/movements, but safely cleaning empty orphan records
+            stmt_batches = select(Batch).where(Batch.material_id == material_id)
+            batches = (await db.execute(stmt_batches)).scalars().all()
 
-            # Delete StockItems (Empty ones)
-            # This requires finding them first
-            batches = db.query(Batch).filter(Batch.material_id == material_id).all()
             for b in batches:
-                stock_items = db.query(StockItem).filter(StockItem.batch_id == b.id).all()
-                for si in stock_items:
-                    # Delete sessions first (FK dependency)
-                    db.query(MaterialSession).filter(
-                        MaterialSession.stock_item_id == si.id
-                    ).delete()
-                    # Then delete movements
-                    db.query(StockMovement).filter(
-                        StockMovement.stock_item_id == si.id
-                    ).delete()
+                stmt_si = select(StockItem).where(StockItem.batch_id == b.id)
+                stock_items_to_del = (await db.execute(stmt_si)).scalars().all()
 
-                db.query(StockItem).filter(StockItem.batch_id == b.id).delete()
-                db.query(Batch).filter(Batch.id == b.id).delete()
+                for si in stock_items_to_del:
+                    stmt_sess_del = delete(MaterialSession).where(MaterialSession.stock_item_id == si.id)
+                    await db.execute(stmt_sess_del)
+                    stmt_move_del = delete(StockMovement).where(StockMovement.stock_item_id == si.id)
+                    await db.execute(stmt_move_del)
+
+                stmt_si_del = delete(StockItem).where(StockItem.batch_id == b.id)
+                await db.execute(stmt_si_del)
+                stmt_b_del = delete(Batch).where(Batch.id == b.id)
+                await db.execute(stmt_b_del)
 
             # Finally Delete Material
-            db.delete(mat)
-            db.commit()
+            await db.delete(mat)
+            await db.commit()
             return True
         except Exception:
-            db.rollback()
+            await db.rollback()
             raise
 
-    def get_cogs_summary(
+    async def get_cogs_summary(
         self,
         start_date: datetime,
         end_date: datetime,
         tenant_id: int,
-        db: Session = None,
+        db: AsyncSession = None,
     ) -> float:
         """
         Calculate Cost of Goods Sold (COGS) for a period.
-        Sum of (Usage Qty * Unit Cost).
-        Fallback to Material Standard Price if Batch Cost is 0.
         """
         db = self._get_db(db)
 
-        movements = (
-            db.query(StockMovement, Batch, Material)
+        stmt = (
+            select(StockMovement, Batch, Material)
             .join(StockItem, StockItem.id == StockMovement.stock_item_id)
             .join(Batch, Batch.id == StockItem.batch_id)
             .join(Material, Material.id == Batch.material_id)
-            .filter(
-                StockMovement.reason.in_(["USAGE", "EXPIRED"]),  # Removed SESSION_OPEN to prevent double-counting
+            .where(
+                StockMovement.reason.in_(["USAGE", "EXPIRED"]),
                 StockMovement.created_at >= start_date,
                 StockMovement.created_at <= end_date,
                 Batch.tenant_id == tenant_id,
             )
-            .all()
         )
+        result = await db.execute(stmt)
+        movements = result.all()
 
         total_cogs = 0.0
 
         for move, batch, mat in movements:
             qty = abs(move.change_amount)
-            # Priority: Batch Cost > Standard Price > 0
             cost = batch.cost_per_unit
             if cost <= 0:
                 cost = mat.standard_price or 0.0
@@ -917,14 +860,14 @@ class InventoryService:
 
         return total_cogs
 
-    def transfer_stock(
+    async def transfer_stock(
         self,
         stock_item_id: int,
         target_warehouse_id: int,
         quantity: float,
         tenant_id: int,
         user_id: int,
-        db: Session = None,
+        db: AsyncSession = None,
     ) -> StockMovement:
         """
         Transfer stock between warehouses (e.g., MAIN -> CLINIC).
@@ -932,7 +875,8 @@ class InventoryService:
         db = self._get_db(db)
 
         # 1. Source Item
-        source_item = db.query(StockItem).get(stock_item_id)
+        stmt_src = select(StockItem).where(StockItem.id == stock_item_id)
+        source_item = (await db.execute(stmt_src)).scalars().first()
         if not source_item:
             raise ValueError("Source stock item not found")
 
@@ -942,16 +886,15 @@ class InventoryService:
             )
 
         # 2. Target Item (Find or Create)
-        # Must match Batch & Material
-        target_item = (
-            db.query(StockItem)
-            .filter(
+        stmt_target = (
+            select(StockItem)
+            .where(
                 StockItem.warehouse_id == target_warehouse_id,
                 StockItem.batch_id == source_item.batch_id,
                 StockItem.tenant_id == tenant_id,
             )
-            .first()
         )
+        target_item = (await db.execute(stmt_target)).scalars().first()
 
         if not target_item:
             target_item = StockItem(
@@ -961,10 +904,11 @@ class InventoryService:
                 quantity=0,
             )
             db.add(target_item)
-            db.flush()
+            await db.flush()
 
         # 3. Validation: Non-Divisible Check
-        mat = source_item.batch.material
+        stmt_mat = select(Material).where(Material.id == source_item.batch.material_id)
+        mat = (await db.execute(stmt_mat)).scalars().first()
         if mat.type == "NON_DIVISIBLE" and not float(quantity).is_integer():
             raise ValueError(
                 f"Invalid Transfer Quantity: {mat.name} cannot be transferred in fractional amounts."
@@ -991,7 +935,7 @@ class InventoryService:
         db.add(move_out)
         db.add(move_in)
 
-        db.commit()
+        await db.commit()
         return move_in
 
 

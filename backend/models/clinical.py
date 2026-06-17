@@ -12,7 +12,8 @@ from .base import (
     Index,
     datetime,
 )
-from sqlalchemy import Boolean
+from sqlalchemy import Boolean, column
+from rls.schemas import Permissive, ConditionArg, Command
 
 
 class Appointment(Base):
@@ -21,6 +22,14 @@ class Appointment(Base):
         Index("idx_appointment_doctor_date", "doctor_id", "date_time"),
         Index("idx_appointment_tenant_date", "patient_id", "date_time"), # Indirect via patient join usually, but useful if denormalized or for patient history
     )
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
 
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
@@ -74,6 +83,14 @@ class Treatment(Base):
         Index("idx_treatment_patient_date", "patient_id", "date"),
     )
 
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
     tooth_number = Column(Integer, nullable=True)
@@ -90,6 +107,8 @@ class Treatment(Base):
     notes = Column(Text, nullable=True)
     status = Column(String, default="Done")  # Pending, In Progress, Done
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
 
     # Multi Price List Support
     price_list_id = Column(
@@ -106,6 +125,14 @@ class Treatment(Base):
 
 class TreatmentSession(Base):
     __tablename__ = "treatment_sessions"
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
 
     id = Column(Integer, primary_key=True, index=True)
     treatment_id = Column(Integer, ForeignKey("treatments.id"), index=True)
@@ -131,6 +158,14 @@ class Prescription(Base):
 class Laboratory(Base):
     __tablename__ = "laboratories"
 
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
     phone = Column(String, nullable=True)
@@ -153,6 +188,14 @@ class LabOrder(Base):
         Index("idx_laborder_doctor_date", "doctor_id", "order_date"),
         Index("idx_laborder_tenant_date", "tenant_id", "order_date"),
     )
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
 
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
@@ -179,6 +222,14 @@ class LabOrder(Base):
 
 class Procedure(Base):
     __tablename__ = "procedures"
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)

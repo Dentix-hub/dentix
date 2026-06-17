@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from backend.core.permissions import Permission, require_permission
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import List
 from datetime import datetime, timezone
 from backend.core.response import success_response, StandardResponse
 
 from .. import models, schemas
-from .auth import get_db
-from ..core.permissions import Role
+from .auth import get_async_db
+from backend.core.permissions import Role
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
@@ -19,86 +20,90 @@ def require_super_admin(current_user: models.User = Depends(require_permission(P
 
 
 @router.get("", response_model=StandardResponse[List[schemas.Notification]])
-def get_notifications(
-    db: Session = Depends(get_db), current_user: models.User = Depends(require_permission(Permission.PATIENT_READ))
+async def get_notifications(
+    db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_permission(Permission.PATIENT_READ))
 ):
     """Fetch notifications for the current user's tenant or global ones."""
     # Get all potential notifications
-    notifications = (
-        db.query(models.Notification)
+    stmt = (
+        select(models.Notification)
         .filter(
             (models.Notification.is_global)
             | (models.Notification.tenant_id == current_user.tenant_id)
         )
         .order_by(models.Notification.created_at.desc())
         .limit(50)
-        .all()
     )
+    result = await db.execute(stmt)
+    notifications = result.scalars().all()
 
     # Get user's interaction records (Read/Deleted)
-    user_interactions = (
-        db.query(models.NotificationRead)
+    stmt_read = (
+        select(models.NotificationRead)
         .filter(models.NotificationRead.user_id == current_user.id)
-        .all()
     )
+    result_read = await db.execute(stmt_read)
+    user_interactions = result_read.scalars().all()
 
     read_ids = {r.notification_id for r in user_interactions}
     deleted_ids = {r.notification_id for r in user_interactions if r.is_deleted}
 
     # Filter and Map
-    result = []
+    final_result = []
     for n in notifications:
         if n.id in deleted_ids:
             continue
 
         n_dict = schemas.Notification.from_orm(n)
         n_dict.is_read = n.id in read_ids
-        result.append(n_dict)
+        final_result.append(n_dict)
 
-    return success_response(data=result)
+    return success_response(data=final_result)
 
 
 @router.post("/{notification_id}/read", response_model=StandardResponse[dict])
-def mark_as_read(
+async def mark_as_read(
     notification_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.PATIENT_READ)),
 ):
     """Mark a notification as read for the current user."""
-    existing = (
-        db.query(models.NotificationRead)
+    stmt = (
+        select(models.NotificationRead)
         .filter(
             models.NotificationRead.user_id == current_user.id,
             models.NotificationRead.notification_id == notification_id,
         )
-        .first()
     )
+    result = await db.execute(stmt)
+    existing = result.scalars().first()
 
     if not existing:
         read_record = models.NotificationRead(
             user_id=current_user.id, notification_id=notification_id
         )
         db.add(read_record)
-        db.commit()
+        await db.commit()
 
     return success_response(message="Marked as read")
 
 
 @router.post("/{notification_id}/dismiss", response_model=StandardResponse[dict])
-def dismiss_notification(
+async def dismiss_notification(
     notification_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.PATIENT_READ)),
 ):
     """Dismiss (hide) a notification for the current user."""
-    existing = (
-        db.query(models.NotificationRead)
+    stmt = (
+        select(models.NotificationRead)
         .filter(
             models.NotificationRead.user_id == current_user.id,
             models.NotificationRead.notification_id == notification_id,
         )
-        .first()
     )
+    result = await db.execute(stmt)
+    existing = result.scalars().first()
 
     if existing:
         existing.is_deleted = True
@@ -114,14 +119,14 @@ def dismiss_notification(
         )
         db.add(new_record)
 
-    db.commit()
+    await db.commit()
     return success_response(message="Notification dismissed")
 
 
 @router.post("/broadcast", response_model=StandardResponse[schemas.Notification])
-def broadcast_notification(
+async def broadcast_notification(
     notification: schemas.NotificationCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
     """Broadcast a new notification (Super Admin only)."""
@@ -129,28 +134,27 @@ def broadcast_notification(
         **notification.dict(), created_by_id=current_user.id
     )
     db.add(db_notification)
-    db.commit()
-    db.refresh(db_notification)
-    db.refresh(db_notification)
+    await db.commit()
+    await db.refresh(db_notification)
     return success_response(data=db_notification, message="Notification broadcasted")
 
 
 @router.delete("/{notification_id}", response_model=StandardResponse[dict])
-def delete_notification(
+async def delete_notification(
     notification_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
     """Delete a notification (Super Admin only)."""
-    db_notification = (
-        db.query(models.Notification)
+    stmt = (
+        select(models.Notification)
         .filter(models.Notification.id == notification_id)
-        .first()
     )
+    result = await db.execute(stmt)
+    db_notification = result.scalars().first()
     if not db_notification:
         raise HTTPException(status_code=404, detail="Notification not found")
 
-    db.delete(db_notification)
-    db.commit()
-    db.commit()
+    await db.delete(db_notification)
+    await db.commit()
     return success_response(message="Notification deleted")

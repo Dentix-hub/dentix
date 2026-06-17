@@ -85,7 +85,7 @@ export default function PrintInvoice() {
                 </div>
             </div>
             {/* Footer */}
-            <div className="fixed bottom-0 left-0 right-0 p-8 text-center text-slate-500 text-sm border-t border-slate-100">
+            <div className="fixed bottom-0 start-0 end-0 p-8 text-center text-slate-500 text-sm border-t border-slate-100">
                 <p>عنوان العيادة: شارع التحرير - أمام محطة المترو</p>
                 <p>تليفون: 01000000000</p>
             </div>

@@ -73,7 +73,7 @@ export default function TwoFactorSetup({ isEnabled, onToggle }) {
                     <h3 className="text-xl font-black text-slate-800 dark:text-white">التحقق بخطوتين (2FA)</h3>
                     <p className="text-slate-500 font-bold text-sm">تأمين حسابك باستخدام تطبيق Authenticator</p>
                 </div>
-                <div className="mr-auto">
+                <div className="me-auto">
                     {isEnabled ? (
                         <span className="px-4 py-1.5 bg-emerald-500 text-white text-xs font-black rounded-full shadow-lg shadow-emerald-500/20">مفعل</span>
                     ) : (

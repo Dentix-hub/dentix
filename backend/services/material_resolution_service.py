@@ -9,8 +9,9 @@ Resolves which materials should be used for a given procedure based on:
 """
 
 from typing import List, Dict, Optional
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import or_, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
+from sqlalchemy import or_, func, select
 
 from backend.models import inventory as inv_models
 from backend.models import clinical as clinical_models
@@ -25,7 +26,7 @@ class MaterialResolutionService:
     4. Manual → user must pick
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
 
     def _normalize_name(self, name: str) -> str:
@@ -41,7 +42,7 @@ class MaterialResolutionService:
         # 4. Join back with no spaces for a canonical comparison string
         return "".join(parts)
 
-    def resolve_materials_for_procedure(
+    async def resolve_materials_for_procedure(
         self,
         procedure_id: int,
         tenant_id: int,
@@ -55,7 +56,10 @@ class MaterialResolutionService:
         suggestions = []
 
         # 1. Resolve Procedure
-        proc = self.db.query(clinical_models.Procedure).filter(clinical_models.Procedure.id == procedure_id).first()
+        proc_result = await self.db.execute(
+            select(clinical_models.Procedure).filter(clinical_models.Procedure.id == procedure_id)
+        )
+        proc = proc_result.scalars().first()
         if not proc:
             # LOG THE FAILURE
             try:
@@ -80,8 +84,8 @@ class MaterialResolutionService:
         # 2. Get all potential weights (Global + Tenant)
         # We fetch all global weights and tenant weights once
         # and then filter by normalized name in Python for maximum robustness
-        all_potential_weights = (
-            self.db.query(inv_models.ProcedureMaterialWeight)
+        stmt_weights = (
+            select(inv_models.ProcedureMaterialWeight)
             .options(
                 joinedload(inv_models.ProcedureMaterialWeight.category),
                 joinedload(inv_models.ProcedureMaterialWeight.procedure)
@@ -93,8 +97,9 @@ class MaterialResolutionService:
                 ),
                 inv_models.ProcedureMaterialWeight.category_id.isnot(None),
             )
-            .all()
         )
+        result_weights = await self.db.execute(stmt_weights)
+        all_potential_weights = result_weights.scalars().all()
 
         # Filter and deduplicate (Tenant overrides Global)
         # weight_key = (category_id, normalized_proc_name)
@@ -129,8 +134,8 @@ class MaterialResolutionService:
             return suggestions
 
         # Fetch all active sessions for this tenant once to avoid N+1 queries
-        active_sessions = (
-            self.db.query(inv_models.MaterialSession)
+        stmt_sessions = (
+            select(inv_models.MaterialSession)
             .join(inv_models.MaterialSession.stock_item)
             .filter(
                 inv_models.StockItem.tenant_id == tenant_id,
@@ -140,8 +145,9 @@ class MaterialResolutionService:
                 joinedload(inv_models.MaterialSession.stock_item)
                 .joinedload(inv_models.StockItem.batch)
             )
-            .all()
         )
+        result_sessions = await self.db.execute(stmt_sessions)
+        active_sessions = result_sessions.scalars().all()
         # Map material_id -> active_session
         session_map = {s.stock_item.batch.material_id: s for s in active_sessions}
 
@@ -152,14 +158,15 @@ class MaterialResolutionService:
                 continue
 
             # Get clinic materials in this category
-            clinic_materials = (
-                self.db.query(inv_models.Material)
+            stmt_materials = (
+                select(inv_models.Material)
                 .filter(
                     inv_models.Material.category_id == category.id,
                     inv_models.Material.tenant_id == tenant_id,
                 )
-                .all()
             )
+            result_materials = await self.db.execute(stmt_materials)
+            clinic_materials = result_materials.scalars().all()
 
             # Check for active sessions (for DIVISIBLE materials)
             active_session = None
@@ -218,7 +225,7 @@ class MaterialResolutionService:
 
         return suggestions
 
-    def get_doctor_preferred_material(
+    async def get_doctor_preferred_material(
         self,
         doctor_id: int,
         category_id: int,
@@ -229,8 +236,8 @@ class MaterialResolutionService:
         """
 
         # Query TreatmentMaterialUsage joined to Material to find most used
-        result = (
-            self.db.query(
+        stmt_usage = (
+            select(
                 inv_models.TreatmentMaterialUsage.material_id,
                 func.count(inv_models.TreatmentMaterialUsage.id).label("usage_count"),
             )
@@ -242,14 +249,13 @@ class MaterialResolutionService:
             )
             .group_by(inv_models.TreatmentMaterialUsage.material_id)
             .order_by(func.count(inv_models.TreatmentMaterialUsage.id).desc())
-            .first()
         )
+        result_usage = await self.db.execute(stmt_usage)
+        result = result_usage.first()
 
         if result:
             material_id = result[0]
-            return (
-                self.db.query(inv_models.Material)
-                .filter(inv_models.Material.id == material_id)
-                .first()
-            )
+            stmt_material = select(inv_models.Material).filter(inv_models.Material.id == material_id)
+            result_material = await self.db.execute(stmt_material)
+            return result_material.scalars().first()
         return None

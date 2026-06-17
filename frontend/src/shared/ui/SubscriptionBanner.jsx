@@ -62,7 +62,7 @@ const SubscriptionBanner = () => {
                 <span>{bannerInfo.message}</span>
                 <button 
                     onClick={() => window.location.href = '/settings'}
-                    className="ml-4 px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center gap-2 text-xs"
+                    className="ms-4 px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center gap-2 text-xs"
                 >
                     <CreditCard size={14} />
                     {t('settings.tabs.subscription')}

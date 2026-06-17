@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion } from '@/lib/motion';
 
 export default function TabGroup({ tabs, activeTab, onChange, variant = 'pill', className = '' }) {
     if (variant === 'underline') {
@@ -23,7 +23,7 @@ export default function TabGroup({ tabs, activeTab, onChange, variant = 'pill', 
                             {isActive && (
                                 <motion.div
                                     layoutId="tab-underline"
-                                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-full"
+                                    className="absolute bottom-0 start-0 end-0 h-0.5 bg-primary rounded-full"
                                     transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                                 />
                             )}

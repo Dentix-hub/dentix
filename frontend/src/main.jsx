@@ -1,4 +1,5 @@
 import React, { StrictMode } from 'react';
+import logger from '@/utils/logger';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 // Sentry Removed - Replaced by Internal Logger
@@ -17,9 +18,9 @@ class DiagnosticErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    console.error('🔴 [DENTIX DIAGNOSTIC] Error:', error.message);
-    console.error('🔴 [DENTIX DIAGNOSTIC] Component Stack:', info.componentStack);
-    console.error('🔴 [DENTIX DIAGNOSTIC] Full Error:', error);
+    logger.error('🔴 [DENTIX DIAGNOSTIC] Error:', error.message);
+    logger.error('🔴 [DENTIX DIAGNOSTIC] Component Stack:', info.componentStack);
+    logger.error('🔴 [DENTIX DIAGNOSTIC] Full Error:', error);
   }
 
   render() {

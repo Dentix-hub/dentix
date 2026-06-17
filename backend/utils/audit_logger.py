@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone
 import json
 import logging
@@ -26,7 +27,7 @@ def log_security_event(
     ip_address: str = None,
     user_agent: str = None,
     severity: str = "WARNING",
-    db: Session = None,
+    db: Session | AsyncSession = None,
 ):
     """
     Log security-related events to system log and DB.
@@ -67,7 +68,7 @@ def log_system_error(error_type: str, error: Exception, context: str = ""):
 
 
 def log_admin_action(
-    db: Session,
+    db: Session | AsyncSession,
     admin_user: models.User,
     action: str,  # create, update, delete, archive, restore
     entity_type: str,  # tenant, user, plan, payment

@@ -1,4 +1,5 @@
 import React from 'react';
+import logger from '@/utils/logger';
 import { Edit3, Save, X, Users, Activity, PlusCircle, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { createSubscriptionPlan } from '@/api';
@@ -37,7 +38,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
             if (onRefresh) onRefresh();
             alert(t('super_admin.plans.create_success'));
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             alert(t('super_admin.plans.create_fail') + ': ' + (err.response?.data?.detail || err.message));
         }
     };
@@ -54,7 +55,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                             </div>
 
                             <div>
-                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.plan_name_label')}</label>
+                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.plan_name_label')}</label>
                                 <input
                                     type="text"
                                     value={editedPlanData.display_name_ar ?? plan.display_name_ar}
@@ -66,7 +67,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
 
                             <div className="flex gap-4">
                                 <div className="flex-1">
-                                    <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.price_label')} ({t('super_admin.finance.currency')})</label>
+                                    <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.price_label')} ({t('super_admin.finance.currency')})</label>
                                     <input
                                         type="number"
                                         value={editedPlanData.price ?? plan.price}
@@ -75,7 +76,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     />
                                 </div>
                                 <div className="flex-1">
-                                    <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.duration_label')}</label>
+                                    <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.duration_label')}</label>
                                     <input
                                         type="number"
                                         value={editedPlanData.duration_days ?? plan.duration_days}
@@ -87,7 +88,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
 
                             <div className="flex gap-4">
                                 <div className="flex-1">
-                                    <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.users_label')}</label>
+                                    <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.users_label')}</label>
                                     <input
                                         type="number"
                                         value={editedPlanData.max_users ?? plan.max_users ?? ''}
@@ -97,7 +98,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     />
                                 </div>
                                 <div className="flex-1">
-                                    <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.patients_label')}</label>
+                                    <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.patients_label')}</label>
                                     <input
                                         type="number"
                                         value={editedPlanData.max_patients ?? plan.max_patients ?? ''}
@@ -109,7 +110,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                             </div>
 
                             <div>
-                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.features_label')}</label>
+                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.features_label')}</label>
                                 <textarea
                                     value={editedPlanData.features ?? plan.features}
                                     onChange={(e) => setEditedPlanData({ ...editedPlanData, features: e.target.value })}
@@ -165,7 +166,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                         </div>
                     ) : (
                         <>
-                            <div className={`absolute top-0 ${isRtl ? 'right-0' : 'left-0'} w-full h-[140px] bg-gradient-to-br from-indigo-500 to-teal-600 rounded-t-[2.5rem] opacity-10 group-hover:opacity-15 transition-opacity`} />
+                            <div className={`absolute top-0 ${isRtl ? 'end-0' : 'start-0'} w-full h-[140px] bg-gradient-to-br from-indigo-500 to-teal-600 rounded-t-[2.5rem] opacity-10 group-hover:opacity-15 transition-opacity`} />
                             <div className="relative pt-4">
                                 <div className="flex justify-between items-start mb-6">
                                     <div>
@@ -264,7 +265,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
 
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.plan_id_label')}</label>
+                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.plan_id_label')}</label>
                                 <input
                                     type="text"
                                     value={newPlanData.name}
@@ -274,7 +275,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                 />
                             </div>
                             <div>
-                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.plan_name_label')}</label>
+                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.plan_name_label')}</label>
                                 <input
                                     type="text"
                                     value={newPlanData.display_name_ar}
@@ -287,7 +288,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
 
                         <div className="flex gap-4">
                             <div className="flex-1">
-                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.price_label')} ({t('super_admin.finance.currency')})</label>
+                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.price_label')} ({t('super_admin.finance.currency')})</label>
                                 <input
                                     type="number"
                                     value={newPlanData.price}
@@ -296,7 +297,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                 />
                             </div>
                             <div className="flex-1">
-                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.duration_label')}</label>
+                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.duration_label')}</label>
                                 <input
                                     type="number"
                                     value={newPlanData.duration_days}
@@ -308,7 +309,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
 
                         <div className="flex gap-4">
                             <div className="flex-1">
-                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.users_label')}</label>
+                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.users_label')}</label>
                                 <input
                                     type="number"
                                     value={newPlanData.max_users || ''}
@@ -318,7 +319,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                 />
                             </div>
                             <div className="flex-1">
-                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.patients_label')}</label>
+                                <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.patients_label')}</label>
                                 <input
                                     type="number"
                                     value={newPlanData.max_patients || ''}
@@ -330,7 +331,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                         </div>
 
                         <div>
-                            <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'mr-1' : 'ml-1'}`}>{t('super_admin.plans.features_label')}</label>
+                            <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.features_label')}</label>
                             <textarea
                                 value={newPlanData.features}
                                 onChange={(e) => setNewPlanData({ ...newPlanData, features: e.target.value })}

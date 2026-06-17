@@ -50,8 +50,8 @@ def _add_tenant_filter(execute_state):
                 execute_state.statement = execute_state.statement.options(
                     with_loader_criteria(
                         cls,
-                        # Using default arg 'c=cls' to avoid Python late-binding loop bugs
-                        lambda c, bound_c=cls: bound_c.tenant_id == tenant_id,
+                        lambda c: c.tenant_id == tenant_id,
                         include_aliases=True
                     )
                 )
+

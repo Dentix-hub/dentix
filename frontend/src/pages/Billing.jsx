@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import logger from '@/utils/logger';
 import { useNavigate } from 'react-router-dom';
 import { Users, LayoutDashboard, Receipt, Briefcase, TrendingDown, Home } from 'lucide-react';
 import DoctorRevenue from '@/features/billing/DoctorRevenue';
@@ -99,7 +100,7 @@ export default function Billing() {
             toast.success(t('billing.alerts.expense_delete_success'));
             queryClient.invalidateQueries(['billing_data']);
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             toast.error(t('billing.alerts.delete_error'));
         }
     };
@@ -121,7 +122,7 @@ export default function Billing() {
             setStaffModalOpen(false);
             toast.success(t('billing.alerts.save_success'));
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             toast.error(t('billing.alerts.save_fail'));
         } finally {
             setSavingStaff(false);
@@ -133,7 +134,7 @@ export default function Billing() {
             const res = await getSalariesStatus(salaryMonth);
             setSalariesData(res.data.employees || []);
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             toast.error(t('billing.alerts.salaries_load_fail'));
         } finally {
             setSalariesLoading(false);
@@ -147,7 +148,7 @@ export default function Billing() {
             toast.success(t('billing.alerts.pay_success'));
             loadSalaries();
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             toast.error(err.response?.data?.error || t('billing.alerts.pay_fail'));
         }
     };
@@ -157,7 +158,7 @@ export default function Billing() {
             toast.success(t('billing.alerts.hire_date_success'));
             loadSalaries();
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             toast.error(t('billing.alerts.hire_date_fail'));
         }
     };

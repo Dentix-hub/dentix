@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import logger from '@/utils/logger';
 import { api } from '@/api';
 
 export const useTenantStore = create((set, get) => ({
@@ -34,7 +35,7 @@ export const useTenantStore = create((set, get) => ({
                         try {
                             parsed = JSON.parse(rawFeatures);
                         } catch (e) {
-                            console.warn("Invalid JSON in features string, using as-is:", e);
+                            logger.warn("Invalid JSON in features string, using as-is:", e);
                         }
                     }
 
@@ -50,7 +51,7 @@ export const useTenantStore = create((set, get) => ({
                         features = deriveFeatures(tenantData?.plan);
                     }
                 } catch (err) {
-                    console.error("Critical error parsing features:", err);
+                    logger.error("Critical error parsing features:", err);
                     features = deriveFeatures(tenantData?.plan);
                 }
             } else {
@@ -59,7 +60,7 @@ export const useTenantStore = create((set, get) => ({
 
             set({ tenant: tenantData, features, loading: false });
         } catch (err) {
-            console.error("Failed to fetch tenant settings", err);
+            logger.error("Failed to fetch tenant settings", err);
             set({ error: err, loading: false });
         }
     },
@@ -104,7 +105,7 @@ const deriveFeatures = (planName) => {
     };
 
     if (!planName) {
-        console.warn("[TenantStore] No plan name found, defaulting to Full Access (Trial Mode)");
+        logger.warn("[TenantStore] No plan name found, defaulting to Full Access (Trial Mode)");
         return fullAccess;
     }
 

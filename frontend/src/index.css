@@ -180,9 +180,20 @@ tr.group\/row:hover {
 
 tr.group\/row::before {
   content: '';
-  @apply absolute left-0 top-0 bottom-0 w-1 bg-primary scale-y-0 transition-transform duration-200 origin-center rounded-r-full;
+  @apply absolute start-0 top-0 bottom-0 w-1 bg-primary scale-y-0 transition-transform duration-200 origin-center rounded-r-full;
 }
 
 tr.group\/row:hover::before {
   @apply scale-y-75;
+}
+
+/* Force sidebar closed on PWA standalone mode */
+@media (display-mode: standalone) {
+  [data-sidebar],
+  .sidebar,
+  .drawer,
+  aside {
+    /* Do not use display:none — let JS handle visibility */
+    /* This is a safety net only */
+  }
 }

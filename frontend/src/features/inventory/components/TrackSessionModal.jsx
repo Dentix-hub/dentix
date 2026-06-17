@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { X, Play, Square, AlertCircle, Clock } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { openSession, closeSession, getMaterialStock } from '@/api/inventory';
@@ -40,7 +41,7 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
     });
     const handleConfirm = async () => {
         setIsSubmitting(true);
-        console.log("Starting Confirm...", { mode, selectedStockId });
+        logger.log("Starting Confirm...", { mode, selectedStockId });
         try {
             if (mode === 'OPEN') {
                 if (!selectedStockId) {
@@ -51,7 +52,7 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
                     stock_item_id: parseInt(selectedStockId),
                     status: 'ACTIVE'
                 };
-                console.log("Sending Open Payload:", payload);
+                logger.log("Sending Open Payload:", payload);
                 await openMutation.mutateAsync(payload);
                 alert(t('inventory.track_session.messages.success_open'));
             } else {
@@ -60,7 +61,7 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
                 alert(t('inventory.track_session.messages.success_close'));
             }
         } catch (e) {
-            console.error("Operation Failed:", e);
+            logger.error("Operation Failed:", e);
             const res = e.response?.data;
             const msg = res?.error?.message || res?.detail || e.message;
             alert(t('inventory.track_session.messages.error_prefix') + msg);
@@ -92,7 +93,7 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
                 <div className="p-6 space-y-6">
                     <div className="text-sm font-medium border-b border-border pb-4">
                         <span className="text-text-secondary">{t('inventory.track_session.material_label')} </span>
-                        <span className="font-bold text-lg text-text-primary mr-2">{displayMaterialName}</span>
+                        <span className="font-bold text-lg text-text-primary me-2">{displayMaterialName}</span>
                     </div>
                     {isOpenMode ? (
                         <div className="space-y-4">

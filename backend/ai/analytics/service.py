@@ -3,8 +3,8 @@ AI Analytics Service
 Centralizes logic for usage tracking, cost calculation, and admin dashboards.
 """
 
-from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, desc, select
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 
@@ -15,8 +15,8 @@ from backend.ai.config import MODEL_CARDS, DEFAULT_MODEL
 
 class AIAnalyticsService:
     @staticmethod
-    def get_stats(
-        db: Session, period: str = "month", tenant_id: int = 1
+    async def get_stats(
+        db: AsyncSession, period: str = "month", tenant_id: int = 1
     ) -> Dict[str, Any]:
         """
         Get aggregated AI usage stats.
@@ -31,25 +31,25 @@ class AIAnalyticsService:
         else:  # month
             start_date = now - timedelta(days=30)
 
-        # 2. Base Query (Tenant Isolated or Global)
-        query = db.query(models.AIUsageLog).filter(
+        # 2. Base Queries using select
+        total_requests_stmt = select(func.count(models.AIUsageLog.id)).filter(
             models.AIUsageLog.created_at >= start_date
+        )
+        success_count_stmt = select(func.count(models.AIUsageLog.id)).filter(
+            models.AIUsageLog.created_at >= start_date,
+            models.AIUsageLog.status == "SUCCESS"
         )
 
         # Only filter by tenant if tenant_id is provided (not None)
         if tenant_id is not None:
-            query = query.filter(models.AIUsageLog.tenant_id == tenant_id)
+            total_requests_stmt = total_requests_stmt.filter(models.AIUsageLog.tenant_id == tenant_id)
+            success_count_stmt = success_count_stmt.filter(models.AIUsageLog.tenant_id == tenant_id)
 
-        # 3. Aggregations
-        total_requests = query.count()
-        success_count = query.filter(models.AIUsageLog.status == "SUCCESS").count()
-        _error_rate = 1 - (success_count / total_requests) if total_requests > 0 else 0
+        # Execute
+        total_requests = (await db.execute(total_requests_stmt)).scalar() or 0
+        success_count = (await db.execute(success_count_stmt)).scalar() or 0
 
-        # 4. Cost Calculation (Token-based)
-        # Assuming we track 'tokens_used' and potentially 'model_used' in future schema updates
-        # For now, we use the simplified estimate but enhanced with Config values
-
-        # Default cost factor (blended)
+        # Cost Calculation
         blended_cost_per_request = (
             (
                 MODEL_CARDS[DEFAULT_MODEL]["input_cost"]
@@ -58,43 +58,43 @@ class AIAnalyticsService:
             / 1000
             / 2
         )
-
-        # If we had exact token counts per log, we'd sum (tokens * price)
-        # For now (Upgrade Path): Use precise per-request estimation
         estimated_cost = total_requests * blended_cost_per_request
 
         # 5. Top Tools
-        tool_stats = (
-            db.query(models.AIUsageLog.tool, func.count(models.AIUsageLog.id))
+        stmt_tool = (
+            select(models.AIUsageLog.tool, func.count(models.AIUsageLog.id))
             .filter(models.AIUsageLog.created_at >= start_date)
             .group_by(models.AIUsageLog.tool)
             .order_by(desc(func.count(models.AIUsageLog.id)))
             .limit(5)
-            .all()
         )
+        res_tool = await db.execute(stmt_tool)
+        tool_stats = res_tool.all()
 
         # 6. Top Users
-        user_stats = (
-            db.query(models.AIUsageLog.username, func.count(models.AIUsageLog.id))
+        stmt_user = (
+            select(models.AIUsageLog.username, func.count(models.AIUsageLog.id))
             .filter(models.AIUsageLog.created_at >= start_date)
             .group_by(models.AIUsageLog.username)
             .order_by(desc(func.count(models.AIUsageLog.id)))
             .limit(5)
-            .all()
         )
+        res_user = await db.execute(stmt_user)
+        user_stats = res_user.all()
 
         # 7. Usage Trends (Last 30 days)
         trend_start = now - timedelta(days=30)
-        daily_trends = (
-            db.query(
+        stmt_trend = (
+            select(
                 func.date(models.AIUsageLog.created_at).label("day"),
                 func.count(models.AIUsageLog.id)
             )
             .filter(models.AIUsageLog.created_at >= trend_start)
-            .group_by("day")
-            .order_by("day")
-            .all()
+            .group_by(func.date(models.AIUsageLog.created_at))
+            .order_by(func.date(models.AIUsageLog.created_at))
         )
+        res_trend = await db.execute(stmt_trend)
+        daily_trends = res_trend.all()
 
         return {
             "period": period,
@@ -111,42 +111,39 @@ class AIAnalyticsService:
         }
 
     @staticmethod
-    def get_logs(
-        db: Session,
+    async def get_logs(
+        db: AsyncSession,
         skip: int = 0,
         limit: int = 50,
         tenant_id: int = 1,
         filters: Dict[str, Any] = None,
     ) -> List[models.AIUsageLog]:
         """Get paginated logs with sorting and filters."""
-        query = db.query(models.AIUsageLog)
+        stmt = select(models.AIUsageLog)
 
         if tenant_id is not None:
-            query = query.filter(models.AIUsageLog.tenant_id == tenant_id)
+            stmt = stmt.filter(models.AIUsageLog.tenant_id == tenant_id)
 
         if filters:
             if filters.get("tool"):
-                query = query.filter(models.AIUsageLog.response_tool == filters["tool"])
+                stmt = stmt.filter(models.AIUsageLog.response_tool == filters["tool"])
             if filters.get("username"):
-                query = query.filter(
+                stmt = stmt.filter(
                     models.AIUsageLog.username.ilike(f"%{filters['username']}%")
                 )
             if filters.get("status") is not None:
                 is_success = str(filters["status"]).lower() == "true"
                 status_val = "SUCCESS" if is_success else "FAILURE"
-                query = query.filter(models.AIUsageLog.status == status_val)
+                stmt = stmt.filter(models.AIUsageLog.status == status_val)
             if filters.get("start_date"):
-                query = query.filter(
+                stmt = stmt.filter(
                     models.AIUsageLog.created_at >= filters["start_date"]
                 )
             if filters.get("end_date"):
-                query = query.filter(
+                stmt = stmt.filter(
                     models.AIUsageLog.created_at <= filters["end_date"]
                 )
 
-        return (
-            query.order_by(desc(models.AIUsageLog.created_at))
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
+        stmt = stmt.order_by(desc(models.AIUsageLog.created_at)).offset(skip).limit(limit)
+        res = await db.execute(stmt)
+        return res.scalars().all()

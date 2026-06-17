@@ -1,32 +1,34 @@
 import sys
 import os
+import asyncio
+from sqlalchemy import select
 
 # Ensure backend structure is visible
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from backend.database import SessionLocal
+from backend.database import AsyncSessionLocal
 from backend.models.clinical import Procedure
 
 
-def fix_procedures_tenant():
-    db = SessionLocal()
-    try:
-        # Fetch all procedures with tenant_id=1
-        procs = db.query(Procedure).filter(Procedure.tenant_id == 1).all()
-        print(f"Found {len(procs)} procedures with tenant_id=1.")
+async def fix_procedures_tenant():
+    async with AsyncSessionLocal() as db:
+        try:
+            # Fetch all procedures with tenant_id=1
+            stmt = select(Procedure).filter(Procedure.tenant_id == 1)
+            res = await db.execute(stmt)
+            procs = res.scalars().all()
+            print(f"Found {len(procs)} procedures with tenant_id=1.")
 
-        for p in procs:
-            p.tenant_id = None  # Make them global
+            for p in procs:
+                p.tenant_id = None  # Make them global
 
-        db.commit()
-        print(f"Updated {len(procs)} procedures to be Global (tenant_id=NULL).")
+            await db.commit()
+            print(f"Updated {len(procs)} procedures to be Global (tenant_id=NULL).")
 
-    except Exception as e:
-        print(f"Error: {e}")
-        db.rollback()
-    finally:
-        db.close()
+        except Exception as e:
+            print(f"Error: {e}")
+            await db.rollback()
 
 
 if __name__ == "__main__":
-    fix_procedures_tenant()
+    asyncio.run(fix_procedures_tenant())

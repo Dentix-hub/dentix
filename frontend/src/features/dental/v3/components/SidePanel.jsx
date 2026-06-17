@@ -42,7 +42,7 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
         setMode('VIEW');
     };
     return (
-        <div className="w-96 bg-white flex flex-col h-full shadow-2xl border-l border-slate-100 font-sans">
+        <div className="w-96 bg-white flex flex-col h-full shadow-2xl border-s border-slate-100 font-sans">
             {/* HEADER */}
             <div className="p-6 bg-slate-900 text-white">
                 <div className="flex justify-between items-baseline mb-2">
@@ -68,12 +68,12 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                                 + Add Procedure
                             </button>
                         </div>
-                        <div className="space-y-4 relative before:absolute before:inset-y-0 before:left-4 before:w-0.5 before:bg-slate-200">
+                        <div className="space-y-4 relative before:absolute before:inset-y-0 before:start-4 before:w-0.5 before:bg-slate-200">
                             {toothProcs.length === 0 && (
-                                <p className="text-center text-slate-500 text-sm py-4 ml-8">No medical history</p>
+                                <p className="text-center text-slate-500 text-sm py-4 ms-8">No medical history</p>
                             )}
                             {toothProcs.map(proc => (
-                                <div key={proc.id} className="relative pl-8">
+                                <div key={proc.id} className="relative ps-8">
                                     {/* Dot */}
                                     <div className={`absolute left-[13px] top-3 w-2 h-2 rounded-full ring-4 ring-slate-50 ${proc.status === 'completed' ? 'bg-green-500' : 'bg-slate-400'
                                         }`} />
@@ -141,7 +141,7 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                 )}
                 {/* MODE: WIZARD STEP 1 (TYPE) */}
                 {mode === 'WIZARD' && wizStep === 1 && (
-                    <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div className="animate-in fade-in slide-in-from-end-4 duration-300">
                         <button onClick={() => setMode('VIEW')} className="text-slate-500 text-xs mb-4">← Cancel</button>
                         <h3 className="font-bold text-lg mb-4">Select Procedure</h3>
                         <div className="grid grid-cols-2 gap-2">
@@ -160,7 +160,7 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                 )}
                 {/* MODE: WIZARD STEP 2 (SEGMENTS) */}
                 {mode === 'WIZARD' && wizStep === 2 && (
-                    <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div className="animate-in fade-in slide-in-from-end-4 duration-300">
                         <button onClick={() => setWizStep(1)} className="text-slate-500 text-xs mb-4">← Back</button>
                         <h3 className="font-bold text-lg mb-4">Select Segments</h3>
                         <div className="flex flex-wrap gap-2 justify-center py-8">
@@ -173,10 +173,10 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                                         className={`absolute w-10 h-10 rounded-full text-[10px] font-bold transition-all
                                             ${newProc.segments.includes(seg) ? 'bg-blue-600 text-white scale-110' : 'bg-white text-slate-500 shadow-sm hover:scale-105'}
                                             ${seg === 'Occlusal' ? 'inset-0 m-auto z-10' : ''}
-                                            ${seg === 'Mesial' ? 'left-0 top-1/2 -translate-y-1/2' : ''}
-                                            ${seg === 'Distal' ? 'right-0 top-1/2 -translate-y-1/2' : ''}
-                                            ${seg === 'Buccal' ? 'top-0 left-1/2 -translate-x-1/2' : ''}
-                                            ${seg === 'Lingual' ? 'bottom-0 left-1/2 -translate-x-1/2' : ''}
+                                            ${seg === 'Mesial' ? 'start-0 top-1/2 -translate-y-1/2' : ''}
+                                            ${seg === 'Distal' ? 'end-0 top-1/2 -translate-y-1/2' : ''}
+                                            ${seg === 'Buccal' ? 'top-0 start-1/2 -translate-x-1/2' : ''}
+                                            ${seg === 'Lingual' ? 'bottom-0 start-1/2 -translate-x-1/2' : ''}
                                         `}
                                     >
                                         {seg[0]}
@@ -195,7 +195,7 @@ export default function SidePanel({ activeTooth, procedures, onAddProcedure }) {
                 )}
                 {/* MODE: WIZARD STEP 3 (DETAILS) */}
                 {mode === 'WIZARD' && wizStep === 3 && (
-                    <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div className="animate-in fade-in slide-in-from-end-4 duration-300">
                         <button onClick={() => setWizStep(newProc.segments.length ? 2 : 1)} className="text-slate-500 text-xs mb-4">← Back</button>
                         <h3 className="font-bold text-lg mb-4">Procedure Details</h3>
                         <div className="space-y-4">

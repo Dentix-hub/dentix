@@ -44,7 +44,7 @@ export default memo(function PatientQuickActions({ stats, isLoading, onAddClick 
                 ]}
                 actions={
                     <Button onClick={onAddClick} size="lg">
-                        <Plus className="w-4 h-4 mr-2" />
+                        <Plus className="w-4 h-4 me-2" />
                         {t('patients.add_new')}
                     </Button>
                 }

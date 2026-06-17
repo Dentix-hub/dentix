@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
+import { motion } from '@/lib/motion';
 import { 
     DndContext, 
     DragOverlay, 
@@ -24,7 +25,8 @@ import { createAppointment, deleteAppointment, updateAppointmentStatus } from '@
 import { useAppointments, useUpdateAppointmentStatus, useUpdateAppointment } from '@/hooks/useAppointments';
 import { usePatients, useCreatePatient } from '@/hooks/usePatients';
 import { getTodayDateTimeStr } from '@/utils/toothUtils';
-import { Button, Input, Modal, Badge, SkeletonBox, EmptyState, toast, ConfirmDialog, PageHeader, PatientSelect, WeeklyCalendar, StatCard, DateTimePicker } from '@/shared/ui';
+import { Button, Input, Modal, Badge, SkeletonBox, EmptyState, toast, ConfirmDialog, PageHeader, PatientSelect, StatCard, DateTimePicker } from '@/shared/ui';
+import WeeklyCalendar from '@/shared/ui/WeeklyCalendar';
 import { useAuth } from '@/auth/useAuth';
 
 export default function Appointments() {
@@ -308,7 +310,7 @@ export default function Appointments() {
                             </button>
                         </div>
                         <Button onClick={() => setIsModalOpen(true)}>
-                            <Plus size={20} className="mr-2" />
+                            <Plus size={20} className="me-2" />
                             {t('appointments.new_booking')}
                         </Button>
                     </>
@@ -510,7 +512,7 @@ export default function Appointments() {
                             </div>
                         </>
                     ) : (
-                        <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                        <div className="space-y-4 animate-in fade-in slide-in-from-end-4 duration-300">
                             <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 mb-2">
                                 <h4 className="text-sm font-bold text-primary uppercase tracking-wider mb-1">{t('patients.quick_add_title', 'Quick Add New Patient')}</h4>
                                 <p className="text-[11px] font-bold text-slate-500">{t('patients.quick_add_desc', 'Enter the basic details to register this patient immediately.')}</p>
@@ -666,7 +668,7 @@ const AppointmentCard = ({ appt, patient, t, getStatusVariant, getStatusLabel, s
                 {getStatusLabel(appt.status)}
             </Badge>
             
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 w-8 h-1 bg-slate-100 dark:bg-slate-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute top-2 start-1/2 -translate-x-1/2 w-8 h-1 bg-slate-100 dark:bg-slate-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
     );
 };

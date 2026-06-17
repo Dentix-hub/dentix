@@ -1,40 +1,38 @@
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from backend import models, schemas, crud
 
 logger = logging.getLogger(__name__)
 
 
 class ClinicalService:
-    def __init__(self, db: Session, tenant_id: int, user_id: int):
+    def __init__(self, db: AsyncSession, tenant_id: int, user_id: int):
         self.db = db
         self.tenant_id = tenant_id
         self.user_id = user_id
 
-    def get_recent_treatments(self, limit: int = 20) -> List[Dict[str, Any]]:
-        treatments = (
-            self.db.query(models.Treatment)
+    async def get_recent_treatments(self, limit: int = 20) -> List[Dict[str, Any]]:
+        stmt = (
+            select(models.Treatment)
             .join(models.Patient)
-            .filter(models.Patient.tenant_id == self.tenant_id)
+            .where(models.Patient.tenant_id == self.tenant_id)
             .order_by(models.Treatment.date.desc())
             .limit(limit)
-            .all()
         )
+        res = await self.db.execute(stmt)
+        treatments = res.scalars().all()
 
         # Get patient names
         patient_ids = [t.patient_id for t in treatments]
-        patients = (
-            {
-                p.id: p.name
-                for p in self.db.query(models.Patient)
-                .filter(models.Patient.id.in_(patient_ids))
-                .all()
-            }
-            if patient_ids
-            else {}
-        )
+        if patient_ids:
+            stmt_patients = select(models.Patient).where(models.Patient.id.in_(patient_ids))
+            res_patients = await self.db.execute(stmt_patients)
+            patients = {p.id: p.name for p in res_patients.scalars().all()}
+        else:
+            patients = {}
 
         return [
             {
@@ -48,43 +46,37 @@ class ClinicalService:
             for t in treatments
         ]
 
-    def get_lab_orders(
+    async def get_lab_orders(
         self, status: str = "all", limit: int = 30
     ) -> List[Dict[str, Any]]:
-        query = (
-            self.db.query(models.LabOrder)
+        stmt = (
+            select(models.LabOrder)
             .join(models.Patient)
-            .filter(models.Patient.tenant_id == self.tenant_id)
+            .where(models.Patient.tenant_id == self.tenant_id)
         )
 
         if status != "all":
-            query = query.filter(models.LabOrder.status == status)
+            stmt = stmt.where(models.LabOrder.status == status)
 
-        orders = query.order_by(models.LabOrder.order_date.desc()).limit(limit).all()
+        stmt = stmt.order_by(models.LabOrder.order_date.desc()).limit(limit)
+        res = await self.db.execute(stmt)
+        orders = res.scalars().all()
 
         patient_ids = [o.patient_id for o in orders]
-        patients = (
-            {
-                p.id: p.name
-                for p in self.db.query(models.Patient)
-                .filter(models.Patient.id.in_(patient_ids))
-                .all()
-            }
-            if patient_ids
-            else {}
-        )
+        if patient_ids:
+            stmt_patients = select(models.Patient).where(models.Patient.id.in_(patient_ids))
+            res_patients = await self.db.execute(stmt_patients)
+            patients = {p.id: p.name for p in res_patients.scalars().all()}
+        else:
+            patients = {}
 
         lab_ids = [o.laboratory_id for o in orders if o.laboratory_id]
-        labs = (
-            {
-                lab.id: lab.name
-                for lab in self.db.query(models.Laboratory)
-                .filter(models.Laboratory.id.in_(lab_ids))
-                .all()
-            }
-            if lab_ids
-            else {}
-        )
+        if lab_ids:
+            stmt_labs = select(models.Laboratory).where(models.Laboratory.id.in_(lab_ids))
+            res_labs = await self.db.execute(stmt_labs)
+            labs = {lab.id: lab.name for lab in res_labs.scalars().all()}
+        else:
+            labs = {}
 
         return [
             {
@@ -99,7 +91,7 @@ class ClinicalService:
             for o in orders
         ]
 
-    def record_medical_note(
+    async def record_medical_note(
         self, patient: models.Patient, note: str, note_type: str = "general"
     ) -> str:
         """Append note to patient file."""
@@ -116,10 +108,10 @@ class ClinicalService:
             f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M')}] {type_label}: {note}"
         )
         patient.notes = (current_notes + new_note).strip()
-        self.db.commit()
+        await self.db.commit()
         return new_note
 
-    def update_tooth_status(
+    async def update_tooth_status(
         self, patient: models.Patient, tooth_str: str, condition: str, notes: str
     ) -> Dict[str, Any]:
         """Update tooth status with FDI parsing."""
@@ -133,11 +125,11 @@ class ClinicalService:
             condition=condition,
             notes=notes,
         )
-        crud.update_tooth_status(self.db, status_data, self.tenant_id)
+        await crud.update_tooth_status(self.db, status_data, self.tenant_id)
 
         return {"fdi": fdi_number, "condition": condition, "patient": patient.name}
 
-    def add_treatment(
+    async def add_treatment(
         self,
         patient: models.Patient,
         procedure: str,
@@ -170,8 +162,8 @@ class ClinicalService:
             diagnosis=diagnosis or "General",
         )
         self.db.add(treatment)
-        self.db.commit()
-        self.db.refresh(treatment)
+        await self.db.commit()
+        await self.db.refresh(treatment)
 
         # Auto-update tooth
         if tooth_str and diagnosis:
@@ -180,7 +172,7 @@ class ClinicalService:
                     procedure + " " + diagnosis
                 )
                 if condition != "Healthy":
-                    self.update_tooth_status(
+                    await self.update_tooth_status(
                         patient, tooth_str, condition, f"Auto: {procedure}"
                     )
             except Exception as e:

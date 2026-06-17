@@ -5,12 +5,13 @@ Allows admin to manage doctor visibility settings.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from pydantic import BaseModel
 from typing import Optional
 
 from ..models import User
-from .auth import get_db
+from .auth import get_async_db
 from ..core.permissions import PatientVisibilityMode
 from backend.core.permissions import Permission, require_permission
 from backend.core.response import success_response
@@ -39,23 +40,21 @@ class DoctorVisibilityResponse(BaseModel):
 
 
 @router.get("/visibility")
-def get_all_doctors_visibility(
-    db: Session = Depends(get_db),
+async def get_all_doctors_visibility(
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Get visibility settings for all doctors (Admin only)."""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    doctors = (
-        db.query(User)
-        .filter(
-            User.tenant_id == current_user.tenant_id,
-            User.role == "doctor",
-            User.is_active,
-        )
-        .all()
+    stmt = select(User).where(
+        User.tenant_id == current_user.tenant_id,
+        User.role == "doctor",
+        User.is_active == True,  # noqa: E712
     )
+    res = await db.execute(stmt)
+    doctors = res.scalars().all()
 
     return success_response(data=[
         {
@@ -69,10 +68,10 @@ def get_all_doctors_visibility(
 
 
 @router.put("/visibility/{doctor_id}")
-def update_doctor_visibility(
+async def update_doctor_visibility(
     doctor_id: int,
     settings: DoctorVisibilityUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Update visibility settings for a doctor (Admin only)."""
@@ -80,15 +79,13 @@ def update_doctor_visibility(
         raise HTTPException(status_code=403, detail="Admin access required")
 
     # Find doctor
-    doctor = (
-        db.query(User)
-        .filter(
-            User.id == doctor_id,
-            User.tenant_id == current_user.tenant_id,
-            User.role == "doctor",
-        )
-        .first()
+    stmt = select(User).where(
+        User.id == doctor_id,
+        User.tenant_id == current_user.tenant_id,
+        User.role == "doctor",
     )
+    res = await db.execute(stmt)
+    doctor = res.scalar_one_or_none()
 
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
@@ -105,8 +102,8 @@ def update_doctor_visibility(
     if settings.can_view_other_doctors_history is not None:
         doctor.can_view_other_doctors_history = settings.can_view_other_doctors_history
 
-    db.commit()
-    db.refresh(doctor)
+    await db.commit()
+    await db.refresh(doctor)
 
     return success_response(data={
         "doctor_id": doctor.id,

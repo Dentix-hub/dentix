@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { createPortal } from 'react-dom';
 import { X, DollarSign, Calendar } from 'lucide-react';
 import { Button, Input, SkeletonBox, Badge } from '@/shared/ui';
@@ -32,7 +33,7 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
             const res = await getDoctorDetails(doctor.doctor_id, startDate, endDate);
             setDetails(res.data);
         } catch (err) {
-            console.error(err);
+            logger.error(err);
             toast.error(t('billing.alerts.load_fail'));
         } finally {
             setLoading(false);
@@ -186,9 +187,9 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                                                         type="number"
                                                         value={commission}
                                                         onChange={e => setCommission(parseFloat(e.target.value) || 0)}
-                                                        className="pl-12 text-lg font-bold h-12"
+                                                        className="ps-12 text-lg font-bold h-12"
                                                     />
-                                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">%</div>
+                                                    <div className="absolute start-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold">%</div>
                                                 </div>
                                             </div>
                                             <div>
@@ -198,9 +199,9 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                                                         type="number"
                                                         value={salary}
                                                         onChange={e => setSalary(parseFloat(e.target.value) || 0)}
-                                                        className="pl-12 text-lg font-bold h-12"
+                                                        className="ps-12 text-lg font-bold h-12"
                                                     />
-                                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold"></div>
+                                                    <div className="absolute start-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold"></div>
                                                 </div>
                                             </div>
                                             <Button
@@ -231,7 +232,7 @@ export default function DoctorRevenueDetails({ doctor, startDate, endDate, onClo
                                         {calculateTotal(
                                             (doctor.collected || 0) - (doctor.lab_cost || 0)
                                         ).toLocaleString()}
-                                        <span className="text-sm font-normal text-slate-500 mr-1"></span>
+                                        <span className="text-sm font-normal text-slate-500 me-1"></span>
                                     </div>
                                 </div>
                             </div>

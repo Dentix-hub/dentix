@@ -1,36 +1,37 @@
 import sys
 import os
+import pytest
 
 # Setup paths
 sys.path.append(os.getcwd())
 
-from backend.database import SessionLocal
 from backend.services.job_service import JobService
 
 
-def test_operational_phase5():
+@pytest.mark.asyncio
+async def test_operational_phase5(async_db_session):
     print("\n>>> Testing Phase 5: Operational Tools (Background Jobs)...")
-    db = SessionLocal()
+    db = async_db_session
 
     try:
         # 1. Test Job Start
         print("\n[1] Testing Job Start...")
-        job = JobService.start_job(db, "test_job_beta", "script_runner")
+        job = await JobService.start_job(db, "test_job_beta", "script_runner")
         print(f" - Job Started: ID={job.id}, Status={job.status}")
 
         if job.status == "running":
             print(" - Start Logic: PASS")
         else:
             print(" - Start Logic: FAIL")
+            assert False, "Job start logic failed"
 
         # 2. Test Job Completion
         print("\n[2] Testing Job Completion...")
-        # Simulate delay
-        import time
+        import asyncio
 
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
 
-        updated_job = JobService.complete_job(db, job.id, "success")
+        updated_job = await JobService.complete_job(db, job.id, "success")
         print(
             f" - Job Completed: Status={updated_job.status}, Duration={updated_job.duration_seconds}s"
         )
@@ -39,10 +40,11 @@ def test_operational_phase5():
             print(" - Completion Logic: PASS")
         else:
             print(" - Completion Logic: FAIL")
+            assert False, "Job completion logic failed"
 
         # 3. Test Retrieve History
         print("\n[3] Testing Job History Retrieval...")
-        jobs = JobService.get_recent_jobs(db, limit=5)
+        jobs = await JobService.get_recent_jobs(db, limit=5)
         print(f" - Fetched {len(jobs)} recent jobs")
 
         found = any(j.id == job.id for j in jobs)
@@ -50,13 +52,17 @@ def test_operational_phase5():
             print(" - History Retrieval: PASS")
         else:
             print(" - History Retrieval: FAIL")
+            assert False, "Job history retrieval failed"
 
-    except Exception as e:
-        print(f"!!! CRITICAL FAIL: {e}")
     finally:
-        # Cleanup (optional, keeping logs is fine for debug)
-        db.close()
+        pass
 
 
 if __name__ == "__main__":
-    test_operational_phase5()
+    import asyncio
+    from backend.database import AsyncSessionLocal
+    async def run_standalone():
+        async with AsyncSessionLocal() as session:
+            await test_operational_phase5(session)
+    asyncio.run(run_standalone())
+

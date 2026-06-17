@@ -134,11 +134,14 @@ def _get_store_instance():
     """Lazy initialization for knowledge store."""
     global _knowledge_store_instance
     if _knowledge_store_instance is None:
-        if RAG_AVAILABLE:
+        import sys
+        is_testing = "pytest" in sys.modules or os.getenv("TESTING") == "True" or os.getenv("ENVIRONMENT") == "testing"
+        if RAG_AVAILABLE and not is_testing:
             _knowledge_store_instance = RealKnowledgeStore()
         else:
             _knowledge_store_instance = MockKnowledgeStore()
     return _knowledge_store_instance
+
 
 
 class _KnowledgeStoreProxy:

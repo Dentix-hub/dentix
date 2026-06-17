@@ -12,7 +12,8 @@ Tests the full pricing pipeline:
 
 import pytest
 from datetime import date, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
+
 
 from backend.services.pricing_service import PricingService, get_pricing_service
 from backend.models.price_list import PriceList, PriceListItem
@@ -27,7 +28,10 @@ from backend.models.clinical import Procedure, Treatment
 @pytest.fixture
 def mock_db():
     """Mock SQLAlchemy session."""
-    return MagicMock()
+    db = MagicMock()
+    db.execute = AsyncMock()
+    return db
+
 
 
 @pytest.fixture
@@ -66,81 +70,104 @@ def _make_price_list(
 class TestPriceLookupChain:
     """Tests for get_procedure_price fallback logic."""
 
-    def test_price_from_specified_list(self, pricing_service, mock_db):
+    async def test_price_from_specified_list(self, pricing_service, mock_db):
         """Price from explicit price list takes priority."""
         mock_item = MagicMock(spec=PriceListItem)
         mock_item.final_price = 750.0
 
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_item
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.first.return_value = mock_item
+        mock_db.execute.return_value = mock_result
 
-        price = pricing_service.get_procedure_price(procedure_id=1, price_list_id=10)
+        price = await pricing_service.get_procedure_price(procedure_id=1, price_list_id=10)
         assert price == 750.0
 
-    def test_fallback_to_default_list(self, pricing_service, mock_db):
+    async def test_fallback_to_default_list(self, pricing_service, mock_db):
         """When specified list has no price, fall to default list."""
-        # First call (specified list) → None
-        # Second call (default list) → item with price
         mock_item_default = MagicMock(spec=PriceListItem)
         mock_item_default.final_price = 500.0
 
-        mock_db.query.return_value.filter.return_value.first.side_effect = [
-            None,        # specified list returns nothing
-            mock_item_default,   # default list returns price
-        ]
-
         mock_default = MagicMock(spec=PriceList)
         mock_default.id = 99
 
-        pricing_service.get_default_price_list = MagicMock(return_value=mock_default)
+        mock_res1 = MagicMock()
+        mock_res1.scalars.return_value.first.return_value = None
 
-        price = pricing_service.get_procedure_price(procedure_id=1, price_list_id=10)
-        assert price == 500.0
+        mock_res2 = MagicMock()
+        mock_res2.scalars.return_value.first.return_value = mock_default
 
-    def test_fallback_to_procedure_price(self, pricing_service, mock_db):
-        """When no price list has an entry, fall to Procedure.price."""
-        # Both lists return None
-        mock_db.query.return_value.filter.return_value.first.side_effect = [
-            None,   # specified list
-            None,   # default list
-            None,   # default PriceListItem
+        mock_res3 = MagicMock()
+        mock_res3.scalars.return_value.first.return_value = mock_item_default
+
+        mock_db.execute.side_effect = [
+            mock_res1,
+            mock_res2,
+            mock_res3,
         ]
 
-        # Procedure fallback — need to restructure the mock chain
+        price = await pricing_service.get_procedure_price(procedure_id=1, price_list_id=10)
+        assert price == 500.0
+
+    async def test_fallback_to_procedure_price(self, pricing_service, mock_db):
+        """When no price list has an entry, fall to Procedure.price."""
+        mock_default = MagicMock(spec=PriceList)
+        mock_default.id = 99
+
         mock_proc = MagicMock(spec=Procedure)
         mock_proc.price = 200.0
 
-        pricing_service.get_default_price_list = MagicMock(return_value=None)
+        mock_res1 = MagicMock()
+        mock_res1.scalars.return_value.first.return_value = None
 
-        # Override the query chain to return the procedure on the last call
-        mock_db.query.return_value.filter.return_value.first.side_effect = [
-            None,       # specified list item
-            mock_proc,  # procedure fallback
-        ]
+        mock_res2 = MagicMock()
+        mock_res2.scalars.return_value.first.return_value = mock_default
 
-        price = pricing_service.get_procedure_price(procedure_id=1, price_list_id=10)
+        mock_res3 = MagicMock()
+        mock_res3.scalars.return_value.first.return_value = None
+
+        mock_res4 = MagicMock()
+        mock_res4.scalars.return_value.first.return_value = mock_proc
+
+        mock_db.execute.side_effect = [mock_res1, mock_res2, mock_res3, mock_res4]
+
+        price = await pricing_service.get_procedure_price(procedure_id=1, price_list_id=10)
         assert price == 200.0
 
-    def test_no_price_anywhere_returns_zero(self, pricing_service, mock_db):
+    async def test_no_price_anywhere_returns_zero(self, pricing_service, mock_db):
         """When no price exists at all, return 0."""
-        mock_db.query.return_value.filter.return_value.first.return_value = None
-        pricing_service.get_default_price_list = MagicMock(return_value=None)
+        mock_res1 = MagicMock()
+        mock_res1.scalars.return_value.first.return_value = None
 
-        price = pricing_service.get_procedure_price(procedure_id=999)
+        mock_res2 = MagicMock()
+        mock_res2.scalars.return_value.first.return_value = None
+
+        mock_res3 = MagicMock()
+        mock_res3.scalars.return_value.first.return_value = None
+
+        mock_db.execute.side_effect = [mock_res1, mock_res2, mock_res3]
+
+        price = await pricing_service.get_procedure_price(procedure_id=999, price_list_id=10)
         assert price == 0.0
 
-    def test_no_price_list_id_uses_default(self, pricing_service, mock_db):
+    async def test_no_price_list_id_uses_default(self, pricing_service, mock_db):
         """When no price_list_id is provided, go straight to default."""
-        mock_item = MagicMock(spec=PriceListItem)
-        mock_item.final_price = 600.0
-
         mock_default = MagicMock(spec=PriceList)
         mock_default.id = 99
 
-        pricing_service.get_default_price_list = MagicMock(return_value=mock_default)
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_item
+        mock_item = MagicMock(spec=PriceListItem)
+        mock_item.final_price = 600.0
 
-        price = pricing_service.get_procedure_price(procedure_id=1)
+        mock_res1 = MagicMock()
+        mock_res1.scalars.return_value.first.return_value = mock_default
+
+        mock_res2 = MagicMock()
+        mock_res2.scalars.return_value.first.return_value = mock_item
+
+        mock_db.execute.side_effect = [mock_res1, mock_res2]
+
+        price = await pricing_service.get_procedure_price(procedure_id=1)
         assert price == 600.0
+
 
 
 # ============================================
@@ -386,19 +413,19 @@ class TestPriceListValidity:
 class TestApplyPriceToTreatment:
     """Tests for PricingService.apply_price_to_treatment."""
 
-    def test_applies_unit_price_and_snapshot(self, pricing_service):
+    async def test_applies_unit_price_and_snapshot(self, pricing_service):
         """Should set unit_price, cost, and price_snapshot on treatment."""
         treatment = Treatment()
         treatment.discount = 0.0
         treatment.cost = 0.0
 
-        pricing_service.get_procedure_price = MagicMock(return_value=1500.0)
+        pricing_service.get_procedure_price = AsyncMock(return_value=1500.0)
         mock_pl = MagicMock(spec=PriceList)
         mock_pl.name = "Insurance ABC"
         mock_pl.type = "insurance"
-        pricing_service.get_price_list = MagicMock(return_value=mock_pl)
+        pricing_service.get_price_list = AsyncMock(return_value=mock_pl)
 
-        result = pricing_service.apply_price_to_treatment(
+        result = await pricing_service.apply_price_to_treatment(
             treatment, price_list_id=5, procedure_id=10
         )
 
@@ -408,26 +435,26 @@ class TestApplyPriceToTreatment:
         assert result.price_snapshot is not None
         assert "Insurance ABC" in result.price_snapshot
 
-    def test_applies_discount_correctly(self, pricing_service):
+    async def test_applies_discount_correctly(self, pricing_service):
         """Cost should be unit_price minus discount."""
         treatment = Treatment()
         treatment.discount = 200.0
         treatment.cost = 0.0
 
-        pricing_service.get_procedure_price = MagicMock(return_value=1000.0)
+        pricing_service.get_procedure_price = AsyncMock(return_value=1000.0)
         mock_pl = MagicMock(spec=PriceList)
         mock_pl.name = "Cash"
         mock_pl.type = "cash"
-        pricing_service.get_price_list = MagicMock(return_value=mock_pl)
+        pricing_service.get_price_list = AsyncMock(return_value=mock_pl)
 
-        result = pricing_service.apply_price_to_treatment(
+        result = await pricing_service.apply_price_to_treatment(
             treatment, price_list_id=1, procedure_id=5
         )
 
         assert result.unit_price == 1000.0
         assert result.cost == 800.0  # 1000 - 200
 
-    def test_fallback_to_default_list_when_none_provided(self, pricing_service):
+    async def test_fallback_to_default_list_when_none_provided(self, pricing_service):
         """When no price_list_id, use default price list."""
         treatment = Treatment()
         treatment.discount = 0.0
@@ -438,15 +465,16 @@ class TestApplyPriceToTreatment:
         mock_default.name = "Default Cash"
         mock_default.type = "cash"
 
-        pricing_service.get_default_price_list = MagicMock(return_value=mock_default)
-        pricing_service.get_procedure_price = MagicMock(return_value=500.0)
-        pricing_service.get_price_list = MagicMock(return_value=mock_default)
+        pricing_service.get_default_price_list = AsyncMock(return_value=mock_default)
+        pricing_service.get_procedure_price = AsyncMock(return_value=500.0)
+        pricing_service.get_price_list = AsyncMock(return_value=mock_default)
 
-        result = pricing_service.apply_price_to_treatment(
+        result = await pricing_service.apply_price_to_treatment(
             treatment, price_list_id=None, procedure_id=5
         )
 
         assert result.price_list_id == 99
+
 
 
 # ============================================

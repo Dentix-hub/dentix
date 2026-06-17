@@ -13,12 +13,13 @@ and explicitly skips non-serializable objects (Session, Request, User model).
 from functools import wraps
 import logging
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from backend.core.cache import cache
 
 logger = logging.getLogger("smart_clinic")
 
 # Types that should never appear in a cache key
-_SKIP_TYPES = (Session,)
+_SKIP_TYPES = (Session, AsyncSession)
 
 # Attribute names that signal a non-serializable object
 _SKIP_ATTRS = ("scope", "headers", "state")  # Request-like objects
@@ -60,44 +61,86 @@ def cached(key_prefix: str, expire: int = 300):
     """
 
     def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            cache_key = _build_cache_key(key_prefix, args, kwargs)
+        import inspect
 
-            # Try stampede-protected path
-            from backend.core.cache_stampede import get_stampede_protection
-            protection = get_stampede_protection()
+        if inspect.iscoroutinefunction(func):
+            @wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                cache_key = _build_cache_key(key_prefix, args, kwargs)
 
-            if protection:
-                return protection.get_or_compute(
-                    cache_key=cache_key,
-                    compute_func=lambda: func(*args, **kwargs),
-                    cache_instance=cache,
-                    expire=expire,
-                )
+                # Try stampede-protected path
+                from backend.core.cache_stampede import get_stampede_protection
+                protection = get_stampede_protection()
 
-            # Fallback: simple get/set (no stampede protection)
-            cached_val = cache.get(cache_key)
-            if cached_val is not None:
-                return cached_val
+                if protection:
+                    return await protection.get_or_compute_async(
+                        cache_key=cache_key,
+                        compute_func=lambda: func(*args, **kwargs),
+                        cache_instance=cache,
+                        expire=expire,
+                    )
 
-            result = func(*args, **kwargs)
+                # Fallback: simple get/set (no stampede protection)
+                cached_val = cache.get(cache_key)
+                if cached_val is not None:
+                    return cached_val
 
-            if hasattr(result, "model_dump"):
-                val_to_cache = result.model_dump()
-            elif hasattr(result, "dict"):
-                val_to_cache = result.dict()
-            else:
-                val_to_cache = result
+                result = await func(*args, **kwargs)
 
-            try:
-                cache.set(cache_key, val_to_cache, expire=expire)
-            except Exception as e:
-                logger.error(f"Failed to cache {cache_key}: {e}")
+                if hasattr(result, "model_dump"):
+                    val_to_cache = result.model_dump()
+                elif hasattr(result, "dict"):
+                    val_to_cache = result.dict()
+                else:
+                    val_to_cache = result
 
-            return result
+                try:
+                    cache.set(cache_key, val_to_cache, expire=expire)
+                except Exception as e:
+                    logger.error(f"Failed to cache {cache_key}: {e}")
 
-        return wrapper
+                return result
+
+            return async_wrapper
+        else:
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                cache_key = _build_cache_key(key_prefix, args, kwargs)
+
+                # Try stampede-protected path
+                from backend.core.cache_stampede import get_stampede_protection
+                protection = get_stampede_protection()
+
+                if protection:
+                    return protection.get_or_compute(
+                        cache_key=cache_key,
+                        compute_func=lambda: func(*args, **kwargs),
+                        cache_instance=cache,
+                        expire=expire,
+                    )
+
+                # Fallback: simple get/set (no stampede protection)
+                cached_val = cache.get(cache_key)
+                if cached_val is not None:
+                    return cached_val
+
+                result = func(*args, **kwargs)
+
+                if hasattr(result, "model_dump"):
+                    val_to_cache = result.model_dump()
+                elif hasattr(result, "dict"):
+                    val_to_cache = result.dict()
+                else:
+                    val_to_cache = result
+
+                try:
+                    cache.set(cache_key, val_to_cache, expire=expire)
+                except Exception as e:
+                    logger.error(f"Failed to cache {cache_key}: {e}")
+
+                return result
+
+            return wrapper
 
     return decorator
 

@@ -1,7 +1,8 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy.orm import Session
-from backend.database import get_db  # Fixed import path
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from backend.database import get_async_db
 from backend import models
 from backend.schemas import system_log as schemas
 from backend.core.permissions import Permission, require_permission
@@ -12,8 +13,8 @@ router = APIRouter()
 
 # --- Public Endpoint for Frontend Errors ---
 @router.post("", response_model=StandardResponse[schemas.SystemError])
-def log_frontend_error(
-    error: schemas.SystemErrorCreate, request: Request, db: Session = Depends(get_db)
+async def log_frontend_error(
+    error: schemas.SystemErrorCreate, request: Request, db: AsyncSession = Depends(get_async_db)
 ):
     """
     Log an error from the frontend app.
@@ -34,34 +35,31 @@ def log_frontend_error(
 
     db_error = models.SystemError(**error_data)
     db.add(db_error)
-    db.commit()
-    db.refresh(db_error)
+    await db.commit()
+    await db.refresh(db_error)
     return success_response(data=db_error)
 
 
 # --- Admin Endpoint for Viewing Errors ---
 @router.get("", response_model=StandardResponse[List[schemas.SystemError]])
-def get_system_errors(
+async def get_system_errors(
     skip: int = 0,
     limit: int = 100,
     level: Optional[str] = None,
     source: Optional[str] = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user=Depends(
         require_permission(Permission.SYSTEM_CONFIG)
     ),
 ):
-    query = db.query(models.SystemError)
+    stmt = select(models.SystemError)
 
     if level:
-        query = query.filter(models.SystemError.level == level)
+        stmt = stmt.filter(models.SystemError.level == level)
     if source:
-        query = query.filter(models.SystemError.source == source)
+        stmt = stmt.filter(models.SystemError.source == source)
 
-    results = (
-        query.order_by(models.SystemError.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+    stmt = stmt.order_by(models.SystemError.created_at.desc()).offset(skip).limit(limit)
+    result = await db.execute(stmt)
+    results = result.scalars().all()
     return success_response(data=results)

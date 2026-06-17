@@ -11,24 +11,26 @@ Solution: This script iterates over all tenants, finds their default price list,
 
 import sys
 import os
+import asyncio
 from sqlalchemy import text
 
 # Ensure backend structure is visible
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from backend.database import engine
+from backend.database import async_engine
 
 
-def fix_global_procedures():
+async def fix_global_procedures():
     print("Starting Global Procedure Propagation...")
 
-    with engine.connect() as conn:
+    async with async_engine.connect() as conn:
         # 1. Get all Global Procedures
-        global_procs = conn.execute(
+        res_procs = await conn.execute(
             text("""
             SELECT id, price, name FROM procedures WHERE tenant_id IS NULL
         """)
-        ).fetchall()
+        )
+        global_procs = res_procs.fetchall()
 
         if not global_procs:
             print("No global procedures found. Run seed_procedures.py first.")
@@ -37,7 +39,8 @@ def fix_global_procedures():
         print(f"Found {len(global_procs)} global procedures.")
 
         # 2. Get all Tenants
-        tenants = conn.execute(text("SELECT id, name FROM tenants")).fetchall()
+        res_tenants = await conn.execute(text("SELECT id, name FROM tenants"))
+        tenants = res_tenants.fetchall()
         print(f"Found {len(tenants)} tenants.")
 
         total_inserted = 0
@@ -47,13 +50,14 @@ def fix_global_procedures():
             print(f"Processing Tenant: {tenant_name} ({tenant_id})")
 
             # 3. Get Default Price List
-            price_list = conn.execute(
+            res_pl = await conn.execute(
                 text("""
                 SELECT id FROM price_lists
                 WHERE tenant_id = :tid AND is_default = TRUE
             """),
                 {"tid": tenant_id},
-            ).fetchone()
+            )
+            price_list = res_pl.fetchone()
 
             if not price_list:
                 print(f"  [WARN] No default price list for {tenant_name}. Skipping.")
@@ -66,19 +70,20 @@ def fix_global_procedures():
                 proc_id, price, name = proc
 
                 # Check if exists
-                exists = conn.execute(
+                res_exists = await conn.execute(
                     text("""
                     SELECT id FROM price_list_items
                     WHERE price_list_id = :plid AND procedure_id = :pid
                 """),
                     {"plid": pl_id, "pid": proc_id},
-                ).fetchone()
+                )
+                exists = res_exists.fetchone()
 
                 if not exists:
                     # Use provided price or 0.0
                     final_price = price if price is not None else 0.0
 
-                    conn.execute(
+                    await conn.execute(
                         text("""
                         INSERT INTO price_list_items (price_list_id, procedure_id, price, created_at, updated_at)
                         VALUES (:plid, :pid, :price, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -87,7 +92,7 @@ def fix_global_procedures():
                     )
                     total_inserted += 1
 
-            conn.commit()
+            await conn.commit()
 
     print(
         f"\nSuccess! Inserted {total_inserted} new price list items across all tenants."
@@ -96,6 +101,6 @@ def fix_global_procedures():
 
 if __name__ == "__main__":
     try:
-        fix_global_procedures()
+        asyncio.run(fix_global_procedures())
     except Exception as e:
         print(f"Error: {e}")

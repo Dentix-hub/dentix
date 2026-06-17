@@ -11,6 +11,7 @@ import os
 import logging
 from fastapi import FastAPI, Request, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -29,7 +30,6 @@ from backend.middleware.security_headers import SecurityHeadersMiddleware
 from backend.middleware.tenant import TenantMiddleware
 from backend.middleware.error_logging import ErrorLoggingMiddleware
 from backend.core.response import success_response
-
 
 # sentry_sdk removed.
 
@@ -88,20 +88,22 @@ async def lifespan(app: FastAPI):
         except Exception:
             logger.warning("[STARTUP] Startup patches failed", exc_info=True)
 
-        # 4. Seed Initial Data (DEV/STAGING ONLY)
         try:
-            logger.info("[STARTUP] Seeding initial data...")
-            seeding.seed_subscription_plans()
-            seeding.create_first_admin()
-
-            db = database.SessionLocal()
-            try:
-                from backend.scripts.seeds import seed
-                seed.seed_data(db)
-            finally:
-                db.close()
-        except Exception:
-            logger.error("[STARTUP] Seed failed", exc_info=True)
+            _ctx = database.RlsContext(tenant_id=None)
+            async with database.AsyncSessionLocal(context=_ctx) as _sess:
+                async with _sess.bypass_rls() as db:
+                    async with db.begin():
+                        await seeding.seed_default_data(db)
+            logger.info("Database seeding completed")
+        except Exception as e:
+            from sqlalchemy.exc import IntegrityError
+            if isinstance(e, IntegrityError) or "unique constraint" in str(e).lower() or "uniqueviolation" in str(e).lower():
+                logger.warning("Seeding skipped — data already exists")
+            elif seeding.is_connection_error(e):
+                logger.error("[STARTUP] Seeding connection error. Raising to restart container.")
+                raise e
+            else:
+                logger.warning(f"Seeding failed, continuing startup: {e}")
 
         # 5. Seed Global Procedures + Propagate (DEV/STAGING ONLY)
         try:
@@ -112,23 +114,23 @@ async def lifespan(app: FastAPI):
 
             logger.info("[STARTUP] Converting tenant-1 procedures to global...")
             try:
-                fix_procedures_tenant()
+                await fix_procedures_tenant()
             except Exception:
                 logger.warning("[STARTUP] Failed to run fix_procedures_tenant", exc_info=True)
 
             logger.info("[STARTUP] Seeding Global Procedures...")
-            seed_procedures()
+            await seed_procedures()
 
             logger.info("[STARTUP] Seeding Material Categories...")
-            seed_material_categories()
+            await seed_material_categories()
 
             logger.info("[STARTUP] Seeding Procedure-Material Defaults...")
-            seed_procedure_material_defaults()
+            await seed_procedure_material_defaults()
             logger.info("[STARTUP] Global Procedures Seeded.")
 
             logger.info("[STARTUP] Running Global Procedure Propagation...")
             from backend.scripts.fix_global_procedures import fix_global_procedures
-            fix_global_procedures()
+            await fix_global_procedures()
             logger.info("[STARTUP] Global Procedure Propagation Complete.")
         except Exception:
             logger.error("[STARTUP] Global Procedure Seeding/Propagation failed", exc_info=True)
@@ -147,27 +149,38 @@ async def lifespan(app: FastAPI):
     logger.info("[STARTUP] System Ready.")
     logger.info("BACKEND V3 LOADED | CWD: %s | Routes: %d", os.getcwd(), len(app.routes))
 
-    import asyncio
-    from backend.workers.event_processor import poll_outbox
-    from backend.workers.subscription_checker import start_subscription_checker_loop
-    # Start the event processor background task
-    logger.info("[STARTUP] Starting Domain Event Processor...")
-    worker_task = asyncio.create_task(poll_outbox(poll_interval=5))
+    enable_workers = os.getenv("ENABLE_IN_PROCESS_WORKERS", "true").lower() == "true"
+    worker_task = None
+    subscription_task = None
 
-    logger.info("[STARTUP] Starting Subscription Checker...")
-    subscription_task = asyncio.create_task(start_subscription_checker_loop(interval_hours=12))
+    if enable_workers:
+        import asyncio
+        from backend.workers.event_processor import poll_outbox
+        from backend.workers.subscription_checker import start_subscription_checker_loop
+        # Start the event processor background task
+        logger.info("[STARTUP] Starting Domain Event Processor...")
+        worker_task = asyncio.create_task(poll_outbox(poll_interval=5))
+
+        logger.info("[STARTUP] Starting Subscription Checker...")
+        subscription_task = asyncio.create_task(start_subscription_checker_loop(interval_hours=12))
 
     yield  # Application runs here
 
     # Shutdown cleanup
-    logger.info("[SHUTDOWN] Stopping Background Workers...")
-    worker_task.cancel()
-    subscription_task.cancel()
-    try:
-        await asyncio.gather(worker_task, subscription_task, return_exceptions=True)
-    except asyncio.CancelledError:
-        pass
-    logger.info("[SHUTDOWN] Background Workers stopped successfully.")
+    if enable_workers:
+        logger.info("[SHUTDOWN] Stopping Background Workers...")
+        if worker_task:
+            worker_task.cancel()
+        if subscription_task:
+            subscription_task.cancel()
+        try:
+            await asyncio.gather(
+                *[t for t in [worker_task, subscription_task] if t],
+                return_exceptions=True
+            )
+        except asyncio.CancelledError:
+            pass
+        logger.info("[SHUTDOWN] Background Workers stopped successfully.")
 
 
 # Initialize FastAPI app with lifespan
@@ -204,8 +217,64 @@ app.add_middleware(
     allow_origin_regex=get_allow_origin_regex(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-Trace-ID", "Accept", "Idempotency-Key"],
+    allow_headers=["Authorization", "Content-Type", "X-Trace-ID", "Accept", "Idempotency-Key", "X-CSRF-Token"],
 )
+
+# 6. CSRF Protection Middleware (for httpOnly cookie-based auth)
+from backend.routers.auth.login import _validate_csrf, _CSRF_COOKIE_NAME
+
+@app.middleware("http")
+async def csrf_protection_middleware(request: Request, call_next):
+    """
+    CSRF protection using double-submit cookie pattern.
+    Validates CSRF token on state-changing requests (POST, PUT, DELETE, PATCH).
+    Exempts: GET, HEAD, OPTIONS, auth endpoints, health checks, webhooks.
+    """
+    # Skip safe methods
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return await call_next(request)
+
+    # Skip Bearer auth requests (Authorization header contains Bearer)
+    # CSRF only applies to cookie-based session auth
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return await call_next(request)
+
+
+    # Skip auth endpoints (they manage their own CSRF or are entry points)
+    path = request.url.path
+    exempt_paths = [
+        "/api/v1/auth/token",         # Login
+        "/api/v1/auth/refresh",       # Token refresh
+        "/api/v1/auth/logout",        # Logout
+        "/api/v1/auth/login/2fa",     # 2FA login
+        "/api/v1/auth/register",      # Registration
+        "/api/v1/auth/forgot-password",
+        "/api/v1/auth/reset-password",
+        "/api/v1/auth/verify-reset-token",
+        "/health",                    # Health checks
+        "/api/v1/global-settings",    # Public settings
+        "/api/v1/upload",             # File upload (handled separately)
+        "/docs", "/redoc", "/openapi.json",  # Docs
+        "/static", "/assets",         # Static files
+    ]
+    if any(path.startswith(p) for p in exempt_paths):
+        return await call_next(request)
+
+    # Skip webhook endpoints (they have their own validation)
+    if "webhook" in path.lower() or "callback" in path.lower():
+        return await call_next(request)
+
+    # Validate CSRF token
+    if not _validate_csrf(request):
+        logger.warning(f"CSRF validation failed for {request.method} {path} from {request.client.host if request.client else 'unknown'}")
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "CSRF token validation failed. Please refresh the page and try again."}
+        )
+
+    return await call_next(request)
 
 
 # --- Custom Middleware ---
@@ -315,10 +384,24 @@ from backend.routers import (
 # --- Register Exception Handlers ---
 from backend.core.exceptions import register_exception_handlers
 
-register_exception_handlers(app)
+from backend.routers.auth.dependencies import get_current_user
+
+@app.get("/api/auth/session")
+async def get_session_direct_root(
+    current_user: models.User = Depends(get_current_user)
+):
+    """Direct root endpoint to get current authenticated user's session details."""
+    from backend.core.response import success_response
+    return success_response(data={
+        "id": current_user.id,
+        "name": current_user.full_name or current_user.username,
+        "role": current_user.role,
+        "tenant_id": current_user.tenant_id,
+    })
 
 
 app.include_router(treatments.router, prefix=API_V1_STR)
+
 app.include_router(patients.router, prefix=API_V1_STR)
 app.include_router(auth.router, prefix=f"{API_V1_STR}/auth")
 app.include_router(password_reset.router, prefix=f"{API_V1_STR}/auth")
@@ -371,13 +454,16 @@ app.include_router(metrics.router, prefix=API_V1_STR)
 
 # --- Global Settings (public, no auth) ---
 @app.get(f"{API_V1_STR}/global-settings")
-async def get_global_settings(db: Session = Depends(database.get_db)):
+async def get_global_settings(db: AsyncSession = Depends(database.get_async_db)):
     """Return global application settings (banner, support info, etc.)."""
+    from sqlalchemy import select
 
     # Helper to get setting from DB or fallback to ENV
-    def get_setting(key, env_name, default=""):
+    async def get_setting(key, env_name, default=""):
         try:
-            val = db.query(models.SystemSetting).filter(models.SystemSetting.key == key).first()
+            stmt = select(models.SystemSetting).filter(models.SystemSetting.key == key)
+            result = await db.execute(stmt)
+            val = result.scalars().first()
             if val and val.value:
                 return val.value
         except Exception as e:
@@ -385,16 +471,22 @@ async def get_global_settings(db: Session = Depends(database.get_db)):
         return os.getenv(env_name, default)
 
     return success_response({
-        "banner": get_setting("global_announcement", "GLOBAL_BANNER", None),
-        "support_email": get_setting("support_email", "SUPPORT_EMAIL", "support@smartdentalclinicapp.com"),
-        "support_phone": get_setting("support_phone", "SUPPORT_PHONE", "+20 120 130 1415"),
-        "support_whatsapp": get_setting("support_whatsapp", "SUPPORT_WHATSAPP", "201201301415"),
-        "support_working_hours": get_setting("support_working_hours", "SUPPORT_WORKING_HOURS", "9:00 AM - 10:00 PM"),
+        "banner": await get_setting("global_announcement", "GLOBAL_BANNER", None),
+        "support_email": await get_setting("support_email", "SUPPORT_EMAIL", "support@smartdentalclinicapp.com"),
+        "support_phone": await get_setting("support_phone", "SUPPORT_PHONE", "+20 120 130 1415"),
+        "support_whatsapp": await get_setting("support_whatsapp", "SUPPORT_WHATSAPP", "201201301415"),
+        "support_working_hours": await get_setting("support_working_hours", "SUPPORT_WORKING_HOURS", "9:00 AM - 10:00 PM"),
     })
 
 
-
 # --- Observability ---
+# Workaround for compatibility issue between FastAPI >=0.110.0 and prometheus-fastapi-instrumentator.
+# Newer FastAPI versions include nested APIRouter instances as _IncludedRouter in app.routes,
+# which lack the 'path' attribute expected by the instrumentator.
+for route in app.routes:
+    if not hasattr(route, "path"):
+        route.path = ""
+
 Instrumentator().instrument(app).expose(app)
 
 
@@ -496,82 +588,3 @@ async def catch_all(full_path: str):
         return response
 
     return {"error": "Frontend not deployed"}
-
-
-# --- Protected Admin Endpoints ---
-from backend.routers.auth import get_current_user
-
-
-@app.post("/admin/seed-database")
-def manual_seed_database(current_user=Depends(get_current_user)):
-    """Manual endpoint to seed database (admin only)."""
-    if os.getenv("ENVIRONMENT", "").lower() != "development":
-        raise HTTPException(status_code=404, detail="Not Found")
-    if getattr(current_user, "role", None) not in {"admin", "super_admin"}:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    logger.warning("Manual seed triggered by user: %s", current_user.username)
-    return seeding.manual_seed_database_logic()
-
-
-# --- Debug Endpoints (Development Only) ---
-if os.getenv("ENVIRONMENT", "development").lower() != "production":
-
-    @app.get("/debug/cache-stats")
-    def cache_stats():
-        """Debug: check cache statistics. NOT available in production."""
-        return get_cache_stats()
-
-    @app.post("/debug/invalidate-cache")
-    def clear_cache_route(prefix: str = None):
-        """Debug: invalidate cache. NOT available in production."""
-        invalidate_cache(prefix)
-        return {"message": "Cache invalidated", "prefix": prefix}
-
-    @app.get("/debug/db-info")
-    def debug_db_info():
-        """Debug: check database schema. NOT available in production."""
-        from sqlalchemy import inspect
-        try:
-            inspector = inspect(database.engine)
-            tables = inspector.get_table_names()
-            return {
-                "connected": True,
-                "table_count": len(tables),
-                "tables": tables,
-            }
-        except Exception:
-            return {"error": "Database inspection failed"}
-
-    @app.get(f"{API_V1_STR}/debug/recent-errors")
-    def get_recent_errors(db: Session = Depends(database.get_db)):
-        """Debug: show last 10 system errors. Available in staging/dev."""
-        from backend.models.system import SystemError
-        try:
-            errors = db.query(SystemError).order_by(SystemError.created_at.desc()).limit(10).all()
-            return [
-                {
-                    "id": e.id,
-                    "time": e.created_at.isoformat() if e.created_at else None,
-                    "path": e.path,
-                    "message": e.message,
-                    "stack": e.stack_trace[:1000] + "..." if e.stack_trace and len(e.stack_trace) > 1000 else e.stack_trace
-                } for e in errors
-            ]
-        except Exception as e:
-            return {"error": f"Failed to fetch errors: {str(e)}"}
-
-    @app.get("/debug/static-files")
-    def debug_static_files():
-        """Debug: list files in static directory."""
-        import os
-        paths = [
-            os.path.join(base_dir, "static"),
-            os.path.join(base_dir, "static", "assets"),
-        ]
-        result = {}
-        for p in paths:
-            if os.path.exists(p):
-                result[p] = os.listdir(p)
-            else:
-                result[p] = "Not found"
-        return result

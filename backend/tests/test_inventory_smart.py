@@ -1,72 +1,32 @@
 import os
 import sys
 import pytest
+import uuid
+from datetime import datetime
 
 # Add project root to sys.path
 sys.path.append(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
 
-# CRITICAL: Set env var BEFORE importing backend modules that depend on it
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
-
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-from backend.main import app
-from backend.database import Base, get_db
 from backend import models, auth
-from datetime import datetime
-
-# Setup In-Memory DB for testing
-SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
-
-from backend import database
-
-# Setup Shared In-Memory DB
-# We must patch the global engine to use StaticPool so middleware and tests share data
-engine = create_engine(
-    "sqlite:///:memory:",
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-database.engine = engine
-database.SyncSessionLocal.configure(bind=engine)
-
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-def override_get_db():
-    try:
-        db = TestingSessionLocal()
-        yield db
-    finally:
-        db.close()
-
-
-from backend.routers.auth import get_db as auth_get_db
-
-app.dependency_overrides[get_db] = override_get_db
-app.dependency_overrides[auth_get_db] = override_get_db
-client = TestClient(app)
-
-
-@pytest.fixture(scope="module")
-def test_db():
-    # Create tables
-    Base.metadata.create_all(bind=engine)
-
-    db = TestingSessionLocal()
+@pytest.fixture(scope="function")
+def test_data(db_session):
+    db = db_session
+    uid = str(uuid.uuid4())[:8]
 
     # 1. Create Tenant & User
-    tenant = models.Tenant(name="Smart Clinic Test")
+    tenant = models.Tenant(name=f"Smart Clinic Test {uid}")
     db.add(tenant)
     db.commit()
 
     password_hash = auth.get_password_hash("testpass")
+    username = f"doctor_smart_{uid}"
     user = models.User(
-        username="doctor_smart",
+        username=username,
+        email=f"doctor_smart_{uid}@example.com",
         hashed_password=password_hash,
         role="doctor",
         tenant_id=tenant.id,
@@ -77,13 +37,16 @@ def test_db():
 
     # 2. Create Materials
     mat1 = models.Material(
-        name="Composite A1",
+        name=f"Composite A1 {uid}",
         base_unit="capsule",
         type="NON_DIVISIBLE",
         tenant_id=tenant.id,
     )
     mat2 = models.Material(
-        name="Bonding Agent", base_unit="ml", type="DIVISIBLE", tenant_id=tenant.id
+        name=f"Bonding Agent {uid}",
+        base_unit="ml",
+        type="DIVISIBLE",
+        tenant_id=tenant.id,
     )
     db.add_all([mat1, mat2])
     db.commit()
@@ -91,7 +54,7 @@ def test_db():
     # 3. Create Stock (Availability)
     batch1 = models.Batch(
         material_id=mat1.id,
-        batch_number="B100",
+        batch_number=f"B100_{uid}",
         expiry_date=datetime(2030, 1, 1),
         tenant_id=tenant.id,
     )
@@ -104,10 +67,8 @@ def test_db():
         warehouse_id=1,  # Mock ID
         tenant_id=tenant.id,
     )
-    # Note: StockItem might link to Warehouse, we might need to create a Warehouse if FK constraint exists
-    # Checking models usually helps, but assuming simple setup for now or ignoring FK if sqlite.
-    # Actually, create a warehouse just in case.
-    warehouse = models.Warehouse(name="Main Storage", tenant_id=tenant.id)
+    
+    warehouse = models.Warehouse(name=f"Main Storage {uid}", tenant_id=tenant.id)
     db.add(warehouse)
     db.commit()
     stock_item1.warehouse_id = warehouse.id
@@ -115,7 +76,7 @@ def test_db():
     db.commit()
 
     # 4. Create Procedure & Weights (Learning)
-    proc = models.Procedure(name="Filling", price=100.0, tenant_id=tenant.id)
+    proc = models.Procedure(name=f"Filling {uid}", price=100.0, tenant_id=tenant.id)
     db.add(proc)
     db.commit()
 
@@ -130,12 +91,16 @@ def test_db():
     db.add(weight1)
     db.commit()
 
-    yield db
-    Base.metadata.drop_all(bind=engine)
+    return {
+        "db": db,
+        "username": username,
+        "procedure": proc,
+        "material1": mat1,
+        "material2": mat2,
+    }
 
 
-def get_auth_token(db, username="doctor_smart"):
-    # Bypass /token endpoint and generate token directly to avoid middleware/db-connection integration issues during test
+def get_auth_token(db, username):
     user = db.query(models.User).filter_by(username=username).first()
     access_token = auth.create_access_token(
         data={"sub": user.username, "role": user.role, "tenant_id": user.tenant_id}
@@ -143,13 +108,13 @@ def get_auth_token(db, username="doctor_smart"):
     return access_token
 
 
-def test_smart_suggestions(test_db):
+def test_smart_suggestions(client, test_data):
     """Test fetching intelligent material suggestions for a procedure"""
-    token = get_auth_token(test_db)
+    db = test_data["db"]
+    token = get_auth_token(db, test_data["username"])
     headers = {"Authorization": f"Bearer {token}"}
 
-    # Get procedure ID (should be 1)
-    proc = test_db.query(models.Procedure).first()
+    proc = test_data["procedure"]
 
     response = client.get(
         f"/api/v1/inventory/smart/suggestions/{proc.id}", headers=headers
@@ -160,24 +125,22 @@ def test_smart_suggestions(test_db):
     assert data["success"] is True
     suggestions = data["data"]
 
-    # Note: Suggestions may be empty due to DB session isolation between
-    # the test fixture and the app's dependency injection. The important
-    # assertion is that the endpoint works (200 OK + correct structure).
     if len(suggestions) >= 1:
         # Check suggestion logic (should prefer current_average_usage if available)
         item = suggestions[0]
-        assert item["material"]["name"] == "Composite A1"
+        assert item["material"]["name"].startswith("Composite A1")
         assert item["suggested_quantity"] == 2.5  # Matches current_average_usage
         assert item["confidence"] >= 0.9  # High confidence due to sample_size
 
 
-def test_check_availability(test_db):
+def test_check_availability(client, test_data):
     """Test pre-flight stock checking"""
-    token = get_auth_token(test_db)
+    db = test_data["db"]
+    token = get_auth_token(db, test_data["username"])
     headers = {"Authorization": f"Bearer {token}"}
 
-    mat1 = test_db.query(models.Material).filter_by(name="Composite A1").first()
-    mat2 = test_db.query(models.Material).filter_by(name="Bonding Agent").first()
+    mat1 = test_data["material1"]
+    mat2 = test_data["material2"]
 
     # 1. Check sufficient stock
     payload = {

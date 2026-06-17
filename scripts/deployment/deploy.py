@@ -141,7 +141,9 @@ def deploy_production():
     # 1. Build frontend locally
     print("⚡ Building frontend locally...")
     frontend_dir = os.path.join(os.getcwd(), "frontend")
-    build_ok, build_out = run_local_command("npm run build", cwd=frontend_dir)
+    # Use ExecutionPolicy Bypass on Windows for npm
+    cmd = "powershell -ExecutionPolicy Bypass -Command \"npm run build\"" if os.name == 'nt' else "npm run build"
+    build_ok, build_out = run_local_command(cmd, cwd=frontend_dir)
     if not build_ok:
         print("❌ Frontend compilation failed!")
         return False
@@ -212,6 +214,7 @@ def deploy_production():
     print("🔄 Unpacking release and restarting services on the Droplet...")
     remote_commands = (
         f"cd {PRODUCTION_DEST_DIR} && "
+        f"rm -rf backend/alembic/versions && "
         f"tar -xzf {archive_name} && "
         f"rm {archive_name} && "
         f"docker compose up -d --build backend worker domain-worker"

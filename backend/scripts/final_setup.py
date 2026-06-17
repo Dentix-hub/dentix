@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import asyncio
 
 # Add project root to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -15,7 +16,7 @@ from dotenv import load_dotenv
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def run_final_setup():
+async def run_final_setup():
     """Final setup: seeding and verification."""
     # Ensure env is loaded
     load_dotenv(os.path.join(project_root, ".env"))
@@ -23,13 +24,11 @@ def run_final_setup():
     logger.info("Starting Final Seeding & Verification...")
 
     try:
-        # 1. Seed Subscription Plans
-        logger.info("Seeding Subscription Plans...")
-        seeding.seed_subscription_plans()
-
-        # 2. Create First Admin
-        logger.info("Creating First Admin...")
-        seeding.create_first_admin()
+        # 1. Seed Default Data (Plans & Admin)
+        logger.info("Running Database Seeding...")
+        async with database.AsyncSessionLocal() as db:
+            async with db.begin():
+                await seeding.seed_default_data(db)
 
         # 3. Test Firebase Initialization
         logger.info("Testing Firebase Initialization...")
@@ -45,4 +44,4 @@ def run_final_setup():
         logger.exception(f"Error during final setup: {e}")
 
 if __name__ == "__main__":
-    run_final_setup()
+    asyncio.run(run_final_setup())

@@ -17,10 +17,10 @@ def transactional(func: Callable) -> Callable:
                 if isinstance(arg, Session):
                     db = arg
                     break
-        
+
         if not db:
             raise ValueError("A database session ('db') is required to use the @transactional decorator.")
-            
+
         try:
             # We don't call db.begin() explicitly here as SQLAlchemy autocommits/begins based on usage,
             # but we define the explicit boundaries.
@@ -30,7 +30,7 @@ def transactional(func: Callable) -> Callable:
         except Exception as e:
             db.rollback()
             raise e
-            
+
     return wrapper
 
 def with_transaction(db: Session):

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import logger from '@/utils/logger';
 import { X, Star, Plus } from 'lucide-react';
 import { getSavedMedications } from '@/api';
 export default function PrescriptionModal({ isOpen, onClose, onPrint }) {
@@ -16,7 +17,7 @@ export default function PrescriptionModal({ isOpen, onClose, onPrint }) {
             const res = await getSavedMedications();
             setSavedMeds(res.data);
         } catch (err) {
-            console.error("Failed to load saved medications", err);
+            logger.error("Failed to load saved medications", err);
         }
     };
     if (!isOpen) return null;

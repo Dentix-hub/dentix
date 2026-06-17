@@ -2,9 +2,9 @@ import logging
 logger = logging.getLogger(__name__)
 from fastapi import Depends, HTTPException, status, Cookie, Request
 from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
-from backend import schemas, crud, auth
-from backend.database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
+from backend import models, schemas, crud, auth
+from backend.database import get_async_db
 from backend.core.permissions import Role
 from datetime import datetime, timezone
 
@@ -74,10 +74,10 @@ def validate_password(password: str) -> None:
         )
 
 
-def get_current_user(
+async def get_current_user(
     request: Request,
     token: str | None = Depends(get_token_from_header_or_cookie),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Validate JWT token and return current user."""
 
@@ -106,7 +106,11 @@ def get_current_user(
         raise credentials_exception
 
     # Validated User
-    user = crud.get_user(db, username=token_data.username)
+    from sqlalchemy.orm import joinedload
+    from sqlalchemy import select
+    stmt = select(models.User).where(models.User.username == token_data.username).options(joinedload(models.User.tenant).joinedload(models.Tenant.subscription_plan))
+    result = await db.execute(stmt)
+    user = result.scalars().first()
     if user is None:
         logger.debug("User not found in DB for authenticated username: %s", token_data.username)
         raise credentials_exception

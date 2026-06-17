@@ -1,12 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from typing import List
 from datetime import datetime, timedelta, timezone
 from backend import models, schemas
-from backend.database import get_db
+from backend.database import get_async_db
 from backend.services.admin_service import AdminService
 from backend.core.permissions import Role, Permission, require_permission
 from backend.core.response import success_response, StandardResponse
+from starlette.requests import Request
 
 
 from backend.auth import create_access_token
@@ -26,26 +29,26 @@ def require_super_admin(current_user: models.User = Depends(require_permission(P
 
 
 @router.get("", response_model=StandardResponse[List[schemas.Tenant]])
-def get_all_tenants(
+async def get_all_tenants(
     skip: int = 0,
     limit: int = 100,
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     service = AdminService(db)
-    data = service.get_all_tenants(skip, limit)
+    data = await service.get_all_tenants(skip, limit)
     return success_response(data=data)
 
 
 @router.put("/{tenant_id}", response_model=StandardResponse[schemas.Tenant])
-def update_tenant(
+async def update_tenant(
     tenant_id: int,
     tenant_update: schemas.TenantUpdate,
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     service = AdminService(db)
-    tenant = service.update_tenant(
+    tenant = await service.update_tenant(
         tenant_id,
         plan=tenant_update.plan,
         is_active=tenant_update.is_active,
@@ -57,61 +60,61 @@ def update_tenant(
 
 
 @router.delete("/{tenant_id}", response_model=StandardResponse[dict])
-def archive_tenant(
+async def archive_tenant(
     tenant_id: int,
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     service = AdminService(db)
-    tenant = service.archive_tenant(tenant_id)
+    tenant = await service.archive_tenant(tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return success_response(message="Tenant archived successfully")
 
 
 @router.post("/{tenant_id}/restore", response_model=StandardResponse[dict])
-def restore_tenant(
+async def restore_tenant(
     tenant_id: int,
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     service = AdminService(db)
-    tenant = service.restore_tenant(tenant_id)
+    tenant = await service.restore_tenant(tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return success_response(message="Tenant restored successfully")
 
 
 @router.delete("/{tenant_id}/permanent", response_model=StandardResponse[dict])
-def delete_tenant_permanently(
+async def delete_tenant_permanently(
     tenant_id: int,
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     service = AdminService(db)
-    success = service.permanently_delete_tenant(tenant_id)
+    success = await service.permanently_delete_tenant(tenant_id)
     if not success:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return success_response(message="Tenant permanently deleted")
 
 
 @router.post("/{tenant_id}/assign-plan", response_model=StandardResponse[dict])
-def assign_plan_to_tenant(
+async def assign_plan_to_tenant(
     tenant_id: int,
     plan_id: int,
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
-
-    tenant = db.query(models.Tenant).filter(models.Tenant.id == tenant_id).first()
+    res_tenant = await db.execute(select(models.Tenant).where(models.Tenant.id == tenant_id))
+    tenant = res_tenant.scalar_one_or_none()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    plan = (
-        db.query(models.SubscriptionPlan)
-        .filter(models.SubscriptionPlan.id == plan_id)
-        .first()
+    res_plan = await db.execute(
+        select(models.SubscriptionPlan)
+        .where(models.SubscriptionPlan.id == plan_id)
     )
+    plan = res_plan.scalar_one_or_none()
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
@@ -122,8 +125,8 @@ def assign_plan_to_tenant(
         days=plan.duration_days
     )
 
-    db.commit()
-    db.refresh(tenant)
+    await db.commit()
+    await db.refresh(tenant)
     return success_response(
         data={"tenant": tenant.name},
         message=f"Plan '{plan.name}' assigned successfully",
@@ -132,17 +135,17 @@ def assign_plan_to_tenant(
 
 # Extra: Get Tenant Users
 @router.get("/{tenant_id}/users", response_model=StandardResponse[dict])
-def get_tenant_users(
+async def get_tenant_users(
     tenant_id: int,
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     service = AdminService(db)
-    tenant = service.get_tenant_by_id(tenant_id)
+    tenant = await service.get_tenant_by_id(tenant_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    users = service.get_users_for_tenant(tenant_id)
+    users = await service.get_users_for_tenant(tenant_id)
 
     return success_response(
         data={
@@ -165,51 +168,62 @@ def get_tenant_users(
 
 
 @router.delete("/{tenant_id}/purge-deleted-patients", response_model=StandardResponse[dict])
-def purge_deleted_patients(
+async def purge_deleted_patients(
     tenant_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Permanently remove soft-deleted patients for a specific tenant."""
     # Security: If not super_admin, must belong to the tenant
     if current_user.role != Role.SUPER_ADMIN.value and current_user.tenant_id != tenant_id:
         raise HTTPException(status_code=403, detail="Not authorized to purge another tenant's data")
-    tenant = db.query(models.Tenant).filter(
-        models.Tenant.id == tenant_id,
-        models.Tenant.is_deleted == False,  # noqa: E712
-    ).first()
+
+    res_tenant = await db.execute(
+        select(models.Tenant).where(
+            models.Tenant.id == tenant_id,
+            models.Tenant.is_deleted == False,  # noqa: E712
+        )
+    )
+    tenant = res_tenant.scalar_one_or_none()
 
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    deleted_patients = db.query(models.Patient).filter(
-        models.Patient.tenant_id == tenant_id,
-        models.Patient.is_deleted == True,  # noqa: E712
-    ).all()
+    res_patients = await db.execute(
+        select(models.Patient).where(
+            models.Patient.tenant_id == tenant_id,
+            models.Patient.is_deleted == True,  # noqa: E712
+        )
+    )
+    deleted_patients = list(res_patients.scalars().all())
 
     count = len(deleted_patients)
     for patient in deleted_patients:
-        db.delete(patient)
+        await db.delete(patient)
 
-    db.commit()
+    await db.commit()
 
     return success_response(
         data={"purged_count": count},
         message=f"تم حذف {count} مريض نهائياً"
     )
 
+
 @router.get("/{tenant_id}/details", response_model=StandardResponse[dict])
-def get_tenant_details(
+async def get_tenant_details(
     tenant_id: int,
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     service = AdminService(db)
-    tenant = service.get_tenant_by_id(tenant_id)
+    # Eager load users relationship to avoid MissingGreenlet
+    stmt = select(models.Tenant).options(selectinload(models.Tenant.users)).where(models.Tenant.id == tenant_id)
+    res = await db.execute(stmt)
+    tenant = res.scalar_one_or_none()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    stats = service.get_tenant_detailed_stats(tenant_id)
+    stats = await service.get_tenant_detailed_stats(tenant_id)
 
     return success_response(data={
         "tenant": {
@@ -228,26 +242,31 @@ def get_tenant_details(
 
 
 @router.post("/{tenant_id}/features/{feature_key}", response_model=StandardResponse[dict])
-def toggle_tenant_feature(
+async def toggle_tenant_feature(
     tenant_id: int,
     feature_key: str,
     is_enabled: bool,
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Grant or revoke a specific feature for a tenant."""
-    tenant = db.query(models.Tenant).filter(models.Tenant.id == tenant_id).first()
+    res_tenant = await db.execute(select(models.Tenant).where(models.Tenant.id == tenant_id))
+    tenant = res_tenant.scalar_one_or_none()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-        
-    feature = db.query(models.FeatureFlag).filter(models.FeatureFlag.key == feature_key).first()
+
+    res_feature = await db.execute(select(models.FeatureFlag).where(models.FeatureFlag.key == feature_key))
+    feature = res_feature.scalar_one_or_none()
     if not feature:
         raise HTTPException(status_code=404, detail="Feature flag not found")
 
-    tenant_feature = db.query(models.TenantFeature).filter(
-        models.TenantFeature.tenant_id == tenant_id,
-        models.TenantFeature.feature_key == feature_key
-    ).first()
+    res_tf = await db.execute(
+        select(models.TenantFeature).where(
+            models.TenantFeature.tenant_id == tenant_id,
+            models.TenantFeature.feature_key == feature_key
+        )
+    )
+    tenant_feature = res_tf.scalar_one_or_none()
 
     if not tenant_feature:
         tenant_feature = models.TenantFeature(
@@ -259,8 +278,8 @@ def toggle_tenant_feature(
     else:
         tenant_feature.is_enabled = is_enabled
 
-    db.commit()
-    
+    await db.commit()
+
     return success_response(
         data={"feature_key": feature_key, "is_enabled": is_enabled},
         message=f"Feature '{feature_key}' {'enabled' if is_enabled else 'disabled'} for tenant {tenant.name}"
@@ -268,18 +287,18 @@ def toggle_tenant_feature(
 
 
 @router.post("/{tenant_id}/impersonate", response_model=StandardResponse[dict])
-def impersonate_tenant(
+async def impersonate_tenant(
     tenant_id: int,
-    request: "Request",
+    request: Request,
     user_id: int = None,
     reason: str = None,
     scope: str = "read_only",
     current_user: models.User = Depends(require_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """
     Generate a temporary token to log in as a clinic user.
-    
+
     Security:
     - Requires mandatory reason (audit trail)
     - Logs immutable audit record with IP, user-agent
@@ -305,18 +324,22 @@ def impersonate_tenant(
         )
 
     # 3. Find target user
-    query = db.query(models.User).filter(
+    stmt = select(models.User).options(selectinload(models.User.tenant)).where(
         models.User.tenant_id == tenant_id,
         models.User.is_active == True,
         models.User.is_deleted == False
     )
 
     if user_id:
-        target_user = query.filter(models.User.id == user_id).first()
+        stmt = stmt.where(models.User.id == user_id)
+        res = await db.execute(stmt)
+        target_user = res.scalar_one_or_none()
         if not target_user:
             raise HTTPException(status_code=404, detail="المستخدم غير موجود أو غير نشط في هذه العيادة")
     else:
-        target_user = query.order_by((models.User.role == Role.MANAGER.value).desc()).first()
+        stmt = stmt.order_by((models.User.role == Role.MANAGER.value).desc())
+        res = await db.execute(stmt)
+        target_user = res.scalars().first()
         if not target_user:
             raise HTTPException(status_code=404, detail="No active users found for this clinic")
 
@@ -350,7 +373,7 @@ def impersonate_tenant(
                 tenant_id=tenant_id,
             )
             db.add(audit)
-            db.commit()
+            await db.commit()
     except Exception as e:
         _logger.error("[IMPERSONATION] Audit log DB write failed: %s", e)
         # Don't block impersonation if audit log fails — the logger warning above is the backup
@@ -380,9 +403,5 @@ def impersonate_tenant(
         "scope": scope,
         "expires_in_minutes": 30,
     }, message=f"تم إنشاء جلسة دخول مؤقتة لعيادة {tenant_name}")
-
-
-# Required import for Request type
-from starlette.requests import Request
 
 

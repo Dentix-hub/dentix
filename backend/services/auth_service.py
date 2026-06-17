@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
+from sqlalchemy import select
 from fastapi import HTTPException
 from backend import models
 
@@ -17,8 +19,8 @@ class AuthService:
         return hashlib.sha256(token.encode()).hexdigest()
 
     @staticmethod
-    def create_session(
-        db: Session,
+    async def create_session(
+        db: AsyncSession,
         user_id: int,
         refresh_token: str,
         ip_address: str,
@@ -36,65 +38,103 @@ class AuthService:
             ip_address=ip_address,
             user_agent=user_agent,
             device_info=device_info,
-            expires_at=datetime.now(timezone.utc)
-            + timedelta(days=7),  # Match Refresh Token Expiry
+            expires_at=(datetime.now(timezone.utc) + timedelta(days=7)).replace(tzinfo=None),
         )
         db.add(session)
-        db.commit()
+        await db.commit()
         return session
 
     @staticmethod
-    def get_session_by_token(db: Session, refresh_token: str):
+    async def get_session_by_token(db: AsyncSession, refresh_token: str):
         """Find session by refresh token hash."""
         token_hash = AuthService.generate_token_hash(refresh_token)
-        now = datetime.now(timezone.utc)
-        return (
-            db.query(models.UserSession)
-            .filter(
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        stmt = (
+            select(models.UserSession)
+            .where(
                 models.UserSession.token_hash == token_hash,
                 models.UserSession.is_active,
                 models.UserSession.expires_at > now,
             )
-            .first()
         )
+        result = await db.execute(stmt)
+        return result.scalars().first()
 
     @staticmethod
-    def revoke_session(db: Session, session_id: int, user_id: int):
+    async def revoke_session(db: AsyncSession, session_id: int, user_id: int):
         """Revoke a specific session."""
-        session = (
-            db.query(models.UserSession)
-            .filter(
+        stmt = (
+            select(models.UserSession)
+            .where(
                 models.UserSession.id == session_id,
                 models.UserSession.user_id == user_id,
             )
-            .first()
+            .options(joinedload(models.UserSession.user))
         )
+        result = await db.execute(stmt)
+        session = result.scalars().first()
 
         if session:
             session.is_active = False
-            session.expires_at = datetime.now(timezone.utc)  # Expire immediately
+            session.expires_at = datetime.now(timezone.utc).replace(tzinfo=None)  # Expire immediately
 
             # If this was the active session, clear it from user record to trigger kickout
             if session.user and session.device_info == getattr(session.user, "active_session_id", None):
                 session.user.active_session_id = "revoked_" + str(session.id)
 
-            db.commit()
+            await db.commit()
             return True
         return False
 
     @staticmethod
-    def get_user_sessions(db: Session, user_id: int):
+    async def get_user_sessions(db: AsyncSession, user_id: int):
         """Get all active sessions for a user."""
-        now = datetime.now(timezone.utc)
-        return (
-            db.query(models.UserSession)
-            .filter(
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        stmt = (
+            select(models.UserSession)
+            .where(
                 models.UserSession.user_id == user_id,
                 models.UserSession.is_active,
                 models.UserSession.expires_at > now,
             )
-            .all()
         )
+        result = await db.execute(stmt)
+        return result.scalars().all()
+
+    @staticmethod
+    async def revoke_all_user_sessions(db: AsyncSession, user_id: int) -> int:
+        """
+        Revoke ALL active sessions for a user.
+        Used when: password changed, 2FA toggled, user disabled, role changed.
+        Returns count of revoked sessions.
+        """
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        stmt = (
+            select(models.UserSession)
+            .where(
+                models.UserSession.user_id == user_id,
+                models.UserSession.is_active,
+                models.UserSession.expires_at > now,
+            )
+        )
+        result = await db.execute(stmt)
+        sessions = result.scalars().all()
+        count = 0
+        stmt_user = select(models.User).where(models.User.id == user_id)
+        result_user = await db.execute(stmt_user)
+        user = result_user.scalars().first()
+        for session in sessions:
+            session.is_active = False
+            session.expires_at = now
+            count += 1
+
+        # Also invalidate the active_session_id on the user record to force logout
+        if user:
+            user.active_session_id = "revoked_all_" + str(user_id)
+
+        if count > 0 or user:
+            await db.commit()
+        return count
 
     # --- 2FA Logic ---
 
@@ -116,17 +156,17 @@ class AuthService:
         return code == "123456"
 
     @staticmethod
-    def enable_2fa(db: Session, user: models.User, secret: str, code: str):
+    async def enable_2fa(db: AsyncSession, user: models.User, secret: str, code: str):
         if not AuthService.verify_2fa_code(secret, code):
             raise HTTPException(status_code=400, detail="Invalid OTP code")
 
         user.is_2fa_enabled = True
         user.otp_secret = secret
-        db.commit()
+        await db.commit()
         return True
 
     @staticmethod
-    def disable_2fa(db: Session, user: models.User):
+    async def disable_2fa(db: AsyncSession, user: models.User):
         user.is_2fa_enabled = False
         user.otp_secret = None
-        db.commit()
+        await db.commit()

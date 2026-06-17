@@ -7,14 +7,14 @@ Exposes application metrics for monitoring dashboards.
 from fastapi import APIRouter, Depends, HTTPException
 from backend.core.permissions import Permission, require_permission
 from typing import Dict, Any
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select
 from datetime import datetime, timedelta, timezone
 
 from backend.core.monitoring import metrics
 from backend.models import User
 from backend import models
-from backend.database import get_db
+from backend.database import get_async_db
 from backend.services.inventory_service import inventory_service
 from backend.core.response import success_response
 
@@ -72,9 +72,9 @@ async def get_business_metrics(
 
 
 @router.get("/profitability")
-def get_profitability(
+async def get_profitability(
     period: str = "30d",
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """
@@ -98,40 +98,37 @@ def get_profitability(
 
     # 1. Revenue (Payments)
     # Include both current tenant and NULL tenant_id (legacy data compatibility)
-    revenue = (
-        db.query(func.sum(models.Payment.amount))
+    revenue_result = await db.execute(
+        select(func.sum(models.Payment.amount))
         .filter(
             models.Payment.date >= start_date,
             (models.Payment.tenant_id == current_user.tenant_id) | (models.Payment.tenant_id.is_(None)),
         )
-        .scalar()
-        or 0.0
     )
+    revenue = revenue_result.scalar() or 0.0
 
     # 2. Expenses (OpEx)
-    expenses = (
-        db.query(func.sum(models.Expense.cost))
+    expenses_result = await db.execute(
+        select(func.sum(models.Expense.cost))
         .filter(
             models.Expense.date >= start_date.date(),
             models.Expense.tenant_id == current_user.tenant_id,
         )
-        .scalar()
-        or 0.0
     )
+    expenses = expenses_result.scalar() or 0.0
 
     # 3. Labs (COGS 1) - Based on Order Date (Committed Cost)
-    lab_costs = (
-        db.query(func.sum(models.LabOrder.cost))
+    lab_costs_result = await db.execute(
+        select(func.sum(models.LabOrder.cost))
         .filter(
             models.LabOrder.order_date >= start_date,
             models.LabOrder.tenant_id == current_user.tenant_id,
         )
-        .scalar()
-        or 0.0
     )
+    lab_costs = lab_costs_result.scalar() or 0.0
 
     # 4. Material (COGS 2)
-    material_costs = inventory_service.get_cogs_summary(
+    material_costs = await inventory_service.get_cogs_summary(
         start_date=start_date, end_date=now, tenant_id=current_user.tenant_id, db=db
     )
 
