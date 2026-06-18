@@ -133,6 +133,25 @@ class TestAppointmentCreation:
         await create_appointment(mock_db, data, tenant_id=1)
         mock_db.add.assert_called_once()
 
+    async def test_create_appointment_rejects_none_tenant_id(self, mock_db, sample_appointment):
+        """REGRESSION (2026-06-18): tenant_id=None must fail-fast before INSERT.
+
+        Bug: psycopg2.errors.NotNullViolation on appointments.tenant_id because
+        tenant_id silently dropped (user had tenant_id=None for non-super-admin).
+        Fix: CRUD must raise BEFORE attempting INSERT when tenant_id is missing.
+        """
+        with pytest.raises(Exception) as exc_info:
+            await create_appointment(mock_db, sample_appointment, tenant_id=None)
+
+        # CRITICAL: Must NOT have added to session — failure must be pre-flush
+        mock_db.add.assert_not_called()
+        mock_db.commit.assert_not_called()
+
+        # Exception must clearly state tenant_id is required (guarded leak)
+        assert "tenant" in str(exc_info.value).lower(), (
+            f"Exception must reference tenant requirement. Got: {exc_info.value!r}"
+        )
+
 
 # ============================================
 # LISTING TESTS

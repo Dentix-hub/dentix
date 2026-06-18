@@ -3,6 +3,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend import models, schemas
+from backend.core.exceptions import TenantException
 from backend.services.cache_service import invalidate_dashboard_cache
 from backend.crud.billing import precompute_dashboard_cache
 from backend.services.event_service import event_service
@@ -43,6 +44,17 @@ async def create_appointment(
     appointment: schemas.AppointmentCreate,
     tenant_id: int,
 ):
+    # REGRESSION (2026-06-18): Fail-fast if tenant_id is missing.
+    # Previously this dropped tenant_id=None into the INSERT, which caused
+    # psycopg2.errors.NotNullViolation (actually from RLS policy, since
+    # the appointments.tenant_id is technically nullable=True) and surfaced
+    # as a 500 to the client. Now we refuse up-front with a clear TenantException.
+    if tenant_id is None:
+        raise TenantException(
+            "tenant_id is required to create an appointment. "
+            "Authenticated user must belong to a tenant (super_admin excluded)."
+        )
+
     # Double Booking Prevention
     if appointment.doctor_id:
         # Check if doctor has an appointment at the exact same time

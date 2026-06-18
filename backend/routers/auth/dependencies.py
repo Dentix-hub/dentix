@@ -165,11 +165,28 @@ async def get_current_user(
 
     # SECURE: Inject tenant explicitly into Request Context for automatic SQLAlchemy scoping
     from backend.core.tenancy import set_current_tenant_id, set_super_admin_bypass
+    from backend.core.exceptions import TenantException
 
     if user.role == Role.SUPER_ADMIN.value:
         set_super_admin_bypass(True)
     elif user.tenant_id:
         set_current_tenant_id(user.tenant_id)
         set_super_admin_bypass(False)
+    else:
+        # REGRESSION (2026-06-18): A non-super-admin user with tenant_id=None
+        # used to silently fall through (no tenant context set), then later
+        # caused INSERT failures (RLS denial) on /appointments and other tenant
+        # routes. Now we refuse explicitly with a 403 so the bug surfaces at
+        # the auth boundary instead of leaking as a 500 from the data layer.
+        logger.error(
+            "Authenticated user '%s' (role=%s) has no tenant_id but is not super_admin",
+            user.username,
+            user.role,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="حسابك غير مربوط بعيادة. يرجى التواصل مع الإدارة لربط حسابك.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     return user
