@@ -16,6 +16,7 @@ import logging
 from .. import schemas, crud
 from backend.database import get_async_db
 from backend.core.permissions import Permission, require_permission
+from backend.core.exceptions import TenantException
 from backend.core.limiter import limiter
 from backend.core.response import success_response, StandardResponse
 from ..utils.audit_logger import log_admin_action
@@ -42,6 +43,17 @@ async def create_appointment(
 ):
     user_id   = current_user.id
     tenant_id = current_user.tenant_id
+
+    # REGRESSION (2026-06-18): Guard at the router boundary too. Belt-and-suspenders:
+    # even if auth dependency somehow lets through a user with tenant_id=None,
+    # we refuse here with a clear 400 rather than letting it explode as 500
+    # from the RLS policy or the underlying INSERT.
+    if tenant_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot create appointment: authenticated user has no tenant assigned.",
+        )
+
     try:
         patient = await crud.get_patient(db, appointment.patient_id, tenant_id)
         if not patient:
