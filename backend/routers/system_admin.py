@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
-from backend.core.permissions import Permission, require_permission, Role
+from backend.core.permissions import Permission, require_permission, Role  # noqa: F401 — used by guards below; explicit re-import is the regression guard for 2026-06-19 system_logs NameError on deployed staging
 from backend.core import startup
 from ..database import get_async_db
 from .. import models
