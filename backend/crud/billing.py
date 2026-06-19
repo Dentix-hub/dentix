@@ -288,10 +288,26 @@ async def create_payment(
     db.add(db_payment)
     if commit:
         await db.commit()
-        await db.refresh(db_payment)
+        # REGRESSION (2026-06-19): Eager-load patient relationship on the
+        # returned Payment. schemas.Payment declares patient_name as
+        # an Optional[str] from_attributes field — the underlying
+        # @property accesses self.patient.name, which lazy-loads after
+        # the route returns and triggers MissingGreenlet during
+        # response serialization.
+        await db.refresh(
+            db_payment,
+            attribute_names=["patient"],
+        )
+        # Touch patient.name while greenlet context is still alive so the
+        # @property has a fully-loaded value to return later.
+        _ = db_payment.patient.name if db_payment.patient else None
     else:
         await db.flush()
-        await db.refresh(db_payment)
+        await db.refresh(
+            db_payment,
+            attribute_names=["patient"],
+        )
+        _ = db_payment.patient.name if db_payment.patient else None
     invalidate_dashboard_cache(tenant_id)
     asyncio.create_task(
         precompute_dashboard_cache(tenant_id=tenant_id, db=db)
