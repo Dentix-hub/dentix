@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -62,45 +63,39 @@ VENV_PATH = Path(tempfile.gettempdir()) / "dentix-test"
 
 # Minimum subset of backend/requirements.txt needed for the test suite to import.
 # Heavy ML deps (torch, chromadb, sentence-transformers) are intentionally excluded.
-MIN_REQUIREMENTS: list[str] = [
-    "fastapi>=0.109.0,<0.137.0",
-    "uvicorn>=0.27.0",
-    "sqlalchemy>=2.0.25",
-    "asyncpg>=0.29.0",
-    "aiosqlite>=0.20.0",
-    "pydantic>=2.5.3",
-    "pydantic-settings>=2.1.0",
-    "python-jose[cryptography]>=3.3.0",
-    "passlib[bcrypt]>=1.7.4",
-    "python-multipart>=0.0.6",
-    "python-dotenv>=1.0.0",
-    "slowapi>=0.1.9",
-    "aiofiles>=23.2.1",
-    "python-dateutil>=2.8.2",
-    "bcrypt==4.0.1",
-    "redis>=5.0.0",
-    "email-validator>=2.1.0",
-    "tenacity>=8.2.0",
-    "prometheus-fastapi-instrumentator>=6.0.0",
-    "alembic>=1.13.0",
-    "google-auth>=2.27.0",
-    "google-auth-oauthlib>=1.2.0",
-    "google-auth-httplib2>=0.2.0",
-    "google-api-python-client>=2.116.0",
-    "cryptography",
-    "psutil",
-    "rls>=0.3.0",
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.0",
-    "pytest-cov>=4.1.0",
-    "httpx>=0.27.0",
-    "requests>=2.31.0",
-    "zxcvbn>=4.4.28",
-    "firebase-admin>=6.5.0",
-    "pyotp>=2.9.0",
-    "qrcode>=7.4.2",
-    "cloudinary>=1.38.0",
-]
+#
+# Strategy: parse requirements.txt at runtime, drop the heavy ML packages,
+# and feed the rest to uv pip install. This avoids drift when requirements.txt
+# grows a new dep — previously the hardcoded MIN_REQUIREMENTS list kept falling
+# behind, e.g. the missing `groq` import the test conftest saw at
+# backend.main:341 → routers/ai.py:13 → services/ai_service.py:12 → groq.AsyncGroq.
+HEAVY_EXCLUDE = {"torch", "chromadb", "sentence-transformers", "sentence_transformers"}
+
+
+def _load_min_requirements() -> list[str]:
+    """Return requirements.txt contents minus heavy ML deps."""
+    if not REQUIREMENTS.exists():
+        raise SystemExit(f"requirements.txt missing at {REQUIREMENTS}")
+    keep: list[str] = []
+    for raw in REQUIREMENTS.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        # rough package-name detection: first token before any version specifier
+        pkg = re.split(r"[<>=!~;\[]", line, 1)[0].strip().lower()
+        if pkg in HEAVY_EXCLUDE:
+            continue
+        keep.append(line)
+    return keep
+
+
+# Unconditional extras: these are intentionally NOT in backend/requirements.txt
+# (the project owner left them out for production-image-size reasons), but
+# `routers/health.py` imports `psutil` directly, so the test conftest needs
+# it available in the parallel venv or it fails at conftest-load time with
+# `ModuleNotFoundError: No module named 'psutil'`. Keep them hardcoded
+# here, do NOT add to requirements.txt.
+EXTRA_REQUIRED_PACKAGES: list[str] = ["psutil"]
 
 
 def _interp() -> Path:
@@ -119,13 +114,19 @@ def _uv_bin() -> str:
 
 
 def _venv_usable() -> bool:
-    """Cheap check: venv exists, python runs, `import backend` works from BACKEND_ROOT."""
+    """Cheap check: venv exists, python runs, `import backend` works.
+
+    Probe runs from PROJECT_ROOT (not BACKEND_ROOT) because `import backend`
+    resolves to PROJECT_ROOT/backend/__init__.py when '.' is prepended
+    to sys.path — running from BACKEND_ROOT would look for a nested
+    backend/backend/ that does not exist.
+    """
     if not _interp().exists():
         return False
     try:
         r = subprocess.run(
             [_interp(), "-c", "import sys; sys.path[:0]=['.']; import backend"],
-            cwd=str(BACKEND_ROOT),
+            cwd=str(PROJECT_ROOT),
             capture_output=True, timeout=10,
         )
         return r.returncode == 0
@@ -136,21 +137,28 @@ def _venv_usable() -> bool:
 def _create_venv() -> None:
     """Create the parallel venv via uv and install MIN_REQUIREMENTS."""
     uv = _uv_bin()
-    if VENV_PATH.exists():
-        shutil.rmtree(VENV_PATH, ignore_errors=True)
-    print(f"[run_dentix_tests] creating venv at {VENV_PATH}", file=sys.stderr)
-    subprocess.run([uv, "venv", str(VENV_PATH), "--python", "3.11"], check=True)
+    # On Windows the rmtree may leave the dir handle lingering for a few
+    # hundred ms; --clear on uv venv handles it idempotently.
+    subprocess.run(
+        [uv, "venv", str(VENV_PATH), "--python", "3.11", "--clear"],
+        check=True,
+    )
     print("[run_dentix_tests] installing minimum requirements (skips heavy ML deps)", file=sys.stderr)
     env = os.environ.copy()
     env["VIRTUAL_ENV"] = str(VENV_PATH)
+    min_reqs = _load_min_requirements()
+    if not min_reqs:
+        raise SystemExit("MIN_REQUIREMENTS resolved to empty list — check HEAVY_EXCLUDE")
     subprocess.run(
-        [uv, "pip", "install", *MIN_REQUIREMENTS],
+        [uv, "pip", "install", *min_reqs, *EXTRA_REQUIRED_PACKAGES],
         env=env, check=True,
     )
-    # Verify the test chain can actually import
+    # Verify the test chain can actually import.
+    # cwd must be PROJECT_ROOT — running from BACKEND_ROOT would look
+    # for nested backend/backend/* which does not exist (see _venv_usable).
     r = subprocess.run(
         [_interp(), "-c", "import backend, backend.crud.appointment"],
-        cwd=str(BACKEND_ROOT),
+        cwd=str(PROJECT_ROOT),
         capture_output=True,
     )
     if r.returncode != 0:
@@ -182,6 +190,15 @@ def main() -> int:
         raise SystemExit(f"backend/tests not found at {BACKEND_ROOT}/tests")
     if not REQUIREMENTS.exists():
         raise SystemExit(f"backend/requirements.txt missing")
+
+    # Test paths typically come in as `backend/tests/...` from the caller's
+    # repo-root cwd. pytest is invoked with cwd=BACKEND_ROOT, so strip the
+    # `backend/` prefix when present. Anything else (options like -k foo or
+    # bare module paths) is forwarded as-is.
+    pytest_args = [
+        a[len("backend/"):] if a.startswith("backend/") else a
+        for a in pytest_args
+    ]
 
     if args.rebuild or not _venv_usable():
         _create_venv()
