@@ -78,7 +78,20 @@ async def create_appointment(
     db_appointment = models.Appointment(**data)
     db.add(db_appointment)
     await db.commit()
-    await db.refresh(db_appointment)
+    # REGRESSION (2026-06-19): Eager-load patient relationship after commit.
+    # The Pydantic response schema declares Appointment.patient and
+    # Appointment.patient_name (a Python @property that reads self.patient.name).
+    # Accessing either after the route returns (i.e., outside the async
+    # greenlet context) raises sqlalchemy.exc.MissingGreenlet. joinedload
+    # populates the relationship during the same query so the post-await
+    # Pydantic walk has everything it needs.
+    await db.refresh(
+        db_appointment,
+        attribute_names=["patient"],
+    )
+    # Also explicitly force the patient row's `name` column to load while we
+    # still hold the greenlet (the patient_name property reads `self.patient.name`).
+    _ = db_appointment.patient.name if db_appointment.patient else None
 
     # Fetch tenant_id from patient for cache invalidation
     stmt_patient = select(models.Patient).where(models.Patient.id == db_appointment.patient_id)
