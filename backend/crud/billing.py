@@ -52,10 +52,21 @@ async def create_treatment(
     db.add(db_treatment)
     if commit:
         await db.commit()
-        await db.refresh(db_treatment)
+        # REGRESSION (2026-06-19): Eager-load treatment_sessions before
+        # returning the ORM object, otherwise Pydantic's response
+        # serialization of schemas.Treatment.treatment_sessions
+        # (Optional[list[TreatmentSession]]) will lazy-load outside the
+        # greenlet context and raise MissingGreenlet.
+        await db.refresh(
+            db_treatment,
+            attribute_names=["treatment_sessions"],
+        )
     else:
         await db.flush()
-        await db.refresh(db_treatment)
+        await db.refresh(
+            db_treatment,
+            attribute_names=["treatment_sessions"],
+        )
     return db_treatment
 
 
