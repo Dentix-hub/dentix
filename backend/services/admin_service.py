@@ -8,6 +8,7 @@ Extracted from routers/admin.py to follow service layer pattern.
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete, func
+from sqlalchemy.orm import joinedload
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
@@ -24,14 +25,34 @@ class AdminService:
         self.db = db
 
     async def get_all_tenants(self, skip: int = 0, limit: int = 100) -> List[models.Tenant]:
-        """Get all tenants with pagination."""
-        stmt = select(models.Tenant).offset(skip).limit(limit)
+        """Get all tenants with pagination.
+
+        Eager-loads subscription_plan to avoid MissingGreenlet when the
+        Pydantic response schema (Tenant.subscription_plan) serializes
+        the relationship post-await — async greenlet context is gone
+        by then, so lazy access raises MissingGreenlet.
+        """
+        stmt = (
+            select(models.Tenant)
+            .options(joinedload(models.Tenant.subscription_plan))
+            .offset(skip)
+            .limit(limit)
+        )
         res = await self.db.execute(stmt)
-        return list(res.scalars().all())
+        return list(res.scalars().unique().all())
 
     async def get_tenant_by_id(self, tenant_id: int) -> Optional[models.Tenant]:
-        """Get a single tenant by ID."""
-        stmt = select(models.Tenant).where(models.Tenant.id == tenant_id)
+        """Get a single tenant by ID.
+
+        Eager-loads subscription_plan to avoid MissingGreenlet when
+        callers serialize the returned object via Pydantic (e.g.
+        assign-plan flow in routers/admin_tenants.py).
+        """
+        stmt = (
+            select(models.Tenant)
+            .options(joinedload(models.Tenant.subscription_plan))
+            .where(models.Tenant.id == tenant_id)
+        )
         res = await self.db.execute(stmt)
         return res.scalar_one_or_none()
 
