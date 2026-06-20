@@ -12,7 +12,7 @@ from .base import (
     Index,
     datetime,
 )
-from sqlalchemy import Boolean, column
+from sqlalchemy import Boolean, column, text
 from rls.schemas import Permissive, ConditionArg, Command
 
 
@@ -223,6 +223,31 @@ class LabOrder(Base):
 class Procedure(Base):
     __tablename__ = "procedures"
 
+    # REGRESSION (2026-06-20): `name` was `unique=True` (globally unique across the
+    # whole table), which collided with the multi-tenant model — `tenant_id` is
+    # nullable and `or_(tenant_id == X, tenant_id.is_(NULL))` filtering is used in
+    # crud/procedure.py and 7+ other places (global-catalog + tenant-override pattern).
+    # A naive UniqueConstraint('tenant_id','name') would NOT catch duplicate globals,
+    # because in Postgres NULL != NULL for unique constraints. Hence two partial
+    # unique indexes (Postgres-only feature; partial uniqueness is an INDEX, not a
+    # table CONSTRAINT):
+    #   - tenant-scoped rows: name unique within a tenant
+    #   - global rows (tenant_id IS NULL): name unique among globals
+    __table_args__ = (
+        Index(
+            "uq_procedures_tenant_name",
+            "tenant_id", "name",
+            unique=True,
+            postgresql_where=text("tenant_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_procedures_global_name",
+            "name",
+            unique=True,
+            postgresql_where=text("tenant_id IS NULL"),
+        ),
+    )
+
     __rls_policies__ = [
         Permissive(
             condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
@@ -232,6 +257,6 @@ class Procedure(Base):
     ]
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, index=True)
+    name = Column(String, nullable=False)
     price = Column(Float)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)

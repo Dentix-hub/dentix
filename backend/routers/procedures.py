@@ -3,7 +3,7 @@ Procedures Router
 Handles dental procedure templates.
 """
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from backend.core.response import success_response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,9 +39,14 @@ async def create_procedure(
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Create a new procedure template."""
-    result = await crud.create_procedure(
-        db=db, procedure=procedure, tenant_id=current_user.tenant_id
-    )
+    try:
+        result = await crud.create_procedure(
+            db=db, procedure=procedure, tenant_id=current_user.tenant_id
+        )
+    except ValueError as e:
+        # CRUD raises ValueError on duplicate name (IntegrityError on ix_procedures_name)
+        # after rolling back, so the session is clean. Surface as a 409 Conflict.
+        raise HTTPException(status_code=409, detail=str(e))
     # Invalidate cache for this function
     invalidate_cache("_get_cached_procedures")
     return success_response(result)
