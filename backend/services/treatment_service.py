@@ -242,6 +242,7 @@ class TreatmentService:
 
         # 7. Commit transaction
         await self.db.commit()
+        await self.db.refresh(created_treatment)
         from sqlalchemy.orm import selectinload
         stmt = (
             select(models.Treatment)
@@ -249,7 +250,9 @@ class TreatmentService:
             .options(selectinload(models.Treatment.treatment_sessions))
         )
         result = await self.db.execute(stmt)
-        created_treatment = result.scalars().first()
+        refreshed_treatment = result.scalars().first()
+        if refreshed_treatment is not None:
+            created_treatment = refreshed_treatment
         created_treatment.consumedMaterials = treatment_data.consumedMaterials or []
 
         # 8. Log admin action
@@ -312,6 +315,7 @@ class TreatmentService:
 
         # 5. Commit transaction
         await self.db.commit()
+        await self.db.refresh(updated_treatment)
         from sqlalchemy.orm import selectinload
         stmt = (
             select(models.Treatment)
@@ -319,7 +323,9 @@ class TreatmentService:
             .options(selectinload(models.Treatment.treatment_sessions))
         )
         result = await self.db.execute(stmt)
-        updated_treatment = result.scalars().first()
+        refreshed_treatment = result.scalars().first()
+        if refreshed_treatment is not None:
+            updated_treatment = refreshed_treatment
         updated_treatment.consumedMaterials = treatment_data.consumedMaterials or []
 
         return updated_treatment

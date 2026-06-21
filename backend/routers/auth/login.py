@@ -52,7 +52,7 @@ def _validate_csrf(request: Request, x_csrf_token: str | None = Header(None, ali
     cookie_token = request.cookies.get(_CSRF_COOKIE_NAME)
     if not cookie_token:
         return False
-    
+
     # If called manually from middleware, x_csrf_token is a Header object instead of a string
     if not isinstance(x_csrf_token, str):
         x_csrf_token = request.headers.get("X-CSRF-Token")

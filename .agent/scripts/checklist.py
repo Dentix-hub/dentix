@@ -131,12 +131,16 @@ def print_summary(results: List[dict]):
     print_header("CHECKLIST SUMMARY")
     
     passed_count = sum(1 for r in results if r["passed"] and not r.get("skipped"))
-    failed_count = sum(1 for r in results if not r["passed"] and not r.get("skipped"))
+    failed_required_count = sum(1 for r in results if not r["passed"] and not r.get("skipped") and r.get("required", True))
+    failed_optional_count = sum(1 for r in results if not r["passed"] and not r.get("skipped") and not r.get("required", True))
     skipped_count = sum(1 for r in results if r.get("skipped"))
     
     print(f"Total Checks: {len(results)}")
     print(f"{Colors.GREEN}[+] Passed: {passed_count}{Colors.ENDC}")
-    print(f"{Colors.RED}[X] Failed: {failed_count}{Colors.ENDC}")
+    if failed_required_count > 0:
+        print(f"{Colors.RED}[X] Failed (Required): {failed_required_count}{Colors.ENDC}")
+    if failed_optional_count > 0:
+        print(f"{Colors.YELLOW}[!] Failed (Optional): {failed_optional_count}{Colors.ENDC}")
     print(f"{Colors.YELLOW}>>> Skipped: {skipped_count}{Colors.ENDC}")
     print()
     
@@ -146,16 +150,22 @@ def print_summary(results: List[dict]):
             status = f"{Colors.YELLOW}>>> {Colors.ENDC}"
         elif r["passed"]:
             status = f"{Colors.GREEN}[+] {Colors.ENDC}"
-        else:
+        elif r.get("required", True):
             status = f"{Colors.RED}[X] {Colors.ENDC}"
+        else:
+            status = f"{Colors.YELLOW}[!] {Colors.ENDC}"
         
-        print(f"{status} {r['name']}")
+        req_label = " (Required)" if r.get("required", True) else " (Optional)"
+        print(f"{status} {r['name']}{req_label}")
     
     print()
     
-    if failed_count > 0:
-        print_error(f"{failed_count} check(s) FAILED - Please fix before proceeding")
+    if failed_required_count > 0:
+        print_error(f"{failed_required_count} required check(s) FAILED - Please fix before proceeding")
         return False
+    elif failed_optional_count > 0:
+        print_warning(f"All required checks passed, but {failed_optional_count} optional check(s) had warnings")
+        return True
     else:
         print_success("All checks PASSED")
         return True
@@ -165,10 +175,10 @@ def main():
         description="Run Antigravity Kit validation checklist",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  python scripts/checklist.py .                      # Core checks only
-  python scripts/checklist.py . --url http://localhost:3000  # Include performance
-        """
+    Examples:
+      python scripts/checklist.py .                      # Core checks only
+      python scripts/checklist.py . --url http://localhost:3000  # Include performance
+            """
     )
     parser.add_argument("project", help="Project path to validate")
     parser.add_argument("--url", help="URL for performance checks (lighthouse, playwright)")
@@ -193,6 +203,7 @@ Examples:
     for name, script_path, required in CORE_CHECKS:
         script = project_path / script_path
         result = run_script(name, script, str(project_path))
+        result["required"] = required
         results.append(result)
         
         # If required check fails, stop
@@ -207,6 +218,7 @@ Examples:
         for name, script_path, required in PERFORMANCE_CHECKS:
             script = project_path / script_path
             result = run_script(name, script, str(project_path), args.url)
+            result["required"] = required
             results.append(result)
     
     # Print summary

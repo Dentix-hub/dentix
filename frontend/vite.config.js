@@ -20,7 +20,10 @@ export default defineConfig({
                 theme_color: '#0ea5e9',
                 background_color: '#ffffff',
                 display: 'standalone',
-                orientation: 'portrait',
+                // 'any' lets the OS rotate freely (portrait <-> landscape) based on
+                // physical device orientation. The previous 'portrait' value locked
+                // the installed PWA out of landscape on tablets.
+                orientation: 'any',
                 scope: '/',
                 start_url: '/',
                 lang: 'ar',

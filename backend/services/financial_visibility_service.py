@@ -13,10 +13,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from sqlalchemy import select
 from typing import Optional
-from backend.models import User, Payment, Treatment
+from backend.models import User, Patient, Payment, Treatment
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _doctor_can_view_all_patients(user: User) -> bool:
+    """
+    Whether a doctor is permitted to see financial data for ALL patients in the
+    tenant, not just their own assigned patients.
+
+    This reads the admin-settable `can_view_other_doctors_history` flag, which is
+    the established per-doctor toggle for cross-doctor patient-finance visibility.
+    """
+    return bool(getattr(user, "can_view_other_doctors_history", False))
 
 
 class FinancialVisibilityService:
@@ -56,9 +67,17 @@ class FinancialVisibilityService:
         if self.user.role in ["admin", "accountant"]:
             return base_query
 
-        # Doctor sees only their payments
+        # Doctor visibility mirrors the patient-list semantics: a doctor sees
+        # financial data for patients *assigned to them* (Patient.assigned_doctor_id),
+        # NOT for payments stamped with their own id at creation time. This matters
+        # when an admin reassigns an existing patient to a doctor — the patient then
+        # shows up in the patient list (driven by assigned_doctor_id), and their
+        # finances must follow the same field. If the doctor has been granted the
+        # `can_view_other_doctors_history` override, they see all tenant finances.
         if self.user.role == "doctor":
-            return base_query.where(Payment.doctor_id == self.user.id)
+            if _doctor_can_view_all_patients(self.user):
+                return base_query
+            return base_query.where(Patient.assigned_doctor_id == self.user.id)
 
         # Default: no access (empty query)
         return base_query.where(Payment.id == -1)
@@ -83,9 +102,12 @@ class FinancialVisibilityService:
         if self.user.role in ["admin", "accountant"]:
             return base_query
 
-        # Doctor sees only their treatments
+        # Doctor: see treatments for patients assigned to them (same field as the
+        # patient list), or all if granted the cross-doctor history override.
         if self.user.role == "doctor":
-            return base_query.where(Treatment.doctor_id == self.user.id)
+            if _doctor_can_view_all_patients(self.user):
+                return base_query
+            return base_query.where(Patient.assigned_doctor_id == self.user.id)
 
         # Nurse: read-only all treatments
         if self.user.role == "nurse":
@@ -100,7 +122,13 @@ class FinancialVisibilityService:
             return True
 
         if self.user.role == "doctor":
-            return payment.doctor_id == self.user.id
+            # Cross-doctor override: admin granted full patient-finance visibility.
+            if _doctor_can_view_all_patients(self.user):
+                return True
+            # Otherwise: same field as the patient list (Patient.assigned_doctor_id).
+            # Access defensively — `patient` may be unloaded on an unrefreshed row.
+            assigned_id = getattr(getattr(payment, "patient", None), "assigned_doctor_id", None)
+            return assigned_id == self.user.id
 
         return False
 

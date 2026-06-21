@@ -3,7 +3,7 @@ import logger from '@/utils/logger';
 import { useNavigate } from 'react-router-dom';
 import { Users, LayoutDashboard, Receipt, Briefcase, TrendingDown, Home } from 'lucide-react';
 import DoctorRevenue from '@/features/billing/DoctorRevenue';
-import { getFinancialStats, getAllPayments, getExpenses, createExpense, deleteExpense, getStaffRevenue, updateStaffCompensation, getComprehensiveStats, getSalariesStatus, recordSalaryPayment, deleteSalaryPayment, updateHireDate, getLabOrders } from '@/api';
+import { getFinancialStats, getAllPayments, getExpenses, createExpense, deleteExpense, getStaffRevenue, updateStaffCompensation, getComprehensiveStats, getSalariesStatus, recordSalaryPayment, deleteSalaryPayment, updateHireDate, getLabOrders, getPatients } from '@/api';
 import { getTodayStr } from '@/utils/toothUtils';
 import { Card, Button, DataTable, SkeletonBox, PageHeader, TabGroup, toast } from '@/shared/ui';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -40,16 +40,18 @@ export default function Billing() {
     const [salaryMonth, setSalaryMonth] = useState(today.toISOString().slice(0, 7));
     const [salariesData, setSalariesData] = useState([]);
     const [salariesLoading, setSalariesLoading] = useState(false);
+    const [selectedPatientId, setSelectedPatientId] = useState('');
     const { data, isLoading: loading } = useQuery({
-        queryKey: ['billing_data', startDate, endDate],
+        queryKey: ['billing_data', startDate, endDate, selectedPatientId],
         queryFn: async () => {
-            const [sRes, pRes, eRes, labRes, staffRes, compRes] = await Promise.all([
+            const [sRes, pRes, eRes, labRes, staffRes, compRes, patientsRes] = await Promise.all([
                 getFinancialStats(),
                 getAllPayments(),
                 getExpenses(),
                 getLabOrders(),
                 getStaffRevenue(startDate, endDate),
-                getComprehensiveStats(startDate, endDate)
+                getComprehensiveStats(startDate, endDate, selectedPatientId),
+                getPatients()
             ]);
             
             const manualExpenses = eRes.data.map(e => ({ ...e, type: 'manual' }));
@@ -68,7 +70,8 @@ export default function Billing() {
                 payments: pRes.data,
                 expenses: [...manualExpenses, ...labExpenses].sort((a, b) => new Date(b.date) - new Date(a.date)),
                 staff: staffRes.data.staff || [],
-                comprehensiveStats: compRes.data
+                comprehensiveStats: compRes.data,
+                patients: patientsRes.data || []
             };
         }
     });
@@ -260,6 +263,9 @@ export default function Billing() {
                     setEndDate={setEndDate}
                     comprehensiveStats={comprehensiveStats}
                     loading={loading}
+                    patients={data?.patients || []}
+                    selectedPatientId={selectedPatientId}
+                    setSelectedPatientId={setSelectedPatientId}
                 />
             )}
             {activeTab === 'payments' && (

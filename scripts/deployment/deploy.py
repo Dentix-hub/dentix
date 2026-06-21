@@ -101,7 +101,7 @@ def deploy_staging():
     shutil.copytree(os.path.join(source_dir, "frontend"), os.path.join(clone_dir, "frontend"), ignore=STAGING_IGNORE_PATTERNS)
     shutil.copytree(os.path.join(source_dir, "scripts"), os.path.join(clone_dir, "scripts"), ignore=STAGING_IGNORE_PATTERNS)
     
-    for file in ["Dockerfile", "requirements.txt", "README.md"]:
+    for file in ["Dockerfile", "requirements.txt", "README.md", ".gitignore"]:
         src = os.path.join(source_dir, file)
         dst = os.path.join(clone_dir, file)
         if os.path.exists(src):

@@ -32,7 +32,13 @@ export const getDoctorRevenue = (start, end) => api.get('/api/v1/accounting/doct
 export const getDoctorDetails = (id, start, end) => api.get(`/api/v1/accounting/doctor-details/${id}`, { params: { start_date: start, end_date: end } });
 export const updateStaffCompensation = (userId, commission, salary, perAppointment = 0) => api.put(`/api/v1/accounting/staff-compensation/${userId}`, null, { params: { commission_percent: commission, fixed_salary: salary, per_appointment_fee: perAppointment } });
 export const getStaffRevenue = (start, end) => api.get('/api/v1/accounting/staff-revenue', { params: { start_date: start, end_date: end } });
-export const getComprehensiveStats = (start, end) => api.get('/api/v1/accounting/comprehensive-stats', { params: { start_date: start, end_date: end } });
+export const getComprehensiveStats = (start, end, patientId = null) => {
+    const params = { start_date: start, end_date: end };
+    if (patientId) params.patient_id = patientId;
+    return api.get('/api/v1/accounting/comprehensive-stats', { params });
+};
+export const getPatientsReport = (params) => api.get('/api/v1/accounting/patients-report', { params });
+export const getPatientReportDetails = (patientId) => api.get(`/api/v1/accounting/patient-report-details/${patientId}`);
 
 // Salary Payments
 export const getSalariesStatus = (month) => api.get('/api/v1/accounting/salaries', { params: { month } });
