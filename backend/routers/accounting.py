@@ -3,6 +3,7 @@ Accounting Router
 Handles doctor revenue and compensation calculations.
 """
 
+from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -108,6 +109,7 @@ async def get_staff_revenue(
 async def get_comprehensive_stats(
     start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
     end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
+    patient_id: Optional[int] = Query(None, description="Patient ID to filter by"),
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
@@ -121,8 +123,8 @@ async def get_comprehensive_stats(
         return error_response(message="Invalid date format")
 
     # 1. Basic Income Stats
-    total_income = await service.get_total_income(start, end)
-    total_collected = await service.get_total_collected(start, end)
+    total_income = await service.get_total_income(start, end, patient_id=patient_id)
+    total_collected = await service.get_total_collected(start, end, patient_id=patient_id)
 
     # 2a. Get Appointments Count (for staff dues calculation)
     total_appointments_stmt = (
@@ -135,6 +137,8 @@ async def get_comprehensive_stats(
             models.Treatment.date <= end,
         )
     )
+    if patient_id:
+        total_appointments_stmt = total_appointments_stmt.where(models.Treatment.patient_id == patient_id)
     total_appointments = (await db.execute(total_appointments_stmt)).scalar() or 0
 
     # 2b. Get Unique Patients Count (for UI display)
@@ -148,16 +152,21 @@ async def get_comprehensive_stats(
             models.Treatment.date <= end,
         )
     )
+    if patient_id:
+        unique_patients_stmt = unique_patients_stmt.where(models.Treatment.patient_id == patient_id)
     unique_patients_count = (await db.execute(unique_patients_stmt)).scalar() or 0
 
     # 3. Dues & Expenses
-    doctor_dues, total_doctor_dues = await service.calculate_doctor_dues(start, end)
+    doctor_dues, total_doctor_dues = await service.calculate_doctor_dues(start, end, patient_id=patient_id)
     staff_dues, total_staff_dues = await service.calculate_staff_dues(
         start, end, total_appointments
     )
 
-    total_expenses = await service.get_total_expenses(start, end)
-    total_lab_costs = await service.get_total_lab_costs(start, end)
+    if patient_id:
+        total_expenses = 0.0
+    else:
+        total_expenses = await service.get_total_expenses(start, end)
+    total_lab_costs = await service.get_total_lab_costs(start, end, patient_id=patient_id)
 
     # 4. Net Profit
     # Net Profit = Collected (Cash In) - Expenses (Cash Out)
@@ -171,8 +180,13 @@ async def get_comprehensive_stats(
 
     # 5. ALL TIME Outstanding (Total Debt)
     # The user wants "Remaining" to be the actual debt, not period math.
-    all_time_stats = await billing_crud.get_financial_stats(db, current_user.tenant_id)
-    real_outstanding = all_time_stats["outstanding"]
+    if patient_id:
+        from ..services.billing_service import BillingService
+        billing_service = BillingService(db, current_user.tenant_id)
+        real_outstanding = await billing_service.get_outstanding_balance(patient_id)
+    else:
+        all_time_stats = await billing_crud.get_financial_stats(db, current_user.tenant_id)
+        real_outstanding = all_time_stats["outstanding"]
 
     return success_response(data={
         "period": {"start": start_date, "end": end_date},
@@ -194,6 +208,40 @@ async def get_comprehensive_stats(
         },
         "net_profit": net_profit,
     }, message="Comprehensive stats retrieved successfully")
+
+
+@router.get("/patients-report", response_model=StandardResponse[dict])
+async def get_patients_report(
+    patient_id: Optional[int] = Query(None, description="Filter by specific patient ID"),
+    outstanding_only: bool = Query(False, description="Filter only patients with outstanding balance > 0"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
+):
+    """Get patients financial report (paginated)."""
+    service = AccountingService(db, current_user.tenant_id)
+    report_data = await service.get_patients_report(
+        patient_id=patient_id,
+        outstanding_only=outstanding_only,
+        skip=skip,
+        limit=limit,
+    )
+    return success_response(data=report_data, message="Patients report retrieved successfully")
+
+
+@router.get("/patient-report-details/{patient_id}", response_model=StandardResponse[dict])
+async def get_patient_report_details(
+    patient_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
+):
+    """Get detailed financial drill-down for a specific patient."""
+    service = AccountingService(db, current_user.tenant_id)
+    details = await service.get_patient_financial_details(patient_id)
+    if not details:
+        return error_response(message="Patient not found or unauthorized", status_code=404)
+    return success_response(data=details, message="Patient financial details retrieved successfully")
 
 
 @router.get("/salaries", response_model=StandardResponse[dict])

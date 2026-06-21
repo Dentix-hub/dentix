@@ -136,6 +136,7 @@ class TestFinancialVisibilityService:
         mock_user = MagicMock()
         mock_user.id = 5
         mock_user.role = "doctor"
+        mock_user.can_view_other_doctors_history = False
 
         mock_db = MagicMock()
 
@@ -144,6 +145,77 @@ class TestFinancialVisibilityService:
 
         # Should return a query (with doctor filter)
         assert query is not None
+
+    def test_doctor_with_override_sees_all_payments(self):
+        """Doctor with can_view_other_doctors_history override sees all payments."""
+        from backend.services.financial_visibility_service import (
+            FinancialVisibilityService,
+        )
+
+        mock_user = MagicMock()
+        mock_user.id = 5
+        mock_user.role = "doctor"
+        mock_user.can_view_other_doctors_history = True
+
+        mock_db = MagicMock()
+
+        service = FinancialVisibilityService(mock_db, mock_user, tenant_id=1)
+        query = service.get_visible_payments_query()
+
+        assert query is not None
+
+    def test_can_view_payment_rules(self):
+        """Verify can_view_payment rules for different cases."""
+        from backend.services.financial_visibility_service import (
+            FinancialVisibilityService,
+        )
+        from backend.models import Payment, Patient
+
+        # Mock admin user
+        admin_user = MagicMock()
+        admin_user.role = "admin"
+
+        # Mock doctor user
+        doc_user = MagicMock()
+        doc_user.id = 5
+        doc_user.role = "doctor"
+        doc_user.can_view_other_doctors_history = False
+
+        # Mock doctor user with override
+        doc_user_override = MagicMock()
+        doc_user_override.id = 5
+        doc_user_override.role = "doctor"
+        doc_user_override.can_view_other_doctors_history = True
+
+        # Mock payment and patient
+        mock_patient = MagicMock(spec=Patient)
+        mock_patient.assigned_doctor_id = 5
+
+        mock_patient_other = MagicMock(spec=Patient)
+        mock_patient_other.assigned_doctor_id = 10
+
+        payment_own = MagicMock(spec=Payment)
+        payment_own.patient = mock_patient
+        payment_own.doctor_id = 5
+
+        payment_other = MagicMock(spec=Payment)
+        payment_other.patient = mock_patient_other
+        payment_other.doctor_id = 10
+
+        # Admin checks
+        service_admin = FinancialVisibilityService(MagicMock(), admin_user, tenant_id=1)
+        assert service_admin.can_view_payment(payment_own) is True
+        assert service_admin.can_view_payment(payment_other) is True
+
+        # Standard Doctor checks (based on assigned_doctor_id)
+        service_doc = FinancialVisibilityService(MagicMock(), doc_user, tenant_id=1)
+        assert service_doc.can_view_payment(payment_own) is True
+        assert service_doc.can_view_payment(payment_other) is False
+
+        # Doctor with override checks
+        service_override = FinancialVisibilityService(MagicMock(), doc_user_override, tenant_id=1)
+        assert service_override.can_view_payment(payment_own) is True
+        assert service_override.can_view_payment(payment_other) is True
 
 
 class TestAIPermissionContext:

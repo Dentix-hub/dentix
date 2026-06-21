@@ -302,6 +302,12 @@ async def get_patient_treatments(
     current_user: schemas.User = Depends(require_permission(Permission.CLINICAL_READ)),
 ):
     """Get all treatments for a patient."""
+    # Doctor visibility: must be allowed to view this patient (driven by
+    # Patient.assigned_doctor_id, same field as the patient list). Admin/staff
+    # roles pass through the visibility service unchanged.
+    visibility = get_visibility_service(db, current_user, current_user.tenant_id)
+    if not await visibility.can_view_patient(patient_id):
+        raise HTTPException(status_code=404, detail="Patient not found")
     patient = await crud.get_patient(db, patient_id, current_user.tenant_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
@@ -316,6 +322,12 @@ async def get_patient_payments(
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
     """Get all payments for a patient."""
+    # Doctor visibility: align with the patient list (Patient.assigned_doctor_id),
+    # so a doctor an admin has assigned a patient to can see that patient's
+    # finances. The visibility service also honors the per-doctor override flag.
+    visibility = get_visibility_service(db, current_user, current_user.tenant_id)
+    if not await visibility.can_view_patient(patient_id):
+        raise HTTPException(status_code=404, detail="Patient not found")
     patient = await crud.get_patient(db, patient_id, current_user.tenant_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")

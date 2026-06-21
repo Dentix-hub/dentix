@@ -14,6 +14,11 @@ from .base import (
 from backend.core.security import EncryptedString
 from rls.schemas import Permissive, ConditionArg, Command
 from sqlalchemy import column
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .user import User
+
 
 
 class Patient(Base):
