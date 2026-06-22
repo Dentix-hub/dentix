@@ -40,6 +40,13 @@ _Migrated from HERMES_STATE.md on 2026-06-22_
 
 _Append new entries at TOP. One entry per meaningful change._
 
+### [2026-06-22] — Local Self-Contained Database Setup
+- **What**: Added local PostgreSQL database service to docker-compose.dev.yml and configured local connection strings
+- **Why**: Enable fully isolated local development without touching production/staging databases
+- **Files**: `docker-compose.dev.yml`, `.env`, `.env.dev.example`, `scripts/dev/start-local.ps1`
+- **Agent**: Gemini 3.5 Flash
+- **Risk**: None — dev environment safety enhancement
+
 ### [2026-06-22] — DevOps Infrastructure Overhaul
 - **What**: Created DENTIX_MEMORY.md, WORKFLOW_RULES.md, docker-compose.dev.yml, ECC rules
 - **Why**: Standardize dev environment, agent workflow, and project memory
