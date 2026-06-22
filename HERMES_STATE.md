@@ -1,3 +1,9 @@
+> ⚠️ **DEPRECATED** — This file is Hermes-session-specific.
+> For project-wide memory, read **DENTIX_MEMORY.md** instead.
+> All historical data has been migrated to DENTIX_MEMORY.md on 2026-06-22.
+
+---
+
 # HERMES_STATE — DENTIX Production Readiness Fixes
 
 | Blocker / Issue | Status | Description |

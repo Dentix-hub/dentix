@@ -33,14 +33,6 @@ services:
       - FRONTEND_URL=${FRONTEND_URL}
       - CORS_ORIGINS=${FRONTEND_URL}
       - BACKEND_PUBLIC_URL=${BACKEND_PUBLIC_URL}
-      - DD_AGENT_HOST=datadog
-      - DD_SERVICE=dentix-backend
-      - DD_ENV=production
-      - WHATSAPP_PROVIDER=${WHATSAPP_PROVIDER:-openwa}
-      - OPENWA_URL=http://openwa:7860
-      - OPENWA_SESSION_ID=${OPENWA_SESSION_ID:-dentix}
-      - OPENWA_API_KEY=${OPENWA_API_KEY}
-      - OPENWA_WEBHOOK_SECRET=${OPENWA_WEBHOOK_SECRET}
     ports:
       - "7860:7860"
     volumes:
@@ -58,7 +50,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.do
-    command: ["ddtrace-run", "python", "-m", "backend.workers.prefect_worker"]
+    command: ["python", "-m", "backend.workers.prefect_worker"]
     restart: always
     deploy:
       resources:
@@ -74,14 +66,6 @@ services:
       - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
       - SECRET_KEY=${SECRET_KEY}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-      - DD_AGENT_HOST=datadog
-      - DD_SERVICE=dentix-worker
-      - DD_ENV=production
-      - WHATSAPP_PROVIDER=${WHATSAPP_PROVIDER:-openwa}
-      - OPENWA_URL=http://openwa:7860
-      - OPENWA_SESSION_ID=${OPENWA_SESSION_ID:-dentix}
-      - OPENWA_API_KEY=${OPENWA_API_KEY}
-      - OPENWA_WEBHOOK_SECRET=${OPENWA_WEBHOOK_SECRET}
     volumes:
       - ./uploads:/app/backend/uploads
     depends_on:
@@ -91,7 +75,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.do
-    command: ["ddtrace-run", "python", "-m", "backend.workers.run", "--workers", "all"]
+    command: ["python", "-m", "backend.workers.run", "--workers", "all"]
     restart: always
     deploy:
       resources:
@@ -109,46 +93,11 @@ services:
       - DENTIX_WORKERS=all
       - EVENT_WORKER_POLL_INTERVAL_SECONDS=${EVENT_WORKER_POLL_INTERVAL_SECONDS:-5}
       - SUBSCRIPTION_CHECK_INTERVAL_HOURS=${SUBSCRIPTION_CHECK_INTERVAL_HOURS:-12}
-      - DD_AGENT_HOST=datadog
-      - DD_SERVICE=dentix-domain-worker
-      - DD_ENV=production
-      - WHATSAPP_PROVIDER=${WHATSAPP_PROVIDER:-openwa}
-      - OPENWA_URL=http://openwa:7860
-      - OPENWA_SESSION_ID=${OPENWA_SESSION_ID:-dentix}
-      - OPENWA_API_KEY=${OPENWA_API_KEY}
-      - OPENWA_WEBHOOK_SECRET=${OPENWA_WEBHOOK_SECRET}
     volumes:
       - ./uploads:/app/backend/uploads
     depends_on:
       - backend
       - redis
-
-
-  openwa:
-    build:
-      context: .
-      dockerfile: openwa.Dockerfile
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.50'
-          memory: 512M
-    ports:
-      - "2785:7860"
-    environment:
-      - PORT=7860
-      - OPENWA_API_KEY=${OPENWA_API_KEY}
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7860/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "2"
 
   redis:
     image: redis:7-alpine
@@ -187,34 +136,6 @@ services:
       - caddy_config:/config
     depends_on:
       - backend
-
-
-  datadog:
-    image: datadog/agent:7.58.0
-    restart: always
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 256M
-    environment:
-      - DD_API_KEY=${DD_API_KEY}
-      - DD_SITE=${DD_SITE:-datadoghq.com}
-      - DD_APM_ENABLED=true
-      - DD_APM_NON_LOCAL_TRAFFIC=true
-      - DD_DOGSTATSD_NON_LOCAL_TRAFFIC=true
-      - DD_LOGS_ENABLED=true
-      - DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL=true
-      - DD_PROCESS_AGENT_ENABLED=true
-      - DD_CONTAINER_EXCLUDE=image:datadog/agent
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /proc/:/host/proc/:ro
-      - /sys/fs/cgroup/:/host/sys/fs/cgroup:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-    ports:
-      - "8126:8126"
-      - "8125:8125/udp"
 
 volumes:
   redis_data:
