@@ -14,6 +14,7 @@ import logging
 from datetime import date, datetime, timezone
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 from sqlalchemy import or_, select, delete
 
 from backend import models, schemas
@@ -443,6 +444,10 @@ class TreatmentService:
                     select(inv_models.StockMovement)
                     .join(inv_models.StockItem)
                     .join(inv_models.Batch)
+                    .options(
+                        joinedload(inv_models.StockMovement.stock_item)
+                        .joinedload(inv_models.StockItem.batch)
+                    )
                     .where(
                         inv_models.StockMovement.reference_id == f"TREATMENT:{treatment_id}",
                         inv_models.Batch.material_id == item.material_id,

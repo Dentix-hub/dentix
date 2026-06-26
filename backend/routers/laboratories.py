@@ -231,6 +231,7 @@ async def create_lab_order(
             discount=0.0,
             date=db_order.order_date,
             notes=f"{TREATMENT_LINK_PREFIX}{db_order.id}",
+            tenant_id=current_user.tenant_id,
         )
         db.add(linked_treatment)
         await db.commit()
@@ -338,6 +339,7 @@ async def update_lab_order(
             discount=0.0,
             date=order.order_date,
             notes=link_note,
+            tenant_id=current_user.tenant_id,
         )
         db.add(new_treatment)
         await db.commit()
