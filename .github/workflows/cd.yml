@@ -187,7 +187,7 @@ jobs:
               docker compose --project-name dentix \
                 -f "$PREVIOUS_CONFIG_FILE" \
                 -f "$ROLLBACK_OVERRIDE" \
-                up -d --force-recreate backend worker domain-worker caddy
+                up -d --force-recreate backend domain-worker caddy
               rollback_status=$?
               set -e
               if [ "$rollback_status" -eq 0 ]; then
@@ -211,7 +211,7 @@ jobs:
           # Pin the images that are actually running before any service is
           # stopped. The override lets the EXIT trap restore them even after
           # the mutable production image tag has moved to the new revision.
-          if docker inspect dentix-backend-1 dentix-worker-1 \
+          if docker inspect dentix-backend-1 \
             dentix-domain-worker-1 >/dev/null 2>&1; then
             PREVIOUS_CONFIG_FILES=$(docker inspect \
               --format '{{ index .Config.Labels "com.docker.compose.project.config_files" }}' \
@@ -229,16 +229,12 @@ jobs:
 
             docker tag "$(docker inspect --format '{{.Image}}' dentix-backend-1)" \
               dentix-rollback-backend:previous
-            docker tag "$(docker inspect --format '{{.Image}}' dentix-worker-1)" \
-              dentix-rollback-worker:previous
             docker tag "$(docker inspect --format '{{.Image}}' dentix-domain-worker-1)" \
               dentix-rollback-domain-worker:previous
             cat > "$ROLLBACK_OVERRIDE" <<'ROLLBACK_YAML'
           services:
             backend:
               image: dentix-rollback-backend:previous
-            worker:
-              image: dentix-rollback-worker:previous
             domain-worker:
               image: dentix-rollback-domain-worker:previous
           ROLLBACK_YAML
@@ -270,7 +266,7 @@ jobs:
 
           # Keep workers away from the database while the backend applies migrations.
           DEPLOYMENT_STARTED=true
-          docker compose --project-name dentix stop worker domain-worker || true
+          docker compose --project-name dentix stop domain-worker || true
           # The remote script itself is streamed over stdin. Compose v5 keeps
           # stdin open even with -T, so interactive mode must also be disabled.
           docker compose --project-name dentix run -T --interactive=false \
@@ -301,7 +297,8 @@ jobs:
             exit 1
           fi
 
-          docker compose --project-name dentix up -d --force-recreate worker domain-worker caddy
+          docker compose --project-name dentix up -d --force-recreate \
+            --remove-orphans domain-worker caddy
           ln -sfn "$RELEASE_DIR" "${APP_ROOT}/current"
           docker compose --project-name dentix ps
           trap - EXIT
