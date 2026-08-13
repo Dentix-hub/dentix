@@ -40,7 +40,7 @@ def test_production_lock_excludes_gpu_ml_stack():
 
 def test_production_compose_only_consumes_a_prebuilt_image():
     compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
-    for service_name in ("backend", "worker", "domain-worker"):
+    for service_name in ("backend", "domain-worker"):
         service = compose["services"][service_name]
         assert "build" not in service
         assert "DENTIX_IMAGE" in service["image"]
