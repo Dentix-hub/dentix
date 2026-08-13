@@ -102,10 +102,13 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$DO_SSH_PRIVATE_KEY"
-          test -n "$DO_SSH_KNOWN_HOSTS"
           install -m 700 -d "$HOME/.ssh"
           printf '%s\n' "$DO_SSH_PRIVATE_KEY" > "$HOME/.ssh/dentix_deploy"
-          printf '%s\n' "$DO_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          if [ -n "$DO_SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$DO_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          else
+            install -m 600 .github/droplet_known_hosts "$HOME/.ssh/known_hosts"
+          fi
           chmod 600 "$HOME/.ssh/dentix_deploy" "$HOME/.ssh/known_hosts"
 
       - name: Upload release to the Droplet
@@ -143,7 +146,7 @@ jobs:
           DO_HOST: ${{ secrets.DO_HOST }}
           DO_USER: ${{ secrets.DO_USER }}
           DO_SSH_PORT: ${{ secrets.DO_SSH_PORT }}
-          DO_APP_PATH: ${{ secrets.DO_APP_PATH }}
+          DO_APP_PATH: ${{ secrets.DO_APP_PATH || secrets.DO_DEPLOY_PATH }}
         run: |
           set -euo pipefail
           DO_SSH_PORT="${DO_SSH_PORT:-22}"

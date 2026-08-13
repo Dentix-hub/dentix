@@ -73,8 +73,8 @@ should require a reviewer. Configure these secrets:
 | Production | `DO_USER` | Restricted SSH deployment user (`root` only for the current legacy setup) |
 | Production | `DO_SSH_PORT` | SSH port; defaults to `22` |
 | Production | `DO_SSH_PRIVATE_KEY` | Private key dedicated to deployment |
-| Production | `DO_SSH_KNOWN_HOSTS` | Pinned, verified Droplet host key |
-| Production | `DO_APP_PATH` | Absolute app root; defaults to `/root/dentix` |
+| Production | `DO_SSH_KNOWN_HOSTS` | Optional pinned, verified Droplet host key; defaults to the reviewed `.github/droplet_known_hosts` file |
+| Production | `DO_APP_PATH` | Absolute app root; falls back to legacy `DO_DEPLOY_PATH`, then `/root/dentix` |
 | Production | `BACKEND_URL` | Public production URL used by the health check |
 | Staging | `HF_TOKEN` | Hugging Face write token |
 | Staging | `HF_STAGING_SPACE` | Space identifier, for example `org/dentix-staging` |
