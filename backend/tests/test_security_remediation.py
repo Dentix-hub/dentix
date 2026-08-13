@@ -200,3 +200,13 @@ def test_database_driver_normalization_does_not_duplicate_async_driver():
 
     assert urlsplit(database.SQLALCHEMY_DATABASE_URL).scheme == "sqlite"
     assert urlsplit(database.ASYNC_DATABASE_URL).scheme == "sqlite+aiosqlite"
+
+
+def test_alembic_reuses_the_hardened_database_url():
+    from pathlib import Path
+
+    alembic_environment = (
+        Path(__file__).resolve().parents[1] / "alembic" / "env.py"
+    ).read_text(encoding="utf-8")
+
+    assert "database_config.SQLALCHEMY_DATABASE_URL" in alembic_environment

@@ -19,6 +19,7 @@ sys.path.insert(0, project_root)
 load_dotenv(os.path.join(project_root, ".env"))
 
 # Import Base from your models
+from backend import database as database_config  # noqa: E402
 from backend.models.base import Base  # noqa: E402
 from backend import models # noqa: F401
 from rls.register_rls import register_rls
@@ -33,8 +34,9 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Set database URL from environment variable
-db_url = os.getenv("DATABASE_URL")
+# Reuse the application's normalized URL so migrations enforce the same SSL
+# mode and pinned CA as the backend itself.
+db_url = database_config.SQLALCHEMY_DATABASE_URL
 if db_url:
     # Handle postgres:// vs postgresql://
     if db_url.startswith("postgres://"):

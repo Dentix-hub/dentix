@@ -171,6 +171,35 @@ jobs:
           RELEASE_ARCHIVE="/tmp/dentix-${DEPLOY_SHA}.tar.gz"
           RELEASE_DIR="${APP_ROOT}/releases/${DEPLOY_SHA}"
           LOCAL_IMAGE="dentix-app:production"
+          ROLLBACK_OVERRIDE="/tmp/dentix-rollback-${DEPLOY_SHA}.yml"
+          DEPLOYMENT_STARTED=false
+          ROLLBACK_READY=false
+
+          rollback_deployment() {
+            exit_code=$?
+            trap - EXIT
+            if [ "$exit_code" -ne 0 ] \
+              && [ "$DEPLOYMENT_STARTED" = true ] \
+              && [ "$ROLLBACK_READY" = true ]; then
+              echo "Deployment failed; restoring the previously running images..."
+              set +e
+              cd "$PREVIOUS_WORKING_DIR"
+              docker compose --project-name dentix \
+                -f "$PREVIOUS_CONFIG_FILE" \
+                -f "$ROLLBACK_OVERRIDE" \
+                up -d --force-recreate backend worker domain-worker caddy
+              rollback_status=$?
+              set -e
+              if [ "$rollback_status" -eq 0 ]; then
+                echo "Previous production containers restored."
+              else
+                echo "Automatic rollback failed with exit code $rollback_status."
+              fi
+            fi
+            rm -f "$ROLLBACK_OVERRIDE"
+            exit "$exit_code"
+          }
+          trap rollback_deployment EXIT
 
           test -f "$RELEASE_ARCHIVE"
           test -f "${APP_ROOT}/.env"
@@ -178,6 +207,43 @@ jobs:
           tar -xzf "$RELEASE_ARCHIVE" -C "$RELEASE_DIR"
           rm -f "$RELEASE_ARCHIVE"
           ln -sfn "${APP_ROOT}/.env" "${RELEASE_DIR}/.env"
+
+          # Pin the images that are actually running before any service is
+          # stopped. The override lets the EXIT trap restore them even after
+          # the mutable production image tag has moved to the new revision.
+          if docker inspect dentix-backend-1 dentix-worker-1 \
+            dentix-domain-worker-1 >/dev/null 2>&1; then
+            PREVIOUS_CONFIG_FILES=$(docker inspect \
+              --format '{{ index .Config.Labels "com.docker.compose.project.config_files" }}' \
+              dentix-backend-1)
+            PREVIOUS_CONFIG_FILE="${PREVIOUS_CONFIG_FILES%%,*}"
+            PREVIOUS_WORKING_DIR=$(docker inspect \
+              --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}' \
+              dentix-backend-1)
+            case "$PREVIOUS_CONFIG_FILE:$PREVIOUS_WORKING_DIR" in
+              /*:/*) ;;
+              *) echo "Previous Compose paths must be absolute"; exit 1 ;;
+            esac
+            test -f "$PREVIOUS_CONFIG_FILE"
+            test -d "$PREVIOUS_WORKING_DIR"
+
+            docker tag "$(docker inspect --format '{{.Image}}' dentix-backend-1)" \
+              dentix-rollback-backend:previous
+            docker tag "$(docker inspect --format '{{.Image}}' dentix-worker-1)" \
+              dentix-rollback-worker:previous
+            docker tag "$(docker inspect --format '{{.Image}}' dentix-domain-worker-1)" \
+              dentix-rollback-domain-worker:previous
+            cat > "$ROLLBACK_OVERRIDE" <<'ROLLBACK_YAML'
+          services:
+            backend:
+              image: dentix-rollback-backend:previous
+            worker:
+              image: dentix-rollback-worker:previous
+            domain-worker:
+              image: dentix-rollback-domain-worker:previous
+          ROLLBACK_YAML
+            ROLLBACK_READY=true
+          fi
 
           cd "$RELEASE_DIR"
           docker pull "$SOURCE_IMAGE"
@@ -203,6 +269,7 @@ jobs:
           docker compose --project-name dentix config --quiet
 
           # Keep workers away from the database while the backend applies migrations.
+          DEPLOYMENT_STARTED=true
           docker compose --project-name dentix stop worker domain-worker || true
           # The remote script itself is streamed over stdin. Compose v5 keeps
           # stdin open even with -T, so interactive mode must also be disabled.
@@ -237,6 +304,8 @@ jobs:
           docker compose --project-name dentix up -d --force-recreate worker domain-worker caddy
           ln -sfn "$RELEASE_DIR" "${APP_ROOT}/current"
           docker compose --project-name dentix ps
+          trap - EXIT
+          rm -f "$ROLLBACK_OVERRIDE"
           docker image rm "$SOURCE_IMAGE" || true
           docker image prune --force
           REMOTE_SCRIPT
