@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from ..core.response import success_response, error_response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 
 from .. import models, schemas
-from ..tasks.email_flows import send_connection_email_flow
 from .auth import get_current_user, get_async_db
 from ..core.permissions import Permission, require_permission
 
@@ -19,7 +18,6 @@ router = APIRouter(prefix="/support", tags=["Support & Feedback"])
 @router.post("/feedback", response_model=schemas.SupportMessage)
 async def create_feedback(
     message: schemas.SupportMessageCreate,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(get_current_user),
 ):
@@ -46,17 +44,6 @@ async def create_feedback(
         )
         tenant = tenant_result.scalars().first()
     db_message.clinic_name = tenant.name if tenant else "Unknown"
-
-    # Trigger Background Task via Prefect Flow
-    try:
-        background_tasks.add_task(
-            send_connection_email_flow,
-            email=current_user.email,
-            subject=f"New Support Message: {message.subject}",
-            message=message.message,
-        )
-    except Exception as e:
-        logger.warning("Failed to trigger background email flow: %s", e)
 
     return db_message
 
