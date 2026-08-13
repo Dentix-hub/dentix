@@ -9,6 +9,7 @@ principles.
 import os
 import logging
 import re
+from urllib.parse import urlsplit
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from dotenv import load_dotenv
@@ -50,22 +51,40 @@ if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
 
 SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.strip().strip("'").strip('"')
 
-# PgBouncer (Supabase pooler on port 6543): sslmode must be in URL, not connect_args
-if ":6543" in SQLALCHEMY_DATABASE_URL and "?" not in SQLALCHEMY_DATABASE_URL:
-    SQLALCHEMY_DATABASE_URL += (
-        f"?sslmode={os.getenv('DB_SSL_MODE', 'require')}"
-    )
+
+def _resolve_postgres_ssl_mode(database_url: str, configured_mode: str | None) -> str:
+    """Resolve SSL without breaking local PostgreSQL services such as CI."""
+    ssl_match = re.search(r"(?:[?&])sslmode=([\w-]+)", database_url)
+    if ssl_match:
+        return ssl_match.group(1)
+    if configured_mode:
+        return configured_mode
+
+    try:
+        hostname = (urlsplit(database_url).hostname or "").lower()
+    except ValueError:
+        hostname = ""
+
+    if hostname in {"localhost", "127.0.0.1", "::1"}:
+        return "disable"
+    return "require"
+
+
+_ssl_mode = _resolve_postgres_ssl_mode(
+    SQLALCHEMY_DATABASE_URL,
+    os.getenv("DB_SSL_MODE"),
+)
+
+# PgBouncer (Supabase pooler on port 6543): sslmode must be in URL, not connect_args.
+# Preserve any existing query parameters when adding the default.
+if ":6543" in SQLALCHEMY_DATABASE_URL and not re.search(
+    r"(?:[?&])sslmode=", SQLALCHEMY_DATABASE_URL
+):
+    separator = "&" if "?" in SQLALCHEMY_DATABASE_URL else "?"
+    SQLALCHEMY_DATABASE_URL += f"{separator}sslmode={_ssl_mode}"
 
 # Async URL configuration
 ASYNC_DATABASE_URL = SQLALCHEMY_DATABASE_URL
-
-# Extract ssl mode BEFORE URL conversion
-_ssl_match = re.search(r'sslmode=([\w-]+)', ASYNC_DATABASE_URL)
-_ssl_mode = (
-    _ssl_match.group(1)
-    if _ssl_match
-    else os.getenv("DB_SSL_MODE", "require")
-)
 
 _environment = os.getenv("ENVIRONMENT", "development").lower()
 if (

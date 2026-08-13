@@ -123,3 +123,30 @@ async def test_tenant_middleware_reads_cookie_and_cleans_context():
     assert await middleware.dispatch(request, next_handler) == "ok"
     assert get_current_tenant_id() is None
     assert not is_super_admin_bypass()
+
+
+def test_local_postgres_disables_ssl_by_default():
+    from backend.database import _resolve_postgres_ssl_mode
+
+    assert (
+        _resolve_postgres_ssl_mode(
+            "postgresql://test_user:test_pass@localhost:5432/dentix_test",
+            None,
+        )
+        == "disable"
+    )
+    assert (
+        _resolve_postgres_ssl_mode(
+            "postgresql://test_user:test_pass@[::1]:5432/dentix_test",
+            None,
+        )
+        == "disable"
+    )
+
+
+def test_remote_postgres_keeps_secure_ssl_default():
+    from backend.database import _resolve_postgres_ssl_mode
+
+    remote_url = "postgresql://user:pass@db.example.com:5432/dentix"
+    assert _resolve_postgres_ssl_mode(remote_url, None) == "require"
+    assert _resolve_postgres_ssl_mode(remote_url, "verify-full") == "verify-full"
