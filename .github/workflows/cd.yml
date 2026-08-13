@@ -312,7 +312,7 @@ jobs:
 
       - name: Verify production health externally
         env:
-          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          BACKEND_URL: ${{ vars.PRODUCTION_BACKEND_URL || 'https://dentixs.app' }}
         run: |
           set -euo pipefail
           test -n "$BACKEND_URL"
