@@ -50,6 +50,9 @@ services:
     image: ${DENTIX_IMAGE:-dentix-app:latest}
     command: ["python", "-m", "backend.workers.prefect_worker"]
     restart: always
+    # The image healthcheck probes the HTTP API, which workers do not serve.
+    healthcheck:
+      disable: true
     deploy:
       resources:
         limits:
@@ -75,6 +78,8 @@ services:
     image: ${DENTIX_IMAGE:-dentix-app:latest}
     command: ["python", "-m", "backend.workers.run", "--workers", "all"]
     restart: always
+    healthcheck:
+      disable: true
     deploy:
       resources:
         limits:

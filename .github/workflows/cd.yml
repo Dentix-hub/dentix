@@ -59,8 +59,14 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$STAGING_BACKEND_URL"
+          HEALTH_URL="${STAGING_BACKEND_URL%/}"
+          case "$HEALTH_URL" in
+            */api/v1/health) ;;
+            */api/v1) HEALTH_URL="${HEALTH_URL}/health" ;;
+            *) HEALTH_URL="${HEALTH_URL}/api/v1/health" ;;
+          esac
           curl --fail --show-error --retry 15 --retry-delay 12 \
-            "${STAGING_BACKEND_URL%/}/api/v1/health"
+            "$HEALTH_URL"
 
   deploy-production:
     name: Deploy production to DigitalOcean Droplet
@@ -198,11 +204,20 @@ jobs:
 
           # Keep workers away from the database while the backend applies migrations.
           docker compose --project-name dentix stop worker domain-worker || true
-          docker compose --project-name dentix run --rm --no-deps --user root \
+          # -T is mandatory because the remote script itself is streamed over
+          # stdin; without it, Compose consumes the rest of this heredoc.
+          docker compose --project-name dentix run -T --rm --no-deps --user root \
             backend chown -R 10001:10001 \
               /app/backend/uploads /app/rag_storage /home/dentix/.cache/chroma
           docker compose --project-name dentix up -d redis
           docker compose --project-name dentix up -d --force-recreate backend
+
+          BACKEND_CONTAINER=$(docker compose --project-name dentix ps -q backend)
+          test -n "$BACKEND_CONTAINER"
+          RUNNING_REVISION=$(docker image inspect \
+            --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
+            "$(docker inspect --format '{{.Image}}' "$BACKEND_CONTAINER")")
+          test "$RUNNING_REVISION" = "$DEPLOY_SHA"
 
           healthy=false
           for attempt in $(seq 1 30); do
@@ -231,5 +246,11 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$BACKEND_URL"
+          HEALTH_URL="${BACKEND_URL%/}"
+          case "$HEALTH_URL" in
+            */api/v1/health) ;;
+            */api/v1) HEALTH_URL="${HEALTH_URL}/health" ;;
+            *) HEALTH_URL="${HEALTH_URL}/api/v1/health" ;;
+          esac
           curl --fail --show-error --retry 10 --retry-delay 12 \
-            "${BACKEND_URL%/}/api/v1/health"
+            "$HEALTH_URL"
