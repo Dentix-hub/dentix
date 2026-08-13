@@ -1,0 +1,35 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.do
+    environment:
+      DATABASE_URL: postgresql://dentix_test:dentix_test@db:5432/dentix_test
+      DB_SSL_MODE: disable
+      SECRET_KEY: test-secret-key-for-e2e-only-at-least-32-characters
+      ENVIRONMENT: test
+      REDIS_URL: redis://redis:6379/0
+      FRONTEND_URL: http://localhost:5173
+      CORS_ORIGINS: http://localhost:5173
+    ports:
+      - "7860:7860"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: dentix_test
+      POSTGRES_PASSWORD: dentix_test
+      POSTGRES_DB: dentix_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dentix_test -d dentix_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine

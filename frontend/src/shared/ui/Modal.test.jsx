@@ -32,10 +32,9 @@ describe('Modal Component', () => {
 
     it('calls onClose when backdrop is clicked', () => {
         const handleClose = vi.fn();
-        const { container } = render(<Modal isOpen={true} onClose={handleClose} title="Test Modal">Content</Modal>);
+        render(<Modal isOpen={true} onClose={handleClose} title="Test Modal">Content</Modal>);
 
-        // The first div is the fixed backdrop
-        fireEvent.click(container.firstChild);
+        fireEvent.click(screen.getByRole('dialog').parentElement);
         expect(handleClose).toHaveBeenCalledTimes(1);
     });
 

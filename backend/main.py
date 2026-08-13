@@ -254,15 +254,14 @@ async def csrf_protection_middleware(request: Request, call_next):
         "/api/v1/auth/verify-reset-token",
         "/health",                    # Health checks
         "/api/v1/global-settings",    # Public settings
-        "/api/v1/upload",             # File upload (handled separately)
         "/docs", "/redoc", "/openapi.json",  # Docs
         "/static", "/assets",         # Static files
     ]
     if any(path.startswith(p) for p in exempt_paths):
         return await call_next(request)
 
-    # Skip webhook endpoints (they have their own validation)
-    if "webhook" in path.lower() or "callback" in path.lower():
+    # The payment webhook is authenticated with an HMAC signature, not cookies.
+    if path == "/api/v1/admin/subscriptions/webhooks/provider":
         return await call_next(request)
 
     # Validate CSRF token

@@ -41,7 +41,7 @@ describe('API Module', () => {
     describe('Auth APIs', () => {
         it('login sends POST to /api/v1/token with FormData', async () => {
             await login('admin', 'pass123');
-            expect(api.post).toHaveBeenCalledWith('/api/v1/token', expect.any(FormData));
+            expect(api.post).toHaveBeenCalledWith('/api/v1/auth/token', expect.any(FormData));
         });
 
         it('registerClinic sends POST to /api/v1/auth/register_clinic', async () => {
@@ -52,14 +52,14 @@ describe('API Module', () => {
 
         it('getMe sends GET to /api/v1/users/me/', async () => {
             await getMe();
-            expect(api.get).toHaveBeenCalledWith('/api/v1/users/me/');
+            expect(api.get).toHaveBeenCalledWith('/api/v1/users/me');
         });
     });
 
     describe('Patient APIs', () => {
         it('getPatients calls correct endpoint', async () => {
             await getPatients();
-            expect(api.get).toHaveBeenCalledWith('/api/v1/patients/');
+            expect(api.get).toHaveBeenCalledWith('/api/v1/patients');
         });
 
         it('getPatient includes ID in URL', async () => {
@@ -70,7 +70,7 @@ describe('API Module', () => {
         it('createPatient sends POST with patient data', async () => {
             const data = { name: 'Ahmed', phone: '01234567890' };
             await createPatient(data);
-            expect(api.post).toHaveBeenCalledWith('/api/v1/patients/', data);
+            expect(api.post).toHaveBeenCalledWith('/api/v1/patients', data);
         });
 
         it('updatePatient sends PUT with ID and data', async () => {
@@ -88,13 +88,13 @@ describe('API Module', () => {
     describe('Appointment APIs', () => {
         it('getAppointments calls correct endpoint', async () => {
             await getAppointments();
-            expect(api.get).toHaveBeenCalledWith('/api/v1/appointments/');
+            expect(api.get).toHaveBeenCalledWith('/api/v1/appointments');
         });
 
         it('createAppointment sends POST', async () => {
             const data = { patient_id: 1, date: '2026-02-10' };
             await createAppointment(data);
-            expect(api.post).toHaveBeenCalledWith('/api/v1/appointments/', data);
+            expect(api.post).toHaveBeenCalledWith('/api/v1/appointments', data);
         });
     });
 
@@ -102,7 +102,7 @@ describe('API Module', () => {
         it('createPayment sends POST to /api/v1/payments/', async () => {
             const data = { patient_id: 1, amount: 500 };
             await createPayment(data);
-            expect(api.post).toHaveBeenCalledWith('/api/v1/payments/', data);
+            expect(api.post).toHaveBeenCalledWith('/api/v1/payments', data);
         });
 
         it('getFinancialStats calls expenses/stats', async () => {
@@ -119,33 +119,33 @@ describe('API Module', () => {
     describe('Procedures APIs', () => {
         it('getProcedures calls correct endpoint', async () => {
             await getProcedures();
-            expect(api.get).toHaveBeenCalledWith('/api/v1/procedures/');
+            expect(api.get).toHaveBeenCalledWith('/api/v1/procedures');
         });
 
         it('createProcedure sends POST with data', async () => {
             const data = { name: 'Filling', price: 200 };
             await createProcedure(data);
-            expect(api.post).toHaveBeenCalledWith('/api/v1/procedures/', data);
+            expect(api.post).toHaveBeenCalledWith('/api/v1/procedures', data);
         });
     });
 
     describe('Expenses APIs', () => {
         it('getExpenses calls correct endpoint', async () => {
             await getExpenses();
-            expect(api.get).toHaveBeenCalledWith('/api/v1/expenses/');
+            expect(api.get).toHaveBeenCalledWith('/api/v1/expenses');
         });
 
         it('createExpense sends POST', async () => {
             const data = { description: 'Office supplies', amount: 100 };
             await createExpense(data);
-            expect(api.post).toHaveBeenCalledWith('/api/v1/expenses/', data);
+            expect(api.post).toHaveBeenCalledWith('/api/v1/expenses', data);
         });
     });
 
     describe('Notifications APIs', () => {
         it('getNotifications calls correct endpoint', async () => {
             await getNotifications();
-            expect(api.get).toHaveBeenCalledWith('/api/v1/notifications/');
+            expect(api.get).toHaveBeenCalledWith('/api/v1/notifications');
         });
     });
 });

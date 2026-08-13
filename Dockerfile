@@ -1,68 +1,68 @@
-# ==========================================
-# Stage 1: Build Frontend
-# ==========================================
-FROM node:18-alpine as build
+# syntax=docker/dockerfile:1.7
+
+FROM node:20-alpine AS frontend-build
 WORKDIR /app/frontend
 
-# Copy package files
 COPY frontend/package*.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --no-audit --no-fund
 
-# Install dependencies
-RUN npm ci
-
-# Copy source code
-COPY frontend .
-
-# Build for production
+COPY frontend/ ./
 RUN npm run build
 
 
-# ==========================================
-# Stage 2: Production Runtime (Python)
-# ==========================================
-FROM python:3.11-slim
+FROM python:3.11-slim AS python-dependencies
+WORKDIR /build
 
-# Set working directory
-WORKDIR /app
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_PYTHON_VERSION_WARNING=1
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
-    libmagic1 \
     libpq-dev \
-    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements from root
-COPY requirements.txt .
+COPY requirements.lock ./
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --prefix=/install -r requirements.lock
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the backend code
+FROM python:3.11-slim AS runtime
+WORKDIR /app
+
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    HOME=/home/dentix
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libmagic1 \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 10001 dentix \
+    && useradd --uid 10001 --gid dentix --create-home dentix
+
+COPY --from=python-dependencies /install/ /usr/local/
 COPY backend/ backend/
-
-# Copy Frontend Build Artifacts to Backend Static Directory
-# This allows FastAPI to serve the React App
-COPY --from=build /app/frontend/dist /app/backend/static
-
-# Add /app to PYTHONPATH
-ENV PYTHONPATH=/app
-
-# Create necessary directories
-RUN mkdir -p backend/uploads backend/static/logos && chmod -R 777 backend/uploads
-
-# Copy startup script
+COPY --from=frontend-build /app/frontend/dist/ /app/backend/static/
 COPY scripts/deployment/startup.sh /app/startup.sh
-RUN chmod +x /app/startup.sh
 
-# Expose port
+RUN chmod 755 /app/startup.sh \
+    && mkdir -p \
+        /app/backend/uploads \
+        /app/backend/static/logos \
+        /app/rag_storage \
+        /home/dentix/.cache/chroma \
+    && chown -R dentix:dentix /app /home/dentix \
+    && chmod 750 /app/backend/uploads /app/rag_storage
+
+USER dentix
+
 EXPOSE 7860
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/api/v1/health')" || exit 1
 
-# Run migrations then start the application
 CMD ["/app/startup.sh", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "7860"]

@@ -31,7 +31,7 @@ const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
         {
             title: t('shortcuts.navigation', 'Navigation'),
             items: [
-                { keys: [<ArrowUp size={12} />, <ArrowDown size={12} />], description: t('shortcuts.navigate_results', 'Navigate Results') },
+                { keys: [<ArrowUp key="up" size={12} />, <ArrowDown key="down" size={12} />], description: t('shortcuts.navigate_results', 'Navigate Results') },
                 { keys: ['↵'], description: t('shortcuts.select_item', 'Select Item') }
             ]
         }

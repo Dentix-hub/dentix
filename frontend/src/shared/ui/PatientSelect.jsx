@@ -13,9 +13,12 @@ export default function PatientSelect({ patients = [], value, onChange, onQuickA
             ? [...patients].sort((a, b) => (b.id || 0) - (a.id || 0)).slice(0, 50)
             : patients
                 .filter((patient) => {
+                    const q = query.toLowerCase();
+                    const fileStr = String(patient.file_number || patient.id || '');
                     return (
-                        patient.name?.toLowerCase().includes(query.toLowerCase()) || 
-                        patient.phone?.includes(query)
+                        patient.name?.toLowerCase().includes(q) ||
+                        patient.phone?.includes(query) ||
+                        fileStr.includes(query)
                     );
                 })
                 .sort((a, b) => (b.id || 0) - (a.id || 0))
@@ -41,7 +44,7 @@ export default function PatientSelect({ patients = [], value, onChange, onQuickA
                         <div className={`relative w-full cursor-default overflow-hidden rounded-xl bg-surface border ${error ? 'border-red-300' : 'border-border'} text-left focus:outline-none focus-within:ring-2 focus-within:ring-primary/20 sm:text-sm transition-all shadow-sm`}>
                             <ComboboxInput
                                 className="w-full border-none py-3 ps-10 pe-10 text-sm font-bold leading-5 text-text-primary focus:ring-0 bg-transparent outline-none placeholder:text-slate-500"
-                                displayValue={(patient) => patient?.name || ''}
+                                displayValue={(patient) => patient ? (patient.file_number ? `#${patient.file_number} - ${patient.name}` : patient.name) : ''}
                                 onChange={(event) => setQuery(event.target.value)}
                                 placeholder={placeholder || t('common.search_patient', 'Search patient...')}
                             />
@@ -80,12 +83,14 @@ export default function PatientSelect({ patients = [], value, onChange, onQuickA
                                             <>
                                                 <div className="flex items-center gap-3">
                                                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-[10px] transition-colors ${active ? 'bg-white/20 text-white' : 'bg-primary/10 text-primary'}`}>
-                                                        {patient.name?.charAt(0).toUpperCase() || '?'}
+                                                        #{patient.file_number || patient.id}
                                                     </div>
                                                     <div className="flex flex-col min-w-0">
-                                                        <span className={`block truncate text-sm ${selected ? 'font-bold' : 'font-bold'}`}>
-                                                            {patient.name}
-                                                        </span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className={`block truncate text-sm ${selected ? 'font-bold' : 'font-bold'}`}>
+                                                                {patient.name}
+                                                            </span>
+                                                        </div>
                                                         {patient.phone && (
                                                             <span className={`text-[10px] font-bold uppercase tracking-widest ${active ? 'text-white/70' : 'text-slate-500'}`}>
                                                                 {patient.phone}

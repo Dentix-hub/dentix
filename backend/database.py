@@ -52,18 +52,35 @@ SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.strip().strip("'").strip('"')
 
 # PgBouncer (Supabase pooler on port 6543): sslmode must be in URL, not connect_args
 if ":6543" in SQLALCHEMY_DATABASE_URL and "?" not in SQLALCHEMY_DATABASE_URL:
-    SQLALCHEMY_DATABASE_URL += "?sslmode=require"
+    SQLALCHEMY_DATABASE_URL += (
+        f"?sslmode={os.getenv('DB_SSL_MODE', 'require')}"
+    )
 
 # Async URL configuration
 ASYNC_DATABASE_URL = SQLALCHEMY_DATABASE_URL
 
 # Extract ssl mode BEFORE URL conversion
-_ssl_match = re.search(r'sslmode=(\w+)', ASYNC_DATABASE_URL)
-_ssl_mode = _ssl_match.group(1) if _ssl_match else None
+_ssl_match = re.search(r'sslmode=([\w-]+)', ASYNC_DATABASE_URL)
+_ssl_mode = (
+    _ssl_match.group(1)
+    if _ssl_match
+    else os.getenv("DB_SSL_MODE", "require")
+)
+
+_environment = os.getenv("ENVIRONMENT", "development").lower()
+if (
+    "postgresql" in SQLALCHEMY_DATABASE_URL
+    and _environment in {"production", "prod"}
+    and _ssl_mode != "verify-full"
+):
+    raise RuntimeError(
+        "Production PostgreSQL requires DB_SSL_MODE=verify-full "
+        "to validate the server certificate and hostname."
+    )
 
 # Strip sslmode from DSN entirely — asyncpg uses connect_args not URL params
 if _ssl_mode:
-    ASYNC_DATABASE_URL = re.sub(r'[?&]sslmode=\w+', '', ASYNC_DATABASE_URL)
+    ASYNC_DATABASE_URL = re.sub(r'[?&]sslmode=[\w-]+', '', ASYNC_DATABASE_URL)
     ASYNC_DATABASE_URL = re.sub(r'\?$', '', ASYNC_DATABASE_URL)
 
 if ASYNC_DATABASE_URL.startswith("postgresql"):
@@ -82,7 +99,9 @@ is_supabase_pooler = ":6543" in SQLALCHEMY_DATABASE_URL  # PgBouncer port
 if "postgresql" in SQLALCHEMY_DATABASE_URL:
     if not is_supabase_pooler:
         # Direct PostgreSQL: SSL and statement_timeout are safe
-        connect_args["sslmode"] = os.getenv("DB_SSL_MODE", "require")
+        connect_args["sslmode"] = _ssl_mode
+        if os.getenv("DB_SSL_CA_CERT"):
+            connect_args["sslrootcert"] = os.environ["DB_SSL_CA_CERT"]
         stmt_timeout = os.getenv('DB_STATEMENT_TIMEOUT')
         if stmt_timeout:
             connect_args["options"] = f"-c statement_timeout={stmt_timeout}"
@@ -143,7 +162,11 @@ if "postgresql" in ASYNC_DATABASE_URL:
     elif _ssl_mode == "disable":
         connect_args_async["ssl"] = False
     elif _ssl_mode in ("verify-ca", "verify-full"):
-        connect_args_async["ssl"] = True
+        import ssl
+        ctx = ssl.create_default_context(cafile=os.getenv("DB_SSL_CA_CERT"))
+        ctx.verify_mode = ssl.CERT_REQUIRED
+        ctx.check_hostname = _ssl_mode == "verify-full"
+        connect_args_async["ssl"] = ctx
 elif "sqlite" in ASYNC_DATABASE_URL:
     connect_args_async["check_same_thread"] = False
 
@@ -209,6 +232,8 @@ async def get_async_db():
 # Register SQLAlchemy event listeners
 
 
-# Sync engine alias for dev/staging startup operations only
-# (metadata.create_all, drop_all, Alembic). Production path never uses this.
-engine = async_engine.sync_engine
+from sqlalchemy import create_engine
+
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, pool_pre_ping=_pre_ping, echo=False, connect_args=connect_args, **sync_pool_args
+)

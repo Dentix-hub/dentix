@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
-import { getDoctors, createPatient } from '@/api';
+import { getDoctors, createPatient, checkDuplicatePatient, getFieldSuggestions } from '@/api';
 import { useAuth } from '@/auth/useAuth';
 import { Modal, Button, Input, toast } from '@/shared/ui';
+import { AlertTriangle, UserCheck } from 'lucide-react';
 
 export default function PatientModal({ isOpen, onClose, onSuccess }) {
     const { t } = useTranslation();
@@ -11,6 +12,8 @@ export default function PatientModal({ isOpen, onClose, onSuccess }) {
     
     const [doctors, setDoctors] = useState([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [addressSuggestions, setAddressSuggestions] = useState([]);
+    const [dupInfo, setDupInfo] = useState({ exact_match: null, similar_patients: [] });
     const [formData, setFormData] = useState({
         name: '',
         age: '',
@@ -25,6 +28,10 @@ export default function PatientModal({ isOpen, onClose, onSuccess }) {
             getDoctors()
                 .then(res => setDoctors(res.data))
                 .catch(err => logger.error("Failed to fetch doctors", err));
+
+            getFieldSuggestions('address')
+                .then(res => setAddressSuggestions(res.data || []))
+                .catch(err => logger.error("Failed to fetch address suggestions", err));
             
             if (user?.role === 'doctor') {
                 setFormData(prev => ({ ...prev, assigned_doctor_id: user.id }));
@@ -39,8 +46,29 @@ export default function PatientModal({ isOpen, onClose, onSuccess }) {
                 medical_history: '',
                 assigned_doctor_id: user?.role === 'doctor' ? user.id : ''
             });
+            setDupInfo({ exact_match: null, similar_patients: [] });
         }
     }, [isOpen, user]);
+
+    // Check duplicates when name or phone changes
+    useEffect(() => {
+        if (!formData.name || formData.name.trim().length < 2) {
+            setDupInfo({ exact_match: null, similar_patients: [] });
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            checkDuplicatePatient(formData.name.trim(), formData.phone.trim())
+                .then(res => {
+                    if (res.data) {
+                        setDupInfo(res.data);
+                    }
+                })
+                .catch(() => {});
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, [formData.name, formData.phone]);
 
     const handleInputChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -49,6 +77,11 @@ export default function PatientModal({ isOpen, onClose, onSuccess }) {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!formData.name) return toast.error(t('patients.form.name_required'));
+        if (dupInfo.exact_match) {
+            return toast.error(t('patients.form.duplicate_error', 'هذا المريض موجود بالفعل برقم ملف #' + dupInfo.exact_match.file_number));
+        }
+
+        setIsSubmitting(true);
         
         const cleanedData = {
             ...formData,
@@ -76,6 +109,31 @@ export default function PatientModal({ isOpen, onClose, onSuccess }) {
             size="md"
         >
             <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Duplicate Warning Banners */}
+                {dupInfo.exact_match && (
+                    <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-start gap-3 text-red-600 dark:text-red-400 text-xs font-bold animate-in fade-in">
+                        <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+                        <div>
+                            <p className="font-black text-sm">مريض مكرر!</p>
+                            <p>يوجد مريض آخر بنفس الاسم أو رقم الهاتف: <strong>{dupInfo.exact_match.name}</strong> (رقم الملف #{dupInfo.exact_match.file_number})</p>
+                        </div>
+                    </div>
+                )}
+
+                {!dupInfo.exact_match && dupInfo.similar_patients.length > 0 && (
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-start gap-3 text-amber-700 dark:text-amber-400 text-xs font-bold animate-in fade-in">
+                        <UserCheck size={18} className="shrink-0 mt-0.5" />
+                        <div>
+                            <p className="font-bold">مرضى بأسماء مشابهة:</p>
+                            <ul className="mt-1 space-y-0.5">
+                                {dupInfo.similar_patients.map(p => (
+                                    <li key={p.id}>• {p.name} (رقم الملف #{p.file_number})</li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input
                         label={t('patients.form.name_label')}
@@ -105,6 +163,7 @@ export default function PatientModal({ isOpen, onClose, onSuccess }) {
                         placeholder={t('patients.form.address_placeholder')}
                         value={formData.address}
                         onChange={(e) => handleInputChange('address', e.target.value)}
+                        suggestions={addressSuggestions}
                         containerClassName="md:col-span-2"
                     />
                     

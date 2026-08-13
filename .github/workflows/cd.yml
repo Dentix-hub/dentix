@@ -1,60 +1,232 @@
-name: Deploy to HuggingFace
+name: Dentix CD
 
 on:
   workflow_run:
     workflows: ["Dentix CI"]
-    types:
-      - completed
-    branches:
-      - main
-      - staging
+    types: [completed]
+    branches: [main, staging]
   workflow_dispatch:
+    inputs:
+      target:
+        description: Deployment target
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+  packages: read
 
 jobs:
-  deploy:
-    name: Deploy to HuggingFace
+  deploy-staging:
+    name: Deploy staging to Hugging Face
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'staging') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'staging')
+    concurrency:
+      group: dentix-staging-deployment
+      cancel-in-progress: true
+    environment: staging
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout the tested revision
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Configure Git
-        run: |
-          git config --global user.email "deploy@smartclinic.com"
-          git config --global user.name "Smart Clinic Deploy Bot"
-
-      - name: Determine Environment
-        id: env_check
-        run: |
-          if [[ "${{ github.event.workflow_run.head_branch }}" == "main" ]]; then
-            echo "space=${{ secrets.HF_SPACE }}" >> $GITHUB_OUTPUT
-            echo "branch=main" >> $GITHUB_OUTPUT
-          else
-            echo "space=${{ secrets.HF_STAGING_SPACE }}" >> $GITHUB_OUTPUT
-            echo "branch=staging" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Push to HuggingFace
+      - name: Push tested revision to Hugging Face staging
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_SPACE: ${{ steps.env_check.outputs.space }}
-          TARGET_BRANCH: ${{ steps.env_check.outputs.branch }}
+          HF_STAGING_SPACE: ${{ secrets.HF_STAGING_SPACE }}
+          DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
-          git remote add hf https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}
-          git push hf ${TARGET_BRANCH}:main --force
+          set -euo pipefail
+          test -n "$HF_TOKEN"
+          test -n "$HF_STAGING_SPACE"
+          git remote add hf "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_STAGING_SPACE}"
+          git push hf "${DEPLOY_SHA}:refs/heads/main" --force
 
-      - name: Wait for deployment
-        run: sleep 60
-
-      - name: Health check
+      - name: Verify staging health
         env:
-          BACKEND_URL: ${{ steps.env_check.outputs.branch == 'main' && secrets.BACKEND_URL || secrets.STAGING_BACKEND_URL }}
+          STAGING_BACKEND_URL: ${{ secrets.STAGING_BACKEND_URL }}
         run: |
-          if [ -n "$BACKEND_URL" ]; then
-            curl -f ${BACKEND_URL}/health || exit 1
-          else
-            echo "No health check URL configured for this environment, skipping."
+          set -euo pipefail
+          test -n "$STAGING_BACKEND_URL"
+          curl --fail --show-error --retry 15 --retry-delay 12 \
+            "${STAGING_BACKEND_URL%/}/api/v1/health"
+
+  deploy-production:
+    name: Deploy production to DigitalOcean Droplet
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'production') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    concurrency:
+      group: dentix-production-deployment
+      cancel-in-progress: false
+    environment: production
+
+    steps:
+      - name: Checkout the tested revision
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Create immutable release archive
+        env:
+          DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$DEPLOY_SHA" = "$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$DEPLOY_SHA" origin/main
+          git archive --format=tar.gz \
+            --output="dentix-${DEPLOY_SHA}.tar.gz" \
+            "$DEPLOY_SHA" \
+            docker-compose.yml Caddyfile
+
+      - name: Configure Droplet SSH identity
+        env:
+          DO_SSH_PRIVATE_KEY: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+          DO_SSH_KNOWN_HOSTS: ${{ secrets.DO_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$DO_SSH_PRIVATE_KEY"
+          test -n "$DO_SSH_KNOWN_HOSTS"
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$DO_SSH_PRIVATE_KEY" > "$HOME/.ssh/dentix_deploy"
+          printf '%s\n' "$DO_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/dentix_deploy" "$HOME/.ssh/known_hosts"
+
+      - name: Upload release to the Droplet
+        env:
+          DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_PORT: ${{ secrets.DO_SSH_PORT }}
+        run: |
+          set -euo pipefail
+          test -n "$DO_HOST"
+          test -n "$DO_USER"
+          DO_SSH_PORT="${DO_SSH_PORT:-22}"
+          scp -P "$DO_SSH_PORT" -i "$HOME/.ssh/dentix_deploy" \
+            "dentix-${DEPLOY_SHA}.tar.gz" \
+            "${DO_USER}@${DO_HOST}:/tmp/dentix-${DEPLOY_SHA}.tar.gz"
+
+      - name: Authenticate the Droplet to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_PORT: ${{ secrets.DO_SSH_PORT }}
+        run: |
+          set -euo pipefail
+          DO_SSH_PORT="${DO_SSH_PORT:-22}"
+          printf '%s' "$GHCR_TOKEN" | \
+            ssh -p "$DO_SSH_PORT" -i "$HOME/.ssh/dentix_deploy" \
+              "${DO_USER}@${DO_HOST}" \
+              "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+
+      - name: Activate release on the Droplet
+        env:
+          DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_PORT: ${{ secrets.DO_SSH_PORT }}
+          DO_APP_PATH: ${{ secrets.DO_APP_PATH }}
+        run: |
+          set -euo pipefail
+          DO_SSH_PORT="${DO_SSH_PORT:-22}"
+          DO_APP_PATH="${DO_APP_PATH:-/root/dentix}"
+          IMAGE_REPOSITORY="ghcr.io/${GITHUB_REPOSITORY,,}"
+          SOURCE_IMAGE="${IMAGE_REPOSITORY}:${DEPLOY_SHA}"
+          case "$DO_APP_PATH" in
+            /*) ;;
+            *) echo "DO_APP_PATH must be absolute"; exit 1 ;;
+          esac
+
+          ssh -p "$DO_SSH_PORT" -i "$HOME/.ssh/dentix_deploy" \
+            "${DO_USER}@${DO_HOST}" \
+            "DEPLOY_SHA='${DEPLOY_SHA}' APP_ROOT='${DO_APP_PATH}' SOURCE_IMAGE='${SOURCE_IMAGE}' bash -s" <<'REMOTE_SCRIPT'
+          set -euo pipefail
+          RELEASE_ARCHIVE="/tmp/dentix-${DEPLOY_SHA}.tar.gz"
+          RELEASE_DIR="${APP_ROOT}/releases/${DEPLOY_SHA}"
+          LOCAL_IMAGE="dentix-app:production"
+
+          test -f "$RELEASE_ARCHIVE"
+          test -f "${APP_ROOT}/.env"
+          mkdir -p "$RELEASE_DIR"
+          tar -xzf "$RELEASE_ARCHIVE" -C "$RELEASE_DIR"
+          rm -f "$RELEASE_ARCHIVE"
+          ln -sfn "${APP_ROOT}/.env" "${RELEASE_DIR}/.env"
+
+          cd "$RELEASE_DIR"
+          docker pull "$SOURCE_IMAGE"
+          IMAGE_REVISION=$(docker image inspect \
+            --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
+            "$SOURCE_IMAGE")
+          test "$IMAGE_REVISION" = "$DEPLOY_SHA"
+          docker tag "$SOURCE_IMAGE" "$LOCAL_IMAGE"
+          docker logout ghcr.io || true
+
+          # Preserve uploads from the legacy host bind mount on the first
+          # named-volume deployment. Existing named-volume data always wins.
+          if [ -d "${APP_ROOT}/uploads" ]; then
+            docker volume create dentix_uploads_data >/dev/null
+            docker run --rm --user root \
+              -v dentix_uploads_data:/target \
+              -v "${APP_ROOT}/uploads:/legacy:ro" \
+              "$LOCAL_IMAGE" sh -c \
+              'if [ -z "$(ls -A /target)" ]; then cp -a /legacy/. /target/; fi; chown -R 10001:10001 /target'
           fi
+
+          export DENTIX_IMAGE="$LOCAL_IMAGE"
+          docker compose --project-name dentix config --quiet
+
+          # Keep workers away from the database while the backend applies migrations.
+          docker compose --project-name dentix stop worker domain-worker || true
+          docker compose --project-name dentix run --rm --no-deps --user root \
+            backend chown -R 10001:10001 \
+              /app/backend/uploads /app/rag_storage /home/dentix/.cache/chroma
+          docker compose --project-name dentix up -d redis
+          docker compose --project-name dentix up -d --force-recreate backend
+
+          healthy=false
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error \
+              http://127.0.0.1:7860/api/v1/health >/dev/null; then
+              healthy=true
+              break
+            fi
+            sleep 5
+          done
+          if [ "$healthy" != true ]; then
+            docker compose --project-name dentix logs --tail=150 backend
+            exit 1
+          fi
+
+          docker compose --project-name dentix up -d --force-recreate worker domain-worker caddy
+          ln -sfn "$RELEASE_DIR" "${APP_ROOT}/current"
+          docker compose --project-name dentix ps
+          docker image rm "$SOURCE_IMAGE" || true
+          docker image prune --force
+          REMOTE_SCRIPT
+
+      - name: Verify production health externally
+        env:
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$BACKEND_URL"
+          curl --fail --show-error --retry 10 --retry-delay 12 \
+            "${BACKEND_URL%/}/api/v1/health"

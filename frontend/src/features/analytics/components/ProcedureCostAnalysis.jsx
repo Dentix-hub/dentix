@@ -1,47 +1,39 @@
-import { useState, useEffect } from 'react';
-import logger from '@/utils/logger';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import { getProcedures } from '@/api';
 import { getProcedureFinancials } from '@/api/financials';
 import { updateMaterial } from '@/api/inventory';
 import { Package, Search, TrendingUp, AlertTriangle } from 'lucide-react';
+import { toast } from '@/shared/ui';
 const ProcedureCostAnalysis = () => {
     const { t } = useTranslation();
-    const [procedures, setProcedures] = useState([]);
     const [selectedProcedure, setSelectedProcedure] = useState(null);
-    const [analysis, setAnalysis] = useState(null);
-    const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('analysis'); // analysis, coverage
-    useEffect(() => {
-        loadProcedures();
-    }, []);
-    useEffect(() => {
-        if (selectedProcedure) {
-            loadFinancials(selectedProcedure);
-        } else {
-            setAnalysis(null);
-        }
-    }, [selectedProcedure]);
-    const loadProcedures = async () => {
-        try {
+
+    const { data: proceduresData } = useQuery({
+        queryKey: ['procedures_list'],
+        queryFn: async () => {
             const res = await getProcedures();
-            setProcedures(res.data || []);
-        } catch (err) {
-            logger.error("Failed to load procedures", err);
-        }
-    };
-    const loadFinancials = async (procId) => {
-        setLoading(true);
-        try {
-            const res = await getProcedureFinancials(procId);
-            setAnalysis(res.data);
-        } catch (err) {
-            logger.error("Failed to load financials", err);
-            setAnalysis(null);
-        } finally {
-            setLoading(false);
-        }
-    };
+            return res.data || [];
+        },
+        staleTime: 10 * 60 * 1000,
+    });
+    const procedures = proceduresData || [];
+
+    const {
+        data: analysis,
+        isLoading: loading,
+        refetch: refetchAnalysis,
+    } = useQuery({
+        queryKey: ['procedure_financials', selectedProcedure],
+        queryFn: async () => {
+            const res = await getProcedureFinancials(selectedProcedure);
+            return res.data;
+        },
+        enabled: !!selectedProcedure,
+        staleTime: 2 * 60 * 1000,
+    });
     return (
         <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
@@ -203,9 +195,9 @@ const ProcedureCostAnalysis = () => {
                                                                 if (newVal && newVal !== item.pack_size) {
                                                                     try {
                                                                         await updateMaterial(item.material_id, { packaging_ratio: newVal });
-                                                                        loadFinancials(selectedProcedure); // Reload analysis
+                                                                        await refetchAnalysis();
                                                                     } catch (err) {
-                                                                        alert(t('analytics.procedure_analysis.update_fail'));
+                                                                        toast.error(t('analytics.procedure_analysis.update_fail'));
                                                                     }
                                                                 }
                                                             }}
@@ -232,4 +224,3 @@ const ProcedureCostAnalysis = () => {
     );
 };
 export default ProcedureCostAnalysis;
-

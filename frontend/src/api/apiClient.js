@@ -71,7 +71,6 @@ api.interceptors.request.use(config => {
             '/api/v1/auth/forgot-password',
             '/api/v1/auth/reset-password',
             '/api/v1/auth/verify-reset-token',
-            '/api/v1/upload',
         ];
         const isExempt = exemptPaths.some(p => url.includes(p));
 
@@ -132,7 +131,7 @@ api.interceptors.response.use(
     async error => {
         const originalRequest = error.config;
 
-        if (error.response) {
+        if (error.response && !originalRequest?._silentAuth) {
             logger.error('[API] Request failed:', error.response.status, originalRequest.url);
         }
 
@@ -150,8 +149,6 @@ api.interceptors.response.use(
             if (originalRequest._silentAuth) {
                 return Promise.reject(error);
             }
-            const debugMsg = error.response?.data?.detail || "Unknown Auth Error";
-
             if (isRefreshing) {
                 return new Promise(function (resolve, reject) {
                     failedQueue.push({ resolve, reject });

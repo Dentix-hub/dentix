@@ -11,6 +11,16 @@ module.exports = {
     parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
     settings: { react: { version: '18.2' } },
     plugins: ['react-refresh'],
+    overrides: [
+        {
+            files: ['playwright.config.{js,ts}', 'e2e/**/*.{js,ts}'],
+            env: { node: true },
+        },
+        {
+            files: ['src/**/*.test.{js,jsx,ts,tsx}', 'src/setupTests.js'],
+            env: { jest: true },
+        },
+    ],
     rules: {
         'react-refresh/only-export-components': [
             'warn',

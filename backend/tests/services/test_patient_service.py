@@ -71,7 +71,7 @@ async def test_create_patient_duplicate(patient_service, mock_db_session, mock_p
     # Mocking existing check to return a patient (duplicate found)
     mock_patient = Patient(id=1, name="Jane Doe")
     mock_result = MagicMock()
-    mock_result.scalars.return_value.first.return_value = mock_patient
+    mock_result.scalars.return_value.all.return_value = [mock_patient]
     mock_db_session.execute.return_value = mock_result
 
     # Act & Assert
@@ -129,4 +129,3 @@ async def test_update_patient_success(patient_service, mock_db_session, mock_pol
     # Assert
     assert existing_patient.name == "Bob Updated"
     mock_db_session.commit.assert_called_once()
-

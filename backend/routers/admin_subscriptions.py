@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+import os
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from backend import models, schemas
@@ -6,6 +9,7 @@ from backend.database import get_async_db
 from backend.services.subscription_service import SubscriptionService
 from backend.core.permissions import Role, Permission, require_permission
 from backend.core.response import success_response, StandardResponse
+from backend.core.limiter import limiter
 
 
 router = APIRouter(
@@ -96,10 +100,41 @@ async def create_checkout_session(
 
 
 @router.post("/webhooks/provider", response_model=StandardResponse[schemas.SubscriptionPayment])
+@limiter.limit("60/minute")
 async def receive_provider_webhook(
-    event: schemas.SubscriptionWebhookEvent,
+    request: Request,
     db: AsyncSession = Depends(get_async_db),
 ):
+    secret = os.getenv("PAYMENT_WEBHOOK_SECRET")
+    if not secret or len(secret) < 32:
+        raise HTTPException(status_code=503, detail="Payment webhook is not configured")
+
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > 65_536:
+                raise HTTPException(
+                    status_code=413, detail="Webhook payload is too large"
+                )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400, detail="Invalid Content-Length header"
+            ) from exc
+    body = await request.body()
+    if len(body) > 65_536:
+        raise HTTPException(status_code=413, detail="Webhook payload is too large")
+    timestamp = request.headers.get("X-Dentix-Timestamp", "")
+    signature = request.headers.get("X-Dentix-Signature", "")
+    if not SubscriptionService.verify_webhook_signature(
+        body, timestamp, signature, secret
+    ):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
+    try:
+        event = schemas.SubscriptionWebhookEvent.model_validate_json(body)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+
     data = await SubscriptionService.handle_provider_webhook(db, event)
     return success_response(data=data, message="Subscription payment webhook processed")
 

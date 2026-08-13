@@ -342,7 +342,11 @@ def get_google_auth_url(current_user: models.User = Depends(require_permission(P
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    auth_url = startup.drive_client.get_auth_url(state="super_admin")
+    from backend.services.oauth_state import create_backup_oauth_state
+
+    auth_url = startup.drive_client.get_auth_url(
+        state=create_backup_oauth_state("super_admin")
+    )
     return success_response(data={"url": auth_url})
 
 
@@ -720,5 +724,4 @@ async def export_audit_logs(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
-
 

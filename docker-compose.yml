@@ -1,5 +1,3 @@
-version: '3.8'
-
 # NOTE ON DATABASE:
 # This project uses an external/managed Postgres database (e.g., Supabase/RDS).
 # Do not run a local Postgres container in production; instead, configure the 
@@ -8,9 +6,7 @@ version: '3.8'
 
 services:
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile.do
+    image: ${DENTIX_IMAGE:-dentix-app:latest}
     restart: always
     deploy:
       resources:
@@ -19,7 +15,7 @@ services:
           memory: 512M
     environment:
       - DATABASE_URL=${DATABASE_URL}
-      - DB_SSL_MODE=${DB_SSL_MODE:-require}
+      - DB_SSL_MODE=${DB_SSL_MODE:-verify-full}
       - GROQ_API_KEY=${GROQ_API_KEY}
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
@@ -31,12 +27,16 @@ services:
       - ENABLE_IN_PROCESS_WORKERS=false
       - LOG_LEVEL=INFO
       - FRONTEND_URL=${FRONTEND_URL}
-      - CORS_ORIGINS=${FRONTEND_URL}
+      - CORS_ORIGINS=${CORS_ORIGINS}
       - BACKEND_PUBLIC_URL=${BACKEND_PUBLIC_URL}
+      - PAYMENT_WEBHOOK_SECRET=${PAYMENT_WEBHOOK_SECRET}
     ports:
-      - "7860:7860"
+      # The public entry point is Caddy (80/443); keep Uvicorn private to the Droplet.
+      - "127.0.0.1:7860:7860"
     volumes:
-      - ./uploads:/app/backend/uploads
+      - uploads_data:/app/backend/uploads
+      - rag_data:/app/rag_storage
+      - chroma_model_cache:/home/dentix/.cache/chroma
     depends_on:
       - redis
     logging:
@@ -47,9 +47,7 @@ services:
 
 
   worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.do
+    image: ${DENTIX_IMAGE:-dentix-app:latest}
     command: ["python", "-m", "backend.workers.prefect_worker"]
     restart: always
     deploy:
@@ -66,15 +64,15 @@ services:
       - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
       - SECRET_KEY=${SECRET_KEY}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - DB_SSL_MODE=${DB_SSL_MODE:-verify-full}
+      - ENVIRONMENT=production
     volumes:
-      - ./uploads:/app/backend/uploads
+      - uploads_data:/app/backend/uploads
     depends_on:
       - redis
 
   domain-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.do
+    image: ${DENTIX_IMAGE:-dentix-app:latest}
     command: ["python", "-m", "backend.workers.run", "--workers", "all"]
     restart: always
     deploy:
@@ -84,7 +82,7 @@ services:
           memory: 512M
     environment:
       - DATABASE_URL=${DATABASE_URL}
-      - DB_SSL_MODE=${DB_SSL_MODE:-require}
+      - DB_SSL_MODE=${DB_SSL_MODE:-verify-full}
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
@@ -94,7 +92,7 @@ services:
       - EVENT_WORKER_POLL_INTERVAL_SECONDS=${EVENT_WORKER_POLL_INTERVAL_SECONDS:-5}
       - SUBSCRIPTION_CHECK_INTERVAL_HOURS=${SUBSCRIPTION_CHECK_INTERVAL_HOURS:-12}
     volumes:
-      - ./uploads:/app/backend/uploads
+      - uploads_data:/app/backend/uploads
     depends_on:
       - backend
       - redis
@@ -138,6 +136,9 @@ services:
       - backend
 
 volumes:
+  uploads_data:
+  rag_data:
+  chroma_model_cache:
   redis_data:
   caddy_data:
   caddy_config:

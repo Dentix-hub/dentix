@@ -31,7 +31,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -73,20 +72,10 @@ HEAVY_EXCLUDE = {"torch", "chromadb", "sentence-transformers", "sentence_transfo
 
 
 def _load_min_requirements() -> list[str]:
-    """Return requirements.txt contents minus heavy ML deps."""
+    """Return the single locked development requirements file."""
     if not REQUIREMENTS.exists():
         raise SystemExit(f"requirements.txt missing at {REQUIREMENTS}")
-    keep: list[str] = []
-    for raw in REQUIREMENTS.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        # rough package-name detection: first token before any version specifier
-        pkg = re.split(r"[<>=!~;\[]", line, 1)[0].strip().lower()
-        if pkg in HEAVY_EXCLUDE:
-            continue
-        keep.append(line)
-    return keep
+    return [str(REQUIREMENTS)]
 
 
 # Unconditional extras: these are intentionally NOT in backend/requirements.txt
@@ -150,7 +139,7 @@ def _create_venv() -> None:
     if not min_reqs:
         raise SystemExit("MIN_REQUIREMENTS resolved to empty list — check HEAVY_EXCLUDE")
     subprocess.run(
-        [uv, "pip", "install", *min_reqs, *EXTRA_REQUIRED_PACKAGES],
+        [uv, "pip", "install", "-r", *min_reqs],
         env=env, check=True,
     )
     # Verify the test chain can actually import.
@@ -189,7 +178,7 @@ def main() -> int:
     if not (BACKEND_ROOT / "tests").is_dir():
         raise SystemExit(f"backend/tests not found at {BACKEND_ROOT}/tests")
     if not REQUIREMENTS.exists():
-        raise SystemExit(f"backend/requirements.txt missing")
+        raise SystemExit("backend/requirements.txt missing")
 
     # Test paths typically come in as `backend/tests/...` from the caller's
     # repo-root cwd. pytest is invoked with cwd=BACKEND_ROOT, so strip the

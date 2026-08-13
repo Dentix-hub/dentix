@@ -1,7 +1,8 @@
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from jose import jwt, JWTError
+import jwt
+from jwt.exceptions import PyJWTError as JWTError
 import bcrypt
 # Configuration
 SECRET_KEY = os.getenv("SECRET_KEY")

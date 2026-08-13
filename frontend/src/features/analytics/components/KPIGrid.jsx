@@ -20,11 +20,11 @@ const StatCard = ({ title, value, subtext, trend, color, icon: Icon }) => (
 );
 
 const KPIGrid = ({ data }) => {
+    const { t } = useTranslation();
+
     if (!data) return <div className="animate-pulse h-32 bg-surface rounded-2xl"></div>;
 
     const totalCOGS = (data.breakdown?.material_costs || 0) + (data.breakdown?.lab_costs || 0);
-
-    const { t } = useTranslation();
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

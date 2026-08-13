@@ -13,7 +13,7 @@ export default function ProtectedRoute({ children, allowedRoles = [] }) {
         // Redirect them to the /login page, but save the current location they were
         // trying to go to when they were redirected. This allows us to send them
         // along to that page after they login, which is a nicer user experience.
-        return <Navigate to="/" state={{ from: location }} replace />;
+        return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
     if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {

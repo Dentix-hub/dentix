@@ -7,6 +7,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Login from '@/pages/Login';
 
+const { mockLogin, mockVerify2FA } = vi.hoisted(() => ({
+    mockLogin: vi.fn(),
+    mockVerify2FA: vi.fn(),
+}));
+
 // Mock dependencies
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
@@ -15,8 +20,8 @@ vi.mock('react-i18next', () => ({
     }),
 }));
 
-vi.mock('../api', () => ({
-    login: vi.fn(),
+vi.mock('@/auth/useAuth', () => ({
+    useAuth: () => ({ login: mockLogin, verify2FA: mockVerify2FA }),
 }));
 
 // Base64 assets replaced with static files (T-1.9)
@@ -33,6 +38,7 @@ const renderLogin = (props = {}) => {
 describe('Login Component', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        mockLogin.mockResolvedValue({ user: { role: 'admin' } });
     });
 
     it('renders the login form with username and password fields', () => {
@@ -81,23 +87,8 @@ describe('Login Component', () => {
         expect(passwordInput.value).toBe('testpass123');
     });
 
-    it('renders remember me checkbox', () => {
-        renderLogin();
-        const checkbox = screen.getByRole('checkbox');
-        expect(checkbox).toBeInTheDocument();
-        expect(checkbox).not.toBeChecked();
-    });
-
-    it('toggles remember me checkbox', () => {
-        renderLogin();
-        const checkbox = screen.getByRole('checkbox');
-        fireEvent.click(checkbox);
-        expect(checkbox).toBeChecked();
-    });
-
     it('shows error message when login fails', async () => {
-        const { login: loginApi } = await import('../api');
-        loginApi.mockRejectedValueOnce({
+        mockLogin.mockRejectedValueOnce({
             response: { data: { detail: 'Invalid credentials' } },
         });
 

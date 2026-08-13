@@ -64,6 +64,41 @@ async def create_patient(
 
 
 @router.get(
+    "/check-duplicate",
+    response_model=StandardResponse[dict],
+    summary="Check duplicate patient",
+)
+async def check_duplicate_patient(
+    name: str,
+    phone: str = None,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(require_permission(Permission.PATIENT_READ)),
+):
+    """Check if a patient already exists or has similar name/phone."""
+    result = await patient_service.check_duplicate(
+        name=name, phone=phone, db=db, tenant_id=current_user.tenant_id
+    )
+    return success_response(data=result, message="Duplicate check completed")
+
+
+@router.get(
+    "/suggestions",
+    response_model=StandardResponse[List[str]],
+    summary="Get field autocomplete suggestions",
+)
+async def get_patient_field_suggestions(
+    field: str = "address",
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(require_permission(Permission.PATIENT_READ)),
+):
+    """Get unique suggestions for patient fields (address, medical_history)."""
+    results = await patient_service.get_field_suggestions(
+        field=field, db=db, tenant_id=current_user.tenant_id
+    )
+    return success_response(data=results, message="Field suggestions retrieved")
+
+
+@router.get(
     "/search",
     response_model=StandardResponse[List[schemas.Patient]],
     summary="Search patients",

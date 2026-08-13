@@ -1,6 +1,6 @@
 """Tenant and subscription schemas."""
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
 from datetime import datetime
 
@@ -152,11 +152,12 @@ class SubscriptionPayment(SubscriptionPaymentBase):
 
 
 class SubscriptionCheckoutCreate(BaseModel):
-    tenant_id: int
-    plan_id: int
-    provider: str = "manual"
-    success_url: Optional[str] = None
-    cancel_url: Optional[str] = None
+    tenant_id: int = Field(gt=0)
+    plan_id: int = Field(gt=0)
+    provider: str = Field(default="manual", min_length=2, max_length=50)
+    success_url: Optional[str] = Field(default=None, max_length=2000)
+    cancel_url: Optional[str] = Field(default=None, max_length=2000)
+    currency: str = Field(default="EGP", min_length=3, max_length=3)
 
 
 class SubscriptionCheckoutSession(BaseModel):
@@ -168,11 +169,11 @@ class SubscriptionCheckoutSession(BaseModel):
 
 
 class SubscriptionWebhookEvent(BaseModel):
-    provider: str
-    provider_payment_id: str
-    provider_status: str
-    tenant_id: int
-    plan_id: int
-    amount: float
-    paid_by: Optional[str] = None
-    notes: Optional[str] = None
+    provider: str = Field(min_length=2, max_length=50)
+    provider_payment_id: str = Field(min_length=1, max_length=160)
+    provider_status: str = Field(min_length=2, max_length=30)
+    provider_reference: str = Field(min_length=10, max_length=120)
+    amount: float = Field(gt=0)
+    currency: str = Field(default="EGP", min_length=3, max_length=3)
+    paid_by: Optional[str] = Field(default=None, max_length=255)
+    notes: Optional[str] = Field(default=None, max_length=2000)

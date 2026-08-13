@@ -12,6 +12,7 @@ from .base import (
     timezone,
     Mapped,
     mapped_column,
+    UniqueConstraint,
 )
 
 
@@ -42,6 +43,11 @@ class SubscriptionPlan(Base):
 
 class SubscriptionPayment(Base):
     __tablename__ = "subscription_payments"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider", "provider_payment_id", name="uq_subscription_payment_provider_id"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     tenant_id: Mapped[int] = mapped_column(Integer, ForeignKey("tenants.id"))
@@ -58,6 +64,30 @@ class SubscriptionPayment(Base):
 
     tenant = relationship("Tenant", back_populates="payments")
     plan = relationship("SubscriptionPlan", back_populates="payments")
+
+
+class SubscriptionCheckout(Base):
+    """Server-owned payment intent used to validate provider webhooks."""
+
+    __tablename__ = "subscription_checkouts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    provider_reference: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(Integer, ForeignKey("tenants.id"), index=True)
+    plan_id: Mapped[int] = mapped_column(Integer, ForeignKey("subscription_plans.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(50), index=True)
+    expected_amount: Mapped[float] = mapped_column(Float)
+    currency: Mapped[str] = mapped_column(String(3), default="EGP")
+    status: Mapped[str] = mapped_column(String(30), default="pending", index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    provider_payment_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )
+
+    tenant = relationship("Tenant")
+    plan = relationship("SubscriptionPlan")
 
 
 class Tenant(Base):

@@ -206,7 +206,11 @@ async def get_google_drive_status(
 async def get_system_google_auth_url(
     current_user: models.User = Depends(require_super_admin),
 ):
-    auth_url = get_drive_client().get_auth_url(state="super_admin")
+    from backend.services.oauth_state import create_backup_oauth_state
+
+    auth_url = get_drive_client().get_auth_url(
+        state=create_backup_oauth_state("super_admin")
+    )
     return success_response(data={"url": auth_url})
 
 

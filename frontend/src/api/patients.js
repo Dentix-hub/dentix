@@ -6,6 +6,8 @@ export const getPatient = (id) => api.get(`/api/v1/patients/${id}`);
 export const createPatient = (data) => api.post('/api/v1/patients', data);
 export const updatePatient = (id, data) => api.put(`/api/v1/patients/${id}`, data);
 export const deletePatient = (id) => api.delete(`/api/v1/patients/${id}`);
+export const checkDuplicatePatient = (name, phone) => api.get('/api/v1/patients/check-duplicate', { params: { name, phone } });
+export const getFieldSuggestions = (field) => api.get('/api/v1/patients/suggestions', { params: { field } });
 
 export const getPatientTeeth = (patientId) => api.get(`/api/v1/patients/${patientId}/tooth_status`);
 

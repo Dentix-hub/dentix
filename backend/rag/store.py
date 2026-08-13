@@ -8,6 +8,7 @@ PERSIST_DIRECTORY = os.path.join(os.path.dirname(os.path.dirname(os.path.
     dirname(__file__))), 'rag_storage')
 try:
     import chromadb
+    from chromadb.config import Settings
     from chromadb.utils import embedding_functions
     RAG_AVAILABLE = True
 except Exception:
@@ -44,10 +45,14 @@ class RealKnowledgeStore(KnowledgeStoreInterface):
     def __init__(self):
         if not os.path.exists(PERSIST_DIRECTORY):
             os.makedirs(PERSIST_DIRECTORY)
-        self.client = chromadb.PersistentClient(path=PERSIST_DIRECTORY)
-        self.embedding_fn = (embedding_functions.
-            SentenceTransformerEmbeddingFunction(model_name='all-MiniLM-L6-v2')
-            )
+        self.client = chromadb.PersistentClient(
+            path=PERSIST_DIRECTORY,
+            settings=Settings(anonymized_telemetry=False),
+        )
+        # Chroma's default embedding function uses ONNX Runtime with the same
+        # all-MiniLM-L6-v2 model. This avoids installing PyTorch/CUDA in the
+        # production image while preserving local, 384-dimensional embeddings.
+        self.embedding_fn = embedding_functions.DefaultEmbeddingFunction()
         self.collection = self.client.get_or_create_collection(name=
             'clinic_knowledge', embedding_function=self.embedding_fn)
 

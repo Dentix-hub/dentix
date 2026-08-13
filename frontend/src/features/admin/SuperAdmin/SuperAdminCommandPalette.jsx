@@ -132,7 +132,7 @@ export default function CommandPalette({ isOpen, onClose }) {
 
                     {!loading && query.length >= 2 && results.length === 0 && (
                         <div className="p-12 text-center text-slate-400 italic">
-                            لم يتم العثور على نتائج لـ "{query}"
+                            لم يتم العثور على نتائج لـ &quot;{query}&quot;
                         </div>
                     )}
 

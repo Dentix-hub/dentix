@@ -31,6 +31,7 @@ from ..core.response import success_response, StandardResponse
 from ..services.backup_service import run_backup_task
 from ..services.import_service import restore_tenant_from_json
 from ..services.export_service import export_tenant_to_json
+from ..services.oauth_state import create_backup_oauth_state, read_backup_oauth_state
 from .auth import get_async_db
 
 logger = logging.getLogger(__name__)
@@ -91,7 +92,7 @@ async def get_backup_auth_url(
     Get Google Drive authentication URL.
     Encodes user_id in state so callback can identify the user.
     """
-    state = f"user_{current_user.id}"
+    state = create_backup_oauth_state(current_user.id)
     auth_url = get_drive_client().get_auth_url(state=state)
     return success_response(data={"url": auth_url}, message="Redirecting...")
 
@@ -129,7 +130,7 @@ async def backup_auth_callback_post(
 @router.get("/backup/callback")
 async def backup_auth_callback_get(
     code: str,
-    state: str = None,
+    state: str,
     db: AsyncSession = Depends(get_async_db),
 ):
     """
@@ -137,8 +138,9 @@ async def backup_auth_callback_get(
     Decodes user_id from state instead of requiring auth token.
     """
     try:
-        # 1. Exchange Code
-        logger.debug("Processing OAuth Callback code=%.10s... state=%s", code, state)
+        # Validate the signed, short-lived state before exchanging the code.
+        subject = read_backup_oauth_state(state)
+        logger.debug("Processing OAuth Callback for signed subject=%s", subject)
         token_data = get_drive_client().fetch_token(code=code)
 
         status = "success"
@@ -149,8 +151,8 @@ async def backup_auth_callback_get(
             status = "no_refresh_token"
 
         # 2. Decode user from state and save token
-        if status == "success" and state:
-            if state == "super_admin":
+        if status == "success":
+            if subject == "super_admin":
                 stmt = select(models.SystemSetting).filter(
                     models.SystemSetting.key == "google_refresh_token_super_admin"
                 )
@@ -165,9 +167,9 @@ async def backup_auth_callback_get(
                 else:
                     setting.value = refresh_token
                 await db.commit()
-            elif state.startswith("user_"):
+            else:
                 try:
-                    user_id = int(state.split("_")[1])
+                    user_id = int(subject)
                     stmt_user = select(models.User).filter(models.User.id == user_id).options(selectinload(models.User.tenant))
                     res_user = await db.execute(stmt_user)
                     user = res_user.scalars().first()
@@ -199,7 +201,7 @@ async def backup_auth_callback_get(
         # 3. Redirect back to frontend
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
-        if state == "super_admin":
+        if subject == "super_admin":
             target_url = f"{frontend_url}/admin/system?backup_status={status}"
         else:
             target_url = f"{frontend_url}/settings?backup_status={status}"
@@ -505,7 +507,7 @@ async def get_tenant_features(
 
     stmt_features = select(models.TenantFeature).filter(
         models.TenantFeature.tenant_id == current_user.tenant.id,
-        models.TenantFeature.is_enabled == True
+        models.TenantFeature.is_enabled.is_(True)
     )
     res_features = await db.execute(stmt_features)
     tenant_features = res_features.scalars().all()

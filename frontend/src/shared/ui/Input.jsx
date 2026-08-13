@@ -8,10 +8,12 @@ const Input = ({
     className = '',
     containerClassName = '',
     id,
+    suggestions = [],
     ...props
 }) => {
     const generatedId = useId();
     const inputId = id || generatedId;
+    const datalistId = suggestions.length > 0 ? `${inputId}-datalist` : undefined;
 
     return (
         <div className={`space-y-1.5 ${containerClassName}`}>
@@ -34,6 +36,7 @@ const Input = ({
                 <input
                     id={inputId}
                     type={type}
+                    list={datalistId}
                     className={`
                         w-full rounded-xl border bg-input text-text-primary outline-none transition-all duration-200
                         placeholder:text-slate-500
@@ -47,6 +50,14 @@ const Input = ({
                     `}
                     {...props}
                 />
+
+                {suggestions.length > 0 && (
+                    <datalist id={datalistId}>
+                        {suggestions.map((item, idx) => (
+                            <option key={idx} value={item} />
+                        ))}
+                    </datalist>
+                )}
             </div>
 
             {error && (

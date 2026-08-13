@@ -1,3 +1,4 @@
+import re
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,12 +8,14 @@ from backend import models
 from backend.schemas import system_log as schemas
 from backend.core.permissions import Permission, require_permission
 from backend.core.response import success_response, StandardResponse
+from backend.core.limiter import limiter
 
 router = APIRouter()
 
 
 # --- Public Endpoint for Frontend Errors ---
 @router.post("", response_model=StandardResponse[schemas.SystemError])
+@limiter.limit("5/minute")
 async def log_frontend_error(
     error: schemas.SystemErrorCreate, request: Request, db: AsyncSession = Depends(get_async_db)
 ):
@@ -21,17 +24,25 @@ async def log_frontend_error(
     Does NOT require authentication to prevent losing errors during login failures.
     We capture IP/UserAgent from request.
     """
-    # Extract data to avoid duplicate key issues if schema already has keys
     error_data = error.model_dump()
-    # Prioritize request context for security/reliability
-    forwarded_for = request.headers.get("x-forwarded-for")
-    if forwarded_for:
-        error_data["ip_address"] = forwarded_for.split(",")[0].strip()
-    else:
-        error_data["ip_address"] = request.client.host if request.client else None
+    # Prevent credentials and bearer tokens from being persisted in telemetry.
+    secret_pattern = re.compile(
+        r"(?i)(authorization|cookie|password|secret|token|api[-_]?key)(\s*[:=]\s*)([^\s,;]+)"
+    )
+    for field in ("message", "stack_trace"):
+        value = error_data.get(field)
+        if value:
+            error_data[field] = secret_pattern.sub(r"\1\2[REDACTED]", value)
 
-    if not error_data.get("user_agent"):
-        error_data["user_agent"] = request.headers.get("user-agent")
+    error_data.update(
+        {
+            "source": "FRONTEND",
+            "user_id": None,
+            "tenant_id": None,
+            "ip_address": request.client.host if request.client else None,
+            "user_agent": (request.headers.get("user-agent") or "")[:500] or None,
+        }
+    )
 
     db_error = models.SystemError(**error_data)
     db.add(db_error)

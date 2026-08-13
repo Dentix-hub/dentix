@@ -6,6 +6,7 @@ from datetime import datetime
 
 class PatientBase(BaseModel):
     name: str
+    file_number: Optional[int] = None
     gender: Optional[str] = None
     age: Optional[int] = None
     phone: Optional[str] = None
@@ -36,6 +37,7 @@ class PatientCreate(PatientBase):
 
 class PatientUpdate(BaseModel):
     name: Optional[str] = None
+    file_number: Optional[int] = None
     age: Optional[int] = None
     phone: Optional[str] = None
     email: Optional[str] = None
@@ -58,12 +60,14 @@ class PatientUpdate(BaseModel):
 
 class Patient(PatientBase):
     id: int
+    file_number: Optional[int] = None
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
 class PatientSummary(BaseModel):
     id: int
+    file_number: Optional[int] = None
     name: str
     age: Optional[int] = None
     phone: Optional[str] = None

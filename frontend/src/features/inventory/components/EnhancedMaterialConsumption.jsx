@@ -9,7 +9,6 @@ import { Plus, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 import { cn } from '@/utils/cn';
 export function EnhancedMaterialConsumption({
     procedure,
-    patientAge,
     availableMaterials = [],
     initialMaterials = [], // [{ material_id, quantity, unit }]
     mode = 'smart', // 'smart' | 'manual'
@@ -74,7 +73,7 @@ export function EnhancedMaterialConsumption({
             hasInitializedRef.current = true;
             logger.log('[EMC_DEBUG] Materials State Updated:', mapped);
         }
-    }, [isOpen, initialMaterials, availableMaterials]); // Removed materials from deps to avoid loop, using internal check
+    }, [isOpen, initialMaterials, availableMaterials, materials.length]);
 
     // Pre-flight Stock Check
     const { data: rawStockCheckData } = useQuery({
@@ -94,7 +93,10 @@ export function EnhancedMaterialConsumption({
         },
         enabled: materials.length > 0
     });
-    const stockCheckData = Array.isArray(rawStockCheckData) ? rawStockCheckData : [];
+    const stockCheckData = useMemo(
+        () => (Array.isArray(rawStockCheckData) ? rawStockCheckData : []),
+        [rawStockCheckData]
+    );
 
     const addManualMaterial = (materialId) => {
         logger.log('[EMC_ACTION] addManualMaterial called for ID:', materialId);
@@ -139,8 +141,6 @@ export function EnhancedMaterialConsumption({
             materialId: check.material_id
         }));
     }, [stockCheckData]);
-    const hasCritical = warnings.some(w => w.type === 'critical');
-
     const availableMaterialsList = useMemo(() => {
         if (!Array.isArray(availableMaterials)) return [];
         // Filter out materials already in the list
@@ -329,7 +329,7 @@ export function EnhancedMaterialConsumption({
             </div>
             
             {/* Visual Diagnostic for Debugging */}
-            {process.env.NODE_ENV === 'development' && (
+            {import.meta.env.DEV && (
                 <div style={{ display: 'none' }}>
                     {logger.log('[EMC_DIAGNOSTIC]', { 
                         available: availableMaterials?.length,
@@ -341,4 +341,3 @@ export function EnhancedMaterialConsumption({
         </Modal>
     );
 }
-

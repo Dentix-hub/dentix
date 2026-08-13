@@ -16,9 +16,12 @@ const PatientCard = memo(function PatientCard({ patient, onDelete, onNavigate, i
                 </div>
 
                 <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-semibold text-text-primary truncate">
-                        {patient.name}
-                    </h3>
+                    <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-lg bg-primary/10 text-primary font-bold text-xs shrink-0">#{patient.file_number || patient.id}</span>
+                        <h3 className="text-lg font-bold text-text-primary truncate">
+                            {patient.name}
+                        </h3>
+                    </div>
 
                     <div className="mt-2 space-y-1 text-sm text-slate-600">
                         {patient.age && (

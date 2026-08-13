@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { useContext } from 'react';
+import { describe, expect, it } from 'vitest';
 import ProtectedRoute from '@/auth/ProtectedRoute';
 import AuthContext from '@/auth/useAuth';
 

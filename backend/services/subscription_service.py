@@ -1,4 +1,7 @@
 from datetime import datetime, timedelta, timezone
+import hashlib
+import hmac
+import math
 from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -9,6 +12,29 @@ from fastapi import HTTPException
 
 class SubscriptionService:
     DEFAULT_GRACE_PERIOD_DAYS = 7
+    CHECKOUT_TTL_MINUTES = 30
+    WEBHOOK_TOLERANCE_SECONDS = 300
+
+    @staticmethod
+    def verify_webhook_signature(
+        body: bytes, timestamp: str, signature: str, secret: str
+    ) -> bool:
+        """Verify signed raw request body and reject replayed requests."""
+        try:
+            event_time = int(timestamp)
+        except (TypeError, ValueError):
+            return False
+
+        now = int(datetime.now(timezone.utc).timestamp())
+        if abs(now - event_time) > SubscriptionService.WEBHOOK_TOLERANCE_SECONDS:
+            return False
+
+        signed_payload = timestamp.encode("ascii") + b"." + body
+        expected = hmac.new(
+            secret.encode("utf-8"), signed_payload, hashlib.sha256
+        ).hexdigest()
+        supplied = signature.removeprefix("sha256=").strip().lower()
+        return hmac.compare_digest(expected, supplied)
 
     @staticmethod
     async def check_subscription_status(db: AsyncSession, tenant_id: int):
@@ -151,6 +177,11 @@ class SubscriptionService:
         plan = (await db.execute(stmt)).scalar_one_or_none()
         if not plan:
             raise HTTPException(status_code=404, detail="Plan not found")
+        if float(plan.price or 0) <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Free plans do not require a provider checkout",
+            )
 
         update_dict = update_data.model_dump(exclude_unset=True)
 
@@ -194,7 +225,11 @@ class SubscriptionService:
 
     @staticmethod
     async def record_payment(
-        db: AsyncSession, payment_data: schemas.SubscriptionPaymentCreate, created_by: str
+        db: AsyncSession,
+        payment_data: schemas.SubscriptionPaymentCreate,
+        created_by: str,
+        *,
+        commit: bool = True,
     ):
         if payment_data.provider_payment_id:
             stmt = select(models.SubscriptionPayment).where(
@@ -239,8 +274,11 @@ class SubscriptionService:
         tenant.is_active = True
         tenant.subscription_status = "active"
 
-        await db.commit()
-        await db.refresh(payment)
+        if commit:
+            await db.commit()
+            await db.refresh(payment)
+        else:
+            await db.flush()
         return payment
 
     @staticmethod
@@ -253,22 +291,44 @@ class SubscriptionService:
             raise HTTPException(status_code=404, detail="Tenant not found")
         stmt = select(models.SubscriptionPlan).where(
             models.SubscriptionPlan.id == checkout.plan_id,
-            models.SubscriptionPlan.is_active == True
+            models.SubscriptionPlan.is_active.is_(True)
         )
         plan = (await db.execute(stmt)).scalar_one_or_none()
         if not plan:
             raise HTTPException(status_code=404, detail="Plan not found")
 
-        provider_reference = f"sub_{tenant.id}_{plan.id}_{uuid4().hex[:12]}"
-        checkout_url = (
-            checkout.success_url
-            or f"/billing/checkout/{checkout.provider}/{provider_reference}"
+        provider = checkout.provider.strip().lower()
+        if provider == "manual":
+            raise HTTPException(
+                status_code=400,
+                detail="Manual payments must use the authenticated payments endpoint",
+            )
+
+        provider_reference = f"sub_{tenant.id}_{plan.id}_{uuid4().hex[:20]}"
+        currency = checkout.currency.upper()
+        pending_checkout = models.SubscriptionCheckout(
+            provider_reference=provider_reference,
+            tenant_id=tenant.id,
+            plan_id=plan.id,
+            provider=provider,
+            expected_amount=float(plan.price or 0),
+            currency=currency,
+            status="pending",
+            expires_at=datetime.now(timezone.utc)
+            + timedelta(minutes=SubscriptionService.CHECKOUT_TTL_MINUTES),
         )
+        db.add(pending_checkout)
+        await db.commit()
+
+        # Keep the returned destination server-owned. Provider integrations may
+        # replace this internal route with their own verified hosted URL later.
+        checkout_url = f"/billing/checkout/{provider}/{provider_reference}"
         return schemas.SubscriptionCheckoutSession(
-            provider=checkout.provider,
+            provider=provider,
             provider_reference=provider_reference,
             checkout_url=checkout_url,
             amount=float(plan.price or 0),
+            currency=currency,
         )
 
     @staticmethod
@@ -278,18 +338,77 @@ class SubscriptionService:
         if event.provider_status.lower() not in {"paid", "succeeded", "success", "completed"}:
             raise HTTPException(status_code=202, detail="Payment event ignored until it is paid")
 
+        stmt = (
+            select(models.SubscriptionCheckout)
+            .where(
+                models.SubscriptionCheckout.provider_reference
+                == event.provider_reference
+            )
+            .with_for_update()
+        )
+        checkout = (await db.execute(stmt)).scalar_one_or_none()
+        if not checkout:
+            raise HTTPException(status_code=404, detail="Unknown checkout reference")
+
+        if checkout.provider != event.provider.strip().lower():
+            raise HTTPException(status_code=400, detail="Payment provider mismatch")
+
+        expires_at = checkout.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at < datetime.now(timezone.utc):
+            checkout.status = "expired"
+            await db.commit()
+            raise HTTPException(status_code=410, detail="Checkout has expired")
+
+        if checkout.status == "processed":
+            existing_stmt = select(models.SubscriptionPayment).where(
+                models.SubscriptionPayment.provider == checkout.provider,
+                models.SubscriptionPayment.provider_payment_id
+                == checkout.provider_payment_id,
+            )
+            existing = (await db.execute(existing_stmt)).scalar_one_or_none()
+            if existing:
+                return existing
+            raise HTTPException(status_code=409, detail="Checkout already processed")
+
+        if checkout.status != "pending":
+            raise HTTPException(status_code=409, detail="Checkout is not payable")
+
+        if event.currency.upper() != checkout.currency:
+            raise HTTPException(status_code=400, detail="Payment currency mismatch")
+        if not math.isclose(
+            event.amount, checkout.expected_amount, rel_tol=0, abs_tol=0.01
+        ):
+            raise HTTPException(status_code=400, detail="Payment amount mismatch")
+
         payment = schemas.SubscriptionPaymentCreate(
-            tenant_id=event.tenant_id,
-            plan_id=event.plan_id,
-            amount=event.amount,
-            payment_method=event.provider,
+            tenant_id=checkout.tenant_id,
+            plan_id=checkout.plan_id,
+            amount=checkout.expected_amount,
+            payment_method=checkout.provider,
             paid_by=event.paid_by,
             notes=event.notes,
-            provider=event.provider,
+            provider=checkout.provider,
             provider_payment_id=event.provider_payment_id,
             provider_status=event.provider_status,
         )
-        return await SubscriptionService.record_payment(db, payment, created_by=f"{event.provider}:webhook")
+        try:
+            result = await SubscriptionService.record_payment(
+                db,
+                payment,
+                created_by=f"{checkout.provider}:webhook",
+                commit=False,
+            )
+            checkout.status = "processed"
+            checkout.provider_payment_id = event.provider_payment_id
+            checkout.processed_at = datetime.now(timezone.utc)
+            await db.commit()
+            await db.refresh(result)
+            return result
+        except Exception:
+            await db.rollback()
+            raise
 
     @staticmethod
     async def delete_payment(db: AsyncSession, payment_id: int):

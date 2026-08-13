@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Badge, IconButton, Input } from '@/shared/ui';
+import { Badge, IconButton, Input, toast } from '@/shared/ui';
+import { api } from '@/api';
 import { X, Check } from 'lucide-react';
 import { cn } from '@/utils/cn';
 export function SmartMaterialRow({
@@ -7,7 +8,6 @@ export function SmartMaterialRow({
     stockInfo,
     onChange,
     onRemove,
-    patientId,
     onRefresh
 }) {
     const [isDisposing, setIsDisposing] = useState(false);
@@ -47,7 +47,7 @@ export function SmartMaterialRow({
         if (stockInfo.available < material.quantity * 2) return 'low';
         return 'ok';
     }, [stockInfo, material.quantity]);
-    const StockStatusBadge = ({ status, stockInfo }) => {
+    const StockStatusBadge = ({ status }) => {
         switch (status) {
             case 'session_active':
                 return <Badge variant="success" className="bg-green-100 text-green-700">✓ جلسة مفتوحة</Badge>;
@@ -99,7 +99,7 @@ export function SmartMaterialRow({
                     )}
                     {/* Stock Status */}
                     <div className="flex items-center gap-3 flex-wrap mt-2">
-                        <StockStatusBadge status={stockStatus} stockInfo={stockInfo} />
+                        <StockStatusBadge status={stockStatus} />
                         {stockInfo && stockStatus !== 'session_active' && (
                             <span className="text-sm text-gray-600">
                                 المتوفر: <strong className="font-mono">{stockInfo.available} {isDivisible ? material.unit : 'وحدة'}</strong>
@@ -126,7 +126,7 @@ export function SmartMaterialRow({
                                                     });
                                                     toast.success("تم إتلاف الأداة بنجاح");
                                                     onRefresh?.();
-                                                } catch (err) {
+                                                } catch {
                                                     toast.error("فشل إتلاف الأداة");
                                                 } finally {
                                                     setIsDisposing(false);
@@ -213,4 +213,3 @@ export function SmartMaterialRow({
         </div>
     );
 }
-

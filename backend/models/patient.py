@@ -10,6 +10,7 @@ from .base import (
     Boolean,
     Mapped,
     mapped_column,
+    UniqueConstraint,
 )
 from backend.core.security import EncryptedString
 from rls.schemas import Permissive, ConditionArg, Command
@@ -23,6 +24,11 @@ if TYPE_CHECKING:
 
 class Patient(Base):
     __tablename__ = "patients"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "file_number", name="uq_patients_tenant_file_number"
+        ),
+    )
 
     __rls_policies__ = [
         Permissive(
@@ -33,6 +39,7 @@ class Patient(Base):
     ]
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    file_number: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     name: Mapped[str] = mapped_column(String, index=True)
     age: Mapped[int] = mapped_column(Integer)
     phone: Mapped[str] = mapped_column(EncryptedString, index=True)  # Encrypted

@@ -1,6 +1,11 @@
 # Git
 .git
 .gitignore
+.github
+.agent
+.agents
+.claude
+.codex
 
 # Docker
 Dockerfile*
@@ -13,6 +18,9 @@ venv
 .venv
 __pycache__
 *.pyc
+.pytest_cache
+.ruff_cache
+.prefect
 
 # Environment
 .env
@@ -25,6 +33,30 @@ Thumbs.db
 # Build
 dist
 build
+coverage
+htmlcov
+frontend/playwright-report
+frontend/test-results
+frontend/stats.html
+
+# Source that is not part of the production container
+dentix_mobile
+docs
+legacy
+backend/tests
+backend/ai/tests
+frontend/src/tests
+frontend/**/*.test.js
+frontend/**/*.test.jsx
+
+# Local runtime data and reports
+uploads
+rag_storage
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*_preview.html
 
 # Secrets & Keys
 firebase-service-account.json

@@ -1,6 +1,5 @@
 """
 Metrics API Endpoint for Smart Clinic.
-
 Exposes application metrics for monitoring dashboards.
 """
 
@@ -132,6 +131,56 @@ async def get_profitability(
         start_date=start_date, end_date=now, tenant_id=current_user.tenant_id, db=db
     )
 
+    # Previous period calculation for comparison
+    period_days = 30
+    if period == "24h":
+        period_days = 1
+    elif period == "7d":
+        period_days = 7
+    elif period == "30d":
+        period_days = 30
+    elif period == "90d":
+        period_days = 90
+
+    prev_start_date = start_date - timedelta(days=period_days)
+    prev_end_date = start_date
+
+    prev_revenue_res = await db.execute(
+        select(func.sum(models.Payment.amount))
+        .filter(
+            models.Payment.date >= prev_start_date,
+            models.Payment.date < prev_end_date,
+            (models.Payment.tenant_id == current_user.tenant_id) | (models.Payment.tenant_id.is_(None)),
+        )
+    )
+    prev_revenue = prev_revenue_res.scalar() or 0.0
+
+    prev_exp_res = await db.execute(
+        select(func.sum(models.Expense.cost))
+        .filter(
+            models.Expense.date >= prev_start_date.date(),
+            models.Expense.date < prev_end_date.date(),
+            models.Expense.tenant_id == current_user.tenant_id,
+        )
+    )
+    prev_expenses = prev_exp_res.scalar() or 0.0
+
+    prev_lab_res = await db.execute(
+        select(func.sum(models.LabOrder.cost))
+        .filter(
+            models.LabOrder.order_date >= prev_start_date,
+            models.LabOrder.order_date < prev_end_date,
+            models.LabOrder.tenant_id == current_user.tenant_id,
+        )
+    )
+    prev_lab_costs = prev_lab_res.scalar() or 0.0
+
+    prev_material_costs = await inventory_service.get_cogs_summary(
+        start_date=prev_start_date, end_date=prev_end_date, tenant_id=current_user.tenant_id, db=db
+    )
+    prev_total_costs = prev_expenses + prev_lab_costs + prev_material_costs
+    prev_net_profit = prev_revenue - prev_total_costs
+
     # Net Profit
     total_costs = expenses + lab_costs + material_costs
     net_profit = revenue - total_costs
@@ -148,4 +197,83 @@ async def get_profitability(
         "total_costs": round(total_costs, 2),
         "net_profit": round(net_profit, 2),
         "margin_percent": round(margin_percent, 1),
+        "previous_period": {
+            "revenue": round(prev_revenue, 2),
+            "expenses": round(prev_expenses, 2),
+            "lab_costs": round(prev_lab_costs, 2),
+            "material_costs": round(prev_material_costs, 2),
+            "total_costs": round(prev_total_costs, 2),
+            "net_profit": round(prev_net_profit, 2),
+        }
     })
+
+
+@router.get("/profitability/trend")
+async def get_profitability_trend(
+    period: str = "30d",
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
+):
+    """
+    Get daily trend breakdown of revenue, expenses, and net profit over time.
+    """
+    if current_user.role not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    now = datetime.now(timezone.utc)
+    days_count = 30
+    if period == "7d":
+        days_count = 7
+    elif period == "30d":
+        days_count = 30
+    elif period == "90d":
+        days_count = 90
+    elif period == "24h":
+        days_count = 1
+
+    start_date = now - timedelta(days=days_count)
+
+    # Daily payments
+    payments_res = await db.execute(
+        select(
+            func.date(models.Payment.date).label("pay_date"),
+            func.sum(models.Payment.amount).label("daily_rev")
+        )
+        .filter(
+            models.Payment.date >= start_date,
+            (models.Payment.tenant_id == current_user.tenant_id) | (models.Payment.tenant_id.is_(None)),
+        )
+        .group_by(func.date(models.Payment.date))
+    )
+    payments_map = {str(row.pay_date): float(row.daily_rev or 0) for row in payments_res.all()}
+
+    # Daily expenses
+    expenses_res = await db.execute(
+        select(
+            models.Expense.date.label("exp_date"),
+            func.sum(models.Expense.cost).label("daily_exp")
+        )
+        .filter(
+            models.Expense.date >= start_date.date(),
+            models.Expense.tenant_id == current_user.tenant_id,
+        )
+        .group_by(models.Expense.date)
+    )
+    expenses_map = {str(row.exp_date): float(row.daily_exp or 0) for row in expenses_res.all()}
+
+    # Build timeline points
+    timeline = []
+    for i in range(days_count + 1):
+        day_dt = (start_date + timedelta(days=i)).date()
+        day_str = str(day_dt)
+        rev = payments_map.get(day_str, 0.0)
+        exp = expenses_map.get(day_str, 0.0)
+        net = rev - exp
+        timeline.append({
+            "date": day_str,
+            "revenue": round(rev, 2),
+            "expenses": round(exp, 2),
+            "net_profit": round(net, 2)
+        })
+
+    return success_response(data={"period": period, "timeline": timeline})
