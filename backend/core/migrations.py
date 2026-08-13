@@ -1,6 +1,6 @@
 import logging
 import os
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from alembic.config import Config
 from alembic import command
 from backend import database
@@ -50,15 +50,11 @@ def run_migration_health_check():
     for table, col in checks:
         try:
             with database.engine.connect() as conn:
-                # SQLite specific check (works for most, but specific for our dev/staging)
-                if database.engine.name == 'sqlite':
-                    res = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
-                    cols = [r[1] for r in res]
-                    if col not in cols:
-                        missing.append(f"{table}.{col}")
-                else:
-                    # Postgres check
-                    conn.execute(text(f"SELECT {col} FROM {table} LIMIT 0"))
+                column_names = {
+                    item["name"] for item in inspect(conn).get_columns(table)
+                }
+                if col not in column_names:
+                    missing.append(f"{table}.{col}")
         except Exception:
             missing.append(f"{table}.{col}")
 

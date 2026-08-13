@@ -20,6 +20,7 @@ from fastapi import (
     BackgroundTasks,
 )
 from fastapi.responses import FileResponse, RedirectResponse, Response
+from starlette.background import BackgroundTask
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session as SyncSession
 from sqlalchemy import select
@@ -314,8 +315,11 @@ async def download_backup(
     elif "postgres" in db_url:
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"backup_{timestamp}.sql"
-            filepath = os.path.join("/tmp", filename)
+            file_descriptor, filepath = tempfile.mkstemp(
+                prefix=f"backup_{timestamp}_", suffix=".sql"
+            )
+            os.close(file_descriptor)
+            filename = os.path.basename(filepath)
 
             # Normalize URL
             dump_url = db_url.replace("postgresql://", "postgres://", 1)
@@ -335,7 +339,7 @@ async def download_backup(
                 path=filepath,
                 filename=filename,
                 media_type="application/sql",
-                background=None,  # TODO: Add cleanup task if desired
+                background=BackgroundTask(os.unlink, filepath),
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))

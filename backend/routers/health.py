@@ -18,7 +18,7 @@ from ..core.response import success_response, error_response
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 import time
@@ -113,7 +113,16 @@ async def check_migrations(db: AsyncSession) -> ComponentHealth:
         missing = []
         for table, column in required_columns:
             try:
-                await db.execute(text(f"SELECT {column} FROM {table} LIMIT 1"))
+                column_names = await db.run_sync(
+                    lambda sync_session, table_name=table: {
+                        item["name"]
+                        for item in inspect(sync_session.get_bind()).get_columns(
+                            table_name
+                        )
+                    }
+                )
+                if column not in column_names:
+                    missing.append(f"{table}.{column}")
             except Exception:
                 missing.append(f"{table}.{column}")
 
