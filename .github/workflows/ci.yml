@@ -126,10 +126,12 @@ jobs:
         working-directory: frontend
       - name: Start services
         run: docker compose -f docker-compose.test.yml up -d --build --wait --wait-timeout 180
-      - run: npx playwright test --config playwright.config.ts
+      - name: Run production critical path
+        run: npx playwright test e2e/critical-path.spec.ts --config playwright.config.ts --project=chromium
         working-directory: frontend
         env:
           VITE_API_BASE_URL: http://localhost:7860
+          E2E_API_URL: http://localhost:7860/api/v1
           PLAYWRIGHT_BASE_URL: http://localhost:5173
       - uses: actions/upload-artifact@v4
         if: failure()

@@ -32,8 +32,11 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                 return;
             }
 
-            if (data.role === 'super_admin') {
+            const userRole = data.user?.role || data.role;
+            if (userRole === 'super_admin') {
                 navigate('/admin', { replace: true });
+            } else {
+                navigate('/', { replace: true });
             }
         } catch (err) {
             logger.error("Login Error:", err);
@@ -50,8 +53,11 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
         setError('');
         try {
             const data = await verify2FA(twoFACode, tempToken);
-            if (data.role === 'super_admin') {
+            const userRole = data.user?.role || data.role;
+            if (userRole === 'super_admin') {
                 navigate('/admin', { replace: true });
+            } else {
+                navigate('/', { replace: true });
             }
         } catch (err) {
             setError(err.response?.data?.detail || 'رمز التحقق غير صحيح');

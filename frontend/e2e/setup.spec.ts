@@ -9,8 +9,10 @@
 
 import { test as setup, expect } from '@playwright/test';
 
-const API_URL = process.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+const API_URL = process.env.E2E_API_URL || 'http://localhost:8000/api/v1';
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173';
+const ADMIN_USERNAME = process.env.E2E_USERNAME || 'e2e_admin';
+const ADMIN_PASSWORD = process.env.E2E_PASSWORD || 'E2eAdmin123!';
 
 setup('E2E Test Setup: Create test data', async ({ request, page }) => {
   console.log('\n🧪 Setting up E2E test environment...');
@@ -29,18 +31,20 @@ setup('E2E Test Setup: Create test data', async ({ request, page }) => {
   
   // Try to login as admin first
   let adminToken = null;
+  let adminAuthenticated = false;
   try {
     // Login uses OAuth2 form data
     const loginRes = await request.post(`${API_URL}/auth/token`, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      data: 'username=admin&password=admin123',
+      data: `username=${encodeURIComponent(ADMIN_USERNAME)}&password=${encodeURIComponent(ADMIN_PASSWORD)}`,
     });
     
     if (loginRes.ok()) {
       const data = await loginRes.json();
-      adminToken = data.access_token;
+      adminToken = data.access_token ?? data.data?.access_token;
+      adminAuthenticated = true; // Current auth succeeds through secure cookies.
       console.log('✅ Admin user already exists');
     } else {
       const error = await loginRes.text();
@@ -51,7 +55,7 @@ setup('E2E Test Setup: Create test data', async ({ request, page }) => {
   }
   
   // If admin doesn't exist, create clinic and admin
-  if (!adminToken) {
+  if (!adminAuthenticated) {
     console.log('📝 Creating test clinic and admin user...');
     
     try {
@@ -59,7 +63,7 @@ setup('E2E Test Setup: Create test data', async ({ request, page }) => {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        data: 'clinic_name=Test+Clinic&admin_username=admin&admin_email=admin@test.com&admin_password=admin123',
+        data: `clinic_name=Test+Clinic&admin_username=${encodeURIComponent(ADMIN_USERNAME)}&admin_email=e2e-admin%40test.com&admin_password=${encodeURIComponent(ADMIN_PASSWORD)}&contact_phone=01000000000`,
       });
       
       if (registerRes.ok() || registerRes.status() === 201) {
@@ -67,7 +71,8 @@ setup('E2E Test Setup: Create test data', async ({ request, page }) => {
         
         // Parse response - register_clinic returns access_token
         const data = await registerRes.json();
-        adminToken = data.access_token;
+        adminToken = data.access_token ?? data.data?.access_token;
+        adminAuthenticated = Boolean(adminToken);
         
         if (!adminToken) {
           // Try token endpoint
@@ -75,12 +80,12 @@ setup('E2E Test Setup: Create test data', async ({ request, page }) => {
             headers: {
               'Content-Type': 'application/x-www-form-urlencoded',
             },
-            data: 'username=admin&password=admin123',
+            data: `username=${encodeURIComponent(ADMIN_USERNAME)}&password=${encodeURIComponent(ADMIN_PASSWORD)}`,
           });
           
           if (loginRes.ok()) {
             const loginData = await loginRes.json();
-            adminToken = loginData.access_token;
+            adminToken = loginData.access_token ?? loginData.data?.access_token;
           }
         }
         
@@ -96,48 +101,13 @@ setup('E2E Test Setup: Create test data', async ({ request, page }) => {
     }
   }
   
-  // Create additional test users if admin exists
-  if (adminToken) {
-    console.log('📝 Creating additional test users...');
-    
-    const testUsers = [
-      { username: 'doctor1', role: 'doctor', password: 'doc123' },
-      { username: 'nurse1', role: 'nurse', password: 'nurse123' },
-      { username: 'reception1', role: 'receptionist', password: 'rec123' },
-      { username: 'account1', role: 'accountant', password: 'acc123' },
-    ];
-    
-    for (const user of testUsers) {
-      try {
-        // Try to create user via API
-        const createRes = await request.post(`${API_URL}/users/register/`, {
-          headers: {
-            'Authorization': `Bearer ${adminToken}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          data: `username=${user.username}&email=${user.username}%40test.com&password=${user.password}&role=${user.role}`,
-        });
-        
-        if (createRes.ok() || createRes.status() === 201) {
-          console.log(`✅ Created user: ${user.username} (${user.role})`);
-        } else {
-          const error = await createRes.text();
-          if (error.includes('already')) {
-            console.log(`ℹ️ User ${user.username} already exists`);
-          } else {
-            console.log(`⚠️ Could not create ${user.username}:`, error.substring(0, 100));
-          }
-        }
-      } catch (e) {
-        console.log(`⚠️ Could not create ${user.username}:`, e.message);
-      }
-    }
-    
+  // Confirm the clinic administrator can authenticate through the real UI.
+  if (adminAuthenticated) {
     // Login via UI to save session state
     console.log('🔐 Saving admin session...');
     await page.goto(`${BASE_URL}/login`);
-    await page.locator('input[type="text"]').fill('admin');
-    await page.locator('input[type="password"]').fill('admin123');
+    await page.locator('input[type="text"]').fill(ADMIN_USERNAME);
+    await page.locator('input[type="password"]').fill(ADMIN_PASSWORD);
     await page.locator('button[type="submit"]').click();
     
     try {

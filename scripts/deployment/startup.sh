@@ -21,6 +21,11 @@ echo "============================================================"
 echo ""
 echo "📊 [1/2] Running Alembic migrations..."
 
+# The historical Alembic chain predates the core schema. A brand-new database
+# needs one current-model baseline before normal incremental migrations apply.
+cd /app
+python -m backend.scripts.init_db --if-empty
+
 # Find alembic.ini location
 ALEMBIC_DIR=""
 if [ -f "/app/backend/alembic.ini" ]; then
