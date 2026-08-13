@@ -209,24 +209,3 @@ class AdminHandler(BaseHandler):
             message += f"• {item['date']}: {item['revenue']:,.0f} ج.م\n"
 
         return {"message": message, **data}
-
-    async def send_appointment_reminders(self, params: Dict) -> Dict:
-        """Mock: Send WhatsApp reminders for appointments."""
-        date_str = params.get("date", "tomorrow")
-        return {
-            "message": f"✅ تم جدولة إرسال تذكيرات المواعيد ليوم {date_str} عبر واتساب.",
-            "status": "queued",
-        }
-
-    async def send_whatsapp_message(self, params: Dict) -> Dict:
-        """Mock: Send a single WhatsApp message."""
-        patient_name = params.get("patient_name")
-        message_body = params.get("message")
-
-        if not patient_name:
-            return {"error": "missing_name", "message": "اسم المريض مطلوب"}
-
-        return {
-            "message": f'✅ تم إرسال الرسالة إلى {patient_name}:\n"{message_body}"',
-            "status": "sent",
-        }

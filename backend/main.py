@@ -473,7 +473,6 @@ async def get_global_settings(db: AsyncSession = Depends(database.get_async_db))
         "banner": await get_setting("global_announcement", "GLOBAL_BANNER", None),
         "support_email": await get_setting("support_email", "SUPPORT_EMAIL", "support@smartdentalclinicapp.com"),
         "support_phone": await get_setting("support_phone", "SUPPORT_PHONE", "+20 120 130 1415"),
-        "support_whatsapp": await get_setting("support_whatsapp", "SUPPORT_WHATSAPP", "201201301415"),
         "support_working_hours": await get_setting("support_working_hours", "SUPPORT_WORKING_HOURS", "9:00 AM - 10:00 PM"),
     })
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, MessageSquare, Send, Smartphone, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { X, MessageSquare, Send, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { submitFeedback } from '@/api';
 export default function SupportModal({ isOpen, onClose, isDarkMode }) {
     const [loading, setLoading] = useState(false);
@@ -97,23 +97,6 @@ export default function SupportModal({ isOpen, onClose, isDarkMode }) {
                                     </>
                                 )}
                             </button>
-                            <div className="relative py-2">
-                                <div className="absolute inset-0 flex items-center">
-                                    <div className={`w-full border-t ${isDarkMode ? 'border-white/5' : 'border-slate-100'}`} />
-                                </div>
-                                <div className="relative flex justify-center text-xs uppercase">
-                                    <span className={`px-4 font-bold ${isDarkMode ? 'bg-slate-900 text-slate-500' : 'bg-white text-slate-500'}`}>أو تواصل فوراً</span>
-                                </div>
-                            </div>
-                            <a
-                                href="https://wa.me/201201301415" // Replace with actual WhatsApp number
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl font-bold flex items-center justify-center gap-3 shadow-xl shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-95"
-                            >
-                                <Smartphone size={20} />
-                                تواصل عبر واتساب
-                            </a>
                         </form>
                     )}
                 </div>
@@ -121,4 +104,3 @@ export default function SupportModal({ isOpen, onClose, isDarkMode }) {
         </div>
     );
 }
-

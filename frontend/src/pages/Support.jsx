@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import logger from '@/utils/logger';
-import { MessageSquare, Send, Smartphone, AlertCircle, CheckCircle2, Mail, Clock } from 'lucide-react';
+import { Send, Smartphone, AlertCircle, CheckCircle2, Mail, Clock } from 'lucide-react';
 import { api, submitFeedback } from '../api';
 import { useTranslation } from 'react-i18next';
 export default function Support() {
@@ -11,7 +11,6 @@ export default function Support() {
     const [error, setError] = useState('');
     const [supportInfo, setSupportInfo] = useState({
         phone: '+20 120 130 1415',
-        whatsapp: '201201301415',
         email: 'support@smartdentalclinicapp.com',
         working_hours: '9:00 AM - 10:00 PM'
     });
@@ -23,7 +22,6 @@ export default function Support() {
                 if (data) {
                     setSupportInfo({
                         phone: data.support_phone || '+20 120 130 1415',
-                        whatsapp: data.support_whatsapp || '201201301415',
                         email: data.support_email || 'support@smartdentalclinicapp.com',
                         working_hours: data.support_working_hours || (i18n.language === 'ar' ? '9:00 ص - 10:00 م' : '9:00 AM - 10:00 PM')
                     });
@@ -69,15 +67,15 @@ export default function Support() {
                             {t('static.support.contact_direct')}
                         </h3>
                         <div className="space-y-4">
-                            <a href={`https://wa.me/${supportInfo.whatsapp}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 p-4 rounded-2xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors">
-                                <div className="p-2 bg-emerald-200 rounded-full text-emerald-700">
-                                    <MessageSquare size={18} />
+                            <div className="flex items-center gap-3 p-4 rounded-2xl bg-indigo-50 text-indigo-700">
+                                <div className="p-2 bg-indigo-200 rounded-full text-indigo-700">
+                                    <Smartphone size={18} />
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-xs font-bold uppercase tracking-wider opacity-70">{t('static.support.whatsapp')}</p>
+                                    <p className="text-xs font-bold uppercase tracking-wider opacity-70">{t('static.support.phone')}</p>
                                     <p className="font-bold text-lg ltr font-mono">{supportInfo.phone}</p>
                                 </div>
-                            </a>
+                            </div>
                             <div className="flex items-center gap-3 p-4 rounded-2xl bg-indigo-50 text-indigo-700">
                                 <div className="p-2 bg-indigo-200 rounded-full text-indigo-700">
                                     <Mail size={18} />
@@ -182,4 +180,3 @@ export default function Support() {
         </div>
     );
 }
-

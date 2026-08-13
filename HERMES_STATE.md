@@ -14,7 +14,6 @@
 | **BLOCK-4** | ✅ FIXED | Set `_COOKIE_SAMESITE` to `"lax"` to ensure smooth navigation from external links in production environments. |
 | **BLOCK-5** | ✅ FIXED | Replaced invalid `success_response(success=False, ...)` calls in `verify_reset_token` with `error_response(...)` to prevent crashes on invalid reset links. |
 | **BLOCK-6** | ✅ FIXED | Migrated outbox event processor and subscription checker to Prefect tasks and flows, removed the raw loop patterns in their flow implementations, and deleted legacy Celery verification tests. |
-| **BLOCK-7** | ✅ FIXED | Documented external PostgreSQL setup at the top of the compose file, and added resource limits for datadog (0.25 CPU, 256M memory) and openwa (0.50 CPU, 512M memory) services. |
 
 ## Partials
 

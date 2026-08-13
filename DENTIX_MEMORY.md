@@ -26,7 +26,6 @@ _Migrated from HERMES_STATE.md on 2026-06-22_
 | R-004 | Cookie SameSite breaking external links      | Set `_COOKIE_SAMESITE` to `"lax"`                                                                                                 | 2025-Q4 |
 | R-005 | `success_response(success=False)` crash      | Replaced with `error_response(...)` in `verify_reset_token`                                                                       | 2025-Q4 |
 | R-006 | Legacy Celery patterns in workers            | Migrated outbox + subscription checker to Prefect tasks/flows, deleted Celery verification tests                                  | 2025-Q4 |
-| R-007 | Missing Docker resource limits               | Added resource limits for datadog (0.25 CPU, 256M) and openwa (0.50 CPU, 512M) — _both since removed_                            | 2025-Q4 |
 | R-008 | Default access token too long                | Reduced to 15 minutes in `backend/auth.py`                                                                                        | 2025-Q4 |
 | R-009 | Sync engine exports causing issues           | Removed sync `engine` and `SessionLocal` from `database.py` exports, re-routed health check to `async_engine`                    | 2025-Q4 |
 | R-010 | Legacy `backend/backup_service.py`           | Deleted root-level file to prevent import confusion with services package                                                         | 2025-Q4 |
@@ -67,5 +66,4 @@ _Append new entries at TOP. One entry per meaningful change._
 | JWT in httpOnly cookies (not response body)        | Security best practice — prevents XSS token theft                   | 2025-Q4    |
 | Supabase PgBouncer (port 6543) with minimal pool   | pool_size=3, max_overflow=2 to avoid PgBouncer circuit breaker      | 2025-Q4    |
 | Stay on DigitalOcean (not HuggingFace for prod)    | HF cold starts unacceptable; DO stays until stable revenue          | 2026-06    |
-| Remove OpenWA and Datadog                          | Not needed until paying customers; reduces attack surface and costs | 2026-06    |
 | Domain on name.com (dentixs.app)                   | Managed DNS, Caddy handles SSL via ACME                             | 2024       |

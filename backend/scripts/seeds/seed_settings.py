@@ -17,7 +17,6 @@ def seed_support_settings():
 
         defaults = {
             "support_phone": "+20 120 130 1415",
-            "support_whatsapp": "201201301415",
             "support_email": "support@smartdentalclinicapp.com",
             "support_working_hours": "9:00 AM - 10:00 PM",
         }

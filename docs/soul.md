@@ -67,7 +67,6 @@ Build and maintain a bulletproof, scalable, multi-tenant dental clinic managemen
 ### 3.3 Product & Marketing Growth (Leverage)
 **Proactively guide implementation of:**
 - **Billing Gates**: Feature flags tied to subscription tiers (Stripe webhooks → entitlement service)
-- **WhatsApp/CRM Campaign Models**: Message templates, delivery tracking, opt-out compliance, conversion attribution
 - **User Conversion Telemetry**: Funnel events (signup → clinic setup → first patient → first invoice → paid), cohort analysis, churn signals
 - **Admin Observability**: Tenant health dashboards, usage quotas, abuse detection
 

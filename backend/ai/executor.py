@@ -111,8 +111,6 @@ class ToolExecutor:
             "forget_info": self.admin.forget_info,
             "get_top_procedures": self.admin.get_top_procedures,
             "get_revenue_trend": self.admin.get_revenue_trend,
-            "send_appointment_reminders": self.admin.send_appointment_reminders,
-            "send_whatsapp_message": self.admin.send_whatsapp_message,
             "get_procedures_list": self.finance.get_procedure_price,  # Alias
             "greeting": self._greeting,
             "response": self._greeting,

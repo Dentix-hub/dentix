@@ -340,28 +340,7 @@ def register_default_tools(registry: "ToolRegistry"):
     )
 
     # ============================================================
-    # 7. NOTIFICATIONS & COMMUNICATION (WhatsApp)
-    # ============================================================
-    registry.register(
-        Tool(
-            name="send_appointment_reminders",
-            description="إرسال تذكيرات المواعيد عبر واتساب. استخدم للأسئلة: ابعت تذكير، رسائل التذكير، فكر المرضى",
-            parameters={"date": "تاريخ المواعيد (today/tomorrow/YYYY-MM-DD)"},
-            allowed_roles=["doctor", "admin", "super_admin", "receptionist"],
-        )
-    )
-
-    registry.register(
-        Tool(
-            name="send_whatsapp_message",
-            description="إرسال رسالة واتساب لمريض معين. استخدم للأسئلة: ابعت رسالة، كلم المريض",
-            parameters={"patient_name": "اسم المريض", "message": "نص الرسالة"},
-            allowed_roles=["doctor", "admin", "super_admin", "receptionist"],
-        )
-    )
-
-    # ============================================================
-    # 8. ADDITIONAL TOOLS
+    # 7. ADDITIONAL TOOLS
     # ============================================================
     registry.register(
         Tool(

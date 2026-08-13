@@ -157,16 +157,6 @@ const SettingsManager = ({ settings, fetchData }) => {
                         <button onClick={() => updateSetting('support_phone', getSettingValue('support_phone'))} className="text-xs text-indigo-600 font-bold mt-2">حفظ</button>
                     </div>
                     <div>
-                        <label className="block text-sm font-bold mb-2 text-slate-700 dark:text-slate-300">Whatsapp (أرقام فقط)</label>
-                        <input
-                            type="text"
-                            className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
-                            value={getSettingValue('support_whatsapp')}
-                            onChange={(e) => handleLocalChange('support_whatsapp', e.target.value)}
-                        />
-                        <button onClick={() => updateSetting('support_whatsapp', getSettingValue('support_whatsapp'))} className="text-xs text-indigo-600 font-bold mt-2">حفظ</button>
-                    </div>
-                    <div>
                         <label className="block text-sm font-bold mb-2 text-slate-700 dark:text-slate-300">البريد الإلكتروني</label>
                         <input
                             type="text"
@@ -194,4 +184,3 @@ const SettingsManager = ({ settings, fetchData }) => {
 };
 
 export default SettingsManager;
-

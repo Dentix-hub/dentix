@@ -384,26 +384,6 @@ export const formatAIResponse = (data) => {
         };
     }
 
-    // WhatsApp - Reminders
-    if (tool === 'send_appointment_reminders') {
-        return {
-            role: 'assistant',
-            content: result.message,
-            type: result.requires_whatsapp_api ? 'warning' : 'success',
-            data: result
-        };
-    }
-
-    // WhatsApp - Message
-    if (tool === 'send_whatsapp_message') {
-        return {
-            role: 'assistant',
-            content: result.message,
-            type: result.requires_whatsapp_api ? 'warning' : 'success',
-            data: result
-        };
-    }
-
     // Patient Summary
     if (tool === 'summarize_patient') {
         return {

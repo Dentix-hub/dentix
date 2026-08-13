@@ -18,7 +18,6 @@ trigger: always_on
 | Auth       | JWT in httpOnly cookies              | **NOT** in response body                   |
 | Multi-tenant | RLS via `rls` library              | `tenant_id` + `contextvars`                |
 | Monitoring | None (Datadog removed)              | Use container logs for now                 |
-| WhatsApp   | None (OpenWA removed)               | AI tool stubs exist but are mocked         |
 | Hosting    | DigitalOcean Droplet                | Docker Compose + Caddy + SSL               |
 | Staging    | HuggingFace Spaces                  | Separate HF repo push                     |
 | Domain     | dentixs.app (name.com)              | Caddy handles ACME/SSL                     |

@@ -195,19 +195,7 @@ class GetRevenueTrendInput(BaseModel):
 
 
 # ============================================================
-# 7. NOTIFICATIONS
-# ============================================================
-class SendAppointmentRemindersInput(BaseModel):
-    date: str = Field(..., description="today/tomorrow/YYYY-MM-DD")
-
-
-class SendWhatsappMessageInput(BaseModel):
-    patient_name: str = Field(..., description="اسم المريض")
-    message: str = Field(..., description="نص الرسالة")
-
-
-# ============================================================
-# 8. ADDITIONAL TOOLS
+# 7. ADDITIONAL TOOLS
 # ============================================================
 class GetUsersListInput(BaseModel):
     pass
@@ -259,8 +247,6 @@ TOOL_SCHEMA_MAP = {
     "compare_periods": ComparePeriodsInput,
     "get_top_procedures": GetTopProceduresInput,
     "get_revenue_trend": GetRevenueTrendInput,
-    "send_appointment_reminders": SendAppointmentRemindersInput,
-    "send_whatsapp_message": SendWhatsappMessageInput,
     "get_users_list": GetUsersListInput,
     "get_expenses": GetExpensesInput,
     "get_lab_orders": GetLabOrdersInput,

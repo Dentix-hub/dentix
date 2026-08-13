@@ -1,7 +1,7 @@
 # =============================================================
 # Dentix LOCAL DEVELOPMENT Environment
 # Mirrors production stack: FastAPI + Redis + Prefect Workers
-# Missing from prod: Caddy (no SSL locally), Datadog, OpenWA
+# Missing from prod: Caddy (no SSL locally) and Datadog
 #
 # Usage:
 #   docker compose -f docker-compose.dev.yml up --build
