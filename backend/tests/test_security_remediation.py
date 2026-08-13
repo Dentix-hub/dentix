@@ -145,7 +145,12 @@ def test_local_postgres_disables_ssl_by_default():
 
 
 def test_remote_postgres_keeps_secure_ssl_default():
-    from backend.database import _apply_postgres_ssl_mode, _resolve_postgres_ssl_mode
+    from backend.database import (
+        _apply_postgres_ssl_mode,
+        _resolve_postgres_ssl_mode,
+        _set_postgres_query_parameter,
+        _strip_postgres_ssl_parameters,
+    )
 
     remote_url = "postgresql://user:pass@db.example.com:5432/dentix"
     assert _resolve_postgres_ssl_mode(remote_url, None) == "require"
@@ -159,3 +164,39 @@ def test_remote_postgres_keeps_secure_ssl_default():
     assert _apply_postgres_ssl_mode(remote_url, "verify-full") == (
         f"{remote_url}?sslmode=verify-full"
     )
+
+    ca_path = "/usr/local/share/ca-certificates/supabase-root-2021-ca.crt"
+    secured_url = _set_postgres_query_parameter(
+        _apply_postgres_ssl_mode(legacy_url, "verify-full"),
+        "sslrootcert",
+        ca_path,
+    )
+    assert "sslmode=verify-full" in secured_url
+    assert "sslrootcert=%2Fusr%2Flocal%2Fshare%2Fca-certificates" in secured_url
+    assert _strip_postgres_ssl_parameters(secured_url) == (
+        f"{remote_url}?application_name=dentix"
+    )
+
+
+def test_pinned_supabase_ca_fingerprint():
+    import hashlib
+    import ssl
+    from pathlib import Path
+
+    certificate_path = (
+        Path(__file__).resolve().parents[2]
+        / "certificates"
+        / "supabase-root-2021-ca.crt"
+    )
+    certificate = certificate_path.read_text(encoding="ascii")
+    fingerprint = hashlib.sha256(ssl.PEM_cert_to_DER_cert(certificate)).hexdigest()
+    assert fingerprint == "807025ad50d4ed219d2c9c7d299c004f824eb00cf7f65afef607d07b72e6cafa"
+
+
+def test_database_driver_normalization_does_not_duplicate_async_driver():
+    from urllib.parse import urlsplit
+
+    from backend import database
+
+    assert urlsplit(database.SQLALCHEMY_DATABASE_URL).scheme == "sqlite"
+    assert urlsplit(database.ASYNC_DATABASE_URL).scheme == "sqlite+aiosqlite"

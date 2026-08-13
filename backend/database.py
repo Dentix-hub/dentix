@@ -9,7 +9,7 @@ principles.
 import os
 import logging
 import re
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from dotenv import load_dotenv
@@ -43,13 +43,28 @@ except Exception as e:
     logger.warning("Could not parse DB URL for diagnosis: %s", e)
 
 
-# Normalize PostgreSQL URL format
-if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
-    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace(
-        "postgres://", "postgresql://", 1
-    )
-
 SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.strip().strip("'").strip('"')
+
+
+def _replace_database_scheme(database_url: str, scheme: str) -> str:
+    """Replace only the URL scheme while preserving every slash and path byte."""
+    _current_scheme, separator, remainder = database_url.partition(":")
+    if not separator:
+        return database_url
+    return f"{scheme}:{remainder}"
+
+
+# Keep the sync and async SQLAlchemy drivers explicit. Replacing a substring
+# is unsafe because ``sqlite://`` also occurs inside ``sqlite+aiosqlite://``.
+_sync_url_parts = urlsplit(SQLALCHEMY_DATABASE_URL)
+_base_database_scheme = _sync_url_parts.scheme.split("+", 1)[0]
+if _base_database_scheme == "postgres":
+    _base_database_scheme = "postgresql"
+if _base_database_scheme in {"postgresql", "sqlite"}:
+    SQLALCHEMY_DATABASE_URL = _replace_database_scheme(
+        SQLALCHEMY_DATABASE_URL,
+        _base_database_scheme,
+    )
 
 
 def _resolve_postgres_ssl_mode(database_url: str, configured_mode: str | None) -> str:
@@ -72,24 +87,55 @@ def _resolve_postgres_ssl_mode(database_url: str, configured_mode: str | None) -
     return "require"
 
 
-def _apply_postgres_ssl_mode(database_url: str, ssl_mode: str) -> str:
-    """Apply the resolved policy to the sync PostgreSQL DSN."""
+def _set_postgres_query_parameter(
+    database_url: str,
+    parameter: str,
+    value: str,
+) -> str:
+    """Set a PostgreSQL DSN query parameter without corrupting other options."""
     if "postgresql" not in database_url:
         return database_url
-    if re.search(r"(?:[?&])sslmode=", database_url):
-        return re.sub(
-            r"([?&]sslmode=)[\w-]+",
-            lambda match: f"{match.group(1)}{ssl_mode}",
-            database_url,
-        )
-    separator = "&" if "?" in database_url else "?"
-    return f"{database_url}{separator}sslmode={ssl_mode}"
+
+    parsed = urlsplit(database_url)
+    updated_query: list[tuple[str, str]] = []
+    replaced = False
+    for key, current_value in parse_qsl(parsed.query, keep_blank_values=True):
+        if key.lower() == parameter.lower():
+            if not replaced:
+                updated_query.append((key, value))
+                replaced = True
+            continue
+        updated_query.append((key, current_value))
+    if not replaced:
+        updated_query.append((parameter, value))
+
+    return urlunsplit(parsed._replace(query=urlencode(updated_query)))
+
+
+def _apply_postgres_ssl_mode(database_url: str, ssl_mode: str) -> str:
+    """Apply the resolved policy to the sync PostgreSQL DSN."""
+    return _set_postgres_query_parameter(database_url, "sslmode", ssl_mode)
+
+
+def _strip_postgres_ssl_parameters(database_url: str) -> str:
+    """Remove libpq-only SSL options before passing the DSN to asyncpg."""
+    if "postgresql" not in database_url:
+        return database_url
+
+    parsed = urlsplit(database_url)
+    query = [
+        (key, value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if key.lower() not in {"sslmode", "sslrootcert"}
+    ]
+    return urlunsplit(parsed._replace(query=urlencode(query)))
 
 
 _ssl_mode = _resolve_postgres_ssl_mode(
     SQLALCHEMY_DATABASE_URL,
     os.getenv("DB_SSL_MODE"),
 )
+_ssl_ca_cert = os.getenv("DB_SSL_CA_CERT")
 
 # Keep the sync DSN aligned with the resolved deployment policy. This is
 # required for PgBouncer, where sslmode must be carried in the URL.
@@ -97,33 +143,49 @@ SQLALCHEMY_DATABASE_URL = _apply_postgres_ssl_mode(
     SQLALCHEMY_DATABASE_URL,
     _ssl_mode,
 )
+if _ssl_ca_cert:
+    SQLALCHEMY_DATABASE_URL = _set_postgres_query_parameter(
+        SQLALCHEMY_DATABASE_URL,
+        "sslrootcert",
+        _ssl_ca_cert,
+    )
 
 # Async URL configuration
 ASYNC_DATABASE_URL = SQLALCHEMY_DATABASE_URL
 
 _environment = os.getenv("ENVIRONMENT", "development").lower()
-if (
-    "postgresql" in SQLALCHEMY_DATABASE_URL
-    and _environment in {"production", "prod"}
-    and _ssl_mode != "verify-full"
-):
-    raise RuntimeError(
-        "Production PostgreSQL requires DB_SSL_MODE=verify-full "
-        "to validate the server certificate and hostname."
-    )
+if "postgresql" in SQLALCHEMY_DATABASE_URL and _environment in {
+    "production",
+    "prod",
+}:
+    if _ssl_mode != "verify-full":
+        raise RuntimeError(
+            "Production PostgreSQL requires DB_SSL_MODE=verify-full "
+            "to validate the server certificate and hostname."
+        )
+    if not _ssl_ca_cert or not os.path.isfile(_ssl_ca_cert):
+        raise RuntimeError(
+            "Production PostgreSQL requires DB_SSL_CA_CERT to point to "
+            "the trusted database CA certificate."
+        )
 
 # Strip sslmode from DSN entirely — asyncpg uses connect_args not URL params
 if _ssl_mode:
-    ASYNC_DATABASE_URL = re.sub(r'[?&]sslmode=[\w-]+', '', ASYNC_DATABASE_URL)
-    ASYNC_DATABASE_URL = re.sub(r'\?$', '', ASYNC_DATABASE_URL)
+    ASYNC_DATABASE_URL = _strip_postgres_ssl_parameters(ASYNC_DATABASE_URL)
 
-if ASYNC_DATABASE_URL.startswith("postgresql"):
-    ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace(
-        "postgresql://", "postgresql+asyncpg://", 1
+_async_url_parts = urlsplit(ASYNC_DATABASE_URL)
+_async_base_scheme = _async_url_parts.scheme.split("+", 1)[0]
+if _async_base_scheme == "postgres":
+    _async_base_scheme = "postgresql"
+if _async_base_scheme == "postgresql":
+    ASYNC_DATABASE_URL = _replace_database_scheme(
+        ASYNC_DATABASE_URL,
+        "postgresql+asyncpg",
     )
-elif ASYNC_DATABASE_URL.startswith("sqlite"):
-    ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace(
-        "sqlite://", "sqlite+aiosqlite://", 1
+elif _async_base_scheme == "sqlite":
+    ASYNC_DATABASE_URL = _replace_database_scheme(
+        ASYNC_DATABASE_URL,
+        "sqlite+aiosqlite",
     )
 
 # Create engines
@@ -134,8 +196,8 @@ if "postgresql" in SQLALCHEMY_DATABASE_URL:
     if not is_supabase_pooler:
         # Direct PostgreSQL: SSL and statement_timeout are safe
         connect_args["sslmode"] = _ssl_mode
-        if os.getenv("DB_SSL_CA_CERT"):
-            connect_args["sslrootcert"] = os.environ["DB_SSL_CA_CERT"]
+        if _ssl_ca_cert:
+            connect_args["sslrootcert"] = _ssl_ca_cert
         stmt_timeout = os.getenv('DB_STATEMENT_TIMEOUT')
         if stmt_timeout:
             connect_args["options"] = f"-c statement_timeout={stmt_timeout}"
@@ -197,7 +259,7 @@ if "postgresql" in ASYNC_DATABASE_URL:
         connect_args_async["ssl"] = False
     elif _ssl_mode in ("verify-ca", "verify-full"):
         import ssl
-        ctx = ssl.create_default_context(cafile=os.getenv("DB_SSL_CA_CERT"))
+        ctx = ssl.create_default_context(cafile=_ssl_ca_cert)
         ctx.verify_mode = ssl.CERT_REQUIRED
         ctx.check_hostname = _ssl_mode == "verify-full"
         connect_args_async["ssl"] = ctx

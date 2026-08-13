@@ -44,6 +44,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && groupadd --gid 10001 dentix \
     && useradd --uid 10001 --gid dentix --create-home dentix
 
+COPY certificates/supabase-root-2021-ca.crt \
+    /usr/local/share/ca-certificates/supabase-root-2021-ca.crt
+RUN update-ca-certificates
+
 COPY --from=python-dependencies /install/ /usr/local/
 COPY backend/ backend/
 COPY --from=frontend-build /app/frontend/dist/ /app/backend/static/
