@@ -204,9 +204,10 @@ jobs:
 
           # Keep workers away from the database while the backend applies migrations.
           docker compose --project-name dentix stop worker domain-worker || true
-          # -T is mandatory because the remote script itself is streamed over
-          # stdin; without it, Compose consumes the rest of this heredoc.
-          docker compose --project-name dentix run -T --rm --no-deps --user root \
+          # The remote script itself is streamed over stdin. Compose v5 keeps
+          # stdin open even with -T, so interactive mode must also be disabled.
+          docker compose --project-name dentix run -T --interactive=false \
+            --rm --no-deps --user root \
             backend chown -R 10001:10001 \
               /app/backend/uploads /app/rag_storage /home/dentix/.cache/chroma
           docker compose --project-name dentix up -d redis
