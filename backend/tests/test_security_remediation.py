@@ -145,8 +145,17 @@ def test_local_postgres_disables_ssl_by_default():
 
 
 def test_remote_postgres_keeps_secure_ssl_default():
-    from backend.database import _resolve_postgres_ssl_mode
+    from backend.database import _apply_postgres_ssl_mode, _resolve_postgres_ssl_mode
 
     remote_url = "postgresql://user:pass@db.example.com:5432/dentix"
     assert _resolve_postgres_ssl_mode(remote_url, None) == "require"
     assert _resolve_postgres_ssl_mode(remote_url, "verify-full") == "verify-full"
+
+    legacy_url = f"{remote_url}?sslmode=require&application_name=dentix"
+    assert _resolve_postgres_ssl_mode(legacy_url, "verify-full") == "verify-full"
+    assert _apply_postgres_ssl_mode(legacy_url, "verify-full") == (
+        f"{remote_url}?sslmode=verify-full&application_name=dentix"
+    )
+    assert _apply_postgres_ssl_mode(remote_url, "verify-full") == (
+        f"{remote_url}?sslmode=verify-full"
+    )

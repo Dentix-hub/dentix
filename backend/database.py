@@ -54,11 +54,13 @@ SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.strip().strip("'").strip('"')
 
 def _resolve_postgres_ssl_mode(database_url: str, configured_mode: str | None) -> str:
     """Resolve SSL without breaking local PostgreSQL services such as CI."""
+    # An explicit deployment policy must override legacy sslmode values that
+    # may still be embedded in DATABASE_URL.
+    if configured_mode:
+        return configured_mode
     ssl_match = re.search(r"(?:[?&])sslmode=([\w-]+)", database_url)
     if ssl_match:
         return ssl_match.group(1)
-    if configured_mode:
-        return configured_mode
 
     try:
         hostname = (urlsplit(database_url).hostname or "").lower()
@@ -70,18 +72,31 @@ def _resolve_postgres_ssl_mode(database_url: str, configured_mode: str | None) -
     return "require"
 
 
+def _apply_postgres_ssl_mode(database_url: str, ssl_mode: str) -> str:
+    """Apply the resolved policy to the sync PostgreSQL DSN."""
+    if "postgresql" not in database_url:
+        return database_url
+    if re.search(r"(?:[?&])sslmode=", database_url):
+        return re.sub(
+            r"([?&]sslmode=)[\w-]+",
+            lambda match: f"{match.group(1)}{ssl_mode}",
+            database_url,
+        )
+    separator = "&" if "?" in database_url else "?"
+    return f"{database_url}{separator}sslmode={ssl_mode}"
+
+
 _ssl_mode = _resolve_postgres_ssl_mode(
     SQLALCHEMY_DATABASE_URL,
     os.getenv("DB_SSL_MODE"),
 )
 
-# PgBouncer (Supabase pooler on port 6543): sslmode must be in URL, not connect_args.
-# Preserve any existing query parameters when adding the default.
-if ":6543" in SQLALCHEMY_DATABASE_URL and not re.search(
-    r"(?:[?&])sslmode=", SQLALCHEMY_DATABASE_URL
-):
-    separator = "&" if "?" in SQLALCHEMY_DATABASE_URL else "?"
-    SQLALCHEMY_DATABASE_URL += f"{separator}sslmode={_ssl_mode}"
+# Keep the sync DSN aligned with the resolved deployment policy. This is
+# required for PgBouncer, where sslmode must be carried in the URL.
+SQLALCHEMY_DATABASE_URL = _apply_postgres_ssl_mode(
+    SQLALCHEMY_DATABASE_URL,
+    _ssl_mode,
+)
 
 # Async URL configuration
 ASYNC_DATABASE_URL = SQLALCHEMY_DATABASE_URL
