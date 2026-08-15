@@ -119,6 +119,8 @@ def check_and_migrate_tables():
     add_column_safe('treatments', 'complications TEXT')
     add_column_safe('treatments', 'doctor_id INTEGER REFERENCES users(id)')
     add_column_safe('treatments', 'tenant_id INTEGER REFERENCES tenants(id)')
+    add_column_safe('treatments', 'is_deleted BOOLEAN DEFAULT FALSE')
+    add_column_safe('treatments', 'deleted_at TIMESTAMP')
     add_column_safe('payments', 'tenant_id INTEGER REFERENCES tenants(id)')
     add_column_safe('payments', 'doctor_id INTEGER REFERENCES users(id)')
     add_column_safe('attachments', 'filename VARCHAR')

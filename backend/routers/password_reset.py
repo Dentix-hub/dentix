@@ -2,9 +2,11 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from backend.core.limiter import limiter
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 from datetime import datetime, timedelta, timezone
 import secrets
+import hashlib
+from pydantic import BaseModel, EmailStr, Field
 
 from .. import models, database
 from ..email_service import send_password_reset_email
@@ -21,6 +23,13 @@ router = APIRouter(tags=["Authentication"])
 
 from ..database import get_async_db
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr = Field(..., description="User email address")
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(..., description="Reset token from email")
+    new_password: str = Field(..., description="New password")
+
 
 @router.post(
     "/forgot-password",
@@ -30,12 +39,13 @@ from ..database import get_async_db
 @limiter.limit("5/minute")
 async def forgot_password(
     request: Request,
-    email: str = Query(..., description="User email address"),
+    payload: ForgotPasswordRequest,
     db: AsyncSession = Depends(get_async_db),
 ):
     """
     Request password reset. Sends email with reset link.
     """
+    email = payload.email
     # Find user by email
     result = await db.execute(select(models.User).filter(models.User.email == email))
     user = result.scalars().first()
@@ -46,35 +56,47 @@ async def forgot_password(
             message="إذا كان البريد الإلكتروني موجوداً لدى النظام، ستصل رسالة لإعادة تعيين كلمة المرور"
         )
 
+    # Invalidate previous tokens
+    await db.execute(
+        update(models.PasswordResetToken)
+        .where(
+            models.PasswordResetToken.user_id == user.id,
+            models.PasswordResetToken.used == False,  # noqa: E712
+        )
+        .values(used=True)
+    )
+
     # 1. Generate Firebase Reset Link
     firebase_link = firebase_client.generate_password_reset_link(email)
+    email_sent = False
 
     if firebase_link:
         # Send via our email service with the Firebase link
         email_sent = send_password_reset_email(email, firebase_link, user.username, is_firebase_link=True)
-        if email_sent:
-            return success_response(
-                message="تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني عبر Firebase"
-            )
 
     # Fallback to legacy system if Firebase is not ready or fails
-    logger.warning(f"Firebase link generation failed for {email}, falling back to legacy SMTP")
+    if not email_sent:
+        logger.warning(f"Firebase link generation failed for {email}, falling back to legacy SMTP")
 
-    # Legacy logic: save token to DB and send via SMTP
-    token = secrets.token_urlsafe(32)
-    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+        # Legacy logic: save hashed token to DB and send raw token via SMTP
+        token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
 
-    reset_token = models.PasswordResetToken(
-        token=token,
-        user_id=user.id,
-        expires_at=expires_at
-    )
-    db.add(reset_token)
-    await db.commit()
+        reset_token = models.PasswordResetToken(
+            token=token_hash,
+            user_id=user.id,
+            expires_at=expires_at
+        )
+        db.add(reset_token)
+        await db.commit()
 
-    email_sent = send_password_reset_email(email, token, user.username)
+        email_sent = send_password_reset_email(email, token, user.username)
+
     if email_sent:
-        return success_response(message="تم إرسال رابط إعادة تعيين كلمة المرور (Legacy SMTP)")
+        return success_response(
+            message="إذا كان البريد الإلكتروني موجوداً لدى النظام، ستصل رسالة لإعادة تعيين كلمة المرور"
+        )
 
     raise HTTPException(status_code=500, detail="فشل إرسال البريد الإلكتروني")
 
@@ -87,18 +109,21 @@ async def forgot_password(
 @limiter.limit("5/minute")
 async def reset_password(
     request: Request,
-    token: str = Query(..., description="Reset token from email"),
-    new_password: str = Query(..., description="New password"),
+    payload: ResetPasswordRequest,
     db: AsyncSession = Depends(get_async_db),
 ):
     """
     Reset password using token from email.
     """
-    # Find and validate token
+    token = payload.token
+    new_password = payload.new_password
+
+    # Find and validate token (using SHA-256 hash)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
     result = await db.execute(
         select(models.PasswordResetToken)
         .filter(
-            models.PasswordResetToken.token == token,
+            models.PasswordResetToken.token == token_hash,
             models.PasswordResetToken.used == False,  # noqa: E712
         )
     )
@@ -147,17 +172,20 @@ async def reset_password(
 
 
 @router.get("/verify-reset-token")
+@limiter.limit("5/minute")
 async def verify_reset_token(
+    request: Request,
     token: str = Query(..., description="Reset token to verify"),
     db: AsyncSession = Depends(get_async_db),
 ):
     """
     Verify if a reset token is valid (for frontend validation before showing form).
     """
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
     result = await db.execute(
         select(models.PasswordResetToken)
         .filter(
-            models.PasswordResetToken.token == token,
+            models.PasswordResetToken.token == token_hash,
             models.PasswordResetToken.used == False,  # noqa: E712
         )
     )

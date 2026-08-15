@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import logger from '@/utils/logger';
 import { useEffect, Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -22,7 +22,6 @@ import { MotionProvider } from '@/lib/motion';
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Patients = lazy(() => import('./pages/Patients'));
 const Appointments = lazy(() => import('./pages/Appointments'));
-const Billing = lazy(() => import('./pages/Billing'));
 const PatientDetails = lazy(() => import('./pages/PatientDetails'));
 const Login = lazy(() => import('./pages/Login'));
 const Settings = lazy(() => import('./pages/Settings'));
@@ -42,6 +41,19 @@ const Privacy = lazy(() => import('./pages/Privacy'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const SmartDashboard = lazy(() => import('@/features/analytics/SmartDashboard'));
 const Inventory = lazy(() => import('./pages/Inventory'));
+// Finance V2 Pages
+const FinanceLayout = lazy(() => import('@/features/finance/FinanceLayout'));
+import FinanceIndexRedirect from '@/features/finance/FinanceIndexRedirect';
+const OverviewPage = lazy(() => import('@/features/finance/pages/OverviewPage'));
+const PatientAccountsPage = lazy(() => import('@/features/finance/pages/PatientAccountsPage'));
+const PaymentsPage = lazy(() => import('@/features/finance/pages/PaymentsPage'));
+const ExpensesPage = lazy(() => import('@/features/finance/pages/ExpensesPage'));
+const CompensationLayout = lazy(() => import('@/features/finance/pages/CompensationLayout'));
+const DoctorsPage = lazy(() => import('@/features/finance/pages/DoctorsPage'));
+const DoctorDetailPage = lazy(() => import('@/features/finance/pages/DoctorDetailPage'));
+const PayrollPage = lazy(() => import('@/features/finance/pages/PayrollPage'));
+const ActivityPage = lazy(() => import('@/features/finance/pages/ActivityPage'));
+const ReportsPage = lazy(() => import('@/features/finance/pages/ReportsPage'));
 // New Admin Pages
 const AdminOverview = lazy(() => import('./pages/admin/Overview'));
 const AdminTenants = lazy(() => import('./pages/admin/TenantsPage'));
@@ -131,12 +143,34 @@ function AppRoutes() {
                             <Route path="/patients/:id" element={<PatientDetails />} />
                             <Route path="/appointments" element={<Appointments />} />
                             <Route path="/inventory" element={<Inventory />} />
-                            {/* Admin Protected Routes */}
-                            <Route path="/billing" element={
-                                <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
-                                    <Billing />
-                                </ProtectedRoute>
-                            } />
+                            {/* Legacy Billing Redirect (FIN-FND-002) */}
+                            <Route path="/billing" element={<Navigate to="/finance/overview" replace />} />
+                            <Route path="/billing/*" element={<Navigate to="/finance/overview" replace />} />
+
+                            {/* Finance V2 Module Route Tree (FIN-FND-001, GEMINI_REPAIR_PLAN R4) */}
+                            <Route
+                                path="/finance"
+                                element={
+                                    <ProtectedRoute allowedRoles={['admin', 'super_admin', 'manager', 'accountant', 'receptionist', 'doctor']}>
+                                        <FinanceLayout />
+                                    </ProtectedRoute>
+                                }
+                            >
+                                <Route index element={<FinanceIndexRedirect />} />
+                                <Route path="overview" element={<OverviewPage />} />
+                                <Route path="patient-accounts" element={<PatientAccountsPage />} />
+                                <Route path="patient-accounts/:patientId" element={<PatientAccountsPage />} />
+                                <Route path="payments" element={<PaymentsPage />} />
+                                <Route path="expenses" element={<ExpensesPage />} />
+                                <Route path="compensation" element={<CompensationLayout />}>
+                                    <Route index element={<Navigate to="/finance/compensation/doctors" replace />} />
+                                    <Route path="doctors" element={<DoctorsPage />} />
+                                    <Route path="doctors/:doctorId" element={<DoctorDetailPage />} />
+                                    <Route path="payroll" element={<PayrollPage />} />
+                                </Route>
+                                <Route path="activity" element={<ActivityPage />} />
+                                <Route path="reports" element={<ReportsPage />} />
+                            </Route>
                             <Route path="/expenses" element={
                                 <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
                                     <Expenses />

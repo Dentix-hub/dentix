@@ -383,3 +383,11 @@ legacy/
 backend/static/assets/
 backend/static/index.html
 dentix-staging/
+
+# Environment and local dev
+.env
+.env.*
+!.env.example
+.prefect/
+*.zip
+

@@ -6,7 +6,7 @@ Handles billing, payments, and financial reporting.
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
-from typing import List
+from typing import List, Optional
 
 from .. import schemas, crud
 from backend.database import get_async_db
@@ -78,22 +78,60 @@ async def create_payment(
     "",
     response_model=StandardResponse[List[schemas.Payment]],
     summary="List payments",
-    description="Get payments visible to the current user based on their role.",
+    description="Get payments visible to the current user based on their role with optional filtering and pagination.",
 )
 async def read_payments(
     skip: int = 0,
     limit: int = 100,
+    search: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    patient_id: Optional[int] = None,
+    doctor_id: Optional[int] = None,
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """Get payments for current user (filtered by role)."""
+    """Get payments for current user (filtered by role and optional criteria)."""
+    from datetime import datetime
+    from backend import models
+
     visibility = get_financial_visibility_service(
         db, current_user, current_user.tenant_id
     )
-    query = visibility.get_visible_payments_query().offset(skip).limit(limit)
+    query = visibility.get_visible_payments_query()
+
+    if patient_id:
+        query = query.where(models.Payment.patient_id == patient_id)
+
+    if doctor_id:
+        query = query.where(models.Payment.doctor_id == doctor_id)
+
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.where(
+            (models.Patient.name.ilike(search_pattern))
+            | (models.Payment.notes.ilike(search_pattern))
+        )
+
+    if start_date:
+        try:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+            query = query.where(models.Payment.date >= start_dt)
+        except ValueError:
+            pass
+
+    if end_date:
+        try:
+            end_dt = datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S")
+            query = query.where(models.Payment.date <= end_dt)
+        except ValueError:
+            pass
+
+    query = query.order_by(models.Payment.date.desc(), models.Payment.id.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
     payments = result.scalars().all()
     return success_response(data=payments, message="Payments retrieved successfully")
+
 
 
 @router.delete("/{payment_id}", response_model=StandardResponse[dict])

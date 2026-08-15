@@ -35,6 +35,8 @@ def validate_password(password: str) -> None:
     """
     if len(password) < 8:
         raise HTTPException(status_code=400, detail="كلمة المرور يجب أن تتكون من 8 أحرف على الأقل")
+    if len(password) > 72:
+        raise HTTPException(status_code=400, detail="كلمة المرور يجب أن لا تزيد عن 72 حرفاً")
 
     # For Unicode scripts like Arabic, isupper/islower might not apply.
     # We check for general categories: letters, numbers, special chars.

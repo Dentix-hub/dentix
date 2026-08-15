@@ -151,7 +151,7 @@ async def login_for_access_token(
             is_valid = False
 
         if not user or not is_valid:
-            logger.warning(f"Login failed for: {form_data.username}")
+            logger.warning(f"Login failed for: {form_data.username} from IP {_request_client_ip(request)}")
             if user:
                 user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
                 if user.failed_login_attempts >= 5:

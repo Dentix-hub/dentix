@@ -45,6 +45,7 @@ from .billing import (
     delete_payment,
     create_expense,
     get_expenses,
+    count_expenses,
     delete_expense,
     get_financial_stats,
     get_dashboard_stats,

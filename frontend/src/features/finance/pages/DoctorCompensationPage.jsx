@@ -1,0 +1,314 @@
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
+import {
+    UserCheck,
+    Stethoscope,
+    DollarSign,
+    Percent,
+    Settings,
+    ArrowUpRight,
+    TrendingUp,
+    FlaskConical,
+} from 'lucide-react';
+import { useDoctorCompensation } from '../compensation/hooks/useDoctorCompensation';
+import { useFinancePermissions } from '../useFinancePermissions';
+import MetricCard from '../components/MetricCard';
+import FilterBar from '../components/FilterBar';
+import DateRangePicker from '../components/DateRangePicker';
+import DataTable from '../components/DataTable';
+import Money from '../components/Money';
+import DoctorSettingsDrawer from '../compensation/components/DoctorSettingsDrawer';
+
+/**
+ * Doctor Compensation V2 Overview Page (§15 MASTER_SPEC).
+ * Displays authoritative doctor dues, commission rates, and links to routed doctor detail page.
+ */
+export default function DoctorCompensationPage() {
+    const { t } = useTranslation();
+    const { canConfigFinance } = useFinancePermissions();
+
+    const {
+        doctors,
+        totalDoctorDues,
+        totalDoctorRevenue,
+        totalDoctorCollected,
+        from,
+        to,
+        search,
+        isLoading,
+        isError,
+        refetch,
+        updateDateRange,
+        updateSearch,
+        updateCompensation,
+        isUpdating,
+    } = useDoctorCompensation();
+
+    const [doctorToConfigure, setDoctorToConfigure] = useState(null);
+
+    // Columns Definition for DataTable
+    const columns = [
+        {
+            id: 'doctor_name',
+            header: t('finance.compensation.doctor_name', 'الطبيب'),
+            sortable: false,
+            cell: (row) => (
+                <div className="space-y-0.5">
+                    <Link
+                        to={`/finance/compensation/doctors/${row.doctor_id}?from=${from}&to=${to}`}
+                        className="font-bold text-text-primary hover:text-primary transition-colors block"
+                    >
+                        {row.doctor_name}
+                    </Link>
+                    <span className="text-[11px] text-text-secondary">
+                        {row.treatments} {t('appointments.treatments_count', 'إجراء علاجي')}
+                    </span>
+                </div>
+            ),
+        },
+        {
+            id: 'revenue',
+            header: t('finance.metrics.invoiced', 'المحتسب'),
+            align: 'end',
+            sortable: false,
+            cell: (row) => (
+                <Money
+                    amount={row.revenue}
+                    size="sm"
+                />
+            ),
+        },
+        {
+            id: 'collected',
+            header: t('finance.metrics.collected', 'المحصل'),
+            align: 'end',
+            sortable: false,
+            cell: (row) => (
+                <Money
+                    amount={row.collected}
+                    size="sm"
+                    colored
+                />
+            ),
+        },
+        {
+            id: 'lab_cost',
+            header: t('finance.expenses.lab_total', 'المعامل'),
+            align: 'end',
+            sortable: false,
+            cell: (row) => (
+                <Money
+                    amount={row.lab_cost}
+                    size="sm"
+                    colored
+                />
+            ),
+        },
+        {
+            id: 'rules',
+            header: t('finance.compensation.rule_summary', 'قاعدة الحساب'),
+            sortable: false,
+            width: '140px',
+            cell: (row) => (
+                <div className="space-y-0.5 text-xs">
+                    <span className="font-semibold text-primary block">
+                        {row.commission_percent}% {t('finance.compensation.commission_short', 'عمولة')}
+                    </span>
+                    {row.fixed_salary > 0 && (
+                        <span className="text-[11px] text-text-secondary block font-mono">
+                            + {row.fixed_salary} {t('common.egp', 'ج.م')}
+                        </span>
+                    )}
+                </div>
+            ),
+        },
+        {
+            id: 'total_due',
+            header: t('finance.compensation.total_due', 'المستحق للفترة'),
+            align: 'end',
+            sortable: false,
+            cell: (row) => (
+                <Money
+                    amount={row.total_due}
+                    size="sm"
+                    colored
+                />
+            ),
+        },
+        {
+            id: 'actions',
+            header: t('common.actions', 'إجراءات'),
+            align: 'end',
+            sortable: false,
+            width: '100px',
+            cell: (row) => (
+                <div className="flex items-center justify-end gap-1.5">
+                    {canConfigFinance && (
+                        <button
+                            type="button"
+                            onClick={() => setDoctorToConfigure(row)}
+                            className="p-1.5 rounded-lg text-text-secondary hover:text-primary hover:bg-primary/10 transition-colors"
+                            title={t('finance.compensation.edit_rules', 'تعديل قواعد الأتعاب')}
+                        >
+                            <Settings className="w-4 h-4" />
+                        </button>
+                    )}
+                    <Link
+                        to={`/finance/compensation/doctors/${row.doctor_id}?from=${from}&to=${to}`}
+                        className="p-1.5 rounded-lg text-text-secondary hover:text-primary hover:bg-primary/10 transition-colors"
+                        title={t('common.view_details', 'عرض التفاصيل')}
+                    >
+                        <ArrowUpRight className="w-4 h-4" />
+                    </Link>
+                </div>
+            ),
+        },
+    ];
+
+    // Mobile Card Render
+    const renderMobileCard = (row) => (
+        <div
+            key={row.doctor_id}
+            className="p-4 rounded-xl border border-border bg-card space-y-3 shadow-xs"
+        >
+            <div className="flex items-start justify-between">
+                <div className="space-y-0.5">
+                    <Link
+                        to={`/finance/compensation/doctors/${row.doctor_id}?from=${from}&to=${to}`}
+                        className="text-sm font-bold text-text-primary hover:text-primary transition-colors"
+                    >
+                        {row.doctor_name}
+                    </Link>
+                    <p className="text-[11px] text-text-secondary">
+                        {row.treatments} {t('appointments.treatments_count', 'إجراء')} • {row.commission_percent}% {t('finance.compensation.commission_short', 'عمولة')}
+                    </p>
+                </div>
+                <div className="text-end">
+                    <span className="text-[10px] font-semibold text-text-secondary block">
+                        {t('finance.compensation.total_due', 'المستحق')}
+                    </span>
+                    <Money amount={row.total_due} colored size="sm" />
+                </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/40 text-[11px]">
+                <div>
+                    <span className="text-text-secondary block">{t('finance.metrics.invoiced', 'المحتسب')}</span>
+                    <Money amount={row.revenue} size="xs" />
+                </div>
+                <div>
+                    <span className="text-text-secondary block">{t('finance.metrics.collected', 'المحصل')}</span>
+                    <Money amount={row.collected} colored size="xs" />
+                </div>
+                <div className="text-end">
+                    <span className="text-text-secondary block">{t('finance.expenses.lab_total', 'المعامل')}</span>
+                    <Money amount={row.lab_cost} colored size="xs" />
+                </div>
+            </div>
+
+            <div className="pt-2 border-t border-border/40 flex items-center justify-between">
+                {canConfigFinance ? (
+                    <button
+                        type="button"
+                        onClick={() => setDoctorToConfigure(row)}
+                        className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+                    >
+                        <Settings className="w-3.5 h-3.5" />
+                        <span>{t('finance.compensation.edit_rules', 'تعديل القواعد')}</span>
+                    </button>
+                ) : <span />}
+                <Link
+                    to={`/finance/compensation/doctors/${row.doctor_id}?from=${from}&to=${to}`}
+                    className="text-xs font-bold text-primary hover:underline flex items-center gap-0.5"
+                >
+                    <span>{t('common.details', 'التفاصيل')}</span>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                </Link>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="space-y-6">
+            {/* Top Headline Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <MetricCard
+                    title={t('finance.obligations.doctor_dues', 'إجمالي مستحقات الأطباء')}
+                    amount={totalDoctorDues}
+                    scope="period"
+                    subtitle={t('finance.compensation.dues_sub', 'مجموع العمولات المحتسبة والرواتب لجميع الأطباء')}
+                    icon={UserCheck}
+                    colored
+                    isLoading={isLoading}
+                />
+
+                <MetricCard
+                    title={t('finance.compensation.total_production', 'إنتاجية الأطباء الإجمالية')}
+                    amount={totalDoctorRevenue}
+                    scope="period"
+                    subtitle={t('finance.compensation.production_sub', 'إجمالي قيمة الخدمات العلاجية المنفذة')}
+                    icon={TrendingUp}
+                    isLoading={isLoading}
+                />
+
+                <MetricCard
+                    title={t('finance.compensation.total_collected', 'المحصل منسوباً للأطباء')}
+                    amount={totalDoctorCollected}
+                    scope="period"
+                    subtitle={t('finance.compensation.collected_sub', 'إجمالي الدفعات المحصلة من حالات الأطباء')}
+                    icon={DollarSign}
+                    colored
+                    isLoading={isLoading}
+                />
+            </div>
+
+            {/* Filter Bar & Date Picker */}
+            <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    <DateRangePicker
+                        value={{ from, to }}
+                        onChange={updateDateRange}
+                    />
+                </div>
+
+                <FilterBar
+                    searchValue={search}
+                    onSearchChange={updateSearch}
+                    searchPlaceholder={t('finance.compensation.search_placeholder', 'البحث باسم الطبيب...')}
+                    filters={[]}
+                    activeFilters={{}}
+                    onFilterChange={() => {}}
+                    onClearFilters={() => updateSearch('')}
+                />
+            </div>
+
+            {/* Data Table */}
+            <DataTable
+                columns={columns}
+                data={doctors}
+                keyField="doctor_id"
+                isLoading={isLoading}
+                isError={isError}
+                onRetry={refetch}
+                renderMobileCard={renderMobileCard}
+                emptyMessage={t('finance.compensation.no_doctors', 'لا يوجد أطباء مسجلون في هذه الفترة')}
+            />
+
+            {/* Doctor Settings Drawer */}
+            <DoctorSettingsDrawer
+                doctor={doctorToConfigure}
+                isOpen={Boolean(doctorToConfigure)}
+                onClose={() => setDoctorToConfigure(null)}
+                onSave={async (data) => {
+                    await updateCompensation({
+                        doctorId: doctorToConfigure.doctor_id,
+                        data,
+                    });
+                    setDoctorToConfigure(null);
+                }}
+                isSaving={isUpdating}
+            />
+        </div>
+    );
+}

@@ -1,45 +1,49 @@
-import { useState, useEffect } from 'react';
-import logger from '@/utils/logger';
+import { useState } from 'react';
 import { User, Calendar, Calculator } from 'lucide-react';
 import { getDoctorRevenue } from '@/api';
 import { Button, Card, SkeletonBox, EmptyState, toast, DateTimePicker } from '@/shared/ui';
 import DoctorRevenueDetails from './DoctorRevenueDetails';
 import { useTranslation } from 'react-i18next';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+
 export default function DoctorRevenue() {
     const { t } = useTranslation();
+    const queryClient = useQueryClient();
+
     const today = new Date();
     const oneMonthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate()).toISOString().split('T')[0];
     const currentDay = today.toISOString().split('T')[0];
+
     const [startDate, setStartDate] = useState(oneMonthAgo);
     const [endDate, setEndDate] = useState(currentDay);
-    const [doctors, setDoctors] = useState([]);
-    const [loading, setLoading] = useState(false);
+
     // Modal State
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
     const [selectedDoctorData, setSelectedDoctorData] = useState(null);
-    useEffect(() => {
-        loadData();
-    }, [startDate, endDate]);
-    const loadData = async () => {
-        setLoading(true);
-        try {
+
+    const { data: doctors = [], isLoading: loading, refetch } = useQuery({
+        queryKey: ['doctor_revenue', startDate, endDate],
+        queryFn: async () => {
             const res = await getDoctorRevenue(startDate, endDate);
-            setDoctors((res.data.doctors || []).filter(d => d.doctor_name !== 'غير محدد'));
-        } catch (err) {
-            logger.error(err);
-            toast.error(t('billing.alerts.doctors_load_fail'));
-        } finally {
-            setLoading(false);
+            return (res.data?.doctors || []).filter(d => d.doctor_name !== 'غير محدد');
         }
-    };
+    });
+
     const calculateTotal = (netRevenue, commissionPercent, fixedSalary) => {
         const commissionVal = netRevenue * (commissionPercent / 100);
         return commissionVal + fixedSalary;
     };
+
     const openDetails = (doc) => {
         setSelectedDoctorData(doc);
         setDetailsModalOpen(true);
     };
+
+    const handleDoctorUpdate = (doctorId, commission, salary) => {
+        queryClient.invalidateQueries(['doctor_revenue']);
+        queryClient.invalidateQueries(['billing_dashboard_stats']);
+    };
+
     return (
         <Card className="overflow-hidden">
             <div className="p-6 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface">
@@ -72,7 +76,7 @@ export default function DoctorRevenue() {
                             />
                         </div>
                     </div>
-                    <Button size="sm" onClick={loadData} disabled={loading}>
+                    <Button size="sm" onClick={() => refetch()} disabled={loading}>
                         <Calculator size={14} />
                     </Button>
                 </div>
@@ -101,7 +105,6 @@ export default function DoctorRevenue() {
                                 doctors.map(doc => {
                                     const netRevenue = doc.net_revenue || (doc.revenue - (doc.lab_cost || 0));
                                     const labCost = doc.lab_cost || 0;
-                                    // Use COLLECTED amount for commission base, not total revenue
                                     const commissionBase = (doc.collected || 0) - labCost;
                                     const totalDue = calculateTotal(commissionBase, doc.commission_percent || 0, doc.fixed_salary || 0);
                                     return (
@@ -156,20 +159,14 @@ export default function DoctorRevenue() {
             </div>
             {detailsModalOpen && selectedDoctorData && (
                 <DoctorRevenueDetails
+                    isOpen={detailsModalOpen}
                     doctor={selectedDoctorData}
                     startDate={startDate}
                     endDate={endDate}
                     onClose={() => setDetailsModalOpen(false)}
-                    onUpdate={(doctorId, commission, salary) => {
-                        setDoctors(prev => prev.map(d =>
-                            d.doctor_id === doctorId
-                                ? { ...d, commission_percent: commission, fixed_salary: salary }
-                                : d
-                        ));
-                    }}
+                    onUpdate={handleDoctorUpdate}
                 />
             )}
         </Card>
     );
 }
-
