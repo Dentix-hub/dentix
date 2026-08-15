@@ -1,7 +1,7 @@
 import os
 import sys
+import asyncio
 import logging
-from sqlalchemy import create_engine
 
 # Add project root to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -13,13 +13,15 @@ from backend import database, models
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def init_db():
+
+async def init_db():
     """Initialize the database: create all tables and stamp Alembic head."""
     logger.info("Starting Database Initialization on Supabase...")
 
     try:
-        # 1. Create all tables defined in models
-        models.Base.metadata.create_all(bind=database.engine)
+        # 1. Create all tables defined in models via the async engine
+        async with database.async_engine.begin() as conn:
+            await conn.run_sync(models.Base.metadata.create_all)
         logger.info("Successfully created all tables via Base.metadata.create_all")
 
         # 2. Stamp Alembic to head
@@ -46,4 +48,4 @@ def init_db():
         sys.exit(1)
 
 if __name__ == "__main__":
-    init_db()
+    asyncio.run(init_db())

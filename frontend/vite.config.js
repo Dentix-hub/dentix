@@ -116,6 +116,10 @@ export default defineConfig({
         setupFiles: './src/setupTests.js',
         include: ['src/**/*.test.{js,jsx,ts,tsx}'],
         pool: 'forks',
-        maxWorkers: 1,
+        poolOptions: {
+            forks: {
+                maxForks: 1,
+            },
+        },
     }
 })
