@@ -21,6 +21,7 @@ import os
 # Force SQLite and Test Mode for all backend imports
 os.environ["DATABASE_URL"] = "sqlite:///file:testdb?mode=memory&cache=shared&uri=true"
 os.environ["ENVIRONMENT"] = "testing"
+os.environ.setdefault("SECRET_KEY", "test-secret-key-for-ci-only-at-least-32")
 
 # Mock RLS registration for SQLite test environment to prevent syntax errors
 try:

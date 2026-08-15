@@ -45,14 +45,14 @@ jobs:
         working-directory: .
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
-          SECRET_KEY: test-secret-key-for-ci-only
+          SECRET_KEY: test-secret-key-for-ci-only-at-least-32
           PYTHONPATH: .
         run: python backend/scripts/init_db.py
 
       - name: Run tests with coverage
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
-          SECRET_KEY: test-secret-key-for-ci-only
+          SECRET_KEY: test-secret-key-for-ci-only-at-least-32
           ENVIRONMENT: test
           PYTHONPATH: .
         run: |
