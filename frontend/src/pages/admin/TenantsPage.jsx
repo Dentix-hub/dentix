@@ -5,7 +5,7 @@ import { toast } from '@/shared/ui';
 import { Building2, X, Key } from 'lucide-react';
 import TenantsManager from '@/features/admin/SuperAdmin/TenantsManager';
 import TenantDetailPanel from '@/features/admin/SuperAdmin/TenantDetailPanel';
-import { getToken, getAdminToken, setAdminToken, removeAdminToken } from '@/utils';
+import { getAdminToken, setAdminToken } from '@/utils';
 
 export default function TenantsPage() {
     const [tenants, setTenants] = useState([]);
@@ -49,11 +49,8 @@ export default function TenantsPage() {
                 ? `/api/v1/admin/tenants/${tenantId}/impersonate?user_id=${userId}`
                 : `/api/v1/admin/tenants/${tenantId}/impersonate`;
 
-            const res = await api.post(url);
-            const { access_token } = res.data;
+            await api.post(url);
 
-            // Save original admin token to return later (stored in sessionStorage for impersonation only)
-            const currentToken = getToken(); // Returns null with httpOnly cookies
             // Admin token is stored in sessionStorage for this special case
             const existingAdminToken = getAdminToken();
             if (!existingAdminToken) {

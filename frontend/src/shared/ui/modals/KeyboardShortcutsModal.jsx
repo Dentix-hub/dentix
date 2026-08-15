@@ -1,7 +1,6 @@
-import React from 'react';
 import Modal from '../Modal';
 import { useTranslation } from 'react-i18next';
-import { Command, Search, Calendar, Users, X, ArrowUp, ArrowDown, ArrowRight } from 'lucide-react';
+import { ArrowUp, ArrowDown } from 'lucide-react';
 
 const ShortcutItem = ({ keys, description }) => (
     <div className="flex items-center justify-between py-3 border-b border-border/50 last:border-0">
@@ -31,7 +30,7 @@ const KeyboardShortcutsModal = ({ isOpen, onClose }) => {
         {
             title: t('shortcuts.navigation', 'Navigation'),
             items: [
-                { keys: [<ArrowUp size={12} />, <ArrowDown size={12} />], description: t('shortcuts.navigate_results', 'Navigate Results') },
+                { keys: [<ArrowUp key="up" size={12} />, <ArrowDown key="down" size={12} />], description: t('shortcuts.navigate_results', 'Navigate Results') },
                 { keys: ['↵'], description: t('shortcuts.select_item', 'Select Item') }
             ]
         }

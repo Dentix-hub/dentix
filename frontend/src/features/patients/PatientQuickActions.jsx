@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Users, UserPlus, Activity, Home } from 'lucide-react';
 import { Button, SkeletonBox, PageHeader } from '@/shared/ui';

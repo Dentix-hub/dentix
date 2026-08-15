@@ -1,12 +1,30 @@
 import { useEffect, Suspense, lazy, useCallback, useState } from 'react';
 import logger from '@/utils/logger';
-import { AnimatePresence } from 'framer-motion';
 import { motion } from '@/lib/motion';
 import { useLocation, Link, useNavigate, Outlet } from 'react-router-dom';
 import {
-    Home, Users, Banknote, Calendar, Menu, Settings as SettingsIcon, Package, LineChart, Globe,
-    LogOut, Shield, Sun, Moon, FlaskConical, Brain, HelpCircle, AlertTriangle, Building2, ChevronRight, ChevronLeft,
-    UserCog, BarChart3, Users2, User
+    Home,
+    Banknote,
+    Calendar,
+    Menu,
+    Settings as SettingsIcon,
+    Package,
+    LineChart,
+    Globe,
+    LogOut,
+    Shield,
+    Sun,
+    Moon,
+    FlaskConical,
+    Brain,
+    HelpCircle,
+    AlertTriangle,
+    Building2,
+    ChevronRight,
+    ChevronLeft,
+    UserCog,
+    Users2,
+    User
 } from 'lucide-react';
 
 import { useTranslation } from 'react-i18next';
@@ -38,7 +56,7 @@ const Layout = () => {
     const navigate = useNavigate();
     const { t, i18n } = useTranslation();
     const { sidebarOpen, setSidebarOpen, darkMode: isDarkMode, toggleDarkMode } = useUIStore();
-    const { tenant, hasFeature } = useTenantStore();
+    const { tenant } = useTenantStore();
     const { user: currentUser, logout } = useAuth();
     
     useEffect(() => {

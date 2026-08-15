@@ -7,7 +7,7 @@ export function SmartMaterialRow({
     stockInfo,
     onChange,
     onRemove,
-    patientId,
+    patientId: _patientId,
     onRefresh
 }) {
     const [isDisposing, setIsDisposing] = useState(false);
@@ -47,7 +47,7 @@ export function SmartMaterialRow({
         if (stockInfo.available < material.quantity * 2) return 'low';
         return 'ok';
     }, [stockInfo, material.quantity]);
-    const StockStatusBadge = ({ status, stockInfo }) => {
+    const StockStatusBadge = ({ status, stockInfo: _stockInfo }) => {
         switch (status) {
             case 'session_active':
                 return <Badge variant="success" className="bg-green-100 text-green-700">✓ جلسة مفتوحة</Badge>;

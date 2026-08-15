@@ -3,14 +3,6 @@ import { memo } from 'react';
  * Skeleton Loading Components
  * Use these for better perceived performance while data loads
  */
-// Shimmer animation style
-const shimmerStyle = {
-    backgroundImage: 'linear-gradient(90deg, #f0f0f0 0%, #e0e0e0 50%, #f0f0f0 100%)',
-    backgroundSize: '200% 100%',
-    animation: 'shimmer 1.5s infinite',
-};
-// Add this to your CSS:
-// @keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
 export const SkeletonBox = memo(function SkeletonBox({
     className = '',
     width = '100%',

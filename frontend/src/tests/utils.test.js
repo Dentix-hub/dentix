@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { parseJwt, getToken, getRefreshToken, setToken, removeToken, getAdminToken, setAdminToken, removeAdminToken, logout } from '../utils';
+import { parseJwt, getToken, getRefreshToken, setToken, removeToken, getAdminToken, setAdminToken, removeAdminToken } from '../utils';
 
 describe('utils', () => {
     beforeEach(() => {

@@ -3,7 +3,7 @@ import { Printer, Trash2 } from 'lucide-react';
 import { fdiToPalmer } from '@/utils/toothUtils';
 import { useTranslation } from 'react-i18next';
 const PatientBilling = ({
-    patientId,
+    _patientId,
     history,
     payments,
     onAddPayment,

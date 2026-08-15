@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { login as apiLogin, registerClinic, getSessionSilent, api } from '@/api';
-import { parseJwt, logout as apiLogout } from '@/utils';
+import { logout as apiLogout } from '@/utils';
 import { logger } from '@/utils/logger';
 import AuthContext from './useAuth';
 import { useTenantStore } from '@/store/tenant.store';

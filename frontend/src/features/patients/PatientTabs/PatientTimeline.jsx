@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { motion } from '@/lib/motion';
-import { Calendar, CreditCard, CheckCircle2, Clock } from 'lucide-react';
+import { CreditCard, CheckCircle2, Clock } from 'lucide-react';
 
 const PatientTimeline = ({ history = [], payments = [], t }) => {
     // Merge and sort events

@@ -71,9 +71,7 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
     };
     if (!isOpen) return null;
     const isOpenMode = mode === 'OPEN';
-    const displayMaterialName = material?.name || material?.material_name || stockItem?.name || stockItem?.material_name || session?.stock_item?.batch?.material?.name || session?.stock_item?.material?.name;
-    const unit = material?.unit || session?.stock_item?.batch?.material?.base_unit || session?.stock_item?.material?.base_unit || 'Units';
-    return (
+    const displayMaterialName = material?.name || material?.material_name || stockItem?.name || stockItem?.material_name || session?.stock_item?.batch?.material?.name || session?.stock_item?.material?.name;    return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
             <div className="bg-surface w-full max-w-md rounded-2xl shadow-xl border border-border overflow-hidden">
                 <div className={`p-6 border-b border-border flex justify-between items-center ${isOpenMode ? 'bg-green-500/10' : 'bg-red-500/10'}`}>

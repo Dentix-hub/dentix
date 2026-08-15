@@ -5,7 +5,7 @@ import PaymentsManager from '@/features/admin/SuperAdmin/PaymentsManager';
 import PlansManager from '@/features/admin/SuperAdmin/PlansManager';
 import ActiveSubscriptions from '@/features/admin/SuperAdmin/ActiveSubscriptions';
 import FinanceReports from '@/features/admin/SuperAdmin/FinanceReports';
-import { CreditCard, PlusCircle, X, Banknote, Landmark, User, Calendar, FileText } from 'lucide-react';
+import { CreditCard, PlusCircle, X, Banknote, Landmark, User, Calendar } from 'lucide-react';
 import { DateTimePicker, toast } from '@/shared/ui';
 
 export default function FinancePage() {

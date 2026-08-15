@@ -71,7 +71,7 @@ export default function Privacy() {
                         </div>
                     </Section>
 
-                    <Section title={t('static.privacy.sections.2.title')} icon={props => <Shield className="text-primary w-6 h-6" />}>
+                    <Section title={t('static.privacy.sections.2.title')} icon={_props => <Shield className="text-primary w-6 h-6" />}>
                         <p>{t('static.privacy.sections.2.intro')}</p>
                         <ul className="list-disc list-inside mt-2 space-y-1">
                             {(t('static.privacy.sections.2.items', { returnObjects: true }) || []).map((item, i) => (

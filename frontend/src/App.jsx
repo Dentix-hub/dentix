@@ -35,7 +35,6 @@ const PrintInvoice = lazy(() => import('./pages/PrintInvoice'));
 const PrintRx = lazy(() => import('./pages/PrintRx'));
 const RegisterClinic = lazy(() => import('./pages/RegisterClinic'));
 const AIStatsPage = lazy(() => import('./pages/admin/AIStatsPage'));
-const AIAdminDashboard = lazy(() => import('@/features/admin/SuperAdmin/AIAdminDashboard'));
 const Support = lazy(() => import('./pages/Support'));
 const UserProfile = lazy(() => import('./pages/UserProfile'));
 const Terms = lazy(() => import('./pages/Terms'));

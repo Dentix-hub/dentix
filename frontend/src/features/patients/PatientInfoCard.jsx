@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Edit2, FileText, Plus, User as UserIcon, Phone, MapPin } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getPriceList } from '@/api';

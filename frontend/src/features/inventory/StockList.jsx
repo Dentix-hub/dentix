@@ -1,7 +1,15 @@
 import { useState, useMemo } from 'react';
 import logger from '@/utils/logger';
 import {
-    Search, Plus, Package, ArrowDownLeft, Brain, Play, Square, AlertCircle, Trash2, Edit
+    Search,
+    Plus,
+    Package,
+    ArrowDownLeft,
+    Brain,
+    Play,
+    Square,
+    Trash2,
+    Edit
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getStockSummary, getActiveSessions, deleteMaterial } from '@/api/inventory';

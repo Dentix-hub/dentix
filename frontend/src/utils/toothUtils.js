@@ -9,9 +9,6 @@ const PEDIATRIC_LETTER_TO_NUMBER = {
     'P': 81, 'Q': 82, 'R': 83, 'S': 84, 'T': 85   // Lower Right
 };
 
-const PEDIATRIC_NUMBER_TO_LETTER = Object.fromEntries(
-    Object.entries(PEDIATRIC_LETTER_TO_NUMBER).map(([k, v]) => [v, k])
-);
 
 export const toothToNumber = (toothId) => {
     if (typeof toothId === 'string' && /^[A-T]$/.test(toothId)) {
@@ -71,7 +68,7 @@ export const fdiToPalmer = (fdi) => {
     return pedMap[n] || n.toString();
 };
 
-export const toothToDisplay = (toothNumber, isPediatric) => {
+export const toothToDisplay = (toothNumber, _isPediatric) => {
     // We now prefer Palmer notation for display as requested
     return fdiToPalmer(toothNumber);
 };

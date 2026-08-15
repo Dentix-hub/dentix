@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { getSuggestedMaterials, getCategoryMaterials } from '@/api/inventory';
+import { getSuggestedMaterials } from '@/api/inventory';
 import { Package, Droplets, AlertCircle, CheckCircle2, Minus, Plus, Edit3 } from 'lucide-react';
-import { toast } from '@/shared/ui';
 
 /**
  * MaterialConsumptionPanel

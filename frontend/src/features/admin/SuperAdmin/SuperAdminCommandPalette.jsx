@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
-import { Search, Building2, Users, CreditCard, Terminal, Cpu, ArrowRight, Command, User } from 'lucide-react';
+import { Search, Building2, Users, CreditCard, Terminal, Cpu, ArrowRight, User } from 'lucide-react';
 import { api } from '@/api';
 import { useNavigate } from 'react-router-dom';
 

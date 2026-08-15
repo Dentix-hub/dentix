@@ -1,5 +1,4 @@
-import React from 'react';
-import { Edit3, Clock, PlusCircle, Trash2, Key } from 'lucide-react';
+import { Edit3, Clock, Trash2, Key } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const TenantsManager = ({ 

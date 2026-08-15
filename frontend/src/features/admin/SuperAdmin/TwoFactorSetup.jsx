@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { api } from '@/api';
 import { Shield, Smartphone, Check, X, Copy, AlertCircle } from 'lucide-react';
 import { toast } from '@/shared/ui';

@@ -1,8 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
-import { motion } from '@/lib/motion';
 import { 
     DndContext, 
     DragOverlay, 
@@ -12,15 +10,14 @@ import {
     useSensor, 
     useSensors
 } from '@dnd-kit/core';
-import { 
-    arrayMove, 
-    SortableContext, 
-    sortableKeyboardCoordinates, 
+import {
+    SortableContext,
+    sortableKeyboardCoordinates,
     verticalListSortingStrategy,
-    useSortable 
+    useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Calendar, Clock, Plus, User, CheckCircle, XCircle, Trash2, LayoutGrid, List as ListIcon, Home, GripVertical } from 'lucide-react';
+import { Calendar, Clock, Plus, User, CheckCircle, XCircle, Trash2, LayoutGrid, List as ListIcon, Home } from 'lucide-react';
 import { createAppointment, deleteAppointment, updateAppointmentStatus } from '@/api';
 import { useAppointments, useUpdateAppointmentStatus, useUpdateAppointment } from '@/hooks/useAppointments';
 import { usePatients, useCreatePatient } from '@/hooks/usePatients';

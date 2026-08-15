@@ -1,14 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/api';
-import { 
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-    PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, LazyChart
+import {
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    PieChart,
+    Pie,
+    Cell,
+    AreaChart,
+    Area,
+    LazyChart
 } from '@/components/charts/LazyChart';
-import { 
-    TrendingUp, AlertTriangle, PieChart as PieIcon, FileText, 
-    Download, Calendar, Filter, DollarSign, Users, ChevronRight
+import {
+    TrendingUp,
+    AlertTriangle,
+    PieChart as PieIcon,
+    Download,
+    Users
 } from 'lucide-react';
 import { toast } from '@/shared/ui';
 

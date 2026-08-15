@@ -2,14 +2,21 @@ import { useState, useEffect } from 'react';
 import logger from '@/utils/logger';
 import { api } from '@/api';
 import {
-    Activity, CheckCircle, XCircle, Clock,
-    MessageSquare, AlertTriangle, Search, Filter, Eye,
-    Brain, Settings, BarChart2, Shield, FileText, ChevronRight, ChevronLeft
+    Activity,
+    CheckCircle,
+    XCircle,
+    Clock,
+    MessageSquare,
+    AlertTriangle,
+    Search,
+    Filter,
+    Brain,
+    BarChart2,
+    Shield,
+    FileText,
+    ChevronRight,
+    ChevronLeft
 } from 'lucide-react';
-import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-    PieChart, Pie, Cell, LazyChart
-} from '@/components/charts/LazyChart';
 // --- Components ---
 // 1. Overview Tab
 const OverviewTab = ({ stats, costs, suggestions }) => {

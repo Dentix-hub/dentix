@@ -150,8 +150,7 @@ api.interceptors.response.use(
             if (originalRequest._silentAuth) {
                 return Promise.reject(error);
             }
-            const debugMsg = error.response?.data?.detail || "Unknown Auth Error";
-
+            
             if (isRefreshing) {
                 return new Promise(function (resolve, reject) {
                     failedQueue.push({ resolve, reject });

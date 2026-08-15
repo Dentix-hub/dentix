@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import logger from '@/utils/logger';
-import { User, Activity, Calendar, Search, RotateCcw, Filter, Download, ChevronRight, ChevronLeft, Eye, X } from 'lucide-react';
+import { User, Activity, Search, RotateCcw, Download, ChevronRight, ChevronLeft, Eye, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { DateTimePicker } from '@/shared/ui';
 import { api } from '@/api';

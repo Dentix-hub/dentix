@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import logger from '@/utils/logger';
 import { api } from '@/api';
-import { Activity, Server, Clock, CheckCircle, Play } from 'lucide-react';
+import { Activity, Server, Clock, CheckCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@/shared/ui';
 

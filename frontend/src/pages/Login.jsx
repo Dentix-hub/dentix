@@ -3,11 +3,9 @@ import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
-import { Sun, Moon, Globe, Activity, Loader2 } from 'lucide-react';
+import { Sun, Moon, Globe, Loader2 } from 'lucide-react';
 export default function Login({ isDarkMode, toggleDarkMode }) {
-    const { t, i18n } = useTranslation();
-    const [logoError, setLogoError] = useState(false);
-    const [username, setUsername] = useState('');
+    const { t, i18n } = useTranslation();    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);

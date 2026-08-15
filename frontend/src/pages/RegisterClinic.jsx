@@ -5,7 +5,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { registerClinic } from '../api';
 import { Building2, User, Lock, AlertCircle, Phone } from 'lucide-react';
 
-const RegisterClinic = ({ isDarkMode }) => {
+const RegisterClinic = ({ isDarkMode: _isDarkMode }) => {
     const { t } = useTranslation();
     const [formData, setFormData] = useState({
         clinic_name: '',

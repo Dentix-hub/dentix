@@ -31,7 +31,7 @@ export function getRefreshToken() {
     return null;
 }
 
-export function setToken(token, refreshToken = null) {
+export function setToken(token, __refreshToken = null) {
     // Main auth tokens are set via httpOnly cookies by the backend on login/refresh.
     // The login response returns tokens in the body for immediate use (e.g., parseJwt),
     // but persistent storage is cookie-based.

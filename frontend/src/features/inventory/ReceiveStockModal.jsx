@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, ArrowDownLeft, Calendar, Plus } from 'lucide-react';
+import { X, ArrowDownLeft, Plus } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getMaterials, getWarehouses, receiveStock } from '@/api/inventory';
 import { toast, DateTimePicker } from '@/shared/ui';
@@ -24,9 +24,7 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
             return Array.isArray(res.data?.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
         }
     });
-    // Helper to get today's date in YYYY-MM-DD format
-    const getToday = () => new Date().toISOString().split('T')[0];
-    const [formData, setFormData] = useState({
+        const [formData, setFormData] = useState({
         material_id: '',
         warehouse_id: '',
         quantity: 1,

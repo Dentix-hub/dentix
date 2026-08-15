@@ -1,4 +1,4 @@
-import React, { useState, useCallback, memo, Suspense, lazy, useEffect } from 'react';
+import { useState, useCallback, memo, Suspense, lazy } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import DentalChartSVG from '@/features/dental/DentalChartSVG';
 import PatientInfoCard from '@/features/patients/PatientInfoCard';
@@ -17,7 +17,6 @@ import {
     usePatientTreatments,
     usePatientPayments,
     usePatientAttachments,
-    useInvalidatePatientData,
     useCreatePayment,
     useDeletePayment
 } from '@/hooks/usePatientDetails';
@@ -88,11 +87,11 @@ export default function PatientDetails() {
     // Teeth data - loads for chart tab (default)
     const { data: teethStatus = {}, isLoading: teethLoading, refetch: refetchTeeth } = usePatientTeeth(id, true);
     // Tab-specific data - only loads when tab is active
-    const { data: history = [], isLoading: historyLoading, refetch: refetchHistory } = usePatientTreatments(
+    const { data: history = [], refetch: refetchHistory } = usePatientTreatments(
         id,
         activeTab === 'history' || activeTab === 'billing' || activeTab === 'timeline' // Also needed for timeline
     );
-    const { data: payments = [], isLoading: paymentsLoading, refetch: refetchPayments } = usePatientPayments(
+    const { data: payments = [] } = usePatientPayments(
         id,
         activeTab === 'billing' || activeTab === 'timeline' // Also needed for timeline
     );
@@ -102,7 +101,7 @@ export default function PatientDetails() {
     );
 
     // Local state for teeth (to allow optimistic updates)
-    const [localTeethStatus, setLocalTeethStatus] = useState(null);
+    const [localTeethStatus] = useState(null);
     const effectiveTeethStatus = localTeethStatus ?? teethStatus;
 
     // Modals

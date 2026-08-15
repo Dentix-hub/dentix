@@ -9,7 +9,6 @@ export default function Expenses() {
     const { t } = useTranslation();
     const [expenses, setExpenses] = useState([]);
     const [stats, setStats] = useState({ total_received: 0, total_expenses: 0, net_profit: 0 });
-    const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     // Form
     const [newItem, setNewItem] = useState({ item_name: '', cost: '', category: 'General', date: getTodayStr(), notes: '' });
@@ -18,7 +17,6 @@ export default function Expenses() {
     }, []);
     const loadData = async () => {
         try {
-            setLoading(true);
             const [eRes, sRes] = await Promise.all([
                 getExpenses(),
                 getFinancialStats()
@@ -27,8 +25,6 @@ export default function Expenses() {
             setStats(sRes.data);
         } catch (err) {
             logger.error(err);
-        } finally {
-            setLoading(false);
         }
     };
     const handleCreate = async () => {

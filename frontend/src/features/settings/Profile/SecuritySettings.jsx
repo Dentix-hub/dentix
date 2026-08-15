@@ -8,9 +8,7 @@ export default function SecuritySettings() {
     const [user, setUser] = useState(null);
     // 2FA Flow
     const [show2FAModal, setShow2FAModal] = useState(false);
-    const [secret, setSecret] = useState('');
-    const [otpUrl, setOtpUrl] = useState('');
-    const [verificationCode, setVerificationCode] = useState('');
+    const [secret, setSecret] = useState('');    const [verificationCode, setVerificationCode] = useState('');
     useEffect(() => {
         fetchSecurityData();
     }, []);
@@ -41,9 +39,7 @@ export default function SecuritySettings() {
     const start2FASetup = async () => {
         try {
             const res = await api.post('/api/v1/auth/2fa/setup');
-            setSecret(res.data.secret);
-            setOtpUrl(res.data.otpauth_url);
-            setShow2FAModal(true);
+            setSecret(res.data.secret);            setShow2FAModal(true);
         } catch (error) {
             alert("فشل بدء إعداد المصادقة الثنائية");
         }

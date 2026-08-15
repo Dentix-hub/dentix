@@ -9,7 +9,7 @@ import { Plus, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 import { cn } from '@/utils/cn';
 export function EnhancedMaterialConsumption({
     procedure,
-    patientAge,
+    patientAge: _patientAge,
     availableMaterials = [],
     initialMaterials = [], // [{ material_id, quantity, unit }]
     mode = 'smart', // 'smart' | 'manual'
@@ -139,7 +139,6 @@ export function EnhancedMaterialConsumption({
             materialId: check.material_id
         }));
     }, [stockCheckData]);
-    const hasCritical = warnings.some(w => w.type === 'critical');
 
     const availableMaterialsList = useMemo(() => {
         if (!Array.isArray(availableMaterials)) return [];

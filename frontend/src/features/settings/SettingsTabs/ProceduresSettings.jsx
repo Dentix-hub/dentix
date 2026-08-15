@@ -6,7 +6,6 @@ import { Package, X, Search, Plus, Edit2, Trash2 } from 'lucide-react';
 const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
     const [materials, setMaterials] = useState([]);
     const [weights, setWeights] = useState([]);
-    const [loading, setLoading] = useState(false);
     // Form state
     const [selectedMaterial, setSelectedMaterial] = useState('');
     const [amount, setAmount] = useState(1);
@@ -16,7 +15,6 @@ const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
         }
     }, [isOpen, procedure]);
     const loadData = async () => {
-        setLoading(true);
         try {
             const [matRes, weightRes] = await Promise.all([
                 getMaterials(),
@@ -26,8 +24,6 @@ const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
             setWeights(weightRes.data);
         } catch (err) {
             logger.error("Failed to load inventory data", err);
-        } finally {
-            setLoading(false);
         }
     };
     const handleAdd = async () => {

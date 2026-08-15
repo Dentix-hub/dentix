@@ -1,4 +1,3 @@
-import React from 'react';
 import { Send, Bell, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 

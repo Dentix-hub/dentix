@@ -5,8 +5,8 @@ import { Users, LayoutDashboard, Receipt, Briefcase, TrendingDown, Home } from '
 import DoctorRevenue from '@/features/billing/DoctorRevenue';
 import { getFinancialStats, getAllPayments, getExpenses, createExpense, deleteExpense, getStaffRevenue, updateStaffCompensation, getComprehensiveStats, getSalariesStatus, recordSalaryPayment, deleteSalaryPayment, updateHireDate, getLabOrders, getPatients } from '@/api';
 import { getTodayStr } from '@/utils/toothUtils';
-import { Card, Button, DataTable, SkeletonBox, PageHeader, TabGroup, toast } from '@/shared/ui';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { SkeletonBox, PageHeader, TabGroup, toast } from '@/shared/ui';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 // Import extracted components
 import ExpensesTab from '@/features/billing/BillingTabs/ExpensesTab';
 import ExpenseModal from '@/features/billing/BillingTabs/ExpenseModal';

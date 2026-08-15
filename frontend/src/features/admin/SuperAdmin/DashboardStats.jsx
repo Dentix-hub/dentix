@@ -1,5 +1,4 @@
-import React from 'react';
-import { Building2, TrendingUp, AlertCircle, DollarSign, Users, Activity } from 'lucide-react';
+import { Building2, TrendingUp, AlertCircle, DollarSign } from 'lucide-react';
 import StatCard from '@/shared/ui/StatCard';
 import { useTranslation } from 'react-i18next';
 

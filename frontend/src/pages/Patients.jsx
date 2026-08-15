@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { deletePatient } from '@/api';
 import { usePatients } from '@/hooks/usePatients';

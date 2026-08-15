@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import logger from '@/utils/logger';
 import { api } from '@/api';
-import { ToggleLeft, ToggleRight, Settings, Plus, X, Building2 } from 'lucide-react';
+import { ToggleLeft, ToggleRight, Settings, Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 export default function FeatureManager({ tenants }) {

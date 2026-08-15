@@ -1,4 +1,3 @@
-import React from 'react';
 import AIAdminDashboard from '@/features/admin/SuperAdmin/AIAdminDashboard';
 
 export default function AIStatsPage() {

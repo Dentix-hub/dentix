@@ -1,10 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-    getDashboardStats,
-    getAppointments,
-    getTodayPayments,
-    getTodayDebtors
-} from '@/api';
+import { getDashboardStats, getTodayPayments, getTodayDebtors } from '@/api';
 import { queryKeys } from '@/lib/queryClient';
 
 /**

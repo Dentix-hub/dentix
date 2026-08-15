@@ -1,8 +1,13 @@
 import { useState, useMemo, memo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    Users, Calendar, Activity, Clock,
-    TrendingUp, Wallet, Stethoscope, ChevronLeft, Home
+    Users,
+    Calendar,
+    Activity,
+    TrendingUp,
+    Wallet,
+    ChevronLeft,
+    Home
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {

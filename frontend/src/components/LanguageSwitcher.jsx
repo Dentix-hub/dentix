@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/shared/ui';
 import { Globe } from 'lucide-react';
 const LanguageSwitcher = () => {
-    const { t, i18n } = useTranslation();
+    const { i18n } = useTranslation();
     // Effect to update document direction when language changes
     useEffect(() => {
         document.documentElement.dir = i18n.language === 'ar' ? 'rtl' : 'ltr';

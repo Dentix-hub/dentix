@@ -1,9 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import logger from '@/utils/logger';
 import { api } from '@/api';
-import { 
-    Monitor, Globe, Clock, Shield, LogOut, Search, 
-    RefreshCw, Filter, MoreVertical, Smartphone, Laptop
+import {
+    Monitor,
+    LogOut,
+    Search,
+    RefreshCw,
+    Smartphone,
+    Laptop
 } from 'lucide-react';
 import { toast } from '@/shared/ui';
 

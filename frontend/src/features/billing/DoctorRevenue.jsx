@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import logger from '@/utils/logger';
-import { useNavigate } from 'react-router-dom';
 import { User, Calendar, Calculator } from 'lucide-react';
-import { getDoctorRevenue, getDoctorDetails, updateStaffCompensation } from '@/api';
+import { getDoctorRevenue } from '@/api';
 import { Button, Card, SkeletonBox, EmptyState, toast, DateTimePicker } from '@/shared/ui';
 import DoctorRevenueDetails from './DoctorRevenueDetails';
 import { useTranslation } from 'react-i18next';
 export default function DoctorRevenue() {
     const { t } = useTranslation();
-    const navigate = useNavigate();
     const today = new Date();
     const oneMonthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate()).toISOString().split('T')[0];
     const currentDay = today.toISOString().split('T')[0];
@@ -18,14 +16,7 @@ export default function DoctorRevenue() {
     const [loading, setLoading] = useState(false);
     // Modal State
     const [detailsModalOpen, setDetailsModalOpen] = useState(false);
-    const [activeModalTab, setActiveModalTab] = useState('treatments');
-    const [doctorDetails, setDoctorDetails] = useState(null);
-    const [detailsLoading, setDetailsLoading] = useState(false);
     const [selectedDoctorData, setSelectedDoctorData] = useState(null);
-    // Editable compensation
-    const [editCommission, setEditCommission] = useState(0);
-    const [editSalary, setEditSalary] = useState(0);
-    const [saving, setSaving] = useState(false);
     useEffect(() => {
         loadData();
     }, [startDate, endDate]);
@@ -45,42 +36,9 @@ export default function DoctorRevenue() {
         const commissionVal = netRevenue * (commissionPercent / 100);
         return commissionVal + fixedSalary;
     };
-    const openDetails = async (doc) => {
+    const openDetails = (doc) => {
         setSelectedDoctorData(doc);
-        setEditCommission(doc.commission_percent || 0);
-        setEditSalary(doc.fixed_salary || 0);
-        setActiveModalTab('treatments');
         setDetailsModalOpen(true);
-        setDetailsLoading(true);
-        try {
-            const res = await getDoctorDetails(doc.doctor_id, startDate, endDate);
-            setDoctorDetails(res.data);
-        } catch (err) {
-            logger.error(err);
-            toast.error(t('billing.alerts.doctor_details_load_fail'));
-        } finally {
-            setDetailsLoading(false);
-        }
-    };
-    const saveCompensation = async () => {
-        if (!selectedDoctorData) return;
-        setSaving(true);
-        const toastId = toast.loading(t('billing.alerts.saving'));
-        try {
-            await updateStaffCompensation(selectedDoctorData.doctor_id, editCommission, editSalary);
-            setDoctors(prev => prev.map(d =>
-                d.doctor_id === selectedDoctorData.doctor_id
-                    ? { ...d, commission_percent: editCommission, fixed_salary: editSalary }
-                    : d
-            ));
-            setDetailsModalOpen(false);
-            toast.success(t('billing.alerts.save_success'), { id: toastId });
-        } catch (err) {
-            logger.error(err);
-            toast.error(t('billing.alerts.save_fail'), { id: toastId });
-        } finally {
-            setSaving(false);
-        }
     };
     return (
         <Card className="overflow-hidden">

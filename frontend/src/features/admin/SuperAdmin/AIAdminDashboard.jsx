@@ -1,17 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import logger from '@/utils/logger';
-import { 
-    Cpu, Activity, DollarSign, Users, ShieldCheck, 
-    BarChart3, Clock, AlertCircle, Sparkles, Filter, 
-    ArrowUpRight, ArrowDownRight, Terminal, Database
+import {
+    Cpu,
+    Activity,
+    DollarSign,
+    Users,
+    ShieldCheck,
+    BarChart3,
+    Clock,
+    AlertCircle,
+    ArrowUpRight,
+    Terminal,
+    Database
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/api';
-import { 
-    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area, LazyChart
+import {
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    BarChart,
+    Bar,
+    AreaChart,
+    Area,
+    LazyChart
 } from '@/components/charts/LazyChart';
-import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 
 export default function AIAdminDashboard() {
     const { t, i18n } = useTranslation();

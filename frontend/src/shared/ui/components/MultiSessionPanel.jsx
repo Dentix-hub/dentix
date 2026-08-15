@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Plus, Calendar, User, FileText, CheckCircle2, Clock } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Calendar, CheckCircle2, Clock } from 'lucide-react';
 import Button from '../Button';
 import { DateTimePicker } from '../index';
 import { format } from 'date-fns';

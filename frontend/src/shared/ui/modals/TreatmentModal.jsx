@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Package, Plus, Trash2, Clock, FileText, Droplets } from 'lucide-react';
-import { getMaterials, getStockSummary, getProcedureWeights, getActiveSessions } from '@/api/inventory';
+import { X, Package, Plus, Trash2, Droplets } from 'lucide-react';
+import { getMaterials, getStockSummary, getActiveSessions } from '@/api/inventory';
 import { palmerToFdi } from '@/utils/toothUtils';
 import TrackSessionModal from '@/features/inventory/components/TrackSessionModal';
 import { EnhancedMaterialConsumption } from '@/features/inventory/components/EnhancedMaterialConsumption';
@@ -34,22 +34,21 @@ export default function TreatmentModal({
     const [availableMaterials, setAvailableMaterials] = useState([]);
     const [isMaterialsLoading, setIsMaterialsLoading] = useState(false);
     const [consumedMaterials, setConsumedMaterials] = useState([]); // [{ material_id, quantity }]
-    const [showInventory, setShowInventory] = useState(false);
+    const [, setShowInventory] = useState(false);
     const [isSmartConsumptionOpen, setIsSmartConsumptionOpen] = useState(false);
     const [smartConsumptionMode, setSmartConsumptionMode] = useState('smart');
     // Fetch Active Sessions to show status
-    const { data: activeSessionsRes, refetch: refetchSessions } = useQuery({
+    const { refetch: refetchSessions } = useQuery({
         queryKey: ['active-sessions'],
         queryFn: getActiveSessions,
         enabled: isOpen
     });
-    const activeSessions = activeSessionsRes?.data || [];
     // Session Tracking State
     const [isTrackSessionOpen, setIsTrackSessionOpen] = useState(false);
     const [trackSessionMode, setTrackSessionMode] = useState('OPEN');
     const [trackSessionMaterial, setTrackSessionMaterial] = useState(null);
     const [trackSessionStockItem, setTrackSessionStockItem] = useState(null);
-    const [trackSessionData, setTrackSessionData] = useState(null);
+    const [trackSessionData] = useState(null);
     // Fetch Materials on Mount
     useEffect(() => {
         if (isOpen) {

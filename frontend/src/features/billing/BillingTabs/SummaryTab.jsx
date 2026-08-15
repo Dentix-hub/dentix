@@ -1,8 +1,17 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-    TrendingUp, Banknote, DollarSign, Calendar, Search, Filter,
-    ChevronLeft, ChevronRight, X, Phone, Clock, FileText, Landmark
+    TrendingUp,
+    Banknote,
+    DollarSign,
+    Calendar,
+    ChevronLeft,
+    ChevronRight,
+    X,
+    Phone,
+    Clock,
+    FileText,
+    Landmark
 } from 'lucide-react';
 import { Button, Card, StatCard, DateTimePicker, PatientSelect, Modal } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
@@ -14,7 +23,7 @@ const SummaryTab = ({
     endDate,
     setEndDate,
     comprehensiveStats,
-    loading,
+    _loading,
     patients = [],
     selectedPatientId,
     setSelectedPatientId

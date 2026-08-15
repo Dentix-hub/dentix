@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from '@/lib/motion';
 
 export default function TabGroup({ tabs, activeTab, onChange, variant = 'pill', className = '' }) {

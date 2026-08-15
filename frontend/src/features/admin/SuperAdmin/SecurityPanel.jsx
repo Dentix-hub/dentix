@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import logger from '@/utils/logger';
 import { api } from '@/api';
-import { Shield, Lock, Unlock, AlertTriangle, CheckCircle, Search, Ban, History, Globe } from 'lucide-react';
+import { Shield, Lock, Unlock, AlertTriangle, Ban, History, Globe } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, LazyChart } from '@/components/charts/LazyChart';
 import HealthAlerts from './HealthAlerts';

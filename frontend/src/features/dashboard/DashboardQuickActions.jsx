@@ -1,4 +1,3 @@
-import React from 'react';
 import { Plus, Calendar, Receipt, BarChart3 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';

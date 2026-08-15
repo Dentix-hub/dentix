@@ -1,6 +1,6 @@
-import React, { useState, useMemo, Fragment, useRef, useEffect } from 'react';
+import { useState, useMemo, Fragment, useRef, useEffect } from 'react';
 import { Dialog, Transition, TransitionChild } from '@headlessui/react';
-import { Calendar as CalendarIcon, Clock, ChevronLeft, ChevronRight, Check, ChevronDown, X } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, ChevronLeft, ChevronRight, Check, ChevronDown } from 'lucide-react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, isToday, parseISO, isValid } from 'date-fns';
 import { useTranslation } from 'react-i18next';
 

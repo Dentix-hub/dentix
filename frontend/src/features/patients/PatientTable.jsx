@@ -1,10 +1,10 @@
-import React, { memo, useCallback } from 'react';
+import { memo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Trash2, Phone, MapPin, Calendar, Users } from 'lucide-react';
-import { Button, SkeletonBox, SkeletonCard, EmptyState } from '@/shared/ui';
+import { Button, SkeletonCard, EmptyState } from '@/shared/ui';
 
-const PatientCard = memo(function PatientCard({ patient, onDelete, onNavigate, index, t }) {
+const PatientCard = memo(function PatientCard({ patient, onDelete, onNavigate, _index, t }) {
     return (
         <div
             onClick={() => onNavigate(patient.id)}

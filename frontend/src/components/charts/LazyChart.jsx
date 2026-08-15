@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from 'react';
+import { lazy, Suspense } from 'react';
 
 // Single dynamic import promise for all Recharts exports
 const RechartsPromise = import('./RechartsComponents');

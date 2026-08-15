@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
 import { Card, Button, DataTable, SkeletonBox, Modal, ConfirmDialog, IconButton, toast } from '@/shared/ui';
-import { AlertTriangle, RefreshCw, Smartphone, Server, Download, Trash2, Copy, Eye, FileSpreadsheet } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Smartphone, Server, Trash2, Copy, Eye, FileSpreadsheet } from 'lucide-react';
 
 export default function SystemLogs() {
     const [page, setPage] = useState(0);

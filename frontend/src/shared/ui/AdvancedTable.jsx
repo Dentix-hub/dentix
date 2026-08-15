@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
     useReactTable,
     getCoreRowModel,
@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next';
  * Virtualized table body — only mounted when enableVirtualization is true.
  * Extracted into its own component so useVirtualizer is not called unconditionally.
  */
-const VirtualizedBody = ({ rows, containerRef, onRowClick, columns }) => {
+const VirtualizedBody = ({ rows, containerRef, onRowClick, columns: _columns }) => {
     const rowVirtualizer = useVirtualizer({
         count: rows.length,
         getScrollElement: () => containerRef.current,

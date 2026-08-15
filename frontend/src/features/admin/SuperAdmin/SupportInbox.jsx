@@ -1,9 +1,8 @@
-import React from 'react';
 import { MessageSquare, AlertCircle, ShieldCheck, Trash2 } from 'lucide-react';
 import { api } from '@/api';
 import { useTranslation } from 'react-i18next';
 
-const SupportInbox = ({ messages, setMessages, handleDeleteMessage, fetchData }) => {
+const SupportInbox = ({ messages, _setMessages, handleDeleteMessage, fetchData }) => {
     const { t, i18n } = useTranslation();
     const isRtl = i18n.language === 'ar';
 

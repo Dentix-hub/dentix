@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Search, Power, Edit, MoreVertical, Shield, ShieldOff, User } from 'lucide-react';
+import { useState } from 'react';
+import { Search, Shield, ShieldOff, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const UsersManager = ({ users, onSearch, onToggleStatus, loading }) => {

@@ -1,5 +1,4 @@
-import React from 'react';
-import { Calendar, CheckCircle2, AlertCircle, Clock } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Clock } from 'lucide-react';
 
 const ActiveSubscriptions = ({ tenants, plans, getDaysRemaining }) => {
     return (

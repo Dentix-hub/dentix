@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Combobox, ComboboxInput, ComboboxOptions, ComboboxOption, Transition } from '@headlessui/react';
-import { Search, User, Check, ChevronDown, Plus } from 'lucide-react';
+import { Search, Check, ChevronDown, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Fragment } from 'react';
 

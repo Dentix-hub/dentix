@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next';
 export default function UsersManager() {
     const { t } = useTranslation();
     const [users, setUsers] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     // Form
     const [newUser, setNewUser] = useState({
@@ -30,7 +29,6 @@ export default function UsersManager() {
     }, []);
     const loadUsers = async () => {
         try {
-            setLoading(true);
             const res = await getUsers();
             setUsers(res.data);
         } catch (err) {
@@ -38,8 +36,6 @@ export default function UsersManager() {
             if (err.response && err.response.status === 403) {
                 alert('Access Denied');
             }
-        } finally {
-            setLoading(false);
         }
     };
     const handleOpenModal = (user = null) => {
