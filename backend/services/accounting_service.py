@@ -6,7 +6,7 @@ Extracted from routers/accounting.py to follow service layer pattern.
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_, case
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
@@ -354,6 +354,11 @@ class AccountingService:
 
             collected = round(collected, 2)
             net_revenue = stats["revenue"] - lab_cost
+            commission_percent = user.commission_percent or 0.0
+            fixed_salary = user.fixed_salary or 0.0
+            commission_base = max(0.0, collected - lab_cost)
+            commission_amount = round(commission_base * (commission_percent / 100.0), 2)
+            total_due = round(commission_amount + fixed_salary, 2)
 
             doctors.append(
                 {
@@ -366,8 +371,11 @@ class AccountingService:
                     "collected": collected,
                     "lab_cost": lab_cost,
                     "net_revenue": net_revenue,
-                    "commission_percent": user.commission_percent or 0.0,
-                    "fixed_salary": user.fixed_salary or 0.0,
+                    "commission_base": commission_base,
+                    "commission_percent": commission_percent,
+                    "commission_amount": commission_amount,
+                    "fixed_salary": fixed_salary,
+                    "total_due": total_due,
                 }
             )
 
@@ -376,12 +384,16 @@ class AccountingService:
     async def get_doctor_details_data(
         self, doctor_id: int, start: datetime, end: datetime
     ) -> Dict[str, Any]:
-        """Get detailed breakdown for a specific doctor."""
-        stmt = select(models.User).where(models.User.id == doctor_id)
+        """Get detailed breakdown for a specific doctor with unified compensation contract."""
+        stmt = select(models.User).where(
+            models.User.id == doctor_id,
+            models.User.tenant_id == self.tenant_id,
+        )
         doctor = (await self.db.execute(stmt)).scalar_one_or_none()
         if not doctor:
             return None
 
+        # Fetch treatments for this doctor in date range
         stmt = (
             select(models.Treatment, models.Patient.name)
             .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
@@ -392,9 +404,11 @@ class AccountingService:
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
             )
+            .order_by(models.Treatment.date.desc())
         )
         treatments = (await self.db.execute(stmt)).all()
 
+        # Fetch lab orders for this doctor in date range
         stmt = (
             select(models.LabOrder, models.Patient.name)
             .join(models.Patient, models.LabOrder.patient_id == models.Patient.id)
@@ -405,11 +419,38 @@ class AccountingService:
                 models.LabOrder.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
             )
+            .order_by(models.LabOrder.order_date.desc())
         )
         lab_orders = (await self.db.execute(stmt)).all()
 
+        # Unify with authoritative revenue analytics
+        analytics_list = await self.get_doctor_revenue_analytics(start, end)
+        doc_stat = next((d for d in analytics_list if d["doctor_id"] == doctor_id), None)
+
+        total_revenue = doc_stat["revenue"] if doc_stat else 0.0
+        total_collected = doc_stat["collected"] if doc_stat else 0.0
+        total_lab_cost = doc_stat["lab_cost"] if doc_stat else 0.0
+        commission_percent = doctor.commission_percent or 0.0
+        fixed_salary = doctor.fixed_salary or 0.0
+        commission_base = max(0.0, total_collected - total_lab_cost)
+        commission_amount = round(commission_base * (commission_percent / 100.0), 2)
+        total_due = round(commission_amount + fixed_salary, 2)
+
         return {
+            "doctor_id": doctor.id,
             "doctor_name": doctor.username,
+            "commission_percent": commission_percent,
+            "fixed_salary": fixed_salary,
+            "revenue": total_revenue,
+            "total_revenue": total_revenue,
+            "collected": total_collected,
+            "total_collected": total_collected,
+            "lab_cost": total_lab_cost,
+            "total_lab_cost": total_lab_cost,
+            "net_revenue": total_revenue - total_lab_cost,
+            "commission_base": commission_base,
+            "commission_amount": commission_amount,
+            "total_due": total_due,
             "treatments": [
                 {
                     "id": t.id,
@@ -503,9 +544,11 @@ class AccountingService:
         self, start: datetime, end: datetime, total_appointments: int
     ) -> tuple[List[Dict[str, Any]], float]:
         """Calculate dues for staff based on fixed salary and appointment fees."""
+        # Only explicitly approved employee roles (exclude doctors, admins, super_admins, patients, guests)
+        eligible_roles = ["receptionist", "nurse", "assistant", "accountant"]
         stmt = select(models.User).where(
             models.User.tenant_id == self.tenant_id,
-            models.User.role.notin_(DOCTOR_ROLES + ["super_admin", "admin"]),
+            models.User.role.in_(eligible_roles),
         )
         staff_members = (await self.db.execute(stmt)).scalars().all()
 
@@ -513,8 +556,8 @@ class AccountingService:
         total_staff_dues = 0.0
 
         for s in staff_members:
-            fixed_salary = s.fixed_salary or 0
-            per_appointment = s.per_appointment_fee or 0
+            fixed_salary = s.fixed_salary or 0.0
+            per_appointment = s.per_appointment_fee or 0.0
             appointment_earnings = per_appointment * total_appointments
             total_due = fixed_salary + appointment_earnings
 
@@ -535,32 +578,38 @@ class AccountingService:
         return staff_dues, total_staff_dues
 
     async def get_salary_status_for_month(self, month: str) -> Dict[str, Any]:
-        """Get salary payment status for all employees for a specific month."""
+        """Get salary payment status for all eligible employees for a specific month (§16 MASTER_SPEC, GEMINI_REPAIR_PLAN R3)."""
         from calendar import monthrange
+        from collections import defaultdict
 
         try:
             year, mon = map(int, month.split("-"))
             days_in_month = monthrange(year, mon)[1]
         except Exception:
-            raise ValueError("Invalid month format")
+            raise ValueError("Invalid month format. Expected YYYY-MM")
 
+        # Explicitly approved payroll-eligible roles only
+        eligible_roles = ["receptionist", "nurse", "assistant", "accountant"]
         stmt = select(models.User).where(
             models.User.tenant_id == self.tenant_id,
-            models.User.role != "super_admin",
+            models.User.role.in_(eligible_roles),
         )
         employees = (await self.db.execute(stmt)).scalars().all()
 
-        stmt = select(models.SalaryPayment).where(
+        # Fetch all salary payments for this tenant and month (supporting partial payment history)
+        stmt_p = select(models.SalaryPayment).where(
             models.SalaryPayment.tenant_id == self.tenant_id,
             models.SalaryPayment.month == month,
-        )
-        payments = (await self.db.execute(stmt)).scalars().all()
-        payments_map = {p.user_id: p for p in payments}
+        ).order_by(models.SalaryPayment.payment_date.asc(), models.SalaryPayment.id.asc())
+        payments = (await self.db.execute(stmt_p)).scalars().all()
+
+        payments_by_user = defaultdict(list)
+        for p in payments:
+            payments_by_user[p.user_id].append(p)
 
         result = []
         for emp in employees:
-            payment = payments_map.get(emp.id)
-            base_salary = emp.fixed_salary or 0
+            base_salary = float(emp.fixed_salary or 0.0)
 
             # Prorated calculation
             is_new_this_month = False
@@ -573,8 +622,35 @@ class AccountingService:
                     hire_date = datetime.strptime(hire_date, "%Y-%m-%d").date()
                 if hire_date.year == year and hire_date.month == mon:
                     is_new_this_month = True
-                    days_worked = days_in_month - hire_date.day + 1
+                    days_worked = max(1, days_in_month - hire_date.day + 1)
                     prorated_salary = base_salary * (days_worked / days_in_month)
+
+            emp_payments = payments_by_user.get(emp.id, [])
+            total_paid_for_emp = sum(float(p.amount or 0.0) for p in emp_payments)
+            payable_amount = round(prorated_salary, 2)
+            paid_amount = round(total_paid_for_emp, 2)
+            remaining_amount = max(0.0, round(payable_amount - paid_amount, 2))
+
+            if remaining_amount <= 0.001 and paid_amount > 0:
+                status = "paid"
+            elif paid_amount > 0:
+                status = "partial"
+            else:
+                status = "unpaid"
+
+            payments_history = [
+                {
+                    "id": p.id,
+                    "amount": float(p.amount or 0.0),
+                    "payment_date": p.payment_date.isoformat() if hasattr(p.payment_date, "isoformat") else str(p.payment_date),
+                    "is_partial": p.is_partial,
+                    "days_worked": p.days_worked,
+                    "notes": p.notes,
+                }
+                for p in emp_payments
+            ]
+
+            latest_payment = payments_history[-1] if payments_history else None
 
             result.append(
                 {
@@ -585,20 +661,18 @@ class AccountingService:
                     "days_in_month": days_in_month,
                     "is_new_this_month": is_new_this_month,
                     "days_worked": days_worked,
-                    "prorated_salary": round(prorated_salary, 2),
+                    "prorated_salary": payable_amount,
+                    "payable_amount": payable_amount,
+                    "paid_amount": paid_amount,
+                    "remaining_amount": remaining_amount,
+                    "status": status,
                     "hire_date": str(emp.hire_date) if emp.hire_date else None,
-                    "payment": {
-                        "id": payment.id,
-                        "amount": payment.amount,
-                        "payment_date": str(payment.payment_date),
-                        "is_partial": payment.is_partial,
-                        "notes": payment.notes,
-                    }
-                    if payment
-                    else None,
-                    "is_paid": payment is not None,
+                    "payments": payments_history,
+                    "payment": latest_payment,
+                    "is_paid": status == "paid",
                 }
             )
+
         return {"month": month, "employees": result}
 
     async def process_salary_payment(
@@ -608,26 +682,76 @@ class AccountingService:
         month: str,
         amount: float,
         is_partial: bool,
-        days_worked: int,
-        notes: str,
+        days_worked: Optional[int],
+        notes: Optional[str],
     ) -> Dict[str, Any]:
-        """Record a salary payment."""
-        stmt = select(models.SalaryPayment).where(
+        """Record a salary payment with overpayment guards and multi-installment support."""
+        from calendar import monthrange
+
+        # Validate amount
+        if amount is None or amount <= 0:
+            return {"error": "يرجى إدخال مبلغ صحيح أكبر من صفر"}
+
+        # Validate month
+        try:
+            year, mon = map(int, month.split("-"))
+            days_in_month = monthrange(year, mon)[1]
+        except Exception:
+            return {"error": "صيغة الشهر غير صحيحة. يجب أن تكون YYYY-MM"}
+
+        # Validate days worked if given
+        if days_worked is not None and (days_worked < 1 or days_worked > 31):
+            return {"error": "عدد الأيام المحتسبة غير صحيح (يجب أن يكون بين 1 و 31)"}
+
+        # Check employee in tenant and eligible role
+        eligible_roles = ["receptionist", "nurse", "assistant", "accountant"]
+        stmt_emp = select(models.User).where(
+            models.User.id == user_id,
+            models.User.tenant_id == self.tenant_id,
+            models.User.role.in_(eligible_roles),
+        )
+        emp = (await self.db.execute(stmt_emp)).scalar_one_or_none()
+        if not emp:
+            return {"error": "الموظف غير موجود أو غير مؤهل لمسير الرواتب"}
+
+        # Compute payable amount
+        base_salary = float(emp.fixed_salary or 0.0)
+        prorated_salary = base_salary
+        if emp.hire_date:
+            hire_date = emp.hire_date
+            if isinstance(hire_date, str):
+                hire_date = datetime.strptime(hire_date, "%Y-%m-%d").date()
+            if hire_date.year == year and hire_date.month == mon:
+                effective_days = days_in_month - hire_date.day + 1
+                prorated_salary = base_salary * (effective_days / days_in_month)
+
+        payable_amount = round(prorated_salary, 2)
+
+        # Existing paid payments for this employee & month
+        stmt_existing = select(models.SalaryPayment).where(
             models.SalaryPayment.user_id == user_id,
             models.SalaryPayment.month == month,
             models.SalaryPayment.tenant_id == self.tenant_id,
         )
-        existing = (await self.db.execute(stmt)).scalar_one_or_none()
+        existing_payments = (await self.db.execute(stmt_existing)).scalars().all()
+        already_paid = sum(float(p.amount or 0.0) for p in existing_payments)
 
-        if existing:
-            return {"error": "Paid already", "payment_id": existing.id}
+        # Overpayment guard: allow a tiny margin of 0.05 for floating point rounding
+        if (already_paid + amount) > (payable_amount + 0.05):
+            remaining = max(0.0, round(payable_amount - already_paid, 2))
+            return {
+                "error": f"المبلغ المطلوب ({amount}) يتجاوز المتبقي للراتب ({remaining}). الراتب المستحق: {payable_amount}، المسدد: {already_paid}"
+            }
+
+        # Determine if partial
+        is_partial_actual = is_partial or ((already_paid + amount) < (payable_amount - 0.05))
 
         payment = models.SalaryPayment(
             user_id=user_id,
             month=month,
             amount=amount,
-            is_partial=is_partial,
-            days_worked=days_worked,
+            is_partial=is_partial_actual,
+            days_worked=days_worked or days_in_month,
             notes=notes,
             tenant_id=self.tenant_id,
         )
@@ -642,7 +766,7 @@ class AccountingService:
             new_value={
                 "month": month,
                 "amount": amount,
-                "is_partial": is_partial,
+                "is_partial": is_partial_actual,
                 "notes": notes,
             },
         )
@@ -651,7 +775,7 @@ class AccountingService:
         return {"success": True, "payment_id": payment.id}
 
     async def remove_salary_payment(self, payment_id: int, current_user: models.User) -> bool:
-        """Delete a salary payment."""
+        """Delete a salary payment and automatically allow recalculation."""
         stmt = select(models.SalaryPayment).where(
             models.SalaryPayment.id == payment_id,
             models.SalaryPayment.tenant_id == self.tenant_id,
@@ -709,93 +833,220 @@ class AccountingService:
     async def get_patients_report(
         self,
         patient_id: Optional[int] = None,
+        search: Optional[str] = None,
         outstanding_only: bool = False,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
         skip: int = 0,
         limit: int = 50,
     ) -> Dict[str, Any]:
-        """Get patients financial report (total invoiced, total paid, outstanding)."""
-        # Subquery for treatments
-        treatments_sub = (
+        """Get patients financial report, with totals scoped to requested period or all-time."""
+        # 1. All-time treatments subquery
+        all_treatments_stmt = (
             select(
                 models.Treatment.patient_id,
-                func.coalesce(func.sum(models.Treatment.cost - models.Treatment.discount), 0.0).label("total_invoiced"),
+                func.coalesce(func.sum(models.Treatment.cost - models.Treatment.discount), 0.0).label("all_invoiced"),
             )
             .where(models.Treatment.is_deleted == False)
             .group_by(models.Treatment.patient_id)
-            .subquery()
         )
+        all_treatments_sub = all_treatments_stmt.subquery()
 
-        # Subquery for payments
-        payments_sub = (
+        # 2. All-time payments subquery
+        all_payments_stmt = (
             select(
                 models.Payment.patient_id,
-                func.coalesce(func.sum(models.Payment.amount), 0.0).label("total_paid"),
+                func.coalesce(func.sum(models.Payment.amount), 0.0).label("all_paid"),
             )
             .group_by(models.Payment.patient_id)
-            .subquery()
         )
+        all_payments_sub = all_payments_stmt.subquery()
 
-        # Base query
-        stmt = (
-            select(
-                models.Patient,
-                func.coalesce(treatments_sub.c.total_invoiced, 0.0).label("total_invoiced"),
-                func.coalesce(payments_sub.c.total_paid, 0.0).label("total_paid"),
-            )
-            .outerjoin(treatments_sub, models.Patient.id == treatments_sub.c.patient_id)
-            .outerjoin(payments_sub, models.Patient.id == payments_sub.c.patient_id)
-            .where(
-                models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
-            )
-        )
-
-        count_stmt = (
-            select(func.count(models.Patient.id))
-            .where(
-                models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
-            )
-        )
-
-        if patient_id:
-            stmt = stmt.where(models.Patient.id == patient_id)
-            count_stmt = count_stmt.where(models.Patient.id == patient_id)
-
-        if outstanding_only:
-            stmt = stmt.where(
-                func.coalesce(treatments_sub.c.total_invoiced, 0.0) - func.coalesce(payments_sub.c.total_paid, 0.0) > 0
-            )
-            count_stmt = (
-                count_stmt
-                .outerjoin(treatments_sub, models.Patient.id == treatments_sub.c.patient_id)
-                .outerjoin(payments_sub, models.Patient.id == payments_sub.c.patient_id)
+        # 3. Period subqueries (if start and end specified)
+        if start and end:
+            period_treatments_stmt = (
+                select(
+                    models.Treatment.patient_id,
+                    func.coalesce(func.sum(models.Treatment.cost - models.Treatment.discount), 0.0).label("period_invoiced"),
+                )
                 .where(
-                    func.coalesce(treatments_sub.c.total_invoiced, 0.0) - func.coalesce(payments_sub.c.total_paid, 0.0) > 0
+                    models.Treatment.is_deleted == False,
+                    models.Treatment.date >= start,
+                    models.Treatment.date <= end,
+                )
+                .group_by(models.Treatment.patient_id)
+            )
+            period_treatments_sub = period_treatments_stmt.subquery()
+
+            period_payments_stmt = (
+                select(
+                    models.Payment.patient_id,
+                    func.coalesce(func.sum(models.Payment.amount), 0.0).label("period_paid"),
+                )
+                .where(
+                    models.Payment.date >= start,
+                    models.Payment.date <= end,
+                )
+                .group_by(models.Payment.patient_id)
+            )
+            period_payments_sub = period_payments_stmt.subquery()
+        else:
+            period_treatments_sub = None
+            period_payments_sub = None
+
+        # Build main query selecting Patient and financial totals
+        select_args = [
+            models.Patient,
+            func.coalesce(all_treatments_sub.c.all_invoiced, 0.0).label("all_invoiced"),
+            func.coalesce(all_payments_sub.c.all_paid, 0.0).label("all_paid"),
+        ]
+
+        if start and end:
+            select_args.extend([
+                func.coalesce(period_treatments_sub.c.period_invoiced, 0.0).label("period_invoiced"),
+                func.coalesce(period_payments_sub.c.period_paid, 0.0).label("period_paid"),
+            ])
+
+        stmt = (
+            select(*select_args)
+            .outerjoin(all_treatments_sub, models.Patient.id == all_treatments_sub.c.patient_id)
+            .outerjoin(all_payments_sub, models.Patient.id == all_payments_sub.c.patient_id)
+        )
+
+        if start and end:
+            stmt = stmt.outerjoin(period_treatments_sub, models.Patient.id == period_treatments_sub.c.patient_id)
+            stmt = stmt.outerjoin(period_payments_sub, models.Patient.id == period_payments_sub.c.patient_id)
+
+        stmt = stmt.where(
+            models.Patient.tenant_id == self.tenant_id,
+            models.Patient.is_deleted == False,
+        )
+
+        # Filters
+        if search:
+            search_pat = f"%{search}%"
+            stmt = stmt.where(
+                or_(
+                    models.Patient.name.ilike(search_pat),
+                    models.Patient.phone.ilike(search_pat),
                 )
             )
 
+        if patient_id:
+            stmt = stmt.where(models.Patient.id == patient_id)
+        elif outstanding_only:
+            # Patients with positive outstanding balance (all-time)
+            stmt = stmt.where(
+                func.coalesce(all_treatments_sub.c.all_invoiced, 0.0) - func.coalesce(all_payments_sub.c.all_paid, 0.0) > 0
+            )
+        elif start and end:
+            period_filter = or_(
+                period_treatments_sub.c.patient_id.is_not(None),
+                period_payments_sub.c.patient_id.is_not(None),
+            )
+            # Check period activity
+            check_period_stmt = (
+                select(models.Patient.id)
+                .outerjoin(period_treatments_sub, models.Patient.id == period_treatments_sub.c.patient_id)
+                .outerjoin(period_payments_sub, models.Patient.id == period_payments_sub.c.patient_id)
+                .where(
+                    models.Patient.tenant_id == self.tenant_id,
+                    models.Patient.is_deleted == False,
+                    period_filter,
+                )
+                .limit(1)
+            )
+            has_period_activity = (await self.db.execute(check_period_stmt)).scalar() is not None
+            if has_period_activity:
+                stmt = stmt.where(period_filter)
+            else:
+                # If no activity in this specific date range, show patients with any financial history
+                stmt = stmt.where(
+                    or_(
+                        all_treatments_sub.c.patient_id.is_not(None),
+                        all_payments_sub.c.patient_id.is_not(None),
+                    )
+                )
+        else:
+            # No date filter: show patients with any financial history
+            stmt = stmt.where(
+                or_(
+                    all_treatments_sub.c.patient_id.is_not(None),
+                    all_payments_sub.c.patient_id.is_not(None),
+                )
+            )
+
+        report_subquery = stmt.order_by(None).subquery()
+        count_stmt = select(func.count()).select_from(report_subquery)
         total_count = (await self.db.execute(count_stmt)).scalar() or 0
+
+        period_invoiced_col = (
+            report_subquery.c.period_invoiced if start and end else report_subquery.c.all_invoiced
+        )
+        period_paid_col = (
+            report_subquery.c.period_paid if start and end else report_subquery.c.all_paid
+        )
+        all_time_balance = report_subquery.c.all_invoiced - report_subquery.c.all_paid
+        summary_stmt = select(
+            func.coalesce(func.sum(period_invoiced_col), 0.0),
+            func.coalesce(func.sum(period_paid_col), 0.0),
+            func.coalesce(func.sum(period_invoiced_col - period_paid_col), 0.0),
+            func.coalesce(
+                func.sum(case((all_time_balance > 0, all_time_balance), else_=0.0)),
+                0.0,
+            ),
+        ).select_from(report_subquery)
+        summary_row = (await self.db.execute(summary_stmt)).one()
 
         stmt = stmt.order_by(models.Patient.name.asc()).offset(skip).limit(limit)
         res = await self.db.execute(stmt)
         rows = res.all()
 
         patients_data = []
-        for patient, total_invoiced, total_paid in rows:
+        for row in rows:
+            patient = row[0]
+            all_invoiced = float(row[1])
+            all_paid = float(row[2])
+            all_outstanding = max(0.0, all_invoiced - all_paid)
+
+            if start and end:
+                period_invoiced = float(row[3])
+                period_paid = float(row[4])
+                period_balance = period_invoiced - period_paid
+            else:
+                period_invoiced = all_invoiced
+                period_paid = all_paid
+                period_balance = all_outstanding
+
             patients_data.append({
                 "patient_id": patient.id,
+                "file_number": patient.file_number or patient.id,
                 "patient_name": patient.name,
                 "patient_phone": patient.phone,
-                "total_invoiced": float(total_invoiced),
-                "total_paid": float(total_paid),
-                "outstanding_balance": float(total_invoiced - total_paid),
+                "total_invoiced": period_invoiced,
+                "total_paid": period_paid,
+                "outstanding_balance": period_balance if (start and end) else all_outstanding,
+                "all_time_outstanding": all_outstanding,
             })
 
-        return {"total": total_count, "patients": patients_data}
+        return {
+            "total": total_count,
+            "summary": {
+                "total_invoiced": float(summary_row[0]),
+                "total_paid": float(summary_row[1]),
+                "period_balance": float(summary_row[2]),
+                "total_outstanding": float(summary_row[3]),
+            },
+            "patients": patients_data,
+        }
 
-    async def get_patient_financial_details(self, patient_id: int) -> Dict[str, Any]:
-        """Get full financial picture for a single patient."""
+    async def get_patient_financial_details(
+        self,
+        patient_id: int,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        """Get a patient's full financial picture, optionally scoped to a date range."""
         stmt = select(models.Patient).where(
             models.Patient.id == patient_id,
             models.Patient.tenant_id == self.tenant_id,
@@ -817,6 +1068,11 @@ class AccountingService:
             )
             .order_by(models.Payment.date.desc())
         )
+        if start and end:
+            stmt_payments = stmt_payments.where(
+                models.Payment.date >= start,
+                models.Payment.date <= end,
+            )
         res_payments = await self.db.execute(stmt_payments)
         payments = res_payments.scalars().all()
 
@@ -841,6 +1097,11 @@ class AccountingService:
             )
             .order_by(models.Treatment.date.desc())
         )
+        if start and end:
+            stmt_treatments = stmt_treatments.where(
+                models.Treatment.date >= start,
+                models.Treatment.date <= end,
+            )
         res_treatments = await self.db.execute(stmt_treatments)
         treatments = res_treatments.scalars().all()
 
@@ -878,12 +1139,282 @@ class AccountingService:
 
         return {
             "patient_id": patient_id,
+            "file_number": patient.file_number or patient_id,
             "patient_name": patient_name,
             "patient_phone": patient_phone,
             "total_invoiced": total_invoiced,
             "total_paid": total_paid,
             "outstanding_balance": max(0.0, total_invoiced - total_paid),
+            "period_balance": total_invoiced - total_paid,
             "payment_history": payment_history,
             "treatment_history": treatment_history,
             "next_due_date": next_due_date,
+        }
+
+    async def get_financial_activity(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        event_types: Optional[List[str]] = None,
+        search: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 50,
+        current_user: Optional[models.User] = None,
+    ) -> Dict[str, Any]:
+        """
+        Unified normalized financial activity timeline (§17 MASTER_SPEC, FIN-ACT-001, GEMINI_REPAIR_PLAN R2).
+        Aggregates payments (inflow), expenses (outflow), lab orders (outflow), and salary payments (outflow).
+        """
+        start_dt = None
+        end_dt = None
+        if bool(start_date) != bool(end_date):
+            raise ValueError("Both start_date and end_date are required when filtering by date")
+
+        if start_date and end_date:
+            start_dt, end_dt = self.parse_date_range(start_date, end_date)
+
+        supported_types = {"payment", "expense", "lab", "salary"}
+        if event_types:
+            for t in event_types:
+                if t not in supported_types:
+                    raise ValueError(f"Unsupported event type: '{t}'. Must be one of {supported_types}")
+
+        # Enforce RBAC visibility scope
+        user_role = (current_user.role if current_user and current_user.role else "admin").lower()
+        if user_role == "receptionist":
+            allowed_types = {"payment"}
+        elif user_role in {"doctor"}:
+            allowed_types = {"payment"}
+        else:
+            allowed_types = supported_types
+
+        types_set = (set(event_types) if event_types else supported_types).intersection(allowed_types)
+
+        normalized_events = []
+        fetch_limit = skip + limit
+        total_count = 0
+        total_inflow = 0.0
+        total_outflow = 0.0
+
+        async def get_source_totals(stmt, amount_column):
+            """Aggregate a fully-filtered source query without loading its rows."""
+            amounts_subquery = (
+                stmt.with_only_columns(amount_column.label("amount"))
+                .order_by(None)
+                .subquery()
+            )
+            totals_stmt = select(
+                func.count(),
+                func.coalesce(func.sum(amounts_subquery.c.amount), 0.0),
+            ).select_from(amounts_subquery)
+            count, amount = (await self.db.execute(totals_stmt)).one()
+            return int(count or 0), float(amount or 0.0)
+
+        # 1. Payments (Inflow)
+        if "payment" in types_set:
+            p_stmt = (
+                select(models.Payment, models.Patient)
+                .outerjoin(models.Patient, models.Payment.patient_id == models.Patient.id)
+                .where(models.Payment.tenant_id == self.tenant_id)
+            )
+            if user_role == "doctor" and current_user:
+                p_stmt = p_stmt.where(models.Payment.doctor_id == current_user.id)
+
+            if start_dt and end_dt:
+                p_stmt = p_stmt.where(
+                    models.Payment.date >= start_dt,
+                    models.Payment.date <= end_dt
+                )
+            if search and search.strip():
+                s = f"%{search.strip()}%"
+                p_stmt = p_stmt.where(
+                    or_(
+                        models.Patient.name.ilike(s),
+                        models.Payment.notes.ilike(s)
+                    )
+                )
+            source_count, source_amount = await get_source_totals(p_stmt, models.Payment.amount)
+            total_count += source_count
+            total_inflow += source_amount
+            p_stmt = p_stmt.order_by(
+                models.Payment.date.desc(), models.Payment.id.desc()
+            ).limit(fetch_limit)
+            p_res = (await self.db.execute(p_stmt)).all()
+            for payment, patient in p_res:
+                patient_name = patient.name if patient else "مريض عام"
+                p_date = payment.date
+                ts = p_date.isoformat() if hasattr(p_date, "isoformat") else str(p_date)
+                normalized_events.append({
+                    "id": f"payment-{payment.id}",
+                    "source_type": "payment",
+                    "source_id": payment.id,
+                    "timestamp": ts,
+                    "direction": "inflow",
+                    "amount": float(payment.amount or 0.0),
+                    "currency": "EGP",
+                    "title": patient_name,
+                    "subtitle": payment.notes or "دفعة نقدية مسددة",
+                    "badge_text": "دفعة مريض",
+                    "nav_url": f"/finance/payments?patient_id={payment.patient_id}",
+                    "patient_id": payment.patient_id,
+                    "user_id": payment.doctor_id,
+                })
+
+        # 2. Manual Expenses (Outflow)
+        if "expense" in types_set:
+            e_stmt = select(models.Expense).where(models.Expense.tenant_id == self.tenant_id)
+            if start_dt and end_dt:
+                e_stmt = e_stmt.where(
+                    models.Expense.date >= start_dt.date(),
+                    models.Expense.date <= end_dt.date()
+                )
+            if search and search.strip():
+                s = f"%{search.strip()}%"
+                e_stmt = e_stmt.where(
+                    or_(
+                        models.Expense.category.ilike(s),
+                        models.Expense.item_name.ilike(s),
+                        models.Expense.notes.ilike(s)
+                    )
+                )
+            source_count, source_amount = await get_source_totals(e_stmt, models.Expense.cost)
+            total_count += source_count
+            total_outflow += source_amount
+            e_stmt = e_stmt.order_by(
+                models.Expense.date.desc(), models.Expense.id.desc()
+            ).limit(fetch_limit)
+            e_res = (await self.db.execute(e_stmt)).scalars().all()
+            for exp in e_res:
+                e_date = exp.date
+                ts = datetime.combine(e_date, datetime.min.time()).isoformat() if hasattr(e_date, "strftime") else str(e_date)
+                normalized_events.append({
+                    "id": f"expense-{exp.id}",
+                    "source_type": "expense",
+                    "source_id": exp.id,
+                    "timestamp": ts,
+                    "direction": "outflow",
+                    "amount": float(exp.cost or 0.0),
+                    "currency": "EGP",
+                    "title": exp.item_name or exp.category or "مصروف تشغيلي",
+                    "subtitle": exp.notes or exp.category or "مصروف مباشر",
+                    "badge_text": "مصروف عيادة",
+                    "nav_url": "/finance/expenses",
+                    "patient_id": None,
+                    "user_id": None,
+                })
+
+        # 3. Lab Orders (Outflow)
+        if "lab" in types_set:
+            l_stmt = (
+                select(models.LabOrder, models.Patient)
+                .outerjoin(models.Patient, models.LabOrder.patient_id == models.Patient.id)
+                .where(
+                    models.LabOrder.tenant_id == self.tenant_id,
+                    models.LabOrder.cost > 0
+                )
+            )
+            if start_dt and end_dt:
+                l_stmt = l_stmt.where(
+                    models.LabOrder.order_date >= start_dt,
+                    models.LabOrder.order_date <= end_dt
+                )
+            if search and search.strip():
+                s = f"%{search.strip()}%"
+                l_stmt = l_stmt.where(
+                    or_(
+                        models.LabOrder.work_type.ilike(s),
+                        models.Patient.name.ilike(s),
+                        models.LabOrder.notes.ilike(s)
+                    )
+                )
+            source_count, source_amount = await get_source_totals(l_stmt, models.LabOrder.cost)
+            total_count += source_count
+            total_outflow += source_amount
+            l_stmt = l_stmt.order_by(
+                models.LabOrder.order_date.desc(), models.LabOrder.id.desc()
+            ).limit(fetch_limit)
+            l_res = (await self.db.execute(l_stmt)).all()
+            for lab_order, patient in l_res:
+                patient_name = patient.name if patient else "مريض"
+                ts = lab_order.order_date.isoformat() if lab_order.order_date else ""
+                normalized_events.append({
+                    "id": f"lab-{lab_order.id}",
+                    "source_type": "lab",
+                    "source_id": lab_order.id,
+                    "timestamp": ts,
+                    "direction": "outflow",
+                    "amount": float(lab_order.cost or 0.0),
+                    "currency": "EGP",
+                    "title": f"معمل: {lab_order.work_type or 'تركيبة'}",
+                    "subtitle": f"لحالة: {patient_name}",
+                    "badge_text": "معمل أسنان",
+                    "nav_url": "/labs",
+                    "patient_id": lab_order.patient_id,
+                    "user_id": None,
+                })
+
+        # 4. Salaries (Outflow)
+        if "salary" in types_set:
+            s_stmt = (
+                select(models.SalaryPayment, models.User)
+                .outerjoin(models.User, models.SalaryPayment.user_id == models.User.id)
+                .where(models.SalaryPayment.tenant_id == self.tenant_id)
+            )
+            if start_dt and end_dt:
+                s_stmt = s_stmt.where(
+                    models.SalaryPayment.payment_date >= start_dt,
+                    models.SalaryPayment.payment_date <= end_dt
+                )
+            if search and search.strip():
+                s = f"%{search.strip()}%"
+                s_stmt = s_stmt.where(
+                    or_(
+                        models.User.username.ilike(s),
+                        models.SalaryPayment.notes.ilike(s)
+                    )
+                )
+            source_count, source_amount = await get_source_totals(s_stmt, models.SalaryPayment.amount)
+            total_count += source_count
+            total_outflow += source_amount
+            s_stmt = s_stmt.order_by(
+                models.SalaryPayment.payment_date.desc(), models.SalaryPayment.id.desc()
+            ).limit(fetch_limit)
+            s_res = (await self.db.execute(s_stmt)).all()
+            for salary_payment, user in s_res:
+                emp_name = user.username if user else "موظف"
+                ts = salary_payment.payment_date.isoformat() if salary_payment.payment_date else ""
+                normalized_events.append({
+                    "id": f"salary-{salary_payment.id}",
+                    "source_type": "salary",
+                    "source_id": salary_payment.id,
+                    "timestamp": ts,
+                    "direction": "outflow",
+                    "amount": float(salary_payment.amount or 0.0),
+                    "currency": "EGP",
+                    "title": f"راتب: {emp_name}",
+                    "subtitle": salary_payment.notes or f"راتب شهر {salary_payment.month}",
+                    "badge_text": "راتب موظف",
+                    "nav_url": f"/finance/compensation/payroll?month={salary_payment.month}",
+                    "patient_id": None,
+                    "user_id": salary_payment.user_id,
+                })
+
+        # Sort all chronologically descending with stable tie-breaker on source_id
+        normalized_events.sort(
+            key=lambda x: (x["timestamp"] or "", x["source_id"] or 0),
+            reverse=True,
+        )
+
+        net_flow = total_inflow - total_outflow
+
+        paged_events = normalized_events[skip : skip + limit]
+
+        return {
+            "events": paged_events,
+            "total_count": total_count,
+            "total_inflow": round(total_inflow, 2),
+            "total_outflow": round(total_outflow, 2),
+            "net_flow": round(net_flow, 2),
+            "skip": skip,
+            "limit": limit,
         }

@@ -81,7 +81,7 @@ const Layout = () => {
     // Global Hotkeys
     useHotkeys('g+p', () => navigate('/patients'), { preventDefault: true });
     useHotkeys('g+a', () => navigate('/appointments'), { preventDefault: true });
-    useHotkeys('g+b', () => navigate('/billing'), { preventDefault: true });
+    useHotkeys('g+b', () => navigate('/finance'), { preventDefault: true });
     useHotkeys('g+d', () => navigate('/'), { preventDefault: true });
     useHotkeys('g+s', () => navigate('/settings'), { preventDefault: true });
     useHotkeys('g+i', () => navigate('/inventory'), { preventDefault: true });
@@ -131,9 +131,14 @@ const Layout = () => {
             { icon: Users2, label: t('sidebar.patients'), path: '/patients' },
             { icon: Package, label: t('sidebar.inventory'), path: '/inventory' },
         ];
+
+        // Finance Module Access (Admins, Managers, Accountants, Receptionists, Doctors)
+        const canAccessFinance = isAdmin || role === 'manager' || role === 'accountant' || role === 'receptionist' || role === 'doctor';
+        if (canAccessFinance) {
+            navItems.push({ icon: Banknote, label: t('sidebar.finance', 'المالية'), path: '/finance' });
+        }
+
         if (isAdmin) {
-            // Always show Billing for Admins (User Request: All plans have it)
-            navItems.push({ icon: Banknote, label: t('sidebar.billing'), path: '/billing' });
             navItems.push({ icon: LineChart, label: t('sidebar.reports'), path: '/analytics' });
             navItems.push(
                 { icon: UserCog, label: t('sidebar.users'), path: '/users' },
@@ -295,7 +300,7 @@ const Layout = () => {
                 </div>
                 <nav className="p-4 flex-1 flex flex-col overflow-y-auto space-y-2">
                     {navItems.map((item) => {
-                        const isActive = location.pathname === item.path;
+                        const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
                         const Icon = item.icon;
                         const link = (
                             <Link

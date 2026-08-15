@@ -256,6 +256,7 @@
         "patients": "Patients",
         "inventory": "Inventory",
         "billing": "Billing",
+        "finance": "Finance",
         "reports": "Reports",
         "users": "Users",
         "settings": "Settings",
@@ -1186,6 +1187,19 @@
             "total_revenue": "Total Revenue",
             "total_collected": "Collected Cash",
             "outstanding": "Outstanding (Debt)",
+            "period_balance": "Period Balance",
+            "all_time_outstanding": "All-time outstanding",
+            "in_selected_period": "In selected period",
+            "collection_rate": "Collection rate",
+            "treatments": "treatments",
+            "period_scope_hint": "All figures, patient totals, and details below are limited to the selected period.",
+            "collection_progress": "Collection progress",
+            "collection_progress_hint": "Collected cash compared with invoices issued in this period.",
+            "patient_report_scope": "Only patients with financial activity in the selected period are shown.",
+            "period_invoiced": "Period Invoiced",
+            "period_paid": "Period Paid",
+            "details_scope": "Financial activity in",
+            "collected": "Collected",
             "patient_count": "Patient Count",
             "deductions_title": "Expenses & Deductions",
             "doctor_dues": "Doctor Dues",
@@ -1200,7 +1214,7 @@
             "net_profit_equation": "Revenue - (Lab + Doctors + Salary + Expenses)",
             "patient_filter": "Filter by Patient",
             "clear_filter": "Clear Filter",
-            "outstanding_only": "Outstanding Balance Only",
+            "outstanding_only": "Positive Period Balance Only",
             "patients_report_title": "Patients Financial Report",
             "patient_name": "Patient Name",
             "total_invoiced": "Total Invoiced",
@@ -1363,6 +1377,7 @@
             "errors": {
                 "password_required": "Enter new password",
                 "password_min_length": "Password must be at least 8 characters",
+                "password_max_length": "Password must not exceed 72 characters",
                 "password_mismatch": "Passwords do not match",
                 "invalid_link": "Invalid Link",
                 "verification_error": "Link verification error"
@@ -1387,19 +1402,28 @@
         "kpi": {
             "revenue": {
                 "title": "Total Revenue",
-                "desc": "Income from treatments"
+                "desc": "Income from treatments",
+                "tooltip": "Total payments collected from patients during the selected period"
             },
             "profit": {
                 "title": "Net Profit",
-                "desc": "Actual profit margin"
+                "desc": "Actual profit margin",
+                "tooltip": "Revenue minus all operating expenses, lab fees, and material costs"
             },
             "opex": {
                 "title": "Operating Expenses (OpEx)",
-                "desc": "Salaries, rent, bills"
+                "desc": "Salaries, rent, bills",
+                "tooltip": "General clinic overhead expenses including rent, utilities, and fixed salaries"
             },
             "cogs": {
                 "title": "Cost of Goods (COGS)",
-                "desc": "Direct treatment costs"
+                "desc": "Direct treatment costs",
+                "tooltip": "Direct cost of consumed materials and external dental lab orders"
+            },
+            "capacity": {
+                "title": "Chair Utilization",
+                "desc": "Dental chair capacity",
+                "tooltip": "Percentage of available dental chair operating hours effectively booked"
             }
         },
         "general_analysis": {
@@ -1408,6 +1432,10 @@
             "avg_margin": "Avg Margin",
             "avg_cost": "Avg Cost",
             "currency": "EGP",
+            "search_placeholder": "Search procedure name...",
+            "no_results": "No procedures found matching search",
+            "showing": "Showing",
+            "of": "of",
             "table": {
                 "title": "Detailed Procedure Analysis",
                 "subtitle": "Sorted automatically by lowest profitability",
@@ -1971,6 +1999,87 @@
             "unlimited": "Unlimited",
             "days_unit": "day",
             "requests_unit": "req/day"
+        }
+    },
+    "finance": {
+        "title": "Finance Management",
+        "subtitle": "Track collections, expenses, patient balances, and team compensation",
+        "nav": {
+            "overview": "Overview",
+            "patient_accounts": "Patient Accounts",
+            "payments": "Payments",
+            "expenses": "Expenses",
+            "compensation": "Compensation & Payroll",
+            "activity": "Financial Activity",
+            "reports": "Financial Reports",
+            "aria_label": "Finance module navigation"
+        },
+        "scope": {
+            "period": "Selected Period",
+            "all_time": "All-Time Balance",
+            "period_tooltip": "Applies strictly to the selected date range",
+            "all_time_tooltip": "Includes all uncollected debt across all time"
+        },
+        "date_range": {
+            "presets": "Date Presets",
+            "custom_range": "Custom Range",
+            "from": "From",
+            "to": "To",
+            "apply": "Apply Filter"
+        },
+        "metrics": {
+            "gross_production": "Gross Production",
+            "patient_discounts": "Patient Discounts",
+            "net_revenue": "Net Invoiced Revenue",
+            "collected": "Cash Collected",
+            "outstanding_debt": "Outstanding Debt (All-Time)",
+            "period_balance": "Period Balance",
+            "expenses": "Operating Expenses",
+            "lab_costs": "Lab Order Costs",
+            "doctor_dues": "Doctor Due",
+            "staff_dues": "Staff Due",
+            "total_deductions": "Total Deductions",
+            "net_result": "Net Operational Result"
+        },
+        "overview": {
+            "title": "Finance Overview",
+            "description": "Financial summary and key performance indicators"
+        },
+        "patient_accounts": {
+            "title": "Patient Accounts & Receivables",
+            "description": "Monitor patient balances, production, and debt collection"
+        },
+        "payments": {
+            "title": "Payments Log",
+            "description": "All patient payment transactions and cash receipts"
+        },
+        "expenses": {
+            "title": "Expenses & Operations",
+            "description": "Manage clinic overhead, utilities, supplies, and expenses"
+        },
+        "compensation": {
+            "doctors": "Doctor Compensation",
+            "payroll": "Staff Payroll"
+        },
+        "doctors": {
+            "title": "Doctor Earnings & Rates",
+            "description": "Calculate doctor commissions, collections, and salaries"
+        },
+        "doctor_detail": {
+            "title": "Doctor Compensation Breakdown",
+            "description": "Itemized treatments, collections, lab deductions, and commissions"
+        },
+        "payroll": {
+            "title": "Staff Payroll",
+            "description": "Manage monthly staff salaries, deductions, and bonuses"
+        },
+        "activity": {
+            "title": "Financial Activity Feed",
+            "description": "Unified chronological audit trail of all financial movements"
+        },
+        "reports": {
+            "title": "Financial Reports & Analytics",
+            "description": "Income statements, cash flow, and financial analytics"
         }
     }
 }

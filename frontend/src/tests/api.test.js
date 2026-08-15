@@ -6,7 +6,8 @@ import {
     createPayment, getFinancialStats, getDashboardStats,
     getProcedures, createProcedure,
     getExpenses, createExpense,
-    getNotifications
+    getNotifications,
+    forgotPassword, resetPassword, verifyResetToken
 } from '../api';
 
 // Mock axios methods
@@ -53,6 +54,21 @@ describe('API Module', () => {
         it('getMe sends GET to /api/v1/users/me/', async () => {
             await getMe();
             expect(api.get).toHaveBeenCalledWith('/api/v1/users/me');
+        });
+
+        it('forgotPassword sends POST with JSON body { email }', async () => {
+            await forgotPassword('test@example.com');
+            expect(api.post).toHaveBeenCalledWith('/api/v1/auth/forgot-password', { email: 'test@example.com' });
+        });
+
+        it('resetPassword sends POST with JSON body { token, new_password }', async () => {
+            await resetPassword('tok123', 'newpass123');
+            expect(api.post).toHaveBeenCalledWith('/api/v1/auth/reset-password', { token: 'tok123', new_password: 'newpass123' });
+        });
+
+        it('verifyResetToken sends GET with query parameter token', async () => {
+            await verifyResetToken('tok123');
+            expect(api.get).toHaveBeenCalledWith('/api/v1/auth/verify-reset-token', { params: { token: 'tok123' } });
         });
     });
 

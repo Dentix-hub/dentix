@@ -3,7 +3,8 @@ Expenses Router
 Handles expense tracking.
 """
 
-from fastapi import APIRouter, Depends
+from typing import Optional
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import schemas, crud
@@ -17,14 +18,55 @@ router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
 @router.get("")
 async def get_expenses(
-    skip: int = 0,
-    limit: int = 100,
+    search: Optional[str] = Query(None, description="Search by expense item name or notes"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1),
+    offset: Optional[int] = Query(None, ge=0),
+    page: Optional[int] = Query(None, ge=1),
+    page_size: Optional[int] = Query(None, ge=1),
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """Get all expenses for current tenant."""
-    data = await crud.get_expenses(db, current_user.tenant_id, skip=skip, limit=limit)
-    return success_response(data)
+    """Get expenses for current tenant with standardized filtering and pagination (§15 MASTER_SPEC, GEMINI_REPAIR_PLAN R5)."""
+    # Normalize pagination parameters
+    effective_skip = skip
+    effective_limit = min(limit, 200)
+
+    if offset is not None:
+        effective_skip = offset
+
+    if page is not None:
+        size = page_size if page_size is not None else effective_limit
+        effective_limit = min(size, 200)
+        effective_skip = (page - 1) * effective_limit
+
+    data = await crud.get_expenses(
+        db,
+        current_user.tenant_id,
+        skip=effective_skip,
+        limit=effective_limit,
+        search=search,
+        category=category,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    total = await crud.count_expenses(
+        db,
+        current_user.tenant_id,
+        search=search,
+        category=category,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    return success_response({
+        "items": data,
+        "total": total,
+        "skip": effective_skip,
+        "limit": effective_limit,
+    })
 
 
 @router.post("")
