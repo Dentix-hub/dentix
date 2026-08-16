@@ -9,6 +9,7 @@ principles.
 import os
 import logging
 import re
+from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from dotenv import load_dotenv
@@ -209,6 +210,14 @@ async def get_async_db():
 # Register SQLAlchemy event listeners
 
 
-# Sync engine alias for dev/staging startup operations only
-# (metadata.create_all, drop_all, Alembic). Production path never uses this.
-engine = async_engine.sync_engine
+# Real synchronous engine for synchronous startup/maintenance code.
+# async_engine.sync_engine is only an adapter around asyncpg and cannot be used
+# by normal synchronous call sites without SQLAlchemy's greenlet bridge.
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    pool_pre_ping=_pre_ping,
+    echo=False,
+    connect_args=connect_args,
+    **sync_pool_args,
+)
+event.listen(engine, "before_cursor_execute", before_cursor_execute, retval=True)
