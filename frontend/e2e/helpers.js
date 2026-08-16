@@ -13,11 +13,11 @@ export const E2E_CREDENTIALS = {
 };
 
 export async function loginAs(page, username, password) {
-  await page.goto(`${BASE_URL}/login`);
+  await page.goto(`${BASE_URL}/`);
   await page.locator('input[type="text"]').fill(username);
   await page.locator('input[type="password"]').fill(password);
   await page.locator('button[type="submit"]').click();
-  await page.waitForURL(`${BASE_URL}/`, { timeout: 15000 });
+  await page.locator('nav').first().waitFor({ state: 'visible', timeout: 15000 });
 }
 
 export async function loginAsAdmin(page) {
