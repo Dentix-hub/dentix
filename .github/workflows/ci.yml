@@ -19,7 +19,7 @@ jobs:
           POSTGRES_PASSWORD: test_pass
           POSTGRES_DB: dentix_test
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U test_user -d dentix_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -39,7 +39,33 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
+          # python-jose installs its pure-Python ECDSA backend even though Dentix
+          # uses HS256. Remove the unused vulnerable package rather than ignoring it.
+          pip uninstall -y ecdsa
           pip install pytest pytest-cov bandit safety
+
+      - name: Dependency compatibility smoke checks
+        run: |
+          python - <<'PY'
+          import tempfile
+          import chromadb
+          from chromadb.utils import embedding_functions
+          from jose import jwt
+
+          secret = 'dentix-ci-smoke-secret-at-least-32'
+          token = jwt.encode({'sub': 'ci'}, secret, algorithm='HS256')
+          assert jwt.decode(token, secret, algorithms=['HS256'])['sub'] == 'ci'
+
+          assert hasattr(embedding_functions, 'SentenceTransformerEmbeddingFunction')
+          client = chromadb.PersistentClient(path=tempfile.mkdtemp())
+          collection = client.get_or_create_collection('ci_smoke', embedding_function=None)
+          collection.add(ids=['1'], embeddings=[[0.1, 0.2]], documents=['dentix'])
+          result = collection.query(query_embeddings=[[0.1, 0.2]], n_results=1)
+          assert result['ids'][0][0] == '1'
+          assert collection.get(ids=['1'])['ids'] == ['1']
+          collection.delete(ids=['1'])
+          assert collection.get(ids=['1'])['ids'] == []
+          PY
 
       - name: Initialize Database
         working-directory: .
