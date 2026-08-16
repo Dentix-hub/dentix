@@ -167,7 +167,7 @@ describe('Finance V2 Shared UI Primitives', () => {
     });
 
     describe('<FilterBar />', () => {
-        it('renders search input and filters with reset button when active', () => {
+        it('renders labeled search/filter controls and accessible removal actions', () => {
             const onSearchMock = vi.fn();
             const onFilterMock = vi.fn();
             const onResetMock = vi.fn();
@@ -194,8 +194,11 @@ describe('Finance V2 Shared UI Primitives', () => {
                 </MemoryRouter>
             );
 
-            expect(screen.getByDisplayValue('أحمد')).toBeDefined();
+            expect(screen.getByRole('textbox', { name: 'بحث...' })).toBeDefined();
+            expect(screen.getByRole('combobox', { name: 'الحالة' })).toBeDefined();
             expect(screen.getByText('الحالة: مسدد')).toBeDefined();
+            expect(screen.getByRole('button', { name: 'إزالة فلتر البحث' })).toBeDefined();
+            expect(screen.getByRole('button', { name: 'إزالة الفلتر الحالة: مسدد' })).toBeDefined();
 
             const resetBtn = screen.getByText('إعادة ضبط');
             fireEvent.click(resetBtn);
@@ -232,7 +235,7 @@ describe('Finance V2 Shared UI Primitives', () => {
             expect(screen.getAllByText('سارة خالد').length).toBeGreaterThan(0);
         });
 
-        it('handles sorting header click', () => {
+        it('exposes sorting as a keyboard-accessible button with aria-sort state', () => {
             const onSortMock = vi.fn();
             render(
                 <DataTable
@@ -244,8 +247,10 @@ describe('Finance V2 Shared UI Primitives', () => {
                 />
             );
 
-            const idHeader = screen.getAllByText('المعرف')[0];
-            fireEvent.click(idHeader);
+            const sortButton = screen.getByRole('button', { name: 'المعرف' });
+            expect(sortButton.getAttribute('type')).toBe('button');
+            expect(sortButton.closest('th').getAttribute('aria-sort')).toBe('descending');
+            fireEvent.click(sortButton);
             expect(onSortMock).toHaveBeenCalledWith('id', 'asc');
         });
 
