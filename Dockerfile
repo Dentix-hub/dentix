@@ -37,8 +37,12 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements from root
 COPY requirements.txt .
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies. python-jose installs the pure-Python ecdsa backend even
+# when the cryptography backend is selected; Dentix uses HS256, so remove that
+# unused vulnerable package and immediately verify JWT encode/decode still works.
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip uninstall -y ecdsa \
+    && python -c "from jose import jwt; s='dentix-build-smoke-secret-32chars'; t=jwt.encode({'sub':'build'}, s, algorithm='HS256'); assert jwt.decode(t, s, algorithms=['HS256'])['sub']=='build'"
 
 # Copy the backend code
 COPY backend/ backend/
