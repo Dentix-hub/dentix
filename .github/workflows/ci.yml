@@ -133,8 +133,27 @@ jobs:
         run: cd frontend && npm run build
 
       - name: Run frontend tests
-        timeout-minutes: 5
-        run: cd frontend && npm run test -- --reporter=verbose
+        timeout-minutes: 8
+        working-directory: frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t test_files < <(find src -type f \( -name '*.test.js' -o -name '*.test.jsx' -o -name '*.test.ts' -o -name '*.test.tsx' \) | sort)
+
+          if [ "${#test_files[@]}" -eq 0 ]; then
+            echo "No frontend test files found."
+            exit 1
+          fi
+
+          echo "Found ${#test_files[@]} frontend test files."
+          for test_file in "${test_files[@]}"; do
+            echo "::group::Vitest ${test_file}"
+            # One Vitest process per file prevents leaked DOM/listeners/timers in one
+            # suite from freezing the entire frontend job and identifies hangs exactly.
+            timeout --signal=SIGTERM --kill-after=5s 45s \
+              npx vitest run "${test_file}" --reporter=verbose
+            echo "::endgroup::"
+          done
 
   e2e:
     name: E2E Tests (Playwright)
