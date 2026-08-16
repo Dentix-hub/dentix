@@ -1,7 +1,7 @@
 # ==========================================
 # Stage 1: Build Frontend
 # ==========================================
-FROM node:18-alpine as build
+FROM node:20-alpine AS build
 WORKDIR /app/frontend
 
 # Copy package files
@@ -54,8 +54,9 @@ COPY --from=build /app/frontend/dist /app/backend/static
 # Add /app to PYTHONPATH
 ENV PYTHONPATH=/app
 
-# Create necessary directories
-RUN mkdir -p backend/uploads backend/static/logos && chmod -R 777 backend/uploads
+# Create necessary persistent-data mount points
+RUN mkdir -p backend/uploads backend/static/logos /app/rag_storage /root/.cache/chroma \
+    && chmod -R 777 backend/uploads /app/rag_storage /root/.cache/chroma
 
 # Copy startup script
 COPY scripts/deployment/startup.sh /app/startup.sh
