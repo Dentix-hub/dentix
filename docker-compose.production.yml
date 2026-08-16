@@ -1,0 +1,138 @@
+# Production-only Compose stack.
+# The application image is built by CI from the exact tested commit and supplied
+# through DENTIX_IMAGE during deployment. Never build application code on-server.
+
+services:
+  backend:
+    image: ${DENTIX_IMAGE:?DENTIX_IMAGE is required}
+    restart: always
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: production
+      ENABLE_IN_PROCESS_WORKERS: "false"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 512M
+    ports:
+      # Caddy is the only public entry point.
+      - "127.0.0.1:7860:7860"
+    volumes:
+      - uploads_data:/app/backend/uploads
+      - rag_data:/app/rag_storage
+      - chroma_model_cache:/root/.cache/chroma
+    depends_on:
+      - redis
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  worker:
+    image: ${DENTIX_IMAGE:?DENTIX_IMAGE is required}
+    command: ["python", "-m", "backend.workers.prefect_worker"]
+    restart: always
+    healthcheck:
+      disable: true
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+    volumes:
+      - uploads_data:/app/backend/uploads
+      - rag_data:/app/rag_storage
+      - chroma_model_cache:/root/.cache/chroma
+    depends_on:
+      - redis
+
+  domain-worker:
+    image: ${DENTIX_IMAGE:?DENTIX_IMAGE is required}
+    command: ["python", "-m", "backend.workers.run", "--workers", "all"]
+    restart: always
+    healthcheck:
+      disable: true
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      ENVIRONMENT: production
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DENTIX_WORKERS: all
+      EVENT_WORKER_POLL_INTERVAL_SECONDS: ${EVENT_WORKER_POLL_INTERVAL_SECONDS:-5}
+      SUBSCRIPTION_CHECK_INTERVAL_HOURS: ${SUBSCRIPTION_CHECK_INTERVAL_HOURS:-12}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+    volumes:
+      - uploads_data:/app/backend/uploads
+      - rag_data:/app/rag_storage
+      - chroma_model_cache:/root/.cache/chroma
+    depends_on:
+      - backend
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --save 60 1 --loglevel warning
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    volumes:
+      - redis_data:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "2"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    environment:
+      DOMAIN: ${DOMAIN:-dentixs.app}
+      ACME_EMAIL: ${ACME_EMAIL:-eslam@dentixs.app}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+volumes:
+  uploads_data:
+    name: dentix_uploads_data
+  rag_data:
+    name: dentix_rag_data
+  chroma_model_cache:
+    name: dentix_chroma_model_cache
+  redis_data:
+    name: dentix_redis_data
+  caddy_data:
+    name: dentix_caddy_data
+  caddy_config:
+    name: dentix_caddy_config
