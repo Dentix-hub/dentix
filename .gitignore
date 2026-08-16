@@ -360,17 +360,15 @@ uploads/
 .pi/
 .pochi/
 .qoder/
-.qwen/
 .roo/
 .trae/
 .vibe/
 .windsurf/
 .zencoder/
-.agent/
-.agents/
 ruflo-sandbox/
 skills/
 skills-lock.json
+
 
 # Legacy / archived files (desktop app, old build scripts)
 legacy/
