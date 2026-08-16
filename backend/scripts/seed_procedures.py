@@ -56,16 +56,20 @@ async def seed_procedures():
 
             print("Checking procedures...")
             for proc_name in PROCEDURES_LIST:
-                # Check if exists
+                # Only a GLOBAL procedure satisfies this seed. A tenant-owned row
+                # with the same name is an override and must remain tenant-owned.
                 res = await db.execute(
-                    select(Procedure).filter(Procedure.name == proc_name)
+                    select(Procedure).filter(
+                        Procedure.name == proc_name,
+                        Procedure.tenant_id.is_(None),
+                    )
                 )
                 exists = res.scalars().first()
                 if exists:
                     existing_count += 1
                     continue
 
-                # Create new
+                # Create new global catalog entry
                 new_proc = Procedure(name=proc_name, price=0.0, tenant_id=tenant_id)
                 db.add(new_proc)
                 added_count += 1
@@ -78,6 +82,7 @@ async def seed_procedures():
         except Exception as e:
             print(f"Error seeding procedures: {e}")
             await db.rollback()
+            raise
 
 
 if __name__ == "__main__":
