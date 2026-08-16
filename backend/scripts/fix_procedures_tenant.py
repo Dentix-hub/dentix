@@ -11,6 +11,19 @@ from backend.models.clinical import Procedure
 
 
 async def fix_procedures_tenant():
+    """Optionally migrate the historical tenant-1 seed catalog to globals.
+
+    This operation changes data ownership and therefore must never run merely
+    because an application container started. Existing deployments may have a
+    real clinic with tenant_id=1. Require an explicit one-off opt-in instead.
+    """
+    if os.getenv("MIGRATE_TENANT1_PROCEDURES_TO_GLOBAL", "false").lower() != "true":
+        print(
+            "Skipping tenant-1 procedure ownership migration. "
+            "Set MIGRATE_TENANT1_PROCEDURES_TO_GLOBAL=true for an explicit one-off run."
+        )
+        return
+
     async with AsyncSessionLocal() as db:
         try:
             # Fetch all procedures with tenant_id=1
@@ -28,6 +41,7 @@ async def fix_procedures_tenant():
         except Exception as e:
             print(f"Error: {e}")
             await db.rollback()
+            raise
 
 
 if __name__ == "__main__":
