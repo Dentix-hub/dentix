@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     ChevronUp,
@@ -35,8 +34,7 @@ export default function DataTable({
     emptyIcon: EmptyIcon = Inbox,
     className = '',
 }) {
-    const { t, i18n } = useTranslation();
-    const isArabic = i18n.language === 'ar';
+    const { t } = useTranslation();
 
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
     const canPrev = page > 1;
@@ -81,7 +79,7 @@ export default function DataTable({
         return (
             <div className={`w-full bg-card border border-rose-200 dark:border-rose-900/50 rounded-xl p-8 text-center space-y-4 shadow-sm ${className}`}>
                 <div className="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center">
-                    <AlertCircle className="w-6 h-6" />
+                    <AlertCircle className="w-6 h-6" aria-hidden="true" />
                 </div>
                 <div className="space-y-1">
                     <h4 className="text-base font-bold text-text-primary">
@@ -95,9 +93,9 @@ export default function DataTable({
                     <button
                         type="button"
                         onClick={onRetry}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors shadow-sm"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     >
-                        <RefreshCw className="w-3.5 h-3.5" />
+                        <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
                         <span>{t('common.retry', 'إعادة المحاولة')}</span>
                     </button>
                 )}
@@ -110,7 +108,7 @@ export default function DataTable({
         return (
             <div className={`w-full bg-card border border-border rounded-xl p-12 text-center space-y-3 shadow-sm ${className}`}>
                 <div className="w-12 h-12 rounded-full bg-muted text-text-secondary mx-auto flex items-center justify-center">
-                    <EmptyIcon className="w-6 h-6" />
+                    <EmptyIcon className="w-6 h-6" aria-hidden="true" />
                 </div>
                 <h4 className="text-sm font-semibold text-text-secondary">
                     {emptyMessage || t('common.no_data', 'لا توجد بيانات للعرض')}
@@ -129,20 +127,26 @@ export default function DataTable({
                             <tr className="border-b border-border bg-muted/40 text-text-secondary font-bold text-xs uppercase tracking-wider">
                                 {columns.map((col) => {
                                     const isSorted = sortBy === col.id;
+                                    const ariaSort = col.sortable
+                                        ? (isSorted ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none')
+                                        : undefined;
+
                                     return (
                                         <th
                                             key={col.id}
                                             scope="col"
-                                            onClick={() => handleHeaderClick(col)}
-                                            className={`px-4 py-3.5 font-bold ${getAlignmentClass(col.align)} ${
-                                                col.sortable ? 'cursor-pointer select-none hover:text-text-primary' : ''
-                                            }`}
+                                            aria-sort={ariaSort}
+                                            className={`px-4 py-3.5 font-bold ${getAlignmentClass(col.align)}`}
                                             style={col.width ? { width: col.width } : undefined}
                                         >
-                                            <div className={`inline-flex items-center gap-1.5 ${getAlignmentClass(col.align)}`}>
-                                                <span>{col.header}</span>
-                                                {col.sortable && (
-                                                    <span className="text-text-secondary/70">
+                                            {col.sortable && onSort ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleHeaderClick(col)}
+                                                    className={`inline-flex items-center gap-1.5 rounded-md hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${getAlignmentClass(col.align)}`}
+                                                >
+                                                    <span>{col.header}</span>
+                                                    <span className="text-text-secondary/70" aria-hidden="true">
                                                         {isSorted ? (
                                                             sortDirection === 'asc' ? (
                                                                 <ChevronUp className="w-3.5 h-3.5 text-primary" />
@@ -153,8 +157,12 @@ export default function DataTable({
                                                             <ChevronsUpDown className="w-3.5 h-3.5 opacity-50" />
                                                         )}
                                                     </span>
-                                                )}
-                                            </div>
+                                                </button>
+                                            ) : (
+                                                <div className={`inline-flex items-center gap-1.5 ${getAlignmentClass(col.align)}`}>
+                                                    <span>{col.header}</span>
+                                                </div>
+                                            )}
                                         </th>
                                     );
                                 })}
@@ -233,13 +241,13 @@ export default function DataTable({
                             type="button"
                             onClick={() => onPageChange(page - 1)}
                             disabled={!canPrev}
-                            className="p-1.5 rounded-lg border border-border bg-card text-text-primary hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            className="p-1.5 rounded-lg border border-border bg-card text-text-primary hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                             aria-label={t('common.prev_page', 'الصفحة السابقة')}
                         >
-                            <ChevronLeft className="w-4 h-4 rtl:rotate-180" />
+                            <ChevronLeft className="w-4 h-4 rtl:rotate-180" aria-hidden="true" />
                         </button>
 
-                        <span className="px-3 py-1 text-xs font-bold text-text-primary">
+                        <span className="px-3 py-1 text-xs font-bold text-text-primary" aria-live="polite">
                             {page} / {totalPages}
                         </span>
 
@@ -247,10 +255,10 @@ export default function DataTable({
                             type="button"
                             onClick={() => onPageChange(page + 1)}
                             disabled={!canNext}
-                            className="p-1.5 rounded-lg border border-border bg-card text-text-primary hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            className="p-1.5 rounded-lg border border-border bg-card text-text-primary hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                             aria-label={t('common.next_page', 'الصفحة التالية')}
                         >
-                            <ChevronRight className="w-4 h-4 rtl:rotate-180" />
+                            <ChevronRight className="w-4 h-4 rtl:rotate-180" aria-hidden="true" />
                         </button>
                     </div>
                 </div>
