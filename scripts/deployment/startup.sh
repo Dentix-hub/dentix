@@ -13,8 +13,22 @@ set -euo pipefail
 #   3. Start the application
 # ============================================================
 
+# Preserve the externally supplied deployment label (for example "staging")
+# but force deployed containers onto the production-safe application startup
+# path. Only explicit local/test environments may use legacy schema helpers.
+export DENTIX_DEPLOYMENT_ENVIRONMENT="${ENVIRONMENT:-production}"
+case "${DENTIX_DEPLOYMENT_ENVIRONMENT,,}" in
+    development|dev|test|testing)
+        export ENVIRONMENT="$DENTIX_DEPLOYMENT_ENVIRONMENT"
+        ;;
+    *)
+        export ENVIRONMENT="production"
+        ;;
+esac
+
 echo "============================================================"
 echo "🚀 Dentix Production Startup — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo "   Deployment label: $DENTIX_DEPLOYMENT_ENVIRONMENT | App mode: $ENVIRONMENT"
 echo "============================================================"
 
 # === STEP 1: Run Alembic Migrations ===
