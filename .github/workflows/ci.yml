@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main ]
 
+concurrency:
+  group: dentix-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     name: Backend Tests + Security
@@ -39,8 +43,6 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          # python-jose installs its pure-Python ECDSA backend even though Dentix
-          # uses HS256. Remove the unused vulnerable package rather than ignoring it.
           pip uninstall -y ecdsa
           pip install pytest pytest-cov bandit safety
 
@@ -97,8 +99,6 @@ jobs:
           fail_ci_if_error: false
 
       - name: Security scan — Bandit
-        # Production recovery gate: fail CI on HIGH-severity findings.
-        # Medium findings remain visible and should be remediated separately.
         run: |
           bandit -r backend/ \
             -lll \
@@ -147,8 +147,6 @@ jobs:
           echo "Found ${#test_files[@]} frontend test files."
           for test_file in "${test_files[@]}"; do
             echo "::group::Vitest ${test_file}"
-            # One Vitest process per file prevents leaked DOM/listeners/timers in one
-            # suite from freezing the entire frontend job and identifies hangs exactly.
             timeout --signal=SIGTERM --kill-after=5s 45s \
               npx vitest run "${test_file}" --reporter=verbose
             echo "::endgroup::"
@@ -245,7 +243,7 @@ jobs:
 
       - name: Run Playwright E2E
         working-directory: frontend
-        run: npx playwright test --config=playwright.config.ts
+        run: npx playwright test --config=playwright.config.ts --max-failures=1 --retries=0
 
       - name: Show backend log on failure
         if: failure()
