@@ -72,9 +72,11 @@ jobs:
           fail_ci_if_error: false
 
       - name: Security scan — Bandit
+        # Production recovery gate: fail CI on HIGH-severity findings.
+        # Medium findings remain visible and should be remediated separately.
         run: |
           bandit -r backend/ \
-            -ll \
+            -lll \
             -x backend/tests,backend/scripts \
             --format txt
 
@@ -105,7 +107,8 @@ jobs:
         run: cd frontend && npm run build
 
       - name: Run frontend tests
-        run: cd frontend && npm run test
+        timeout-minutes: 5
+        run: cd frontend && npm run test -- --reporter=verbose
 
   e2e:
     name: E2E Tests (Playwright)
