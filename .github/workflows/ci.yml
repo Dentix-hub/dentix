@@ -300,7 +300,8 @@ jobs:
             --tag "dentix-ci:${GITHUB_SHA}" \
             --load \
             .
-          test "$(docker image inspect --format '{{ index .Config.Labels \"org.opencontainers.image.revision\" }}' "dentix-ci:${GITHUB_SHA}")" = "$GITHUB_SHA"
+          IMAGE_REVISION="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "dentix-ci:${GITHUB_SHA}")"
+          test "$IMAGE_REVISION" = "$GITHUB_SHA"
 
       - name: Log in to GitHub Container Registry
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
