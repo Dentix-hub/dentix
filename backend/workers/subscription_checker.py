@@ -8,10 +8,11 @@ from sqlalchemy import select, or_
 import traceback
 
 from prefect import task, flow
+from prefect.cache_policies import NO_CACHE
 
 logger = logging.getLogger("smart_clinic.workers")
 
-@task(retries=3, retry_delay_seconds=300, log_prints=True)
+@task(retries=3, retry_delay_seconds=300, log_prints=True, cache_policy=NO_CACHE)
 async def check_expired_subscriptions(db: AsyncSession):
     """
     Finds all active tenants whose subscription_end_date has passed
@@ -51,7 +52,7 @@ async def subscription_checker_flow():
 
 async def start_subscription_checker_loop(interval_hours: int = 12):
     """
-    Loop runner that periodically triggers the Prefect flow.
+    Loop runner that periodically triggers the subscription check flow.
     Runs as an asyncio task within the FastAPI lifespan.
     """
     logger.info(f"Subscription Checker daemon started. Will run every {interval_hours} hours.")
@@ -64,4 +65,3 @@ async def start_subscription_checker_loop(interval_hours: int = 12):
 
         # Sleep for the configured interval (convert hours to seconds)
         await asyncio.sleep(interval_hours * 3600)
-
