@@ -33,9 +33,10 @@ async def process_event(event: DomainEvent):
         raise e
 
 from prefect import task, flow
+from prefect.cache_policies import NO_CACHE
 from sqlalchemy.ext.asyncio import AsyncSession
 
-@task(retries=3, retry_delay_seconds=60, log_prints=True)
+@task(retries=3, retry_delay_seconds=60, log_prints=True, cache_policy=NO_CACHE)
 async def process_pending_events(session: AsyncSession):
     """Prefect task to process pending outbox events."""
     # Import handlers to trigger @register_handler decorators
