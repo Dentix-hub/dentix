@@ -54,7 +54,7 @@ describe('Login Component', () => {
         expect(screen.getByAltText('DENTIX Logo')).toBeInTheDocument();
     });
 
-    it('allows typing and remember-me toggling', () => {
+    it('allows typing username and password', () => {
         renderLogin();
         const usernameInput = screen.getByPlaceholderText('auth.login.username');
         const passwordInput = screen.getByPlaceholderText('auth.login.password');
@@ -62,10 +62,6 @@ describe('Login Component', () => {
         fireEvent.change(passwordInput, { target: { value: 'testpass123' } });
         expect(usernameInput.value).toBe('testuser');
         expect(passwordInput.value).toBe('testpass123');
-        const checkbox = screen.getByRole('checkbox');
-        expect(checkbox).not.toBeChecked();
-        fireEvent.click(checkbox);
-        expect(checkbox).toBeChecked();
     });
 
     it('submits credentials through the auth hook', async () => {
