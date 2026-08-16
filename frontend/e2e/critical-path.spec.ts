@@ -7,15 +7,15 @@ const TEST_PASS = E2E_CREDENTIALS.admin.password;
 
 test.describe('Dentix Critical Path', () => {
   test('E2E Clinical Core Workflow', async ({ page }) => {
-    // 1. Setup & Login
-    await page.goto(BASE_URL + '/login');
+    // 1. Setup & Login through the canonical unauthenticated route.
+    await page.goto(BASE_URL + '/');
     await page.locator('input[type="text"]').fill(TEST_USER);
     await page.locator('input[type="password"]').fill(TEST_PASS);
     await page.locator('button[type="submit"]').click();
-    await page.waitForURL('**/', { timeout: 15000 });
+    await expect(page.locator('nav').first()).toBeVisible({ timeout: 15000 });
 
     // 2. Dashboard Loaded
-    await expect(page.locator('nav').first()).toBeVisible();
+    await expect(page).toHaveURL(`${BASE_URL}/`);
 
     // 3. Navigate to Patients
     await page.goto(BASE_URL + '/patients');
