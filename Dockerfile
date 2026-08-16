@@ -1,7 +1,7 @@
 # ==========================================
 # Stage 1: Build Frontend
 # ==========================================
-FROM node:18-alpine as build
+FROM node:20-alpine AS build
 WORKDIR /app/frontend
 
 # Copy package files
@@ -37,8 +37,12 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements from root
 COPY requirements.txt .
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies. python-jose installs the pure-Python ecdsa backend even
+# when the cryptography backend is selected; Dentix uses HS256, so remove that
+# unused vulnerable package and immediately verify JWT encode/decode still works.
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip uninstall -y ecdsa \
+    && python -c "from jose import jwt; s='dentix-build-smoke-secret-32chars'; t=jwt.encode({'sub':'build'}, s, algorithm='HS256'); assert jwt.decode(t, s, algorithms=['HS256'])['sub']=='build'"
 
 # Copy the backend code
 COPY backend/ backend/
@@ -50,8 +54,9 @@ COPY --from=build /app/frontend/dist /app/backend/static
 # Add /app to PYTHONPATH
 ENV PYTHONPATH=/app
 
-# Create necessary directories
-RUN mkdir -p backend/uploads backend/static/logos && chmod -R 777 backend/uploads
+# Create necessary persistent-data mount points
+RUN mkdir -p backend/uploads backend/static/logos /app/rag_storage /root/.cache/chroma \
+    && chmod -R 777 backend/uploads /app/rag_storage /root/.cache/chroma
 
 # Copy startup script
 COPY scripts/deployment/startup.sh /app/startup.sh

@@ -18,8 +18,11 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements
 COPY requirements.txt .
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies, remove the unused pure-Python ECDSA backend, and prove
+# the HS256 JWT path used by Dentix remains operational.
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip uninstall -y ecdsa \
+    && python -c "from jose import jwt; s='dentix-build-smoke-secret-32chars'; t=jwt.encode({'sub':'build'}, s, algorithm='HS256'); assert jwt.decode(t, s, algorithms=['HS256'])['sub']=='build'"
 
 # Copy the backend code (which already contains static/ from local build)
 COPY backend/ backend/

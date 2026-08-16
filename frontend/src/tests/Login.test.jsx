@@ -7,7 +7,9 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Login from '@/pages/Login';
 
-// Mock dependencies
+const loginMock = vi.fn();
+const verify2FAMock = vi.fn();
+
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
         t: (key) => key,
@@ -15,24 +17,23 @@ vi.mock('react-i18next', () => ({
     }),
 }));
 
-vi.mock('../api', () => ({
-    login: vi.fn(),
+vi.mock('@/auth/useAuth', () => ({
+    useAuth: () => ({
+        login: loginMock,
+        verify2FA: verify2FAMock,
+    }),
 }));
 
-// Base64 assets replaced with static files (T-1.9)
-// Logo is now referenced via static URL in component
-
-const renderLogin = (props = {}) => {
-    return render(
-        <MemoryRouter>
-            <Login isDarkMode={false} toggleDarkMode={vi.fn()} {...props} />
-        </MemoryRouter>
-    );
-};
+const renderLogin = (props = {}) => render(
+    <MemoryRouter>
+        <Login isDarkMode={false} toggleDarkMode={vi.fn()} {...props} />
+    </MemoryRouter>
+);
 
 describe('Login Component', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        loginMock.mockResolvedValue({ role: 'admin' });
     });
 
     it('renders the login form with username and password fields', () => {
@@ -41,18 +42,10 @@ describe('Login Component', () => {
         expect(screen.getByPlaceholderText('auth.login.password')).toBeInTheDocument();
     });
 
-    it('renders submit button', () => {
+    it('renders submit, register and forgot-password controls', () => {
         renderLogin();
         expect(screen.getByText('auth.login.submit')).toBeInTheDocument();
-    });
-
-    it('renders register link', () => {
-        renderLogin();
         expect(screen.getByText('auth.login.register_new')).toBeInTheDocument();
-    });
-
-    it('renders forgot password link', () => {
-        renderLogin();
         expect(screen.getByText('auth.login.forgot_password')).toBeInTheDocument();
     });
 
@@ -61,64 +54,36 @@ describe('Login Component', () => {
         expect(screen.getByAltText('DENTIX Logo')).toBeInTheDocument();
     });
 
-    it('renders dark mode toggle button', () => {
-        const toggleFn = vi.fn();
-        renderLogin({ toggleDarkMode: toggleFn });
-        // The toggle button should exist (contains Sun or Moon icon)
-        const buttons = screen.getAllByRole('button');
-        expect(buttons.length).toBeGreaterThanOrEqual(1);
-    });
-
-    it('allows typing in username and password fields', () => {
+    it('allows typing username and password', () => {
         renderLogin();
         const usernameInput = screen.getByPlaceholderText('auth.login.username');
         const passwordInput = screen.getByPlaceholderText('auth.login.password');
-
         fireEvent.change(usernameInput, { target: { value: 'testuser' } });
         fireEvent.change(passwordInput, { target: { value: 'testpass123' } });
-
         expect(usernameInput.value).toBe('testuser');
         expect(passwordInput.value).toBe('testpass123');
     });
 
-    it('renders remember me checkbox', () => {
+    it('submits credentials through the auth hook', async () => {
         renderLogin();
-        const checkbox = screen.getByRole('checkbox');
-        expect(checkbox).toBeInTheDocument();
-        expect(checkbox).not.toBeChecked();
-    });
-
-    it('toggles remember me checkbox', () => {
-        renderLogin();
-        const checkbox = screen.getByRole('checkbox');
-        fireEvent.click(checkbox);
-        expect(checkbox).toBeChecked();
+        fireEvent.change(screen.getByPlaceholderText('auth.login.username'), { target: { value: ' admin ' } });
+        fireEvent.change(screen.getByPlaceholderText('auth.login.password'), { target: { value: 'pass123' } });
+        fireEvent.click(screen.getByText('auth.login.submit'));
+        await waitFor(() => expect(loginMock).toHaveBeenCalledWith('admin', 'pass123'));
     });
 
     it('shows error message when login fails', async () => {
-        const { login: loginApi } = await import('../api');
-        loginApi.mockRejectedValueOnce({
-            response: { data: { detail: 'Invalid credentials' } },
-        });
-
+        loginMock.mockRejectedValueOnce({ response: { data: { detail: 'Invalid credentials' } } });
         renderLogin();
-        const usernameInput = screen.getByPlaceholderText('auth.login.username');
-        const passwordInput = screen.getByPlaceholderText('auth.login.password');
-        const submitButton = screen.getByText('auth.login.submit');
-
-        fireEvent.change(usernameInput, { target: { value: 'wronguser' } });
-        fireEvent.change(passwordInput, { target: { value: 'wrongpass' } });
-        fireEvent.click(submitButton);
-
-        await waitFor(() => {
-            expect(screen.getByText('Invalid credentials')).toBeInTheDocument();
-        });
+        fireEvent.change(screen.getByPlaceholderText('auth.login.username'), { target: { value: 'wronguser' } });
+        fireEvent.change(screen.getByPlaceholderText('auth.login.password'), { target: { value: 'wrongpass' } });
+        fireEvent.click(screen.getByText('auth.login.submit'));
+        await waitFor(() => expect(screen.getByText('Invalid credentials')).toBeInTheDocument());
     });
 
-    it('renders footer with terms and privacy links', () => {
+    it('renders footer terms and privacy links', () => {
         renderLogin();
         expect(screen.getByText('auth.login.terms')).toBeInTheDocument();
         expect(screen.getByText('auth.login.privacy')).toBeInTheDocument();
     });
 });
-

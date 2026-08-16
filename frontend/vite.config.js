@@ -115,11 +115,11 @@ export default defineConfig({
         environment: 'jsdom',
         setupFiles: './src/setupTests.js',
         include: ['src/**/*.test.{js,jsx,ts,tsx}'],
-        pool: 'forks',
+        pool: 'threads',
         poolOptions: {
-            forks: {
-                minForks: 1,
-                maxForks: 1,
+            threads: {
+                singleThread: true,
+                isolate: true,
             },
         },
     }
