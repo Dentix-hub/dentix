@@ -51,8 +51,12 @@ COPY backend/ backend/
 # This allows FastAPI to serve the React App
 COPY --from=build /app/frontend/dist /app/backend/static
 
-# Add /app to PYTHONPATH
-ENV PYTHONPATH=/app
+# Docker deployments are production-like by default. Schema changes are handled
+# by /app/startup.sh + Alembic before Uvicorn starts, never by legacy in-app
+# create_all/ad-hoc migration code. A runtime environment may explicitly override
+# this value when needed.
+ENV PYTHONPATH=/app \
+    ENVIRONMENT=production
 
 # Create necessary persistent-data mount points
 RUN mkdir -p backend/uploads backend/static/logos /app/rag_storage /root/.cache/chroma \
