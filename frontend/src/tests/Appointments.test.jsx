@@ -56,7 +56,7 @@ describe('Appointments Page', () => {
 
     it('renders the appointments page and calendar view', () => {
         render(<Appointments />);
-        expect(screen.getByText('appointments.title')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'appointments.title', level: 1 })).toBeInTheDocument();
         expect(screen.getByTestId('weekly-calendar')).toBeInTheDocument();
     });
 
