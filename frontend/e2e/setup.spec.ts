@@ -69,15 +69,17 @@ setup('E2E Test Setup: Create test data', async ({ request, page }) => {
 
   expect(adminToken).toBeTruthy();
 
-  // The production critical-path suite only needs the clinic admin. A newly
-  // registered trial tenant currently allows one user, so creating extra role
-  // fixtures here would test subscription limits rather than the clinical flow.
-  // Role-specific legacy E2E tests should provision their own plan/fixtures.
+  // The critical path only needs the clinic admin. A new trial tenant allows
+  // one user, so role-specific legacy suites must provision their own fixtures.
 
-  await page.goto(`${BASE_URL}/login`);
+  // `/` is the canonical unauthenticated login route. Starting at `/login`
+  // leaves a successfully authenticated non-super-admin on an authenticated
+  // route that does not exist, so App correctly renders NotFound there.
+  await page.goto(`${BASE_URL}/`);
   await page.locator('input[type="text"]').fill(ADMIN_USER);
   await page.locator('input[type="password"]').fill(ADMIN_PASS);
   await page.locator('button[type="submit"]').click();
-  await page.waitForURL(`${BASE_URL}/`, { timeout: 15000 });
+  await expect(page.locator('nav').first()).toBeVisible({ timeout: 15000 });
+  await expect(page).toHaveURL(`${BASE_URL}/`);
   console.log('E2E admin browser login verified.');
 });
