@@ -7,7 +7,7 @@ import { test as setup, expect } from '@playwright/test';
 const API_URL = process.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173';
 
-const ADMIN_USER = 'admin';
+const ADMIN_USER = 'e2e_admin';
 const ADMIN_PASS = 'Dentix-E2E_Admin!2026_X9';
 
 const TEST_USERS = [
@@ -60,8 +60,6 @@ setup('E2E Test Setup: Create test data', async ({ request, page }) => {
     const registerBody = await registerRes.json();
     adminToken = registerBody?.data?.access_token ?? registerBody?.access_token ?? null;
 
-    // The registration response shape is StandardResponse today, but use a real
-    // login as the final source of truth so this setup survives response wrapping.
     if (!adminToken) {
       const loginRes = await request.post(`${API_URL}/auth/token`, {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -106,8 +104,6 @@ setup('E2E Test Setup: Create test data', async ({ request, page }) => {
     );
   }
 
-  // Verify browser authentication too. This catches frontend/backend auth contract
-  // drift before the feature E2E suites start.
   await page.goto(`${BASE_URL}/login`);
   await page.locator('input[type="text"]').fill(ADMIN_USER);
   await page.locator('input[type="password"]').fill(ADMIN_PASS);
