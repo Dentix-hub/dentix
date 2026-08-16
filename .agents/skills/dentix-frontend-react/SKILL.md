@@ -9,13 +9,13 @@ description: Implement or review DENTIX React/Vite UI work, components, pages, h
 - **Framework**: React 18 + Vite.
 - **Styling**: Tailwind CSS + custom design tokens.
 - **Server State**: TanStack React Query (`@tanstack/react-query`) for API data caching, polling, and mutations.
-- **Client State**: Zustand stores (`src/stores/`) for local/transient client and UI state.
+- **Client State**: Zustand stores (`frontend/src/store/`) for local/transient client and UI state.
 - **Prohibition**: Do NOT introduce Redux or other global store libraries.
 
 ## Architecture Guidelines
 
 ### Component Organization & UI Reuse
-- Prioritize existing shared components in `frontend/src/shared/ui/` (`Button`, `Modal`, `Input`, `Toast`, `Badge`, `Card`) before creating new primitives.
+- Prioritize existing shared components in `frontend/src/shared/ui/` before creating new primitives.
 - Decompose complex pages into focused sub-components under feature folders.
 - Ensure bidirectional RTL (Arabic) and LTR (English) support for all UI text, layouts, forms, and dialogs.
 
@@ -32,7 +32,8 @@ description: Implement or review DENTIX React/Vite UI work, components, pages, h
 - Preserve responsive breakpoints across mobile, tablet, and desktop views.
 
 ### Verification Checklist
-- Run linter: `npm run lint` (or `cmd /c "npm run lint"`).
-- Run unit/component tests: `npm run test` (or `cmd /c "npm test"`).
-- Run production build check: `npm run build` (or `cmd /c "npm run build"`).
+Run only scripts defined by the current `frontend/package.json`:
+- Run linter: `cd frontend && npm run lint`.
+- Run unit/component tests: `cd frontend && npm run test`.
+- Run production build check: `cd frontend && npm run build`.
 - Validate rendered UI against responsive viewports and language directions.

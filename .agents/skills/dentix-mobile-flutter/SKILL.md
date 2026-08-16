@@ -15,9 +15,10 @@ The DENTIX mobile client (`dentix_mobile/`) is built using Flutter/Dart with a c
 ## Core Mobile Principles
 
 ### Architecture & Layering
-- **Presentation**: Screens and reusable widgets in `lib/features/<feature>/presentation/`.
-- **State/Providers**: Riverpod providers and Notifiers in `lib/features/<feature>/presentation/providers/`.
-- **Domain/Data**: Repositories and models in `lib/features/<feature>/data/`.
+Follow the existing feature/module structure used by the mobile codebase. The current structure organizes features under `dentix_mobile/lib/features/<feature>/` with layers such as:
+- **Presentation**: Screens, pages, and controllers in `presentation/`.
+- **Domain**: Entities, use cases, and repository interfaces in `domain/`.
+- **Data**: Repositories, data sources, and models in `data/`.
 - **No Duplicate Logic**: Never duplicate complex backend financial calculations or clinical validation on the mobile client; delegate to FastAPI backend endpoints.
 
 ### Authentication, RBAC & Lifecycle
@@ -27,6 +28,7 @@ The DENTIX mobile client (`dentix_mobile/`) is built using Flutter/Dart with a c
 - Minimize platform permissions and avoid introducing native plugins without verified cross-platform compatibility.
 
 ### Verification Checklist
-- Run Flutter static analysis: `flutter analyze` (when Flutter SDK is present).
-- Run Flutter test suite: `flutter test` (when Flutter SDK is present).
+When the Flutter SDK and project dependencies are available:
+- Run Flutter static analysis: `flutter analyze`.
+- Run Flutter test suite: `flutter test`.
 - Verify widget rebuild performance and memory leaks during state transitions.

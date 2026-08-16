@@ -12,11 +12,13 @@ The DENTIX AI agent stack is designed to be natively compatible with modern AI c
 When instructions or design decisions interact, agents must strictly follow this precedence:
 1. **Explicit Current Task / Approved Plan**: Current user prompt or approved implementation plan.
 2. **Security & Compliance Constraints**: Multi-tenant isolation (`tenant_id`), RBAC permissions, clinical PII protection, and financial integrity.
-3. **Root `AGENTS.md`**: Core project rules, architectural guardrails, and execution discipline.
-4. **`PROJECT_STANDARDS.md`**: Detailed architectural and engineering specifications.
+3. **`PROJECT_STANDARDS.md`**: Canonical DENTIX architecture and engineering specifications.
+4. **Root `AGENTS.md`**: Cross-runtime execution, safety, and completion discipline.
 5. **Task-Specific Documentation**: Domain documents under `docs/` and module READMEs.
 6. **Relevant `.agents/skills/`**: Progressive-disclosure guidance for specific technical domains.
 7. **General Engineering Best Practices**: Clean code and standard language idioms.
+
+`PROJECT_STANDARDS.md` defines the canonical DENTIX architecture and engineering conventions. `AGENTS.md` defines cross-runtime execution, safety, and completion discipline. If `AGENTS.md` is ever interpreted in a way that conflicts with `PROJECT_STANDARDS.md` on project architecture, `PROJECT_STANDARDS.md` wins.
 
 ## 4. Root `AGENTS.md` Purpose
 Root `AGENTS.md` acts as the primary, always-active cross-runtime contract. It establishes invariant guardrails:
@@ -58,15 +60,15 @@ Skills reside in the `.agents/skills/` directory. Each skill is encapsulated in 
 | Skill Name | Purpose & Trigger | Primary Files / Stack |
 |:---|:---|:---|
 | `dentix-plan-execution` | Multi-phase plan execution without skipping requirements | Cross-repo plans, task ledgers |
-| `dentix-backend-fastapi` | FastAPI layered architecture (Router->Service->CRUD) | `backend/app/` |
+| `dentix-backend-fastapi` | FastAPI layered architecture (Router->Service->CRUD) | `backend/routers/`, `backend/services/`, `backend/crud/` |
 | `dentix-frontend-react` | React 18, Vite, Tailwind CSS, TanStack Query, Zustand | `frontend/src/` |
 | `dentix-mobile-flutter` | Flutter mobile client, Riverpod state, GoRouter, Dio | `dentix_mobile/lib/` |
-| `dentix-security-tenancy-rbac` | Tenant boundaries, RBAC permissions, clinical PII, finance | `backend/app/core/tenant_scope.py`, auth |
-| `dentix-database-migrations` | SQLAlchemy async models, PostgreSQL indexing, Alembic | `backend/alembic/`, `backend/app/models/` |
+| `dentix-security-tenancy-rbac` | Tenant boundaries, RBAC permissions, clinical PII, finance | `backend/core/tenant_scope.py`, auth |
+| `dentix-database-migrations` | SQLAlchemy async models, PostgreSQL indexing, Alembic | `backend/alembic/`, `backend/models/` |
 | `dentix-testing-verification` | Test runner discovery, pytest (70% CI coverage), vitest | `backend/tests/`, `frontend/src/tests/` |
 | `dentix-systematic-debugging` | 4-phase evidence-first root cause analysis (RCA) | Defect resolution, error traces |
 | `dentix-code-review` | Severity-graded review (`CRITICAL` to `NOTE`) & priority | Pull requests, code diffs |
-| `dentix-performance` | Measurement-first query optimization, caching, rendering | SQL profiling, React memo, Redis |
+| `dentix-performance` | Measurement-first query optimization, caching, rendering | SQL profiling, React memo, caching layer |
 
 ## 7. When a New Skill is Justified
 A new skill may only be introduced if all the following conditions are met:
@@ -103,12 +105,15 @@ When executing multi-step tasks or implementation plans:
 - Avoid bloating skills; keep instructions actionable, concise, and focused.
 - Ensure all skills maintain valid YAML frontmatter and proper file sizes.
 
-## 13. Validation Commands
+## 13. Repository Hygiene Validation
+Validate that:
+- Legacy agent-framework directories are absent.
+- Only the native `.agents/skills/` surface is present.
+- No obsolete project-level AI-tool configuration remains.
+- Repository skills remain limited to the approved DENTIX catalog.
+
 To validate the static integrity of the AI agent stack:
 ```bash
 # Verify skill count and frontmatter
 powershell -Command "Get-ChildItem .agents/skills | Measure-Object"
-
-# Search for any forbidden legacy branding
-rg -ni -e "Everything Claude Code" -e "Antigravity Kit" -e "CodeRabbit" .agents/
 ```

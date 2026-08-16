@@ -14,9 +14,9 @@ description: Review or implement DENTIX changes involving authentication, author
 - **Bulk Actions**: All batch inserts, updates, and deletes must strictly assert tenant boundaries.
 
 ### 2. Role-Based Access Control (RBAC)
-- **Roles Hierarchy**: Support predefined clinic roles (`SUPER_ADMIN`, `CLINIC_OWNER`, `CLINIC_ADMIN`, `DOCTOR`, `RECEPTIONIST`, `ACCOUNTANT`).
-- **Server-Side Enforcement**: Always enforce RBAC on FastAPI endpoints using security dependencies (`require_role`, `check_permission`). Never rely solely on frontend UI hiding.
-- **Doctor Patient Visibility**: Respect clinic patient assignment logic. Ensure doctors only access authorized patient records while receptionists can manage scheduling across the clinic.
+- **Role Definitions**: Use the role/permission definitions in the current backend as the source of truth. Confirmed roles include `SUPER_ADMIN`, `CLINIC_OWNER`, `CLINIC_ADMIN`, `DOCTOR`, `RECEPTIONIST`, and `ACCOUNTANT`.
+- **Server-Side Enforcement**: Always enforce RBAC on FastAPI endpoints using the existing authentication and RBAC dependencies/helpers already used by nearby routers (e.g., `get_current_user`, `check_permission`). Never rely solely on frontend UI hiding.
+- **Doctor Patient Visibility**: Do not broaden doctor visibility as a shortcut. Do not hide patients created by reception staff when the doctor's authorized visibility rules permit access. The backend implementation is the source of truth for visibility behavior.
 
 ### 3. Financial & Clinical Data Protection
 - **Financial Sensitivity**: Protect revenue, payments, doctor commission percentages, and expenses with strict administrative permissions.
@@ -28,6 +28,11 @@ description: Review or implement DENTIX changes involving authentication, author
 - **No Direct Injection**: Sanitize inputs to LLM prompts and validate tool execution payloads against Pydantic schemas.
 
 ## Verification Checklist
-- Run tenant isolation test suite: `pytest backend/tests/test_tenant_scope.py backend/tests/test_multi_tenancy.py -v`.
-- Verify RBAC test suite: `pytest backend/tests/test_rbac.py backend/tests/test_permissions.py -v`.
-- Confirm audit logs and error handlers never leak credentials, secret tokens, or cross-tenant data.
+
+1. Discover relevant existing security tests before running them:
+   - Search `backend/tests/` for tenant, RBAC, permission, role, visibility, authentication, patient-access, finance-access, and cross-tenant coverage.
+2. Run the smallest relevant test set first.
+3. For security-sensitive changes, expand to the broader backend security/RBAC suite before completion.
+4. `backend/tests/test_rbac.py` may be used when relevant because it exists in the repository.
+5. Never invent a test filename or report an unexecuted test as passed.
+6. Confirm audit logs and error handlers never leak credentials, secret tokens, or cross-tenant data.

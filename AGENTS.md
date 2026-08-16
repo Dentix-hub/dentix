@@ -4,9 +4,13 @@
 
 `PROJECT_STANDARDS.md` is the architectural and engineering source of truth for DENTIX.
 
+`PROJECT_STANDARDS.md` defines the canonical DENTIX architecture and engineering conventions.
+This `AGENTS.md` defines cross-runtime execution, safety, and completion discipline.
+If this file is ever interpreted in a way that conflicts with `PROJECT_STANDARDS.md` on project architecture, `PROJECT_STANDARDS.md` wins.
+
 Before significant implementation work:
 1. Read the relevant existing code.
-2. Read `PROJECT_STANDARDS.md` if present or refer to established repository conventions.
+2. Read `PROJECT_STANDARDS.md` before editing.
 3. Preserve existing business rules, API contracts, database behavior, authentication, RBAC, and tenant isolation unless the task explicitly requires a change.
 
 If generic guidance conflicts with DENTIX project standards, DENTIX project standards win.
@@ -17,8 +21,8 @@ Apply guidance in this order:
 
 1. Explicit current user requirement or approved implementation plan.
 2. Security, tenant isolation, RBAC, data integrity, and privacy constraints.
-3. This `AGENTS.md`.
-4. `PROJECT_STANDARDS.md`.
+3. `PROJECT_STANDARDS.md`.
+4. This `AGENTS.md`.
 5. Task-specific repository documentation.
 6. Relevant `.agents/skills/` instructions.
 7. General engineering conventions.

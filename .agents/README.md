@@ -5,8 +5,8 @@ This directory contains repository-scoped skills used by supported AI coding run
 ## Source Priority
 1. Explicit current task requirement or approved implementation plan
 2. Security, tenant isolation, RBAC, data integrity, and privacy constraints
-3. Root `AGENTS.md`
-4. `PROJECT_STANDARDS.md`
+3. `PROJECT_STANDARDS.md`
+4. Root `AGENTS.md`
 5. Task-specific repository documentation
 6. Relevant `.agents/skills/` instructions
 7. General engineering conventions
