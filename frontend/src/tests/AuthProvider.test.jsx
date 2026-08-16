@@ -13,11 +13,11 @@ describe('ProtectedRoute', () => {
         );
 
         return render(
-            <MemoryRouter>
+            <MemoryRouter initialEntries={['/protected']}>
                 <MockAuthProvider>
                     <Routes>
-                        <Route path="/" element={ui} />
-                        <Route path="/login" element={<div>Login Page</div>} />
+                        <Route path="/" element={<div>Login Page</div>} />
+                        <Route path="/protected" element={ui} />
                         <Route path="/unauthorized" element={<div>Unauthorized</div>} />
                     </Routes>
                 </MockAuthProvider>
@@ -25,7 +25,7 @@ describe('ProtectedRoute', () => {
         );
     }
 
-    it('redirects to / when not authenticated', () => {
+    it('redirects to the root login route when not authenticated', () => {
         renderWithAuth(
             { user: null, loading: false, isAuthenticated: false },
             <ProtectedRoute>
@@ -103,4 +103,3 @@ describe('AuthContext', () => {
         expect(authData.user.role).toBe('admin');
     });
 });
-
