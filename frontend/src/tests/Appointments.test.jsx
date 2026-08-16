@@ -7,7 +7,10 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import Appointments from '@/pages/Appointments';
 
 vi.mock('react-i18next', () => ({
-    useTranslation: () => ({ t: (key) => key }),
+    useTranslation: () => ({
+        t: (key) => key,
+        i18n: { language: 'ar', changeLanguage: vi.fn() },
+    }),
 }));
 
 vi.mock('react-router-dom', () => ({
