@@ -3,13 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
     UserCheck,
-    Stethoscope,
     DollarSign,
-    Percent,
     Settings,
     ArrowUpRight,
     TrendingUp,
-    FlaskConical,
 } from 'lucide-react';
 import { useDoctorCompensation } from '../compensation/hooks/useDoctorCompensation';
 import { useFinancePermissions } from '../useFinancePermissions';
@@ -57,7 +54,7 @@ export default function DoctorCompensationPage() {
                 <div className="space-y-0.5">
                     <Link
                         to={`/finance/compensation/doctors/${row.doctor_id}?from=${from}&to=${to}`}
-                        className="font-bold text-text-primary hover:text-primary transition-colors block"
+                        className="font-bold text-text-primary hover:text-primary transition-colors block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-sm"
                     >
                         {row.doctor_name}
                     </Link>
@@ -142,27 +139,33 @@ export default function DoctorCompensationPage() {
             align: 'end',
             sortable: false,
             width: '100px',
-            cell: (row) => (
-                <div className="flex items-center justify-end gap-1.5">
-                    {canConfigFinance && (
-                        <button
-                            type="button"
-                            onClick={() => setDoctorToConfigure(row)}
-                            className="p-1.5 rounded-lg text-text-secondary hover:text-primary hover:bg-primary/10 transition-colors"
-                            title={t('finance.compensation.edit_rules', 'تعديل قواعد الأتعاب')}
+            cell: (row) => {
+                const editRulesLabel = t('finance.compensation.edit_rules', 'تعديل قواعد الأتعاب');
+                const viewDetailsLabel = t('common.view_details', 'عرض التفاصيل');
+                return (
+                    <div className="flex items-center justify-end gap-1.5">
+                        {canConfigFinance && (
+                            <button
+                                type="button"
+                                onClick={() => setDoctorToConfigure(row)}
+                                className="p-1.5 rounded-lg text-text-secondary hover:text-primary hover:bg-primary/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                title={editRulesLabel}
+                                aria-label={`${editRulesLabel}: ${row.doctor_name}`}
+                            >
+                                <Settings className="w-4 h-4" aria-hidden="true" />
+                            </button>
+                        )}
+                        <Link
+                            to={`/finance/compensation/doctors/${row.doctor_id}?from=${from}&to=${to}`}
+                            className="p-1.5 rounded-lg text-text-secondary hover:text-primary hover:bg-primary/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                            title={viewDetailsLabel}
+                            aria-label={`${viewDetailsLabel}: ${row.doctor_name}`}
                         >
-                            <Settings className="w-4 h-4" />
-                        </button>
-                    )}
-                    <Link
-                        to={`/finance/compensation/doctors/${row.doctor_id}?from=${from}&to=${to}`}
-                        className="p-1.5 rounded-lg text-text-secondary hover:text-primary hover:bg-primary/10 transition-colors"
-                        title={t('common.view_details', 'عرض التفاصيل')}
-                    >
-                        <ArrowUpRight className="w-4 h-4" />
-                    </Link>
-                </div>
-            ),
+                            <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+                        </Link>
+                    </div>
+                );
+            },
         },
     ];
 
@@ -176,7 +179,7 @@ export default function DoctorCompensationPage() {
                 <div className="space-y-0.5">
                     <Link
                         to={`/finance/compensation/doctors/${row.doctor_id}?from=${from}&to=${to}`}
-                        className="text-sm font-bold text-text-primary hover:text-primary transition-colors"
+                        className="text-sm font-bold text-text-primary hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-sm"
                     >
                         {row.doctor_name}
                     </Link>
@@ -212,18 +215,18 @@ export default function DoctorCompensationPage() {
                     <button
                         type="button"
                         onClick={() => setDoctorToConfigure(row)}
-                        className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+                        className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-sm"
                     >
-                        <Settings className="w-3.5 h-3.5" />
+                        <Settings className="w-3.5 h-3.5" aria-hidden="true" />
                         <span>{t('finance.compensation.edit_rules', 'تعديل القواعد')}</span>
                     </button>
                 ) : <span />}
                 <Link
                     to={`/finance/compensation/doctors/${row.doctor_id}?from=${from}&to=${to}`}
-                    className="text-xs font-bold text-primary hover:underline flex items-center gap-0.5"
+                    className="text-xs font-bold text-primary hover:underline flex items-center gap-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-sm"
                 >
                     <span>{t('common.details', 'التفاصيل')}</span>
-                    <ArrowUpRight className="w-3.5 h-3.5" />
+                    <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
                 </Link>
             </div>
         </div>
