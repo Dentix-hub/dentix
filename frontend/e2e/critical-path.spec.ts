@@ -17,11 +17,16 @@ test.describe('Dentix Critical Path', () => {
     await expect(page).toHaveURL(`${BASE_URL}/`);
 
     // 2. Create a deterministic fixture through the same authenticated browser
-    // context. This keeps the production gate independent from presentation-only
-    // details of the add-patient modal while still exercising the real API/auth.
+    // context. Mirror the application's CSRF contract instead of bypassing it.
+    const csrfCookie = (await page.context().cookies()).find(cookie => cookie.name === 'csrf_token');
+    expect(csrfCookie?.value).toBeTruthy();
+
     const patientName = `E2E Patient ${Date.now()}`;
     const patientPhone = `010${String(Date.now()).slice(-8)}`;
     const createRes = await page.request.post(`${API_URL}/patients`, {
+      headers: {
+        'X-CSRF-Token': csrfCookie!.value,
+      },
       data: {
         name: patientName,
         age: 30,
