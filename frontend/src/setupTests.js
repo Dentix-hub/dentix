@@ -1,5 +1,13 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { cleanup } from '@testing-library/react';
+import { afterEach, vi } from 'vitest';
+
+// Vitest does not always trigger React Testing Library's automatic cleanup
+// reliably with our single-thread CI pool. Make isolation explicit so one
+// rendered app cannot leak into the next test.
+afterEach(() => {
+    cleanup();
+});
 
 // Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
