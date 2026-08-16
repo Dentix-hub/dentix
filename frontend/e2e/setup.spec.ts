@@ -1,5 +1,6 @@
 /**
- * E2E Test Setup - Creates the isolated CI clinic and users before all browser flows.
+ * E2E Test Setup - Creates the isolated CI clinic/admin required by the
+ * production critical-path browser flow.
  */
 
 import { test as setup, expect } from '@playwright/test';
@@ -9,13 +10,6 @@ const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173';
 
 const ADMIN_USER = 'e2e_admin';
 const ADMIN_PASS = 'Dentix-E2E_Admin!2026_X9';
-
-const TEST_USERS = [
-  { username: 'doctor1', role: 'doctor', password: 'Dentix-E2E_Doctor!2026_X9' },
-  { username: 'nurse1', role: 'nurse', password: 'Dentix-E2E_Nurse!2026_X9' },
-  { username: 'reception1', role: 'receptionist', password: 'Dentix-E2E_Reception!2026_X9' },
-  { username: 'account1', role: 'accountant', password: 'Dentix-E2E_Account!2026_X9' },
-];
 
 setup('E2E Test Setup: Create test data', async ({ request, page }) => {
   console.log('\nSetting up isolated Dentix E2E environment...');
@@ -75,34 +69,10 @@ setup('E2E Test Setup: Create test data', async ({ request, page }) => {
 
   expect(adminToken).toBeTruthy();
 
-  console.log('Creating role-specific E2E users...');
-  for (const user of TEST_USERS) {
-    const params = new URLSearchParams({
-      username: user.username,
-      password: user.password,
-      full_name: `E2E ${user.role}`,
-      role: user.role,
-    });
-
-    const createRes = await request.post(`${API_URL}/users/register?${params.toString()}`, {
-      headers: { Authorization: `Bearer ${adminToken}` },
-    });
-
-    if (createRes.ok() || createRes.status() === 201) {
-      console.log(`Created ${user.username} (${user.role}).`);
-      continue;
-    }
-
-    const body = await createRes.text();
-    if (/already registered|already exists|username/i.test(body) && createRes.status() === 400) {
-      console.log(`${user.username} already exists.`);
-      continue;
-    }
-
-    throw new Error(
-      `Could not create ${user.username} (${createRes.status()}): ${body}`
-    );
-  }
+  // The production critical-path suite only needs the clinic admin. A newly
+  // registered trial tenant currently allows one user, so creating extra role
+  // fixtures here would test subscription limits rather than the clinical flow.
+  // Role-specific legacy E2E tests should provision their own plan/fixtures.
 
   await page.goto(`${BASE_URL}/login`);
   await page.locator('input[type="text"]').fill(ADMIN_USER);
