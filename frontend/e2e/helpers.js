@@ -5,14 +5,13 @@
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173';
 
 export const E2E_CREDENTIALS = {
-  admin: { username: 'admin', password: 'Dentix-E2E_Admin!2026_X9' },
+  admin: { username: 'e2e_admin', password: 'Dentix-E2E_Admin!2026_X9' },
   doctor: { username: 'doctor1', password: 'Dentix-E2E_Doctor!2026_X9' },
   nurse: { username: 'nurse1', password: 'Dentix-E2E_Nurse!2026_X9' },
   receptionist: { username: 'reception1', password: 'Dentix-E2E_Reception!2026_X9' },
   accountant: { username: 'account1', password: 'Dentix-E2E_Account!2026_X9' },
 };
 
-// Login as a specific role
 export async function loginAs(page, username, password) {
   await page.goto(`${BASE_URL}/login`);
   await page.locator('input[type="text"]').fill(username);
@@ -21,22 +20,18 @@ export async function loginAs(page, username, password) {
   await page.waitForURL(`${BASE_URL}/`, { timeout: 15000 });
 }
 
-// Login as admin (default)
 export async function loginAsAdmin(page) {
   return loginAs(page, E2E_CREDENTIALS.admin.username, E2E_CREDENTIALS.admin.password);
 }
 
-// Login as doctor
 export async function loginAsDoctor(page) {
   return loginAs(page, E2E_CREDENTIALS.doctor.username, E2E_CREDENTIALS.doctor.password);
 }
 
-// Login as nurse
 export async function loginAsNurse(page) {
   return loginAs(page, E2E_CREDENTIALS.nurse.username, E2E_CREDENTIALS.nurse.password);
 }
 
-// Login as receptionist
 export async function loginAsReceptionist(page) {
   return loginAs(
     page,
@@ -45,7 +40,6 @@ export async function loginAsReceptionist(page) {
   );
 }
 
-// Login as accountant
 export async function loginAsAccountant(page) {
   return loginAs(
     page,
@@ -54,7 +48,6 @@ export async function loginAsAccountant(page) {
   );
 }
 
-// Logout
 export async function logout(page) {
   const logoutBtn = page.getByRole('button').filter({ hasText: /خروج|Logout|تسجيل الخروج/i }).first();
   if (await logoutBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
