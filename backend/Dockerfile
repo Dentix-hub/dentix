@@ -12,7 +12,9 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements (we use the frozen root requirements for stability)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt gunicorn
+RUN pip install --no-cache-dir -r requirements.txt gunicorn \
+    && pip uninstall -y ecdsa \
+    && python -c "from jose import jwt; s='dentix-build-smoke-secret-32chars'; t=jwt.encode({'sub':'build'}, s, algorithm='HS256'); assert jwt.decode(t, s, algorithms=['HS256'])['sub']=='build'"
 
 # Copy all files from build context (the backend folder contents) into /app/backend/
 # This restores the package structure so "from . import ..." works when running as module
