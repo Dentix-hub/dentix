@@ -45,7 +45,8 @@ class Payment(Base):
 
     @property
     def patient_file_number(self):
-        return (self.patient.file_number if self.patient else None) or self.patient_id
+        """Finance display identifier; avoid lazy-loading Patient in async contexts."""
+        return self.patient_id
 
 
 class Expense(Base):
