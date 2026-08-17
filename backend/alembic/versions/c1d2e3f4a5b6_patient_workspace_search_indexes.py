@@ -1,7 +1,7 @@
 """add patient workspace search indexes and age metadata
 
 Revision ID: c1d2e3f4a5b6
-Revises: f7a8b9c0d1e2
+Revises: c8d9e0f1a2b3
 Create Date: 2026-08-17 16:20:00.000000
 """
 
@@ -17,7 +17,7 @@ from backend.utils.patient_search_normalization import (
 )
 
 revision: str = "c1d2e3f4a5b6"
-down_revision: Union[str, Sequence[str], None] = "f7a8b9c0d1e2"
+down_revision: Union[str, Sequence[str], None] = "c8d9e0f1a2b3"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
