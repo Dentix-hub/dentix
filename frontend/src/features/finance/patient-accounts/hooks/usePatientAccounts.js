@@ -20,6 +20,9 @@ export function usePatientAccounts(pageSize = 20) {
     const currentPage = isNaN(pageParam) || pageParam < 1 ? 1 : pageParam;
 
     const skip = (currentPage - 1) * pageSize;
+    const defaultStatsRange = getPresetDates('this_month');
+    const statsFrom = from || defaultStatsRange.from;
+    const statsTo = to || defaultStatsRange.to;
 
     // 1. Fetch Paginated Patient Accounts Report
     const accountsQuery = useQuery({
@@ -40,11 +43,12 @@ export function usePatientAccounts(pageSize = 20) {
         staleTime: 30 * 1000,
     });
 
-    // 2. Fetch Comprehensive Stats for Clinic-wide Headline Debt Summary
+    // 2. Fetch Comprehensive Stats for Clinic-wide Headline Debt Summary.
+    // The endpoint requires a valid date range even though all_time_outstanding is all-time scoped.
     const statsQuery = useQuery({
-        queryKey: financeKeys.overviewStats({ from, to }),
+        queryKey: financeKeys.overviewStats({ from: statsFrom, to: statsTo }),
         queryFn: async () => {
-            const res = await getComprehensiveStats(from, to);
+            const res = await getComprehensiveStats(statsFrom, statsTo);
             return res.data?.data || res.data;
         },
         staleTime: 60 * 1000,
@@ -55,7 +59,11 @@ export function usePatientAccounts(pageSize = 20) {
     const totalCount = accountsData.total || 0;
 
     const statsData = statsQuery.data;
-    const allTimeOutstanding = Number(statsData?.income?.all_time_outstanding || statsData?.income?.outstanding) || 0;
+    const allTimeOutstanding = Number(
+        statsData?.income?.all_time_outstanding
+        || statsData?.income?.outstanding
+        || accountsData?.summary?.total_outstanding
+    ) || 0;
 
     // Update URL Filter Helpers
     const updateSearch = (newSearch) => {
