@@ -31,6 +31,7 @@ class Payment(PaymentBase):
     id: int
     date: datetime
     patient_name: Optional[str] = None
+    patient_file_number: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -93,3 +94,5 @@ class DashboardStats(BaseModel):
     today_received: float = 0.0
     today_outstanding: float = 0.0
     today_expenses: float = 0.0
+    business_date: Optional[str] = None
+    tenant_timezone: Optional[str] = None

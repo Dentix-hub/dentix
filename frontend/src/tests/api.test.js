@@ -6,7 +6,8 @@ import {
     createPayment, getFinancialStats, getDashboardStats,
     getProcedures, createProcedure,
     getExpenses, createExpense,
-    getNotifications
+    getNotifications,
+    forgotPassword, resetPassword, verifyResetToken
 } from '../api';
 
 vi.mock('axios', () => {
@@ -46,6 +47,26 @@ describe('API Module', () => {
     it('getMe uses the normalized users/me route', async () => {
         await getMe();
         expect(api.get).toHaveBeenCalledWith('/api/v1/users/me');
+    });
+
+    it('forgotPassword sends the email in a JSON request body', async () => {
+        await forgotPassword('test@example.com');
+        expect(api.post).toHaveBeenCalledWith('/api/v1/auth/forgot-password', { email: 'test@example.com' });
+    });
+
+    it('resetPassword keeps the token and password out of the URL and sends a JSON body', async () => {
+        await resetPassword('tok123', 'newpass123');
+        expect(api.post).toHaveBeenCalledWith('/api/v1/auth/reset-password', {
+            token: 'tok123',
+            new_password: 'newpass123',
+        });
+    });
+
+    it('verifyResetToken uses the verify endpoint with the token query parameter', async () => {
+        await verifyResetToken('tok123');
+        expect(api.get).toHaveBeenCalledWith('/api/v1/auth/verify-reset-token', {
+            params: { token: 'tok123' },
+        });
     });
 
     it('patient APIs use normalized routes', async () => {

@@ -1,23 +1,41 @@
+import { Activity, CalendarDays, FileText, FlaskConical, FolderOpen, WalletCards } from 'lucide-react';
 import { motion } from '@/lib/motion';
+
+const LEGACY_ICON_MAP = {
+    '🦷': Activity,
+    '📅': CalendarDays,
+    '📝': FileText,
+    '💰': WalletCards,
+    '📁': FolderOpen,
+    '🔬': FlaskConical,
+};
+
+function resolveIcon(icon) {
+    if (typeof icon === 'string') return LEGACY_ICON_MAP[icon] || null;
+    return icon || null;
+}
 
 export default function TabGroup({ tabs, activeTab, onChange, variant = 'pill', className = '' }) {
     if (variant === 'underline') {
         return (
-            <div className={`flex flex-wrap border-b border-slate-200 dark:border-slate-700/50 relative ${className}`}>
+            <div role="tablist" className={`flex flex-wrap border-b border-slate-200 dark:border-slate-700/50 relative ${className}`}>
                 {tabs.map((t) => {
                     const isActive = activeTab === t.id;
-                    const Icon = t.icon;
+                    const Icon = resolveIcon(t.icon);
                     return (
                         <button
                             key={t.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={isActive}
                             onClick={() => onChange(t.id)}
-                            className={`relative px-6 py-3 text-sm font-bold flex items-center gap-2 transition-colors -mb-[2px] ${
+                            className={`relative px-6 py-3 text-sm font-bold flex items-center gap-2 transition-colors -mb-[2px] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-inset ${
                                 isActive
                                     ? 'text-primary'
                                     : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
                             }`}
                         >
-                            {Icon && <Icon size={18} />}
+                            {Icon && <Icon size={18} aria-hidden="true" />}
                             {t.label}
                             {isActive && (
                                 <motion.div
@@ -35,15 +53,18 @@ export default function TabGroup({ tabs, activeTab, onChange, variant = 'pill', 
 
     if (variant === 'vertical') {
         return (
-            <nav className={`space-y-1 ${className}`}>
+            <nav role="tablist" className={`space-y-1 ${className}`}>
                 {tabs.map((tab) => {
                     const isActive = activeTab === tab.id;
-                    const Icon = tab.icon;
+                    const Icon = resolveIcon(tab.icon);
                     return (
                         <button
                             key={tab.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={isActive}
                             onClick={() => onChange(tab.id)}
-                            className={`relative w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors duration-200 font-bold ${
+                            className={`relative w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors duration-200 font-bold focus:outline-none focus:ring-2 focus:ring-primary/30 ${
                                 isActive
                                     ? 'text-white'
                                     : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50'
@@ -57,7 +78,7 @@ export default function TabGroup({ tabs, activeTab, onChange, variant = 'pill', 
                                 />
                             )}
                             <span className="relative z-10 flex items-center gap-3">
-                                {Icon && <Icon size={20} className={isActive ? 'text-white' : 'text-slate-500 dark:text-slate-500'} />}
+                                {Icon && <Icon size={20} aria-hidden="true" className={isActive ? 'text-white' : 'text-slate-500 dark:text-slate-500'} />}
                                 <span>{tab.label}</span>
                             </span>
                         </button>
@@ -67,17 +88,19 @@ export default function TabGroup({ tabs, activeTab, onChange, variant = 'pill', 
         );
     }
 
-    // Default: 'pill' variant — with sliding animated pill
     return (
-        <div className={`bg-surface rounded-2xl border border-slate-100 dark:border-slate-700/50 p-2 flex flex-wrap gap-2 ${className}`}>
+        <div role="tablist" className={`bg-surface rounded-2xl border border-slate-100 dark:border-slate-700/50 p-2 flex flex-wrap gap-2 ${className}`}>
             {tabs.map((t) => {
                 const isActive = activeTab === t.id;
-                const Icon = t.icon;
+                const Icon = resolveIcon(t.icon);
                 return (
                     <button
                         key={t.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={isActive}
                         onClick={() => onChange(t.id)}
-                        className={`relative px-4 py-2 flex items-center gap-2 rounded-xl text-sm font-bold transition-colors ${
+                        className={`relative px-4 py-2 flex items-center gap-2 rounded-xl text-sm font-bold transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 ${
                             isActive
                                 ? 'text-white'
                                 : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
@@ -91,7 +114,7 @@ export default function TabGroup({ tabs, activeTab, onChange, variant = 'pill', 
                             />
                         )}
                         <span className="relative z-10 flex items-center gap-2">
-                            {Icon && <Icon size={16} />}
+                            {Icon && <Icon size={16} aria-hidden="true" />}
                             {t.label}
                         </span>
                     </button>

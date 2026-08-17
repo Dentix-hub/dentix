@@ -47,7 +47,8 @@ async def fix_global_procedures():
 
         for tenant in tenants:
             tenant_id, tenant_name = tenant
-            print(f"Processing Tenant: {tenant_name} ({tenant_id})")
+            safe_tenant_name = str(tenant_name).encode('ascii', errors='backslashreplace').decode('ascii')
+            print(f"Processing Tenant: {safe_tenant_name} ({tenant_id})")
 
             # 3. Get Default Price List
             res_pl = await conn.execute(
@@ -60,7 +61,7 @@ async def fix_global_procedures():
             price_list = res_pl.fetchone()
 
             if not price_list:
-                print(f"  [WARN] No default price list for {tenant_name}. Skipping.")
+                print(f"  [WARN] No default price list for {safe_tenant_name}. Skipping.")
                 continue
 
             pl_id = price_list[0]

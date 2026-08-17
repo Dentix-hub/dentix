@@ -48,9 +48,9 @@ _Append new entries at TOP. One entry per meaningful change._
 - **Risk**: None — dev environment safety enhancement
 
 ### [2026-06-22] — DevOps Infrastructure Overhaul
-- **What**: Created DENTIX_MEMORY.md, WORKFLOW_RULES.md, docker-compose.dev.yml, ECC rules
+- **What**: Created DENTIX_MEMORY.md, WORKFLOW_RULES.md, docker-compose.dev.yml, AI rules
 - **Why**: Standardize dev environment, agent workflow, and project memory
-- **Files**: `DENTIX_MEMORY.md`, `WORKFLOW_RULES.md`, `docker-compose.dev.yml`, `.env.dev.example`, `.agent/rules/dentix/`
+- **Files**: `DENTIX_MEMORY.md`, `WORKFLOW_RULES.md`, `docker-compose.dev.yml`, `.env.dev.example`
 - **Agent**: Opus (plan) + Gemini (execute)
 - **Risk**: None — additive changes only
 

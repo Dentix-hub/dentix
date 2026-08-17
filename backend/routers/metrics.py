@@ -149,3 +149,76 @@ async def get_profitability(
         "net_profit": round(net_profit, 2),
         "margin_percent": round(margin_percent, 1),
     })
+
+
+@router.get("/profitability/trend")
+async def get_profitability_trend(
+    period: str = "30d",
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
+):
+    """Return the Finance V2 daily Collected vs Manual Expenses trend."""
+    if current_user.role not in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    days = {"7d": 7, "30d": 30, "90d": 90}.get(period, 30)
+    end_day = datetime.now(timezone.utc).date()
+    start_day = end_day - timedelta(days=days - 1)
+    start_dt = datetime.combine(start_day, datetime.min.time(), tzinfo=timezone.utc)
+    end_dt = datetime.combine(end_day, datetime.max.time(), tzinfo=timezone.utc)
+
+    payment_day = func.date(models.Payment.date)
+    payment_rows = (
+        await db.execute(
+            select(
+                payment_day.label("day"),
+                func.coalesce(func.sum(models.Payment.amount), 0.0).label("amount"),
+            )
+            .join(models.Patient, models.Payment.patient_id == models.Patient.id)
+            .where(
+                models.Patient.tenant_id == current_user.tenant_id,
+                models.Patient.is_deleted == False,  # noqa: E712
+                models.Payment.date >= start_dt,
+                models.Payment.date <= end_dt,
+            )
+            .group_by(payment_day)
+        )
+    ).all()
+
+    expense_rows = (
+        await db.execute(
+            select(
+                models.Expense.date.label("day"),
+                func.coalesce(func.sum(models.Expense.cost), 0.0).label("amount"),
+            )
+            .where(
+                models.Expense.tenant_id == current_user.tenant_id,
+                models.Expense.date >= start_day,
+                models.Expense.date <= end_day,
+            )
+            .group_by(models.Expense.date)
+        )
+    ).all()
+
+    def day_key(value) -> str:
+        return value.isoformat() if hasattr(value, "isoformat") else str(value)[:10]
+
+    collected_by_day = {day_key(day): float(amount or 0.0) for day, amount in payment_rows}
+    expenses_by_day = {day_key(day): float(amount or 0.0) for day, amount in expense_rows}
+
+    timeline = []
+    for offset in range(days):
+        day = start_day + timedelta(days=offset)
+        key = day.isoformat()
+        collected = collected_by_day.get(key, 0.0)
+        expenses = expenses_by_day.get(key, 0.0)
+        timeline.append(
+            {
+                "date": key,
+                "revenue": round(collected, 2),
+                "expenses": round(expenses, 2),
+                "net_profit": round(collected - expenses, 2),
+            }
+        )
+
+    return success_response(data={"period": period, "timeline": timeline})

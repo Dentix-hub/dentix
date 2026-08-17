@@ -43,6 +43,11 @@ class Payment(Base):
     def patient_name(self):
         return self.patient.name if self.patient else None
 
+    @property
+    def patient_file_number(self):
+        """Finance display identifier; avoid lazy-loading Patient in async contexts."""
+        return self.patient_id
+
 
 class Expense(Base):
     __tablename__ = "expenses"

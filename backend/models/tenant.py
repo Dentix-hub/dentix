@@ -77,6 +77,12 @@ class Tenant(Base):
     plan: Mapped[str] = mapped_column(String, default="trial")  # Legacy
     plan_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("subscription_plans.id"), nullable=True)
     domain: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    timezone: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="Africa/Cairo",
+        server_default="Africa/Cairo",
+    )
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))

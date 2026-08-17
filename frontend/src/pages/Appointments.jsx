@@ -22,12 +22,15 @@ import { createAppointment, deleteAppointment, updateAppointmentStatus } from '@
 import { useAppointments, useUpdateAppointmentStatus, useUpdateAppointment } from '@/hooks/useAppointments';
 import { usePatients, useCreatePatient } from '@/hooks/usePatients';
 import { getTodayDateTimeStr } from '@/utils/toothUtils';
+import { getDateInTimeZone, selectAppointmentsForBusinessDate } from '@/utils/dateTime';
 import { Button, Input, Modal, Badge, SkeletonBox, EmptyState, toast, ConfirmDialog, PageHeader, PatientSelect, StatCard, DateTimePicker } from '@/shared/ui';
 import WeeklyCalendar from '@/shared/ui/WeeklyCalendar';
 import { useAuth } from '@/auth/useAuth';
+import { useTenantStore } from '@/store/tenant.store';
 
 export default function Appointments() {
     const { user } = useAuth();
+    const tenantTimezone = useTenantStore((state) => state.tenant?.timezone);
     const [searchParams, setSearchParams] = useSearchParams();
     const { t } = useTranslation();
     const preselectPatientId = searchParams.get('patient_id');
@@ -127,7 +130,8 @@ export default function Appointments() {
             refetchPatients();
             toast.success(t('patients.messages.create_success', 'Patient created successfully'), { id: toastId });
         } catch (err) {
-            toast.error(t('patients.messages.create_error', 'Failed to create patient'), { id: toastId });
+            const errorMsg = err.response?.data?.detail || t('patients.messages.create_error', 'Failed to create patient');
+            toast.error(errorMsg, { id: toastId });
         }
     };
 
@@ -241,8 +245,8 @@ export default function Appointments() {
     };
 
     const stats = useMemo(() => {
-        const today = new Date().toISOString().split('T')[0];
-        const todayAppts = appointments.filter(a => a.date_time.startsWith(today));
+        const today = getDateInTimeZone(tenantTimezone);
+        const todayAppts = selectAppointmentsForBusinessDate(appointments, today);
         
         return [
             { 
@@ -270,7 +274,7 @@ export default function Appointments() {
                 color: 'emerald' 
             },
         ];
-    }, [appointments, t]);
+    }, [appointments, t, tenantTimezone]);
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 min-h-screen pb-20">
@@ -669,4 +673,3 @@ const AppointmentCard = ({ appt, patient, t, getStatusVariant, getStatusLabel, s
         </div>
     );
 };
-

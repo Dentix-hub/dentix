@@ -1,17 +1,17 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-    getPatients,
-    getPatient,
     createPatient,
-    updatePatient,
     deletePatient,
-    searchPatients
+    getPatient,
+    getPatientDirectory,
+    getPatients,
+    getRecentPatientDirectory,
+    updatePatient,
 } from '@/api';
+import { rememberRecentPatientId } from '@/features/patients/recentPatients';
 import { queryKeys } from '@/lib/queryClient';
 
-/**
- * Hook for fetching all patients with caching
- */
 export function usePatients(options = {}) {
     return useQuery({
         queryKey: queryKeys.patients,
@@ -19,16 +19,57 @@ export function usePatients(options = {}) {
             const res = await getPatients();
             return res.data;
         },
-        staleTime: 60 * 1000, // Patients list stays fresh for 1 minute
-        ...options
+        staleTime: 60 * 1000,
+        ...options,
     });
 }
 
-/**
- * Hook for fetching a single patient
- */
-export function usePatient(patientId) {
+export function usePatientDirectory({ query = '', limit = 30, scope = 'all', enabled = true } = {}) {
+    return useInfiniteQuery({
+        queryKey: queryKeys.patientDirectory({ query, limit, scope }),
+        initialPageParam: null,
+        queryFn: async ({ pageParam }) => {
+            const res = await getPatientDirectory({
+                q: query,
+                cursor: pageParam,
+                limit,
+                scope,
+            });
+            const items = res.data || [];
+            return {
+                items,
+                pagination: items._pagination || {
+                    next_cursor: null,
+                    has_more: false,
+                    limit,
+                },
+            };
+        },
+        getNextPageParam: (lastPage) =>
+            lastPage.pagination?.has_more
+                ? lastPage.pagination.next_cursor
+                : undefined,
+        enabled,
+        staleTime: 30 * 1000,
+    });
+}
+
+export function useRecentPatients(ids, query = '', options = {}) {
+    const stableIds = Array.isArray(ids) ? ids : [];
     return useQuery({
+        queryKey: queryKeys.patientRecent({ ids: stableIds.join(','), query }),
+        queryFn: async () => {
+            const res = await getRecentPatientDirectory({ ids: stableIds, q: query });
+            return res.data || [];
+        },
+        enabled: stableIds.length > 0,
+        staleTime: 10 * 1000,
+        ...options,
+    });
+}
+
+export function usePatient(patientId) {
+    const query = useQuery({
         queryKey: queryKeys.patient(patientId),
         queryFn: async () => {
             const res = await getPatient(patientId);
@@ -36,44 +77,40 @@ export function usePatient(patientId) {
         },
         enabled: !!patientId,
     });
+
+    useEffect(() => {
+        if (query.data?.id) rememberRecentPatientId(query.data.id);
+    }, [query.data?.id]);
+
+    return query;
 }
 
-/**
- * Hook for searching patients
- */
-export function useSearchPatients(query) {
+export function useSearchPatients(query, options = {}) {
+    const normalizedQuery = query?.trim() || '';
     return useQuery({
-        queryKey: ['patients', 'search', query],
+        queryKey: queryKeys.patientSearch(normalizedQuery),
         queryFn: async () => {
-            const res = await searchPatients(query);
-            return res.data;
+            const res = await getPatientDirectory({ q: normalizedQuery, limit: 20, scope: 'all' });
+            return res.data || [];
         },
-        enabled: query?.length >= 2,
-        staleTime: 10 * 1000,
+        enabled: normalizedQuery.length >= 2,
+        staleTime: 15 * 1000,
+        ...options,
     });
 }
 
-/**
- * Hook for creating a patient
- */
 export function useCreatePatient() {
     const queryClient = useQueryClient();
-
     return useMutation({
         mutationFn: createPatient,
         onSuccess: () => {
-            // Invalidate patients list to refetch
             queryClient.invalidateQueries({ queryKey: queryKeys.patients });
         },
     });
 }
 
-/**
- * Hook for updating a patient
- */
 export function useUpdatePatient() {
     const queryClient = useQueryClient();
-
     return useMutation({
         mutationFn: ({ id, data }) => updatePatient(id, data),
         onSuccess: (_, { id }) => {
@@ -83,12 +120,8 @@ export function useUpdatePatient() {
     });
 }
 
-/**
- * Hook for deleting a patient
- */
 export function useDeletePatient() {
     const queryClient = useQueryClient();
-
     return useMutation({
         mutationFn: deletePatient,
         onMutate: async () => {
@@ -112,12 +145,8 @@ export function useDeletePatient() {
     });
 }
 
-/**
- * Prefetch patients for instant navigation
- */
 export function usePrefetchPatients() {
     const queryClient = useQueryClient();
-
     return () => {
         queryClient.prefetchQuery({
             queryKey: queryKeys.patients,

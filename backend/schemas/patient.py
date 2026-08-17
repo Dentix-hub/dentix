@@ -1,8 +1,10 @@
 """Patient-related schemas."""
 
-from pydantic import BaseModel, ConfigDict
+from datetime import date, datetime
 from typing import Optional
-from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict
+
 
 class PatientBase(BaseModel):
     name: str
@@ -15,6 +17,8 @@ class PatientBase(BaseModel):
     notes: Optional[str] = None
     assigned_doctor_id: Optional[int] = None
     default_price_list_id: Optional[int] = None
+    date_of_birth: Optional[date] = None
+
 
 class PatientCreate(PatientBase):
     model_config = ConfigDict(
@@ -34,6 +38,7 @@ class PatientCreate(PatientBase):
         }
     )
 
+
 class PatientUpdate(BaseModel):
     name: Optional[str] = None
     age: Optional[int] = None
@@ -44,23 +49,21 @@ class PatientUpdate(BaseModel):
     notes: Optional[str] = None
     default_price_list_id: Optional[int] = None
     assigned_doctor_id: Optional[int] = None
+    date_of_birth: Optional[date] = None
 
     model_config = ConfigDict(
-        json_schema_extra={
-            "examples": [
-                {
-                    "phone": "+201098765432",
-                    "notes": "Updated contact info",
-                }
-            ]
-        }
+        json_schema_extra={"examples": [{"phone": "+201098765432", "notes": "Updated contact info"}]}
     )
+
 
 class Patient(PatientBase):
     id: int
     created_at: Optional[datetime] = None
+    date_of_birth_precision: Optional[str] = None
+    age_recorded_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class PatientSummary(BaseModel):
     id: int
@@ -69,16 +72,36 @@ class PatientSummary(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     created_at: Optional[datetime] = None
+    date_of_birth: Optional[date] = None
+    date_of_birth_precision: Optional[str] = None
+    age_recorded_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PatientDirectoryItem(BaseModel):
+    id: int
+    file_number: int
+    name: str
+    age: Optional[int] = None
+    phone: Optional[str] = None
+    assigned_doctor_id: Optional[int] = None
+    assigned_doctor_name: Optional[str] = None
+    date_of_birth: Optional[date] = None
+    date_of_birth_precision: Optional[str] = None
+    age_recorded_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
 
 class AttachmentBase(BaseModel):
     patient_id: int
     filename: str
     file_type: str
 
+
 class AttachmentCreate(AttachmentBase):
     file_path: str
+
 
 class Attachment(AttachmentBase):
     id: int

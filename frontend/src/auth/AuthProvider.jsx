@@ -38,7 +38,7 @@ export default function AuthProvider({ children }) {
 
                     logger.log(`[AUTH] Boot successful (${Math.round(performance.now() - startTime)}ms)`);
                 } catch (err) {
-                    logger.error('[AUTH] Silent validation failed:', err);
+                    logger.info('[AUTH] No active session found (Unauthenticated start)');
                     // Cookie might be expired/invalid - user will need to login
                     clearAuth();
                 }
