@@ -1,8 +1,11 @@
+from datetime import datetime, time
+
 from backend import models
 from backend.utils.patient_search_normalization import (
     normalize_patient_name_for_search,
     patient_phone_search_hash,
 )
+from backend.utils.tenant_time import tenant_local_date
 
 
 def _patient(*, tenant_id, name, phone, age=30, assigned_doctor_id=None):
@@ -90,6 +93,121 @@ def test_directory_phone_search_normalizes_egypt_formats(
         )
         assert response.status_code == 200
         assert [item["id"] for item in response.json()["data"]] == [patient.id]
+
+
+def test_today_scope_uses_tenant_local_appointment_day(
+    client, db_session, test_tenant, admin_user, admin_headers,
+):
+    today_patient = _patient(
+        tenant_id=test_tenant.id,
+        name="Today Patient",
+        phone="01066666666",
+        assigned_doctor_id=admin_user.id,
+    )
+    other_patient = _patient(
+        tenant_id=test_tenant.id,
+        name="Not Today Patient",
+        phone="01077777777",
+        assigned_doctor_id=admin_user.id,
+    )
+    db_session.add_all([today_patient, other_patient])
+    db_session.flush()
+    local_today = tenant_local_date(test_tenant.timezone)
+    db_session.add(
+        models.Appointment(
+            tenant_id=test_tenant.id,
+            patient_id=today_patient.id,
+            doctor_id=admin_user.id,
+            date_time=datetime.combine(local_today, time(hour=12)),
+            status="Scheduled",
+            is_deleted=False,
+        )
+    )
+    db_session.commit()
+
+    response = client.get(
+        "/api/v1/patients/directory",
+        params={"scope": "today"},
+        headers=admin_headers,
+    )
+    assert response.status_code == 200
+    ids = [item["id"] for item in response.json()["data"]]
+    assert today_patient.id in ids
+    assert other_patient.id not in ids
+
+
+def test_recent_directory_preserves_order_and_revalidates_visibility(
+    client, db_session, test_tenant, test_user, auth_headers, admin_user,
+):
+    test_user.patient_visibility_mode = "all_assigned"
+    first = _patient(
+        tenant_id=test_tenant.id,
+        name="Recent First",
+        phone="01081111111",
+        assigned_doctor_id=test_user.id,
+    )
+    second = _patient(
+        tenant_id=test_tenant.id,
+        name="Recent Second",
+        phone="01082222222",
+        assigned_doctor_id=test_user.id,
+    )
+    hidden = _patient(
+        tenant_id=test_tenant.id,
+        name="Recent Hidden",
+        phone="01083333333",
+        assigned_doctor_id=admin_user.id,
+    )
+    db_session.add_all([first, second, hidden])
+    db_session.commit()
+
+    response = client.get(
+        "/api/v1/patients/directory/recent",
+        params={"ids": f"{second.id},{hidden.id},{first.id}"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["data"]] == [second.id, first.id]
+
+
+def test_doctor_mine_scope_is_assignment_based(
+    client, db_session, test_tenant, test_user, auth_headers, admin_user,
+):
+    test_user.patient_visibility_mode = "mixed"
+    mine = _patient(
+        tenant_id=test_tenant.id,
+        name="Mine Patient",
+        phone="01084444444",
+        assigned_doctor_id=test_user.id,
+    )
+    not_mine = _patient(
+        tenant_id=test_tenant.id,
+        name="Appointment Only Patient",
+        phone="01085555555",
+        assigned_doctor_id=admin_user.id,
+    )
+    db_session.add_all([mine, not_mine])
+    db_session.flush()
+    local_today = tenant_local_date(test_tenant.timezone)
+    db_session.add(
+        models.Appointment(
+            tenant_id=test_tenant.id,
+            patient_id=not_mine.id,
+            doctor_id=test_user.id,
+            date_time=datetime.combine(local_today, time(hour=14)),
+            status="Scheduled",
+            is_deleted=False,
+        )
+    )
+    db_session.commit()
+
+    response = client.get(
+        "/api/v1/patients/directory",
+        params={"scope": "mine"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()["data"]] == [mine.id]
 
 
 def test_doctor_directory_does_not_leak_hidden_patient(

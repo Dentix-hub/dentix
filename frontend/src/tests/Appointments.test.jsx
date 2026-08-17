@@ -48,6 +48,13 @@ vi.mock('@/hooks/useAppointments', () => ({
 
 vi.mock('@/hooks/usePatients', () => ({
     usePatients: () => ({ data: [], patients: [], isLoading: false, refetch: vi.fn() }),
+    useSearchPatients: () => ({
+        data: [],
+        isLoading: false,
+        isFetching: false,
+        isError: false,
+        error: null,
+    }),
     useCreatePatient: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 

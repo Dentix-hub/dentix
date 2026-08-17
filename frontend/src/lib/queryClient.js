@@ -18,6 +18,7 @@ export const queryClient = new QueryClient({
 export const queryKeys = {
     patients: ['patients'],
     patientDirectory: (filters = {}) => ['patients', 'directory', filters],
+    patientRecent: (filters = {}) => ['patients', 'recent', filters],
     patientSearch: (query) => ['patients', 'search', query],
     patient: (id) => ['patient', id],
     patientTeeth: (id) => ['patient', id, 'teeth'],

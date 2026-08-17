@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import or_
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -20,6 +20,7 @@ from backend.utils.patient_search_normalization import (
     normalize_patient_name_for_search,
     patient_phone_search_hash,
 )
+from backend.utils.tenant_time import tenant_day_local_naive_bounds
 
 
 def _current_age(patient: models.Patient) -> Optional[int]:
@@ -55,6 +56,35 @@ class PatientSearchService:
         visibility = get_visibility_service(self.db, self.user, self.tenant_id)
         query = await visibility.get_visible_patient_query()
         return query.options(joinedload(models.Patient.assigned_doctor))
+
+    async def _apply_scope(self, query, scope: str):
+        if scope == "all":
+            return query
+
+        if scope == "mine":
+            if self.user.role != "doctor":
+                return query.where(models.Patient.id == -1)
+            return query.where(models.Patient.assigned_doctor_id == self.user.id)
+
+        if scope == "today":
+            timezone_result = await self.db.execute(
+                select(models.Tenant.timezone).where(models.Tenant.id == self.tenant_id)
+            )
+            timezone_name = timezone_result.scalar_one_or_none()
+            day_start, day_end = tenant_day_local_naive_bounds(timezone_name)
+            appointment_patient_ids = (
+                select(models.Appointment.patient_id)
+                .where(
+                    models.Appointment.tenant_id == self.tenant_id,
+                    models.Appointment.is_deleted == False,  # noqa: E712
+                    models.Appointment.date_time >= day_start,
+                    models.Appointment.date_time < day_end,
+                )
+                .distinct()
+            )
+            return query.where(models.Patient.id.in_(appointment_patient_ids))
+
+        return query
 
     def _apply_search(self, query, q: str):
         query_type = classify_patient_search_query(q)
@@ -106,8 +136,15 @@ class PatientSearchService:
             "created_at": patient.created_at,
         }
 
-    async def get_directory(self, q: str = "", cursor: Optional[str] = None, limit: int = 30) -> dict:
+    async def get_directory(
+        self,
+        q: str = "",
+        cursor: Optional[str] = None,
+        limit: int = 30,
+        scope: str = "all",
+    ) -> dict:
         query = await self._base_query()
+        query = await self._apply_scope(query, scope)
         query = self._apply_search(query, q)
         cursor_params = CursorParams(cursor=cursor, limit=limit)
         query = apply_cursor_pagination(
@@ -123,6 +160,27 @@ class PatientSearchService:
             has_more=has_more,
             message="Patients retrieved successfully",
         )
+
+    async def get_recent(self, patient_ids: list[int], q: str = "") -> list[dict]:
+        ordered_ids = []
+        seen = set()
+        for patient_id in patient_ids:
+            if patient_id > 0 and patient_id not in seen:
+                seen.add(patient_id)
+                ordered_ids.append(patient_id)
+            if len(ordered_ids) == 10:
+                break
+
+        if not ordered_ids:
+            return []
+
+        query = await self._base_query()
+        query = query.where(models.Patient.id.in_(ordered_ids))
+        query = self._apply_search(query, q)
+        result = await self.db.execute(query)
+        patients = result.scalars().unique().all()
+        by_id = {patient.id: patient for patient in patients}
+        return [self._directory_item(by_id[patient_id]) for patient_id in ordered_ids if patient_id in by_id]
 
     async def legacy_search(self, q: str, limit: int = 50):
         query = await self._base_query()

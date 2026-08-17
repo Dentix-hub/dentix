@@ -2,12 +2,20 @@ import { api } from './apiClient';
 
 export const searchPatients = (query) => api.get('/api/v1/patients/search', { params: { q: query } });
 export const getPatients = () => api.get('/api/v1/patients');
-export const getPatientDirectory = ({ q = '', cursor = null, limit = 30 } = {}) =>
+export const getPatientDirectory = ({ q = '', cursor = null, limit = 30, scope = 'all' } = {}) =>
     api.get('/api/v1/patients/directory', {
         params: {
             q: q || undefined,
             cursor: cursor || undefined,
             limit,
+            scope,
+        },
+    });
+export const getRecentPatientDirectory = ({ ids = [], q = '' } = {}) =>
+    api.get('/api/v1/patients/directory/recent', {
+        params: {
+            ids: ids.join(','),
+            q: q || undefined,
         },
     });
 export const getPatient = (id) => api.get(`/api/v1/patients/${id}`);
