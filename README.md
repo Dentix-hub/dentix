@@ -195,7 +195,7 @@ dentix/
 
 To keep the codebase clean and avoid clutter from various AI code assistants (Cursor, Windsurf, Roo Code, Continue, etc.), please follow these hygiene rules:
 
-1. **AI Workspaces Cache**: Always keep tool configurations limited to your local IDE. Do not commit directories such as `.cursor/`, `.windsurf/`, `.roo/`, `.continue/`, `.cortex/`, or `.agent/`.
+1. **AI Workspaces Cache**: Always keep tool configurations limited to your local IDE. Do not commit directories such as `.cursor/`, `.windsurf/`, `.roo/`, `.continue/`, or `.cortex/`.
 2. **Ignored Frontend Builds**: The FastAPI production image builds the React application inside Docker during container assembly. Do not track `backend/static/assets/` or `backend/static/index.html` locally in Git.
 3. **Database Files**: Keep database instances inside the `/backend/` local storage context and do not copy them to the root workspace.
 4. **Temporary Script Cleanup**: Store any ad-hoc database migration tools or debugging utilities inside `legacy/` or `backend/scratch/` (both are gitignored).

@@ -375,16 +375,77 @@ async def create_expense(db: AsyncSession, expense: schemas.ExpenseCreate, tenan
     return db_expense
 
 
-async def get_expenses(db: AsyncSession, tenant_id: int, skip: int = 0, limit: int = 100):
+async def get_expenses(
+    db: AsyncSession,
+    tenant_id: int,
+    skip: int = 0,
+    limit: int = 100,
+    search: str = None,
+    category: str = None,
+    start_date: str = None,
+    end_date: str = None,
+):
+    stmt = select(models.Expense).where(models.Expense.tenant_id == tenant_id)
+    if search:
+        search_pat = f"%{search}%"
+        stmt = stmt.where(
+            models.Expense.item_name.ilike(search_pat) |
+            models.Expense.notes.ilike(search_pat)
+        )
+    if category:
+        stmt = stmt.where(models.Expense.category == category)
+    if start_date:
+        try:
+            s_d = datetime.strptime(start_date, "%Y-%m-%d").date()
+            stmt = stmt.where(models.Expense.date >= s_d)
+        except ValueError:
+            pass
+    if end_date:
+        try:
+            e_d = datetime.strptime(end_date, "%Y-%m-%d").date()
+            stmt = stmt.where(models.Expense.date <= e_d)
+        except ValueError:
+            pass
+
     stmt = (
-        select(models.Expense)
-        .where(models.Expense.tenant_id == tenant_id)
-        .order_by(models.Expense.date.desc())
+        stmt.order_by(models.Expense.date.desc(), models.Expense.id.desc())
         .offset(skip)
         .limit(limit)
     )
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+async def count_expenses(
+    db: AsyncSession,
+    tenant_id: int,
+    search: str = None,
+    category: str = None,
+    start_date: str = None,
+    end_date: str = None,
+) -> int:
+    """Count expenses using the same tenant-scoped filters as ``get_expenses``."""
+    stmt = select(func.count(models.Expense.id)).where(models.Expense.tenant_id == tenant_id)
+    if search:
+        search_pat = f"%{search}%"
+        stmt = stmt.where(
+            models.Expense.item_name.ilike(search_pat) |
+            models.Expense.notes.ilike(search_pat)
+        )
+    if category:
+        stmt = stmt.where(models.Expense.category == category)
+    if start_date:
+        try:
+            stmt = stmt.where(models.Expense.date >= datetime.strptime(start_date, "%Y-%m-%d").date())
+        except ValueError:
+            pass
+    if end_date:
+        try:
+            stmt = stmt.where(models.Expense.date <= datetime.strptime(end_date, "%Y-%m-%d").date())
+        except ValueError:
+            pass
+
+    return int((await db.execute(stmt)).scalar() or 0)
 
 
 async def delete_expense(db: AsyncSession, expense_id: int, tenant_id: int):

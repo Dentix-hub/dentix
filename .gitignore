@@ -360,17 +360,15 @@ uploads/
 .pi/
 .pochi/
 .qoder/
-.qwen/
 .roo/
 .trae/
 .vibe/
 .windsurf/
 .zencoder/
-.agent/
-.agents/
 ruflo-sandbox/
 skills/
 skills-lock.json
+
 
 # Legacy / archived files (desktop app, old build scripts)
 legacy/
@@ -383,3 +381,11 @@ legacy/
 backend/static/assets/
 backend/static/index.html
 dentix-staging/
+
+# Environment and local dev
+.env
+.env.*
+!.env.example
+.prefect/
+*.zip
+

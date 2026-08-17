@@ -43,6 +43,10 @@ class Payment(Base):
     def patient_name(self):
         return self.patient.name if self.patient else None
 
+    @property
+    def patient_file_number(self):
+        return (self.patient.file_number if self.patient else None) or self.patient_id
+
 
 class Expense(Base):
     __tablename__ = "expenses"

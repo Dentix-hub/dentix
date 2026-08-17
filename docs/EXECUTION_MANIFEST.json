@@ -1,0 +1,92 @@
+{
+  "source": "DENTIX_FINANCE_V2_UI_UX_REDESIGN_PLAN.md",
+  "phases": [
+    {
+      "phase": 0,
+      "name": "Financial Truth Audit",
+      "file": "PHASE_00_FINANCIAL_TRUTH_AUDIT.md",
+      "task_count": 10,
+      "prefix": "FIN-TRUTH"
+    },
+    {
+      "phase": 1,
+      "name": "New Finance Foundation",
+      "file": "PHASE_01_NEW_FINANCE_FOUNDATION.md",
+      "task_count": 13,
+      "prefix": "FIN-FND"
+    },
+    {
+      "phase": 2,
+      "name": "Overview V2",
+      "file": "PHASE_02_OVERVIEW_V2.md",
+      "task_count": 11,
+      "prefix": "FIN-OVR"
+    },
+    {
+      "phase": 3,
+      "name": "Payments V2",
+      "file": "PHASE_03_PAYMENTS_V2.md",
+      "task_count": 9,
+      "prefix": "FIN-PAY"
+    },
+    {
+      "phase": 4,
+      "name": "Patient Accounts / Receivables",
+      "file": "PHASE_04_PATIENT_ACCOUNTS_RECEIVABLES.md",
+      "task_count": 7,
+      "prefix": "FIN-REC"
+    },
+    {
+      "phase": 5,
+      "name": "Expenses V2",
+      "file": "PHASE_05_EXPENSES_V2.md",
+      "task_count": 8,
+      "prefix": "FIN-EXP"
+    },
+    {
+      "phase": 6,
+      "name": "Doctor Compensation V2",
+      "file": "PHASE_06_DOCTOR_COMPENSATION_V2.md",
+      "task_count": 10,
+      "prefix": "FIN-DOC"
+    },
+    {
+      "phase": 7,
+      "name": "Payroll V2",
+      "file": "PHASE_07_PAYROLL_V2.md",
+      "task_count": 7,
+      "prefix": "FIN-PRL"
+    },
+    {
+      "phase": 8,
+      "name": "Financial Activity",
+      "file": "PHASE_08_FINANCIAL_ACTIVITY.md",
+      "task_count": 7,
+      "prefix": "FIN-ACT"
+    },
+    {
+      "phase": 9,
+      "name": "Reports",
+      "file": "PHASE_09_REPORTS.md",
+      "task_count": 7,
+      "prefix": "FIN-RPT"
+    },
+    {
+      "phase": 10,
+      "name": "Legacy Removal",
+      "file": "PHASE_10_LEGACY_REMOVAL.md",
+      "task_count": 6,
+      "prefix": "FIN-LEG"
+    }
+  ],
+  "total_tasks": 95,
+  "start_phase": 0,
+  "hard_gate": "Phase 0 must be VERIFIED before visual redesign implementation",
+  "statuses": [
+    "NOT_STARTED",
+    "IN_PROGRESS",
+    "PARTIAL",
+    "BLOCKED",
+    "VERIFIED"
+  ]
+}

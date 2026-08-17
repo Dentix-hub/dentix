@@ -4,13 +4,13 @@ Handles doctor revenue and compensation calculations.
 """
 
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from .. import models, schemas
 from ..crud import billing as billing_crud
-from .auth import get_async_db
+from .auth import get_async_db, get_current_user
 from backend.core.permissions import Permission, require_permission
 from backend.core.response import success_response, StandardResponse, error_response
 from ..services.accounting_service import AccountingService
@@ -38,6 +38,51 @@ async def get_doctor_revenue(
 
     doctors = await service.get_doctor_revenue_analytics(start, end)
     return success_response(data={"doctors": doctors}, message="Doctor revenue retrieved successfully")
+
+
+@router.get("/doctor-revenue/me", response_model=StandardResponse[dict])
+async def get_my_doctor_revenue(
+    start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
+    end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(get_current_user),
+):
+    """Return only the authenticated doctor's compensation summary."""
+    if (current_user.role or "").lower() != "doctor":
+        raise HTTPException(status_code=403, detail="Doctor self-service endpoint")
+
+    service = AccountingService(db, current_user.tenant_id)
+    try:
+        start, end = service.parse_date_range(start_date, end_date)
+    except ValueError:
+        return error_response(message="Invalid date format", details={"doctors": []})
+
+    doctors = await service.get_doctor_revenue_analytics(start, end)
+    own_summary = [doctor for doctor in doctors if doctor["doctor_id"] == current_user.id]
+    return success_response(data={"doctors": own_summary}, message="Doctor revenue retrieved successfully")
+
+
+@router.get("/doctor-details/me", response_model=StandardResponse[dict])
+async def get_my_doctor_details(
+    start_date: str = Query(..., description="Start date (YYYY-MM-DD)"),
+    end_date: str = Query(..., description="End date (YYYY-MM-DD)"),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(get_current_user),
+):
+    """Return the authenticated doctor's own detailed compensation breakdown."""
+    if (current_user.role or "").lower() != "doctor":
+        raise HTTPException(status_code=403, detail="Doctor self-service endpoint")
+
+    service = AccountingService(db, current_user.tenant_id)
+    try:
+        start, end = service.parse_date_range(start_date, end_date)
+    except ValueError:
+        return error_response(message="Invalid date format")
+
+    details = await service.get_doctor_details_data(current_user.id, start, end)
+    if not details:
+        return error_response(message="Doctor not found", status_code=404)
+    return success_response(data=details, message="Doctor details retrieved successfully")
 
 
 @router.get("/doctor-details/{doctor_id}", response_model=StandardResponse[dict])
@@ -126,6 +171,24 @@ async def get_comprehensive_stats(
     total_income = await service.get_total_income(start, end, patient_id=patient_id)
     total_collected = await service.get_total_collected(start, end, patient_id=patient_id)
 
+    production_stmt = (
+        select(
+            func.coalesce(func.sum(models.Treatment.cost), 0.0),
+            func.coalesce(func.sum(models.Treatment.discount), 0.0),
+        )
+        .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
+        .where(
+            models.Patient.tenant_id == current_user.tenant_id,
+            models.Patient.is_deleted == False,  # noqa: E712
+            models.Treatment.is_deleted == False,  # noqa: E712
+            models.Treatment.date >= start,
+            models.Treatment.date <= end,
+        )
+    )
+    if patient_id:
+        production_stmt = production_stmt.where(models.Treatment.patient_id == patient_id)
+    gross_production, total_discounts = (await db.execute(production_stmt)).one()
+
     # 2a. Get Appointments Count (for staff dues calculation)
     total_appointments_stmt = (
         select(func.count(models.Treatment.id))
@@ -192,9 +255,14 @@ async def get_comprehensive_stats(
         "period": {"start": start_date, "end": end_date},
         "income": {
             "total_revenue": float(total_income),
+            "gross_revenue": float(gross_production),
+            "total_discounts": float(total_discounts),
+            "net_revenue": float(total_income),
             "total_collected": float(total_collected),
-            "outstanding": float(real_outstanding),  # FIXED: Show actual total debt
-            "total_appointments": unique_patients_count,  # Returning unique patients as requested (keeping key name compatible if frontend expects it, or better rename it)
+            "outstanding": float(real_outstanding),
+            "all_time_outstanding": float(real_outstanding),
+            "period_balance": float(total_income) - float(total_collected),
+            "total_appointments": total_appointments,
             "unique_patients": unique_patients_count,
         },
         "deductions": {
@@ -204,7 +272,8 @@ async def get_comprehensive_stats(
             "expenses": float(total_expenses),
             "total_deductions": float(total_doctor_dues)
             + float(total_staff_dues)
-            + float(total_expenses),
+            + float(total_expenses)
+            + float(total_lab_costs),
         },
         "net_profit": net_profit,
     }, message="Comprehensive stats retrieved successfully")
@@ -212,18 +281,36 @@ async def get_comprehensive_stats(
 
 @router.get("/patients-report", response_model=StandardResponse[dict])
 async def get_patients_report(
+    search: Optional[str] = Query(None, description="Search by patient name or phone"),
     patient_id: Optional[int] = Query(None, description="Filter by specific patient ID"),
-    outstanding_only: bool = Query(False, description="Filter only patients with outstanding balance > 0"),
+    outstanding_only: bool = Query(False, description="Filter only patients with a positive balance in the selected period"),
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1),
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """Get patients financial report (paginated)."""
+    """Get a paginated patients financial report, optionally scoped to a date range."""
     service = AccountingService(db, current_user.tenant_id)
+    if bool(start_date) != bool(end_date):
+        return error_response(message="Both start_date and end_date are required when filtering by date")
+
+    try:
+        start, end = (
+            service.parse_date_range(start_date, end_date)
+            if start_date and end_date
+            else (None, None)
+        )
+    except ValueError:
+        return error_response(message="Invalid date format")
+
     report_data = await service.get_patients_report(
         patient_id=patient_id,
+        search=search,
         outstanding_only=outstanding_only,
+        start=start,
+        end=end,
         skip=skip,
         limit=limit,
     )
@@ -233,12 +320,26 @@ async def get_patients_report(
 @router.get("/patient-report-details/{patient_id}", response_model=StandardResponse[dict])
 async def get_patient_report_details(
     patient_id: int,
+    start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """Get detailed financial drill-down for a specific patient."""
+    """Get a detailed patient financial drill-down, optionally scoped to a date range."""
     service = AccountingService(db, current_user.tenant_id)
-    details = await service.get_patient_financial_details(patient_id)
+    if bool(start_date) != bool(end_date):
+        return error_response(message="Both start_date and end_date are required when filtering by date")
+
+    try:
+        start, end = (
+            service.parse_date_range(start_date, end_date)
+            if start_date and end_date
+            else (None, None)
+        )
+    except ValueError:
+        return error_response(message="Invalid date format")
+
+    details = await service.get_patient_financial_details(patient_id, start=start, end=end)
     if not details:
         return error_response(message="Patient not found or unauthorized", status_code=404)
     return success_response(data=details, message="Patient financial details retrieved successfully")
@@ -317,3 +418,35 @@ async def update_hire_date(
         return error_response(message="حدث خطأ. تأكد من وجود الموظف وصحة التاريخ (YYYY-MM-DD)", status_code=400)
 
     return success_response(data=None, message="تم تحديث تاريخ بداية العمل")
+
+
+@router.get("/activity", response_model=StandardResponse[dict])
+async def get_financial_activity(
+    start_date: Optional[str] = Query(None, description="Start date YYYY-MM-DD"),
+    end_date: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
+    types: Optional[str] = Query(None, description="Comma-separated event types (payment,expense,lab,salary)"),
+    search: Optional[str] = Query(None, description="Search query"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
+):
+    """
+    Get unified normalized financial activity feed (§17 MASTER_SPEC, FIN-ACT-001, GEMINI_REPAIR_PLAN R2).
+    """
+    event_types = [t.strip() for t in types.split(",") if t.strip()] if types else None
+    service = AccountingService(db, current_user.tenant_id)
+    try:
+        activity_data = await service.get_financial_activity(
+            start_date=start_date,
+            end_date=end_date,
+            event_types=event_types,
+            search=search,
+            skip=skip,
+            limit=limit,
+            current_user=current_user,
+        )
+    except ValueError as ve:
+        return error_response(message=str(ve), status_code=400)
+
+    return success_response(data=activity_data, message="Financial activity retrieved")

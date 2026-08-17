@@ -127,7 +127,8 @@ export default function Appointments() {
             refetchPatients();
             toast.success(t('patients.messages.create_success', 'Patient created successfully'), { id: toastId });
         } catch (err) {
-            toast.error(t('patients.messages.create_error', 'Failed to create patient'), { id: toastId });
+            const errorMsg = err.response?.data?.detail || t('patients.messages.create_error', 'Failed to create patient');
+            toast.error(errorMsg, { id: toastId });
         }
     };
 
