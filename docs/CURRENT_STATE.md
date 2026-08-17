@@ -1,6 +1,8 @@
-# DENTIX Finance V2 — Current State
+# DENTIX Finance V2 — Historical Current-State Snapshot
 
-Update this file at every phase checkpoint. Do not use chat history as the source of execution state.
+> **HISTORICAL / NON-CANONICAL.** This file captured a Finance V2 release-hardening checkpoint tied to an earlier integration branch/PR/CI state. Its “current”, “remaining blockers”, and “next action” sections below are preserved as evidence, not as present instructions. For current product truth use [`../PROJECT_TRUTH.md`](../PROJECT_TRUTH.md), [`product/MODULE_REGISTRY.md`](product/MODULE_REGISTRY.md), and executable Git/CI state.
+
+_Original snapshot content follows._
 
 ## Current phase
 
@@ -75,10 +77,10 @@ Repository code search contains no CodeRabbit configuration after Agent Stack no
 - Reports V2: `useReports`, report view components, `ReportsPage`.
 - Legacy Billing redirect: `frontend/src/pages/Billing.jsx` and `frontend/src/App.jsx`.
 
-## Release rule
+## Release rule (historical snapshot)
 
-Do not change this document to `COMPLETED` / `VERIFIED` merely because automated CI is green. Only mark applicable manual release-gate items verified when evidence exists. Any remaining unchecked applicable item keeps the release state `PARTIAL`.
+Do not change this snapshot to `COMPLETED` / `VERIFIED` merely because automated CI is green. Its status describes the historical checkpoint only.
 
-## Next allowed action
+## Next allowed action (historical snapshot)
 
-Wait for the current PR-head CI run to complete. If it is green, perform/accept the remaining manual release-gate review before converting PR #8 from draft and merging to `main`.
+The original next action was to wait for that PR-head CI and manual release-gate review. It is retained for provenance and must not be followed as a current instruction without re-validation.
