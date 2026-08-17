@@ -110,6 +110,15 @@ describe('Finance Patient Accounts & Receivables V2', () => {
                 expect(screen.getAllByText('فاطمة أحمد').length).toBeGreaterThan(0);
             });
 
+            await waitFor(() => {
+                expect(financialsApi.getComprehensiveStats).toHaveBeenCalled();
+            });
+            const [statsFrom, statsTo] = financialsApi.getComprehensiveStats.mock.calls[0];
+            expect(statsFrom).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+            expect(statsTo).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+            expect(statsFrom).not.toBe('');
+            expect(statsTo).not.toBe('');
+
             expect(screen.getAllByLabelText('2000 EGP').length).toBeGreaterThan(0);
             expect(screen.getByText('المدينون فقط')).toBeDefined();
         });
