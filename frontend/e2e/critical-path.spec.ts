@@ -74,7 +74,26 @@ test.describe('Dentix Critical Path', () => {
     await expect(page).toHaveURL(`${BASE_URL}/patients/${patient.id}`, { timeout: 10000 });
     await expect(page.getByText(patientName, { exact: true }).first()).toBeVisible({ timeout: 10000 });
 
-    // 5. Finance is part of the production recovery gate. Verify the clinic admin
+    // 5. Distinguish a true search miss from an empty clinic.
+    await page.goto(`${BASE_URL}/patients`);
+    const directorySearch = page.getByRole('searchbox', {
+      name: /Search patients|البحث في المرضى/i,
+    });
+    await directorySearch.fill(`no-patient-${Date.now()}`);
+    await expect(page.getByText(/No matching patient|لا يوجد مريض مطابق/i)).toBeVisible({ timeout: 10000 });
+
+    // 6. Archive uses the normal patient-directory action and removes the record
+    // from the active workspace without a hard delete.
+    await directorySearch.fill(`#${patient.id}`);
+    await expect(page.getByText(patientName, { exact: true }).first()).toBeVisible({ timeout: 10000 });
+    page.once('dialog', async (dialog) => {
+      expect(dialog.type()).toBe('confirm');
+      await dialog.accept();
+    });
+    await page.getByRole('button', { name: /Archive patient|أرشفة المريض/i }).first().click();
+    await expect(page.getByText(patientName, { exact: true })).toHaveCount(0, { timeout: 10000 });
+
+    // 7. Finance is part of the production recovery gate. Verify the clinic admin
     // can enter the protected Finance/Billing route without a 404.
     await page.goto(`${BASE_URL}/billing`);
     await expect(page).toHaveURL(`${BASE_URL}/billing`);
