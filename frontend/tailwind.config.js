@@ -99,6 +99,12 @@ export default {
                 background: "var(--background)",
                 surface: "var(--surface)",
                 "surface-hover": "var(--surface-hover)",
+                // Compatibility aliases used by Finance V2 shared primitives.
+                // Keep cards on the glass surface token, while popovers that must
+                // fully obscure underlying content should use explicit solid
+                // light/dark backgrounds.
+                card: "var(--surface)",
+                muted: "var(--surface-hover)",
                 "text-primary": "var(--text-primary)",
                 "text-secondary": "var(--text-secondary)",
                 border: "var(--border)",

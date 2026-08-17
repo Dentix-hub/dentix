@@ -92,7 +92,7 @@ export default function DateRangePicker({ className = '' }) {
 
             {isOpen && (
                 <div
-                    className="absolute end-0 mt-2 w-72 sm:w-80 rounded-xl bg-card border border-border shadow-xl z-50 p-3 space-y-3 animate-in fade-in zoom-in-95 duration-100"
+                    className="absolute end-0 mt-2 w-72 sm:w-80 rounded-xl bg-white dark:bg-slate-900 border border-border shadow-2xl ring-1 ring-black/5 dark:ring-white/10 z-50 p-3 space-y-3 animate-in fade-in zoom-in-95 duration-100"
                     role="menu"
                 >
                     <div className="text-xs font-bold text-text-secondary uppercase tracking-wider px-1">
@@ -135,7 +135,7 @@ export default function DateRangePicker({ className = '' }) {
                                         type="date"
                                         value={customFrom}
                                         onChange={(e) => setCustomFrom(e.target.value)}
-                                        className="w-full text-xs font-mono px-2 py-1.5 rounded-md border border-border bg-background text-text-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                                        className="w-full text-xs font-mono px-2 py-1.5 rounded-md border border-border bg-input text-text-primary focus:ring-1 focus:ring-primary focus:outline-none"
                                         required
                                     />
                                 </div>
@@ -147,7 +147,7 @@ export default function DateRangePicker({ className = '' }) {
                                         type="date"
                                         value={customTo}
                                         onChange={(e) => setCustomTo(e.target.value)}
-                                        className="w-full text-xs font-mono px-2 py-1.5 rounded-md border border-border bg-background text-text-primary focus:ring-1 focus:ring-primary focus:outline-none"
+                                        className="w-full text-xs font-mono px-2 py-1.5 rounded-md border border-border bg-input text-text-primary focus:ring-1 focus:ring-primary focus:outline-none"
                                         required
                                     />
                                 </div>

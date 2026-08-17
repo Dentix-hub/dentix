@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 import { useFinanceOverview } from '../overview/hooks/useFinanceOverview';
-import { formatRangeLabel } from '../utils/datePresets';
 import HeadlineMetrics from '../overview/components/HeadlineMetrics';
 import ObligationsSection from '../overview/components/ObligationsSection';
 import FinancialTrendChart from '../overview/components/FinancialTrendChart';
@@ -16,12 +15,9 @@ import RecentActivityPreview from '../overview/components/RecentActivityPreview'
  * - Recent Financial Activity preview feed
  */
 export default function OverviewPage() {
-    const { t, i18n } = useTranslation();
-    const isArabic = i18n.language === 'ar';
+    const { t } = useTranslation();
 
     const {
-        from,
-        to,
         netInvoiced,
         collected,
         totalDeductions,
@@ -35,8 +31,6 @@ export default function OverviewPage() {
         isError,
         refetch,
     } = useFinanceOverview();
-
-    const dateLabel = formatRangeLabel(from, to, isArabic ? 'ar' : 'en');
 
     if (isError) {
         return (
@@ -73,7 +67,6 @@ export default function OverviewPage() {
                 totalDeductions={totalDeductions}
                 netResult={netResult}
                 isLoading={isLoading}
-                dateLabel={dateLabel}
             />
 
             {/* 2. Actionable Obligations & Receivables */}
@@ -82,7 +75,6 @@ export default function OverviewPage() {
                 doctorDuesTotal={doctorDuesTotal}
                 staffDuesTotal={staffDuesTotal}
                 isLoading={isLoading}
-                dateLabel={dateLabel}
             />
 
             {/* 3. Financial Trends & Recent Activity Grid */}
