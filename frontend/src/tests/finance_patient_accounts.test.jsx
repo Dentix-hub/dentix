@@ -157,6 +157,13 @@ describe('Finance Patient Accounts & Receivables V2', () => {
             expect(screen.getByLabelText('6000 EGP')).toBeDefined();
             expect(screen.getByLabelText('4500 EGP')).toBeDefined();
 
+            // Regression: the drawer must remain opaque so underlying Finance text
+            // cannot bleed through and overlap the statement content.
+            const panel = screen.getByTestId('patient-statement-panel');
+            expect(panel.className).toContain('bg-white');
+            expect(panel.className).toContain('dark:bg-slate-950');
+            expect(panel.className).not.toContain('bg-card');
+
             const recordBtn = screen.getByText('تسجيل دفعة لهذا المريض');
             fireEvent.click(recordBtn);
 
