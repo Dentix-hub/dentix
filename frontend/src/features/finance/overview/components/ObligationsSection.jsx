@@ -13,6 +13,7 @@ import ScopeBadge from '../../components/ScopeBadge';
 /**
  * Obligations and Receivables Section for Overview V2.
  * Summarizes actionable balances: Patient Receivables (All-time), Doctor Dues, and Staff Payroll.
+ * Period-scoped cards inherit the page-level date range and therefore do not repeat it.
  */
 export default function ObligationsSection({
     allTimeOutstanding = 0,
@@ -20,7 +21,6 @@ export default function ObligationsSection({
     staffDuesTotal = 0,
     isLoading = false,
     currency = 'EGP',
-    dateLabel,
 }) {
     const { t } = useTranslation();
 
@@ -41,8 +41,6 @@ export default function ObligationsSection({
             id: 'doctors',
             title: t('finance.obligations.doctor_dues', 'مستحقات الأطباء غير المسددة'),
             amount: doctorDuesTotal,
-            scope: 'period',
-            scopeLabel: dateLabel,
             description: t('finance.obligations.doctor_dues_desc', 'عمولات الجلسات المحصلة والرواتب الثابتة للفترة'),
             icon: UserCheck,
             iconBg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
@@ -53,8 +51,6 @@ export default function ObligationsSection({
             id: 'staff',
             title: t('finance.obligations.staff_dues', 'التزامات رواتب الموظفين'),
             amount: staffDuesTotal,
-            scope: 'period',
-            scopeLabel: dateLabel,
             description: t('finance.obligations.staff_dues_desc', 'رواتب وبدلات طاقم التمريض والاستقبال والإدارة'),
             icon: UserMinus,
             iconBg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
@@ -107,7 +103,9 @@ export default function ObligationsSection({
                                             {item.title}
                                         </h3>
                                     </div>
-                                    <ScopeBadge scope={item.scope} label={item.scopeLabel} />
+                                    {item.scopeLabel && (
+                                        <ScopeBadge scope={item.scope} label={item.scopeLabel} />
+                                    )}
                                 </div>
 
                                 <div className="pt-1">
