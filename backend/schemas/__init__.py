@@ -6,13 +6,13 @@ Import from here: `from backend import schemas` or `from backend.schemas import 
 """
 
 # Patient
-# Patient
 from .patient import (
     PatientBase,
     PatientCreate,
     PatientUpdate,
     Patient,
     PatientSummary,
+    PatientDirectoryItem,
     AttachmentBase,
     AttachmentCreate,
     Attachment,
@@ -153,12 +153,12 @@ User.model_rebuild()
 
 __all__ = [
     # Patient
-    # Patient
     "PatientBase",
     "PatientCreate",
     "PatientUpdate",
     "Patient",
     "PatientSummary",
+    "PatientDirectoryItem",
     "AttachmentBase",
     "AttachmentCreate",
     "Attachment",
