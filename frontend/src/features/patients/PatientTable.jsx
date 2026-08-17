@@ -1,104 +1,177 @@
-import { memo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { memo } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Trash2, Phone, MapPin, Calendar, Users } from 'lucide-react';
-import { Button, SkeletonCard, EmptyState } from '@/shared/ui';
+import { CalendarPlus, ExternalLink, Phone, RefreshCw, SearchX, Trash2, UserRound, Users, MessageCircle } from 'lucide-react';
+import { Button, SkeletonBox } from '@/shared/ui';
+import { useAuth } from '@/auth/useAuth';
 
-const PatientCard = memo(function PatientCard({ patient, onDelete, onNavigate, _index, t }) {
+function whatsappHref(phone) {
+    if (!phone) return null;
+    const digits = String(phone).replace(/\D/g, '');
+    if (!digits) return null;
+    const international = digits.startsWith('0') ? `20${digits.slice(1)}` : digits.startsWith('00') ? digits.slice(2) : digits;
+    return `https://wa.me/${international}`;
+}
+
+function PatientIdentity({ patient }) {
     return (
-        <div
-            onClick={() => onNavigate(patient.id)}
-            className="relative rounded-xl border border-border bg-surface hover:bg-surface-hover p-5 shadow-sm hover:shadow-md transition-shadow group cursor-pointer"
-        >
-            <div className="flex items-start gap-4">
-                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 text-primary font-bold text-lg shrink-0">
-                    {patient.name?.charAt(0)?.toUpperCase()}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-semibold text-text-primary truncate">
-                        {patient.name}
-                    </h3>
-
-                    <div className="mt-2 space-y-1 text-sm text-slate-600">
-                        {patient.age && (
-                            <div className="flex items-center gap-2">
-                                <Calendar className="w-4 h-4" />
-                                <span>{t('patientDetails.info_card.age_years', { age: patient.age })}</span>
-                            </div>
-                        )}
-                        {patient.phone && (
-                            <div className="flex items-center gap-2">
-                                <Phone className="w-4 h-4" />
-                                <span dir="ltr">{patient.phone}</span>
-                            </div>
-                        )}
-                        {patient.address && (
-                            <div className="flex items-center gap-2">
-                                <MapPin className="w-4 h-4" />
-                                <span className="truncate">{patient.address}</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 hover:bg-red-50"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(patient.id, patient.name);
-                    }}
+        <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-extrabold text-primary">
+                {patient.name?.trim()?.charAt(0)?.toUpperCase() || '?'}
+            </div>
+            <div className="min-w-0">
+                <Link
+                    to={`/patients/${patient.id}`}
+                    className="block truncate font-bold text-text-primary hover:text-primary focus:outline-none focus:underline"
+                    dir="auto"
                 >
-                    <Trash2 className="w-4 h-4" />
-                </Button>
+                    {patient.name}
+                </Link>
+                <span className="text-xs text-text-muted" dir="ltr">#{patient.file_number || patient.id}</span>
             </div>
         </div>
     );
-});
+}
 
-export default memo(function PatientTable({ patients, isLoading, onDelete }) {
-    const navigate = useNavigate();
+function RowActions({ patient, canArchive, onArchive }) {
     const { t } = useTranslation();
-
-    const handleNavigate = useCallback((id) => {
-        navigate(`/patients/${id}`);
-    }, [navigate]);
-
-    if (isLoading) {
-        return (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Array.from({ length: 6 }).map((_, i) => (
-                    <SkeletonCard key={i} />
-                ))}
-            </div>
-        );
-    }
-
-    if (!patients || patients.length === 0) {
-        return (
-            <EmptyState
-                icon={Users}
-                title={t('patients.empty_state.title')}
-                description={t('patients.empty_state.desc')}
-            />
-        );
-    }
-
+    const waHref = whatsappHref(patient.phone);
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {patients.map((patient, index) => (
-                <PatientCard
-                    key={patient.id}
-                    patient={patient}
-                    index={index}
-                    onDelete={onDelete}
-                    onNavigate={handleNavigate}
-                    t={t}
-                />
+        <div className="flex items-center justify-end gap-1">
+            {patient.phone && (
+                <a href={`tel:${patient.phone}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover hover:text-primary" aria-label={t('patients.call_patient', 'Call patient')}>
+                    <Phone className="h-4 w-4" />
+                </a>
+            )}
+            {waHref && (
+                <a href={waHref} target="_blank" rel="noreferrer" className="flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover hover:text-primary" aria-label={t('patients.whatsapp_patient', 'Open WhatsApp')}>
+                    <MessageCircle className="h-4 w-4" />
+                </a>
+            )}
+            <Link to={`/appointments?patient_id=${patient.id}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover hover:text-primary" aria-label={t('patients.new_appointment', 'New appointment')}>
+                <CalendarPlus className="h-4 w-4" />
+            </Link>
+            <Link to={`/patients/${patient.id}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover hover:text-primary" aria-label={t('patients.open_patient', 'Open patient')}>
+                <ExternalLink className="h-4 w-4" />
+            </Link>
+            {canArchive && (
+                <button type="button" onClick={() => onArchive(patient.id, patient.name)} className="flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30" aria-label={t('patients.archive_patient', 'Archive patient')}>
+                    <Trash2 className="h-4 w-4" />
+                </button>
+            )}
+        </div>
+    );
+}
+
+function LoadingRows() {
+    return (
+        <div className="space-y-2 p-4">
+            {Array.from({ length: 7 }).map((_, index) => (
+                <SkeletonBox key={index} height="4rem" className="rounded-xl" />
             ))}
         </div>
     );
-});
+}
 
+export default memo(function PatientTable({
+    patients,
+    isLoading,
+    isError,
+    searchQuery,
+    onRetry,
+    onArchive,
+    onAdd,
+    hasNextPage,
+    isFetchingNextPage,
+    onLoadMore,
+}) {
+    const { t } = useTranslation();
+    const { user } = useAuth();
+    const canArchive = ['admin', 'super_admin'].includes(user?.role);
+
+    if (isLoading) return <LoadingRows />;
+
+    if (isError) {
+        return (
+            <div className="flex min-h-64 flex-col items-center justify-center gap-3 p-8 text-center">
+                <RefreshCw className="h-8 w-8 text-red-500" />
+                <h3 className="font-bold text-text-primary">{t('patients.load_error', 'Could not load patients')}</h3>
+                <p className="max-w-md text-sm text-text-muted">{t('patients.load_error_hint', 'Check the connection and try again. Your search has been kept.')}</p>
+                <Button variant="secondary" onClick={onRetry}>{t('common.retry', 'Retry')}</Button>
+            </div>
+        );
+    }
+
+    if (!patients?.length) {
+        const searching = Boolean(searchQuery);
+        return (
+            <div className="flex min-h-72 flex-col items-center justify-center gap-3 p-8 text-center">
+                <div className="rounded-2xl bg-primary/10 p-4 text-primary">
+                    {searching ? <SearchX className="h-8 w-8" /> : <Users className="h-8 w-8" />}
+                </div>
+                <h3 className="text-lg font-bold text-text-primary">
+                    {searching ? t('patients.no_search_results', 'No matching patient') : t('patients.empty_state.title')}
+                </h3>
+                <p className="max-w-lg text-sm text-text-muted">
+                    {searching ? t('patients.no_search_results_hint', 'Try another name, file number, or phone format.') : t('patients.empty_state.desc')}
+                </p>
+                <Button onClick={onAdd}>{t('patients.add_new')}</Button>
+            </div>
+        );
+    }
+
+    return (
+        <>
+            <div className="hidden overflow-x-auto md:block">
+                <table className="w-full border-collapse text-start">
+                    <thead className="bg-surface-hover/60 text-xs uppercase tracking-wide text-text-muted">
+                        <tr>
+                            <th scope="col" className="px-5 py-3 text-start">{t('patients.patient', 'Patient')}</th>
+                            <th scope="col" className="px-5 py-3 text-start">{t('patients.file_number', 'File #')}</th>
+                            <th scope="col" className="px-5 py-3 text-start">{t('patients.form.age_label')}</th>
+                            <th scope="col" className="px-5 py-3 text-start">{t('patients.form.phone_label')}</th>
+                            <th scope="col" className="px-5 py-3 text-start">{t('patients.assigned_doctor', 'Doctor')}</th>
+                            <th scope="col" className="px-5 py-3 text-end">{t('common.actions')}</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                        {patients.map((patient) => (
+                            <tr key={patient.id} className="transition-colors hover:bg-surface-hover/40">
+                                <td className="px-5 py-3"><PatientIdentity patient={patient} /></td>
+                                <td className="px-5 py-3 text-sm font-semibold text-text-secondary"><span dir="ltr">#{patient.file_number || patient.id}</span></td>
+                                <td className="px-5 py-3 text-sm text-text-secondary">{patient.age ? t('patientDetails.info_card.age_years', { age: patient.age }) : '—'}</td>
+                                <td className="px-5 py-3 text-sm text-text-secondary"><span dir="ltr">{patient.phone || '—'}</span></td>
+                                <td className="px-5 py-3 text-sm text-text-secondary">{patient.assigned_doctor_name || '—'}</td>
+                                <td className="px-5 py-3"><RowActions patient={patient} canArchive={canArchive} onArchive={onArchive} /></td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            <div className="divide-y divide-border md:hidden">
+                {patients.map((patient) => (
+                    <article key={patient.id} className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                            <PatientIdentity patient={patient} />
+                            <RowActions patient={patient} canArchive={canArchive} onArchive={onArchive} />
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 ps-13 text-xs text-text-muted">
+                            {patient.age ? <span>{t('patientDetails.info_card.age_years', { age: patient.age })}</span> : null}
+                            {patient.phone ? <span dir="ltr">{patient.phone}</span> : null}
+                            {patient.assigned_doctor_name ? <span className="inline-flex items-center gap-1"><UserRound className="h-3 w-3" />{patient.assigned_doctor_name}</span> : null}
+                        </div>
+                    </article>
+                ))}
+            </div>
+
+            {hasNextPage && (
+                <div className="border-t border-border p-4 text-center">
+                    <Button variant="secondary" onClick={onLoadMore} isLoading={isFetchingNextPage}>
+                        {t('patients.load_more', 'Load more patients')}
+                    </Button>
+                </div>
+            )}
+        </>
+    );
+});
