@@ -5,12 +5,13 @@ import os
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import cloudinary
 import cloudinary.uploader
 
-from .. import crud, schemas
+from .. import crud, models, schemas
 from .auth import get_async_db
 from backend.core.permissions import Permission, require_permission
 from backend.services.file_service import get_file_path, save_file_locally, validate_file
@@ -26,6 +27,41 @@ cloudinary.config(
 )
 
 router = APIRouter(prefix="/upload", tags=["Uploads"])
+
+
+async def _authorize_attachment_file_access(
+    db: AsyncSession,
+    current_user: schemas.User,
+    file_path: str,
+):
+    """Resolve a persisted attachment and enforce patient-level visibility.
+
+    Tenant membership alone is not sufficient for doctor-scoped clinics: two
+    patients in the same tenant can have different visibility. Requiring a DB
+    attachment record also prevents the authenticated file endpoint from being
+    used as a generic tenant-directory file server.
+    """
+    stmt = (
+        select(models.Attachment)
+        .join(models.Patient, models.Attachment.patient_id == models.Patient.id)
+        .where(
+            models.Attachment.file_path == file_path,
+            models.Patient.is_deleted == False,  # noqa: E712
+        )
+    )
+    if current_user.role != "super_admin":
+        stmt = stmt.where(models.Patient.tenant_id == current_user.tenant_id)
+
+    attachment = (await db.execute(stmt)).scalars().first()
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    if current_user.role != "super_admin":
+        visibility = get_visibility_service(db, current_user, current_user.tenant_id)
+        if not await visibility.can_view_patient(attachment.patient_id):
+            raise HTTPException(status_code=404, detail="Attachment not found")
+
+    return attachment
 
 
 @router.post("", response_model=schemas.Attachment)
@@ -86,13 +122,7 @@ async def serve_file(
 ):
     if file_path.startswith("http"):
         raise HTTPException(status_code=400, detail="External URLs should be accessed directly")
+
+    await _authorize_attachment_file_access(db, current_user, file_path)
     resolved_path = get_file_path(file_path)
-    if current_user.role != "super_admin":
-        expected_prefix = f"tenant_{current_user.tenant_id}"
-        if not file_path.startswith(expected_prefix):
-            logger.warning(
-                "[FILE_SECURITY] Tenant %s attempted cross-tenant file access",
-                current_user.tenant_id,
-            )
-            raise HTTPException(status_code=403, detail="غير مصرح بالوصول لهذا الملف")
     return FileResponse(path=str(resolved_path), filename=resolved_path.name)
