@@ -161,7 +161,7 @@ class PatientSearchService:
             message="Patients retrieved successfully",
         )
 
-    async def get_recent(self, patient_ids: list[int]) -> list[dict]:
+    async def get_recent(self, patient_ids: list[int], q: str = "") -> list[dict]:
         ordered_ids = []
         seen = set()
         for patient_id in patient_ids:
@@ -175,7 +175,9 @@ class PatientSearchService:
             return []
 
         query = await self._base_query()
-        result = await self.db.execute(query.where(models.Patient.id.in_(ordered_ids)))
+        query = query.where(models.Patient.id.in_(ordered_ids))
+        query = self._apply_search(query, q)
+        result = await self.db.execute(query)
         patients = result.scalars().unique().all()
         by_id = {patient.id: patient for patient in patients}
         return [self._directory_item(by_id[patient_id]) for patient_id in ordered_ids if patient_id in by_id]

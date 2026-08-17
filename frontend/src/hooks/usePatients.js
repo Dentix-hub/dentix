@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     createPatient,
@@ -5,8 +6,10 @@ import {
     getPatient,
     getPatientDirectory,
     getPatients,
+    getRecentPatientDirectory,
     updatePatient,
 } from '@/api';
+import { rememberRecentPatientId } from '@/features/patients/recentPatients';
 import { queryKeys } from '@/lib/queryClient';
 
 export function usePatients(options = {}) {
@@ -21,15 +24,16 @@ export function usePatients(options = {}) {
     });
 }
 
-export function usePatientDirectory({ query = '', limit = 30 } = {}) {
+export function usePatientDirectory({ query = '', limit = 30, scope = 'all', enabled = true } = {}) {
     return useInfiniteQuery({
-        queryKey: queryKeys.patientDirectory({ query, limit }),
+        queryKey: queryKeys.patientDirectory({ query, limit, scope }),
         initialPageParam: null,
         queryFn: async ({ pageParam }) => {
             const res = await getPatientDirectory({
                 q: query,
                 cursor: pageParam,
                 limit,
+                scope,
             });
             const items = res.data || [];
             return {
@@ -45,12 +49,27 @@ export function usePatientDirectory({ query = '', limit = 30 } = {}) {
             lastPage.pagination?.has_more
                 ? lastPage.pagination.next_cursor
                 : undefined,
+        enabled,
         staleTime: 30 * 1000,
     });
 }
 
-export function usePatient(patientId) {
+export function useRecentPatients(ids, query = '', options = {}) {
+    const stableIds = Array.isArray(ids) ? ids : [];
     return useQuery({
+        queryKey: queryKeys.patientRecent({ ids: stableIds.join(','), query }),
+        queryFn: async () => {
+            const res = await getRecentPatientDirectory({ ids: stableIds, q: query });
+            return res.data || [];
+        },
+        enabled: stableIds.length > 0,
+        staleTime: 10 * 1000,
+        ...options,
+    });
+}
+
+export function usePatient(patientId) {
+    const query = useQuery({
         queryKey: queryKeys.patient(patientId),
         queryFn: async () => {
             const res = await getPatient(patientId);
@@ -58,6 +77,12 @@ export function usePatient(patientId) {
         },
         enabled: !!patientId,
     });
+
+    useEffect(() => {
+        if (query.data?.id) rememberRecentPatientId(query.data.id);
+    }, [query.data?.id]);
+
+    return query;
 }
 
 export function useSearchPatients(query, options = {}) {
@@ -65,7 +90,7 @@ export function useSearchPatients(query, options = {}) {
     return useQuery({
         queryKey: queryKeys.patientSearch(normalizedQuery),
         queryFn: async () => {
-            const res = await getPatientDirectory({ q: normalizedQuery, limit: 20 });
+            const res = await getPatientDirectory({ q: normalizedQuery, limit: 20, scope: 'all' });
             return res.data || [];
         },
         enabled: normalizedQuery.length >= 2,

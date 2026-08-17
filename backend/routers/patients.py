@@ -75,11 +75,12 @@ async def create_patient(
 )
 async def recent_patient_directory(
     ids: str = Query("", max_length=128),
+    q: str = "",
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.PATIENT_READ)),
 ):
     service = PatientSearchService(db, current_user.tenant_id, current_user)
-    results = await service.get_recent(_parse_recent_ids(ids))
+    results = await service.get_recent(_parse_recent_ids(ids), q=q)
     return success_response(data=results, message="Recent patients retrieved successfully")
 
 
