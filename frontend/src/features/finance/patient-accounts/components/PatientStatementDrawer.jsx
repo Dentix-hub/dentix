@@ -43,7 +43,10 @@ export default function PatientStatementDrawer({
             />
 
             <div className="fixed inset-y-0 end-0 max-w-full flex pl-10 rtl:pl-0 rtl:pr-10">
-                <div className="w-screen max-w-md bg-card border-s border-border shadow-2xl flex flex-col justify-between overflow-y-auto">
+                <div
+                    data-testid="patient-statement-panel"
+                    className="w-screen max-w-md bg-white dark:bg-slate-950 border-s border-border shadow-2xl flex flex-col justify-between overflow-y-auto"
+                >
                     {/* Header */}
                     <div className="p-6 border-b border-border space-y-3">
                         <div className="flex items-center justify-between">
@@ -53,7 +56,7 @@ export default function PatientStatementDrawer({
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="p-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-muted/60 transition-colors"
+                                className="p-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                                 aria-label={t('common.close', 'إغلاق')}
                             >
                                 <X className="w-5 h-5" />
@@ -78,7 +81,7 @@ export default function PatientStatementDrawer({
                     {/* Body */}
                     <div className="p-6 space-y-6 flex-1">
                         {/* Outstanding Debt Card */}
-                        <div className="p-4 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-500/5 space-y-2">
+                        <div className="p-4 rounded-2xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 space-y-2">
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
                                     <AlertTriangle className="w-4 h-4" />
@@ -105,7 +108,7 @@ export default function PatientStatementDrawer({
                             </h4>
 
                             <div className="space-y-2">
-                                <div className="p-3.5 rounded-xl border border-border bg-muted/20 flex items-center justify-between">
+                                <div className="p-3.5 rounded-xl border border-border bg-slate-50 dark:bg-slate-900 flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <FileSpreadsheet className="w-4 h-4 text-primary" />
                                         <span className="text-xs text-text-secondary">{t('finance.metrics.invoiced', 'إجمالي الخدمات المحتسبة')}</span>
@@ -113,7 +116,7 @@ export default function PatientStatementDrawer({
                                     <Money amount={totalInvoiced} size="sm" />
                                 </div>
 
-                                <div className="p-3.5 rounded-xl border border-border bg-muted/20 flex items-center justify-between">
+                                <div className="p-3.5 rounded-xl border border-border bg-slate-50 dark:bg-slate-900 flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <CreditCard className="w-4 h-4 text-emerald-500" />
                                         <span className="text-xs text-text-secondary">{t('finance.metrics.collected', 'إجمالي الدفعات المسددة')}</span>
@@ -124,7 +127,7 @@ export default function PatientStatementDrawer({
                         </div>
 
                         {/* Profile Link */}
-                        <div className="p-4 rounded-xl border border-border bg-card flex items-center justify-between">
+                        <div className="p-4 rounded-xl border border-border bg-slate-50 dark:bg-slate-900 flex items-center justify-between">
                             <div className="space-y-0.5">
                                 <p className="text-xs font-bold text-text-primary">{t('patients.full_record', 'الملف الطبي والمالي الكامل')}</p>
                                 <p className="text-[11px] text-text-secondary">{t('patients.view_timeline', 'عرض سجل الجلسات والفواتير التفصيلية')}</p>
@@ -140,7 +143,7 @@ export default function PatientStatementDrawer({
                     </div>
 
                     {/* Footer Action */}
-                    <div className="p-6 border-t border-border bg-muted/10 space-y-3">
+                    <div className="p-6 border-t border-border bg-slate-50 dark:bg-slate-900 space-y-3">
                         {canWriteFinance && (
                             <button
                                 type="button"
