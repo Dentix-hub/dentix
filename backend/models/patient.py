@@ -57,6 +57,11 @@ class Patient(Base):
     # Default Price List (Multi Price List Support)
     default_price_list_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("price_lists.id"), nullable=True)
 
+    @property
+    def file_number(self) -> int:
+        """Stable display identifier used by Finance V2 without adding a DB column."""
+        return self.id
+
     appointments = relationship(
         "Appointment", back_populates="patient", cascade="all, delete-orphan"
     )
