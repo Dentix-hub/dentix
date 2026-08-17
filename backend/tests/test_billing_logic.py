@@ -1,136 +1,121 @@
-"""
-Billing Logic Unit Tests (Refactored to Async)
-Tests for BillingService financial calculations with mocked DB.
+"""Billing service unit tests.
+
+Calculation math for tenant-business-day reporting is covered by
+``test_dashboard_business_day.py`` against the database. These tests keep the
+BillingService public contract focused on orchestration and payment creation.
 """
 
+from datetime import date, datetime
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
+
+from backend import schemas
 from backend.services.billing_service import BillingService
-from backend import models, schemas
+from backend.services.tenant_time_service import TenantTimeContext
 
 
 class TestBillingServiceFinancialStats:
-    """Tests for get_financial_stats() method."""
+    """Verify BillingService delegates to the authoritative reporting layer."""
 
     def setup_method(self):
-        """Setup mock DB and service for each test."""
         self.mock_db = MagicMock()
-        # Ensure common Async DB methods are mocked
         self.mock_db.execute = AsyncMock()
         self.mock_db.scalar = AsyncMock()
         self.tenant_id = 1
         self.service = BillingService(self.mock_db, self.tenant_id)
-
-    def _mock_scalar_sequence(self, values: list):
-        """Helper to mock multiple scalar() calls in sequence."""
-        call_count = [0]
-
-        async def mock_scalar(*args, **kwargs):
-            result = values[call_count[0]] if call_count[0] < len(values) else 0.0
-            call_count[0] += 1
-            return result
-
-        return mock_scalar
+        self.context = TenantTimeContext(
+            timezone_name="Africa/Cairo",
+            business_date=date(2026, 8, 17),
+            utc_start=datetime(2026, 8, 16, 21, 0),
+            utc_end=datetime(2026, 8, 17, 21, 0),
+            local_start=datetime(2026, 8, 17, 0, 0),
+            local_end=datetime(2026, 8, 18, 0, 0),
+        )
 
     @pytest.mark.asyncio
-    async def test_calculate_revenue_basic(self):
-        """Verify revenue = total_cost - total_discount."""
-        # Mock: cost=1000, discount=100, payments=500
-        # Expected: revenue=900, outstanding=400
-        values = [
-            1000.0,  # total_cost (treatments)
-            100.0,  # total_discount (treatments)
-            200.0,  # today_revenue
-            500.0,  # total_received (payments)
-            100.0,  # today_received
-            50.0,  # total_lab_costs
-            30.0,  # total_expenses
-            10.0,  # today_lab_costs
-            5.0,  # today_expenses
-        ]
+    async def test_get_financial_stats_uses_authoritative_reporting_contract(self):
+        expected = {
+            "total_revenue": 900.0,
+            "total_received": 500.0,
+            "outstanding": 400.0,
+            "total_expenses": 80.0,
+            "net_profit": 420.0,
+            "monthly_revenue": 0.0,
+            "today_revenue": 300.0,
+            "today_received": 100.0,
+            # This value is deliberately not derived from aggregate subtraction.
+            # It represents the shared per-patient debtor calculation.
+            "today_outstanding": 175.0,
+            "today_expenses": 15.0,
+        }
 
-        self.mock_db.scalar.side_effect = self._mock_scalar_sequence(values)
+        with (
+            patch.object(
+                self.service,
+                "_get_time_context",
+                new=AsyncMock(return_value=self.context),
+            ),
+            patch(
+                "backend.services.billing_service.reporting_crud.get_financial_stats",
+                new=AsyncMock(return_value=expected),
+            ) as reporting_mock,
+        ):
+            result = await self.service.get_financial_stats()
 
-        result = await self.service.get_financial_stats()
-
-        # Verify calculations
-        assert result["total_revenue"] == 900.0  # 1000 - 100
-        assert result["total_received"] == 500.0
-        assert result["outstanding"] == 400.0  # 900 - 500
-        assert result["total_expenses"] == 80.0  # 50 + 30
-        assert result["net_profit"] == 420.0  # 500 - 30 - 50
-
-    @pytest.mark.asyncio
-    async def test_outstanding_never_negative(self):
-        """Verify outstanding is clamped to 0 when payments exceed revenue."""
-        # Mock: revenue=100, payments=200
-        values = [
-            100.0,  # total_cost
-            0.0,  # total_discount
-            50.0,  # today_revenue
-            200.0,  # total_received (exceeds revenue!)
-            100.0,  # today_received
-            0.0,  # lab costs
-            0.0,  # expenses
-            0.0,  # today lab
-            0.0,  # today expenses
-        ]
-
-        self.mock_db.scalar.side_effect = self._mock_scalar_sequence(values)
-
-        result = await self.service.get_financial_stats()
-
-        # Outstanding should be 0, not negative
-        assert result["outstanding"] == 0  # max(0, 100-200)
+        assert result == expected
+        reporting_mock.assert_awaited_once_with(
+            self.mock_db,
+            self.tenant_id,
+            timezone_name="Africa/Cairo",
+            business_date=date(2026, 8, 17),
+            doctor_patient_scope_id=None,
+            is_doctor=False,
+        )
 
     @pytest.mark.asyncio
-    async def test_empty_database_returns_zeros(self):
-        """Verify all values are 0 when no data exists."""
-        values = [0.0] * 9  # All queries return None/0
+    async def test_get_financial_stats_preserves_doctor_patient_scope(self):
+        service = BillingService(
+            self.mock_db,
+            self.tenant_id,
+            doctor_patient_scope_id=42,
+            is_doctor=True,
+        )
+        expected = {
+            "total_revenue": 100.0,
+            "total_received": 50.0,
+            "outstanding": 50.0,
+            "total_expenses": 0.0,
+            "net_profit": 50.0,
+            "monthly_revenue": 0.0,
+            "today_revenue": 100.0,
+            "today_received": 50.0,
+            "today_outstanding": 50.0,
+            "today_expenses": 0.0,
+        }
 
-        self.mock_db.scalar.side_effect = self._mock_scalar_sequence(values)
+        with (
+            patch.object(
+                service,
+                "_get_time_context",
+                new=AsyncMock(return_value=self.context),
+            ),
+            patch(
+                "backend.services.billing_service.reporting_crud.get_financial_stats",
+                new=AsyncMock(return_value=expected),
+            ) as reporting_mock,
+        ):
+            result = await service.get_financial_stats()
 
-        result = await self.service.get_financial_stats()
-
-        assert result["total_revenue"] == 0.0
-        assert result["total_received"] == 0.0
-        assert result["outstanding"] == 0
-        assert result["net_profit"] == 0.0
-        assert result["today_revenue"] == 0.0
-
-    @pytest.mark.asyncio
-    async def test_today_outstanding_calculation(self):
-        """Verify today_outstanding = max(0, today_revenue - today_received)."""
-        values = [
-            1000.0,  # total_cost
-            0.0,  # total_discount
-            300.0,  # today_revenue
-            500.0,  # total_received
-            100.0,  # today_received (less than today_revenue)
-            0.0,
-            0.0,
-            0.0,
-            0.0,  # expenses
-        ]
-
-        self.mock_db.scalar.side_effect = self._mock_scalar_sequence(values)
-
-        result = await self.service.get_financial_stats()
-
-        assert result["today_outstanding"] == 200.0  # max(0, 300-100)
-
-    @pytest.mark.asyncio
-    async def test_null_values_treated_as_zero(self):
-        """Verify NULL database values are converted to 0.0."""
-        values = [None, None, None, None, None, None, None, None, None]
-
-        self.mock_db.scalar.side_effect = self._mock_scalar_sequence(values)
-
-        result = await self.service.get_financial_stats()
-
-        # Should not crash and return zeros
-        assert result["total_revenue"] == 0.0
-        assert result["net_profit"] == 0.0
+        assert result == expected
+        reporting_mock.assert_awaited_once_with(
+            self.mock_db,
+            self.tenant_id,
+            timezone_name="Africa/Cairo",
+            business_date=date(2026, 8, 17),
+            doctor_patient_scope_id=42,
+            is_doctor=True,
+        )
 
 
 class TestBillingServiceCreatePayment:
