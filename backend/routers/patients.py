@@ -1,7 +1,7 @@
 """Patients Router — HTTP boundary for patient workflows."""
 
 import logging
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
@@ -25,6 +25,24 @@ async def _ensure_patient_visible(db: AsyncSession, current_user: schemas.User, 
     visibility = get_visibility_service(db, current_user, current_user.tenant_id)
     if not await visibility.can_view_patient(patient_id):
         raise HTTPException(status_code=404, detail="Patient not found")
+
+
+def _parse_recent_ids(raw_ids: str) -> list[int]:
+    if not raw_ids.strip():
+        return []
+    parsed: list[int] = []
+    for raw in raw_ids.split(","):
+        token = raw.strip()
+        if not token:
+            continue
+        if not token.isdigit():
+            raise HTTPException(status_code=400, detail="Invalid patient IDs")
+        patient_id = int(token)
+        if patient_id > 0 and patient_id not in parsed:
+            parsed.append(patient_id)
+        if len(parsed) == 10:
+            break
+    return parsed
 
 
 @router.post("", response_model=StandardResponse[schemas.Patient], summary="Create a new patient")
@@ -51,6 +69,21 @@ async def create_patient(
 
 
 @router.get(
+    "/directory/recent",
+    response_model=StandardResponse[List[schemas.PatientDirectoryItem]],
+    summary="Recently viewed patient summaries",
+)
+async def recent_patient_directory(
+    ids: str = Query("", max_length=128),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(require_permission(Permission.PATIENT_READ)),
+):
+    service = PatientSearchService(db, current_user.tenant_id, current_user)
+    results = await service.get_recent(_parse_recent_ids(ids))
+    return success_response(data=results, message="Recent patients retrieved successfully")
+
+
+@router.get(
     "/directory",
     response_model=CursorPaginatedResponse[schemas.PatientDirectoryItem],
     summary="Patient directory",
@@ -59,11 +92,12 @@ async def patient_directory(
     q: str = "",
     cursor: Optional[str] = None,
     limit: int = Query(30, ge=1, le=100),
+    scope: Literal["all", "today", "mine"] = "all",
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.PATIENT_READ)),
 ):
     service = PatientSearchService(db, current_user.tenant_id, current_user)
-    return await service.get_directory(q=q, cursor=cursor, limit=limit)
+    return await service.get_directory(q=q, cursor=cursor, limit=limit, scope=scope)
 
 
 @router.get("/search", response_model=StandardResponse[List[schemas.Patient]], summary="Search patients")
