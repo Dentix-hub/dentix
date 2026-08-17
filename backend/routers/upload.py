@@ -1,30 +1,23 @@
-"""
-File Upload Router — Secure file upload and retrieval endpoints.
-
-All uploads go through validation (size, type, magic bytes) and are stored
-in tenant-scoped directories. Files are served through authenticated endpoints,
-NOT via public StaticFiles mounts.
-"""
+"""File Upload Router — Secure file upload and retrieval endpoints."""
 
 import logging
 import os
-from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import cloudinary
 import cloudinary.uploader
 
-from .. import schemas, crud
+from .. import crud, schemas
 from .auth import get_async_db
 from backend.core.permissions import Permission, require_permission
-from backend.services.file_service import validate_file, save_file_locally, get_file_path
+from backend.services.file_service import get_file_path, save_file_locally, validate_file
+from backend.services.visibility_service import get_visibility_service
 
 logger = logging.getLogger(__name__)
 
-# Cloudinary Configuration (optional — used when configured)
 cloudinary.config(
     cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
     api_key=os.getenv("CLOUDINARY_API_KEY"),
@@ -43,25 +36,15 @@ async def upload_file(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.PATIENT_UPDATE)),
 ):
-    """
-    Upload a file for a patient.
-
-    Security:
-    - File validated (size, type, magic bytes)
-    - Stored in tenant-scoped directory
-    - Supports Cloudinary (preferred) or local storage (fallback)
-    """
-    # 1. Verify Patient & Access
+    visibility = get_visibility_service(db, current_user, current_user.tenant_id)
+    if not await visibility.can_view_patient(patient_id):
+        raise HTTPException(status_code=404, detail="Patient not found")
     patient = await crud.get_patient(db, patient_id, current_user.tenant_id)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
 
-    # 2. Validate file security
     safe_filename, validated_content_type = validate_file(file)
-
     file_path_db = ""
-
-    # 3. Try Cloudinary Upload
     try:
         if os.getenv("CLOUDINARY_CLOUD_NAME"):
             file.file.seek(0)
@@ -69,31 +52,29 @@ async def upload_file(
                 file.file,
                 folder=f"smart_clinic_uploads/tenant_{current_user.tenant_id}",
                 resource_type="auto",
-                public_id=safe_filename.rsplit(".", 1)[0],  # UUID without extension
+                public_id=safe_filename.rsplit(".", 1)[0],
             )
             file_path_db = upload_result.get("secure_url")
-            logger.info("Uploaded to Cloudinary: %s", file_path_db)
+            logger.info("Uploaded patient attachment to configured cloud storage")
         else:
-            raise Exception("Cloudinary not configured")
-
-    except Exception as e:
-        logger.warning("Cloudinary failed/skipped: %s — falling back to local storage.", e)
-
-        # 4. Fallback: Local Save (tenant-scoped)
+            raise RuntimeError("Cloudinary not configured")
+    except Exception as exc:
+        logger.warning(
+            "Cloud storage failed/skipped (%s); using tenant-scoped local storage",
+            type(exc).__name__,
+        )
         file_path_db = save_file_locally(
             file=file,
             safe_filename=safe_filename,
             tenant_id=current_user.tenant_id,
         )
 
-    # 5. Create DB Record
     attachment_create = schemas.AttachmentCreate(
         patient_id=patient_id,
-        filename=file.filename,  # Original filename for display
+        filename=file.filename,
         file_path=file_path_db,
         file_type=validated_content_type,
     )
-
     return await crud.create_attachment(db, attachment_create)
 
 
@@ -103,33 +84,15 @@ async def serve_file(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.PATIENT_VIEW)),
 ):
-    """
-    Serve an uploaded file through authenticated endpoint.
-
-    This replaces the public StaticFiles mount. Files are only accessible
-    to authenticated users with PATIENT_VIEW permission.
-    """
-    # Handle Cloudinary URLs (pass through)
     if file_path.startswith("http"):
-        raise HTTPException(
-            status_code=400,
-            detail="External URLs should be accessed directly"
-        )
-
-    # Resolve and serve local file
+        raise HTTPException(status_code=400, detail="External URLs should be accessed directly")
     resolved_path = get_file_path(file_path)
-
-    # Verify tenant access (file must be in the user's tenant directory)
     if current_user.role != "super_admin":
         expected_prefix = f"tenant_{current_user.tenant_id}"
         if not file_path.startswith(expected_prefix):
             logger.warning(
-                "[FILE_SECURITY] Tenant %s attempted to access file: %s",
-                current_user.tenant_id, file_path
+                "[FILE_SECURITY] Tenant %s attempted cross-tenant file access",
+                current_user.tenant_id,
             )
             raise HTTPException(status_code=403, detail="غير مصرح بالوصول لهذا الملف")
-
-    return FileResponse(
-        path=str(resolved_path),
-        filename=resolved_path.name,
-    )
+    return FileResponse(path=str(resolved_path), filename=resolved_path.name)
