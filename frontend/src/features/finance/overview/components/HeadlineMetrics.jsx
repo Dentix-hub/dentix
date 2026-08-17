@@ -10,6 +10,7 @@ import MetricCard from '../../components/MetricCard';
 /**
  * Headline Metrics Grid for Finance Overview V2.
  * Displays 4 primary KPIs: Net Invoiced, Cash Collected, Total Deductions, Net Operational Result.
+ * The overview date range is already visible in the page-level picker, so period badges are intentionally omitted here.
  */
 export default function HeadlineMetrics({
     netInvoiced = 0,
@@ -18,7 +19,6 @@ export default function HeadlineMetrics({
     netResult = 0,
     isLoading = false,
     currency = 'EGP',
-    dateLabel,
 }) {
     const { t } = useTranslation();
 
@@ -30,8 +30,6 @@ export default function HeadlineMetrics({
                     title={t('finance.metrics.net_revenue', 'صافي الإيراد المحتسب')}
                     amount={netInvoiced}
                     currency={currency}
-                    scope="period"
-                    scopeLabel={dateLabel}
                     subtitle={t('finance.metrics.net_revenue_sub', 'إجمالي قيمة الجلسات بعد الخصم')}
                     icon={FileSpreadsheet}
                     to="/finance/reports"
@@ -43,8 +41,6 @@ export default function HeadlineMetrics({
                     title={t('finance.metrics.collected', 'التحصيلات النقدية')}
                     amount={collected}
                     currency={currency}
-                    scope="period"
-                    scopeLabel={dateLabel}
                     subtitle={t('finance.metrics.collected_sub', 'النقد المقبوض فعلياً من المرضى')}
                     icon={CreditCard}
                     to="/finance/payments"
@@ -57,8 +53,6 @@ export default function HeadlineMetrics({
                     title={t('finance.metrics.total_deductions', 'إجمالي الاستقطاعات')}
                     amount={totalDeductions}
                     currency={currency}
-                    scope="period"
-                    scopeLabel={dateLabel}
                     subtitle={t('finance.metrics.total_deductions_sub', 'أطباء + موظفين + تشغيل + معامل')}
                     icon={Receipt}
                     to="/finance/expenses"
@@ -70,8 +64,6 @@ export default function HeadlineMetrics({
                     title={t('finance.metrics.net_result', 'صافي النتيجة التشغيلية')}
                     amount={netResult}
                     currency={currency}
-                    scope="period"
-                    scopeLabel={dateLabel}
                     subtitle={t('finance.metrics.net_result_sub', 'التحصيل مطروحاً منه الاستقطاعات')}
                     icon={PiggyBank}
                     to="/finance/reports"
