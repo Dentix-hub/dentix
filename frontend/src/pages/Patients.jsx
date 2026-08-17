@@ -2,10 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@/shared/ui';
-import {
-    useDeletePatient,
-    usePatientDirectory,
-} from '@/hooks/usePatients';
+import { useDeletePatient, usePatientDirectory } from '@/hooks/usePatients';
 import PatientTable from '@/features/patients/PatientTable';
 import PatientFilters from '@/features/patients/PatientFilters';
 import PatientQuickActions from '@/features/patients/PatientQuickActions';
@@ -41,12 +38,12 @@ export default function Patients() {
     );
 
     const handleArchivePatient = useCallback(async (id, name) => {
-        if (!window.confirm(t('patients.delete_confirm', { name, defaultValue: `Archive ${name}?` }))) return;
+        if (!window.confirm(t('patients.archive_confirm', { name }))) return;
         try {
             await archivePatient.mutateAsync(id);
-            toast.success(t('patients.archive_success', 'Patient archived successfully'));
+            toast.success(t('patients.archive_success'));
         } catch (err) {
-            toast.error(err.response?.data?.detail || t('patients.delete_error'));
+            toast.error(err.response?.data?.detail || t('patients.archive_error'));
         }
     }, [archivePatient, t]);
 
@@ -54,7 +51,7 @@ export default function Patients() {
         <div className="min-h-screen space-y-5 pb-20 animate-in fade-in duration-300">
             <PatientQuickActions onAddClick={() => setIsModalOpen(true)} />
 
-            <section className="rounded-2xl border border-border bg-surface shadow-sm overflow-hidden">
+            <section className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
                 <PatientFilters
                     search={search}
                     onSearchChange={setSearch}
@@ -65,7 +62,6 @@ export default function Patients() {
                     patients={patients}
                     isLoading={directory.isLoading}
                     isError={directory.isError}
-                    error={directory.error}
                     searchQuery={debouncedSearch}
                     onRetry={directory.refetch}
                     onArchive={handleArchivePatient}

@@ -1,38 +1,46 @@
-
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
-// Import translation files
 import translationAR from './locales/ar/translation.json';
 import translationEN from './locales/en/translation.json';
+import { patientWorkspaceAR, patientWorkspaceEN } from './locales/patientWorkspace';
 
-// the translations
+const extendTranslation = (base, extension) => ({
+    ...base,
+    common: {
+        ...(base.common || {}),
+        ...(extension.common || {}),
+    },
+    patients: {
+        ...(base.patients || {}),
+        ...(extension.patients || {}),
+    },
+});
+
 const resources = {
     ar: {
-        translation: translationAR
+        translation: extendTranslation(translationAR, patientWorkspaceAR),
     },
     en: {
-        translation: translationEN
-    }
+        translation: extendTranslation(translationEN, patientWorkspaceEN),
+    },
 };
 
 i18n
     .use(LanguageDetector)
-    .use(initReactI18next) // passes i18n down to react-i18next
+    .use(initReactI18next)
     .init({
         resources,
-        fallbackLng: 'ar', // Default language is Arabic
-        supportedLngs: ['ar', 'en'], // Supported languages
-
+        fallbackLng: 'ar',
+        supportedLngs: ['ar', 'en'],
         detection: {
             order: ['localStorage', 'htmlTag', 'path', 'subdomain'],
             caches: ['localStorage'],
         },
-
         interpolation: {
-            escapeValue: false // react already safes from xss
-        }
+            escapeValue: false,
+        },
     });
 
 export default i18n;
