@@ -1,8 +1,14 @@
 """Tenant and subscription schemas."""
 
-from pydantic import BaseModel, ConfigDict
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from backend.utils.tenant_time import (
+    DEFAULT_TENANT_TIMEZONE,
+    validate_timezone_name,
+)
 
 
 class TenantBase(BaseModel):
@@ -19,6 +25,7 @@ class TenantBase(BaseModel):
     last_backup_at: Optional[datetime] = None
     is_deleted: bool = False
     deleted_at: Optional[datetime] = None
+    timezone: str = DEFAULT_TENANT_TIMEZONE
 
     # Prescription Info
     doctor_name: Optional[str] = None
@@ -28,6 +35,11 @@ class TenantBase(BaseModel):
     contact_phone: Optional[str] = None
     print_header_image: Optional[str] = None
     print_footer_image: Optional[str] = None
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: str) -> str:
+        return validate_timezone_name(value)
 
 
 class TenantCreate(TenantBase):
@@ -40,6 +52,7 @@ class TenantUpdate(BaseModel):
     is_active: Optional[bool] = None
     subscription_end_date: Optional[datetime] = None
     logo: Optional[str] = None
+    timezone: Optional[str] = None
 
     # Backup & System
     backup_frequency: Optional[str] = None
@@ -53,6 +66,13 @@ class TenantUpdate(BaseModel):
     contact_phone: Optional[str] = None
     print_header_image: Optional[str] = None
     print_footer_image: Optional[str] = None
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        return validate_timezone_name(value)
 
 
 class Tenant(TenantBase):

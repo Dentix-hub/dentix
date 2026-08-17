@@ -22,6 +22,7 @@ import { useAuth } from '@/auth/useAuth';
 import { Card, Button, Modal, PageHeader, toast, AdvancedTable } from '@/shared/ui';
 import DashboardQuickActions from '@/features/dashboard/DashboardQuickActions';
 import PatientModal from '@/features/patients/modals/PatientModal.jsx';
+import { selectAppointmentsForBusinessDate } from '@/utils/dateTime';
 
 // Memoized Gradient Card
 const GradientCard = memo(({ title, value, subtext, icon: Icon, gradient, onClick }) => (
@@ -72,22 +73,27 @@ export default function Dashboard() {
         return new Intl.NumberFormat('en-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 }).format(amount);
     }, []);
 
-    // Derive stats from cached data
+    // Derive presentation-only stats from cached data. Business-day membership is
+    // authoritative from the backend and must never be based on browser UTC.
     const stats = useMemo(() => {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const todayAppts = Array.isArray(appointments) ? appointments.filter(a => a.date_time?.startsWith(todayStr)) : [];
-        const completed = todayAppts.filter(a => a.status === 'Completed').length;
-        const total = todayAppts.filter(a => a.status !== 'Cancelled').length;
-        const efficiency = total > 0 ? Math.round((completed / total) * 100) : 0;
+        const businessDate = statsData?.business_date;
+        const todayAppts = selectAppointmentsForBusinessDate(appointments, businessDate);
+        const visibleTodayAppts = todayAppts.filter(a => a.status !== 'Cancelled');
+        const completed = visibleTodayAppts.filter(a => a.status === 'Completed').length;
+        const efficiency = visibleTodayAppts.length > 0
+            ? Math.round((completed / visibleTodayAppts.length) * 100)
+            : 0;
 
         return {
-            new_patients_today: statsData?.new_patients_today || 0,
-            appointments: total,
-            revenue: statsData?.today_received || 0,
-            outstanding: statsData?.outstanding || 0,
-            chartData: statsData?.revenue_chart || [],
+            new_patients_today: statsData?.new_patients_today ?? 0,
+            appointments: statsData?.total_appointments_today ?? 0,
+            revenue: statsData?.today_received ?? 0,
+            outstanding: statsData?.today_outstanding ?? 0,
+            chartData: statsData?.revenue_chart ?? [],
             efficiency,
-            todaysAppointments: todayAppts.filter(a => a.status !== 'Cancelled').sort((a, b) => new Date(a.date_time) - new Date(b.date_time))
+            todaysAppointments: [...visibleTodayAppts].sort((a, b) =>
+                String(a.date_time || '').localeCompare(String(b.date_time || ''))
+            )
         };
     }, [statsData, appointments]);
 
@@ -119,32 +125,47 @@ export default function Dashboard() {
         finally { setModalLoading(false); }
     }, [t]);
 
-    const modalColumns = useMemo(() => [
-        {
-            header: t('common.patient', 'Patient'),
-            accessorKey: modalType === 'payments' ? 'patient_name' : 'name',
-            cell: ({ row }) => (
-                <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-xl flex items-center justify-center w-8 h-8 ${modalType === 'payments' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                        <span className="text-sm">
-                            {modalType === 'payments' ? '💰' : '📈'}
-                        </span>
+    const modalColumns = useMemo(() => {
+        const columns = [
+            {
+                header: t('common.patient', 'Patient'),
+                accessorKey: modalType === 'payments' ? 'patient_name' : 'name',
+                cell: ({ row }) => (
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-xl flex items-center justify-center w-8 h-8 ${modalType === 'payments' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                            <span className="text-sm">
+                                {modalType === 'payments' ? '💰' : '📈'}
+                            </span>
+                        </div>
+                        <span className="font-bold">{row.original.patient_name || row.original.name}</span>
                     </div>
-                    <span className="font-bold">{row.original.patient_name || row.original.name}</span>
-                </div>
-            )
-        },
-        {
-            header: t('common.time', 'Time'),
-            accessorKey: 'date',
-            cell: ({ getValue }) => <span className="text-slate-500 font-medium">{new Date(getValue() || new Date()).toLocaleTimeString()}</span>
-        },
-        {
+                )
+            }
+        ];
+
+        if (modalType === 'payments') {
+            columns.push({
+                header: t('common.time', 'Time'),
+                accessorKey: 'date',
+                cell: ({ getValue }) => {
+                    const value = getValue();
+                    return (
+                        <span className="text-slate-500 font-medium">
+                            {value ? new Date(value).toLocaleTimeString() : '-'}
+                        </span>
+                    );
+                }
+            });
+        }
+
+        columns.push({
             header: t('common.amount', 'Amount'),
             accessorKey: 'amount',
             cell: ({ getValue }) => <span className="font-bold text-lg text-primary">{formatCurrency(getValue())}</span>
-        }
-    ], [modalType, t, formatCurrency]);
+        });
+
+        return columns;
+    }, [modalType, t, formatCurrency]);
 
     return (
         <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500 pb-10">
@@ -199,7 +220,7 @@ export default function Dashboard() {
                             onClick={handleRevenueClick}
                         />
                         <GradientCard
-                            title={t('dashboard.outstanding_dues')}
+                            title={t('dashboard.outstanding_today')}
                             value={formatCurrency(stats.outstanding)}
                             subtext={t('dashboard.to_collect')}
                             icon={Activity}

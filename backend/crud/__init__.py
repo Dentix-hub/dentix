@@ -47,10 +47,10 @@ from .billing import (
     get_expenses,
     count_expenses,
     delete_expense,
-    get_financial_stats,
-    get_dashboard_stats,
     precompute_dashboard_cache,
 )
+# Tenant-business-day reporting is the authoritative source for dashboard stats.
+from .reporting import get_financial_stats, get_dashboard_stats
 from .procedure import (
     get_procedures,
     create_procedure,

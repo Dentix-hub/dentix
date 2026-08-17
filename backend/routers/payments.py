@@ -25,6 +25,16 @@ from ..services.financial_visibility_service import get_financial_visibility_ser
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
 
+def _today_visibility_scope(current_user) -> tuple[int | None, bool]:
+    """Mirror FinancialVisibilityService's established doctor visibility rule."""
+    is_doctor = current_user.role == "doctor"
+    can_view_all = bool(
+        getattr(current_user, "can_view_other_doctors_history", False)
+    )
+    patient_scope_id = current_user.id if is_doctor and not can_view_all else None
+    return patient_scope_id, is_doctor
+
+
 @router.post(
     "",
     response_model=StandardResponse[schemas.Payment],
@@ -133,7 +143,6 @@ async def read_payments(
     return success_response(data=payments, message="Payments retrieved successfully")
 
 
-
 @router.delete("/{payment_id}", response_model=StandardResponse[dict])
 async def delete_payment(
     payment_id: int,
@@ -161,8 +170,14 @@ async def get_today_payments_list(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """Get list of payments made today."""
-    service = BillingService(db, current_user.tenant_id)
+    """Get payments made in the current tenant business day."""
+    patient_scope_id, is_doctor = _today_visibility_scope(current_user)
+    service = BillingService(
+        db,
+        current_user.tenant_id,
+        doctor_patient_scope_id=patient_scope_id,
+        is_doctor=is_doctor,
+    )
     payments = await service.get_today_payments_list()
     return success_response(data=payments, message="Today's payments retrieved")
 
@@ -172,7 +187,13 @@ async def get_today_debtors_list(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """Get list of patients who incurred debt today."""
-    service = BillingService(db, current_user.tenant_id)
+    """Get positive same-day debtors in the current tenant business day."""
+    patient_scope_id, is_doctor = _today_visibility_scope(current_user)
+    service = BillingService(
+        db,
+        current_user.tenant_id,
+        doctor_patient_scope_id=patient_scope_id,
+        is_doctor=is_doctor,
+    )
     debtors = await service.get_today_debtors_list()
     return success_response(data=debtors, message="Today's debtors retrieved")
