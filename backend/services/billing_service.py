@@ -8,6 +8,7 @@ from typing import Optional
 from sqlalchemy import func, select
 
 from backend import models, schemas
+from backend.core.permissions import DOCTOR_ROLES
 from backend.crud import billing as billing_crud
 from backend.crud import reporting as reporting_crud
 from backend.services.billing_service_legacy import BillingService as LegacyBillingService
@@ -45,11 +46,13 @@ class BillingService(LegacyBillingService):
 
         resolved_doctor_id = doctor_id if doctor_id is not None else payment.doctor_id
         if resolved_doctor_id is not None:
-            # Preserve historical owner/admin-as-provider behavior, but never
-            # allow a provider reference to cross the tenant boundary.
+            # A provider may be a doctor or an owner/admin who also treats
+            # patients, but never a receptionist/nurse/other non-provider and
+            # never a user from another tenant.
             provider_stmt = select(models.User.id).where(
                 models.User.id == resolved_doctor_id,
                 models.User.tenant_id == self.tenant_id,
+                models.User.role.in_(DOCTOR_ROLES),
             )
             provider_id = (await self.db.execute(provider_stmt)).scalar_one_or_none()
             if provider_id is None:
@@ -58,12 +61,15 @@ class BillingService(LegacyBillingService):
             doctor_stmt = (
                 select(models.Treatment.doctor_id)
                 .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
+                .join(models.User, models.Treatment.doctor_id == models.User.id)
                 .where(
                     models.Treatment.patient_id == payment.patient_id,
                     models.Patient.tenant_id == self.tenant_id,
                     models.Patient.is_deleted == False,  # noqa: E712
                     models.Treatment.is_deleted == False,  # noqa: E712
                     models.Treatment.doctor_id.isnot(None),
+                    models.User.tenant_id == self.tenant_id,
+                    models.User.role.in_(DOCTOR_ROLES),
                 )
                 .order_by(models.Treatment.date.desc(), models.Treatment.id.desc())
                 .limit(1)
