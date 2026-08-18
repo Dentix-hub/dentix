@@ -3,6 +3,7 @@
 from datetime import date, datetime, timezone
 
 import pytest
+from sqlalchemy import select
 
 from backend import models, schemas
 from backend.services.accounting_service import AccountingService
@@ -93,9 +94,7 @@ async def test_explicit_payment_doctor_cannot_cross_tenant_boundary(async_db_ses
 
     persisted = (
         await async_db_session.execute(
-            __import__("sqlalchemy").select(models.Payment).where(
-                models.Payment.patient_id == patient.id
-            )
+            select(models.Payment).where(models.Payment.patient_id == patient.id)
         )
     ).scalars().all()
     assert persisted == []
@@ -144,3 +143,61 @@ async def test_payroll_month_before_hire_date_has_zero_payable_salary(async_db_s
         notes="Must not be payable before hire date",
     )
     assert "error" in result
+
+
+@pytest.mark.asyncio
+async def test_staff_per_appointment_fee_starts_on_hire_date(async_db_session):
+    tenant_id = 164
+    staff = models.User(
+        id=1641,
+        username="mid_month_fee_assistant",
+        email="mid-month-fee-assistant@example.com",
+        hashed_password="h",
+        role="assistant",
+        tenant_id=tenant_id,
+        fixed_salary=0.0,
+        per_appointment_fee=50.0,
+        hire_date=date(2026, 8, 16),
+    )
+    patient = models.Patient(
+        id=1642,
+        name="Appointment Fee Patient",
+        age=33,
+        phone="01016401640",
+        medical_history="None",
+        notes="Hire-date appointment fee fixture",
+        tenant_id=tenant_id,
+        is_deleted=False,
+    )
+    before_hire = models.Appointment(
+        id=1643,
+        patient_id=patient.id,
+        date_time=datetime(2026, 8, 10, 10, 0),
+        status="Scheduled",
+        tenant_id=tenant_id,
+        is_deleted=False,
+    )
+    after_hire = models.Appointment(
+        id=1644,
+        patient_id=patient.id,
+        date_time=datetime(2026, 8, 20, 10, 0),
+        status="Scheduled",
+        tenant_id=tenant_id,
+        is_deleted=False,
+    )
+    async_db_session.add_all([staff, patient, before_hire, after_hire])
+    await async_db_session.commit()
+
+    service = AccountingService(async_db_session, tenant_id)
+    start, end = service.parse_date_range("2026-08-01", "2026-08-31")
+    rows, total = await service.calculate_staff_dues(
+        start,
+        end,
+        total_appointments=2,
+    )
+    row = next(item for item in rows if item["id"] == staff.id)
+
+    assert row["appointments_in_period"] == 1
+    assert row["appointment_earnings"] == 50.0
+    assert row["total_due"] == 50.0
+    assert total == 50.0
