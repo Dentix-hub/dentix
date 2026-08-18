@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 
 from backend import models, schemas
 from backend.crud import billing as billing_crud
+from backend.crud import reporting as reporting_crud
 from backend.services.billing_service_legacy import BillingService as LegacyBillingService
 from backend.utils.tenant_time import tenant_day_utc_bounds_naive, utc_now_naive
 
