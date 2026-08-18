@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main, develop, staging ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, staging ]
 
 concurrency:
   group: dentix-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -249,6 +249,10 @@ jobs:
       - name: Run production critical path
         working-directory: frontend
         run: npx playwright test e2e/critical-path.spec.ts --config=playwright.config.ts --project=chromium --no-deps --max-failures=1 --retries=0
+
+      - name: Run UI visual regression
+        working-directory: frontend
+        run: npx playwright test e2e/ui-regression.spec.ts --config=playwright.config.ts --project=visual-desktop --project=visual-mobile --no-deps --max-failures=1 --retries=0
 
       - name: Show backend log on failure
         if: failure()
