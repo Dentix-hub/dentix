@@ -44,6 +44,7 @@ jobs:
       - name: Initialize Database
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
+          DB_SSL_MODE: disable
           SECRET_KEY: test-secret-key-for-ci-only-at-least-32
           PYTHONPATH: .
         run: python backend/scripts/init_db.py
@@ -57,3 +58,12 @@ jobs:
         # backend/pytest.ini enables -x globally. Override it here so this
         # diagnostic run reports the complete failure set in one pass.
         run: pytest backend/tests/ -v --tb=short --maxfail=0
+
+      - name: Run Finance PostgreSQL smoke
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
+          DB_SSL_MODE: disable
+          SECRET_KEY: test-secret-key-for-ci-only-at-least-32
+          ENVIRONMENT: test
+          PYTHONPATH: .
+        run: pytest backend/ci_tests/test_finance_postgres_smoke.py -v --tb=short --confcutdir=backend/ci_tests
