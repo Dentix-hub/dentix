@@ -83,6 +83,7 @@ async function expectWorkspaceScreenshot(page, name: string) {
     animations: 'disabled',
     caret: 'hide',
     mask: [dynamicClock],
+    maskColor: '#E5E7EB',
     maxDiffPixelRatio: 0.01,
   });
 }
