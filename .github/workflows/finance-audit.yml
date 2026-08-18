@@ -92,6 +92,16 @@ jobs:
           pip uninstall -y ecdsa
           pip install pytest
 
+      - name: Show Alembic heads
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
+          DB_SSL_MODE: disable
+          SECRET_KEY: test-secret-key-for-ci-only-at-least-32
+          PYTHONPATH: .
+        run: |
+          cd backend
+          alembic heads
+
       - name: Initialize Database
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
