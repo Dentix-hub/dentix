@@ -45,13 +45,11 @@ class BillingService(LegacyBillingService):
 
         resolved_doctor_id = doctor_id if doctor_id is not None else payment.doctor_id
         if resolved_doctor_id is not None:
-            # An explicitly tagged provider must belong to this tenant. Without
-            # this guard a clinic could persist a payment referencing a doctor
-            # from another tenant and corrupt doctor-level collection reports.
+            # Preserve historical owner/admin-as-provider behavior, but never
+            # allow a provider reference to cross the tenant boundary.
             provider_stmt = select(models.User.id).where(
                 models.User.id == resolved_doctor_id,
                 models.User.tenant_id == self.tenant_id,
-                models.User.role == "doctor",
             )
             provider_id = (await self.db.execute(provider_stmt)).scalar_one_or_none()
             if provider_id is None:
