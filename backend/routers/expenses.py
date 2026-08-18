@@ -1,15 +1,13 @@
-"""
-Expenses Router
-Handles expense tracking.
-"""
+"""Expenses Router — tenant-scoped expense tracking."""
 
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import schemas, crud
 from backend.database import get_async_db
 from backend.core.permissions import Permission, require_permission
+from backend.core.tenant_context import require_tenant_id
 from ..utils.audit_logger import log_admin_action
 from backend.core.response import success_response
 
@@ -30,14 +28,11 @@ async def get_expenses(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """Get expenses for current tenant with standardized filtering and pagination (§15 MASTER_SPEC, GEMINI_REPAIR_PLAN R5)."""
-    # Normalize pagination parameters
+    tenant_id = require_tenant_id(current_user)
     effective_skip = skip
     effective_limit = min(limit, 200)
-
     if offset is not None:
         effective_skip = offset
-
     if page is not None:
         size = page_size if page_size is not None else effective_limit
         effective_limit = min(size, 200)
@@ -45,7 +40,7 @@ async def get_expenses(
 
     data = await crud.get_expenses(
         db,
-        current_user.tenant_id,
+        tenant_id,
         skip=effective_skip,
         limit=effective_limit,
         search=search,
@@ -55,7 +50,7 @@ async def get_expenses(
     )
     total = await crud.count_expenses(
         db,
-        current_user.tenant_id,
+        tenant_id,
         search=search,
         category=category,
         start_date=start_date,
@@ -75,14 +70,14 @@ async def create_expense(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
 ):
-    """Create a new expense record."""
-    result = await crud.create_expense(db=db, expense=expense, tenant_id=current_user.tenant_id)
+    tenant_id = require_tenant_id(current_user)
+    result = await crud.create_expense(db=db, expense=expense, tenant_id=tenant_id)
     log_admin_action(
         db=db,
         admin_user=current_user,
         action="create",
         entity_type="expense",
-        entity_id=result.id if hasattr(result, 'id') else None,
+        entity_id=result.id if hasattr(result, "id") else None,
         details=f"Expense: {expense.item_name} - {expense.cost}",
     )
     return success_response(result)
@@ -94,7 +89,24 @@ async def delete_expense(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
 ):
-    """Delete an expense record."""
+    tenant_id = require_tenant_id(current_user)
+
+    # Resolve ownership before creating the audit unit because the legacy CRUD
+    # commits even when the target does not exist.
+    from backend import models
+    from sqlalchemy import select
+
+    existing = (
+        await db.execute(
+            select(models.Expense).where(
+                models.Expense.id == expense_id,
+                models.Expense.tenant_id == tenant_id,
+            )
+        )
+    ).scalars().first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Expense not found")
+
     log_admin_action(
         db=db,
         admin_user=current_user,
@@ -103,7 +115,7 @@ async def delete_expense(
         entity_id=expense_id,
         details=f"Deleted expense #{expense_id}",
     )
-    data = await crud.delete_expense(db, expense_id, current_user.tenant_id)
+    data = await crud.delete_expense(db, expense_id, tenant_id)
     return success_response(data, message="Deleted successfully")
 
 
@@ -112,7 +124,6 @@ async def get_stats(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """Get financial statistics (expenses vs payments)."""
-    # Use the comprehensive stats from crud
-    data = await crud.get_financial_stats(db, current_user.tenant_id)
+    tenant_id = require_tenant_id(current_user)
+    data = await crud.get_financial_stats(db, tenant_id)
     return success_response(data)

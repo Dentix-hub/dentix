@@ -187,6 +187,8 @@ async def update_appointment(
         if not updated:
             raise HTTPException(status_code=404, detail="Appointment not found")
         return success_response(data=updated, message="Appointment updated successfully")
+    except HTTPException:
+        raise
     except Exception as e:
         await db.rollback()
         logger.error(f"Appointment Update Failed: {str(e)}\n{traceback.format_exc()}")
@@ -232,9 +234,15 @@ async def update_appointment_status(
         details=f"Status changed to '{status}'",
     )
     try:
-        await crud.update_appointment_status(
+        updated = await crud.update_appointment_status(
             db, appointment_id, status, current_user.tenant_id
         )
+        if not updated:
+            # The audit row was staged before CRUD so successful mutations keep
+            # the existing atomic commit behavior. Roll it back when the target
+            # does not exist/is not visible rather than returning a false success.
+            await db.rollback()
+            raise HTTPException(status_code=404, detail="Appointment not found")
         return success_response(
             data={"appointment_id": appointment_id, "status": status},
             message="Appointment status updated successfully",
@@ -266,7 +274,12 @@ async def delete_appointment(
         entity_id=appointment_id,
         details=f"Deleted appointment #{appointment_id}",
     )
-    await crud.delete_appointment(db, appointment_id, current_user.tenant_id)
+    deleted = await crud.delete_appointment(db, appointment_id, current_user.tenant_id)
+    if not deleted:
+        # Clear the staged audit entry when no tenant-visible appointment was
+        # actually deleted; callers must not receive a false-success response.
+        await db.rollback()
+        raise HTTPException(status_code=404, detail="Appointment not found")
     return success_response(
         data={"appointment_id": appointment_id},
         message="Appointment deleted successfully",

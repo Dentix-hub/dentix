@@ -1,7 +1,7 @@
-"""
-Tool Executor
-Executes AI tool commands against the database.
-Delegates logic to domain-specific handlers.
+"""Tool Executor.
+
+Executes AI tool commands against the database and enforces the same RBAC
+boundaries as the equivalent HTTP workflows.
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,7 @@ import traceback
 
 from backend import models
 from backend.ai.errors import AIException
+from backend.core.permissions import Permission, has_permission
 
 from ..ai.handlers.patient import PatientHandler
 from ..ai.handlers.appointment import AppointmentHandler
@@ -21,23 +22,60 @@ from ..ai.handlers.admin import AdminHandler
 logger = logging.getLogger(__name__)
 
 
+_TOOL_REQUIRED_PERMISSION = {
+    # Patient tools
+    "get_patient_file": Permission.PATIENT_READ,
+    "search_patients": Permission.PATIENT_SEARCH,
+    "get_patients_with_balance": Permission.PATIENT_READ,
+    "summarize_patient": Permission.PATIENT_READ,
+    "create_patient": Permission.PATIENT_CREATE,
+    # Appointment tools
+    "get_appointments": Permission.APPOINTMENT_READ,
+    "find_available_slots": Permission.APPOINTMENT_READ,
+    "smart_book_appointment": Permission.APPOINTMENT_CREATE,
+    "create_appointment": Permission.APPOINTMENT_CREATE,
+    # Finance tools
+    "get_financial_record": Permission.FINANCIAL_READ,
+    "create_payment": Permission.FINANCIAL_WRITE,
+    "get_procedure_price": Permission.FINANCIAL_READ,
+    "get_today_payments": Permission.FINANCIAL_READ,
+    "get_expenses": Permission.FINANCIAL_READ,
+    "get_procedures_list": Permission.FINANCIAL_READ,
+    # Clinical tools
+    "get_recent_treatments": Permission.CLINICAL_READ,
+    "get_lab_orders": Permission.CLINICAL_READ,
+    "record_medical_note": Permission.CLINICAL_WRITE,
+    "add_treatment_voice": Permission.CLINICAL_WRITE,
+    "add_treatment": Permission.CLINICAL_WRITE,
+    "update_tooth_status": Permission.CLINICAL_WRITE,
+    # Operational/admin reads and writes
+    "get_dashboard_stats": Permission.APPOINTMENT_READ,
+    "get_subscription_info": Permission.SYSTEM_CONFIG,
+    "get_clinic_info": Permission.SYSTEM_CONFIG,
+    "get_users_list": Permission.SYSTEM_CONFIG,
+    "get_doctor_ranking": Permission.FINANCIAL_READ,
+    "compare_periods": Permission.FINANCIAL_READ,
+    "get_ai_stats": Permission.SYSTEM_CONFIG,
+    "learn_clinic_info": Permission.SYSTEM_CONFIG,
+    "list_my_knowledge": Permission.SYSTEM_CONFIG,
+    "forget_info": Permission.SYSTEM_CONFIG,
+    "get_top_procedures": Permission.FINANCIAL_READ,
+    "get_revenue_trend": Permission.FINANCIAL_READ,
+    "send_appointment_reminders": Permission.APPOINTMENT_UPDATE,
+    "send_whatsapp_message": Permission.APPOINTMENT_UPDATE,
+}
+
+
 class ToolExecutor:
-    """
-    Executes AI tool commands against the database.
-    Delegates logic to domain-specific handlers.
-    """
+    """Execute AI tools with governance, RBAC, and structured errors."""
 
     def __init__(self, db: AsyncSession, user: models.User, registry=None):
         self.db = db
         self.user = user
         self.tenant_id = user.tenant_id
-
-        # Internal Cache
         self._handlers = {}
-        # Optional Registry for extensions
         self.registry = registry
 
-    # Lazy Loaders
     @property
     def patient(self):
         if "patient" not in self._handlers:
@@ -70,35 +108,29 @@ class ToolExecutor:
 
     @property
     def tools(self):
-        """Dynamic tool map (constructed on access to support lazy loading)."""
         return {
-            # Patient Tools
             "get_patient_file": self.patient.get_patient_file,
             "search_patients": self.patient.search_patients,
             "get_patients_with_balance": self.patient.get_patients_with_balance,
             "summarize_patient": self.patient.summarize_patient,
             "create_patient": self.patient.create_patient,
-            # Appointment Tools
             "get_appointments": self.appointment.get_appointments,
             "find_available_slots": self.appointment.find_available_slots,
             "smart_book_appointment": self.appointment.smart_book_appointment,
             "create_appointment": self.appointment.create_appointment,
-            # Finance Tools
             "get_financial_record": self.finance.get_financial_record,
             "create_payment": self.finance.create_payment,
             "get_procedure_price": self.finance.get_procedure_price,
             "get_today_payments": self.finance.get_today_payments,
             "get_expenses": self.finance.get_expenses,
-            # Clinical Tools
             "get_recent_treatments": self.clinical.get_recent_treatments,
             "get_lab_orders": self.clinical.get_lab_orders,
             "record_medical_note": self.clinical.record_medical_note,
             "add_treatment_voice": self.clinical.add_treatment_voice,
-            "add_treatment": self.clinical.add_treatment_voice,  # Alias
+            "add_treatment": self.clinical.add_treatment_voice,
             "update_tooth_status": self.clinical.update_tooth_status,
             "parse_medical_dictation": self.clinical.parse_medical_dictation,
-            "analyze_medical_dictation": self.clinical.parse_medical_dictation,  # Alias
-            # Admin Tools
+            "analyze_medical_dictation": self.clinical.parse_medical_dictation,
             "get_dashboard_stats": self.admin.get_dashboard_stats,
             "get_subscription_info": self.admin.get_subscription_info,
             "get_clinic_info": self.admin.get_clinic_info,
@@ -113,19 +145,27 @@ class ToolExecutor:
             "get_revenue_trend": self.admin.get_revenue_trend,
             "send_appointment_reminders": self.admin.send_appointment_reminders,
             "send_whatsapp_message": self.admin.send_whatsapp_message,
-            "get_procedures_list": self.finance.get_procedure_price,  # Alias
+            "get_procedures_list": self.finance.get_procedure_price,
             "greeting": self._greeting,
             "response": self._greeting,
         }
 
-    async def execute(
-        self, tool_name: str, parameters: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Execute a tool by name with structured error handling."""
-        # 1. Check Built-in Tools
-        handler = self.tools.get(tool_name)
+    def _permission_error(self, tool_name: str) -> Dict[str, Any] | None:
+        required = _TOOL_REQUIRED_PERMISSION.get(tool_name)
+        if required is None:
+            return None
+        if has_permission(getattr(self.user, "role", "guest"), required):
+            return None
+        return {
+            "success": False,
+            "error_code": "permission_denied",
+            "message": "ليس لديك صلاحية لتنفيذ هذا الإجراء عبر المساعد الذكي.",
+            "risk_level": "BLOCKED",
+        }
 
-        # 2. Check Registry (Extensions)
+    async def execute(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a tool after resolving it and re-enforcing domain permission."""
+        handler = self.tools.get(tool_name)
         if not handler and self.registry:
             tool_def = self.registry.get(tool_name)
             if tool_def and tool_def.handler:
@@ -139,8 +179,16 @@ class ToolExecutor:
                 "risk_level": "UNKNOWN",
             }
 
-        # 3. Governance: Check Read-Only Mode
-        # 3. Governance: Check Global Kill Switch
+        permission_error = self._permission_error(tool_name)
+        if permission_error:
+            logger.warning(
+                "AI tool denied by RBAC: tool=%s user_id=%s role=%s",
+                tool_name,
+                getattr(self.user, "id", None),
+                getattr(self.user, "role", None),
+            )
+            return permission_error
+
         from backend.core.config import is_ai_read_only, is_ai_disabled
 
         if is_ai_disabled():
@@ -151,9 +199,7 @@ class ToolExecutor:
                 "risk_level": "BLOCKED",
             }
 
-        # 4. Governance: Check Read-Only Mode
         if is_ai_read_only():
-            # Allow only 'get_', 'search_', 'find_', 'response', 'greeting'
             safe_prefixes = (
                 "get_",
                 "search_",
@@ -164,11 +210,7 @@ class ToolExecutor:
                 "parse_",
                 "analyze_",
             )
-            is_safe = tool_name.startswith(safe_prefixes) or tool_name in [
-                "greeting",
-                "response",
-            ]
-
+            is_safe = tool_name.startswith(safe_prefixes) or tool_name in ["greeting", "response"]
             if not is_safe:
                 return {
                     "success": False,
@@ -178,10 +220,7 @@ class ToolExecutor:
                 }
 
         try:
-            # handler is already resolved above
             result = await handler(parameters)
-
-            # If handler returns a dict without 'success', assume true unless 'error' exists
             if isinstance(result, dict):
                 if "error" in result:
                     return {
@@ -192,33 +231,26 @@ class ToolExecutor:
                     }
                 if "success" not in result:
                     result["success"] = True
-
             return result
-
         except AIException as e:
-            logger.warning(f"AI Logic Error ({tool_name}): {e.message}")
+            logger.warning("AI Logic Error (%s): %s", tool_name, e.message)
             return {
                 "success": False,
                 "error_code": e.code,
                 "message": e.message,
                 "debug_info": e.debug_info,
             }
-
         except Exception as e:
             error_trace = traceback.format_exc()
-            logger.error(
-                f"Tool Execution Critical Error ({tool_name}): {e}", exc_info=True
-            )
-
+            logger.error("Tool Execution Critical Error (%s): %s", tool_name, e, exc_info=True)
             return {
                 "success": False,
                 "error_code": "execution_failed",
-                "message": f"خطأ غير متوقع في تنفيذ {tool_name}: {str(e)} (Ver: Fix-Patient-v2)",
+                "message": f"خطأ غير متوقع في تنفيذ {tool_name}.",
                 "debug_info": {"trace": error_trace, "error": str(e)},
             }
 
     async def _greeting(self, params: Dict) -> Dict:
-        """Simple greeting handler."""
         return {
             "success": True,
             "message": f"أهلاً دكتور {self.user.full_name or self.user.username}، أنا مساعدك الذكي. إزاي أقدر أساعدك النهاردة؟",

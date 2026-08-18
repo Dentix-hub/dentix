@@ -12,10 +12,28 @@ from .. import models, schemas, crud, auth
 from backend.database import get_async_db
 from .auth.dependencies import validate_password, get_current_user
 from ..core.permissions import Permission, require_permission
+from ..core.tenant_context import require_tenant_id
 from ..services.auth_service import AuthService
 from backend.core.response import success_response, StandardResponse
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+
+def _require_tenant_user_admin(current_user: models.User) -> int:
+    """Enforce the same admin-only boundary as the `/users` application route."""
+    tenant_id = require_tenant_id(current_user)
+    if current_user.role not in {"admin", "super_admin"}:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return tenant_id
+
+
+def _validate_tenant_role(role: str | None) -> None:
+    """Platform super-admin is never a tenant-managed role."""
+    if role == "super_admin":
+        raise HTTPException(
+            status_code=403,
+            detail="super_admin is a platform role and cannot be assigned from tenant user management",
+        )
 
 
 # --- User Profile ---
@@ -27,9 +45,10 @@ async def update_user_me(
 ):
     """Update current user profile (email, password)."""
 
-    # Reload user to attach to session
     stmt = select(models.User).where(models.User.id == current_user.id)
     user = (await db.execute(stmt)).scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
 
     password_changed = False
 
@@ -43,7 +62,6 @@ async def update_user_me(
 
     await db.commit()
 
-    # REVOKE ALL SESSIONS if password was changed
     if password_changed:
         revoked_count = await AuthService.revoke_all_user_sessions(db, user.id)
         if revoked_count > 0:
@@ -83,14 +101,9 @@ async def get_users(
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Get users for current tenant (Admin sees all, Staff see doctors)."""
-    # Permission.SYSTEM_CONFIG already ensures only Admin/Manager can access this.
-    # We will let everyone with SYSTEM_CONFIG see all users.
-    query_role = role
-
-    users = await crud.get_users(
-        db, current_user.tenant_id, skip=skip, limit=limit, role=query_role
-    )
+    """Get users for the current clinic tenant."""
+    tenant_id = _require_tenant_user_admin(current_user)
+    users = await crud.get_users(db, tenant_id, skip=skip, limit=limit, role=role)
     data = [schemas.User.model_validate(u) for u in users]
     return success_response(data=data)
 
@@ -100,11 +113,12 @@ async def list_doctors(
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """Get active doctors for dropdowns. Available to all authenticated users."""
+    """Get active doctors for dropdowns. Available to authenticated tenant users."""
+    tenant_id = require_tenant_id(current_user)
     stmt = (
         select(models.User)
         .where(
-            models.User.tenant_id == current_user.tenant_id,
+            models.User.tenant_id == tenant_id,
             models.User.role == "doctor",
             models.User.is_active == True,  # noqa: E712
         )
@@ -126,19 +140,20 @@ async def register_user(
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Register a new user (admin only)."""
+    """Register a new user in the current tenant."""
+    tenant_id = _require_tenant_user_admin(current_user)
+    _validate_tenant_role(role)
+
     if await crud.get_user(db, username):
         raise HTTPException(status_code=400, detail="Username already registered")
 
-    # --- User Limit Check (Seat-based) ---
-    # Get tenant's subscription plan
-    stmt = select(models.Tenant).where(models.Tenant.id == current_user.tenant_id)
+    stmt = select(models.Tenant).where(models.Tenant.id == tenant_id)
     result = await db.execute(stmt)
     tenant = result.scalars().first()
     if tenant and tenant.subscription_plan:
         max_users = tenant.subscription_plan.max_users
-        if max_users is not None:  # None means unlimited
-            stmt_count = select(func.count()).select_from(models.User).where(models.User.tenant_id == current_user.tenant_id)
+        if max_users is not None:
+            stmt_count = select(func.count()).select_from(models.User).where(models.User.tenant_id == tenant_id)
             res_count = await db.execute(stmt_count)
             current_user_count = res_count.scalar() or 0
             if current_user_count >= max_users:
@@ -146,9 +161,7 @@ async def register_user(
                     status_code=400,
                     detail=f"لقد وصلت للحد الأقصى من المستخدمين ({max_users}) في خطتك الحالية. يرجى الترقية لإضافة المزيد.",
                 )
-    # --- End User Limit Check ---
 
-    # Validate password strength reusing central logic
     validate_password(password)
 
     hashed_password = auth.get_password_hash(password)
@@ -156,7 +169,7 @@ async def register_user(
     if permissions:
         user_in.permissions = permissions
 
-    user = await crud.create_user(db, user_in, hashed_password, current_user.tenant_id)
+    user = await crud.create_user(db, user_in, hashed_password, tenant_id)
     return success_response(data=user, message="User registered")
 
 
@@ -167,21 +180,25 @@ async def update_user(
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Update a user (admin only)."""
-    user = await crud.get_user_by_id(db, user_id, current_user.tenant_id)
+    """Update a user in the current tenant."""
+    tenant_id = _require_tenant_user_admin(current_user)
+    _validate_tenant_role(user_update.role)
+
+    user = await crud.get_user_by_id(db, user_id, tenant_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    if user.role == "super_admin":
+        raise HTTPException(status_code=403, detail="Platform users cannot be managed here")
 
     password_changed = False
-
-    # Check if password is being updated
     if user_update.password:
         validate_password(user_update.password)
         password_changed = True
 
-    updated_user = await crud.update_user(db, user_id, user_update, current_user.tenant_id)
+    updated_user = await crud.update_user(db, user_id, user_update, tenant_id)
+    if not updated_user:
+        raise HTTPException(status_code=404, detail="User not found")
 
-    # REVOKE ALL SESSIONS if admin changed the password
     if password_changed:
         revoked_count = await AuthService.revoke_all_user_sessions(db, user_id)
         if revoked_count > 0:
@@ -200,6 +217,12 @@ async def delete_user(
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Delete a user (admin only)."""
-    await crud.delete_user(db, user_id, current_user.tenant_id)
-    return success_response(message="User deleted")
+    """Delete a user in the current tenant."""
+    tenant_id = _require_tenant_user_admin(current_user)
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own active account")
+
+    deleted_user = await crud.delete_user(db, user_id, tenant_id)
+    if not deleted_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return success_response(data={"user_id": user_id}, message="User deleted")

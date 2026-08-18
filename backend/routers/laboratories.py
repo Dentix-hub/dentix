@@ -27,6 +27,19 @@ def _get_lab_procedure_name(work_type: str, material: str = None) -> str:
     return f"عمل معمل: {work_type}"
 
 
+def _linked_treatment_stmt(tenant_id: int, order_id: int):
+    """Return the exact treatment link query for one lab order.
+
+    Link notes are stored as a dedicated marker, so substring matching is unsafe:
+    order 1 must never match the marker for order 10 or 11.
+    """
+    link_note = f"{TREATMENT_LINK_PREFIX}{order_id}"
+    return select(models.Treatment).where(
+        models.Treatment.tenant_id == tenant_id,
+        models.Treatment.notes == link_note,
+    )
+
+
 @cache_response(ttl_seconds=300)
 async def _get_cached_laboratories(db: AsyncSession, tenant_id: int):
     stmt = (
@@ -203,8 +216,8 @@ async def create_lab_order(
         doctor_id=current_user.id,
     )
     db.add(db_order)
-    await db.commit()
-    await db.refresh(db_order)
+    # Generate the order id without persisting a half-complete order/treatment pair.
+    await db.flush()
 
     if db_order.price_to_patient and db_order.price_to_patient > 0:
         tooth_num = None
@@ -213,20 +226,23 @@ async def create_lab_order(
                 tooth_num = int(db_order.tooth_number.split(",")[0].strip())
             except (ValueError, AttributeError):
                 pass
-        linked_treatment = models.Treatment(
-            patient_id=db_order.patient_id,
-            tooth_number=tooth_num,
-            diagnosis=f"تركيبة معملية - {lab.name}",
-            procedure=_get_lab_procedure_name(db_order.work_type, db_order.material),
-            doctor_id=db_order.doctor_id,
-            cost=db_order.price_to_patient,
-            discount=0.0,
-            date=db_order.order_date,
-            notes=f"{TREATMENT_LINK_PREFIX}{db_order.id}",
-            tenant_id=current_user.tenant_id,
+        db.add(
+            models.Treatment(
+                patient_id=db_order.patient_id,
+                tooth_number=tooth_num,
+                diagnosis=f"تركيبة معملية - {lab.name}",
+                procedure=_get_lab_procedure_name(db_order.work_type, db_order.material),
+                doctor_id=db_order.doctor_id,
+                cost=db_order.price_to_patient,
+                discount=0.0,
+                date=db_order.order_date,
+                notes=f"{TREATMENT_LINK_PREFIX}{db_order.id}",
+                tenant_id=current_user.tenant_id,
+            )
         )
-        db.add(linked_treatment)
-        await db.commit()
+
+    await db.commit()
+    await db.refresh(db_order)
 
     result = schemas.LabOrder.model_validate(db_order).model_dump()
     result["patient_name"] = patient.name
@@ -288,6 +304,7 @@ async def update_lab_order(
     await ensure_patient_visible(db, current_user, order.patient_id, detail="Lab order not found")
 
     update_data = order_update.model_dump(exclude_unset=True)
+    target_lab = None
     if update_data.get("laboratory_id"):
         target_lab = (
             await db.execute(
@@ -307,26 +324,20 @@ async def update_lab_order(
     if not order.doctor_id:
         order.doctor_id = current_user.id
 
-    await db.commit()
-    await db.refresh(order)
+    # Keep the order and its linked treatment in one database transaction.
+    await db.flush()
 
-    link_note = f"{TREATMENT_LINK_PREFIX}{order_id}"
     linked_treatment = (
-        await db.execute(
-            select(models.Treatment).where(
-                models.Treatment.tenant_id == current_user.tenant_id,
-                models.Treatment.notes.contains(link_note),
-            )
-        )
+        await db.execute(_linked_treatment_stmt(current_user.tenant_id, order_id))
     ).scalars().first()
+    active_lab = target_lab or order.laboratory
 
     if linked_treatment:
         linked_treatment.cost = order.price_to_patient or 0
         linked_treatment.procedure = _get_lab_procedure_name(order.work_type, order.material)
         linked_treatment.doctor_id = order.doctor_id
-        if order.laboratory:
-            linked_treatment.diagnosis = f"تركيبة معملية - {order.laboratory.name}"
-        await db.commit()
+        if active_lab:
+            linked_treatment.diagnosis = f"تركيبة معملية - {active_lab.name}"
     elif order.price_to_patient and order.price_to_patient > 0:
         tooth_num = None
         if order.tooth_number:
@@ -334,7 +345,7 @@ async def update_lab_order(
                 tooth_num = int(order.tooth_number.split(",")[0].strip())
             except (ValueError, AttributeError):
                 pass
-        lab_name = order.laboratory.name if order.laboratory else "معمل"
+        lab_name = active_lab.name if active_lab else "معمل"
         db.add(
             models.Treatment(
                 patient_id=order.patient_id,
@@ -345,15 +356,17 @@ async def update_lab_order(
                 cost=order.price_to_patient,
                 discount=0.0,
                 date=order.order_date,
-                notes=link_note,
+                notes=f"{TREATMENT_LINK_PREFIX}{order_id}",
                 tenant_id=current_user.tenant_id,
             )
         )
-        await db.commit()
+
+    await db.commit()
+    await db.refresh(order)
 
     result = schemas.LabOrder.model_validate(order).model_dump()
     result["patient_name"] = order.patient.name if order.patient else None
-    result["laboratory_name"] = order.laboratory.name if order.laboratory else None
+    result["laboratory_name"] = active_lab.name if active_lab else None
     return success_response(result)
 
 
@@ -375,14 +388,8 @@ async def delete_lab_order(
         raise HTTPException(status_code=404, detail="Lab order not found")
     await ensure_patient_visible(db, current_user, order.patient_id, detail="Lab order not found")
 
-    link_note = f"{TREATMENT_LINK_PREFIX}{order_id}"
     linked_treatment = (
-        await db.execute(
-            select(models.Treatment).where(
-                models.Treatment.tenant_id == current_user.tenant_id,
-                models.Treatment.notes.contains(link_note),
-            )
-        )
+        await db.execute(_linked_treatment_stmt(current_user.tenant_id, order_id))
     ).scalars().first()
     if linked_treatment:
         await db.delete(linked_treatment)

@@ -10,6 +10,7 @@ from typing import List
 from .. import schemas, models
 from ..database import get_async_db
 from ..core.permissions import require_permission, Permission
+from ..core.tenant_context import require_tenant_id
 from ..services.inventory_service import inventory_service
 from backend.core.response import StandardResponse, success_response
 from ..models import inventory as inv_models
@@ -20,6 +21,42 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/inventory", tags=["Inventory"])
 
 
+async def _require_material(db: AsyncSession, material_id: int, tenant_id: int):
+    material = (await db.execute(
+        select(inv_models.Material).where(
+            inv_models.Material.id == material_id,
+            inv_models.Material.tenant_id == tenant_id,
+        )
+    )).scalars().first()
+    if not material:
+        raise HTTPException(status_code=404, detail="Material not found")
+    return material
+
+
+async def _require_warehouse(db: AsyncSession, warehouse_id: int, tenant_id: int):
+    warehouse = (await db.execute(
+        select(inv_models.Warehouse).where(
+            inv_models.Warehouse.id == warehouse_id,
+            inv_models.Warehouse.tenant_id == tenant_id,
+        )
+    )).scalars().first()
+    if not warehouse:
+        raise HTTPException(status_code=404, detail="Warehouse not found")
+    return warehouse
+
+
+async def _require_stock_item(db: AsyncSession, stock_item_id: int, tenant_id: int):
+    stock_item = (await db.execute(
+        select(inv_models.StockItem).where(
+            inv_models.StockItem.id == stock_item_id,
+            inv_models.StockItem.tenant_id == tenant_id,
+        )
+    )).scalars().first()
+    if not stock_item:
+        raise HTTPException(status_code=404, detail="Stock item not found")
+    return stock_item
+
+
 # --- WAREHOUSES ---
 @router.post("/warehouses", response_model=StandardResponse[schemas.inventory.WarehouseRead])
 async def create_warehouse(
@@ -28,9 +65,8 @@ async def create_warehouse(
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_MANAGE)),
 ):
     """Create a new Warehouse"""
-    res = await inventory_service.create_warehouse(
-        warehouse, current_user.tenant_id or 1, db
-    )
+    tenant_id = require_tenant_id(current_user)
+    res = await inventory_service.create_warehouse(warehouse, tenant_id, db)
     return success_response(data=res, message="Warehouse created")
 
 
@@ -39,7 +75,8 @@ async def get_warehouses(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
-    res = await inventory_service.get_warehouses(current_user.tenant_id or 1, db)
+    tenant_id = require_tenant_id(current_user)
+    res = await inventory_service.get_warehouses(tenant_id, db)
     return success_response(data=res)
 
 
@@ -50,10 +87,9 @@ async def delete_warehouse(
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_MANAGE)),
 ):
     """Delete a warehouse (must be empty)"""
+    tenant_id = require_tenant_id(current_user)
     try:
-        await inventory_service.delete_warehouse(
-            warehouse_id, current_user.tenant_id or 1, db
-        )
+        await inventory_service.delete_warehouse(warehouse_id, tenant_id, db)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -66,6 +102,7 @@ async def create_material_category(
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_MANAGE)),
 ):
     """Create a new material category"""
+    require_tenant_id(current_user)
     new_cat = inv_models.MaterialCategory(**category.model_dump())
     db.add(new_cat)
     await db.commit()
@@ -79,6 +116,7 @@ async def get_material_categories(
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
     """Get all material categories (global list)"""
+    require_tenant_id(current_user)
     stmt = select(inv_models.MaterialCategory)
     categories = (await db.execute(stmt)).scalars().all()
     return success_response(data=categories)
@@ -91,7 +129,7 @@ async def get_category_materials(
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
     """Get clinic materials in a specific category"""
-    tenant_id = current_user.tenant_id or 1
+    tenant_id = require_tenant_id(current_user)
     stmt = (
         select(inv_models.Material)
         .where(
@@ -110,7 +148,8 @@ async def create_material(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_MANAGE)),
 ):
-    res = await inventory_service.create_material(material, current_user.tenant_id or 1, db)
+    tenant_id = require_tenant_id(current_user)
+    res = await inventory_service.create_material(material, tenant_id, db)
     return success_response(data=res, message="Material created")
 
 
@@ -119,7 +158,8 @@ async def get_materials(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
-    res = await inventory_service.get_materials(current_user.tenant_id or 1, db)
+    tenant_id = require_tenant_id(current_user)
+    res = await inventory_service.get_materials(tenant_id, db)
     return success_response(data=res)
 
 
@@ -131,10 +171,9 @@ async def update_material(
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_MANAGE)),
 ):
     """Update material details"""
+    tenant_id = require_tenant_id(current_user)
     try:
-        res = await inventory_service.update_material(
-            material_id, data, current_user.tenant_id or 1, db
-        )
+        res = await inventory_service.update_material(material_id, data, tenant_id, db)
         return success_response(data=res, message="Material updated")
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -147,8 +186,9 @@ async def delete_material(
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_MANAGE)),
 ):
     """Delete material if no stock/history exists"""
+    tenant_id = require_tenant_id(current_user)
     try:
-        await inventory_service.delete_material(material_id, current_user.tenant_id or 1, db)
+        await inventory_service.delete_material(material_id, tenant_id, db)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -165,9 +205,10 @@ async def get_stock_summary(
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
     """Get stock summary grouped by material"""
-    res = await inventory_service.get_material_stock_summary(
-        current_user.tenant_id or 1, warehouse_id, db
-    )
+    tenant_id = require_tenant_id(current_user)
+    if warehouse_id is not None:
+        await _require_warehouse(db, warehouse_id, tenant_id)
+    res = await inventory_service.get_material_stock_summary(tenant_id, warehouse_id, db)
     return success_response(data=res)
 
 
@@ -178,12 +219,15 @@ async def receive_stock(
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_MANAGE)),
 ):
     """Receive new stock (Purchase)"""
+    tenant_id = require_tenant_id(current_user)
+    await _require_material(db, data.material_id, tenant_id)
+    await _require_warehouse(db, data.warehouse_id, tenant_id)
     res = await inventory_service.add_stock(
         material_id=data.material_id,
         warehouse_id=data.warehouse_id,
         batch_data=data.batch,
         quantity=data.quantity,
-        tenant_id=current_user.tenant_id or 1,
+        tenant_id=tenant_id,
         user_id=current_user.id,
         db=db,
     )
@@ -196,14 +240,12 @@ async def consume_stock(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_MANAGE)),
 ):
-    """
-    Consumes multiple items.
-    """
+    """Consumes multiple items."""
     total_movements = 0
-    tenant_id = current_user.tenant_id or 1
+    tenant_id = require_tenant_id(current_user)
 
-    # Process sequentially
     for item in items:
+        await _require_material(db, item.material_id, tenant_id)
         try:
             movements = await inventory_service.consume_stock(
                 material_id=item.material_id,
@@ -227,12 +269,9 @@ async def get_expiry_alerts(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
-    """
-    Get batches expiring within 'days' (default 30).
-    """
-    res = await inventory_service.get_expiry_alerts(
-        current_user.tenant_id or 1, days=days, db=db
-    )
+    """Get batches expiring within 'days' (default 30)."""
+    tenant_id = require_tenant_id(current_user)
+    res = await inventory_service.get_expiry_alerts(tenant_id, days=days, db=db)
     return success_response(data=res)
 
 
@@ -243,12 +282,15 @@ async def transfer_stock(
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_MANAGE)),
 ):
     """Transfer stock between warehouses"""
+    tenant_id = require_tenant_id(current_user)
+    await _require_stock_item(db, data.stock_item_id, tenant_id)
+    await _require_warehouse(db, data.target_warehouse_id, tenant_id)
     try:
         move = await inventory_service.transfer_stock(
             stock_item_id=data.stock_item_id,
             target_warehouse_id=data.target_warehouse_id,
             quantity=data.quantity,
-            tenant_id=current_user.tenant_id or 1,
+            tenant_id=tenant_id,
             user_id=current_user.id,
             db=db,
         )
@@ -267,10 +309,10 @@ async def open_session(
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_MANAGE)),
 ):
     """Open a new material session (Explicit Approval)"""
+    tenant_id = require_tenant_id(current_user)
+    await _require_stock_item(db, data.stock_item_id, tenant_id)
     try:
-        session = await inventory_service.open_session(
-            data.stock_item_id, current_user.id, db=db
-        )
+        session = await inventory_service.open_session(data.stock_item_id, current_user.id, db=db)
         return success_response(data=session, message="Session opened")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -283,9 +325,8 @@ async def close_material_session(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_MANAGE)),
 ):
-    """
-    Close a material session.
-    """
+    """Close a material session."""
+    tenant_id = require_tenant_id(current_user)
     try:
         stmt_sess = (
             select(inv_models.MaterialSession)
@@ -294,7 +335,11 @@ async def close_material_session(
                 .joinedload(inv_models.StockItem.batch)
                 .joinedload(inv_models.Batch.material)
             )
-            .where(inv_models.MaterialSession.id == session_id)
+            .join(inv_models.StockItem)
+            .where(
+                inv_models.MaterialSession.id == session_id,
+                inv_models.StockItem.tenant_id == tenant_id,
+            )
         )
         result = await db.execute(stmt_sess)
         session = result.scalars().first()
@@ -309,7 +354,6 @@ async def close_material_session(
                 "already_closed": True,
             })
 
-        # Get material type
         material = (
             session.stock_item.batch.material
             if session.stock_item and session.stock_item.batch
@@ -325,9 +369,7 @@ async def close_material_session(
             session.stock_item.quantity = 0
 
             learning_service = InventoryLearningService(db)
-            await learning_service.close_session(
-                session_id, float(total_consumed), current_user.id
-            )
+            await learning_service.close_session(session_id, float(total_consumed), current_user.id)
 
             return success_response(data={
                 "success": True,
@@ -350,6 +392,8 @@ async def close_material_session(
                 "remaining": remaining,
             })
 
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -365,7 +409,7 @@ async def get_active_sessions(
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
     """Get all active sessions for current tenant"""
-    tenant_id = current_user.tenant_id or 1
+    tenant_id = require_tenant_id(current_user)
 
     stmt = (
         select(inv_models.MaterialSession)
@@ -395,7 +439,11 @@ async def delete_procedure_weight(
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_MANAGE)),
 ):
     """Delete a procedure material weight rule"""
-    stmt = select(inv_models.ProcedureMaterialWeight).where(inv_models.ProcedureMaterialWeight.id == weight_id)
+    tenant_id = require_tenant_id(current_user)
+    stmt = select(inv_models.ProcedureMaterialWeight).where(
+        inv_models.ProcedureMaterialWeight.id == weight_id,
+        inv_models.ProcedureMaterialWeight.tenant_id == tenant_id,
+    )
     result = await db.execute(stmt)
     weight = result.scalars().first()
 
@@ -414,9 +462,9 @@ async def set_procedure_weight(
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_MANAGE)),
 ):
     """Set weight for a procedure/material pair"""
-    tenant_id = current_user.tenant_id or 1
+    tenant_id = require_tenant_id(current_user)
+    await _require_material(db, data.material_id, tenant_id)
 
-    # Resolve Procedure Name -> ID
     stmt_proc = select(clinical_models.Procedure).where(
         clinical_models.Procedure.name == data.procedure_name,
         or_(
@@ -427,11 +475,8 @@ async def set_procedure_weight(
     proc = (await db.execute(stmt_proc)).scalars().first()
 
     if not proc:
-        raise HTTPException(
-            status_code=404, detail=f"Procedure '{data.procedure_name}' not found"
-        )
+        raise HTTPException(status_code=404, detail=f"Procedure '{data.procedure_name}' not found")
 
-    # Find existing weight or create
     stmt_weight = select(inv_models.ProcedureMaterialWeight).where(
         inv_models.ProcedureMaterialWeight.procedure_id == proc.id,
         inv_models.ProcedureMaterialWeight.material_id == data.material_id,
@@ -454,7 +499,6 @@ async def set_procedure_weight(
         db.add(weight_obj)
 
     await db.commit()
-    # Explicitly load relationships to avoid lazy loading issues
     stmt_refreshed = select(inv_models.ProcedureMaterialWeight).where(
         inv_models.ProcedureMaterialWeight.id == weight_obj.id
     ).options(
@@ -473,11 +517,11 @@ async def get_procedure_weights(
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
     """Get all procedure weights (filter by material OR procedure)"""
-    tenant_id = current_user.tenant_id or 1
+    tenant_id = require_tenant_id(current_user)
     stmt = select(inv_models.ProcedureMaterialWeight).where(
         or_(
             inv_models.ProcedureMaterialWeight.tenant_id == tenant_id,
-            inv_models.ProcedureMaterialWeight.tenant_id.is_(None),  # Global defaults
+            inv_models.ProcedureMaterialWeight.tenant_id.is_(None),
         )
     ).options(
         selectinload(inv_models.ProcedureMaterialWeight.procedure),
@@ -485,14 +529,11 @@ async def get_procedure_weights(
     )
 
     if material_id:
-        stmt = stmt.where(
-            inv_models.ProcedureMaterialWeight.material_id == material_id
-        )
+        await _require_material(db, material_id, tenant_id)
+        stmt = stmt.where(inv_models.ProcedureMaterialWeight.material_id == material_id)
 
     if procedure_id:
-        stmt = stmt.where(
-            inv_models.ProcedureMaterialWeight.procedure_id == procedure_id
-        )
+        stmt = stmt.where(inv_models.ProcedureMaterialWeight.procedure_id == procedure_id)
 
     result = await db.execute(stmt)
     weights = result.scalars().all()
@@ -509,7 +550,8 @@ async def get_material_stock(
     current_user: schemas.User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
     """Get all stock items for a material"""
-    tenant_id = current_user.tenant_id or 1
+    tenant_id = require_tenant_id(current_user)
+    await _require_material(db, material_id, tenant_id)
 
     subquery = select(inv_models.MaterialSession.stock_item_id).where(
         inv_models.MaterialSession.status == "ACTIVE"

@@ -15,6 +15,28 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+SAFE_IMPERSONATION_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+
+def _enforce_impersonation_scope(payload: dict, request_method: str) -> None:
+    """Enforce the scope embedded in temporary Super Admin impersonation tokens."""
+    if not payload.get("is_impersonating"):
+        return
+
+    scope = payload.get("impersonation_scope")
+    if scope not in {"read_only", "full_access"}:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid impersonation scope",
+        )
+
+    if scope == "read_only" and request_method.upper() not in SAFE_IMPERSONATION_METHODS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Read-only impersonation cannot modify clinic data",
+        )
+
+
 def get_token_from_header_or_cookie(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     access_token: str | None = Cookie(None),
@@ -38,13 +60,10 @@ def validate_password(password: str) -> None:
     if len(password) > 72:
         raise HTTPException(status_code=400, detail="كلمة المرور يجب أن لا تزيد عن 72 حرفاً")
 
-    # For Unicode scripts like Arabic, isupper/islower might not apply.
-    # We check for general categories: letters, numbers, special chars.
     import re
 
     has_letter = any(c.isalpha() for c in password)
     has_digit = any(c.isdigit() for c in password)
-    # Special characters: anything that is not alphanumeric and not a whitespace
     has_special = any(not c.isalnum() and not c.isspace() for c in password)
 
     if not (has_letter and has_digit and has_special):
@@ -53,18 +72,13 @@ def validate_password(password: str) -> None:
             detail="كلمة المرور يجب أن تحتوي على حروف، أرقام، ورمز خاص واحد على الأقل"
         )
 
-    # Optional: If English letters ARE present, we can still encourage case mix
     has_en_upper = any('A' <= c <= 'Z' for c in password)
     has_en_lower = any('a' <= c <= 'z' for c in password)
     has_en_letters = any(('A' <= c <= 'Z') or ('a' <= c <= 'z') for c in password)
 
     if has_en_letters and not (has_en_upper and has_en_lower):
-        # We don't block, but if you're using English, you should mix cases.
-        # However, to be safe and compatible with Arabic users, we won't raise error here
-        # unless we strictly want to enforce it for English-only passwords.
         pass
 
-    # ZXCVBN Score: 0 (weakest) to 4 (strongest)
     result = zxcvbn.zxcvbn(password)
     score = result.get('score', 0)
     if score < 3:
@@ -91,15 +105,15 @@ async def get_current_user(
     if not token:
         raise credentials_exception
     try:
-        # logger.info(f"DEBUG: Decoding token: {token[:10]}...")
         payload = auth.jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
-        # logger.info(f"DEBUG: Payload decoded: {payload}")
         username: str = payload.get("sub")
         tenant_id: int = payload.get("tenant_id")
         if username is None:
-            # logger.info("DEBUG: Username is None")
             raise credentials_exception
+        _enforce_impersonation_scope(payload, request.method)
         token_data = schemas.TokenData(username=username, tenant_id=tenant_id)
+    except HTTPException:
+        raise
     except auth.JWTError:
         logger.debug("JWT error for user: %s", username if 'username' in locals() else "unknown")
         raise credentials_exception
@@ -107,7 +121,6 @@ async def get_current_user(
         logger.error("Unexpected authentication error: %s", e, exc_info=True)
         raise credentials_exception
 
-    # Validated User
     from sqlalchemy.orm import joinedload
     from sqlalchemy import select
     stmt = select(models.User).where(models.User.username == token_data.username).options(joinedload(models.User.tenant).joinedload(models.Tenant.subscription_plan))
@@ -117,21 +130,17 @@ async def get_current_user(
         logger.debug("User not found in DB for authenticated username: %s", token_data.username)
         raise credentials_exception
 
-    # SINGLE SESSION POLICY: Validate Session ID
     token_sid = payload.get("sid")
-    # Use getattr to prevent crash if column hasn't migrated yet
     active_session_val = getattr(user, "active_session_id", None)
 
     if token_sid:
         if active_session_val is None or token_sid != active_session_val:
-            # logger.info(f"DEBUG: Session Mismatch. Token: {token_sid}, DB: {active_session_val}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="تم تسجيل الدخول من جهاز آخر أو انتهت صلاحية الجلسة. يرجى إعادة تسجيل الدخول.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-    # Check Tenant Subscription
     if user.tenant and user.role != Role.SUPER_ADMIN.value:
         if not user.tenant.is_active:
             raise HTTPException(
@@ -147,7 +156,6 @@ async def get_current_user(
                 sub_end = sub_end.replace(tzinfo=timezone.utc)
 
             if sub_end < now:
-                # Check for Grace Period
                 grace_end = user.tenant.grace_period_until
                 is_grace = False
 
@@ -158,16 +166,13 @@ async def get_current_user(
                         is_grace = True
 
                 if not is_grace:
-                    # Subscription AND Grace Period expired - Allow Read-Only (GET)
                     if request.method != "GET":
                         raise HTTPException(
                             status_code=status.HTTP_403_FORBIDDEN,
                             detail="انتهت صلاحية الاشتراك. يرجى التجديد للتمكن من الإضافة أو التعديل.",
                         )
 
-    # SECURE: Inject tenant explicitly into Request Context for automatic SQLAlchemy scoping
     from backend.core.tenancy import set_current_tenant_id, set_super_admin_bypass
-    from backend.core.exceptions import TenantException
 
     if user.role == Role.SUPER_ADMIN.value:
         set_super_admin_bypass(True)
@@ -175,11 +180,6 @@ async def get_current_user(
         set_current_tenant_id(user.tenant_id)
         set_super_admin_bypass(False)
     else:
-        # REGRESSION (2026-06-18): A non-super-admin user with tenant_id=None
-        # used to silently fall through (no tenant context set), then later
-        # caused INSERT failures (RLS denial) on /appointments and other tenant
-        # routes. Now we refuse explicitly with a 403 so the bug surfaces at
-        # the auth boundary instead of leaking as a 500 from the data layer.
         logger.error(
             "Authenticated user '%s' (role=%s) has no tenant_id but is not super_admin",
             user.username,

@@ -6,7 +6,7 @@ Exposes application metrics for monitoring dashboards.
 
 from fastapi import APIRouter, Depends, HTTPException
 from backend.core.permissions import Permission, require_permission
-from typing import Dict, Any
+from backend.core.tenant_context import require_tenant_id
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from datetime import datetime, timedelta, timezone
@@ -21,18 +21,18 @@ from backend.core.response import success_response
 router = APIRouter(prefix="/metrics", tags=["Metrics"])
 
 
+def _require_platform_metrics(current_user: User) -> None:
+    """Global process telemetry is a platform-admin surface, not clinic analytics."""
+    if current_user.role != "super_admin":
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+
 @router.get("/stats")
 async def get_metrics_stats(
     current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """
-    Get application metrics and statistics.
-
-    Requires authentication (admin or super_admin role).
-    """
-    if current_user.role not in ["admin", "super_admin"]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
+    """Get global application telemetry for platform administration."""
+    _require_platform_metrics(current_user)
     return success_response(data=metrics.get_stats())
 
 
@@ -40,14 +40,8 @@ async def get_metrics_stats(
 async def get_active_alerts(
     current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """
-    Get current active alerts.
-
-    Returns any threshold violations.
-    """
-    if current_user.role not in ["admin", "super_admin"]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
+    """Get current global monitoring alerts."""
+    _require_platform_metrics(current_user)
     alerts = metrics.check_alerts()
     return success_response(data={"alerts": alerts, "count": len(alerts)})
 
@@ -56,14 +50,11 @@ async def get_active_alerts(
 async def get_business_metrics(
     current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """
-    Get business-specific metrics.
-
-    Returns patient counts, appointment stats, etc.
-    """
-    if current_user.role not in ["admin", "super_admin", "doctor"]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
+    """Get global in-process business counters for platform administration."""
+    # MetricsCollector business counters are process-global and have no tenant
+    # dimension. Exposing them to clinic users would leak cross-tenant counts and
+    # payment totals, so this endpoint is intentionally platform-only.
+    _require_platform_metrics(current_user)
     stats = metrics.get_stats()
     return success_response(data={
         "business_metrics": stats.get("business_metrics", {}),
@@ -77,13 +68,11 @@ async def get_profitability(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """
-    Get Net Profit Breakdown (Revenue - Expenses - Labs - Materials).
-    """
+    """Get tenant-scoped Net Profit Breakdown (Revenue - Expenses - Labs - Materials)."""
     if current_user.role not in ["admin", "super_admin"]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
+    tenant_id = require_tenant_id(current_user)
 
-    # Calculate Dates
     now = datetime.now(timezone.utc)
     if period == "24h":
         start_date = now - timedelta(hours=24)
@@ -96,43 +85,43 @@ async def get_profitability(
     else:
         start_date = now - timedelta(days=30)
 
-    # 1. Revenue (Payments)
-    # Include both current tenant and NULL tenant_id (legacy data compatibility)
+    # Attribute payments through their tenant-owned patient. This preserves
+    # legacy payments with tenant_id=NULL without treating all NULL payments as
+    # globally visible to every clinic.
     revenue_result = await db.execute(
         select(func.sum(models.Payment.amount))
-        .filter(
+        .join(models.Patient, models.Payment.patient_id == models.Patient.id)
+        .where(
             models.Payment.date >= start_date,
-            (models.Payment.tenant_id == current_user.tenant_id) | (models.Payment.tenant_id.is_(None)),
+            models.Patient.tenant_id == tenant_id,
+            models.Patient.is_deleted == False,  # noqa: E712
         )
     )
     revenue = revenue_result.scalar() or 0.0
 
-    # 2. Expenses (OpEx)
     expenses_result = await db.execute(
-        select(func.sum(models.Expense.cost))
-        .filter(
+        select(func.sum(models.Expense.cost)).where(
             models.Expense.date >= start_date.date(),
-            models.Expense.tenant_id == current_user.tenant_id,
+            models.Expense.tenant_id == tenant_id,
         )
     )
     expenses = expenses_result.scalar() or 0.0
 
-    # 3. Labs (COGS 1) - Based on Order Date (Committed Cost)
     lab_costs_result = await db.execute(
-        select(func.sum(models.LabOrder.cost))
-        .filter(
+        select(func.sum(models.LabOrder.cost)).where(
             models.LabOrder.order_date >= start_date,
-            models.LabOrder.tenant_id == current_user.tenant_id,
+            models.LabOrder.tenant_id == tenant_id,
         )
     )
     lab_costs = lab_costs_result.scalar() or 0.0
 
-    # 4. Material (COGS 2)
     material_costs = await inventory_service.get_cogs_summary(
-        start_date=start_date, end_date=now, tenant_id=current_user.tenant_id, db=db
+        start_date=start_date,
+        end_date=now,
+        tenant_id=tenant_id,
+        db=db,
     )
 
-    # Net Profit
     total_costs = expenses + lab_costs + material_costs
     net_profit = revenue - total_costs
     margin_percent = (net_profit / revenue * 100) if revenue > 0 else 0.0
@@ -157,9 +146,10 @@ async def get_profitability_trend(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """Return the Finance V2 daily Collected vs Manual Expenses trend."""
+    """Return the tenant-scoped Finance V2 daily Collected vs Manual Expenses trend."""
     if current_user.role not in ["admin", "super_admin"]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
+    tenant_id = require_tenant_id(current_user)
 
     days = {"7d": 7, "30d": 30, "90d": 90}.get(period, 30)
     end_day = datetime.now(timezone.utc).date()
@@ -176,7 +166,7 @@ async def get_profitability_trend(
             )
             .join(models.Patient, models.Payment.patient_id == models.Patient.id)
             .where(
-                models.Patient.tenant_id == current_user.tenant_id,
+                models.Patient.tenant_id == tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
                 models.Payment.date >= start_dt,
                 models.Payment.date <= end_dt,
@@ -192,7 +182,7 @@ async def get_profitability_trend(
                 func.coalesce(func.sum(models.Expense.cost), 0.0).label("amount"),
             )
             .where(
-                models.Expense.tenant_id == current_user.tenant_id,
+                models.Expense.tenant_id == tenant_id,
                 models.Expense.date >= start_day,
                 models.Expense.date <= end_day,
             )
