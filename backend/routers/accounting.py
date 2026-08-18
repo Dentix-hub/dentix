@@ -1,4 +1,4 @@
-"""Accounting router facade with corrected period aggregation semantics."""
+"""Final Accounting router with cancelled-appointment compensation guard."""
 
 from datetime import datetime, time, timedelta
 from typing import Optional
@@ -9,14 +9,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import models, schemas
 from backend.core.permissions import Permission, require_permission
-from backend.core.response import StandardResponse, error_response, success_response
+from backend.core.response import StandardResponse
 from backend.services.accounting_service import AccountingService
-from backend.services.billing_service import BillingService
 
-from . import accounting_legacy as _legacy
+from . import accounting_pre_cancelled_filter as _previous
 from .auth import get_async_db
 
-router = _legacy.router
+router = _previous.router
 router.routes[:] = [
     route
     for route in router.routes
@@ -35,52 +34,33 @@ async def get_comprehensive_stats(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
+    """Return reconciled stats; cancelled appointments never earn staff visit fees."""
+    response = await _previous.get_comprehensive_stats(
+        start_date=start_date,
+        end_date=end_date,
+        patient_id=patient_id,
+        db=db,
+        current_user=current_user,
+    )
+    data = response.get("data") if isinstance(response, dict) else None
+    if not data:
+        return response
+
     service = AccountingService(db, current_user.tenant_id)
     try:
         start, end = service.parse_date_range(start_date, end_date)
-        start_utc, end_utc = await service._normalize_utc_range(start, end)
-    except ValueError:
-        return error_response(message="Invalid date format")
-
-    if end_utc < start_utc:
-        return error_response(message="end_date must be on or after start_date", status_code=400)
-
-    total_income = await service.get_total_income(start, end, patient_id=patient_id)
-    total_collected = await service.get_total_collected(start, end, patient_id=patient_id)
-
-    treatment_filters = [
-        models.Patient.tenant_id == current_user.tenant_id,
-        models.Patient.is_deleted == False,  # noqa: E712
-        models.Treatment.is_deleted == False,  # noqa: E712
-        models.Treatment.date >= start_utc,
-        models.Treatment.date <= end_utc,
-    ]
-    production_stmt = (
-        select(
-            func.coalesce(func.sum(models.Treatment.cost), 0.0),
-            func.coalesce(func.sum(models.Treatment.discount), 0.0),
+        local_start_date, local_end_date = await service._local_dates_for_range(
+            start,
+            end,
         )
-        .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
-        .where(*treatment_filters)
-    )
-    unique_patients_stmt = (
-        select(func.count(models.Treatment.patient_id.distinct()))
-        .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
-        .where(*treatment_filters)
-    )
-    if patient_id:
-        production_stmt = production_stmt.where(models.Treatment.patient_id == patient_id)
-        unique_patients_stmt = unique_patients_stmt.where(models.Treatment.patient_id == patient_id)
+    except ValueError:
+        return response
 
-    gross_production, total_discounts = (await db.execute(production_stmt)).one()
-    unique_patients_count = int((await db.execute(unique_patients_stmt)).scalar() or 0)
-
-    # Staff per-appointment compensation must use real appointments, not the
-    # number of Treatment rows. Appointments are stored as clinic-local naive
-    # wall-clock datetimes, so use local date boundaries rather than UTC bounds.
-    local_start_date, local_end_date = await service._local_dates_for_range(start, end)
     appointment_start = datetime.combine(local_start_date, time.min)
-    appointment_end = datetime.combine(local_end_date + timedelta(days=1), time.min)
+    appointment_end = datetime.combine(
+        local_end_date + timedelta(days=1),
+        time.min,
+    )
     appointment_stmt = (
         select(func.count(models.Appointment.id))
         .join(models.Patient, models.Appointment.patient_id == models.Patient.id)
@@ -88,93 +68,45 @@ async def get_comprehensive_stats(
             models.Patient.tenant_id == current_user.tenant_id,
             models.Patient.is_deleted == False,  # noqa: E712
             models.Appointment.is_deleted == False,  # noqa: E712
+            models.Appointment.status != "Cancelled",
             models.Appointment.date_time >= appointment_start,
             models.Appointment.date_time < appointment_end,
         )
     )
     if patient_id:
-        appointment_stmt = appointment_stmt.where(models.Appointment.patient_id == patient_id)
-    total_appointments = int((await db.execute(appointment_stmt)).scalar() or 0)
-
-    doctor_dues, total_doctor_dues = await service.calculate_doctor_dues(
-        start,
-        end,
-        patient_id=patient_id,
-    )
-    if patient_id:
-        patient_doctor_dues = []
-        for row in doctor_dues:
-            commission_amount = float(row.get("commission_amount") or 0.0)
-            row["fixed_salary_period"] = 0.0
-            row["total_due"] = commission_amount
-            if any(
-                float(row.get(field) or 0.0) != 0.0
-                for field in ("revenue", "collected", "lab_cost", "commission_amount")
-            ):
-                patient_doctor_dues.append(row)
-        doctor_dues = patient_doctor_dues
-        total_doctor_dues = round(
-            sum(float(row.get("total_due") or 0.0) for row in doctor_dues),
-            2,
+        appointment_stmt = appointment_stmt.where(
+            models.Appointment.patient_id == patient_id
         )
+    valid_appointments = int((await db.execute(appointment_stmt)).scalar() or 0)
+    data.setdefault("income", {})["total_appointments"] = valid_appointments
 
-    if patient_id:
-        staff_dues, total_staff_dues = [], 0.0
-        total_expenses = 0.0
-    else:
+    if not patient_id:
         staff_dues, total_staff_dues = await service.calculate_staff_dues(
             start,
             end,
-            total_appointments,
+            valid_appointments,
         )
-        total_expenses = await service.get_total_expenses(start, end)
+        deductions = data.setdefault("deductions", {})
+        deductions["staff_dues"] = {
+            "total": float(total_staff_dues),
+            "details": staff_dues,
+        }
+        total_deductions = (
+            float(deductions.get("doctor_dues", {}).get("total") or 0.0)
+            + float(total_staff_dues)
+            + float(deductions.get("expenses") or 0.0)
+            + float(deductions.get("lab_costs") or 0.0)
+        )
+        deductions["total_deductions"] = total_deductions
+        data["net_profit"] = (
+            float(data.get("income", {}).get("total_collected") or 0.0)
+            - total_deductions
+        )
 
-    total_lab_costs = await service.get_total_lab_costs(
-        start,
-        end,
-        patient_id=patient_id,
-    )
-    total_deductions = (
-        float(total_doctor_dues)
-        + float(total_staff_dues)
-        + float(total_expenses)
-        + float(total_lab_costs)
-    )
-    net_profit = float(total_collected) - total_deductions
-    real_outstanding = await BillingService(
-        db,
-        current_user.tenant_id,
-    ).get_outstanding_balance(patient_id)
-
-    return success_response(
-        data={
-            "period": {"start": start_date, "end": end_date},
-            "income": {
-                "total_revenue": float(total_income),
-                "gross_revenue": float(gross_production),
-                "total_discounts": float(total_discounts),
-                "net_revenue": float(total_income),
-                "total_collected": float(total_collected),
-                "outstanding": float(real_outstanding),
-                "all_time_outstanding": float(real_outstanding),
-                "period_balance": float(total_income) - float(total_collected),
-                "total_appointments": total_appointments,
-                "unique_patients": unique_patients_count,
-            },
-            "deductions": {
-                "doctor_dues": {"total": float(total_doctor_dues), "details": doctor_dues},
-                "staff_dues": {"total": float(total_staff_dues), "details": staff_dues},
-                "lab_costs": float(total_lab_costs),
-                "expenses": float(total_expenses),
-                "total_deductions": total_deductions,
-            },
-            "net_profit": net_profit,
-        },
-        message="Comprehensive stats retrieved successfully",
-    )
+    return response
 
 
-for _name in dir(_legacy):
+for _name in dir(_previous):
     if _name.startswith("_") or _name in globals():
         continue
-    globals()[_name] = getattr(_legacy, _name)
+    globals()[_name] = getattr(_previous, _name)
