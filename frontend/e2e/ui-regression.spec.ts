@@ -73,7 +73,12 @@ async function openPatientWorkspace(page, fixture: { name: string; phone: string
     name: /Search patients|البحث في المرضى/i,
   });
   await searchBox.fill(fixture.name);
-  await expect(page.getByText(fixture.name, { exact: true }).first()).toBeVisible({ timeout: 10000 });
+
+  // getByRole excludes aria-hidden/display:none duplicates by default. The patient
+  // index intentionally renders separate desktop/mobile representations, so a raw
+  // getByText(...).first() can select the hidden representation on mobile.
+  const visiblePatientLink = page.getByRole('link', { name: fixture.name, exact: true }).first();
+  await expect(visiblePatientLink).toBeVisible({ timeout: 10000 });
 }
 
 async function expectWorkspaceScreenshot(page, name: string) {
