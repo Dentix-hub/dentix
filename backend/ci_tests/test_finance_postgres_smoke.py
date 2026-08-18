@@ -1,37 +1,30 @@
 """PostgreSQL-only Finance smoke used by the temporary forensic audit workflow.
 
 This file deliberately lives outside backend/tests so the SQLite-forcing
-conftest does not replace DATABASE_URL. It validates the reconciled Finance
-queries against the same PostgreSQL dialect used in production.
+conftest does not replace DATABASE_URL. It validates Finance through the same
+AsyncSession/RLS/event-hook stack used by the application in production.
 """
 
 from datetime import date, datetime
-import os
 
 import pytest
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from backend import models, schemas
+from backend.database import AsyncSessionLocal, RlsContext, async_engine
 from backend.services.accounting_service import AccountingService
 from backend.services.billing_service import BillingService
 
 
 @pytest.mark.asyncio
-async def test_finance_truth_runs_on_postgresql():
-    raw_url = os.environ["DATABASE_URL"]
-    async_url = raw_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    engine = create_async_engine(
-        async_url,
-        connect_args={"ssl": False, "statement_cache_size": 0},
-        pool_pre_ping=True,
-    )
-    Session = async_sessionmaker(engine, expire_on_commit=False, autoflush=False)
-
+async def test_finance_truth_runs_on_postgresql_through_application_session():
     tenant_id = 99165
     other_tenant_id = 99166
 
-    try:
-        async with Session() as db:
+    # Seed two tenants under the application's explicit RLS bypass. This mirrors
+    # platform-maintenance behavior while still exercising the production
+    # asyncpg engine and its timestamp normalization hooks.
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as setup_session:
+        async with setup_session.bypass_rls() as db:
             tenant = models.Tenant(
                 id=tenant_id,
                 name="Finance PostgreSQL Audit",
@@ -149,6 +142,10 @@ async def test_finance_truth_runs_on_postgresql():
             )
             await db.commit()
 
+    try:
+        # Re-open exactly as a tenant-scoped request would. RLS must isolate the
+        # other tenant while every Finance calculation remains correct.
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=tenant_id)) as db:
             service = AccountingService(db, tenant_id)
             start, end = service.parse_date_range("2026-08-01", "2026-08-31")
 
@@ -162,27 +159,27 @@ async def test_finance_truth_runs_on_postgresql():
                 end,
                 total_appointments=2,
             )
-            staff_row = next(row for row in staff_rows if row["id"] == staff.id)
+            staff_row = next(row for row in staff_rows if row["id"] == 991652)
             assert staff_row["appointments_in_period"] == 1
             assert staff_row["appointment_earnings"] == 50.0
             assert staff_total == 50.0
 
-            details = await service.get_patient_financial_details(patient.id)
+            details = await service.get_patient_financial_details(991653)
             assert details["total_invoiced"] == 900.0
             assert details["total_paid"] == 400.0
             assert details["outstanding_balance"] == 500.0
 
             july = await service.get_salary_status_for_month("2026-07")
-            july_staff = next(row for row in july["employees"] if row["id"] == staff.id)
+            july_staff = next(row for row in july["employees"] if row["id"] == 991652)
             assert july_staff["payable_amount"] == 0.0
 
             cross_tenant_payment = schemas.PaymentCreate(
-                patient_id=patient.id,
-                doctor_id=other_doctor.id,
+                patient_id=991653,
+                doctor_id=991661,
                 amount=50.0,
                 date=datetime(2026, 8, 18, 14, 0),
             )
             with pytest.raises(ValueError, match="Doctor not found"):
                 await BillingService(db, tenant_id).create_payment(cross_tenant_payment)
     finally:
-        await engine.dispose()
+        await async_engine.dispose()
