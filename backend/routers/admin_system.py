@@ -16,6 +16,7 @@ from backend.utils.audit_logger import log_admin_action
 from backend.core.permissions import Permission, require_permission
 from backend.services.backup_service import run_backup_task
 from backend.services.auth_service import AuthService
+from backend.routers.settings import _create_backup_oauth_state
 
 router = APIRouter(
     prefix="/admin",
@@ -23,26 +24,23 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
-# Lazy import to avoid circular dependency with main.py
 _drive_client = None
+
 
 def get_drive_client():
     global _drive_client
     if _drive_client is None:
         from backend.main import drive_client
-
         _drive_client = drive_client
     return _drive_client
 
 
-# Dependency
 def require_super_admin(current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
     return current_user
 
 
-# --- Global User Management ---
 @router.get("/users", response_model=List[schemas.UserAdminView])
 async def get_global_users(
     search_query: str = None,
@@ -57,7 +55,6 @@ async def get_global_users(
         .where(models.User.is_deleted == False)  # noqa: E712
         .options(joinedload(models.User.tenant))
     )
-
     if search_query:
         search = f"%{search_query}%"
         stmt = stmt.join(models.Tenant, isouter=True).where(
@@ -65,23 +62,16 @@ async def get_global_users(
             | (models.User.email.ilike(search))
             | (models.Tenant.name.ilike(search))
         )
-
     if role and role != "all":
         stmt = stmt.where(models.User.role == role)
-
     stmt = stmt.offset(skip).limit(limit)
     res = await db.execute(stmt)
     users = list(res.scalars().all())
-
     result = []
     for u in users:
         u_schema = schemas.UserAdminView.model_validate(u)
-        if u.tenant:
-            u_schema.tenant_name = u.tenant.name
-        else:
-            u_schema.tenant_name = "System / No Clinic"
+        u_schema.tenant_name = u.tenant.name if u.tenant else "System / No Clinic"
         result.append(u_schema)
-
     return result
 
 
@@ -95,21 +85,20 @@ async def toggle_user_status(
     user = res.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-
     if user.id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot disable your own account")
-
     new_status = not user.is_active
     user.is_active = new_status
-
-    # REVOKE ALL SESSIONS when user is disabled
     if not new_status:
         revoked_count = await AuthService.revoke_all_user_sessions(db, user.id)
         if revoked_count > 0:
             import logging
-            logger = logging.getLogger("smart_clinic")
-            logger.info(f"Admin {current_user.username} revoked {revoked_count} sessions for disabled user {user.username}")
-
+            logging.getLogger("smart_clinic").info(
+                "Admin %s revoked %s sessions for disabled user %s",
+                current_user.username,
+                revoked_count,
+                user.username,
+            )
     log_admin_action(
         db,
         current_user,
@@ -120,7 +109,6 @@ async def toggle_user_status(
         target_user_id=user.id,
         new_value={"is_active": new_status},
     )
-
     await db.commit()
     return success_response({
         "message": f"User {'enabled' if new_status else 'disabled'} successfully",
@@ -128,7 +116,6 @@ async def toggle_user_status(
     })
 
 
-# --- System Settings ---
 @router.get("/settings", response_model=List[schemas.SystemSetting])
 async def get_system_settings(
     current_user: models.User = Depends(require_super_admin),
@@ -145,9 +132,7 @@ async def update_system_setting(
     current_user: models.User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_async_db),
 ):
-    res = await db.execute(
-        select(models.SystemSetting).where(models.SystemSetting.key == key)
-    )
+    res = await db.execute(select(models.SystemSetting).where(models.SystemSetting.key == key))
     setting = res.scalar_one_or_none()
     if not setting:
         setting = models.SystemSetting(key=key, value=setting_update.value)
@@ -155,7 +140,6 @@ async def update_system_setting(
         await db.commit()
         await db.refresh(setting)
         return setting
-
     setting.value = setting_update.value
     await db.commit()
     await db.refresh(setting)
@@ -168,30 +152,21 @@ async def get_google_drive_status(
     current_user: models.User = Depends(require_super_admin),
 ):
     res_setting = await db.execute(
-        select(models.SystemSetting)
-        .where(models.SystemSetting.key == "google_refresh_token_super_admin")
+        select(models.SystemSetting).where(models.SystemSetting.key == "google_refresh_token_super_admin")
     )
     setting = res_setting.scalar_one_or_none()
-
-    # Fetch status
     res_status = await db.execute(
-        select(models.SystemSetting)
-        .where(models.SystemSetting.key == "backup_last_status")
+        select(models.SystemSetting).where(models.SystemSetting.key == "backup_last_status")
     )
     last_status = res_status.scalar_one_or_none()
-
     res_message = await db.execute(
-        select(models.SystemSetting)
-        .where(models.SystemSetting.key == "backup_last_message")
+        select(models.SystemSetting).where(models.SystemSetting.key == "backup_last_message")
     )
     last_message = res_message.scalar_one_or_none()
-
     res_run = await db.execute(
-        select(models.SystemSetting)
-        .where(models.SystemSetting.key == "backup_last_run")
+        select(models.SystemSetting).where(models.SystemSetting.key == "backup_last_run")
     )
     last_run = res_run.scalar_one_or_none()
-
     return success_response({
         "connected": bool(setting and setting.value),
         "last_backup": {
@@ -206,7 +181,8 @@ async def get_google_drive_status(
 async def get_system_google_auth_url(
     current_user: models.User = Depends(require_super_admin),
 ):
-    auth_url = get_drive_client().get_auth_url(state="super_admin")
+    state = _create_backup_oauth_state(current_user)
+    auth_url = get_drive_client().get_auth_url(state=state)
     return success_response(data={"url": auth_url})
 
 
@@ -217,20 +193,15 @@ async def upload_to_google_drive(
     current_user: models.User = Depends(require_super_admin),
 ):
     res_setting = await db.execute(
-        select(models.SystemSetting)
-        .where(models.SystemSetting.key == "google_refresh_token_super_admin")
+        select(models.SystemSetting).where(models.SystemSetting.key == "google_refresh_token_super_admin")
     )
     setting = res_setting.scalar_one_or_none()
     if not setting or not setting.value:
-        raise HTTPException(
-            status_code=400, detail="Google Drive not connected. Please connect first."
-        )
-
-    refresh_token = setting.value
+        raise HTTPException(status_code=400, detail="Google Drive not connected. Please connect first.")
     db_url = os.getenv("DATABASE_URL")
-
-    background_tasks.add_task(run_backup_task, refresh_token, db_url)
-
+    if not db_url:
+        raise HTTPException(status_code=500, detail="DATABASE_URL configuration missing")
+    background_tasks.add_task(run_backup_task, setting.value, db_url)
     return success_response({
         "success": True,
         "message": "Backup started in background.",
@@ -243,18 +214,15 @@ async def disconnect_google_drive(
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    """Disconnect the Google Drive account."""
     res_setting = await db.execute(
-        select(models.SystemSetting)
-        .where(models.SystemSetting.key == "google_refresh_token_super_admin")
+        select(models.SystemSetting).where(models.SystemSetting.key == "google_refresh_token_super_admin")
     )
     setting = res_setting.scalar_one_or_none()
     if setting:
         await db.delete(setting)
         await db.commit()
         return success_response(data={"success": True, "message": "Google Drive disconnected successfully"})
-    else:
-        return success_response(data={"success": True, "message": "Google Drive was not connected"})
+    return success_response(data={"success": True, "message": "Google Drive was not connected"})
 
 
 @router.get("/backup")
@@ -262,7 +230,6 @@ async def download_backup(
     current_user: models.User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_async_db),
 ):
-    """Download system JSON backup."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"smart_clinic_json_backup_{timestamp}.json"
 
@@ -304,13 +271,11 @@ async def download_backup(
     )
 
 
-# --- Security Management (Sessions & IP Blocking) ---
 @router.get("/security/sessions")
 async def get_global_sessions(
     current_user: models.User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_async_db),
 ):
-    """List all active user sessions across all tenants."""
     from backend.services.security_service import SecurityService
     service = SecurityService(db)
     sessions = await service.get_active_sessions()
@@ -323,7 +288,6 @@ async def terminate_session(
     current_user: models.User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_async_db),
 ):
-    """Terminate a specific user session."""
     from backend.services.security_service import SecurityService
     service = SecurityService(db)
     if await service.terminate_session(session_id):
@@ -336,7 +300,6 @@ async def get_blocked_ips(
     current_user: models.User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_async_db),
 ):
-    """Get list of all blocked IP addresses."""
     res = await db.execute(select(models.BlockedIP))
     blocked = list(res.scalars().all())
     return success_response([
@@ -346,7 +309,7 @@ async def get_blocked_ips(
             "reason": b.reason,
             "blocked_by": b.blocked_by,
             "created_at": b.created_at,
-            "expires_at": b.expires_at
+            "expires_at": b.expires_at,
         }
         for b in blocked
     ])
@@ -358,14 +321,11 @@ async def block_ip(
     current_user: models.User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_async_db),
 ):
-    """Block an IP address."""
     from backend.services.security_service import SecurityService
     ip = block_data.get("ip_address")
     reason = block_data.get("reason", "Administrative block")
-
     if not ip:
         raise HTTPException(status_code=400, detail="IP address required")
-
     await SecurityService.block_ip(db, ip, reason, current_user.username)
     return success_response({"message": f"IP {ip} blocked successfully"})
 
@@ -376,7 +336,6 @@ async def unblock_ip(
     current_user: models.User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_async_db),
 ):
-    """Unblock an IP address."""
     from backend.services.security_service import SecurityService
     await SecurityService.unblock_ip(db, ip_address)
     return success_response({"message": f"IP {ip_address} unblocked successfully"})
