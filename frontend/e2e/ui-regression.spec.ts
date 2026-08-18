@@ -113,3 +113,45 @@ test.describe('Dentix visual regression baseline', () => {
     await expectWorkspaceScreenshot(page, 'patients-en-dark.png');
   });
 });
+
+test.describe('Dentix overlay interaction regression', () => {
+  test('patient modal traps focus and restores trigger/scroll state', async ({ page }) => {
+    await installPreferences(page, 'ar', 'light');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await loginAsAdmin(page);
+    await page.goto('/patients');
+
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+    const heading = page.getByRole('heading', { level: 1, name: /Patient records|سجلات المرضى/i });
+    await expect(heading).toBeVisible({ timeout: 15000 });
+
+    const trigger = page.getByRole('button', { name: /Add New Patient|إضافة مريض جديد/i }).first();
+    await expect(trigger).toBeVisible();
+    const overflowBefore = await page.evaluate(() => document.body.style.overflow);
+
+    await trigger.focus();
+    await trigger.press('Enter');
+
+    const dialog = page.locator('[data-dentix-overlay="dialog"]');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveCSS('background-color', /rgba?\(/);
+
+    await page.keyboard.press('Tab');
+    expect(await dialog.evaluate(node => node.contains(document.activeElement))).toBeTruthy();
+    await page.keyboard.press('Shift+Tab');
+    expect(await dialog.evaluate(node => node.contains(document.activeElement))).toBeTruthy();
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+    expect(await page.evaluate(() => document.body.style.overflow)).toBe(overflowBefore);
+
+    // Space activation and outside-click dismissal are separate regression paths.
+    await trigger.press('Space');
+    await expect(dialog).toBeVisible();
+    const backdrop = page.locator('[data-dentix-overlay="backdrop"]');
+    await backdrop.click({ position: { x: 4, y: 4 } });
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+});

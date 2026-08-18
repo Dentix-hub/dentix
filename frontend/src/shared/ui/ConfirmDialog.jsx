@@ -1,8 +1,9 @@
 /**
- * ConfirmDialog Component
- * Reusable confirmation dialog.
+ * Dentix confirmation dialog. Preserves the historical synchronous confirm API
+ * while consuming canonical dialog and button primitives.
  */
 import Modal from './Modal';
+import Button from './Button';
 
 export default function ConfirmDialog({
     isOpen,
@@ -12,33 +13,33 @@ export default function ConfirmDialog({
     message = 'هل أنت متأكد؟',
     confirmText = 'تأكيد',
     cancelText = 'إلغاء',
-    variant = 'danger' // 'danger' | 'warning' | 'info'
+    variant = 'danger',
+    isLoading = false,
 }) {
-    const variants = {
-        danger: 'bg-red-500 hover:bg-red-600',
-        warning: 'bg-amber-500 hover:bg-amber-600',
-        info: 'bg-blue-500 hover:bg-blue-600',
-    };
+    const confirmVariant = variant === 'danger' ? 'danger' : 'primary';
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={title} maxWidth="max-w-sm">
-            <div className="space-y-4">
-                <p className="text-slate-600">{message}</p>
+            <div className="space-y-5">
+                <p className="text-type-body text-text-secondary">{message}</p>
                 <div className="flex justify-end gap-3">
-                    <button
-                        onClick={onClose}
-                        className="px-4 py-2 hover:bg-slate-100 rounded-lg font-bold"
-                    >
+                    <Button variant="ghost" onClick={onClose} disabled={isLoading}>
                         {cancelText}
-                    </button>
-                    <button
-                        onClick={() => { onConfirm(); onClose(); }}
-                        className={`px-6 py-2 text-white rounded-lg font-bold ${variants[variant]}`}
+                    </Button>
+                    <Button
+                        variant={confirmVariant}
+                        isLoading={isLoading}
+                        onClick={() => {
+                            onConfirm();
+                            onClose();
+                        }}
                     >
                         {confirmText}
-                    </button>
+                    </Button>
                 </div>
             </div>
         </Modal>
     );
 }
+
+export { ConfirmDialog as DentixConfirmDialog };
