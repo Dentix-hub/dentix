@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import Depends, HTTPException, Query
+from fastapi import Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,9 +25,6 @@ from backend.utils.tenant_time import (
 from . import metrics_legacy as _legacy
 
 router = _legacy.router
-
-# Keep every existing metrics endpoint intact and replace only the Finance V2
-# daily trend route with a tenant-local, exact-range implementation.
 router.routes[:] = [
     route
     for route in router.routes
@@ -41,7 +38,7 @@ router.routes[:] = [
 def _parse_local_date(value: str, field_name: str):
     try:
         return datetime.strptime(value, "%Y-%m-%d").date()
-    except ValueError as exc:
+    except (TypeError, ValueError) as exc:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid {field_name}; expected YYYY-MM-DD",
@@ -51,8 +48,8 @@ def _parse_local_date(value: str, field_name: str):
 @router.get("/profitability/trend")
 async def get_profitability_trend(
     period: str = "30d",
-    start_date: Optional[str] = Query(None, description="Tenant-local start date YYYY-MM-DD"),
-    end_date: Optional[str] = Query(None, description="Tenant-local end date YYYY-MM-DD"),
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
@@ -80,12 +77,15 @@ async def get_profitability_trend(
         end_day = tenant_local_date(timezone_name)
         start_day = end_day - timedelta(days=days - 1)
 
-    utc_start, _ = tenant_day_utc_bounds_naive(timezone_name, local_date=start_day)
-    _, utc_end_exclusive = tenant_day_utc_bounds_naive(timezone_name, local_date=end_day)
+    utc_start, _ = tenant_day_utc_bounds_naive(
+        timezone_name,
+        local_date=start_day,
+    )
+    _, utc_end_exclusive = tenant_day_utc_bounds_naive(
+        timezone_name,
+        local_date=end_day,
+    )
 
-    # Payment timestamps are UTC-by-convention in a naive DateTime column.
-    # Fetch the bounded rows once and bucket them into tenant-local calendar days
-    # in Python so the behavior stays portable across PostgreSQL and test SQLite.
     payment_rows = (
         await db.execute(
             select(models.Payment.date, models.Payment.amount)
@@ -157,7 +157,6 @@ async def get_profitability_trend(
     )
 
 
-# Preserve direct imports of every unchanged legacy handler/helper.
 for _name in dir(_legacy):
     if _name.startswith("_") or _name in globals():
         continue
