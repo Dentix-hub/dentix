@@ -1,5 +1,6 @@
 """Accounting router facade with corrected period aggregation semantics."""
 
+from datetime import datetime, time, timedelta
 from typing import Optional
 
 from fastapi import Depends, Query
@@ -62,11 +63,6 @@ async def get_comprehensive_stats(
         .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
         .where(*treatment_filters)
     )
-    treatment_count_stmt = (
-        select(func.count(models.Treatment.id))
-        .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
-        .where(*treatment_filters)
-    )
     unique_patients_stmt = (
         select(func.count(models.Treatment.patient_id.distinct()))
         .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
@@ -74,12 +70,31 @@ async def get_comprehensive_stats(
     )
     if patient_id:
         production_stmt = production_stmt.where(models.Treatment.patient_id == patient_id)
-        treatment_count_stmt = treatment_count_stmt.where(models.Treatment.patient_id == patient_id)
         unique_patients_stmt = unique_patients_stmt.where(models.Treatment.patient_id == patient_id)
 
     gross_production, total_discounts = (await db.execute(production_stmt)).one()
-    total_appointments = int((await db.execute(treatment_count_stmt)).scalar() or 0)
     unique_patients_count = int((await db.execute(unique_patients_stmt)).scalar() or 0)
+
+    # Staff per-appointment compensation must use real appointments, not the
+    # number of Treatment rows. Appointments are stored as clinic-local naive
+    # wall-clock datetimes, so use local date boundaries rather than UTC bounds.
+    local_start_date, local_end_date = await service._local_dates_for_range(start, end)
+    appointment_start = datetime.combine(local_start_date, time.min)
+    appointment_end = datetime.combine(local_end_date + timedelta(days=1), time.min)
+    appointment_stmt = (
+        select(func.count(models.Appointment.id))
+        .join(models.Patient, models.Appointment.patient_id == models.Patient.id)
+        .where(
+            models.Patient.tenant_id == current_user.tenant_id,
+            models.Patient.is_deleted == False,  # noqa: E712
+            models.Appointment.is_deleted == False,  # noqa: E712
+            models.Appointment.date_time >= appointment_start,
+            models.Appointment.date_time < appointment_end,
+        )
+    )
+    if patient_id:
+        appointment_stmt = appointment_stmt.where(models.Appointment.patient_id == patient_id)
+    total_appointments = int((await db.execute(appointment_stmt)).scalar() or 0)
 
     doctor_dues, total_doctor_dues = await service.calculate_doctor_dues(
         start,
