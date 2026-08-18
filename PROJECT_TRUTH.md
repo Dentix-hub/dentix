@@ -1,0 +1,66 @@
+# Dentix Project Truth
+
+## Purpose
+
+This file is the small, stable entry point for current Dentix truth. It does not duplicate values that are better expressed by executable configuration, migrations, route registration, or tests.
+
+## Truth precedence
+
+When sources disagree, use this order:
+
+1. **Executable runtime/configuration** — application code, registered routes, database/migration code, build/deploy configuration.
+2. **Executable verification** — CI workflows and tests that exercise the behavior.
+3. **Current governance** — `PROJECT_STANDARDS.md`, `AGENTS.md`, and corrected operational rules.
+4. **Canonical inventories in `docs/product/`** — verified maps of the current product.
+5. **Supporting documentation** — architecture, API, design, testing, and module-specific guides.
+6. **Historical material** — plans, implementation ledgers, old state snapshots, and `DENTIX_MEMORY.md` entries.
+
+If executable sources conflict and the correct current behavior cannot be established, record the item as `BLOCKED`; do not guess.
+
+## Canonical truth-source map
+
+- Full source/conflict map: [`docs/product/TRUTH_SOURCE_MAP.md`](docs/product/TRUTH_SOURCE_MAP.md)
+- Documentation lifecycle/classification: [`docs/product/DOCUMENTATION_CLASSIFICATION.md`](docs/product/DOCUMENTATION_CLASSIFICATION.md)
+- Current modules: [`docs/product/MODULE_REGISTRY.md`](docs/product/MODULE_REGISTRY.md)
+- Current capabilities: [`docs/product/CURRENT_PRODUCT_CAPABILITIES.md`](docs/product/CURRENT_PRODUCT_CAPABILITIES.md)
+- Environment/deployment: [`docs/product/ENVIRONMENT_AND_DEPLOYMENT_TRUTH.md`](docs/product/ENVIRONMENT_AND_DEPLOYMENT_TRUTH.md)
+
+## Current module map
+
+The navigable product registry is `docs/product/MODULE_REGISTRY.md`. It covers Dashboard, Patients, Appointments, Dental/Clinical, Finance, Analytics, Labs, Inventory, Users, Settings, AI, Super Admin, and Auth/Public/PWA. Capabilities that are not proven by routes/code/tests are marked `PARTIAL` or `UNKNOWN` rather than inferred.
+
+## Security / RBAC truth links
+
+- Permission matrix: `backend/core/permissions.py`
+- Authentication/session implementation: `backend/routers/auth/`
+- CSRF enforcement and middleware composition: `backend/main.py`
+- Tenant context/session handling: `backend/database.py`, `backend/core/tenancy.py`, `backend/middleware/tenant.py`
+- ORM tenant criteria: `backend/core/tenant_scope.py`
+- PostgreSQL RLS policy migrations: `backend/alembic/versions/`
+- Security/isolation verification: `backend/tests/`
+
+## Environment / deployment truth links
+
+Use `.github/workflows/ci.yml`, `.github/workflows/cd.yml`, deployment/container configuration, and environment key definitions. Production-only frontend rewrites are currently expressed in `frontend/vercel.json` on `main`. Do not copy external secret values or platform URLs into multiple documents.
+
+## Test / CI truth links
+
+- CI behavior and current gates: `.github/workflows/ci.yml`
+- CD behavior and health verification: `.github/workflows/cd.yml`
+- Backend tests: `backend/tests/`
+- Frontend unit tests: `frontend/src/**/*.test.*`
+- End-to-end tests: `frontend/e2e/`
+
+## Documentation lifecycle rules
+
+- `CANONICAL`: may define current truth when it does not conflict with executable sources.
+- `ACTIVE_SUPPORTING`: useful explanation, but executable/canonical sources win.
+- `HISTORICAL`: evidence of prior decisions or work; never current truth without re-validation.
+- `ARCHIVED`: historical material moved under `docs/archive/` after references are checked.
+- `OBSOLETE`: known-invalid instructions or claims retained only where history/evidence requires it.
+
+New implementation plans are intent, not product truth. State snapshots must carry a date/status and must not silently become permanent truth documents.
+
+## Do not duplicate dynamic values
+
+Branch heads, deployment destinations, URLs held in secrets, environment values, package versions, route lists, coverage thresholds, and other dynamic values should link to their executable source instead of being manually copied. If a value must be shown for explanation, identify the executable source that controls it.

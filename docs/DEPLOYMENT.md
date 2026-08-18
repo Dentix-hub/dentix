@@ -1,47 +1,49 @@
 # Dentix — Deployment Guide
 
-## Required Environment Variables
+> Supporting guide. Current executable deployment truth is `.github/workflows/cd.yml`; environment/branch details are summarized in [`product/ENVIRONMENT_AND_DEPLOYMENT_TRUTH.md`](product/ENVIRONMENT_AND_DEPLOYMENT_TRUTH.md).
 
-| Variable | Required | Default | Description |
-|---------|----------|---------|-------------|
-| `DATABASE_URL` | ✅ | — | PostgreSQL connection string |
-| `SECRET_KEY` | ✅ | — | JWT signing key (min 32 chars) |
-| `ENCRYPTION_KEY` | ✅ | — | Fernet key for PII encryption |
-| `ENVIRONMENT` | ✅ | `development` | `development` / `staging` / `production` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | ❌ | `60` | JWT access token lifetime |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | ❌ | `7` | JWT refresh token lifetime |
-| `CLOUDINARY_URL` | ❌ | — | For file attachments |
-| `GOOGLE_DRIVE_CREDENTIALS` | ❌ | — | For backup feature |
+## Do not duplicate dynamic deployment values
 
-## Local Development Setup
+Do not copy secret values, current branch SHAs, external Space identifiers, platform account names, or health URLs into this document. The workflow/environment configuration owns them.
 
-```bash
-# 1. Clone and setup
-git clone <repo>
-cd DENTIX
+## Required application configuration
 
-# 2. Backend
-cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\\Scripts\\activate
-pip install -r requirements.txt
+`backend/database.py` requires `DATABASE_URL`. Other required/optional application keys are owned by current environment/config definitions and should be read from the repository's env examples/config code rather than a manually maintained table here.
 
-# 3. Environment
-cp .env.example .env
-# Edit .env with your values
+Never commit real secrets.
 
-# 4. Database
-alembic upgrade head
+## Local development
 
-# 5. Run
-uvicorn backend.main:app --reload --port 8000
+Use `docker-compose.dev.yml` or direct backend/frontend development commands. Apply schema changes only through explicit Alembic migrations when schema work is in scope.
 
-# Frontend (separate terminal)
-cd frontend
-npm install
-npm run dev
-```
+## Staging
 
-## Production Deployment
+Repository-controlled sequence:
 
-Recommended using Docker Compose or CI/CD Pipeline as defined in `.github/workflows/ci.yml`.
+1. reviewed code reaches `staging`,
+2. `Dentix CI` tests the revision,
+3. successful CI triggers the staging job in `Dentix CD`,
+4. that exact tested revision is pushed to the configured Hugging Face staging Space,
+5. the workflow performs its configured backend health check.
+
+## Production
+
+Repository-controlled sequence:
+
+1. reviewed/promoted code reaches `main`,
+2. CI tests it,
+3. production CD verifies the tested revision is current `main`,
+4. CD creates/pushes a clean tracked-file snapshot to the configured Hugging Face production Space,
+5. CD performs its configured production health check.
+
+Production application startup does not perform ad-hoc schema mutation/seeding; migrations are a deployment concern.
+
+`frontend/vercel.json` on `main` is executable frontend routing configuration, including the production API proxy currently committed there. External Vercel/DNS project configuration is outside this document unless represented by repository config.
+
+## Historical instructions
+
+Older DigitalOcean-specific notes and `python scripts/deployment/deploy.py --env ...` commands are retained only as history where they still appear in historical documents. They are not the canonical current deployment procedure.
+
+## Verification before promotion
+
+Use `.github/workflows/ci.yml`, relevant local tests, staging verification, and `.github/workflows/cd.yml` health checks. Do not replace those with copied test counts/thresholds in prose.

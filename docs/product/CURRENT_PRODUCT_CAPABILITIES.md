@@ -1,0 +1,45 @@
+# Dentix Current Product Capabilities
+
+This inventory defines the boundary between **existing capability that may be improved** and **future functionality that must not be assumed or added by an audit/refactor plan**.
+
+Status meanings:
+- `VERIFIED`: direct route/code/config evidence was inspected.
+- `PARTIAL`: capability surface exists, but Plan 01 did not prove every behavior/edge.
+- `UNKNOWN`: evidence was insufficient; do not infer.
+
+| Module | Capability | Current user goal | Entry point | Actions | User roles / permission boundary | Known UI surface | Known API / backend | Status | Evidence path |
+|---|---|---|---|---|---|---|---|---|---|
+| Dashboard | Clinic overview | See current operational summary | `/` | View dashboard data | authenticated; endpoint rules server-side | Dashboard page | dashboard router/services | VERIFIED | `frontend/src/App.jsx`, dashboard files |
+| Patients | Patient directory/search | Find patients efficiently | `/patients` | list, recent directory, search | `PATIENT_READ`, `PATIENT_SEARCH` | Patients page | `/patients`, `/patients/directory`, `/patients/search` | VERIFIED | `backend/routers/patients.py` |
+| Patients | Create patient | Add a patient to the clinic | `/patients` | create; doctors auto-assign themselves when no doctor is supplied | `PATIENT_CREATE` | patient create surface | POST patient router + patient service | VERIFIED | `backend/routers/patients.py` |
+| Patients | Patient details | Work from a patient record | `/patients/:id` | view/update and enter related workflows | visibility service + granular permissions | PatientDetails | patient/clinical related routers | PARTIAL | App route + patient router/services |
+| Appointments | Scheduling | Schedule and manage visits | `/appointments` | create/list/update/cancel as permitted | appointment permissions; tenant guard; doctor scope where implemented | Appointments page | `/appointments` router | VERIFIED | `backend/routers/appointments.py` |
+| Clinical | Dental chart / treatment workflow | Record clinical care | patient details | clinical/treatment actions | `CLINICAL_READ/WRITE`, `TREATMENT_PLAN_WRITE` by endpoint | dental feature + patient details | treatments/procedures routers/services | PARTIAL | dental feature tree + route registration |
+| Clinical | Prescription output | Produce/view prescription | patient workflow, `/print/rx/:id` | create/manage/print depending on endpoint | endpoint permissions | PrintRx and clinical surfaces | prescriptions/medications routers | PARTIAL | `frontend/src/App.jsx`, backend router registration |
+| Finance | Finance overview | Understand financial position | `/finance/overview` | view metrics/sections | finance route roles; server permissions authoritative | Finance V2 overview | finance/accounting/metrics APIs | VERIFIED | `frontend/src/App.jsx`, finance feature tree |
+| Finance | Patient accounts | Review receivables/account activity | `/finance/patient-accounts` | list/view patient account | finance route roles + server rules | PatientAccountsPage | financial/payment APIs | VERIFIED surface | App route + finance files |
+| Finance | Payments | Record/review payments | `/finance/payments` | view/record payment as permitted | `FINANCIAL_READ/WRITE` server boundary | PaymentsPage | payments router/services | VERIFIED surface | App route + backend registration |
+| Finance | Expenses | Manage expenses | `/finance/expenses`; legacy `/expenses` also exists | view/add/delete/update as implemented | finance permissions; legacy route UI admin/super_admin | Expenses V2 + legacy page | expenses router/services | VERIFIED surface | App route + expense files |
+| Finance | Doctor compensation | Review doctor compensation | `/finance/compensation/doctors`, doctor detail | view compensation/detail; doctor self-service endpoints exist | finance permissions; doctor self endpoints restrict to doctor | DoctorsPage/DoctorDetailPage | `/accounting/doctor-revenue`, `/doctor-revenue/me`, `/doctor-details/me` | VERIFIED | `backend/routers/accounting.py` |
+| Finance | Payroll | Review/manage payroll workflow | `/finance/compensation/payroll` | payroll actions as implemented | finance route roles + server rules | PayrollPage | finance/accounting backend | PARTIAL | route + finance feature tree |
+| Finance | Activity/reports | Review financial history/reports | `/finance/activity`, `/finance/reports` | view/filter/report | finance route roles + server rules | ActivityPage, ReportsPage | finance APIs | VERIFIED surface | App route |
+| Labs | Laboratory workflow | Manage lab work | `/labs` | lab actions as implemented | UI admin/super_admin; API rules authoritative | Labs page | laboratories router | PARTIAL | App route + router registration |
+| Inventory | Stock/material management | Track dental materials and stock | `/inventory` | inventory read/manage actions | `INVENTORY_READ`, `INVENTORY_MANAGE` where required | Inventory page/features | inventory + inventory_smart routers | VERIFIED surface | permissions + route registration |
+| Inventory | Smart material/costing support | Use recorded material data for suggestions/costing | inventory/clinical flows | smart inventory/costing actions as implemented | endpoint rules | inventory feature surfaces | inventory_smart, financials services | PARTIAL | registered routers/services |
+| Analytics | Smart analytics | Review clinic analytics | `/analytics` | view analytics | UI admin/super_admin | SmartDashboard | analytics/metrics backend | PARTIAL | App route + feature/router tree |
+| Users | Team/user management | Manage clinic users | `/users` | user-management actions | UI admin/super_admin + backend RBAC | UsersManager | users/admin doctor routers | PARTIAL | App route + router registration |
+| Settings | Clinic/system configuration | Configure clinic | `/settings` | settings actions | UI admin/super_admin; `SYSTEM_CONFIG` where required | Settings | settings router | PARTIAL | route + permissions |
+| Settings | Price lists / insurance | Configure pricing/insurance | `/settings/price-lists`, `/settings/insurance` | manage configured lists/providers | UI admin/super_admin + backend rules | dedicated pages | price_lists/insurance routers | VERIFIED surface | App route + router registration |
+| AI | Assistant | Ask Dentix AI to perform permitted interactions | embedded AI surfaces | chat/tool actions constrained by policy/permissions | `AI_CHAT`; unsafe actions require stronger authorization where implemented | AIChat/features | ai/ai_assist routers + agent/tools/policy | VERIFIED stack; PARTIAL action inventory | AI code/tests + permissions |
+| AI | AI admin statistics | Inspect AI stats | `/ai/stats` | view stats | super_admin UI | AIStatsPage | AI admin/stats backend | VERIFIED | App route |
+| Super Admin | Platform administration | Manage platform-level operations | `/admin/*` | tenants/users/finance/messages/settings/logs as implemented | super_admin | admin pages/features | admin routers/system logs | VERIFIED surface | App routes + backend registration |
+| Auth | Login/session | Authenticate and bootstrap a session | `/`, `/login` | login/session/refresh/logout as implemented | public login; authenticated session | Login/AuthProvider | auth router | VERIFIED | auth code + `backend/main.py` |
+| Auth | Registration/password recovery | Register or recover access | `/register`, `/forgot-password`, `/reset-password` | register/request reset/reset | public entry points with backend validation | dedicated pages | auth/password-reset routers | VERIFIED surface | App routes + router registration |
+| PWA | Installable web app | Install Dentix web UI | web app install prompt | install/update service worker | client capability | InstallPrompt | VitePWA-generated manifest/SW | VERIFIED | `frontend/vite.config.js` |
+| PWA | Offline static shell | Load cached static assets while keeping API fresh | installed/web app | cache static assets; API requests NetworkOnly | client capability | PWA | Workbox config | VERIFIED | `frontend/vite.config.js` |
+| Backup | Database/tenant backup to Drive | Export data and upload a backup | admin/system flow (UI entry not exhaustively audited) | full PostgreSQL dump or tenant JSON export, then Google Drive upload | admin/system flow; exact route boundary PARTIAL | settings/admin surfaces may expose status/actions | `backend/services/backup_service.py` | VERIFIED implementation / PARTIAL entry point | backup service |
+| Mobile | Flutter client | Use Dentix from a native/mobile client | `dentix_mobile/` | UNKNOWN exhaustive capability coverage | UNKNOWN pending audit | Flutter application | shared backend expected, coverage not audited | PARTIAL | `dentix_mobile/` tree |
+
+## New-feature boundary
+
+A capability not listed as `VERIFIED` or supported by direct evidence must not be treated as existing just because it appears in a plan, old memory, mockup, or chat history. Improvement plans may refactor or redesign verified capability surfaces, but adding a new business capability requires a separate explicit product decision.

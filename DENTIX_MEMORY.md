@@ -1,11 +1,15 @@
 # DENTIX PROJECT MEMORY
 
-_Agent-agnostic. Append-only. Read this file before any work on Dentix._
-_Last updated: 2026-06-22_
+> **HISTORICAL / NON-CANONICAL MEMORY.** This file is an append-only record of earlier issues, changes, and decisions. Entries may be superseded by the current repository. For present truth, start with [`PROJECT_TRUTH.md`](PROJECT_TRUTH.md); executable runtime/config/migrations/tests win over any historical statement below. In particular, old deployment/provider and worker-orchestration decisions must not be followed without re-validation.
+
+_Agent-agnostic. Append-only. Read for history when relevant; do not use as the current source of truth._
+_Last historical update: 2026-06-22_
 
 ---
 
 ## 🔴 OPEN ISSUES
+
+> Historical status snapshot only. Re-verify against the current repository/runtime before acting.
 
 | ID    | Issue                              | Discovered | Attempted Fix                          | Status         |
 |-------|------------------------------------|-----------|----------------------------------------|----------------|
@@ -16,7 +20,7 @@ _Last updated: 2026-06-22_
 
 ## ✅ RESOLVED
 
-_Migrated from HERMES_STATE.md on 2026-06-22_
+_Migrated from HERMES_STATE.md on 2026-06-22. Historical record; current implementation may have evolved further._
 
 | ID    | Issue                                        | Fix Summary                                                                                                                       | Date    |
 |-------|----------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|---------|
@@ -38,7 +42,7 @@ _Migrated from HERMES_STATE.md on 2026-06-22_
 
 ## 📋 CHANGES LOG
 
-_Append new entries at TOP. One entry per meaningful change._
+_Append new historical entries at TOP. One entry per meaningful change. This log does not override current executable truth._
 
 ### [2026-06-22] — Local Self-Contained Database Setup
 - **What**: Added local PostgreSQL database service to docker-compose.dev.yml and configured local connection strings
@@ -56,7 +60,9 @@ _Append new entries at TOP. One entry per meaningful change._
 
 ---
 
-## 🏛️ KEY DECISIONS
+## 🏛️ KEY DECISIONS — HISTORICAL RECORD
+
+> These rows record decisions at the time they were made. They are not guaranteed to describe the current implementation. Current executable/config sources and ADRs take precedence.
 
 | Decision                                           | Rationale                                                           | Date       |
 |----------------------------------------------------|---------------------------------------------------------------------|------------|
