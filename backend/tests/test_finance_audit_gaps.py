@@ -201,3 +201,56 @@ async def test_staff_per_appointment_fee_starts_on_hire_date(async_db_session):
     assert row["appointment_earnings"] == 50.0
     assert row["total_due"] == 50.0
     assert total == 50.0
+
+
+@pytest.mark.asyncio
+async def test_lab_costs_keep_patient_owned_legacy_null_tenant_orders(async_db_session):
+    tenant_id = 165
+    doctor = models.User(
+        id=1651,
+        username="legacy_lab_doctor",
+        email="legacy-lab-doctor@example.com",
+        hashed_password="h",
+        role="doctor",
+        tenant_id=tenant_id,
+        commission_percent=20.0,
+    )
+    patient = models.Patient(
+        id=1652,
+        name="Legacy Lab Patient",
+        age=39,
+        phone="01016501650",
+        medical_history="None",
+        notes="Legacy NULL lab tenant fixture",
+        tenant_id=tenant_id,
+        is_deleted=False,
+    )
+    laboratory = models.Laboratory(
+        id=1653,
+        name="Legacy Lab",
+        tenant_id=tenant_id,
+    )
+    lab_order = models.LabOrder(
+        id=1654,
+        patient_id=patient.id,
+        laboratory_id=laboratory.id,
+        doctor_id=doctor.id,
+        work_type="Crown",
+        cost=600.0,
+        order_date=datetime(2026, 8, 18, 13, 0, tzinfo=timezone.utc),
+        tenant_id=None,
+    )
+    async_db_session.add_all([doctor, patient, laboratory, lab_order])
+    await async_db_session.commit()
+
+    service = AccountingService(async_db_session, tenant_id)
+    start, end = service.parse_date_range("2026-08-18", "2026-08-18")
+
+    assert await service.get_total_lab_costs(start, end) == 600.0
+    analytics = await service.get_doctor_revenue_analytics(start, end)
+    doctor_row = next(row for row in analytics if row["doctor_id"] == doctor.id)
+    assert doctor_row["lab_cost"] == 600.0
+
+    details = await service.get_doctor_details_data(doctor.id, start, end)
+    assert details["total_lab_cost"] == 600.0
+    assert len(details["lab_orders"]) == 1
