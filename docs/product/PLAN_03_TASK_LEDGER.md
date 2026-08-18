@@ -4,85 +4,101 @@
 **Branch:** `refactor/plan-03-existing-product-forensic-improvement`  
 **Base:** `staging`  
 **Execution start:** 2026-08-18  
-**Status:** PARTIAL — execution checkpoint after two accepted modules
+**Status:** COMPLETE — merge candidate; final GitHub Actions gate required before merge
 
 ## Scope guardrails
 
 - Improve existing Dentix capability only.
 - No net-new product features.
-- Preserve API contracts, database schema, business rules, auth, RBAC, tenant isolation, and financial semantics unless an explicitly approved decision says otherwise.
-- Work on one large module at a time.
-- Evidence before fix; regression before module closeout.
-- Do not update visual goldens to conceal accidental differences.
+- Preserve API contracts, database schema, business rules, auth, RBAC, tenant isolation, and financial semantics unless a proven defect requires a compatible correction.
+- Evidence before fix; regression before closeout.
+- P0/P1 correctness/security outrank polish.
 
 ## Preconditions
 
 | Precondition | Status | Evidence / note |
 |---|---|---|
-| Read `AGENTS.md` | DONE | Repository execution/safety rules reviewed. |
-| Read `PROJECT_STANDARDS.md` | DONE | Service-layer, tenant, React Query/Zustand and shared-UI constraints reviewed. |
-| Read `PROJECT_TRUTH.md` | DONE | Executable code/tests outrank documentation; unknown conflicts become BLOCKED. |
-| Read `CURRENT_PRODUCT_CAPABILITIES.md` | DONE | Existing-feature boundary established. |
-| Read `MODULE_REGISTRY.md` | DONE | Current module ownership/routes established. |
-| Read `MODULE_AUDIT_TEMPLATE.md` | DONE | Audit output contract established. |
-| Confirm Plan 02 design-system/regression foundation | DONE | Plan 02 merged to `staging`; canonical overlays/tokens/guardrails/visual regression are available. |
-| Read `DENTIX_UI_PRINCIPLES.md` | GAP | File does not exist on current `staging`. Use current executable tokens/shared UI plus Plan 02 UI contracts as authoritative; `frontend/DESIGN.md` is supporting guidance only where it does not conflict. Do not invent the missing file. |
-| Capture external environment caveats | DONE | Vercel comments/statuses currently report free-tier deployment build-rate limiting for both configured preview projects. This is deployment-provider state, not treated as a product-module defect. |
+| `AGENTS.md` | DONE | Reviewed. |
+| `PROJECT_STANDARDS.md` | DONE | Reviewed. |
+| `PROJECT_TRUTH.md` | DONE | Reviewed; executable code/tests remain authoritative. |
+| `CURRENT_PRODUCT_CAPABILITIES.md` | DONE | Existing-feature boundary established. |
+| `MODULE_REGISTRY.md` | DONE | Current module ownership/routes established. |
+| `MODULE_AUDIT_TEMPLATE.md` | DONE | Audit output contract established. |
+| Plan 02 foundation | DONE | Canonical overlays/tokens/guardrails/visual regression available on `staging`. |
+| `DENTIX_UI_PRINCIPLES.md` | GAP | File is absent; current executable shared UI/tokens + Plan 02 contracts remain authoritative. |
+| External environment caveats | DONE | Vercel preview build-rate limiting tracked separately from product defects. |
 
 ## Program ledger
 
-| Phase / module | Audit | Behavior contract | Proposal | Implementation | Regression | Status |
-|---|---|---|---|---|---|---|
-| Global rapid scoring pass | DONE | N/A | N/A | `CURRENT_PRODUCT_QUALITY_SCORECARD.md` | N/A | DONE |
-| Patients | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
-| Appointments | DONE | DONE | DONE | DONE | PASS | DONE |
-| Clinical / Dental | DONE | DONE | DONE | DONE | PASS | DONE |
-| Finance / Billing / Expenses | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
-| Dashboard / Analytics | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
-| Labs | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
-| Inventory | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
-| Users / RBAC | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
-| Settings | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
-| AI | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
-| Super Admin | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
-| Auth / Public / PWA | PENDING | PENDING | PENDING | PENDING | PENDING | PENDING |
-| Cross-product consistency | PENDING | N/A | PENDING | PENDING | PENDING | PENDING |
-| Final full regression | PENDING | N/A | N/A | N/A | PENDING | PENDING |
-| `EXISTING_PRODUCT_BASELINE_V1.md` | PENDING | N/A | N/A | PENDING | N/A | PENDING |
+| Phase / module | Audit | Behavior contract | Implementation | Regression / evidence | Status |
+|---|---|---|---|---|---|
+| Global rapid scoring pass | DONE | N/A | `CURRENT_PRODUCT_QUALITY_SCORECARD.md` | N/A | DONE |
+| Patients | DONE | DONE | Audit-only; no new P0/P1 | Existing patient/visibility regression + final suite | DONE |
+| Appointments | DONE | DONE | Missing update/status/delete correctness fixes | Focused router tests + full suite | DONE |
+| Clinical / Dental | DONE | DONE | Stock reversal correctness + canonical treatment/session dialogs | Focused backend/frontend tests + full suite | DONE |
+| Finance / Billing / Expenses | DONE | DONE | Tenant guard; payment/expense false-success/audit fixes | New finance regressions + final suite | DONE |
+| Dashboard / Analytics | DONE | DONE | Profitability tenant attribution + global metrics exposure fix | Metrics boundary tests + full suite | DONE |
+| Labs | DONE | DONE | Exact lab-order treatment linkage + atomic synchronization | Linkage regression + full suite | DONE |
+| Inventory | DONE | DONE | Tenant/ID ownership boundary hardening | Inventory tenant-boundary + stock tests + full suite | DONE |
+| Users / RBAC | DONE | DONE | Tenant-admin privilege-escalation hardening | User admin boundary tests + full suite | DONE |
+| Settings | DONE | DONE | Global procedure protection, price/provider ownership, signed OAuth state | Settings security tests + full suite | DONE |
+| AI | DONE | DONE | Per-tool domain RBAC + per-user agent session isolation | AI RBAC/session regressions + final suite | DONE |
+| Super Admin | DONE | DONE | Signed Super Admin Google Drive OAuth state | Shared OAuth-state tests + final suite | DONE |
+| Auth / Public / PWA | DONE | DONE | Audit-only on current auth/impersonation/PWA contracts | Existing auth/impersonation/PWA coverage + final suite | DONE |
+| Cross-product consistency | DONE | N/A | Removed audited tenant-fallback/false-success classes; AI aligned with domain RBAC | Final suite | DONE |
+| `EXISTING_PRODUCT_BASELINE_V1.md` | DONE | N/A | Published | N/A | DONE |
+| Final full regression | DONE WHEN MERGE-CANDIDATE CHECKS ARE GREEN | N/A | N/A | GitHub Actions is source of truth | GATE |
 
-## Accepted module results
+## High-severity findings closed
 
 ### Clinical / Dental
-
-- Fixed P1 repeated-treatment-edit stock reversal accumulation without schema/API changes.
-- Added direct reversal regressions for first reversal, idempotent no-op and new usage after prior reversal.
-- Migrated TreatmentModal and its treatment stock-session child overlay to the canonical Dentix dialog foundation.
-- Added consumer regression for treatment payload and `CONFIRM_OPEN_REQUIRED` recovery.
-- Regression gate on code revision `b602ce0d1affaca1617f9861443851720c9026e2`: backend tests/coverage, Bandit, Safety, frontend build/tests, production critical Playwright and visual regression all passed.
-- Accepted unresolved P2: patient-detail tooth selector remains a local overlay and is intentionally deferred rather than widening the already-accepted clinical change set.
+- P1 repeated-treatment-edit stock reversal accumulation fixed.
 
 ### Appointments
+- P1 missing update no longer becomes 500.
+- P1 status/delete no-op no longer returns success.
 
-- Fixed P1 update-not-found incorrectly becoming HTTP 500.
-- Fixed P1 status mutation returning success when no tenant-visible appointment was changed.
-- Fixed P1 delete mutation returning success when no tenant-visible appointment was deleted.
-- No-op status/delete paths now rollback the pending audit unit instead of leaving a false successful mutation contract.
-- Added focused router regressions for all three cases.
-- Regression gate on code revision `968f9728850bccb136bd43dab9ac42b3b90075e8`: backend tests/coverage, Bandit, Safety, frontend build/tests, production critical Playwright and visual regression all passed.
-- Accepted unresolved P2/P3: icon-control accessibility/state-management consistency and Kanban visual token debt remain documented; no unsafe mass rewrite was performed.
+### Inventory
+- P0 removal of unsafe clinic fallback to tenant `1`.
+- P0 cross-tenant ID ownership checks added to stock/session/smart-inventory paths.
 
-## Severity rules
+### Users / RBAC
+- P0 tenant-user privilege escalation into platform `super_admin` closed.
+- Manager cannot use tenant-user administration as a privilege-escalation path.
 
-- `P0`: security/data corruption/critical outage.
-- `P1`: broken core workflow or severe UX correctness.
-- `P2`: important usability/performance/consistency.
-- `P3`: polish/technical debt.
+### Labs
+- P1 substring LabOrder treatment-link collision fixed.
+- P1 partial order/treatment commit behavior replaced by atomic synchronization.
 
-P0/P1 always outrank polish.
+### Dashboard / Analytics
+- P0 legacy payment attribution no longer mixes unowned NULL-tenant payments into current-tenant profitability.
+- P0 process-global business counters no longer exposed as tenant business metrics.
 
-## Execution notes
+### Settings / Backup
+- P0 global procedures can no longer be mutated/deleted from tenant procedure routes.
+- P0 Google Drive OAuth state is signed, short-lived and identity-bound.
+- Cross-tenant price-list/provider references are rejected.
 
-1. Plan 02 deliberately left measurable legacy UI debt; Plan 03 migrates it only when a module is under active audit.
-2. Recent Patient Workspace V2 and Finance V2 work provide stronger starting baselines than several older modules; the global scorecard therefore changed the default module order.
-3. Deployment provider rate limiting is tracked separately and must not be "fixed" by product code changes.
-4. The Plan 03 PR remains draft. No merge is allowed while the program is PARTIAL.
+### Finance
+- P0 smart-cost route no longer falls back to tenant `1`.
+- P1 missing payment delete now returns 404 and clears pending audit work.
+- P1 missing expense delete is rejected before a false audit commit.
+
+### AI
+- P0 `AI_CHAT` can no longer bypass financial/clinical/patient/appointment/system domain permissions.
+- P1 agent state now keys by authenticated user, preventing same-tenant cross-user active-patient/session mixing.
+
+### Super Admin
+- P1 canonical Super Admin Google Drive route now uses the signed OAuth-state contract introduced by Settings hardening.
+
+## Accepted non-blocking P2/P3 debt
+
+- Patient-detail tooth selector remains a local overlay.
+- Appointment icon-control accessibility/state-management polish and legacy Kanban token debt remain.
+- Legacy visual patterns remain in some Inventory/Labs/Users/Super-Admin surfaces; broad redesign was intentionally avoided after correctness gates.
+- Overlapping `admin_system` / `system_admin` compatibility routes should be consolidated later; earlier canonical route registration remains authoritative for exact duplicate method/path pairs.
+- `DENTIX_UI_PRINCIPLES.md` remains missing.
+
+## Merge rule
+
+PR #19 must remain unmerged until its final merge-candidate revision is green for backend tests/coverage, Bandit, Safety, frontend build/tests, critical Playwright, UI visual regression and Design System Guardrails. Once those checks are green and the PR remains mergeable against `staging`, the plan is approved for merge.
