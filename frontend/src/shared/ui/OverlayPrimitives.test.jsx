@@ -36,16 +36,27 @@ function DrawerHarness({ kind = 'drawer' }) {
 }
 
 describe('Dentix overlay primitives', () => {
-    it('dismisses only the topmost nested dialog on Escape', async () => {
+    it('dismisses only the topmost nested dialog on Escape and preserves the parent lock', async () => {
         render(<NestedDialogHarness />);
         fireEvent.click(screen.getByRole('button', { name: 'Open parent' }));
         fireEvent.click(await screen.findByRole('button', { name: 'Open child' }));
 
-        await waitFor(() => expect(screen.getAllByRole('dialog')).toHaveLength(2));
+        // Radix intentionally aria-hides the parent while a nested modal is topmost,
+        // so accessibility-role queries see only the child. Inspect the canonical
+        // overlay stack itself and the Radix scroll-lock reference count here.
+        await waitFor(() => {
+            expect(document.querySelectorAll('[data-dentix-overlay="dialog"]')).toHaveLength(2);
+            expect(document.body).toHaveAttribute('data-scroll-locked', '2');
+        });
+
         const child = screen.getByRole('dialog', { name: 'Child dialog' });
         fireEvent.keyDown(child, { key: 'Escape' });
 
-        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Child dialog' })).not.toBeInTheDocument());
+        await waitFor(() => {
+            expect(screen.queryByRole('dialog', { name: 'Child dialog' })).not.toBeInTheDocument();
+            expect(document.querySelectorAll('[data-dentix-overlay="dialog"]')).toHaveLength(1);
+            expect(document.body).toHaveAttribute('data-scroll-locked', '1');
+        });
         expect(screen.getByRole('dialog', { name: 'Parent dialog' })).toBeInTheDocument();
     });
 
