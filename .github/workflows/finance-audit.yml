@@ -1,0 +1,57 @@
+name: Finance Full-Suite Audit
+
+on:
+  pull_request:
+    branches: [ staging ]
+  workflow_dispatch:
+
+jobs:
+  backend-full-suite:
+    name: Backend Full Suite (no fail-fast)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: dentix_test
+        options: >-
+          --health-cmd "pg_isready -U test_user -d dentix_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip uninstall -y ecdsa
+          pip install pytest
+
+      - name: Initialize Database
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
+          SECRET_KEY: test-secret-key-for-ci-only-at-least-32
+          PYTHONPATH: .
+        run: python backend/scripts/init_db.py
+
+      - name: Run complete backend suite without fail-fast
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
+          SECRET_KEY: test-secret-key-for-ci-only-at-least-32
+          ENVIRONMENT: test
+          PYTHONPATH: .
+        run: pytest backend/tests/ -v --tb=short
