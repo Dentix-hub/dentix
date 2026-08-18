@@ -252,7 +252,7 @@ jobs:
 
       - name: Run UI visual regression
         working-directory: frontend
-        run: npx playwright test e2e/ui-regression.spec.ts --config=playwright.config.ts --project=visual-desktop --project=visual-mobile --no-deps --max-failures=1 --retries=0
+        run: npx playwright test e2e/ui-regression.spec.ts --config=playwright.config.ts --project=visual-desktop --project=visual-mobile --no-deps --retries=0
 
       - name: Show backend log on failure
         if: failure()
