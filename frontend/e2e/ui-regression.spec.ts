@@ -74,9 +74,6 @@ async function openPatientWorkspace(page, fixture: { name: string; phone: string
   });
   await searchBox.fill(fixture.name);
 
-  // getByRole excludes aria-hidden/display:none duplicates by default. The patient
-  // index intentionally renders separate desktop/mobile representations, so a raw
-  // getByText(...).first() can select the hidden representation on mobile.
   const visiblePatientLink = page.getByRole('link', { name: fixture.name, exact: true }).first();
   await expect(visiblePatientLink).toBeVisible({ timeout: 10000 });
 }
@@ -134,7 +131,9 @@ test.describe('Dentix overlay interaction regression', () => {
 
     const dialog = page.locator('[data-dentix-overlay="dialog"]');
     await expect(dialog).toBeVisible();
-    await expect(dialog).toHaveCSS('background-color', /rgba?\(/);
+    const dialogBackground = await dialog.evaluate(node => getComputedStyle(node).backgroundColor);
+    expect(dialogBackground).not.toBe('transparent');
+    expect(dialogBackground).not.toBe('rgba(0, 0, 0, 0)');
 
     await page.keyboard.press('Tab');
     expect(await dialog.evaluate(node => node.contains(document.activeElement))).toBeTruthy();
@@ -146,7 +145,6 @@ test.describe('Dentix overlay interaction regression', () => {
     await expect(trigger).toBeFocused();
     expect(await page.evaluate(() => document.body.style.overflow)).toBe(overflowBefore);
 
-    // Space activation and outside-click dismissal are separate regression paths.
     await trigger.press('Space');
     await expect(dialog).toBeVisible();
     const backdrop = page.locator('[data-dentix-overlay="backdrop"]');

@@ -1,10 +1,10 @@
 # Dentix Design System V2 — Overlay Contract
 
-Status: **TARGET CONTRACT — implementation pending**
+Status: **IMPLEMENTED FOUNDATION — compatibility migration active**
 
 ## Canonical public surface
 
-The target shared API is:
+The shared Dentix API is:
 
 - `DentixDialog`
 - `DentixConfirmDialog`
@@ -16,91 +16,91 @@ The target shared API is:
 - `DentixSelect`
 - `DentixDatePicker`
 
-Names may be compatibility-exported through current `Modal`, `ConfirmDialog`, `Select`, `Tooltip` and `DateTimePicker` while consumers migrate.
+Historical `Modal`, `ConfirmDialog`, `Select`, `Tooltip` and `DateTimePicker` exports remain compatibility paths while consumers migrate. Feature code must not depend on the implementation library when a Dentix wrapper exists.
 
-## Portal root
+## Implementation boundary
 
-Transient content must render through one documented portal strategy. The default target is `document.body`/library portal with a shared overlay-layer contract; feature code must not create arbitrary portal roots.
+- Blocking overlays (`DentixDialog`, `DentixDrawer`, `DentixBottomSheet`) are implemented on the already-installed Radix Dialog primitive.
+- `DentixPopover` wraps the already-installed Headless UI popover primitive.
+- `DentixMenu` and `DentixTooltip` wrap Radix primitives.
+- Content surfaces consume opaque Dentix semantic surface tokens.
+- Feature code receives Dentix contracts; the underlying library remains replaceable.
 
-## Backdrop
+## Portal and layer model
+
+Transient content uses the underlying accessible library portal to `document.body`. Feature code must not create arbitrary portal roots.
+
+Canonical z layers are:
+
+`base < sticky < header < dropdown < popover < drawer < modal < toast < system`
+
+Migrated shared code uses named layers rather than `z-[9999]` escalation.
+
+## Backdrop and surface
 
 - Backdrop may be translucent and may use restrained blur.
 - Backdrop and content surface are separate concepts.
-- Content surface is opaque by default.
-- Backdrop click behavior is explicit per primitive, not accidental bubbling.
+- Blocking overlay content uses the opaque `surface-elevated` role.
+- Overlay radius/elevation consume `radius-overlay` and `shadow-high`/`shadow-medium` as appropriate.
+- Backdrop click behavior is explicit per primitive.
 
-## Surface
+## Focus and keyboard
 
-- Uses `surface-elevated`/opaque light-dark tokens.
-- Uses `radius-overlay` and documented elevation.
-- Never relies on the global decorative background for legibility.
-- Supports constrained viewport height and safe-area padding.
+Every blocking Dentix overlay:
 
-## Focus
+1. captures the invoking element before the focus scope mounts;
+2. moves/traps focus through the accessible primitive;
+3. handles Tab / Shift+Tab containment;
+4. closes on Escape when dismissible;
+5. restores focus to the invoking element after close.
 
-Every blocking overlay must:
-1. remember the previously focused trigger/element;
-2. move focus into the overlay intentionally;
-3. trap focus while blocking;
-4. close on Escape unless the workflow explicitly prevents cancellation;
-5. return focus to the trigger/appropriate fallback after close.
+The compatibility `Modal` now inherits this behavior instead of implementing a separate focus/scroll system.
 
-Popover/menu/select use library-standard focus management and must not steal focus from unrelated controls.
+## Scroll lock and nesting
 
-## Scroll lock
+Radix owns reference-counted document scroll locking for blocking overlays. Regression tests prove that:
 
-- Lock document scrolling only for blocking overlays.
-- Preserve the exact prior body overflow/style state and restore it on final close.
-- Nested blocking overlays use a reference-count/stack model; a child closing must not unlock scrolling while a parent remains open.
+- one open modal owns one lock;
+- a nested child creates a second lock;
+- closing the child leaves the parent lock active;
+- the final close restores the prior scroll state.
 
-## Nested overlays
-
-A shared stack must establish ordering and dismissal ownership. Escape/outside click acts on the topmost dismissible overlay first. `z-[9999]` escalation is forbidden for migrated code.
+Escape/outside dismissal applies to the topmost dismissible overlay first.
 
 ## RTL
 
-- Position with logical start/end semantics.
-- Drawer direction is intentional, not inferred from a hard-coded left/right class.
-- Keyboard arrows follow the underlying accessible primitive expectations for menus/selects/calendar controls.
-- Reusable overlays never force `dir="rtl"` merely because current copy is Arabic.
+- Drawer uses logical `end` positioning rather than hard-coded left/right.
+- Reusable overlays do not force an Arabic direction.
+- Arabic/light and English/dark visual baselines are exercised in CI.
+- Overlay interaction regression executes against an RTL patient workflow.
 
-## Mobile modes
+## Mobile and reduced motion
 
-- confirmation → dialog or bottom sheet depending context;
-- small task → dialog/bottom sheet;
-- contextual preview → popover on large screens, sheet/drawer when space requires;
-- medium form → drawer/sheet;
-- complex or multi-step workflow → dedicated/fullscreen workspace unless existing route semantics require compatibility during migration.
+- `DentixBottomSheet` provides the canonical compact/mobile sheet surface.
+- `DentixDrawer` and dialog primitives are viewport constrained.
+- Motion consumes named durations and global `prefers-reduced-motion` handling.
+- Playwright executes overlay interaction coverage in both visual desktop and mobile projects with reduced motion enabled.
 
-## Reduced motion
+## Compatibility migration evidence
 
-Overlay transitions consume shared motion tokens and become effectively immediate/minimal under `prefers-reduced-motion` while preserving focus and visibility semantics.
+Representative migration: `frontend/src/shared/ui/modals/PaymentModal.jsx` moved from a raw fullscreen overlay to shared `Modal`, `Button`, `Input` and existing `DateTimePicker`. Its exact submission payload is regression-tested, including the existing date-to-local-midnight behavior.
 
-## External primitive boundary
+Existing raw feature overlays are **not** silently rewritten. The design-system guardrail reports them as legacy debt and rejects newly-added guarded violations in pull-request diffs.
 
-External accessibility primitives must be wrapped inside `frontend/src/shared/ui/`. Feature code should consume Dentix wrappers rather than importing Radix/Headless overlay primitives directly after migration.
+## Known legacy debt
 
-The first implementation may use an already-installed, proven primitive (for example Radix Dialog) behind the wrapper, but the public contract belongs to Dentix.
+The current report contains 50 raw fullscreen overlay patterns and 14 arbitrary z-index findings across the legacy application. Some shared date-picker internals still use their historical Headless UI layering while their public Dentix boundary and regression protection are in place. These are staged migration items, not hidden acceptance exceptions.
 
-## Compatibility migration
+## Required interaction coverage — implemented
 
-1. Introduce canonical wrappers and tests.
-2. Keep current public exports as compatibility wrappers.
-3. Migrate representative high-risk consumers.
-4. Detect raw overlay implementations.
-5. Warn on new violations.
-6. Deprecate/remove legacy wrappers only after reference proof.
-
-## Required interaction tests
-
-- initial focus
+- opaque content surface
+- Enter / Space activation
 - Tab / Shift+Tab containment
 - Escape
-- outside click where enabled
+- outside click
 - trigger focus return
-- body scroll lock + exact restoration
+- body scroll lock + restoration
 - nested overlay lock/order
-- RTL rendering smoke
-- mobile drawer/sheet smoke
+- RTL smoke
+- mobile project smoke
 - reduced-motion smoke
-- opaque surface regression

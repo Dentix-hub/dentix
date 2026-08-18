@@ -3,36 +3,59 @@
 Plan: **DENTIX PLAN 02 — DESIGN SYSTEM V2 + UI REGRESSION FOUNDATION**  
 Branch: `refactor/plan-02-design-system-ui-regression`  
 Base: `staging` at `da83541cc3a320db92cc428dbb0d9815cf229534`  
-Started: 2026-08-18
+Started: 2026-08-18  
+Completed: 2026-08-18
+
+Overall: **DONE — foundation acceptance met; staged legacy migration continues under guardrails.**
 
 ## Phase status
 
 | Phase | Status | Evidence / gate |
 |---|---|---|
-| A. Preconditions | DONE | Plan 01 stable; governance, truth, Tailwind/CSS, shared UI, Playwright/E2E and CI inspected. `DENTIX_UI_PRINCIPLES.md` was absent at baseline. |
-| 1. UI Forensic Inventory | DONE | `docs/product/UI_FORENSIC_INVENTORY.md`. |
-| 2. Visual Direction Audit | DONE | `docs/product/UI_VISUAL_DIRECTION_AUDIT.md`. |
+| A. Preconditions | DONE | Governance/truth files, Tailwind/CSS, shared UI, Playwright/E2E and CI inspected before runtime changes. |
+| 1. UI Forensic Inventory | DONE | `docs/product/UI_FORENSIC_INVENTORY.md`; shared primitives, duplicates, consumers and defect classes inventoried before replacement. |
+| 2. Visual Direction Audit | DONE | `docs/product/UI_VISUAL_DIRECTION_AUDIT.md`; Dentix Clinical Workspace direction documented without global flattening. |
 | 3. UI Principles | DONE | Root `DENTIX_UI_PRINCIPLES.md` contains the required 17 principles. |
-| 4. Token Consolidation | NOT_STARTED | Code + verification required. |
-| 5. Overlay Architecture | NOT_STARTED | Canonical portal/focus/scroll/nesting contract required. |
-| 6. Date/Time | NOT_STARTED | Transparent-popup regression must precede risky refactor. |
-| 7. Modal Reduction Audit | NOT_STARTED | Classification required; no silent route/semantic change. |
-| 8. Form System Contract | NOT_STARTED | Representative forms required. |
-| 9. Data Presentation | NOT_STARTED | Table/data contract required. |
-| 10. Page Patterns | NOT_STARTED | Required workspace patterns. |
-| 11. Visual Regression | IN_PROGRESS | AS-IS baseline must be captured before risky UI changes. |
-| 12. Interaction Regression | NOT_STARTED | Keyboard/focus/scroll/nesting/mobile/RTL/reduced motion. |
-| 13. Guardrails | NOT_STARTED | Detect → report → migrate → warn new → enforce. |
+| 4. Token Consolidation | DONE | Semantic light/dark color roles, radius, shadow, spacing, typography, motion and z-layer aliases implemented in `frontend/src/index.css` + `frontend/tailwind.config.js`; legacy utilities retained explicitly for staged migration. |
+| 5. Overlay Architecture | DONE (foundation) | Canonical Dentix wrappers exist for Dialog, ConfirmDialog, Drawer, BottomSheet, Popover, Menu, Tooltip, Select and DatePicker boundary. Historical `Modal` remains a compatibility wrapper. Focus return, scroll lock, nested overlays, logical RTL edge placement and opaque surfaces are regression-tested. |
+| 6. Date/Time | DONE | Transparent-popup bug class is regression-covered. Existing `date`, `month` and `datetime` payload semantics were audited. React Aria / `@internationalized/date` migration was evaluated and rejected for this pass because no evidence justified the dependency/payload risk. See `UI_DATE_TIME_EVALUATION.md`. |
+| 7. Modal Reduction Audit | DONE | `docs/product/UI_MODAL_REDUCTION_AUDIT.md`; workflows classified without route/business semantic changes. |
+| 8. Form System | DONE (foundation/validation) | Form contract exists; shared Button/Input/Select semantics hardened; Payment modal migrated with exact payload regression; representative domains assessed in `UI_FORM_VALIDATION_MATRIX.md`. Legacy feature-local controls remain migration backlog. |
+| 9. Data Presentation | DONE (foundation) | Data contract exists; shared `DataTable` tokenized/standardized without inventing new table capability; existing finance/table regression tests remain green; `AdvancedTable` remains the capability-preserving advanced path. |
+| 10. Page Patterns | DONE (documentation foundation) | `UI_PAGE_PATTERN_CONTRACT.md` defines ResourceIndex, ObjectWorkspace, SchedulingWorkspace, FinancialWorkspace, SettingsWorkspace and AdminDataWorkspace. No forced route/layout abstraction was introduced. |
+| 11. Visual Regression | DONE — Stage 1 | Three reviewed AS-IS Playwright baselines are committed for Arabic/light desktop, English/dark desktop and Arabic/light mobile. CI loads LFS assets and compares them. Stage 2 golden snapshots remain intentionally deferred until an intentional redesign is accepted, per plan rule. |
+| 12. Interaction Regression | DONE | Unit + Playwright coverage includes Enter/Space activation, Tab/Shift+Tab containment, Escape, outside click, focus return, exact scroll-state restoration, nested lock order, RTL, mobile viewport and reduced motion. |
+| 13. Guardrails | DONE (foundation) | Scanner reports legacy debt and rejects newly-added guarded violations. Baseline: 306 source files / 107 legacy findings; latest PR diff adds 0 guarded violations. |
 
-## Baseline invariants
+## Visual baseline set
 
-- Executable code/config/tests outrank prose.
-- No new product capability, silent API/schema/business-rule changes, or mass rewrite.
-- Current UI mixes hand-rolled overlays, Headless UI, Radix Tooltip, React Hot Toast, FullCalendar and TanStack Table.
-- `frontend/src/index.css` uses translucent surfaces and the old `frontend/DESIGN.md` explicitly endorses glassmorphism.
-- `frontend/playwright.config.ts` is the CI-referenced config; the divergent `.js` config is legacy until proven otherwise.
-- Existing API calls, date payload formats, treatment/payment behavior and navigation semantics remain unchanged unless separately approved.
+- `frontend/e2e/ui-regression.spec.ts-snapshots/patients-ar-light-visual-desktop-linux.png`
+- `frontend/e2e/ui-regression.spec.ts-snapshots/patients-en-dark-visual-desktop-linux.png`
+- `frontend/e2e/ui-regression.spec.ts-snapshots/patients-ar-light-visual-mobile-linux.png`
 
-## Completion rule
+Baselines were generated by Playwright in CI and were **not** updated after the foundation refactor to hide differences.
 
-Plan 02 remains `IN_PROGRESS` until every mandatory acceptance criterion in the source plan is evidenced in repository code/tests/CI. Green build alone does not prove visual, RTL, keyboard, focus-return, mobile or screenshot correctness.
+## Legacy guardrail baseline
+
+- arbitrary z-index: **14**
+- arbitrary radius: **41**
+- arbitrary shadow: **2**
+- raw `createPortal` outside shared UI: **0**
+- raw fullscreen overlays outside shared UI: **50**
+- direct external overlay-library imports outside shared UI: **0**
+- total: **107**
+
+These are migration debt, not acceptance failures. The rollout is deliberately gradual: detect/report existing debt, prohibit new debt, migrate proven consumers, then tighten repository-wide enforcement.
+
+## Compatibility invariants
+
+- No net-new product feature was added.
+- No API contract, database schema or business rule was changed.
+- Date/time payload semantics remain unchanged.
+- Payment payload behavior is locked by a regression test.
+- Existing routes/navigation semantics remain unchanged.
+- External primitive libraries are hidden behind the Dentix shared-UI boundary for new canonical overlays.
+
+## Completion rule result
+
+Plan 02 is **DONE at the design-system/UI-regression foundation level**. It intentionally does **not** claim that all legacy feature-local overlays/styles have been migrated; that would violate the plan's staged/no-big-bang rule. Remaining legacy findings are explicit, measurable backlog guarded against growth.
