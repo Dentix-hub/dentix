@@ -10,200 +10,120 @@ app_port: 7860
 
 # Dentix — Smart Clinic Management System
 
-A comprehensive, multi-tenant dental clinic management platform with AI-powered features, built for scalability and security.
+Dentix is a multi-tenant dental clinic management platform with clinical, scheduling, finance, inventory, administration, and AI-assisted workflows.
 
-## 🛠 Tech Stack
+> **Current truth:** start with [`PROJECT_TRUTH.md`](PROJECT_TRUTH.md). Route lists, CI gates, deployment targets, environment values, model/provider choices, and other dynamic details are owned by executable config/code rather than this overview.
 
-| Layer | Technology |
-|-------|------------|
-| **Backend** | FastAPI (Python 3.11+), SQLAlchemy ORM, Alembic |
-| **Frontend** | React 18 + Vite, TailwindCSS |
-| **Database** | PostgreSQL (Neon Serverless) |
-| **Cache** | Redis (optional, falls back to in-memory) |
-| **AI** | Groq API (LLaMA 3), ChromaDB (RAG) |
-| **Auth** | JWT with refresh token rotation |
-| **Monitoring** | Sentry, Prometheus metrics |
-| **CI/CD** | GitHub Actions |
+## Technology Overview
 
-## 🏗 Architecture
+| Layer | Current repository foundation |
+|---|---|
+| Backend | FastAPI, SQLAlchemy, Alembic, Python 3.11 in CI |
+| Frontend | React 18, Vite, Tailwind CSS, TanStack React Query, Zustand |
+| Production database contract | PostgreSQL |
+| Auth/RBAC | authenticated session/JWT implementation + granular backend permissions |
+| Tenant isolation | tenant context/session scoping + ORM criteria + PostgreSQL RLS on registered tables |
+| PWA | `vite-plugin-pwa` / Workbox configuration in `frontend/vite.config.js` |
+| Observability | internal structured/error logging, trace IDs, system logs, request timing and Prometheus instrumentation |
+| CI/CD | GitHub Actions; see `.github/workflows/` |
 
+AI provider/model choices and deployment account values are dynamic configuration and are intentionally not copied here.
+
+## Architecture
+
+High-level request path:
+
+```text
+HTTP request
+  → middleware/security/tenant context
+  → FastAPI router + permission boundary
+  → service workflow
+  → CRUD/data access where applicable
+  → SQLAlchemy session/model
+  → PostgreSQL
 ```
-Request → Middleware → Router → Service → CRUD → Database
-                        ↓
-                    RBAC Check
-                  (permissions.py)
-```
 
-### Layer Responsibilities
+Tenant isolation is defense-in-depth, not a single ORM filter. See:
 
-| Layer | Path | Purpose |
-|-------|------|---------|
-| **Routers** | `backend/routers/` | HTTP endpoints, request validation, response formatting |
-| **Services** | `backend/services/` | Business logic, cross-module coordination |
-| **CRUD** | `backend/crud/` | Database operations, simple queries |
-| **Models** | `backend/models/` | SQLAlchemy ORM definitions |
-| **Schemas** | `backend/schemas/` | Pydantic request/response models |
-| **Core** | `backend/core/` | Config, security, permissions, caching |
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- [`docs/adr/0001-service-layer-backend-boundaries.md`](docs/adr/0001-service-layer-backend-boundaries.md)
+- [`docs/adr/0004-layered-tenant-isolation.md`](docs/adr/0004-layered-tenant-isolation.md)
 
-> Full architecture documentation: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+## Product Inventory
 
-## 🚀 Features
+Do not maintain another duplicated feature list here. The verified navigation and capability boundary live in:
 
-- **Multi-tenant Architecture**: Complete data isolation per clinic via `tenant_scope.py`
-- **RBAC (10 Roles)**: Super Admin, Admin, Manager, Doctor, Receptionist, Nurse, Accountant, Assistant, Patient, Guest
-- **AI-powered Assistant**: Natural language clinical queries via Groq + tool execution
-- **Patient Management**: Full records, dental charts, attachments, prescriptions
-- **Appointment Scheduling**: Conflict detection, doctor-based filtering
-- **Treatment Tracking**: Price snapshots, automatic stock deduction
-- **Financial Module**: Payments, expenses, salaries, invoices, insurance pricing
-- **Inventory System**: Smart material learning, batch tracking, stock movements
-- **Laboratory Management**: Order lifecycle (create → send → receive → complete)
-- **Insurance & Pricing**: Multiple price lists, copay calculations, coverage limits
+- [`docs/product/MODULE_REGISTRY.md`](docs/product/MODULE_REGISTRY.md)
+- [`docs/product/CURRENT_PRODUCT_CAPABILITIES.md`](docs/product/CURRENT_PRODUCT_CAPABILITIES.md)
 
-## 🚀 Quick Start
+Those inventories cover Dashboard, Patients, Appointments, Dental/Clinical, Finance, Analytics, Labs, Inventory, Users, Settings, AI, Super Admin, Auth/Public/PWA, and the currently partial Flutter mobile client.
 
-### Prerequisites
-- Python 3.11+
-- Node.js 18+
-- PostgreSQL (or Neon DB URL)
+## Local Development
 
-### Backend Setup
+Use the repository's current development configuration and environment templates. Typical direct commands are:
+
 ```bash
-cd backend
+# Backend dependencies/tests/run
 pip install -r requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your DATABASE_URL, SECRET_KEY, etc.
-
-# Run database migrations
-python -m alembic upgrade head
-
-# Start the server
+pytest backend/tests/ -v --tb=short
 uvicorn backend.main:app --reload --port 7860
-```
 
-### Frontend Setup
-```bash
+# Frontend
 cd frontend
-npm install
-
-# Configure environment
-cp .env.example .env
-
-# Start development server
+npm ci
 npm run dev
+npm run build
 ```
 
-### Environment Variables
+For composed local services, use `docker-compose.dev.yml`. `DATABASE_URL` is required by the backend; do not embed real secrets in documentation.
 
-See `.env.example` for the complete list. Key variables:
+## Security Truth Links
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | ✅ | PostgreSQL connection string |
-| `SECRET_KEY` | ✅ | JWT signing key |
-| `GROQ_API_KEY` | ❌ | AI assistant (optional) |
-| `REDIS_URL` | ❌ | Cache (falls back to memory) |
-| `FRONTEND_URL` | ✅ | CORS origin |
-| `CLOUDINARY_URL` | ❌ | File uploads |
+- RBAC source: `backend/core/permissions.py`
+- Auth implementation: `backend/routers/auth/`
+- CSRF middleware: `backend/main.py` + auth login helpers
+- Tenant context: `backend/core/tenancy.py`, `backend/middleware/tenant.py`
+- ORM tenant scoping: `backend/core/tenant_scope.py`
+- PostgreSQL RLS: `backend/alembic/versions/`
+- Isolation/security tests: `backend/tests/`
 
-## 🛡️ Security
+Frontend route guards improve UX/navigation but do not replace backend authorization.
 
-- **Authentication**: JWT with refresh token rotation + account lockout
-- **Authorization**: Granular RBAC with 20+ permissions
-- **Multi-tenancy**: Automatic query filtering via SQLAlchemy event listener
-- **Password Policy**: zxcvbn strength check + complexity requirements
-- **Rate Limiting**: SlowAPI on sensitive endpoints
-- **Audit Logging**: All write operations logged
-- **Input Validation**: Pydantic V2 schemas on all endpoints
+## Background Work
 
-## 🧪 Testing
+`backend/main.py` currently starts in-process domain-event and subscription-checker workers by default when `ENABLE_IN_PROCESS_WORKERS` is enabled. Additional worker/task integrations exist under `backend/workers/` and `backend/tasks/`; their presence must not be simplified into an outdated “Celery vs Prefect” claim without runtime verification.
 
-### Backend
-```bash
-cd backend
+## Backup
 
-# Run all tests
-python -m pytest
+`backend/services/backup_service.py` contains the verified backup implementation for PostgreSQL full-system dumps and tenant JSON exports followed by Google Drive upload. UI trigger/scheduling state should be verified separately before being described as an operational guarantee.
 
-# Run with coverage
-python -m pytest --cov=backend --cov-report=html
+## Testing and CI
 
-# Run specific test suite
-python -m pytest tests/test_rbac_complete.py -v
-python -m pytest tests/services/ -v
-```
+Current executable truth is `.github/workflows/ci.yml`:
 
-### Test Suites
+- backend tests + coverage/security checks,
+- frontend production build + discovered unit tests,
+- Playwright critical-path E2E,
+- production container validation/build behavior.
 
-| Suite | File | Coverage |
-|-------|------|----------|
-| RBAC (112 scenarios) | `test_rbac_complete.py` | Permissions matrix |
-| Tenant Isolation | `test_tenant_isolation_complete.py` | Cross-tenant leaks |
-| Tenant Scope | `test_tenant_scope_verification.py` | Model audit |
-| Treatment Service | `tests/services/test_treatment_service.py` | Business logic |
-| Appointment Service | `tests/services/test_appointment_service.py` | Scheduling |
-| Insurance Pricing | `tests/services/test_pricing_insurance.py` | Copay/coverage |
+Do not copy test counts or coverage thresholds here; they change and are owned by the workflow/test tree.
 
-### CI Pipeline
-On every push to `main`:
-- `pytest` with coverage threshold (70%)
-- `bandit` security scan (no HIGH findings)
-- `safety` dependency check
+## Deployment
 
-## 📖 API Documentation
+Current repository-controlled deployment truth is `.github/workflows/cd.yml`. See [`docs/product/ENVIRONMENT_AND_DEPLOYMENT_TRUTH.md`](docs/product/ENVIRONMENT_AND_DEPLOYMENT_TRUTH.md) and [`WORKFLOW_RULES.md`](WORKFLOW_RULES.md).
 
-- **Interactive Docs**: `http://localhost:7860/docs` (Swagger UI)
-- **ReDoc**: `http://localhost:7860/redoc`
-- **OpenAPI Spec**: [`docs/api-spec.json`](docs/api-spec.json)
+Historical DigitalOcean/deploy-script instructions are not current deployment truth.
 
-## 📁 Project Structure
+## Documentation Map
 
-```
-dentix/
-├── backend/             # FastAPI App (Python 3.11+)
-│   ├── main.py          # FastAPI app entry point
-│   ├── database.py      # DB engine & session configuration
-│   ├── ai/              # Clinical AI agent, tools, RAG logic
-│   ├── core/            # Security, JWT auth, RBAC permissions, config
-│   ├── crud/            # Database query & mutation methods
-│   ├── middleware/      # Auth headers, logging, and tenant context
-│   ├── models/          # SQLAlchemy Database ORM models
-│   ├── routers/         # API endpoints (30+ routers)
-│   ├── schemas/         # Pydantic schemas for request/response validation
-│   ├── services/        # Business logic layer (25+ services)
-│   ├── tasks/           # Celery / background worker jobs
-│   └── tests/           # pytest test suites
-├── frontend/            # React Client (Vite, TailwindCSS)
-│   ├── src/
-│   │   ├── api/         # Axios configurations & endpoints
-│   │   ├── components/  # Reusable common UI components
-│   │   ├── contexts/    # React context providers (Auth, Language, Theme)
-│   │   ├── features/    # Page-specific business features
-│   │   ├── hooks/       # Custom React hooks
-│   │   └── pages/       # Route pages
-│   └── vite.config.js   # Vite configuration file
-├── legacy/              # 📦 Archive for legacy scripts (Desktop App, PyInstaller specs)
-├── docs/                # Architecture design maps & API specifications
-├── .github/workflows/   # CI/CD pipelines
-├── rag_storage/         # ChromaDB SQLite vector files (RAG)
-└── uploads/             # Patient clinical media and assets
-```
+- Truth precedence: `PROJECT_TRUTH.md`
+- Documentation classification: `docs/product/DOCUMENTATION_CLASSIFICATION.md`
+- Module registry: `docs/product/MODULE_REGISTRY.md`
+- Capability inventory: `docs/product/CURRENT_PRODUCT_CAPABILITIES.md`
+- Deployment/environment truth: `docs/product/ENVIRONMENT_AND_DEPLOYMENT_TRUTH.md`
+- Architecture decisions: `docs/adr/`
+- Design guidance: `frontend/DESIGN.md`
 
-## 🧹 Codebase Hygiene Guidelines
+## License
 
-To keep the codebase clean and avoid clutter from various AI code assistants (Cursor, Windsurf, Roo Code, Continue, etc.), please follow these hygiene rules:
-
-1. **AI Workspaces Cache**: Always keep tool configurations limited to your local IDE. Do not commit directories such as `.cursor/`, `.windsurf/`, `.roo/`, `.continue/`, or `.cortex/`.
-2. **Ignored Frontend Builds**: The FastAPI production image builds the React application inside Docker during container assembly. Do not track `backend/static/assets/` or `backend/static/index.html` locally in Git.
-3. **Database Files**: Keep database instances inside the `/backend/` local storage context and do not copy them to the root workspace.
-4. **Temporary Script Cleanup**: Store any ad-hoc database migration tools or debugging utilities inside `legacy/` or `backend/scratch/` (both are gitignored).
-
-## 📄 License
-
-This project is licensed under the MIT License.
-
-## 📞 Support
-
-For support, please open an issue in the GitHub repository.
+See the repository license where present.

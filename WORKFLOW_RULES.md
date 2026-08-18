@@ -2,110 +2,131 @@
 
 _Read this before any deployment, git operation, or environment setup._
 
----
-
-## Environments
-
-| Environment | Branch   | Deploy Method                                            | URL                                    |
-|-------------|----------|----------------------------------------------------------|----------------------------------------|
-| local       | any      | `docker compose -f docker-compose.dev.yml up --build`    | http://localhost:7860 (API) / http://localhost:5173 (UI) |
-| staging     | staging  | `python scripts/deployment/deploy.py --env staging`      | https://dentix-dentix-staging.hf.space |
-| production  | main     | `python scripts/deployment/deploy.py --env production`   | https://dentixs.app                    |
+> Current-truth entry point: [`PROJECT_TRUTH.md`](PROJECT_TRUTH.md). When this file conflicts with Git refs, `.github/workflows/`, runtime config, or migrations, the executable source wins.
 
 ---
 
-## Quick Reference Commands
+## Environment and Deployment Ownership
 
-### 🖥️ Local Development
+| Environment | Branch / context | Repository-controlled deployment truth |
+|---|---|---|
+| local | any working branch | `docker-compose.dev.yml` and direct dev commands/config |
+| staging | `staging` | successful `Dentix CI` → `.github/workflows/cd.yml` staging job → tested revision pushed to the configured Hugging Face staging Space → health check |
+| production | `main` | successful `Dentix CI` → `.github/workflows/cd.yml` production job → current tested `main` snapshot pushed to the configured Hugging Face production Space → health check |
+
+The actual Space identifiers, backend URLs, domain bindings, and credentials are dynamic external configuration/secrets. Do not copy them into this file. See [`docs/product/ENVIRONMENT_AND_DEPLOYMENT_TRUTH.md`](docs/product/ENVIRONMENT_AND_DEPLOYMENT_TRUTH.md).
+
+`frontend/vercel.json` on `main` is executable production frontend routing configuration. External Vercel project/domain settings remain outside repository truth unless represented by code/config in the repository.
+
+---
+
+## Local Development
+
 ```bash
-# Start all services (backend + frontend + redis)
+# Start local services
+
 docker compose -f docker-compose.dev.yml up --build
 
-# Stop all services
+# Stop local services
+
 docker compose -f docker-compose.dev.yml down
 
-# View backend logs
-docker compose -f docker-compose.dev.yml logs -f backend
-
-# Run backend tests
+# Backend tests
 pytest backend/tests/ -v --tb=short
 
-# Run frontend tests
-cd frontend && npm run test
-
-# Run frontend dev server standalone (without Docker)
+# Frontend development
 cd frontend && npm run dev
+
+# Frontend tests/build
+cd frontend && npm run test
+cd frontend && npm run build
 ```
 
-### 🧪 Deploy to Staging
-```bash
-# Pre-requisite: tests must pass locally
-pytest backend/tests/ -v --tb=short -x
+Use environment files/templates for local values. Never copy production/staging secrets into local documentation.
 
-# Deploy
-python scripts/deployment/deploy.py --env staging
-```
+---
 
-### 🚀 Deploy to Production
-```bash
-# Pre-requisite: CI passes on GitHub + staging verified manually
-# NEVER deploy directly — always merge staging → main first
+## Staging Promotion
 
-python scripts/deployment/deploy.py --env production
-```
+1. Work on a scoped feature/fix/chore branch.
+2. Run relevant local checks.
+3. Merge/review into `staging` according to repository policy.
+4. Let `Dentix CI` test the exact staging revision.
+5. Let `Dentix CD` deploy only after successful CI.
+6. Verify the staging health/application behavior before production promotion.
+
+Do not use an undocumented fallback deployment branch if `staging` is unavailable.
+
+---
+
+## Production Promotion
+
+1. Production changes must be reviewed and promoted to `main`; do not push directly to `main`.
+2. CI must pass for the production revision.
+3. `.github/workflows/cd.yml` verifies that the tested revision is current `main` before deployment.
+4. The production CD job creates/pushes the deployment snapshot and performs its health check.
+5. Database schema changes must use reviewed Alembic migrations; production application startup does not own ad-hoc schema mutation/seeding.
+
+The old `python scripts/deployment/deploy.py --env ...` commands are not the canonical deployment mechanism and must not be used as current truth.
 
 ---
 
 ## Git Branch Rules
 
-| Action                  | Branch        | Commit Format                          |
-|-------------------------|---------------|----------------------------------------|
-| Feature work            | `feature/*`   | `feat: description`                    |
-| Bug fix                 | `fix/*`       | `fix: description`                     |
-| Refactor                | `refactor/*`  | `refactor: description`                |
-| Ready for testing       | `staging`     | Merge feature branch → staging         |
-| Ready for production    | `main`        | Merge staging → main (after verify)    |
+| Action | Branch pattern / target | Commit example |
+|---|---|---|
+| Feature work | `feature/*` | `feat: description` |
+| Bug fix | `fix/*` | `fix: description` |
+| Documentation/maintenance | `chore/*` or scoped existing convention | `docs: description` / `chore: description` |
+| Ready for shared testing | `staging` | reviewed merge into staging |
+| Ready for production | `main` | reviewed promotion after staging verification |
+
+Plan 01 branch inspection found `staging` and `main`; it did **not** find an active `develop` branch. `.github/workflows/ci.yml` still contains a `develop` push trigger, which is a documented cleanup candidate rather than evidence that the branch is active.
 
 ---
 
-## ⛔ NEVER DO
+## NEVER DO
 
-1. **Never** push directly to `main` — always merge from `staging`
-2. **Never** skip database migrations before deploying
-3. **Never** deploy without running tests first
-4. **Never** hardcode secrets in code — use `.env` or env vars
-5. **Never** modify production database directly — use Alembic migrations
-6. **Never** use SQLite — always PostgreSQL (Supabase)
-7. **Never** use Celery — use Prefect for background tasks
-8. **Never** return JWT tokens in response body — use httpOnly cookies
+1. Never push directly to `main`.
+2. Never bypass required CI/review for production promotion.
+3. Never hardcode secrets in code or docs.
+4. Never modify the production database schema manually; use Alembic migrations.
+5. Never treat SQLite compatibility code as a production database topology; PostgreSQL is the production contract.
+6. Never treat frontend route guards as the only authorization control; backend RBAC is authoritative.
+7. Never weaken tenant isolation, RLS, CSRF, session, or permission behavior as part of unrelated work.
+8. Never invent a deployment branch/target when the intended one is unavailable.
 
----
-
-## 🗣️ Agent Instructions (Arabic Commands)
-
-When the user says:
-
-| User Says                              | Agent Action                                                    |
-|----------------------------------------|-----------------------------------------------------------------|
-| "شغل لوكل" / "local"                  | Run `docker compose -f docker-compose.dev.yml up --build`       |
-| "ارفع على staging" / "deploy staging"  | Run `python scripts/deployment/deploy.py --env staging`         |
-| "ارفع على main" / "deploy production"  | Run `python scripts/deployment/deploy.py --env production`      |
-| "شغل tests"                           | Run `pytest backend/tests/ -v --tb=short`                       |
-| "شغل frontend tests"                  | Run `cd frontend && npm run test`                               |
-| "عايز migration"                       | Run `cd backend && alembic revision --autogenerate -m "desc"`   |
-| "طبق migration"                       | Run `cd backend && alembic upgrade head`                        |
+Historical decisions about Celery/Prefect or particular providers are not current operational rules unless confirmed by runtime/config. Current background-worker ownership is documented from `backend/main.py` and `backend/workers/` in the truth map.
 
 ---
 
-## File Responsibilities
+## Agent Command Mapping
 
-| File                        | Purpose                              | Who Reads It           |
-|-----------------------------|--------------------------------------|------------------------|
-| `DENTIX_MEMORY.md`         | Project history and decisions        | ALL agents, first      |
-| `WORKFLOW_RULES.md`        | This file — environment rules        | ALL agents, on deploy  |
-| `docker-compose.yml`       | Production compose (DO)              | deploy.py              |
-| `docker-compose.dev.yml`   | Local development compose            | Developer              |
-| `.env`                     | Root env vars (local dev)            | Docker, backend        |
-| `.env.dev.example`         | Template for local dev env           | Developer setup        |
-| `frontend/.env.development`| Frontend dev API URL                 | Vite dev server        |
-| `frontend/.env.production` | Frontend prod API URL (empty=same)   | Vite build             |
+| User intent | Agent action |
+|---|---|
+| local development | use the repo's development compose/direct commands |
+| deploy/promote staging | work through `staging`, current CI, and current CD workflow; do not substitute a legacy script |
+| deploy/promote production | promote reviewed code to `main`, then current CI/CD; never direct-push `main` |
+| backend tests | `pytest backend/tests/ -v --tb=short` (or narrower relevant tests first) |
+| frontend tests/build | use scripts defined in `frontend/package.json` and CI as the final executable reference |
+| create migration | use Alembic only when a schema change is explicitly in scope |
+| apply migration | use the current Alembic/deployment procedure for the target environment |
+
+---
+
+## Canonical File Responsibilities
+
+| Source | Responsibility |
+|---|---|
+| `PROJECT_TRUTH.md` | current truth entry point and precedence |
+| `PROJECT_STANDARDS.md` | engineering governance |
+| `WORKFLOW_RULES.md` | human operational rules; executable sources still win |
+| `.github/workflows/ci.yml` | CI triggers/gates/tool versions/thresholds |
+| `.github/workflows/cd.yml` | repository-controlled staging/production deployment flow |
+| `docker-compose.dev.yml` | local development composition |
+| `docker-compose.production.yml` | production container composition/validation where referenced by CI |
+| `backend/database.py` + `backend/alembic/` | database/session/migration implementation truth |
+| `frontend/src/App.jsx` | current web route tree |
+| `frontend/vercel.json` | branch-specific Vercel routing behavior |
+| `docs/product/ENVIRONMENT_AND_DEPLOYMENT_TRUTH.md` | verified human-readable environment/deployment map |
+| `DENTIX_MEMORY.md` | historical project memory, not current truth |
