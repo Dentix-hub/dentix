@@ -5,7 +5,7 @@ export { default as Card } from './Card';
 export { default as Badge } from './Badge';
 export { default as LoadingSpinner } from './LoadingSpinner';
 export { default as Modal } from './Modal';
-export { default as ConfirmDialog } from './ConfirmDialog';
+export { default as ConfirmDialog, DentixConfirmDialog } from './ConfirmDialog';
 export { default as GlobalSearch } from './GlobalSearch';
 export { default as NotificationBell } from './NotificationBell';
 export { default as GlobalBanner } from './GlobalBanner';
@@ -22,3 +22,14 @@ export { default as PageHeader } from './PageHeader';
 export { default as PatientSelect } from './PatientSelect';
 export { default as DateTimePicker } from './DateTimePicker';
 export { default as AdvancedTable } from './AdvancedTable';
+
+// Canonical Dentix design-system public names. Historical names stay exported
+// above so feature migrations do not become a big-bang rewrite.
+export { default as DentixDialog } from './DentixDialog';
+export { default as DentixDrawer } from './DentixDrawer';
+export { default as DentixBottomSheet } from './DentixBottomSheet';
+export { default as DentixPopover } from './DentixPopover';
+export { default as DentixMenu, DentixMenuItem, DentixMenuSeparator } from './DentixMenu';
+export { default as Tooltip, DentixTooltip } from './Tooltip';
+export { default as DentixSelect } from './Select';
+export { default as DentixDatePicker } from './DateTimePicker';

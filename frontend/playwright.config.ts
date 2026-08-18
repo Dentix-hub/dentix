@@ -26,8 +26,20 @@ export default defineConfig({
     },
     {
       name: 'chromium',
-      testIgnore: /setup\.spec\.ts/,
+      testIgnore: [/setup\.spec\.ts/, /ui-regression\.spec\.ts/],
       use: { ...devices['Desktop Chrome'] },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'visual-desktop',
+      testMatch: /ui-regression\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'visual-mobile',
+      testMatch: /ui-regression\.spec\.ts/,
+      use: { ...devices['Pixel 7'] },
       dependencies: ['setup'],
     },
   ],

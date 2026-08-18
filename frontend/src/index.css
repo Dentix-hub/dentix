@@ -4,23 +4,21 @@
 
 @layer base {
   body {
-    @apply antialiased font-sans transition-colors duration-300 bg-background text-text-primary relative overflow-x-hidden min-h-screen selection:bg-primary/30;
+    @apply antialiased font-sans transition-colors duration-standard bg-background text-text-primary relative overflow-x-hidden min-h-screen selection:bg-primary/30;
   }
 
   /* Global Accessibility Focus */
   :focus-visible {
-    @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-background;
+    @apply outline-none ring-2 ring-focus ring-offset-2 ring-offset-background;
   }
 
-
-  /* Global Form Elements Defaults */
+  /* Keep legacy raw form defaults stable while shared primitives migrate to semantic tokens. */
   input,
   textarea,
   select {
     @apply bg-white border-slate-200 text-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-white;
   }
 
-  /* Global Headings Defaults */
   h1,
   h2,
   h3,
@@ -30,110 +28,114 @@
     @apply text-slate-900 dark:text-white;
   }
 
-  /* Global Text Defaults */
   p,
   span,
   label {
     @apply text-slate-700 dark:text-slate-300;
   }
 
-  /* Tables */
-  th {
-    @apply text-slate-600 dark:text-slate-300;
-  }
-
-  td {
-    @apply text-slate-700 dark:text-slate-300;
-  }
+  th { @apply text-slate-600 dark:text-slate-300; }
+  td { @apply text-slate-700 dark:text-slate-300; }
 }
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: Inter, Cairo, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
-  /* Light Theme Tokens */
+  /*
+   * Dentix semantic tokens — light.
+   * `background` and `surface` intentionally preserve the legacy BackgroundWrapper
+   * composition during staged migration. New content/overlay primitives use the
+   * opaque `surface-elevated` role by default.
+   */
   --background: transparent;
-  /* Transparent to show BackgroundWrapper */
   --surface: rgba(255, 255, 255, 0.7);
-  /* Glassmorphism for cards */
+  --surface-elevated: #ffffff;
+  --surface-subtle: #f8fafc;
   --surface-hover: rgba(241, 245, 249, 0.8);
   --text-primary: #0f172a;
   --text-secondary: #475569;
+  --text-muted: #64748b;
   --border: #e2e8f0;
+  --border-strong: #cbd5e1;
   --input: #ffffff;
   --input-focus: #0ea5e9;
+  --selected: #e0f2fe;
+  --focus: #0ea5e9;
+  --disabled: #e2e8f0;
+  --backdrop: rgba(15, 23, 42, 0.50);
 
-  /* Added missing tokens */
   --primary: #0ea5e9;
   --primary-hover: #0284c7;
   --focus-ring: rgba(14, 165, 233, 0.3);
+
+  --radius-control: 0.625rem;
+  --radius-card: 0.875rem;
+  --radius-overlay: 1rem;
+  --radius-pill: 9999px;
+  --radius-button: var(--radius-control);
+
+  --shadow-low: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --shadow-medium: 0 8px 24px rgba(15, 23, 42, 0.10);
+  --shadow-high: 0 18px 48px rgba(15, 23, 42, 0.16);
+
+  --motion-fast: 120ms;
+  --motion-standard: 180ms;
+  --motion-emphasized: 240ms;
 }
 
 .dark {
-  /* Dark Theme Tokens */
   --background: transparent;
-  /* Transparent */
   --surface: rgba(15, 23, 42, 0.7);
-  /* Glassmorphism */
+  --surface-elevated: #0f172a;
+  --surface-subtle: #111827;
   --surface-hover: rgba(30, 41, 59, 0.8);
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
+  --text-muted: #94a3b8;
   --border: #1e293b;
+  --border-strong: #334155;
   --input: #020617;
   --input-focus: #38bdf8;
+  --selected: #0c4a6e;
+  --focus: #38bdf8;
+  --disabled: #334155;
+  --backdrop: rgba(2, 6, 23, 0.72);
 
-  /* Added missing tokens */
   --primary: #0ea5e9;
   --primary-hover: #38bdf8;
   --focus-ring: rgba(56, 189, 248, 0.3);
+
+  --shadow-low: 0 1px 2px rgba(0, 0, 0, 0.22), 0 1px 3px rgba(0, 0, 0, 0.16);
+  --shadow-medium: 0 10px 28px rgba(0, 0, 0, 0.34);
+  --shadow-high: 0 20px 52px rgba(0, 0, 0, 0.46);
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
+::-webkit-scrollbar { width: 8px; }
 .scrollbar-none::-webkit-scrollbar { display: none; }
 .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
-
-/* Mobile Layout Utilities */
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 24px); }
 
-/* Bottom Sheet Animations */
 @keyframes slide-up {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
 
 .animate-slide-up {
-  animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slide-up var(--motion-emphasized) cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* Responsive Grid for Dashboard */
 @media (max-width: 640px) {
-  .stats-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 }
 
-::-webkit-scrollbar-track {
-  @apply bg-slate-100 dark:bg-slate-800;
-}
+::-webkit-scrollbar-track { @apply bg-slate-100 dark:bg-slate-800; }
+::-webkit-scrollbar-thumb { @apply bg-slate-300 dark:bg-slate-600 rounded-full hover:bg-slate-400 dark:hover:bg-slate-500; }
 
-::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 dark:bg-slate-600 rounded-full hover:bg-slate-400 dark:hover:bg-slate-500;
-}
-
-/* Shimmer animation */
 @keyframes shimmer {
-  0% {
-    background-position: 200% 0;
-  }
-
-  100% {
-    background-position: -200% 0;
-  }
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .animate-shimmer {
@@ -146,15 +148,14 @@
   background-image: linear-gradient(90deg, #334155 0%, #475569 50%, #334155 100%);
 }
 
-.content-wrapper {
-  @apply text-slate-900 dark:text-slate-100;
-}
+.content-wrapper { @apply text-slate-900 dark:text-slate-100; }
 
+/* Legacy opt-in glass utility. New content primitives should use opaque semantic surfaces. */
 .glass-card {
   @apply bg-white/70 dark:bg-slate-900/70 backdrop-blur-md border border-white/20 dark:border-white/10 shadow-xl shadow-black/5 rounded-2xl;
 }
 
-/* Premium Shadows */
+/* Legacy compatibility utility; migrate consumers gradually to shadow-low/medium/high. */
 .shadow-premium {
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05), inset 0 1px 1px 0 rgba(255, 255, 255, 0.1);
 }
@@ -163,37 +164,31 @@
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
 }
 
-/* Unified Spacing & Radius */
-:root {
-  --radius-card: 1rem;
-  --radius-button: 0.75rem;
-}
-
-/* Table Row Hover Animation */
-tr.group\/row {
-  @apply relative transition-all duration-200 cursor-pointer;
-}
-
-tr.group\/row:hover {
-  @apply bg-primary/5 dark:bg-primary/10 transform scale-[1.002];
-}
-
+/* Existing table hover stays stable during the foundation phase; DataTable migrates first. */
+tr.group\/row { @apply relative transition-all duration-200 cursor-pointer; }
+tr.group\/row:hover { @apply bg-primary/5 dark:bg-primary/10 transform scale-[1.002]; }
 tr.group\/row::before {
   content: '';
   @apply absolute start-0 top-0 bottom-0 w-1 bg-primary scale-y-0 transition-transform duration-200 origin-center rounded-r-full;
 }
+tr.group\/row:hover::before { @apply scale-y-75; }
 
-tr.group\/row:hover::before {
-  @apply scale-y-75;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
-/* Force sidebar closed on PWA standalone mode */
 @media (display-mode: standalone) {
   [data-sidebar],
   .sidebar,
   .drawer,
   aside {
-    /* Do not use display:none — let JS handle visibility */
-    /* This is a safety net only */
+    /* Visibility remains controlled by application state. */
   }
 }
