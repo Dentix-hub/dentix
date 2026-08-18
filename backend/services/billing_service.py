@@ -43,8 +43,20 @@ class BillingService(LegacyBillingService):
             payment_date = payment_date.astimezone(timezone.utc).replace(tzinfo=None)
         payment = payment.model_copy(update={"date": payment_date})
 
-        resolved_doctor_id = doctor_id or payment.doctor_id
-        if resolved_doctor_id is None:
+        resolved_doctor_id = doctor_id if doctor_id is not None else payment.doctor_id
+        if resolved_doctor_id is not None:
+            # An explicitly tagged provider must belong to this tenant. Without
+            # this guard a clinic could persist a payment referencing a doctor
+            # from another tenant and corrupt doctor-level collection reports.
+            provider_stmt = select(models.User.id).where(
+                models.User.id == resolved_doctor_id,
+                models.User.tenant_id == self.tenant_id,
+                models.User.role == "doctor",
+            )
+            provider_id = (await self.db.execute(provider_stmt)).scalar_one_or_none()
+            if provider_id is None:
+                raise ValueError("Doctor not found")
+        else:
             doctor_stmt = (
                 select(models.Treatment.doctor_id)
                 .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
