@@ -90,7 +90,7 @@ jobs:
             --cov-fail-under=52 \
             -v \
             --tb=short \
-            -x
+            --maxfail=0
 
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
