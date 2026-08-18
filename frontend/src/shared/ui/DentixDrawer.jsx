@@ -25,7 +25,13 @@ export default function DentixDrawer({
     closeOnOutside = true,
 }) {
     const previouslyFocusedRef = useRef(null);
+    const wasOpenRef = useRef(false);
     const width = WIDTH_MAP[size] || WIDTH_MAP.md;
+
+    if (open && !wasOpenRef.current && typeof document !== 'undefined') {
+        previouslyFocusedRef.current = document.activeElement;
+    }
+    wasOpenRef.current = open;
 
     return (
         <DialogPrimitive.Root open={open} onOpenChange={onOpenChange} modal>
@@ -39,9 +45,6 @@ export default function DentixDrawer({
                     aria-describedby={undefined}
                     onPointerDownOutside={(event) => {
                         if (!closeOnOutside) event.preventDefault();
-                    }}
-                    onOpenAutoFocus={() => {
-                        previouslyFocusedRef.current = document.activeElement;
                     }}
                     onCloseAutoFocus={(event) => {
                         event.preventDefault();

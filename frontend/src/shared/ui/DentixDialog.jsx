@@ -32,7 +32,16 @@ export default function DentixDialog({
     closeOnOutside = true,
 }) {
     const previouslyFocusedRef = useRef(null);
+    const wasOpenRef = useRef(false);
     const resolvedMaxWidth = maxWidth || SIZE_MAP[size] || SIZE_MAP.md;
+
+    // Capture the invoking element before Radix mounts the focus scope. Capturing
+    // in onOpenAutoFocus is too late in a real browser because focus may already
+    // have moved into the portal by then.
+    if (open && !wasOpenRef.current && typeof document !== 'undefined') {
+        previouslyFocusedRef.current = document.activeElement;
+    }
+    wasOpenRef.current = open;
 
     return (
         <DialogPrimitive.Root open={open} onOpenChange={onOpenChange} modal>
@@ -46,9 +55,6 @@ export default function DentixDialog({
                     aria-describedby={undefined}
                     onPointerDownOutside={(event) => {
                         if (!closeOnOutside) event.preventDefault();
-                    }}
-                    onOpenAutoFocus={() => {
-                        previouslyFocusedRef.current = document.activeElement;
                     }}
                     onCloseAutoFocus={(event) => {
                         event.preventDefault();

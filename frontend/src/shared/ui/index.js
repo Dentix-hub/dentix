@@ -28,6 +28,7 @@ export { default as AdvancedTable } from './AdvancedTable';
 export { default as DentixDialog } from './DentixDialog';
 export { default as DentixDrawer } from './DentixDrawer';
 export { default as DentixBottomSheet } from './DentixBottomSheet';
+export { default as DentixPopover } from './DentixPopover';
 export { default as DentixMenu, DentixMenuItem, DentixMenuSeparator } from './DentixMenu';
 export { default as Tooltip, DentixTooltip } from './Tooltip';
 export { default as DentixSelect } from './Select';

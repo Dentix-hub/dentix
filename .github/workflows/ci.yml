@@ -186,8 +186,10 @@ jobs:
       PLAYWRIGHT_BASE_URL: http://localhost:5173
 
     steps:
-      - name: Checkout code
+      - name: Checkout code with visual baselines
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5

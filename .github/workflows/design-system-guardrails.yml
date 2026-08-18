@@ -10,12 +10,14 @@ on:
       - '.github/workflows/design-system-guardrails.yml'
 
 jobs:
-  report:
-    name: Report legacy UI violations
+  guardrails:
+    name: Legacy report + new-violation gate
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout code with base history
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
@@ -28,6 +30,10 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Design-system guardrail report
+      - name: Report legacy design-system debt
         working-directory: frontend
         run: npm run design:guardrails
+
+      - name: Reject newly-added guarded violations
+        working-directory: frontend
+        run: node scripts/check-design-system-guardrails.mjs --diff-base=origin/${{ github.base_ref }}
