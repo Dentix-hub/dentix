@@ -120,7 +120,12 @@ export function adaptProvidersReport(raw) {
         lab_cost: Number(d.lab_cost || 0),
         commission_percent: Number(d.commission_percent || 0),
         commission_amount: Number(d.commission_amount || 0),
+        // fixed_salary is the configured monthly rule; fixed_salary_period is
+        // the prorated share included in the selected period's total_due.
         fixed_salary: Number(d.fixed_salary || 0),
+        fixed_salary_period: Number(
+            d.fixed_salary_period !== undefined ? d.fixed_salary_period : d.fixed_salary || 0
+        ),
         total_due: Number(d.total_due || 0),
     }));
 }

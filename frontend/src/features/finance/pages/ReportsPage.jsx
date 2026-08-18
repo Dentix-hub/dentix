@@ -6,8 +6,6 @@ import {
     Receipt,
     UserCheck,
     Download,
-    Calendar,
-    Sparkles,
 } from 'lucide-react';
 import { useReports } from '../reports/hooks/useReports';
 import DateRangePicker from '../components/DateRangePicker';
@@ -19,7 +17,6 @@ import ProcedureProfitabilityReportView from '../reports/components/ProcedurePro
 
 /**
  * Finance V2 Reports Workspace (§18 MASTER_SPEC, `PHASE_09_REPORTS.md`).
- * Executive reporting workspace covering Financial Summary, Collections, Expenses, Providers, and Profitability.
  */
 export default function ReportsPage() {
     const { t } = useTranslation();
@@ -28,7 +25,6 @@ export default function ReportsPage() {
         reportType,
         from,
         to,
-        search,
         summaryData,
         collectionsData,
         expensesData,
@@ -39,7 +35,6 @@ export default function ReportsPage() {
         refetch,
         setReportType,
         updateDateRange,
-        updateSearch,
         exportToCsv,
     } = useReports();
 
@@ -51,7 +46,6 @@ export default function ReportsPage() {
         { id: 'profitability', label: t('finance.reports.tab_profitability', 'ربحية الإجراءات'), icon: FileSpreadsheet },
     ];
 
-    // Handle CSV Export
     const handleExport = () => {
         if (reportType === 'summary') {
             const headers = ['البند', 'المبلغ (ج.م)'];
@@ -85,11 +79,21 @@ export default function ReportsPage() {
                 e.category || 'عام',
                 e.amount || 0,
                 e.date || '',
-                e.description || '',
+                e.notes || '',
             ]);
             exportToCsv('Expenses_Report', headers, rows);
         } else if (reportType === 'providers') {
-            const headers = ['الطبيب', 'عدد الحالات', 'الإنتاجية', 'المحصل', 'تكلفة المعمل', 'نسبة العمولة %', 'الراتب الثابت', 'المستحق النهائي'];
+            const headers = [
+                'الطبيب',
+                'عدد الحالات',
+                'الإنتاجية',
+                'المحصل',
+                'تكلفة المعمل',
+                'نسبة العمولة %',
+                'الراتب الثابت الشهري (قاعدة)',
+                'حصة الراتب للفترة',
+                'المستحق النهائي للفترة',
+            ];
             const rows = providersData.map((d) => [
                 d.doctor_name,
                 d.treatments || 0,
@@ -98,6 +102,7 @@ export default function ReportsPage() {
                 d.lab_cost || 0,
                 d.commission_percent || 0,
                 d.fixed_salary || 0,
+                d.fixed_salary_period || 0,
                 d.total_due || 0,
             ]);
             exportToCsv('Providers_Report', headers, rows);
@@ -116,9 +121,7 @@ export default function ReportsPage() {
 
     return (
         <div className="space-y-6">
-            {/* Top Report Header Controls */}
             <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-                {/* Report Tabs */}
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
                     {reportTabs.map((tab) => {
                         const Icon = tab.icon;
@@ -141,7 +144,6 @@ export default function ReportsPage() {
                     })}
                 </div>
 
-                {/* Date Picker & Export Action */}
                 <div className="flex items-center gap-2">
                     {reportType !== 'profitability' && (
                         <DateRangePicker
@@ -162,50 +164,20 @@ export default function ReportsPage() {
                 </div>
             </div>
 
-            {/* Active Report View Rendering */}
             {reportType === 'summary' && (
-                <FinancialSummaryReportView
-                    data={summaryData}
-                    isLoading={isLoading}
-                    isError={isError}
-                    onRetry={refetch}
-                />
+                <FinancialSummaryReportView data={summaryData} isLoading={isLoading} isError={isError} onRetry={refetch} />
             )}
-
             {reportType === 'collections' && (
-                <CollectionsReportView
-                    data={collectionsData}
-                    isLoading={isLoading}
-                    isError={isError}
-                    onRetry={refetch}
-                />
+                <CollectionsReportView data={collectionsData} isLoading={isLoading} isError={isError} onRetry={refetch} />
             )}
-
             {reportType === 'expenses' && (
-                <ExpenseCategoryReportView
-                    data={expensesData}
-                    isLoading={isLoading}
-                    isError={isError}
-                    onRetry={refetch}
-                />
+                <ExpenseCategoryReportView data={expensesData} isLoading={isLoading} isError={isError} onRetry={refetch} />
             )}
-
             {reportType === 'providers' && (
-                <ProviderReportView
-                    data={providersData}
-                    isLoading={isLoading}
-                    isError={isError}
-                    onRetry={refetch}
-                />
+                <ProviderReportView data={providersData} isLoading={isLoading} isError={isError} onRetry={refetch} />
             )}
-
             {reportType === 'profitability' && (
-                <ProcedureProfitabilityReportView
-                    data={profitabilityData}
-                    isLoading={isLoading}
-                    isError={isError}
-                    onRetry={refetch}
-                />
+                <ProcedureProfitabilityReportView data={profitabilityData} isLoading={isLoading} isError={isError} onRetry={refetch} />
             )}
         </div>
     );
