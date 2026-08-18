@@ -1,29 +1,19 @@
-"""Tenant-business-day reporting queries.
+"""Corrected financial reporting facade.
 
-This module is the authoritative source for DENTIX dashboard "today" metrics.
-It intentionally distinguishes UTC-by-convention event timestamps from the
-legacy clinic-local appointment wall-clock field.
+The dashboard/reporting API remains unchanged; only treatment-derived totals
+are corrected to exclude soft-deleted rows and enforce explicit tenant scope.
 """
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date
 
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import models
-from backend.utils.tenant_time import (
-    serialize_utc_datetime,
-    tenant_day_local_naive_bounds,
-    tenant_day_utc_bounds_naive,
-)
-
-
-def _patient_scope(stmt, doctor_patient_scope_id: int | None):
-    if doctor_patient_scope_id is not None:
-        stmt = stmt.where(models.Patient.assigned_doctor_id == doctor_patient_scope_id)
-    return stmt
+from backend.crud import reporting_legacy as _legacy
+from backend.utils.tenant_time import tenant_day_utc_bounds_naive
 
 
 async def get_today_debtors(
@@ -34,15 +24,9 @@ async def get_today_debtors(
     business_date: date,
     doctor_patient_scope_id: int | None = None,
 ) -> list[dict]:
-    """Return patients with positive same-business-day treatment due.
-
-    This calculation is shared by the dashboard card and the debtors modal.
-    """
     utc_start, utc_end = tenant_day_utc_bounds_naive(
-        timezone_name,
-        local_date=business_date,
+        timezone_name, local_date=business_date
     )
-
     cost_stmt = (
         select(
             models.Treatment.patient_id,
@@ -50,24 +34,20 @@ async def get_today_debtors(
         )
         .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
         .where(
+            models.Treatment.tenant_id == tenant_id,
+            models.Treatment.is_deleted == False,
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,  # noqa: E712
+            models.Patient.is_deleted == False,
             models.Treatment.date >= utc_start,
             models.Treatment.date < utc_end,
         )
         .group_by(models.Treatment.patient_id)
     )
-    cost_stmt = _patient_scope(cost_stmt, doctor_patient_scope_id)
+    cost_stmt = _legacy._patient_scope(cost_stmt, doctor_patient_scope_id)
     cost_rows = (await db.execute(cost_stmt)).all()
-    costs_by_pid = {
-        row.patient_id: float(row.total_cost or 0.0)
-        for row in cost_rows
-    }
-
-    if not costs_by_pid:
+    costs = {row.patient_id: float(row.total_cost or 0.0) for row in cost_rows}
+    if not costs:
         return []
-
-    patient_ids = list(costs_by_pid)
 
     paid_stmt = (
         select(
@@ -76,96 +56,46 @@ async def get_today_debtors(
         )
         .join(models.Patient, models.Payment.patient_id == models.Patient.id)
         .where(
+            models.Payment.tenant_id == tenant_id,
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,  # noqa: E712
-            models.Payment.patient_id.in_(patient_ids),
+            models.Patient.is_deleted == False,
+            models.Payment.patient_id.in_(list(costs)),
             models.Payment.date >= utc_start,
             models.Payment.date < utc_end,
         )
         .group_by(models.Payment.patient_id)
     )
-    paid_stmt = _patient_scope(paid_stmt, doctor_patient_scope_id)
+    paid_stmt = _legacy._patient_scope(paid_stmt, doctor_patient_scope_id)
     paid_rows = (await db.execute(paid_stmt)).all()
-    paid_by_pid = {
-        row.patient_id: float(row.total_paid or 0.0)
-        for row in paid_rows
-    }
+    paid = {row.patient_id: float(row.total_paid or 0.0) for row in paid_rows}
 
-    debtor_ids = [
-        patient_id
-        for patient_id, total_cost in costs_by_pid.items()
-        if total_cost - paid_by_pid.get(patient_id, 0.0) > 0
-    ]
+    debtor_ids = [pid for pid, cost in costs.items() if cost - paid.get(pid, 0.0) > 0]
     if not debtor_ids:
         return []
-
     patient_stmt = select(models.Patient).where(
         models.Patient.tenant_id == tenant_id,
-        models.Patient.is_deleted == False,  # noqa: E712
+        models.Patient.is_deleted == False,
         models.Patient.id.in_(debtor_ids),
     )
-    patient_stmt = _patient_scope(patient_stmt, doctor_patient_scope_id)
-    patients = (await db.execute(patient_stmt)).scalars().all()
-    patients_by_id = {patient.id: patient for patient in patients}
-
-    rows: list[dict] = []
-    for patient_id in debtor_ids:
-        patient = patients_by_id.get(patient_id)
+    patient_stmt = _legacy._patient_scope(patient_stmt, doctor_patient_scope_id)
+    patients = {p.id: p for p in (await db.execute(patient_stmt)).scalars().all()}
+    rows = []
+    for pid in debtor_ids:
+        patient = patients.get(pid)
         if patient is None:
             continue
-        total_cost = costs_by_pid.get(patient_id, 0.0)
-        total_paid = paid_by_pid.get(patient_id, 0.0)
-        rows.append(
-            {
-                "id": patient.id,
-                "name": patient.name,
-                "phone": str(patient.phone or ""),
-                "amount": total_cost - total_paid,
-                "total_cost": total_cost,
-                "total_paid": total_paid,
-            }
-        )
-
+        total_cost = costs[pid]
+        total_paid = paid.get(pid, 0.0)
+        rows.append({
+            "id": patient.id,
+            "name": patient.name,
+            "phone": str(patient.phone or ""),
+            "amount": total_cost - total_paid,
+            "total_cost": total_cost,
+            "total_paid": total_paid,
+        })
     rows.sort(key=lambda row: (-row["amount"], row["name"] or "", row["id"]))
     return rows
-
-
-async def get_today_payments(
-    db: AsyncSession,
-    tenant_id: int,
-    *,
-    timezone_name: str,
-    business_date: date,
-    doctor_patient_scope_id: int | None = None,
-) -> list[dict]:
-    """Return payments inside the tenant business day with explicit UTC dates."""
-    utc_start, utc_end = tenant_day_utc_bounds_naive(
-        timezone_name,
-        local_date=business_date,
-    )
-    stmt = (
-        select(models.Payment, models.Patient.name)
-        .join(models.Patient, models.Payment.patient_id == models.Patient.id)
-        .where(
-            models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,  # noqa: E712
-            models.Payment.date >= utc_start,
-            models.Payment.date < utc_end,
-        )
-        .order_by(models.Payment.date.desc(), models.Payment.id.desc())
-    )
-    stmt = _patient_scope(stmt, doctor_patient_scope_id)
-    rows = (await db.execute(stmt)).all()
-    return [
-        {
-            "id": payment.id,
-            "amount": float(payment.amount or 0.0),
-            "date": serialize_utc_datetime(payment.date),
-            "patient_name": patient_name,
-            "notes": payment.notes,
-        }
-        for payment, patient_name in rows
-    ]
 
 
 async def get_financial_stats(
@@ -177,12 +107,9 @@ async def get_financial_stats(
     doctor_patient_scope_id: int | None = None,
     is_doctor: bool = False,
 ) -> dict:
-    """Return tenant/doctor financial stats using tenant-local day semantics."""
     utc_start, utc_end = tenant_day_utc_bounds_naive(
-        timezone_name,
-        local_date=business_date,
+        timezone_name, local_date=business_date
     )
-
     treatment_stmt = (
         select(
             func.sum(models.Treatment.cost).label("total_cost"),
@@ -202,13 +129,14 @@ async def get_financial_stats(
         )
         .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
         .where(
+            models.Treatment.tenant_id == tenant_id,
+            models.Treatment.is_deleted == False,
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,  # noqa: E712
+            models.Patient.is_deleted == False,
         )
     )
-    treatment_stmt = _patient_scope(treatment_stmt, doctor_patient_scope_id)
+    treatment_stmt = _legacy._patient_scope(treatment_stmt, doctor_patient_scope_id)
     treatment_row = (await db.execute(treatment_stmt)).first()
-
     total_cost = float(treatment_row.total_cost or 0.0)
     total_discount = float(treatment_row.total_discount or 0.0)
     total_revenue = total_cost - total_discount
@@ -220,10 +148,7 @@ async def get_financial_stats(
             func.sum(
                 case(
                     (
-                        and_(
-                            models.Payment.date >= utc_start,
-                            models.Payment.date < utc_end,
-                        ),
+                        and_(models.Payment.date >= utc_start, models.Payment.date < utc_end),
                         models.Payment.amount,
                     ),
                     else_=0,
@@ -232,11 +157,12 @@ async def get_financial_stats(
         )
         .join(models.Patient, models.Payment.patient_id == models.Patient.id)
         .where(
+            models.Payment.tenant_id == tenant_id,
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,  # noqa: E712
+            models.Patient.is_deleted == False,
         )
     )
-    payment_stmt = _patient_scope(payment_stmt, doctor_patient_scope_id)
+    payment_stmt = _legacy._patient_scope(payment_stmt, doctor_patient_scope_id)
     payment_row = (await db.execute(payment_stmt)).first()
     total_received = float(payment_row.total_received or 0.0)
     today_received = float(payment_row.today_received or 0.0)
@@ -261,10 +187,10 @@ async def get_financial_stats(
         .where(
             models.LabOrder.tenant_id == tenant_id,
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,  # noqa: E712
+            models.Patient.is_deleted == False,
         )
     )
-    lab_stmt = _patient_scope(lab_stmt, doctor_patient_scope_id)
+    lab_stmt = _legacy._patient_scope(lab_stmt, doctor_patient_scope_id)
     lab_row = (await db.execute(lab_stmt)).first()
     total_lab_costs = float(lab_row.total_lab or 0.0)
     today_lab_costs = float(lab_row.today_lab or 0.0)
@@ -294,10 +220,8 @@ async def get_financial_stats(
         doctor_patient_scope_id=doctor_patient_scope_id,
     )
     today_outstanding = sum(float(row["amount"]) for row in debtors)
-
     outstanding = max(0.0, total_revenue - total_received)
     net_profit = total_received - total_expenses - total_lab_costs
-
     return {
         "total_revenue": total_revenue,
         "total_received": total_received,
@@ -312,120 +236,7 @@ async def get_financial_stats(
     }
 
 
-async def get_dashboard_stats(
-    db: AsyncSession,
-    tenant_id: int,
-    *,
-    timezone_name: str,
-    business_date: date,
-    doctor_patient_scope_id: int | None = None,
-    appointment_doctor_id: int | None = None,
-    is_doctor: bool = False,
-) -> dict:
-    """Return dashboard metrics for one explicit tenant business date."""
-    utc_start, utc_end = tenant_day_utc_bounds_naive(
-        timezone_name,
-        local_date=business_date,
-    )
-    local_start, local_end = tenant_day_local_naive_bounds(
-        timezone_name,
-        local_date=business_date,
-    )
-
-    financial = await get_financial_stats(
-        db,
-        tenant_id,
-        timezone_name=timezone_name,
-        business_date=business_date,
-        doctor_patient_scope_id=doctor_patient_scope_id,
-        is_doctor=is_doctor,
-    )
-
-    patient_stmt = select(func.count(models.Patient.id)).where(
-        models.Patient.tenant_id == tenant_id,
-        models.Patient.is_deleted == False,  # noqa: E712
-    )
-    patient_stmt = _patient_scope(patient_stmt, doctor_patient_scope_id)
-    total_patients = int((await db.execute(patient_stmt)).scalar() or 0)
-
-    new_patient_stmt = select(func.count(models.Patient.id)).where(
-        models.Patient.tenant_id == tenant_id,
-        models.Patient.is_deleted == False,  # noqa: E712
-        models.Patient.created_at >= utc_start,
-        models.Patient.created_at < utc_end,
-    )
-    new_patient_stmt = _patient_scope(new_patient_stmt, doctor_patient_scope_id)
-    new_patients_today = int((await db.execute(new_patient_stmt)).scalar() or 0)
-
-    appointment_stmt = (
-        select(func.count(models.Appointment.id))
-        .join(models.Patient, models.Appointment.patient_id == models.Patient.id)
-        .where(
-            models.Appointment.tenant_id == tenant_id,
-            models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,  # noqa: E712
-            models.Appointment.is_deleted == False,  # noqa: E712
-            models.Appointment.status != "Cancelled",
-            models.Appointment.date_time >= local_start,
-            models.Appointment.date_time < local_end,
-        )
-    )
-    if appointment_doctor_id is not None:
-        appointment_stmt = appointment_stmt.where(
-            models.Appointment.doctor_id == appointment_doctor_id
-        )
-    total_appointments_today = int(
-        (await db.execute(appointment_stmt)).scalar() or 0
-    )
-
-    chart_dates = [business_date - timedelta(days=offset) for offset in range(6, -1, -1)]
-    chart_columns = []
-    for index, chart_date in enumerate(chart_dates):
-        day_start, day_end = tenant_day_utc_bounds_naive(
-            timezone_name,
-            local_date=chart_date,
-        )
-        chart_columns.append(
-            func.sum(
-                case(
-                    (
-                        and_(
-                            models.Payment.date >= day_start,
-                            models.Payment.date < day_end,
-                        ),
-                        models.Payment.amount,
-                    ),
-                    else_=0,
-                )
-            ).label(f"day_{index}")
-        )
-
-    chart_stmt = (
-        select(*chart_columns)
-        .select_from(models.Payment)
-        .join(models.Patient, models.Payment.patient_id == models.Patient.id)
-        .where(
-            models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,  # noqa: E712
-        )
-    )
-    chart_stmt = _patient_scope(chart_stmt, doctor_patient_scope_id)
-    chart_row = (await db.execute(chart_stmt)).first()
-
-    chart_data = [
-        {
-            "name": chart_date.isoformat(),
-            "revenue": float(getattr(chart_row, f"day_{index}", 0.0) or 0.0),
-        }
-        for index, chart_date in enumerate(chart_dates)
-    ]
-
-    return {
-        **financial,
-        "total_patients": total_patients,
-        "new_patients_today": new_patients_today,
-        "total_appointments_today": total_appointments_today,
-        "revenue_chart": chart_data,
-        "business_date": business_date.isoformat(),
-        "tenant_timezone": timezone_name,
-    }
+_legacy.get_today_debtors = get_today_debtors
+_legacy.get_financial_stats = get_financial_stats
+get_today_payments = _legacy.get_today_payments
+get_dashboard_stats = _legacy.get_dashboard_stats
