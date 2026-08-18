@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timezone
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from backend import models, schemas
 from backend.crud import billing as billing_crud
 from backend.services.billing_service_legacy import BillingService as LegacyBillingService
-from backend.utils.tenant_time import tenant_day_utc_bounds_naive
+from backend.utils.tenant_time import tenant_day_utc_bounds_naive, utc_now_naive
 
 
 class BillingService(LegacyBillingService):
@@ -30,6 +30,17 @@ class BillingService(LegacyBillingService):
         patient = (await self.db.execute(patient_stmt)).scalars().first()
         if not patient:
             raise ValueError("Patient not found")
+
+        # Payment.date is optional in the API. Materialize it here instead of
+        # relying on a SQLAlchemy column default after PaymentCreate has already
+        # supplied an explicit None. Persist instant-like timestamps as UTC-naive
+        # per the established DENTIX database convention.
+        payment_date = payment.date
+        if payment_date is None:
+            payment_date = utc_now_naive()
+        elif payment_date.tzinfo is not None:
+            payment_date = payment_date.astimezone(timezone.utc).replace(tzinfo=None)
+        payment = payment.model_copy(update={"date": payment_date})
 
         resolved_doctor_id = doctor_id or payment.doctor_id
         if resolved_doctor_id is None:

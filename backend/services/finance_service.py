@@ -4,23 +4,20 @@ from datetime import timedelta
 from typing import Dict, Any
 
 from .. import models
+from backend.schemas.billing import PaymentCreate
+from backend.services.billing_service import BillingService
 from backend.services.tenant_time_service import get_tenant_time_context
-from backend.utils.tenant_time import utc_now_naive
 
 
 class FinanceService:
-    """
-    Business Logic for Financial Operations.
-    Refactored from monolithic AI router.
-    Optimized to use SQL Aggregations instead of Python loops.
-    """
+    """Business logic for AI/automation financial operations."""
 
     def __init__(self, db: AsyncSession, tenant_id: int):
         self.db = db
         self.tenant_id = tenant_id
 
     async def get_daily_revenue(self) -> Dict[str, Any]:
-        """Get the tenant-business-day revenue and expense breakdown."""
+        """Get tenant-business-day cash inflow and manual expense breakdown."""
         context = await get_tenant_time_context(self.db, self.tenant_id)
 
         stmt = (
@@ -28,14 +25,15 @@ class FinanceService:
                 func.sum(models.Payment.amount).label("total_income"),
                 func.count(models.Payment.id).label("transaction_count"),
             )
+            .join(models.Patient, models.Payment.patient_id == models.Patient.id)
             .where(
-                models.Payment.tenant_id == self.tenant_id,
+                models.Patient.tenant_id == self.tenant_id,
+                models.Patient.is_deleted == False,  # noqa: E712
                 models.Payment.date >= context.utc_start,
                 models.Payment.date < context.utc_end,
             )
         )
         result = (await self.db.execute(stmt)).first()
-
         total_income = result.total_income or 0
         transaction_count = result.transaction_count or 0
 
@@ -59,10 +57,7 @@ class FinanceService:
         context = await get_tenant_time_context(self.db, self.tenant_id)
         today = context.business_date
 
-        stmt = select(models.Expense).where(
-            models.Expense.tenant_id == self.tenant_id
-        )
-
+        stmt = select(models.Expense).where(models.Expense.tenant_id == self.tenant_id)
         if period == "today":
             stmt = stmt.where(models.Expense.date == today)
         elif period in ("week", "this_week"):
@@ -75,13 +70,12 @@ class FinanceService:
             )
 
         expenses = (await self.db.execute(stmt)).scalars().all()
-
         breakdown = {}
         total = 0
-        for exp in expenses:
-            cat = exp.category or "Uncategorized"
-            breakdown[cat] = breakdown.get(cat, 0) + (exp.cost or 0)
-            total += exp.cost or 0
+        for expense in expenses:
+            category = expense.category or "Uncategorized"
+            breakdown[category] = breakdown.get(category, 0) + (expense.cost or 0)
+            total += expense.cost or 0
 
         return {
             "period": period,
@@ -91,41 +85,40 @@ class FinanceService:
         }
 
     async def create_payment(
-        self, patient_name: str, amount: float, user_id: int
+        self,
+        patient_name: str,
+        amount: float,
+        user_id: int,
     ) -> Dict[str, Any]:
-        """
-        Create a new payment record securely.
-        Uses the canonical UTC-naive persistence convention.
+        """Create a payment through the canonical BillingService path.
+
+        `user_id` is retained for backwards call compatibility; the recorder is
+        not automatically the treating doctor. Provider attribution is resolved
+        from the patient's active treatment history by BillingService.
         """
         stmt = select(models.Patient).where(
             models.Patient.tenant_id == self.tenant_id,
+            models.Patient.is_deleted == False,  # noqa: E712
             models.Patient.name.ilike(f"%{patient_name}%"),
         )
         patient = (await self.db.execute(stmt)).scalars().first()
-
         if not patient:
             raise ValueError(f"Patient '{patient_name}' not found.")
 
-        try:
-            new_payment = models.Payment(
-                tenant_id=self.tenant_id,
+        _ = user_id  # recorder identity is intentionally not provider attribution
+        payment = await BillingService(self.db, self.tenant_id).create_payment(
+            PaymentCreate(
                 patient_id=patient.id,
                 amount=amount,
-                date=utc_now_naive(),
                 notes="Created via AI Assistant",
-                doctor_id=user_id,
-            )
-            self.db.add(new_payment)
-            await self.db.commit()
-            await self.db.refresh(new_payment)
-
-            return {
-                "success": True,
-                "payment_id": new_payment.id,
-                "amount": amount,
-                "patient": patient.name,
-                "date": new_payment.date.isoformat(),
-            }
-        except Exception:
-            await self.db.rollback()
-            raise
+            ),
+            doctor_id=None,
+            commit=True,
+        )
+        return {
+            "success": True,
+            "payment_id": payment.id,
+            "amount": amount,
+            "patient": patient.name,
+            "date": payment.date.isoformat(),
+        }
