@@ -114,7 +114,10 @@ export function useFinanceOverview() {
         collected - totalDeductions,
     );
 
-    const allTimeOutstanding = Number(income.all_time_outstanding || income.outstanding) || 0;
+    const allTimeOutstanding = authoritativeNumber(
+        income.all_time_outstanding,
+        income.outstanding,
+    );
     const periodBalance = authoritativeNumber(
         income.period_balance,
         netInvoiced - collected,
