@@ -20,21 +20,29 @@ async def test_finance_truth_runs_on_postgresql_through_application_session():
     tenant_id = 99165
     other_tenant_id = 99166
 
-    # Seed two tenants under the application's explicit RLS bypass. This mirrors
-    # platform-maintenance behavior while still exercising the production
-    # asyncpg engine and its timestamp normalization hooks.
+    # Seed tenant parents first under the application's explicit RLS bypass.
+    # Keeping this as a separate commit avoids relying on ORM flush ordering for
+    # unrelated objects that only share scalar foreign-key IDs.
     async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as setup_session:
         async with setup_session.bypass_rls() as db:
-            tenant = models.Tenant(
-                id=tenant_id,
-                name="Finance PostgreSQL Audit",
-                timezone="Africa/Cairo",
+            db.add_all(
+                [
+                    models.Tenant(
+                        id=tenant_id,
+                        name="Finance PostgreSQL Audit",
+                        timezone="Africa/Cairo",
+                    ),
+                    models.Tenant(
+                        id=other_tenant_id,
+                        name="Other PostgreSQL Audit",
+                        timezone="Africa/Cairo",
+                    ),
+                ]
             )
-            other_tenant = models.Tenant(
-                id=other_tenant_id,
-                name="Other PostgreSQL Audit",
-                timezone="Africa/Cairo",
-            )
+            await db.commit()
+
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as setup_session:
+        async with setup_session.bypass_rls() as db:
             doctor = models.User(
                 id=991651,
                 username="pg_finance_doctor",
@@ -78,10 +86,15 @@ async def test_finance_truth_runs_on_postgresql_through_application_session():
                 name="PostgreSQL Audit Lab",
                 tenant_id=tenant_id,
             )
+            db.add_all([doctor, other_doctor, staff, patient, laboratory])
+            await db.commit()
+
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as setup_session:
+        async with setup_session.bypass_rls() as db:
             treatment = models.Treatment(
                 id=991655,
-                patient_id=patient.id,
-                doctor_id=doctor.id,
+                patient_id=991653,
+                doctor_id=991651,
                 procedure="Crown",
                 diagnosis="Missing tooth",
                 cost=1000.0,
@@ -92,17 +105,17 @@ async def test_finance_truth_runs_on_postgresql_through_application_session():
             )
             payment = models.Payment(
                 id=991656,
-                patient_id=patient.id,
-                doctor_id=doctor.id,
+                patient_id=991653,
+                doctor_id=991651,
                 amount=400.0,
                 date=datetime(2026, 8, 18, 11, 0),
                 tenant_id=tenant_id,
             )
             lab_order = models.LabOrder(
                 id=991657,
-                patient_id=patient.id,
-                laboratory_id=laboratory.id,
-                doctor_id=doctor.id,
+                patient_id=991653,
+                laboratory_id=991654,
+                doctor_id=991651,
                 work_type="Crown",
                 cost=200.0,
                 order_date=datetime(2026, 8, 18, 12, 0),
@@ -110,7 +123,7 @@ async def test_finance_truth_runs_on_postgresql_through_application_session():
             )
             before_hire = models.Appointment(
                 id=991658,
-                patient_id=patient.id,
+                patient_id=991653,
                 date_time=datetime(2026, 8, 10, 10, 0),
                 status="Scheduled",
                 tenant_id=tenant_id,
@@ -118,28 +131,13 @@ async def test_finance_truth_runs_on_postgresql_through_application_session():
             )
             after_hire = models.Appointment(
                 id=991659,
-                patient_id=patient.id,
+                patient_id=991653,
                 date_time=datetime(2026, 8, 20, 10, 0),
                 status="Scheduled",
                 tenant_id=tenant_id,
                 is_deleted=False,
             )
-            db.add_all(
-                [
-                    tenant,
-                    other_tenant,
-                    doctor,
-                    other_doctor,
-                    staff,
-                    patient,
-                    laboratory,
-                    treatment,
-                    payment,
-                    lab_order,
-                    before_hire,
-                    after_hire,
-                ]
-            )
+            db.add_all([treatment, payment, lab_order, before_hire, after_hire])
             await db.commit()
 
     try:
