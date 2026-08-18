@@ -202,6 +202,11 @@ async def test_comprehensive_stats_excludes_deleted_rows_and_prorates_staff(asyn
         fixed_salary=3100.0, per_appointment_fee=0.0,
     )
     patient = _patient(1463, tenant_id, "Comprehensive Patient", "01014601460")
+    appointment = models.Appointment(
+        id=1467, patient_id=patient.id,
+        date_time=datetime(2026, 8, 18, 10, 0),
+        status="Scheduled", tenant_id=tenant_id, is_deleted=False,
+    )
     active = models.Treatment(
         id=1464, patient_id=patient.id, procedure="Active", diagnosis="A",
         cost=1000.0, discount=0.0,
@@ -218,7 +223,9 @@ async def test_comprehensive_stats_excludes_deleted_rows_and_prorates_staff(asyn
         id=1466, patient_id=patient.id, amount=500.0,
         date=datetime(2026, 8, 18, 12, 0, tzinfo=timezone.utc), tenant_id=tenant_id,
     )
-    async_db_session.add_all([admin, assistant, patient, active, deleted, payment])
+    async_db_session.add_all(
+        [admin, assistant, patient, appointment, active, deleted, payment]
+    )
     await async_db_session.commit()
 
     response = await get_comprehensive_stats(
