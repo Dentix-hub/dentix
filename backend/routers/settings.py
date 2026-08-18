@@ -8,7 +8,8 @@ import os
 import shutil
 import subprocess
 import tempfile
-from datetime import datetime
+import uuid
+from datetime import datetime, timedelta, timezone
 
 from fastapi import (
     APIRouter,
@@ -20,12 +21,14 @@ from fastapi import (
     BackgroundTasks,
 )
 from fastapi.responses import FileResponse, RedirectResponse, Response
+from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session as SyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from .. import schemas, database, models
+from ..auth import ALGORITHM, SECRET_KEY
 from ..core.permissions import Permission, Role, require_permission
 from ..core.response import success_response, StandardResponse
 from ..services.backup_service import run_backup_task
@@ -37,6 +40,8 @@ logger = logging.getLogger(__name__)
 
 # Lazy import to avoid circular dependency with main.py
 _drive_client = None
+_BACKUP_OAUTH_STATE_TTL_MINUTES = 10
+_BACKUP_OAUTH_STATE_PURPOSE = "google_drive_backup"
 
 
 def get_drive_client():
@@ -49,6 +54,35 @@ def get_drive_client():
     return _drive_client
 
 
+def _create_backup_oauth_state(current_user: schemas.User) -> str:
+    """Create a short-lived signed OAuth state bound to one Dentix identity."""
+    payload = {
+        "purpose": _BACKUP_OAUTH_STATE_PURPOSE,
+        "user_id": current_user.id,
+        "role": current_user.role,
+        "tenant_id": current_user.tenant_id,
+        "nonce": str(uuid.uuid4()),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=_BACKUP_OAUTH_STATE_TTL_MINUTES),
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def _decode_backup_oauth_state(state: str) -> dict:
+    """Validate callback state before exchanging or persisting OAuth tokens."""
+    if not state:
+        raise HTTPException(status_code=400, detail="Missing OAuth state")
+    try:
+        payload = jwt.decode(state, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError as exc:
+        raise HTTPException(status_code=400, detail="Invalid or expired OAuth state") from exc
+
+    if payload.get("purpose") != _BACKUP_OAUTH_STATE_PURPOSE:
+        raise HTTPException(status_code=400, detail="Invalid OAuth state purpose")
+    if not payload.get("user_id") or not payload.get("nonce"):
+        raise HTTPException(status_code=400, detail="Invalid OAuth state payload")
+    return payload
+
+
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
 
@@ -57,9 +91,7 @@ async def get_backup_status(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """
-    Get backup status for the current tenant.
-    """
+    """Get backup status for the current tenant."""
     if not current_user.tenant:
         return success_response(
             data={
@@ -87,11 +119,10 @@ async def get_backup_status(
 async def get_backup_auth_url(
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """
-    Get Google Drive authentication URL.
-    Encodes user_id in state so callback can identify the user.
-    """
-    state = f"user_{current_user.id}"
+    """Get a Google Drive authorization URL with signed CSRF state."""
+    if current_user.role != Role.SUPER_ADMIN.value and not current_user.tenant_id:
+        raise HTTPException(status_code=400, detail="User has no tenant assigned")
+    state = _create_backup_oauth_state(current_user)
     auth_url = get_drive_client().get_auth_url(state=state)
     return success_response(data={"url": auth_url}, message="Redirecting...")
 
@@ -102,28 +133,24 @@ async def backup_auth_callback_post(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """
-    Handle Google OAuth callback (POST from frontend).
-    Exchanges code for refresh token and saves it to Tenant.
-    """
+    """Handle the authenticated frontend OAuth callback for a tenant."""
+    if not current_user.tenant:
+        raise HTTPException(status_code=400, detail="User has no tenant assigned")
     try:
         token_data = get_drive_client().fetch_token(code=code)
-
-        # Save refresh token to tenant
-        tenant = current_user.tenant
         if token_data.get("refresh_token"):
-            tenant.google_refresh_token = token_data["refresh_token"]
+            current_user.tenant.google_refresh_token = token_data["refresh_token"]
             await db.commit()
             return success_response(message="تم ربط Google Drive بنجاح")
-        else:
-            return success_response(
-                success=False,
-                message="لم يتم استلام refresh token. يرجى إعادة المحاولة.",
-            )
-
+        return success_response(
+            success=False,
+            message="لم يتم استلام refresh token. يرجى إعادة المحاولة.",
+        )
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error("Auth Error: %s", e, exc_info=True)
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.error("Auth Error: %s", type(e).__name__, exc_info=True)
+        raise HTTPException(status_code=400, detail="Google Drive authorization failed")
 
 
 @router.get("/backup/callback")
@@ -132,84 +159,68 @@ async def backup_auth_callback_get(
     state: str = None,
     db: AsyncSession = Depends(get_async_db),
 ):
-    """
-    Handle Google OAuth callback (GET redirect from Google).
-    Decodes user_id from state instead of requiring auth token.
-    """
+    """Handle Google OAuth redirect using signed, identity-bound state."""
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    destination = "/settings"
     try:
-        # 1. Exchange Code
-        logger.debug("Processing OAuth Callback code=%.10s... state=%s", code, state)
+        state_payload = _decode_backup_oauth_state(state)
+        user_id = int(state_payload["user_id"])
+        state_role = state_payload.get("role")
+        state_tenant_id = state_payload.get("tenant_id")
+        if state_role == Role.SUPER_ADMIN.value:
+            destination = "/admin/system"
+
+        stmt_user = (
+            select(models.User)
+            .where(models.User.id == user_id)
+            .options(selectinload(models.User.tenant))
+        )
+        user = (await db.execute(stmt_user)).scalars().first()
+        if not user:
+            raise HTTPException(status_code=400, detail="OAuth user no longer exists")
+        if user.role != state_role or user.tenant_id != state_tenant_id:
+            raise HTTPException(status_code=400, detail="OAuth identity context changed")
+
         token_data = get_drive_client().fetch_token(code=code)
-
-        status = "success"
         refresh_token = token_data.get("refresh_token")
-
         if not refresh_token:
-            logger.warning("No refresh token in OAuth response.")
-            status = "no_refresh_token"
+            return RedirectResponse(
+                url=f"{frontend_url}{destination}?backup_status=no_refresh_token"
+            )
 
-        # 2. Decode user from state and save token
-        if status == "success" and state:
-            if state == "super_admin":
-                stmt = select(models.SystemSetting).filter(
-                    models.SystemSetting.key == "google_refresh_token_super_admin"
-                )
-                res = await db.execute(stmt)
-                setting = res.scalars().first()
-
-                if not setting:
-                    setting = models.SystemSetting(
-                        key="google_refresh_token_super_admin", value=refresh_token
+        if user.role == Role.SUPER_ADMIN.value:
+            setting = (
+                await db.execute(
+                    select(models.SystemSetting).where(
+                        models.SystemSetting.key == "google_refresh_token_super_admin"
                     )
-                    db.add(setting)
-                else:
-                    setting.value = refresh_token
-                await db.commit()
-            elif state.startswith("user_"):
-                try:
-                    user_id = int(state.split("_")[1])
-                    stmt_user = select(models.User).filter(models.User.id == user_id).options(selectinload(models.User.tenant))
-                    res_user = await db.execute(stmt_user)
-                    user = res_user.scalars().first()
-
-                    if user and user.tenant:
-                        user.tenant.google_refresh_token = refresh_token
-                        await db.commit()
-                    elif user and user.role == "super_admin":
-                        stmt = select(models.SystemSetting).filter(
-                            models.SystemSetting.key == "google_refresh_token_super_admin"
-                        )
-                        res = await db.execute(stmt)
-                        setting = res.scalars().first()
-
-                        if not setting:
-                            setting = models.SystemSetting(
-                                key="google_refresh_token_super_admin",
-                                value=refresh_token,
-                            )
-                            db.add(setting)
-                        else:
-                            setting.value = refresh_token
-                        await db.commit()
-                    else:
-                        status = "no_tenant"
-                except (ValueError, IndexError):
-                    status = "invalid_state"
-
-        # 3. Redirect back to frontend
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
-
-        if state == "super_admin":
-            target_url = f"{frontend_url}/admin/system?backup_status={status}"
+                )
+            ).scalars().first()
+            if not setting:
+                setting = models.SystemSetting(
+                    key="google_refresh_token_super_admin",
+                    value=refresh_token,
+                )
+                db.add(setting)
+            else:
+                setting.value = refresh_token
+        elif user.tenant:
+            user.tenant.google_refresh_token = refresh_token
         else:
-            target_url = f"{frontend_url}/settings?backup_status={status}"
+            raise HTTPException(status_code=400, detail="OAuth user has no tenant")
 
-        return RedirectResponse(url=target_url)
-
-    except Exception as e:
+        await db.commit()
+        return RedirectResponse(url=f"{frontend_url}{destination}?backup_status=success")
+    except HTTPException as exc:
+        logger.warning("Rejected backup OAuth callback: %s", exc.detail)
+        return RedirectResponse(
+            url=f"{frontend_url}{destination}?backup_status=invalid_state"
+        )
+    except Exception:
         logger.exception("Auth Callback Error", exc_info=True)
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
-        return RedirectResponse(url=f"{frontend_url}/settings?error={str(e)}")
+        return RedirectResponse(
+            url=f"{frontend_url}{destination}?backup_status=error"
+        )
 
 
 @router.post("/backup/now", response_model=StandardResponse[dict])
@@ -218,28 +229,22 @@ async def trigger_manual_backup(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """
-    Trigger a manual backup to Google Drive.
-    Uses JSON export for tenant data.
-    """
+    """Trigger a manual tenant backup to Google Drive."""
     if not current_user.tenant:
         raise HTTPException(status_code=400, detail="User has no tenant assigned")
 
-    # Check if Google Drive is connected for this tenant
     tenant = current_user.tenant
     if not tenant.google_refresh_token:
         raise HTTPException(
             status_code=400, detail="Google Drive not connected for this clinic"
         )
 
-    # Get DB URL
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         raise HTTPException(
             status_code=500, detail="DATABASE_URL configuration missing"
         )
 
-    # Dispatch background task for backup with tenant info
     background_tasks.add_task(
         run_backup_task, tenant.google_refresh_token, db_url, tenant.id, tenant.name
     )
@@ -255,10 +260,10 @@ async def update_backup_schedule(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """
-    Update backup schedule frequency.
-    """
+    """Update tenant backup schedule frequency."""
     tenant = current_user.tenant
+    if not tenant:
+        raise HTTPException(status_code=400, detail="User has no tenant assigned")
     tenant.backup_frequency = frequency
     await db.commit()
 
@@ -272,12 +277,7 @@ async def update_backup_schedule(
 async def download_backup(
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """
-    Download full database backup (SQL format).
-    Restricted to Super Admin only.
-    For tenant backup, use /backup/export instead.
-    """
-    # Only Super Admin can download full SQL backup
+    """Download a full database backup. Restricted to Super Admin."""
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(
             status_code=403,
@@ -286,15 +286,10 @@ async def download_backup(
 
     db_url = database.SQLALCHEMY_DATABASE_URL
 
-    # 1. SQLite Handling
     if "sqlite" in db_url:
-        # Extract path from URL (sqlite:///./clinic.db -> ./clinic.db)
         db_path = db_url.replace("sqlite:///", "")
         if not os.path.exists(db_path):
-            # Fallback for some OS paths
-            if db_path.startswith("/"):
-                db_path = db_path  # Absolute path
-            else:
+            if not db_path.startswith("/"):
                 db_path = os.path.join(database.BACKEND_DIR, db_path.replace("./", ""))
 
         if not os.path.exists(db_path):
@@ -308,17 +303,13 @@ async def download_backup(
             media_type="application/octet-stream",
         )
 
-    # 2. PostgreSQL Handling
     elif "postgres" in db_url:
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"backup_{timestamp}.sql"
             filepath = os.path.join("/tmp", filename)
-
-            # Normalize URL
             dump_url = db_url.replace("postgresql://", "postgres://", 1)
 
-            # Execute pg_dump
             process = subprocess.Popen(
                 ["pg_dump", "--dbname", dump_url, "-f", filepath],
                 stdout=subprocess.PIPE,
@@ -333,13 +324,12 @@ async def download_backup(
                 path=filepath,
                 filename=filename,
                 media_type="application/sql",
-                background=None,  # TODO: Add cleanup task if desired
+                background=None,
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    else:
-        raise HTTPException(status_code=500, detail="Unsupported database type")
+    raise HTTPException(status_code=500, detail="Unsupported database type")
 
 
 @router.post("/backup/upload", response_model=StandardResponse[dict])
@@ -348,28 +338,18 @@ async def upload_backup(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """
-    Restore database from backup.
-    - Super Admin: Full SQL restore (pg_dump format)
-    - Tenant Admin: JSON restore (tenant data only)
-    """
+    """Restore tenant JSON backups or Super Admin SQL backups."""
     db_url = database.SQLALCHEMY_DATABASE_URL
-
-    # Check file extension to determine restore type
     filename = file.filename.lower() if file.filename else ""
 
-    # JSON restore for tenants
     if filename.endswith(".json"):
         if not current_user.tenant:
             raise HTTPException(
                 status_code=400, detail="No tenant associated with user"
             )
 
-        # Read file content
         content = await file.read()
         json_content = content.decode("utf-8")
-
-        # Run restoration
         result = await restore_tenant_from_json(db, current_user.tenant.id, json_content)
 
         if not result["success"]:
@@ -384,7 +364,6 @@ async def upload_backup(
             message="Tenant data restored successfully",
         )
 
-    # SQL restore for Super Admin only
     if filename.endswith(".sql"):
         if current_user.role != Role.SUPER_ADMIN.value:
             raise HTTPException(
@@ -392,19 +371,14 @@ async def upload_backup(
                 detail="Only Super Admin can restore SQL backups. Use JSON backup for tenant restore.",
             )
 
-        # PostgreSQL restore using psql
         if "postgres" in db_url:
-            # Save uploaded file to temp
             with tempfile.NamedTemporaryFile(delete=False, suffix=".sql") as tmp:
                 content = await file.read()
                 tmp.write(content)
                 tmp_path = tmp.name
 
             try:
-                # Normalize URL
                 restore_url = db_url.replace("postgresql://", "postgres://", 1)
-
-                # Execute psql to restore
                 process = subprocess.Popen(
                     ["psql", restore_url, "-f", tmp_path],
                     stdout=subprocess.PIPE,
@@ -420,14 +394,11 @@ async def upload_backup(
 
                 return success_response(message="Database restored successfully from SQL backup.")
             finally:
-                # Cleanup temp file
                 if os.path.exists(tmp_path):
                     os.remove(tmp_path)
 
-        # SQLite restore
         elif "sqlite" in db_url:
             db_path = db_url.replace("sqlite:///", "")
-
             temp_path = f"{db_path}.restore"
             content = await file.read()
             with open(temp_path, "wb") as buffer:
@@ -458,16 +429,12 @@ async def export_tenant_backup(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """
-    Export tenant data as JSON.
-    This exports only the current tenant's data for backup purposes.
-    """
+    """Export only the current tenant's data as JSON."""
     if not current_user.tenant:
         raise HTTPException(status_code=400, detail="No tenant associated with user")
 
     tenant_id = current_user.tenant.id
     tenant_name = current_user.tenant.name or f"tenant_{tenant_id}"
-
     json_content = await export_tenant_to_json(db, tenant_id)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -484,9 +451,7 @@ async def export_tenant_backup(
 async def get_tenant_settings(
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """
-    Get current tenant settings.
-    """
+    """Get current tenant settings."""
     if not current_user.tenant:
         return success_response(data=None)
     return success_response(data=current_user.tenant)
@@ -497,15 +462,13 @@ async def get_tenant_features(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """
-    Get the list of active features for the current clinic.
-    """
+    """Get active feature keys for the current clinic."""
     if not current_user.tenant:
         return success_response(data={"features": []})
 
     stmt_features = select(models.TenantFeature).filter(
         models.TenantFeature.tenant_id == current_user.tenant.id,
-        models.TenantFeature.is_enabled == True
+        models.TenantFeature.is_enabled == True,  # noqa: E712
     )
     res_features = await db.execute(stmt_features)
     tenant_features = res_features.scalars().all()
@@ -520,9 +483,7 @@ async def update_tenant_settings(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """
-    Update tenant settings.
-    """
+    """Update tenant settings."""
     tenant = current_user.tenant
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
