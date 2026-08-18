@@ -1,10 +1,4 @@
-"""Accounting router facade with corrected period aggregation semantics.
-
-The legacy router is retained verbatim in ``accounting_legacy.py``. All routes
-remain registered except ``/comprehensive-stats``, which is replaced here so
-its direct aggregate queries use the same tenant-time, soft-delete, and
-outstanding-balance contracts as ``AccountingService``.
-"""
+"""Accounting router facade with corrected period aggregation semantics."""
 
 from typing import Optional
 
@@ -22,7 +16,6 @@ from . import accounting_legacy as _legacy
 from .auth import get_async_db
 
 router = _legacy.router
-
 router.routes[:] = [
     route
     for route in router.routes
@@ -41,7 +34,6 @@ async def get_comprehensive_stats(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """Return one reconciled financial snapshot for the requested tenant-local period."""
     service = AccountingService(db, current_user.tenant_id)
     try:
         start, end = service.parse_date_range(start_date, end_date)
@@ -55,51 +47,45 @@ async def get_comprehensive_stats(
     total_income = await service.get_total_income(start, end, patient_id=patient_id)
     total_collected = await service.get_total_collected(start, end, patient_id=patient_id)
 
-    base_treatment_filters = [
-        models.Treatment.tenant_id == current_user.tenant_id,
+    treatment_filters = [
         models.Patient.tenant_id == current_user.tenant_id,
-        models.Patient.is_deleted == False,
-        models.Treatment.is_deleted == False,
+        models.Patient.is_deleted == False,  # noqa: E712
+        models.Treatment.is_deleted == False,  # noqa: E712
         models.Treatment.date >= start_utc,
         models.Treatment.date <= end_utc,
     ]
-
     production_stmt = (
         select(
             func.coalesce(func.sum(models.Treatment.cost), 0.0),
             func.coalesce(func.sum(models.Treatment.discount), 0.0),
         )
         .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
-        .where(*base_treatment_filters)
+        .where(*treatment_filters)
     )
-    if patient_id:
-        production_stmt = production_stmt.where(models.Treatment.patient_id == patient_id)
-    gross_production, total_discounts = (await db.execute(production_stmt)).one()
-
     treatment_count_stmt = (
         select(func.count(models.Treatment.id))
         .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
-        .where(*base_treatment_filters)
+        .where(*treatment_filters)
     )
     unique_patients_stmt = (
         select(func.count(models.Treatment.patient_id.distinct()))
         .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
-        .where(*base_treatment_filters)
+        .where(*treatment_filters)
     )
     if patient_id:
+        production_stmt = production_stmt.where(models.Treatment.patient_id == patient_id)
         treatment_count_stmt = treatment_count_stmt.where(models.Treatment.patient_id == patient_id)
         unique_patients_stmt = unique_patients_stmt.where(models.Treatment.patient_id == patient_id)
 
+    gross_production, total_discounts = (await db.execute(production_stmt)).one()
     total_appointments = int((await db.execute(treatment_count_stmt)).scalar() or 0)
     unique_patients_count = int((await db.execute(unique_patients_stmt)).scalar() or 0)
 
     doctor_dues, total_doctor_dues = await service.calculate_doctor_dues(
-        start, end, patient_id=patient_id
+        start,
+        end,
+        patient_id=patient_id,
     )
-
-    # A clinic-level monthly fixed salary cannot be charged to one patient's
-    # statement. Patient-scoped compensation contains only commission generated
-    # by that patient's period collections (plus that patient's lab impact).
     if patient_id:
         patient_doctor_dues = []
         for row in doctor_dues:
@@ -113,7 +99,8 @@ async def get_comprehensive_stats(
                 patient_doctor_dues.append(row)
         doctor_dues = patient_doctor_dues
         total_doctor_dues = round(
-            sum(float(row.get("total_due") or 0.0) for row in doctor_dues), 2
+            sum(float(row.get("total_due") or 0.0) for row in doctor_dues),
+            2,
         )
 
     if patient_id:
@@ -121,12 +108,17 @@ async def get_comprehensive_stats(
         total_expenses = 0.0
     else:
         staff_dues, total_staff_dues = await service.calculate_staff_dues(
-            start, end, total_appointments
+            start,
+            end,
+            total_appointments,
         )
         total_expenses = await service.get_total_expenses(start, end)
 
-    total_lab_costs = await service.get_total_lab_costs(start, end, patient_id=patient_id)
-
+    total_lab_costs = await service.get_total_lab_costs(
+        start,
+        end,
+        patient_id=patient_id,
+    )
     total_deductions = (
         float(total_doctor_dues)
         + float(total_staff_dues)
@@ -134,9 +126,10 @@ async def get_comprehensive_stats(
         + float(total_lab_costs)
     )
     net_profit = float(total_collected) - total_deductions
-
-    billing_service = BillingService(db, current_user.tenant_id)
-    real_outstanding = await billing_service.get_outstanding_balance(patient_id)
+    real_outstanding = await BillingService(
+        db,
+        current_user.tenant_id,
+    ).get_outstanding_balance(patient_id)
 
     return success_response(
         data={

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from backend import models, schemas
 from backend.crud import billing as billing_crud
 from backend.services.billing_service_legacy import BillingService as LegacyBillingService
+from backend.utils.tenant_time import tenant_day_utc_bounds_naive
 
 
 class BillingService(LegacyBillingService):
@@ -24,7 +25,7 @@ class BillingService(LegacyBillingService):
         patient_stmt = select(models.Patient).where(
             models.Patient.id == payment.patient_id,
             models.Patient.tenant_id == self.tenant_id,
-            models.Patient.is_deleted == False,
+            models.Patient.is_deleted == False,  # noqa: E712
         )
         patient = (await self.db.execute(patient_stmt)).scalars().first()
         if not patient:
@@ -34,10 +35,12 @@ class BillingService(LegacyBillingService):
         if resolved_doctor_id is None:
             doctor_stmt = (
                 select(models.Treatment.doctor_id)
+                .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
                 .where(
                     models.Treatment.patient_id == payment.patient_id,
-                    models.Treatment.tenant_id == self.tenant_id,
-                    models.Treatment.is_deleted == False,
+                    models.Patient.tenant_id == self.tenant_id,
+                    models.Patient.is_deleted == False,  # noqa: E712
+                    models.Treatment.is_deleted == False,  # noqa: E712
                     models.Treatment.doctor_id.isnot(None),
                 )
                 .order_by(models.Treatment.date.desc(), models.Treatment.id.desc())
@@ -58,10 +61,9 @@ class BillingService(LegacyBillingService):
             select(func.sum(models.Treatment.cost - models.Treatment.discount))
             .join(models.Patient)
             .where(
-                models.Treatment.tenant_id == self.tenant_id,
-                models.Treatment.is_deleted == False,
                 models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
+                models.Patient.is_deleted == False,  # noqa: E712
+                models.Treatment.is_deleted == False,  # noqa: E712
             )
         )
         stmt = self._apply_patient_scope(stmt)
@@ -78,10 +80,9 @@ class BillingService(LegacyBillingService):
             select(func.sum(models.Treatment.cost))
             .join(models.Patient)
             .where(
-                models.Treatment.tenant_id == self.tenant_id,
-                models.Treatment.is_deleted == False,
                 models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
+                models.Patient.is_deleted == False,  # noqa: E712
+                models.Treatment.is_deleted == False,  # noqa: E712
             )
         )
         return await self._scalar(self._apply_patient_scope(stmt))
@@ -91,53 +92,52 @@ class BillingService(LegacyBillingService):
             select(func.sum(models.Treatment.discount))
             .join(models.Patient)
             .where(
-                models.Treatment.tenant_id == self.tenant_id,
-                models.Treatment.is_deleted == False,
                 models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
+                models.Patient.is_deleted == False,  # noqa: E712
+                models.Treatment.is_deleted == False,  # noqa: E712
             )
         )
         return await self._scalar(self._apply_patient_scope(stmt))
 
     async def _calculate_monthly_revenue(self) -> float:
-        month_start = (
-            datetime.now(timezone.utc)
-            .replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            .replace(tzinfo=None)
+        context = await self._get_time_context()
+        first_day = date(context.business_date.year, context.business_date.month, 1)
+        utc_start, _ = tenant_day_utc_bounds_naive(
+            context.timezone_name,
+            local_date=first_day,
         )
         stmt = (
             select(func.sum(models.Treatment.cost - models.Treatment.discount))
             .join(models.Patient)
             .where(
-                models.Treatment.tenant_id == self.tenant_id,
-                models.Treatment.is_deleted == False,
                 models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
-                models.Treatment.date >= month_start,
+                models.Patient.is_deleted == False,  # noqa: E712
+                models.Treatment.is_deleted == False,  # noqa: E712
+                models.Treatment.date >= utc_start,
+                models.Treatment.date < context.utc_end,
             )
         )
         return await self._scalar(self._apply_patient_scope(stmt))
 
     async def get_outstanding_balance(
-        self, patient_id: Optional[int] = None
+        self,
+        patient_id: Optional[int] = None,
     ) -> float:
         revenue_stmt = (
             select(func.sum(models.Treatment.cost - models.Treatment.discount))
             .join(models.Patient)
             .where(
-                models.Treatment.tenant_id == self.tenant_id,
-                models.Treatment.is_deleted == False,
                 models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
+                models.Patient.is_deleted == False,  # noqa: E712
+                models.Treatment.is_deleted == False,  # noqa: E712
             )
         )
         payment_stmt = (
             select(func.sum(models.Payment.amount))
             .join(models.Patient)
             .where(
-                models.Payment.tenant_id == self.tenant_id,
                 models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,
+                models.Patient.is_deleted == False,  # noqa: E712
             )
         )
         revenue_stmt = self._apply_patient_scope(revenue_stmt)

@@ -1,7 +1,9 @@
 """Corrected financial reporting facade.
 
-The dashboard/reporting API remains unchanged; only treatment-derived totals
-are corrected to exclude soft-deleted rows and enforce explicit tenant scope.
+The dashboard/reporting API remains unchanged. Treatment-derived totals exclude
+soft-deleted rows while event ownership continues to follow the tenant-owned
+Patient relationship so historical NULL event tenant IDs remain visible only
+to their owning clinic.
 """
 
 from __future__ import annotations
@@ -25,7 +27,8 @@ async def get_today_debtors(
     doctor_patient_scope_id: int | None = None,
 ) -> list[dict]:
     utc_start, utc_end = tenant_day_utc_bounds_naive(
-        timezone_name, local_date=business_date
+        timezone_name,
+        local_date=business_date,
     )
     cost_stmt = (
         select(
@@ -34,10 +37,9 @@ async def get_today_debtors(
         )
         .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
         .where(
-            models.Treatment.tenant_id == tenant_id,
-            models.Treatment.is_deleted == False,
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,
+            models.Patient.is_deleted == False,  # noqa: E712
+            models.Treatment.is_deleted == False,  # noqa: E712
             models.Treatment.date >= utc_start,
             models.Treatment.date < utc_end,
         )
@@ -56,9 +58,8 @@ async def get_today_debtors(
         )
         .join(models.Patient, models.Payment.patient_id == models.Patient.id)
         .where(
-            models.Payment.tenant_id == tenant_id,
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,
+            models.Patient.is_deleted == False,  # noqa: E712
             models.Payment.patient_id.in_(list(costs)),
             models.Payment.date >= utc_start,
             models.Payment.date < utc_end,
@@ -69,31 +70,42 @@ async def get_today_debtors(
     paid_rows = (await db.execute(paid_stmt)).all()
     paid = {row.patient_id: float(row.total_paid or 0.0) for row in paid_rows}
 
-    debtor_ids = [pid for pid, cost in costs.items() if cost - paid.get(pid, 0.0) > 0]
+    debtor_ids = [
+        patient_id
+        for patient_id, total_cost in costs.items()
+        if total_cost - paid.get(patient_id, 0.0) > 0
+    ]
     if not debtor_ids:
         return []
+
     patient_stmt = select(models.Patient).where(
         models.Patient.tenant_id == tenant_id,
-        models.Patient.is_deleted == False,
+        models.Patient.is_deleted == False,  # noqa: E712
         models.Patient.id.in_(debtor_ids),
     )
     patient_stmt = _legacy._patient_scope(patient_stmt, doctor_patient_scope_id)
-    patients = {p.id: p for p in (await db.execute(patient_stmt)).scalars().all()}
+    patients = {
+        patient.id: patient
+        for patient in (await db.execute(patient_stmt)).scalars().all()
+    }
+
     rows = []
-    for pid in debtor_ids:
-        patient = patients.get(pid)
+    for patient_id in debtor_ids:
+        patient = patients.get(patient_id)
         if patient is None:
             continue
-        total_cost = costs[pid]
-        total_paid = paid.get(pid, 0.0)
-        rows.append({
-            "id": patient.id,
-            "name": patient.name,
-            "phone": str(patient.phone or ""),
-            "amount": total_cost - total_paid,
-            "total_cost": total_cost,
-            "total_paid": total_paid,
-        })
+        total_cost = costs[patient_id]
+        total_paid = paid.get(patient_id, 0.0)
+        rows.append(
+            {
+                "id": patient.id,
+                "name": patient.name,
+                "phone": str(patient.phone or ""),
+                "amount": total_cost - total_paid,
+                "total_cost": total_cost,
+                "total_paid": total_paid,
+            }
+        )
     rows.sort(key=lambda row: (-row["amount"], row["name"] or "", row["id"]))
     return rows
 
@@ -108,7 +120,8 @@ async def get_financial_stats(
     is_doctor: bool = False,
 ) -> dict:
     utc_start, utc_end = tenant_day_utc_bounds_naive(
-        timezone_name, local_date=business_date
+        timezone_name,
+        local_date=business_date,
     )
     treatment_stmt = (
         select(
@@ -129,10 +142,9 @@ async def get_financial_stats(
         )
         .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
         .where(
-            models.Treatment.tenant_id == tenant_id,
-            models.Treatment.is_deleted == False,
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,
+            models.Patient.is_deleted == False,  # noqa: E712
+            models.Treatment.is_deleted == False,  # noqa: E712
         )
     )
     treatment_stmt = _legacy._patient_scope(treatment_stmt, doctor_patient_scope_id)
@@ -148,7 +160,10 @@ async def get_financial_stats(
             func.sum(
                 case(
                     (
-                        and_(models.Payment.date >= utc_start, models.Payment.date < utc_end),
+                        and_(
+                            models.Payment.date >= utc_start,
+                            models.Payment.date < utc_end,
+                        ),
                         models.Payment.amount,
                     ),
                     else_=0,
@@ -157,9 +172,8 @@ async def get_financial_stats(
         )
         .join(models.Patient, models.Payment.patient_id == models.Patient.id)
         .where(
-            models.Payment.tenant_id == tenant_id,
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,
+            models.Patient.is_deleted == False,  # noqa: E712
         )
     )
     payment_stmt = _legacy._patient_scope(payment_stmt, doctor_patient_scope_id)
@@ -187,7 +201,7 @@ async def get_financial_stats(
         .where(
             models.LabOrder.tenant_id == tenant_id,
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,
+            models.Patient.is_deleted == False,  # noqa: E712
         )
     )
     lab_stmt = _legacy._patient_scope(lab_stmt, doctor_patient_scope_id)
@@ -236,6 +250,8 @@ async def get_financial_stats(
     }
 
 
+# Patch the legacy module globals so its unchanged dashboard composition calls
+# the corrected financial functions defined above.
 _legacy.get_today_debtors = get_today_debtors
 _legacy.get_financial_stats = get_financial_stats
 get_today_payments = _legacy.get_today_payments
