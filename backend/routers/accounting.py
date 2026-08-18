@@ -97,6 +97,25 @@ async def get_comprehensive_stats(
         start, end, patient_id=patient_id
     )
 
+    # A clinic-level monthly fixed salary cannot be charged to one patient's
+    # statement. Patient-scoped compensation contains only commission generated
+    # by that patient's period collections (plus that patient's lab impact).
+    if patient_id:
+        patient_doctor_dues = []
+        for row in doctor_dues:
+            commission_amount = float(row.get("commission_amount") or 0.0)
+            row["fixed_salary_period"] = 0.0
+            row["total_due"] = commission_amount
+            if any(
+                float(row.get(field) or 0.0) != 0.0
+                for field in ("revenue", "collected", "lab_cost", "commission_amount")
+            ):
+                patient_doctor_dues.append(row)
+        doctor_dues = patient_doctor_dues
+        total_doctor_dues = round(
+            sum(float(row.get("total_due") or 0.0) for row in doctor_dues), 2
+        )
+
     if patient_id:
         staff_dues, total_staff_dues = [], 0.0
         total_expenses = 0.0

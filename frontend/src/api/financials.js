@@ -5,7 +5,7 @@ export const getProcedureFinancials = (procedureId) => {
 };
 
 export const getAllProceduresFinancials = () => {
-    return api.get(`/api/v1/financials/procedures/analysis`);
+    return api.get('/api/v1/financials/procedures/analysis');
 };
 
 // Reports
@@ -31,8 +31,15 @@ export const recordSalaryPayment = (userId, month, amount, isPartial = false, da
 export const deleteSalaryPayment = (paymentId) => api.delete(`/api/v1/accounting/salaries/${paymentId}`);
 export const updateHireDate = (userId, hireDate) => api.put(`/api/v1/accounting/staff/${userId}/hire-date`, null, { params: { hire_date: hireDate } });
 
-// Trends
-export const getFinanceProfitabilityTrend = (period = '30d') => api.get('/api/v1/metrics/profitability/trend', { params: { period } });
+// Trends — exact selected dates are optional for backwards compatibility.
+export const getFinanceProfitabilityTrend = (period = '30d', start = null, end = null) => {
+    const params = { period };
+    if (start && end) {
+        params.start_date = start;
+        params.end_date = end;
+    }
+    return api.get('/api/v1/metrics/profitability/trend', { params });
+};
 
 // Activity Feed (§17 MASTER_SPEC, FIN-ACT-001)
 export const getFinancialActivity = (params) => api.get('/api/v1/accounting/activity', { params });

@@ -7,7 +7,7 @@ import { getPresetDates } from '../../utils/datePresets';
 
 /**
  * Hook for fetching all data required by the Finance Overview V2 page.
- * Respects URL date filters (`from` and `to`) and separates period metrics from all-time debt.
+ * Every period-scoped card/list/chart uses the same URL `from`/`to` contract.
  */
 export function useFinanceOverview() {
     const [searchParams] = useSearchParams();
@@ -38,15 +38,14 @@ export function useFinanceOverview() {
     });
 
     const trendQuery = useQuery({
-        queryKey: financeKeys.overviewTrends({ period: trendPeriod }),
+        queryKey: financeKeys.overviewTrends({ period: trendPeriod, from, to }),
         queryFn: async () => {
-            const res = await getFinanceProfitabilityTrend(trendPeriod);
+            const res = await getFinanceProfitabilityTrend(trendPeriod, from, to);
             return res.data?.data || res.data;
         },
         staleTime: 2 * 60 * 1000,
     });
 
-    // Activity cards must use the same selected period as the KPI cards.
     const paymentsQuery = useQuery({
         queryKey: financeKeys.payments({ from, to, limit: 8, context: 'overview' }),
         queryFn: async () => {
