@@ -215,7 +215,7 @@ export default function DateTimePicker({
                                 leaveFrom="opacity-100 translate-y-0 sm:scale-100"
                                 leaveTo="opacity-0 translate-y-6 sm:translate-y-2 sm:scale-95"
                             >
-                                <Dialog.Panel className="flex max-h-[calc(100dvh-0.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-t-[1.5rem] border border-b-0 border-border bg-surface-elevated text-start align-middle shadow-high transition-all sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:rounded-[1.5rem] sm:border-b">
+                                <Dialog.Panel className="flex max-h-[calc(100dvh-0.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-t-overlay border border-b-0 border-border bg-surface-elevated text-start align-middle shadow-high transition-all sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:rounded-overlay sm:border-b">
                                     <div className="flex min-w-0 shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2.5 sm:px-4">
                                         <Dialog.Title className="min-w-0 truncate text-sm font-bold text-text-primary sm:text-base">
                                             {label || t('common.date_time', isDateOnly || isMonthOnly ? 'Date' : 'Date & time')}
