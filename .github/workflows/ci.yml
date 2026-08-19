@@ -72,9 +72,23 @@ jobs:
       - name: Initialize Database
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
+          DB_SSL_MODE: disable
           SECRET_KEY: test-secret-key-for-ci-only-at-least-32
           PYTHONPATH: .
         run: python backend/scripts/init_db.py
+
+      - name: Finance PostgreSQL smoke
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
+          DB_SSL_MODE: disable
+          SECRET_KEY: test-secret-key-for-ci-only-at-least-32
+          ENVIRONMENT: test
+          PYTHONPATH: .
+        run: |
+          pytest backend/ci_tests/test_finance_postgres_smoke.py \
+            -v \
+            --tb=short \
+            --confcutdir=backend/ci_tests
 
       - name: Run tests with coverage
         env:
