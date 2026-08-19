@@ -86,9 +86,9 @@ export default function FinanceNav({ className = '' }) {
     return (
         <nav
             aria-label={t('finance.nav.aria_label', 'التنقل في قسم المالية')}
-            className={`w-full overflow-x-auto no-scrollbar border-b border-border bg-card/50 backdrop-blur-sm ${className}`}
+            className={`no-scrollbar w-full overflow-x-auto overscroll-x-contain border-b border-border bg-card/50 backdrop-blur-sm ${className}`}
         >
-            <div className="flex items-center gap-1.5 px-2 sm:px-4 py-1.5 min-w-max">
+            <div className="flex min-w-max snap-x snap-mandatory items-center gap-1 px-2 py-1.5 sm:gap-1.5 sm:px-4">
                 {visibleItems.map((item) => {
                     const Icon = item.icon;
                     const isActive =
@@ -100,14 +100,14 @@ export default function FinanceNav({ className = '' }) {
                         <NavLink
                             key={item.id}
                             to={item.to}
-                            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all duration-150 select-none ${
+                            className={`inline-flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all duration-150 select-none sm:gap-2 sm:px-3.5 sm:text-sm ${
                                 isActive
                                     ? 'bg-primary text-white shadow-sm'
-                                    : 'text-text-secondary hover:text-text-primary hover:bg-muted/80'
+                                    : 'text-text-secondary hover:bg-muted/80 hover:text-text-primary'
                             }`}
                         >
-                            <Icon className="w-4 h-4" />
-                            <span>{item.label}</span>
+                            <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                            <span className="whitespace-nowrap">{item.label}</span>
                         </NavLink>
                     );
                 })}

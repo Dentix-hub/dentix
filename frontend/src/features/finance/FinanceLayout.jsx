@@ -24,7 +24,6 @@ export default function FinanceLayout() {
         canViewActivity,
         canViewReports,
         isDoctor,
-        isReceptionist,
     } = useFinancePermissions();
 
     const path = location.pathname;
@@ -58,13 +57,13 @@ export default function FinanceLayout() {
     }
 
     return (
-        <div className="flex flex-col min-h-[calc(100vh-4rem)] bg-background">
+        <div className="flex min-h-[calc(100vh-4rem)] flex-col bg-background">
             <FinanceHeader />
             <FinanceNav />
-            <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+            <main className="mx-auto w-full max-w-7xl flex-1 p-3 sm:p-5 lg:p-8">
                 <Suspense
                     fallback={
-                        <div className="py-12 flex justify-center items-center">
+                        <div className="flex items-center justify-center py-12">
                             <LoadingSpinner />
                         </div>
                     }
@@ -72,9 +71,9 @@ export default function FinanceLayout() {
                     {isAuthorized ? (
                         <Outlet />
                     ) : (
-                        <div className="p-8 max-w-lg mx-auto text-center space-y-4 my-12 bg-card border border-border rounded-2xl shadow-sm">
-                            <div className="w-12 h-12 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mx-auto">
-                                <ShieldAlert className="w-6 h-6" />
+                        <div className="mx-auto my-12 max-w-lg space-y-4 rounded-2xl border border-border bg-card p-6 text-center shadow-sm sm:p-8">
+                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                                <ShieldAlert className="h-6 w-6" />
                             </div>
                             <h3 className="text-lg font-bold text-text-primary">
                                 {t('finance.permissions.access_denied', 'غير مصرح بالوصول إلى هذا القسم')}
@@ -85,10 +84,10 @@ export default function FinanceLayout() {
                             <div className="pt-2">
                                 <Link
                                     to={fallbackPath}
-                                    className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-primary hover:bg-primary/90 rounded-xl transition-all"
+                                    className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white transition-all hover:bg-primary/90"
                                 >
                                     <span>{t('finance.permissions.go_to_allowed', 'الانتقال إلى القسم المصرح')}</span>
-                                    {isRtl ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
+                                    {isRtl ? <ArrowLeft className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
                                 </Link>
                             </div>
                         </div>
