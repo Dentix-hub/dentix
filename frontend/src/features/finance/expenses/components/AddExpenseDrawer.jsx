@@ -80,10 +80,10 @@ export default function AddExpenseDrawer({
     };
 
     return (
-        <div className="fixed inset-0 z-drawer overflow-hidden" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true">
             {/* Backdrop */}
             <div
-                className="fixed inset-0 bg-backdrop backdrop-blur-xs transition-opacity duration-300"
+                className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity duration-300"
                 onClick={onClose}
                 aria-hidden="true"
             />
