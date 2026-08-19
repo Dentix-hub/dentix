@@ -102,18 +102,32 @@ test.describe('Dentix responsive shell regression', () => {
     const backdropBounds = await backdrop.boundingBox();
     expect(sidebarBounds).not.toBeNull();
     expect(backdropBounds).not.toBeNull();
-    if (sidebarBounds && backdropBounds && viewport) {
-      const gap = 8;
-      const drawerIsOnLeft = sidebarBounds.x < viewport.width / 2;
-      const clickX = drawerIsOnLeft
-        ? Math.min(viewport.width - gap, sidebarBounds.x + sidebarBounds.width + gap)
-        : Math.max(gap, sidebarBounds.x - gap);
-      const clickY = Math.min(viewport.height - gap, Math.max(gap, sidebarBounds.y + gap));
-      await page.mouse.click(clickX, clickY);
+    if (sidebarBounds && backdropBounds) {
+      const backdropRight = backdropBounds.x + backdropBounds.width;
+      const sidebarRight = sidebarBounds.x + sidebarBounds.width;
+      const leftGap = Math.max(0, sidebarBounds.x - backdropBounds.x);
+      const rightGap = Math.max(0, backdropRight - sidebarRight);
+      expect(Math.max(leftGap, rightGap), 'mobile drawer must leave an exposed backdrop strip').toBeGreaterThan(0);
+
+      const globalX = leftGap >= rightGap
+        ? backdropBounds.x + leftGap / 2
+        : sidebarRight + rightGap / 2;
+      const globalY = Math.min(
+        backdropBounds.y + backdropBounds.height - 4,
+        Math.max(backdropBounds.y + 4, sidebarBounds.y + 8),
+      );
+
+      await backdrop.click({
+        position: {
+          x: globalX - backdropBounds.x,
+          y: globalY - backdropBounds.y,
+        },
+      });
     }
 
-    await expect(menuButton).toBeFocused();
     await expect(sidebar).toHaveAttribute('aria-hidden', 'true');
+    await expect(menuButton).toHaveAttribute('aria-expanded', 'false');
+    await expect(menuButton).toBeFocused();
     await expectNoDocumentOverflow(page);
   });
 });
@@ -160,7 +174,7 @@ test.describe('Dentix responsive overlay regression', () => {
     await pickerTrigger.click();
 
     const dateDialog = page.getByRole('dialog').last();
-    const datePanel = dateDialog.locator('.fixed.inset-0.overflow-hidden > div > div').last();
+    const datePanel = dateDialog.locator('.rounded-t-overlay').first();
     await expectLocatorInsideViewport(page, datePanel);
     await expectNoDocumentOverflow(page);
   });
