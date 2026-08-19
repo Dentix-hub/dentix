@@ -194,6 +194,21 @@ class CustomAsyncRlsSession(AsyncRlsSession):
             return
         await super()._execute_set_statements()
 
+    async def flush(self, objects=None):
+        # AsyncRlsSession applies tenant/bypass settings before explicit SQL
+        # execution, but SQLAlchemy can flush pending ORM writes without an
+        # execute() call. Ensure PostgreSQL sees the correct RLS context before
+        # any explicit flush.
+        await self._execute_set_statements()
+        await super().flush(objects=objects)
+
+    async def commit(self):
+        # commit() performs an internal flush. Prime the connection with the
+        # current tenant or bypass setting first so add()+commit() is safe even
+        # when no SELECT/execute occurred earlier in the transaction.
+        await self._execute_set_statements()
+        await super().commit()
+
 
 # Create session makers
 AsyncSessionLocal = async_sessionmaker(
