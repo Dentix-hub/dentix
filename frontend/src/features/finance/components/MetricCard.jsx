@@ -45,7 +45,7 @@ export default function MetricCard({
                                 <Icon className="h-4 w-4" />
                             </div>
                         )}
-                        <h3 className="min-w-0 truncate text-sm font-semibold text-text-secondary">
+                        <h3 className="min-w-0 line-clamp-2 text-sm font-semibold text-text-secondary sm:line-clamp-1">
                             {title}
                         </h3>
                     </div>
