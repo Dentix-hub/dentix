@@ -1,0 +1,143 @@
+name: One-shot Responsive Visual Rebaseline
+
+on:
+  push:
+    branches: [ fix/mobile-ux-responsive-forensic ]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dentix-responsive-visual-rebaseline
+  cancel-in-progress: true
+
+jobs:
+  rebaseline:
+    name: Rebaseline inspected responsive snapshots
+    if: ${{ !contains(github.event.head_commit.message, '[visual-baseline]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: visual_user
+          POSTGRES_PASSWORD: visual_pass
+          POSTGRES_DB: dentix_visual
+        options: >-
+          --health-cmd "pg_isready -U visual_user -d dentix_visual"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgresql://visual_user:visual_pass@localhost:5432/dentix_visual
+      SECRET_KEY: responsive-visual-ci-secret-at-least-32
+      ENVIRONMENT: test
+      PYTHONPATH: .
+      ENABLE_IN_PROCESS_WORKERS: 'false'
+      FRONTEND_URL: http://localhost:5173
+      CORS_ORIGINS: http://localhost:5173
+      VITE_API_URL: http://localhost:8000/api/v1
+      VITE_API_BASE_URL: http://localhost:8000
+      PLAYWRIGHT_BASE_URL: http://localhost:5173
+
+    steps:
+      - name: Checkout branch with LFS baselines
+        uses: actions/checkout@v4
+        with:
+          ref: fix/mobile-ux-responsive-forensic
+          lfs: true
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install backend dependencies
+        run: |
+          pip install -r requirements.txt
+          pip uninstall -y ecdsa
+
+      - name: Initialize visual-test database
+        run: python -m backend.scripts.preflight_migrations
+
+      - name: Start backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup uvicorn backend.main:app --host 127.0.0.1 --port 8000 > /tmp/dentix-visual-backend.log 2>&1 &
+          echo $! > /tmp/dentix-visual-backend.pid
+
+          for attempt in {1..60}; do
+            if curl --fail --silent http://localhost:8000/api/v1/health > /dev/null; then
+              echo "Backend is ready."
+              exit 0
+            fi
+            if ! kill -0 "$(cat /tmp/dentix-visual-backend.pid)" 2>/dev/null; then
+              cat /tmp/dentix-visual-backend.log
+              exit 1
+            fi
+            sleep 2
+          done
+
+          cat /tmp/dentix-visual-backend.log
+          exit 1
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install chromium
+
+      - name: Prepare isolated visual-test data
+        working-directory: frontend
+        run: npx playwright test e2e/setup.spec.ts --config=playwright.config.ts --project=setup --retries=0
+
+      - name: Refresh inspected desktop/mobile baselines
+        working-directory: frontend
+        run: >-
+          npx playwright test e2e/ui-regression.spec.ts
+          --config=playwright.config.ts
+          --project=visual-desktop
+          --project=visual-mobile
+          --no-deps
+          --retries=0
+          --update-snapshots
+
+      - name: Commit LFS baselines and remove this one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add frontend/e2e/ui-regression.spec.ts-snapshots/
+          git rm .github/workflows/rebaseline-responsive-visual.yml
+
+          if git diff --cached --quiet; then
+            echo "No visual baseline changes were produced."
+            exit 1
+          fi
+
+          git commit -m "test(visual): rebaseline responsive UI snapshots [visual-baseline]"
+          git push origin HEAD:fix/mobile-ux-responsive-forensic
+
+      - name: Show backend log on failure
+        if: failure()
+        run: cat /tmp/dentix-visual-backend.log || true
