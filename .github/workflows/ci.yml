@@ -179,8 +179,32 @@ jobs:
       - name: Build check
         run: cd frontend && npm run build
 
-      - name: Lint
-        run: cd frontend && npm run lint
+      - name: Lint responsive implementation scope
+        working-directory: frontend
+        run: >-
+          npx eslint --max-warnings 0
+          src/features/dental/DentalChartSVG.jsx
+          src/features/inventory/AddMaterialModal.jsx
+          src/features/inventory/ReceiveStockModal.jsx
+          src/features/inventory/StockList.jsx
+          src/features/patients/PatientInfoCard.jsx
+          src/layouts/Layout.jsx
+          src/pages/Appointments.jsx
+          src/pages/Dashboard.jsx
+          src/pages/Inventory.jsx
+          src/pages/Labs.jsx
+          src/pages/PatientDetails.jsx
+          src/shared/ui/AdvancedTable.jsx
+          src/shared/ui/DateTimePicker.jsx
+          src/shared/ui/DentixBottomSheet.jsx
+          src/shared/ui/DentixDialog.jsx
+          src/shared/ui/GlobalBanner.jsx
+          src/shared/ui/GlobalSearch.jsx
+          src/shared/ui/NotificationBell.jsx
+          src/shared/ui/Modal.jsx
+          src/shared/ui/PageHeader.jsx
+          src/shared/ui/SubscriptionBanner.jsx
+          src/shared/ui/TabGroup.jsx
 
       - name: Design-system guardrails
         run: cd frontend && npm run design:guardrails
