@@ -24,6 +24,8 @@ class SavedMedication(Base):
     duration = Column(String, nullable=True)
     default_dose = Column(String, nullable=True)
     notes = Column(String, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+    )
 
     tenant = relationship("Tenant")
