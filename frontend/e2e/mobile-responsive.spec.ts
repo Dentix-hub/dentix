@@ -55,12 +55,29 @@ async function getVisibleViewport(page: Page) {
 
 async function expectLocatorInsideViewport(page: Page, locator) {
   await expect(locator).toBeVisible();
+  const tolerance = 2;
+
+  // Headless UI may expose the entering panel one frame before its translate-y
+  // transition reaches the final position. Verify the settled geometry rather
+  // than sampling the transient enterFrom state.
+  await expect.poll(async () => {
+    const bounds = await locator.boundingBox();
+    const viewport = await getVisibleViewport(page);
+    if (!bounds) return false;
+
+    const viewportRight = viewport.x + viewport.width;
+    const viewportBottom = viewport.y + viewport.height;
+    return bounds.x >= viewport.x - tolerance
+      && bounds.y >= viewport.y - tolerance
+      && bounds.x + bounds.width <= viewportRight + tolerance
+      && bounds.y + bounds.height <= viewportBottom + tolerance;
+  }, { timeout: 2000 }).toBe(true);
+
   const bounds = await locator.boundingBox();
   const viewport = await getVisibleViewport(page);
   expect(bounds).not.toBeNull();
   if (!bounds) return;
 
-  const tolerance = 2;
   const viewportRight = viewport.x + viewport.width;
   const viewportBottom = viewport.y + viewport.height;
   const diagnostic = `bounds=${JSON.stringify(bounds)}, visualViewport=${JSON.stringify(viewport)}`;
