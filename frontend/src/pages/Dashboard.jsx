@@ -1,4 +1,4 @@
-import { useState, useMemo, memo, useCallback } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Users,
@@ -7,12 +7,21 @@ import {
     TrendingUp,
     Wallet,
     ChevronLeft,
-    Home
+    Home,
+    Clock
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
-    AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-    PieChart, Pie, Cell, LazyChart
+    AreaChart,
+    Area,
+    XAxis,
+    YAxis,
+    Tooltip,
+    ResponsiveContainer,
+    PieChart,
+    Pie,
+    Cell,
+    LazyChart
 } from '@/components/charts/LazyChart';
 import { motion } from '@/lib/motion';
 import { getTodayPayments, getTodayDebtors } from '@/api';
@@ -24,62 +33,57 @@ import DashboardQuickActions from '@/features/dashboard/DashboardQuickActions';
 import PatientModal from '@/features/patients/modals/PatientModal.jsx';
 import { selectAppointmentsForBusinessDate } from '@/utils/dateTime';
 
-// Memoized Gradient Card
 const GradientCard = memo(({ title, value, subtext, icon: Icon, gradient, onClick }) => (
-    <div
+    <button
+        type="button"
         onClick={onClick}
-        className={`relative overflow-hidden rounded-3xl p-6 text-white shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] cursor-pointer group ${gradient}`}
+        className={`group relative min-h-36 w-full min-w-0 overflow-hidden rounded-2xl p-3 text-start text-white shadow-medium transition-[box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:shadow-high focus-visible:ring-white sm:min-h-40 sm:rounded-3xl sm:p-5 lg:p-6 ${gradient}`}
     >
-        <div className="relative z-10 flex flex-col h-full justify-between">
-            <div className="flex justify-between items-start">
-                <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl">
-                    <Icon size={24} className="text-white" />
-                </div>
-            </div>
-            <div className="mt-4">
-                <p className="text-white/80 text-sm font-medium mb-1">{title}</p>
-                <h3 className="text-3xl font-extrabold tracking-tight">{value}</h3>
-                <p className="text-white/60 text-[10px] mt-2 font-bold uppercase tracking-widest bg-black/10 inline-block px-2 py-1 rounded-lg">
+        <span className="relative z-10 flex h-full min-w-0 flex-col justify-between">
+            <span className="flex items-start justify-between">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur-md sm:h-12 sm:w-12 sm:rounded-2xl">
+                    <Icon size={22} className="text-white sm:h-6 sm:w-6" aria-hidden="true" />
+                </span>
+            </span>
+            <span className="mt-3 min-w-0">
+                <span className="mb-1 block break-words text-xs font-medium text-white/85 sm:text-sm">{title}</span>
+                <strong className="block min-w-0 break-words text-xl font-extrabold tracking-tight text-white sm:text-2xl lg:text-3xl" dir="auto">{value}</strong>
+                <span className="mt-2 inline-block max-w-full break-words rounded-lg bg-black/10 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-white/70 sm:text-[10px] sm:tracking-widest">
                     {subtext}
-                </p>
-            </div>
-        </div>
-        <div className="absolute -bottom-10 -end-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
-    </div>
+                </span>
+            </span>
+        </span>
+        <span aria-hidden="true" className="absolute -bottom-10 -end-10 h-32 w-32 rounded-full bg-white/10 blur-3xl transition-transform duration-700 group-hover:scale-125 sm:h-40 sm:w-40" />
+    </button>
 ));
 GradientCard.displayName = 'GradientCard';
 
 export default function Dashboard() {
     const navigate = useNavigate();
     const { user } = useAuth();
-    const { t } = useTranslation();
-
-    // Use cached hooks instead of direct API calls
+    const { t, i18n } = useTranslation();
     const { data: statsData, isLoading: statsLoading } = useDashboardStats();
     const { data: appointments = [], isLoading: apptsLoading } = useAppointments();
     const loading = statsLoading || apptsLoading;
 
-    // Modal State
     const [modalOpen, setModalOpen] = useState(false);
     const [modalTitle, setModalTitle] = useState('');
     const [modalData, setModalData] = useState([]);
     const [modalLoading, setModalLoading] = useState(false);
     const [modalType, setModalType] = useState(null);
-
-    // Feature Modal States
     const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
 
-    const formatCurrency = useCallback((amount) => {
-        return new Intl.NumberFormat('en-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 }).format(amount);
-    }, []);
+    const formatCurrency = useCallback((amount) => new Intl.NumberFormat('en-EG', {
+        style: 'currency',
+        currency: 'EGP',
+        maximumFractionDigits: 0
+    }).format(amount), []);
 
-    // Derive presentation-only stats from cached data. Business-day membership is
-    // authoritative from the backend and must never be based on browser UTC.
     const stats = useMemo(() => {
         const businessDate = statsData?.business_date;
         const todayAppts = selectAppointmentsForBusinessDate(appointments, businessDate);
-        const visibleTodayAppts = todayAppts.filter(a => a.status !== 'Cancelled');
-        const completed = visibleTodayAppts.filter(a => a.status === 'Completed').length;
+        const visibleTodayAppts = todayAppts.filter(appointment => appointment.status !== 'Cancelled');
+        const completed = visibleTodayAppts.filter(appointment => appointment.status === 'Completed').length;
         const efficiency = visibleTodayAppts.length > 0
             ? Math.round((completed / visibleTodayAppts.length) * 100)
             : 0;
@@ -91,9 +95,7 @@ export default function Dashboard() {
             outstanding: statsData?.today_outstanding ?? 0,
             chartData: statsData?.revenue_chart ?? [],
             efficiency,
-            todaysAppointments: [...visibleTodayAppts].sort((a, b) =>
-                String(a.date_time || '').localeCompare(String(b.date_time || ''))
-            )
+            todaysAppointments: [...visibleTodayAppts].sort((a, b) => String(a.date_time || '').localeCompare(String(b.date_time || '')))
         };
     }, [statsData, appointments]);
 
@@ -105,10 +107,11 @@ export default function Dashboard() {
         try {
             const res = await getTodayPayments();
             setModalData(res.data);
-        } catch (err) {
+        } catch {
             toast.error(t('common.error_loading_data'));
+        } finally {
+            setModalLoading(false);
         }
-        finally { setModalLoading(false); }
     }, [t]);
 
     const handleOutstandingClick = useCallback(async () => {
@@ -119,10 +122,11 @@ export default function Dashboard() {
         try {
             const res = await getTodayDebtors();
             setModalData(res.data);
-        } catch (err) {
+        } catch {
             toast.error(t('common.error_loading_data'));
+        } finally {
+            setModalLoading(false);
         }
-        finally { setModalLoading(false); }
     }, [t]);
 
     const modalColumns = useMemo(() => {
@@ -131,13 +135,11 @@ export default function Dashboard() {
                 header: t('common.patient', 'Patient'),
                 accessorKey: modalType === 'payments' ? 'patient_name' : 'name',
                 cell: ({ row }) => (
-                    <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-xl flex items-center justify-center w-8 h-8 ${modalType === 'payments' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
-                            <span className="text-sm">
-                                {modalType === 'payments' ? '💰' : '📈'}
-                            </span>
+                    <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${modalType === 'payments' ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}`}>
+                            <span className="text-sm" aria-hidden="true">{modalType === 'payments' ? '💰' : '📈'}</span>
                         </div>
-                        <span className="font-bold">{row.original.patient_name || row.original.name}</span>
+                        <span className="min-w-0 break-words font-bold" dir="auto">{row.original.patient_name || row.original.name}</span>
                     </div>
                 )
             }
@@ -150,8 +152,8 @@ export default function Dashboard() {
                 cell: ({ getValue }) => {
                     const value = getValue();
                     return (
-                        <span className="text-slate-500 font-medium">
-                            {value ? new Date(value).toLocaleTimeString() : '-'}
+                        <span className="font-medium text-slate-500" dir="ltr">
+                            {value ? new Date(value).toLocaleTimeString(i18n.language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' }) : '-'}
                         </span>
                     );
                 }
@@ -161,35 +163,37 @@ export default function Dashboard() {
         columns.push({
             header: t('common.amount', 'Amount'),
             accessorKey: 'amount',
-            cell: ({ getValue }) => <span className="font-bold text-lg text-primary">{formatCurrency(getValue())}</span>
+            cell: ({ getValue }) => <span className="break-words text-base font-bold text-primary sm:text-lg" dir="ltr">{formatCurrency(getValue())}</span>
         });
 
         return columns;
-    }, [modalType, t, formatCurrency]);
+    }, [modalType, t, formatCurrency, i18n.language]);
+
+    const statusDistribution = useMemo(() => [
+        { name: t('appointments.status.completed'), value: appointments.filter(appointment => appointment.status === 'Completed').length, fill: '#10b981' },
+        { name: t('appointments.status.scheduled'), value: appointments.filter(appointment => appointment.status === 'Scheduled').length, fill: '#0891B2' },
+        { name: t('appointments.status.waiting'), value: appointments.filter(appointment => appointment.status === 'Waiting').length, fill: '#f59e0b' },
+        { name: t('appointments.status.cancelled'), value: appointments.filter(appointment => appointment.status === 'Cancelled' || appointment.status === 'No Show').length, fill: '#ef4444' },
+    ].filter(item => item.value > 0), [appointments, t]);
 
     return (
-        <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500 pb-10">
-            {/* Header with Breadcrumbs */}
+        <div className="min-w-0 space-y-5 pb-8 animate-in fade-in zoom-in-95 duration-500 sm:space-y-6 sm:pb-10">
             <PageHeader
                 title={t('dashboard.welcome', { name: user?.username })}
                 subtitle={t('dashboard.clinic_overview_today')}
                 breadcrumbs={[{ label: t('sidebar.dashboard'), icon: Home }]}
             />
 
-            {/* Quick Actions Grid */}
-            <DashboardQuickActions 
-                onAddPatient={() => setIsPatientModalOpen(true)}
-            />
+            <DashboardQuickActions onAddPatient={() => setIsPatientModalOpen(true)} />
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 stats-grid">
+            <div className="stats-grid grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 lg:gap-6">
                 {loading ? (
-                    Array.from({ length: 4 }).map((_, i) => (
-                        <div key={i} className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 flex items-center gap-4">
-                            <div className="w-14 h-14 bg-slate-200 dark:bg-slate-700 rounded-2xl animate-pulse"></div>
-                            <div className="flex-1 space-y-2">
-                                <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2 animate-pulse"></div>
-                                <div className="h-5 bg-slate-200 dark:bg-slate-700 rounded w-3/4 animate-pulse"></div>
+                    Array.from({ length: 4 }).map((_, index) => (
+                        <div key={index} className="flex min-h-36 min-w-0 flex-col justify-between rounded-2xl border border-slate-100 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-800 sm:min-h-40 sm:rounded-3xl sm:p-5">
+                            <div className="h-10 w-10 rounded-xl bg-slate-200 animate-pulse dark:bg-slate-700 sm:h-12 sm:w-12" />
+                            <div className="space-y-2">
+                                <div className="h-3 w-2/3 rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
+                                <div className="h-6 w-3/4 rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
                             </div>
                         </div>
                     ))
@@ -231,216 +235,157 @@ export default function Dashboard() {
                 )}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Main Chart Section */}
-                <div className="lg:col-span-2 space-y-8">
-                    <Card className="min-h-[450px]">
-                        <div className="flex justify-between items-center mb-8">
-                            <div>
-                                <h3 className="text-xl font-bold text-text-primary flex items-center gap-2">
-                                    <TrendingUp className="text-primary" />
-                                    {t('dashboard.revenue_analysis')}
+            <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-3 lg:gap-8">
+                <div className="min-w-0 space-y-5 lg:col-span-2 lg:space-y-8">
+                    <Card className="min-w-0 sm:min-h-[400px] lg:min-h-[450px]">
+                        <div className="mb-4 flex min-w-0 items-start justify-between gap-3 sm:mb-6 lg:mb-8">
+                            <div className="min-w-0">
+                                <h3 className="flex min-w-0 items-center gap-2 text-base font-bold text-text-primary sm:text-xl">
+                                    <TrendingUp className="shrink-0 text-primary" aria-hidden="true" />
+                                    <span className="min-w-0 break-words">{t('dashboard.revenue_analysis')}</span>
                                 </h3>
-                                <p className="text-sm text-text-secondary mt-1">{t('dashboard.revenue_growth')}</p>
+                                <p className="mt-1 break-words text-xs text-text-secondary sm:text-sm">{t('dashboard.revenue_growth')}</p>
                             </div>
                         </div>
-                        <div className="h-[320px] w-full" style={{ direction: 'ltr' }}>
+                        <div className="h-[230px] min-w-0 w-full sm:h-[280px] lg:h-[320px]" style={{ direction: 'ltr' }}>
                             {loading ? (
-                                <div className="h-full w-full bg-slate-100 dark:bg-slate-800/50 rounded-3xl animate-pulse"></div>
+                                <div className="h-full w-full rounded-2xl bg-slate-100 animate-pulse dark:bg-slate-800/50 sm:rounded-3xl" />
                             ) : stats.chartData.length > 0 ? (
                                 <LazyChart>
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={stats.chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                        <AreaChart data={stats.chartData} margin={{ top: 10, right: 8, left: -18, bottom: 0 }}>
                                             <defs>
                                                 <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                                                     <stop offset="5%" stopColor="#0891B2" stopOpacity={0.3} />
                                                     <stop offset="95%" stopColor="#0891B2" stopOpacity={0} />
                                                 </linearGradient>
                                             </defs>
-                                            <XAxis 
-                                                dataKey="name" 
-                                                axisLine={false} 
-                                                tickLine={false} 
-                                                tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} 
-                                                dy={10} 
-                                            />
-                                            <YAxis 
-                                                axisLine={false} 
-                                                tickLine={false} 
-                                                tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} 
-                                            />
+                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 700 }} dy={8} minTickGap={18} />
+                                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 700 }} width={42} />
                                             <Tooltip
-                                                contentStyle={{ 
-                                                    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                                                    borderRadius: '24px', 
-                                                    border: 'none', 
-                                                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-                                                    padding: '16px'
+                                                contentStyle={{
+                                                    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                                                    borderRadius: '14px',
+                                                    border: 'none',
+                                                    boxShadow: '0 12px 28px rgba(15, 23, 42, 0.16)',
+                                                    padding: '10px'
                                                 }}
-                                                itemStyle={{ color: '#1e293b', fontWeight: '900', fontSize: '14px' }}
+                                                itemStyle={{ color: '#1e293b', fontWeight: '800', fontSize: '12px' }}
                                                 formatter={(value) => [formatCurrency(value), t('dashboard.revenue')]}
                                                 cursor={{ stroke: '#0891B2', strokeWidth: 2, strokeDasharray: '6 6' }}
                                             />
-                                            <Area
-                                                type="monotone"
-                                                dataKey="revenue"
-                                                stroke="#0891B2"
-                                                strokeWidth={4}
-                                                fillOpacity={1}
-                                                fill="url(#colorRevenue)"
-                                                activeDot={{ r: 8, strokeWidth: 0, fill: '#0891B2' }}
-                                            />
+                                            <Area type="monotone" dataKey="revenue" stroke="#0891B2" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" activeDot={{ r: 6, strokeWidth: 0, fill: '#0891B2' }} />
                                         </AreaChart>
                                     </ResponsiveContainer>
                                 </LazyChart>
                             ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-text-secondary gap-4">
-                                    <div className="w-16 h-16 bg-surface-hover rounded-full flex items-center justify-center text-3xl">
-                                        📊
-                                    </div>
-                                    <p>{t('dashboard.no_financial_data')}</p>
+                                <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-text-secondary">
+                                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-surface-hover text-2xl">📊</div>
+                                    <p className="text-sm">{t('dashboard.no_financial_data')}</p>
                                 </div>
                             )}
                         </div>
                     </Card>
 
-                    {/* Secondary Analytics Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card>
-                            <h4 className="font-bold text-text-primary mb-6 flex items-center gap-2">
-                                <Activity className="text-primary" size={18} />
-                                {t('dashboard.status_distribution')}
+                    <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:gap-6">
+                        <Card className="min-w-0">
+                            <h4 className="mb-4 flex min-w-0 items-center gap-2 font-bold text-text-primary sm:mb-6">
+                                <Activity className="shrink-0 text-primary" size={18} aria-hidden="true" />
+                                <span className="break-words">{t('dashboard.status_distribution')}</span>
                             </h4>
-                            <div className="h-[200px] w-full" style={{ direction: 'ltr' }}>
+                            <div className="h-[180px] min-w-0 w-full sm:h-[200px]" style={{ direction: 'ltr' }}>
                                 <LazyChart>
                                     <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
-                                            <Pie
-                                                data={[
-                                                    { name: t('appointments.status.completed'), value: appointments.filter(a => a.status === 'Completed').length },
-                                                    { name: t('appointments.status.scheduled'), value: appointments.filter(a => a.status === 'Scheduled').length },
-                                                    { name: t('appointments.status.waiting'), value: appointments.filter(a => a.status === 'Waiting').length },
-                                                    { name: t('appointments.status.cancelled'), value: appointments.filter(a => a.status === 'Cancelled' || a.status === 'No Show').length },
-                                                ].filter(d => d.value > 0)}
-                                                innerRadius={60}
-                                                outerRadius={80}
-                                                paddingAngle={8}
-                                                dataKey="value"
-                                            >
-                                                <Cell fill="#10b981" />
-                                                <Cell fill="#0891B2" />
-                                                <Cell fill="#f59e0b" />
-                                                <Cell fill="#ef4444" />
+                                            <Pie data={statusDistribution} innerRadius="50%" outerRadius="78%" paddingAngle={5} dataKey="value">
+                                                {statusDistribution.map(item => <Cell key={item.name} fill={item.fill} />)}
                                             </Pie>
-                                            <Tooltip 
-                                                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                                            />
+                                            <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 18px rgba(15,23,42,.12)', fontSize: '12px' }} />
                                         </PieChart>
                                     </ResponsiveContainer>
                                 </LazyChart>
                             </div>
                         </Card>
-                        
-                        <Card className="flex flex-col justify-center items-center text-center p-8 bg-gradient-to-br from-primary/5 to-transparent">
-                             <div className="w-16 h-16 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mb-4">
-                                 <TrendingUp size={32} />
-                             </div>
-                             <h4 className="font-bold text-text-primary text-lg mb-2">{t('dashboard.clinic_efficiency')}</h4>
-                             <p className="text-sm text-text-secondary mb-6">{t('dashboard.efficiency_description')}</p>
-                             <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                 <motion.div 
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${stats.efficiency}%` }}
-                                    className="h-full bg-primary"
-                                 />
-                             </div>
-                             <div className="flex justify-between w-full mt-2">
-                                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('dashboard.efficiency_rate')}</span>
-                                 <span className="text-[10px] font-bold text-primary uppercase tracking-widest">{stats.efficiency}%</span>
-                             </div>
+
+                        <Card className="flex min-w-0 flex-col items-center justify-center bg-gradient-to-br from-primary/5 to-transparent p-4 text-center sm:p-6 lg:p-8">
+                            <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary sm:mb-4 sm:h-16 sm:w-16 sm:rounded-3xl">
+                                <TrendingUp size={28} aria-hidden="true" />
+                            </div>
+                            <h4 className="mb-2 break-words text-base font-bold text-text-primary sm:text-lg">{t('dashboard.clinic_efficiency')}</h4>
+                            <p className="mb-4 break-words text-xs text-text-secondary sm:mb-6 sm:text-sm">{t('dashboard.efficiency_description')}</p>
+                            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                                <motion.div initial={{ width: 0 }} animate={{ width: `${stats.efficiency}%` }} className="h-full bg-primary" />
+                            </div>
+                            <div className="mt-2 flex w-full items-center justify-between gap-2">
+                                <span className="min-w-0 break-words text-[10px] font-bold uppercase tracking-wide text-slate-500">{t('dashboard.efficiency_rate')}</span>
+                                <span className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-primary">{stats.efficiency}%</span>
+                            </div>
                         </Card>
                     </div>
                 </div>
 
-                {/* Timeline */}
-                <div className="space-y-6">
-                    <Card className="h-full relative overflow-hidden transition-all duration-300 hover:shadow-lg">
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="font-bold text-lg text-text-primary flex items-center gap-2">
-                                <Calendar className="text-primary" size={20} />
-                                {t('dashboard.appointments_today')}
+                <div className="min-w-0 space-y-5 lg:space-y-6">
+                    <Card className="relative h-full min-w-0 overflow-hidden transition-shadow duration-300 hover:shadow-lg">
+                        <div className="mb-4 flex min-w-0 items-start justify-between gap-2 sm:mb-6">
+                            <h3 className="flex min-w-0 items-center gap-2 text-base font-bold text-text-primary sm:text-lg">
+                                <Calendar className="shrink-0 text-primary" size={20} aria-hidden="true" />
+                                <span className="break-words">{t('dashboard.appointments_today')}</span>
                             </h3>
-                            <span className="bg-primary/10 text-primary px-3 py-1 rounded-lg text-xs font-bold">
+                            <span className="shrink-0 rounded-lg bg-primary/10 px-2 py-1 text-xs font-bold text-primary sm:px-3">
                                 {t('dashboard.appointments_count', { val: loading ? '...' : stats.todaysAppointments.length })}
                             </span>
                         </div>
-                        <div className="space-y-4 max-h-[500px] overflow-y-auto pe-2 custom-scrollbar">
+
+                        <div className="max-h-[420px] min-w-0 space-y-2 overflow-y-auto overscroll-contain pe-1 sm:max-h-[500px] sm:space-y-3">
                             {loading ? (
-                                <div className="space-y-3">
-                                    {Array.from({length: 5}).map((_, i) => (
-                                        <div key={i} className="h-10 bg-slate-100 dark:bg-slate-800 rounded-lg animate-pulse w-full"></div>
-                                    ))}
-                                </div>
-                            ) : stats.todaysAppointments.length > 0 ? stats.todaysAppointments.map((appt) => (
-                                <div
-                                    key={appt.id}
-                                    className="relative ps-4 border-e-2 border-border pe-4 py-1 group cursor-pointer"
-                                    onClick={() => navigate('/appointments')}
-                                >
-                                    <div className={`absolute -right-[9px] top-3 w-4 h-4 rounded-full border-2 border-background ${appt.status === 'Completed' ? 'bg-emerald-500' :
-                                        appt.status === 'Cancelled' ? 'bg-red-500' : 'bg-primary'
-                                        }`}></div>
-                                    <div className="bg-surface-hover p-4 rounded-2xl group-hover:bg-primary/5 transition-colors">
-                                        <div className="flex justify-between items-start mb-1">
-                                            <h4 className="font-bold text-text-primary">{appt.patient_name}</h4>
-                                            <span className="text-xs font-bold font-mono text-text-secondary bg-background px-2 py-1 rounded-md border border-border">
-                                                {new Date(appt.date_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-16 w-full rounded-xl bg-slate-100 animate-pulse dark:bg-slate-800" />)
+                            ) : stats.todaysAppointments.length > 0 ? (
+                                stats.todaysAppointments.map((appointment) => (
+                                    <button
+                                        key={appointment.id}
+                                        type="button"
+                                        onClick={() => navigate('/appointments')}
+                                        className="flex min-h-16 w-full min-w-0 items-start gap-3 rounded-2xl border border-border/70 bg-surface-hover p-3 text-start transition-colors hover:border-primary/30 hover:bg-primary/5 sm:p-4"
+                                    >
+                                        <span className={`mt-1 h-3 w-3 shrink-0 rounded-full ${appointment.status === 'Completed' ? 'bg-emerald-500' : appointment.status === 'Cancelled' ? 'bg-red-500' : 'bg-primary'}`} aria-hidden="true" />
+                                        <span className="min-w-0 flex-1">
+                                            <span className="flex min-w-0 flex-col gap-1 min-[360px]:flex-row min-[360px]:items-start min-[360px]:justify-between">
+                                                <strong className="min-w-0 break-words text-sm text-text-primary" dir="auto">{appointment.patient_name}</strong>
+                                                <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-bold text-text-secondary" dir="ltr">
+                                                    <Clock size={12} aria-hidden="true" />
+                                                    {new Date(appointment.date_time).toLocaleTimeString(i18n.language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
                                             </span>
-                                        </div>
-                                        <p className="text-xs text-text-secondary line-clamp-1">
-                                            {appt.notes || t('appointments.table.regular_visit')}
-                                        </p>
+                                            <span className="mt-1 line-clamp-2 block break-words text-xs text-text-secondary">{appointment.notes || t('appointments.table.regular_visit')}</span>
+                                        </span>
+                                    </button>
+                                ))
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-8 text-center sm:py-12">
+                                    <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-surface-hover sm:mb-4">
+                                        <Calendar size={28} className="text-text-secondary" aria-hidden="true" />
                                     </div>
-                                </div>
-                            )) : (
-                                <div className="flex flex-col items-center justify-center py-12 text-center">
-                                    <div className="bg-surface-hover p-4 rounded-full mb-4">
-                                        <Calendar size={32} className="text-text-secondary" />
-                                    </div>
-                                    <p className="text-text-secondary font-medium">{t('dashboard.no_appointments_today')}</p>
-                                    <Button variant="ghost" size="sm" onClick={() => navigate('/appointments')} className="mt-2">
+                                    <p className="font-medium text-text-secondary">{t('dashboard.no_appointments_today')}</p>
+                                    <Button variant="ghost" size="sm" onClick={() => navigate('/appointments')} className="mt-2 min-h-11">
                                         + {t('dashboard.add_new_appointment')}
                                     </Button>
                                 </div>
                             )}
                         </div>
+
                         {!loading && stats.todaysAppointments.length > 0 && (
-                            <Button
-                                variant="secondary"
-                                className="w-full mt-6 rounded-2xl"
-                                onClick={() => navigate('/appointments')}
-                            >
+                            <Button variant="secondary" className="mt-4 min-h-11 w-full justify-center rounded-2xl sm:mt-6" onClick={() => navigate('/appointments')}>
                                 {t('dashboard.view_full_schedule')}
-                                <ChevronLeft size={16} className="me-2" />
+                                <ChevronLeft size={16} className="me-2 rtl:rotate-180" aria-hidden="true" />
                             </Button>
                         )}
                     </Card>
                 </div>
             </div>
 
-            {/* Feature Modals */}
-            <PatientModal 
-                isOpen={isPatientModalOpen} 
-                onClose={() => setIsPatientModalOpen(false)} 
-            />
+            <PatientModal isOpen={isPatientModalOpen} onClose={() => setIsPatientModalOpen(false)} />
 
-            {/* Reusable Modal for Revenue/Debtors */}
-            <Modal
-                isOpen={modalOpen}
-                onClose={() => setModalOpen(false)}
-                title={modalTitle}
-                size="lg"
-            >
+            <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={modalTitle} size="lg">
                 <AdvancedTable
                     data={modalData}
                     columns={modalColumns}
