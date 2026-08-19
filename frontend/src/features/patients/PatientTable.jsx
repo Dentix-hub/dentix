@@ -37,11 +37,11 @@ function PatientIdentity({ patient }) {
     );
 }
 
-function RowActions({ patient, canArchive, onArchive, className = '' }) {
+function RowActions({ patient, canArchive, onArchive, align = 'end' }) {
     const { t } = useTranslation();
     const waHref = whatsappHref(patient.phone);
     return (
-        <div className={`flex flex-wrap items-center justify-end gap-1 ${className}`}>
+        <div className={`flex flex-wrap items-center gap-1 ${align === 'start' ? 'justify-start' : 'justify-end'}`}>
             {patient.phone && (
                 <a href={`tel:${patient.phone}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/30" aria-label={t('patients.call_patient')}>
                     <Phone className="h-4 w-4" />
@@ -152,7 +152,7 @@ export default memo(function PatientTable({ patients, isLoading, isError, search
                             {patient.assigned_doctor_name ? <span className="inline-flex items-center gap-1"><UserRound className="h-3 w-3" />{patient.assigned_doctor_name}</span> : null}
                         </div>
                         <div className="mt-2 ms-[3.25rem] border-t border-border/60 pt-2">
-                            <RowActions patient={patient} canArchive={canArchive} onArchive={onArchive} className="justify-start" />
+                            <RowActions patient={patient} canArchive={canArchive} onArchive={onArchive} align="start" />
                         </div>
                     </article>
                 ))}
