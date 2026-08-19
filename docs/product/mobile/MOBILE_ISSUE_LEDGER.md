@@ -6,6 +6,21 @@
 
 An item is not `VERIFIED` until the relevant build, regression suite, responsive viewport and direction checks pass.
 
+## Automated Verification Snapshot — 2026-08-19
+
+Automated verification on head `8d6af3dfc9e522b5e64595baa1a35e3a9ea0393a` established the following before this ledger-only update:
+
+- Design-system guardrails passed.
+- Frontend production build, responsive-scope lint and frontend unit tests passed.
+- Backend tests, PostgreSQL finance smoke, coverage and security checks passed.
+- Existing production critical-path Playwright tests passed.
+- Existing desktop/mobile visual regression passed.
+- Standalone Mobile Responsive Gate passed **24/24** tests across 320px compact phone, Arabic phone, English phone and tablet projects.
+- The same responsive acceptance matrix passed inside the main Dentix CI E2E job.
+- Final branch comparison against `staging` was **42 commits ahead / 0 behind** and contained frontend, test, workflow and documentation changes only; no backend/API/schema files were changed by this PR.
+
+The remaining release-verification work is the representative **manual staging** pass for RTL/LTR, keyboard/touch behavior, short-height/landscape and long-content stress cases. Product-surface items therefore remain `IMPLEMENTED_PENDING_VERIFICATION` until that manual pass is completed.
+
 ## Root Cause Map
 
 | Root cause | Observed impact | Owner / remediation |
@@ -52,13 +67,13 @@ An item is not `VERIFIED` until the relevant build, regression suite, responsive
 | MOB-TABS-001 | patient details/settings/finance/inventory | P1 | shared tabs wrapped into multiple rows and could hide active context | `TabGroup.jsx` | contained horizontal scroller; active tab scrolls into view | RTL/LTR manual + responsive route sweep | IMPLEMENTED_PENDING_VERIFICATION |
 | MOB-PD-001 | `/patients/:id` | P1 | patient identity/action block could become cramped with long content | `PatientInfoCard.jsx` | safe wrapping + mobile action grid + 44px targets | long-content/manual | IMPLEMENTED_PENDING_VERIFICATION |
 | MOB-PD-002 | dental chart | P1 | spatial surface has 700px minimum width and clickable non-semantic tooth nodes | `DentalChartSVG.jsx` | explicitly contained horizontal scroll; intentional LTR anatomy island; tooth buttons | page overflow check on representative patient fixture + touch/manual | IMPLEMENTED_PENDING_VERIFICATION |
-| MOB-PD-003 | tooth selection overlay | P1 | route-local fixed overlay still uses `max-h-[95vh]` and local close/action geometry | `PatientDetails.jsx` | migrate to canonical responsive overlay | overlay bounds/manual | OPEN |
-| MOB-LAB-001 | `/labs` add/edit | P1 | hand-built fixed modal, `max-h-[90vh]`, phone/email forced into two columns | `Labs.jsx` | migrate to shared responsive Modal and one-column compact fields | overlay bounds + keyboard manual | OPEN |
-| MOB-LAB-002 | `/labs` stats/cards | P1 | clickable `div` stat cards and lab card semantics are pointer-centric | `Labs.jsx` | semantic buttons/details trigger + touch-sized management controls | keyboard/touch/manual | OPEN |
+| MOB-PD-003 | tooth selection overlay | P1 | route-local fixed overlay used local viewport/action geometry | `PatientDetails.jsx` | migrated to canonical shared responsive `Modal` overlay | overlay bounds/manual | IMPLEMENTED_PENDING_VERIFICATION |
+| MOB-LAB-001 | `/labs` add/edit | P1 | hand-built fixed modal and compact form columns were not phone-safe | `Labs.jsx` | migrated to shared responsive `Modal`; compact fields collapse to one column | overlay bounds + keyboard manual | IMPLEMENTED_PENDING_VERIFICATION |
+| MOB-LAB-002 | `/labs` stats/cards | P1 | clickable non-semantic cards and pointer-centric management controls | `Labs.jsx` | semantic buttons/details triggers + touch-sized management controls | keyboard/touch/manual | IMPLEMENTED_PENDING_VERIFICATION |
 | MOB-TEST-001 | responsive regression | P0 release gate | previous visual suite covered narrow patient baseline only | `playwright.config.ts`, `mobile-responsive.spec.ts` | 320, AR 390, EN 412, tablet projects + overflow/overlay assertions | GitHub Actions | IMPLEMENTED_PENDING_VERIFICATION |
 | MOB-TEST-002 | existing overlay regression | P0 release gate | test assumed every Modal stays centered dialog on phone | `ui-regression.spec.ts` | selector now follows responsive dialog/sheet contract | GitHub Actions | IMPLEMENTED_PENDING_VERIFICATION |
-| MOB-CI-001 | release gate | P0 | current CI visual step does not yet invoke new responsive project matrix | `.github/workflows/ci.yml` | add responsive Playwright execution before container release | GitHub Actions | OPEN |
-| MOB-VIS-001 | visual baselines | P0 release gate | shell/search/table changes intentionally alter mobile snapshots | Playwright snapshot artifacts | run CI, inspect diffs, update only expected baselines | GitHub Actions artifact review | BLOCKED until PR CI run |
+| MOB-CI-001 | release gate | P0 | CI did not invoke the dedicated responsive project matrix | `.github/workflows/ci.yml`, `.github/workflows/mobile-responsive.yml` | responsive Playwright execution added to main CI and dedicated mobile gate | GitHub Actions | IMPLEMENTED_PENDING_VERIFICATION |
+| MOB-VIS-001 | visual baselines | P0 release gate | shell/search/table changes intentionally alter mobile snapshots | Playwright snapshot artifacts | expected baselines updated and visual regression executed successfully | GitHub Actions artifact review | IMPLEMENTED_PENDING_VERIFICATION |
 
 ## P2 / P3 Follow-Up Areas
 
