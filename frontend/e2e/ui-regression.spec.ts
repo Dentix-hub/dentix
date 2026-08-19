@@ -90,6 +90,13 @@ async function expectWorkspaceScreenshot(page, name: string) {
   });
 }
 
+function patientOverlaySelector(page) {
+  const viewport = page.viewportSize();
+  return viewport && viewport.width < 640
+    ? '[data-dentix-overlay="bottom-sheet"]'
+    : '[data-dentix-overlay="dialog"]';
+}
+
 test.describe('Dentix visual regression baseline', () => {
   test('patient workspace — Arabic light', async ({ page }, testInfo) => {
     const fixture = fixtureFor(testInfo.project.name, 'ar');
@@ -129,27 +136,39 @@ test.describe('Dentix overlay interaction regression', () => {
     await trigger.focus();
     await trigger.press('Enter');
 
-    const dialog = page.locator('[data-dentix-overlay="dialog"]');
-    await expect(dialog).toBeVisible();
-    const dialogBackground = await dialog.evaluate(node => getComputedStyle(node).backgroundColor);
-    expect(dialogBackground).not.toBe('transparent');
-    expect(dialogBackground).not.toBe('rgba(0, 0, 0, 0)');
+    const selector = patientOverlaySelector(page);
+    const overlay = page.locator(selector);
+    await expect(overlay).toBeVisible();
+    const background = await overlay.evaluate(node => getComputedStyle(node).backgroundColor);
+    expect(background).not.toBe('transparent');
+    expect(background).not.toBe('rgba(0, 0, 0, 0)');
+
+    const bounds = await overlay.boundingBox();
+    const viewport = page.viewportSize();
+    expect(bounds).not.toBeNull();
+    expect(viewport).not.toBeNull();
+    if (bounds && viewport) {
+      expect(bounds.x).toBeGreaterThanOrEqual(-2);
+      expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width + 2);
+      expect(bounds.y).toBeGreaterThanOrEqual(-2);
+      expect(bounds.y + Math.min(bounds.height, viewport.height)).toBeLessThanOrEqual(viewport.height + 2);
+    }
 
     await page.keyboard.press('Tab');
-    expect(await dialog.evaluate(node => node.contains(document.activeElement))).toBeTruthy();
+    expect(await overlay.evaluate(node => node.contains(document.activeElement))).toBeTruthy();
     await page.keyboard.press('Shift+Tab');
-    expect(await dialog.evaluate(node => node.contains(document.activeElement))).toBeTruthy();
+    expect(await overlay.evaluate(node => node.contains(document.activeElement))).toBeTruthy();
 
     await page.keyboard.press('Escape');
-    await expect(dialog).toBeHidden();
+    await expect(overlay).toBeHidden();
     await expect(trigger).toBeFocused();
     expect(await page.evaluate(() => document.body.style.overflow)).toBe(overflowBefore);
 
     await trigger.press('Space');
-    await expect(dialog).toBeVisible();
-    const backdrop = page.locator('[data-dentix-overlay="backdrop"]');
+    await expect(overlay).toBeVisible();
+    const backdrop = page.locator('[data-dentix-overlay="backdrop"]').last();
     await backdrop.click({ position: { x: 4, y: 4 } });
-    await expect(dialog).toBeHidden();
+    await expect(overlay).toBeHidden();
     await expect(trigger).toBeFocused();
   });
 });
