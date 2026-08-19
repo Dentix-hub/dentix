@@ -97,8 +97,23 @@ test.describe('Dentix responsive shell regression', () => {
 
     const backdrop = page.getByRole('button', { name: /Close menu|إغلاق القائمة/i }).first();
     await expect(backdrop).toBeVisible();
-    await backdrop.click();
+
+    const sidebarBounds = await sidebar.boundingBox();
+    const backdropBounds = await backdrop.boundingBox();
+    expect(sidebarBounds).not.toBeNull();
+    expect(backdropBounds).not.toBeNull();
+    if (sidebarBounds && backdropBounds && viewport) {
+      const gap = 8;
+      const drawerIsOnLeft = sidebarBounds.x < viewport.width / 2;
+      const clickX = drawerIsOnLeft
+        ? Math.min(viewport.width - gap, sidebarBounds.x + sidebarBounds.width + gap)
+        : Math.max(gap, sidebarBounds.x - gap);
+      const clickY = Math.min(viewport.height - gap, Math.max(gap, sidebarBounds.y + gap));
+      await page.mouse.click(clickX, clickY);
+    }
+
     await expect(menuButton).toBeFocused();
+    await expect(sidebar).toHaveAttribute('aria-hidden', 'true');
     await expectNoDocumentOverflow(page);
   });
 });
@@ -145,7 +160,8 @@ test.describe('Dentix responsive overlay regression', () => {
     await pickerTrigger.click();
 
     const dateDialog = page.getByRole('dialog').last();
-    await expectLocatorInsideViewport(page, dateDialog);
+    const datePanel = dateDialog.locator('.fixed.inset-0.overflow-hidden > div > div').last();
+    await expectLocatorInsideViewport(page, datePanel);
     await expectNoDocumentOverflow(page);
   });
 });
