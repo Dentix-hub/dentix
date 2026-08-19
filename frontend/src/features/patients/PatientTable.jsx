@@ -23,10 +23,10 @@ function PatientIdentity({ patient }) {
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-extrabold text-primary">
                 {patient.name?.trim()?.charAt(0)?.toUpperCase() || '?'}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
                 <Link
                     to={`/patients/${patient.id}`}
-                    className="block truncate font-bold text-text-primary hover:text-primary focus:outline-none focus:underline"
+                    className="block break-words font-bold leading-snug text-text-primary hover:text-primary focus:outline-none focus:underline md:truncate"
                     dir="auto"
                 >
                     {patient.name}
@@ -37,11 +37,11 @@ function PatientIdentity({ patient }) {
     );
 }
 
-function RowActions({ patient, canArchive, onArchive }) {
+function RowActions({ patient, canArchive, onArchive, align = 'end' }) {
     const { t } = useTranslation();
     const waHref = whatsappHref(patient.phone);
     return (
-        <div className="flex flex-wrap items-center justify-end gap-1">
+        <div className={`flex flex-wrap items-center gap-1 ${align === 'start' ? 'justify-start' : 'justify-end'}`}>
             {patient.phone && (
                 <a href={`tel:${patient.phone}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-surface-hover hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary/30" aria-label={t('patients.call_patient')}>
                     <Phone className="h-4 w-4" />
@@ -145,14 +145,14 @@ export default memo(function PatientTable({ patients, isLoading, isError, search
             <div className="divide-y divide-border md:hidden">
                 {patients.map((patient) => (
                     <article key={patient.id} className="p-4">
-                        <div className="flex items-start justify-between gap-3">
-                            <PatientIdentity patient={patient} />
-                            <RowActions patient={patient} canArchive={canArchive} onArchive={onArchive} />
-                        </div>
+                        <PatientIdentity patient={patient} />
                         <div className="mt-3 ms-[3.25rem] flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted">
                             {patient.age ? <span>{t('patientDetails.info_card.age_years', { age: patient.age })}</span> : null}
                             {patient.phone ? <span dir="ltr">{patient.phone}</span> : null}
                             {patient.assigned_doctor_name ? <span className="inline-flex items-center gap-1"><UserRound className="h-3 w-3" />{patient.assigned_doctor_name}</span> : null}
+                        </div>
+                        <div className="mt-2 ms-[3.25rem] border-t border-border/60 pt-2">
+                            <RowActions patient={patient} canArchive={canArchive} onArchive={onArchive} align="start" />
                         </div>
                     </article>
                 ))}

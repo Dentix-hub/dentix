@@ -45,12 +45,13 @@
 
   /*
    * Dentix semantic tokens — light.
-   * `background` and `surface` intentionally preserve the legacy BackgroundWrapper
-   * composition during staged migration. New content/overlay primitives use the
-   * opaque `surface-elevated` role by default.
+   * `background` intentionally preserves the legacy BackgroundWrapper composition.
+   * Semantic `surface` is deliberately opaque so cards, dialogs, drawers and
+   * feature-local overlays never leak page content through their content layer.
+   * Intentional glass effects must opt in through `.glass-card` instead.
    */
   --background: transparent;
-  --surface: rgba(255, 255, 255, 0.7);
+  --surface: #ffffff;
   --surface-elevated: #ffffff;
   --surface-subtle: #f8fafc;
   --surface-hover: rgba(241, 245, 249, 0.8);
@@ -87,7 +88,7 @@
 
 .dark {
   --background: transparent;
-  --surface: rgba(15, 23, 42, 0.7);
+  --surface: #0f172a;
   --surface-elevated: #0f172a;
   --surface-subtle: #111827;
   --surface-hover: rgba(30, 41, 59, 0.8);

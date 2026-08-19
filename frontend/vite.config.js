@@ -44,6 +44,10 @@ export default defineConfig({
                 ]
             },
             workbox: {
+                // Remove stale Workbox precache generations after each successful
+                // deployment so mobile/PWA sessions cannot retain an obsolete app shell.
+                cleanupOutdatedCaches: true,
+
                 // Cache these for offline use
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
                 

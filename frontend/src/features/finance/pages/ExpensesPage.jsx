@@ -6,7 +6,6 @@ import {
     Trash2,
     FlaskConical,
     PieChart,
-    Calendar,
     Tag,
 } from 'lucide-react';
 import { useExpenses } from '../expenses/hooks/useExpenses';
@@ -44,7 +43,6 @@ export default function ExpensesPage() {
         refetch,
         updateSearch,
         updateCategory,
-        updateDateRange,
         setPage,
         createExpense,
         isCreating,
@@ -61,6 +59,8 @@ export default function ExpensesPage() {
             id: 'category',
             label: t('finance.expenses.category', 'التصنيف'),
             icon: Tag,
+            value: category,
+            onChange: updateCategory,
             options: [
                 { value: '', label: t('common.all', 'الكل') },
                 { value: 'Supplies', label: 'مستلزمات طبية (Supplies)' },
@@ -98,7 +98,7 @@ export default function ExpensesPage() {
             header: t('finance.expenses.source', 'المصدر'),
             sortable: false,
             width: '110px',
-            cell: (row) => (
+            cell: () => (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-muted text-text-secondary border border-border/60">
                     <Receipt className="w-3 h-3 text-primary" />
                     <span>{t('finance.expenses.source_manual', 'يدوي')}</span>
@@ -171,11 +171,11 @@ export default function ExpensesPage() {
             className="p-4 rounded-xl border border-border bg-card space-y-2.5 shadow-xs"
         >
             <div className="flex items-start justify-between gap-2">
-                <div className="space-y-1">
-                    <p className="text-sm font-bold text-text-primary">
+                <div className="min-w-0 space-y-1">
+                    <p className="break-words text-sm font-bold text-text-primary">
                         {row.item_name}
                     </p>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/5 text-primary">
                             {row.category || 'Other'}
                         </span>
@@ -184,13 +184,14 @@ export default function ExpensesPage() {
                         </span>
                     </div>
                 </div>
-                <div className="text-end space-y-1">
+                <div className="shrink-0 text-end space-y-1">
                     <Money amount={row.cost} colored size="sm" />
                     {canWriteFinance && (
                         <button
                             type="button"
                             onClick={() => setExpenseToDelete(row)}
                             className="p-1 text-text-secondary hover:text-destructive transition-colors block ms-auto"
+                            aria-label={t('common.delete', 'حذف')}
                         >
                             <Trash2 className="w-4 h-4" />
                         </button>
@@ -198,7 +199,7 @@ export default function ExpensesPage() {
                 </div>
             </div>
             {row.notes && (
-                <p className="text-xs text-text-secondary pt-1 border-t border-border/40">
+                <p className="break-words text-xs text-text-secondary pt-1 border-t border-border/40">
                     {row.notes}
                 </p>
             )}
@@ -206,9 +207,9 @@ export default function ExpensesPage() {
     );
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
             {/* Top Headline Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
                 <MetricCard
                     title={t('finance.expenses.manual_total', 'المصروفات التشغيلية المباشرة')}
                     amount={manualExpensesTotal}
@@ -240,17 +241,14 @@ export default function ExpensesPage() {
 
             {/* Filter Bar & Header Actions */}
             <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                    <DateRangePicker
-                        value={{ from, to }}
-                        onChange={updateDateRange}
-                    />
+                <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
+                    <DateRangePicker className="w-full sm:w-auto" />
 
                     {canWriteFinance && (
                         <button
                             type="button"
                             onClick={() => setIsAddDrawerOpen(true)}
-                            className="flex items-center justify-center gap-2 py-2 px-4 text-xs font-bold text-white bg-primary hover:bg-primary/90 rounded-xl transition-all shadow-sm self-end sm:self-auto"
+                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-primary/90 sm:w-auto"
                         >
                             <Plus className="w-4 h-4" />
                             <span>{t('finance.expenses.add_btn', 'تسجيل مصروف')}</span>
@@ -263,14 +261,9 @@ export default function ExpensesPage() {
                     onSearchChange={updateSearch}
                     searchPlaceholder={t('finance.expenses.search_placeholder', 'البحث في بيان المصروفات والملاحظات...')}
                     filters={filterOptions}
-                    activeFilters={{ category }}
-                    onFilterChange={(fId, val) => {
-                        if (fId === 'category') updateCategory(val);
-                    }}
-                    onClearFilters={() => {
+                    onReset={() => {
                         updateSearch('');
                         updateCategory('');
-                        updateDateRange({ from: '', to: '' });
                     }}
                 />
             </div>

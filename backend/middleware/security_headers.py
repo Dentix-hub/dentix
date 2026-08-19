@@ -58,4 +58,27 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Control how much referrer info is sent
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
+        # 8. Frontend/PWA bootstrap cache policy
+        # Hashed /assets files are safe to cache, but the SPA HTML shell and service
+        # worker bootstrap files must revalidate on every navigation/deploy. Otherwise
+        # an already-open mobile/PWA session can keep serving an older UI bundle even
+        # after staging has been updated successfully.
+        if request.method == "GET":
+            path = request.url.path
+            content_type = response.headers.get("content-type", "").lower()
+            is_frontend_html = (
+                "text/html" in content_type
+                and not path.startswith(("/api/", "/docs", "/redoc"))
+            )
+            is_pwa_bootstrap = path in {
+                "/sw.js",
+                "/registerSW.js",
+                "/manifest.webmanifest",
+            }
+
+            if is_frontend_html or is_pwa_bootstrap:
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+
         return response
