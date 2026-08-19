@@ -69,13 +69,13 @@ jobs:
           assert collection.get(ids=['1'])['ids'] == []
           PY
 
-      - name: Initialize Database
+      - name: Initialize Database via production Alembic preflight
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
           DB_SSL_MODE: disable
           SECRET_KEY: test-secret-key-for-ci-only-at-least-32
           PYTHONPATH: .
-        run: python backend/scripts/init_db.py
+        run: python -m backend.scripts.preflight_migrations
 
       - name: Finance PostgreSQL smoke
         env:
@@ -216,8 +216,8 @@ jobs:
           pip install -r requirements.txt
           pip uninstall -y ecdsa
 
-      - name: Initialize E2E database
-        run: python backend/scripts/init_db.py
+      - name: Initialize E2E database via production Alembic preflight
+        run: python -m backend.scripts.preflight_migrations
 
       - name: Start backend
         shell: bash
