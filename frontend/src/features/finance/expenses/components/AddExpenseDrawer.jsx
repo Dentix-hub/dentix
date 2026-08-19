@@ -80,21 +80,21 @@ export default function AddExpenseDrawer({
     };
 
     return (
-        <div className="fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-drawer overflow-hidden" role="dialog" aria-modal="true">
             {/* Backdrop */}
             <div
-                className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity duration-300"
+                className="fixed inset-0 bg-backdrop backdrop-blur-xs transition-opacity duration-300"
                 onClick={onClose}
                 aria-hidden="true"
             />
 
-            <div className="fixed inset-y-0 end-0 max-w-full flex pl-10 rtl:pl-0 rtl:pr-10">
-                <div className="w-screen max-w-md bg-card border-s border-border shadow-2xl flex flex-col justify-between overflow-y-auto">
+            <div className="fixed inset-y-0 end-0 flex max-w-full pl-10 rtl:pl-0 rtl:pr-10">
+                <div className="flex w-screen max-w-md flex-col justify-between overflow-y-auto border-s border-border bg-surface-elevated text-text-primary shadow-high">
                     {/* Header */}
-                    <div className="p-6 border-b border-border flex items-center justify-between">
+                    <div className="flex items-center justify-between border-b border-border p-6">
                         <div className="flex items-center gap-3">
-                            <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
-                                <Receipt className="w-5 h-5" />
+                            <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+                                <Receipt className="h-5 w-5" />
                             </div>
                             <div>
                                 <h3 className="text-base font-bold text-text-primary">
@@ -108,25 +108,25 @@ export default function AddExpenseDrawer({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="p-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-muted/60 transition-colors"
+                            className="rounded-xl p-2 text-text-secondary transition-colors hover:bg-surface-subtle hover:text-text-primary"
                             aria-label={t('common.close', 'إغلاق')}
                         >
-                            <X className="w-5 h-5" />
+                            <X className="h-5 w-5" />
                         </button>
                     </div>
 
                     {/* Form Body */}
-                    <form id="add-expense-form" onSubmit={handleSubmit} className="p-6 space-y-4 flex-1">
+                    <form id="add-expense-form" onSubmit={handleSubmit} className="flex-1 space-y-4 p-6">
                         {formError && (
-                            <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold">
+                            <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-xs font-semibold text-red-600 dark:text-red-400">
                                 {formError}
                             </div>
                         )}
 
                         {/* Item Name */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-text-primary flex items-center gap-1.5">
-                                <Receipt className="w-3.5 h-3.5 text-primary" />
+                            <label className="flex items-center gap-1.5 text-xs font-bold text-text-primary">
+                                <Receipt className="h-3.5 w-3.5 text-primary" />
                                 <span>{t('finance.expenses.item_name', 'بيان المصروف')} *</span>
                             </label>
                             <input
@@ -135,14 +135,14 @@ export default function AddExpenseDrawer({
                                 value={itemName}
                                 onChange={(e) => setItemName(e.target.value)}
                                 placeholder={t('finance.expenses.item_placeholder', 'مثال: شراء مواد تخدير، صيانة كرسي...')}
-                                className="w-full px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-xl text-text-primary placeholder:text-text-secondary/60 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                                className="w-full rounded-xl border border-border bg-input px-3 py-2 text-xs text-text-primary transition-all placeholder:text-text-secondary/60 focus:outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm"
                             />
                         </div>
 
                         {/* Cost / Amount */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-text-primary flex items-center gap-1.5">
-                                <DollarSign className="w-3.5 h-3.5 text-primary" />
+                            <label className="flex items-center gap-1.5 text-xs font-bold text-text-primary">
+                                <DollarSign className="h-3.5 w-3.5 text-primary" />
                                 <span>{t('finance.expenses.cost', 'المبلغ (جنيه)')} *</span>
                             </label>
                             <input
@@ -153,20 +153,20 @@ export default function AddExpenseDrawer({
                                 value={cost}
                                 onChange={(e) => setCost(e.target.value)}
                                 placeholder="0.00"
-                                className="w-full px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-xl text-text-primary font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                                className="w-full rounded-xl border border-border bg-input px-3 py-2 font-mono text-xs text-text-primary transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm"
                             />
                         </div>
 
                         {/* Category */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-text-primary flex items-center gap-1.5">
-                                <Tag className="w-3.5 h-3.5 text-primary" />
+                            <label className="flex items-center gap-1.5 text-xs font-bold text-text-primary">
+                                <Tag className="h-3.5 w-3.5 text-primary" />
                                 <span>{t('finance.expenses.category', 'التصنيف')} *</span>
                             </label>
                             <select
                                 value={category}
                                 onChange={(e) => setCategory(e.target.value)}
-                                className="w-full px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-xl text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                                className="w-full rounded-xl border border-border bg-input px-3 py-2 text-xs text-text-primary transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm"
                             >
                                 {EXPENSE_CATEGORIES.map((cat) => (
                                     <option key={cat.value} value={cat.value}>
@@ -178,8 +178,8 @@ export default function AddExpenseDrawer({
 
                         {/* Date */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-text-primary flex items-center gap-1.5">
-                                <Calendar className="w-3.5 h-3.5 text-primary" />
+                            <label className="flex items-center gap-1.5 text-xs font-bold text-text-primary">
+                                <Calendar className="h-3.5 w-3.5 text-primary" />
                                 <span>{t('finance.expenses.date', 'التاريخ')} *</span>
                             </label>
                             <input
@@ -187,14 +187,14 @@ export default function AddExpenseDrawer({
                                 required
                                 value={date}
                                 onChange={(e) => setDate(e.target.value)}
-                                className="w-full px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-xl text-text-primary font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                                className="w-full rounded-xl border border-border bg-input px-3 py-2 font-mono text-xs text-text-primary transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm"
                             />
                         </div>
 
                         {/* Notes */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-text-primary flex items-center gap-1.5">
-                                <FileText className="w-3.5 h-3.5 text-primary" />
+                            <label className="flex items-center gap-1.5 text-xs font-bold text-text-primary">
+                                <FileText className="h-3.5 w-3.5 text-primary" />
                                 <span>{t('finance.expenses.notes', 'ملاحظات إضافية')}</span>
                             </label>
                             <textarea
@@ -202,17 +202,17 @@ export default function AddExpenseDrawer({
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}
                                 placeholder={t('finance.expenses.notes_placeholder', 'أي تفاصيل عن المورد أو الفاتورة...')}
-                                className="w-full px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-xl text-text-primary placeholder:text-text-secondary/60 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                                className="w-full rounded-xl border border-border bg-input px-3 py-2 text-xs text-text-primary transition-all placeholder:text-text-secondary/60 focus:outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm"
                             />
                         </div>
                     </form>
 
                     {/* Footer Actions */}
-                    <div className="p-6 border-t border-border bg-muted/10 flex items-center gap-3">
+                    <div className="flex items-center gap-3 border-t border-border bg-surface-subtle p-6">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 py-2.5 px-4 text-xs font-bold text-text-secondary hover:text-text-primary bg-card border border-border rounded-xl hover:bg-muted/60 transition-colors"
+                            className="flex-1 rounded-xl border border-border bg-surface-elevated px-4 py-2.5 text-xs font-bold text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
                         >
                             {t('common.cancel', 'إلغاء')}
                         </button>
@@ -221,16 +221,16 @@ export default function AddExpenseDrawer({
                                 type="submit"
                                 form="add-expense-form"
                                 disabled={isSubmitting}
-                                className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-bold text-white bg-primary hover:bg-primary/90 disabled:opacity-50 rounded-xl transition-all shadow-sm"
+                                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-low transition-all hover:bg-primary/90 disabled:opacity-50"
                             >
                                 {isSubmitting ? (
                                     <>
-                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <Loader2 className="h-4 w-4 animate-spin" />
                                         <span>{t('common.saving', 'جاري الحفظ...')}</span>
                                     </>
                                 ) : (
                                     <>
-                                        <Plus className="w-4 h-4" />
+                                        <Plus className="h-4 w-4" />
                                         <span>{t('finance.expenses.save_btn', 'حفظ المصروف')}</span>
                                     </>
                                 )}
