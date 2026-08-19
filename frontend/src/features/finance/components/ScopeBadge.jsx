@@ -19,22 +19,26 @@ export default function ScopeBadge({
         : t('finance.scope.period', 'الفترة المحددة');
 
     const displayLabel = label || defaultLabel;
+    const tooltip = isAllTime
+        ? t('finance.scope.all_time_tooltip', 'يشمل جميع المعاملات غير المسددة عبر كل الفترات')
+        : t('finance.scope.period_tooltip', 'خاص بنطاق التواريخ المحدد فقط');
 
     return (
         <span
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold tracking-wide transition-colors ${
+            className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold tracking-wide transition-colors ${
                 isAllTime
-                    ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20'
-                    : 'bg-primary/10 text-primary border border-primary/20'
+                    ? 'border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                    : 'border-primary/20 bg-primary/10 text-primary'
             } ${className}`}
-            title={isAllTime ? t('finance.scope.all_time_tooltip', 'يشمل جميع المعاملات غير المسددة عبر كل الفترات') : t('finance.scope.period_tooltip', 'خاص بنطاق التواريخ المحدد فقط')}
+            title={tooltip}
+            aria-label={displayLabel}
         >
             {isAllTime ? (
-                <Layers className="w-3 h-3 flex-shrink-0" />
+                <Layers className="h-3 w-3 shrink-0" aria-hidden="true" />
             ) : (
-                <Calendar className="w-3 h-3 flex-shrink-0" />
+                <Calendar className="h-3 w-3 shrink-0" aria-hidden="true" />
             )}
-            <span className="truncate">{displayLabel}</span>
+            <span className="hidden max-w-40 truncate sm:inline">{displayLabel}</span>
         </span>
     );
 }
