@@ -1,8 +1,10 @@
 """Laboratory and lab order schemas."""
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime
+
+from backend.utils.tenant_time import utc_now_naive
 
 
 class LaboratoryBase(BaseModel):
@@ -83,7 +85,7 @@ class LabOrder(LabOrderBase):
 class LabPaymentBase(BaseModel):
     laboratory_id: Optional[int] = None
     amount: float
-    date: datetime = datetime.now(timezone.utc)
+    date: datetime = Field(default_factory=utc_now_naive)
     notes: Optional[str] = None
     method: str = "Cash"
 

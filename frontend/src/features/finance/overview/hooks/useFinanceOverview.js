@@ -4,6 +4,7 @@ import { getComprehensiveStats, getFinanceProfitabilityTrend } from '@/api/finan
 import { getAllPayments, getExpenses } from '@/api/billing';
 import { financeKeys } from '../../queryKeys';
 import { getPresetDates } from '../../utils/datePresets';
+import { authoritativeNumber } from '../../utils/financialTruth';
 
 /**
  * Hook for fetching all data required by the Finance Overview V2 page.
@@ -108,10 +109,19 @@ export function useFinanceOverview() {
     const netInvoiced = Number(income.total_revenue) || 0;
     const collected = Number(income.total_collected) || 0;
     const totalDeductions = Number(deductions.total_deductions) || 0;
-    const netResult = Number(statsData?.net_profit) || (collected - totalDeductions);
+    const netResult = authoritativeNumber(
+        statsData?.net_profit,
+        collected - totalDeductions,
+    );
 
-    const allTimeOutstanding = Number(income.all_time_outstanding || income.outstanding) || 0;
-    const periodBalance = Number(income.period_balance) || (netInvoiced - collected);
+    const allTimeOutstanding = authoritativeNumber(
+        income.all_time_outstanding,
+        income.outstanding,
+    );
+    const periodBalance = authoritativeNumber(
+        income.period_balance,
+        netInvoiced - collected,
+    );
 
     const doctorDuesTotal = Number(deductions.doctor_dues?.total) || 0;
     const staffDuesTotal = Number(deductions.staff_dues?.total) || 0;

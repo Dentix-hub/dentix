@@ -77,9 +77,17 @@ class AILog(Base):
 
     # Legacy compat columns stored for backward-compat queries (AIUsageLog fields)
     username = Column(String, nullable=True)        # cached username at log time
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)  # alias for timestamp
+    created_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        index=True,
+    )  # alias for timestamp
 
-    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    timestamp = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        index=True,
+    )
 
     # Relationships
     user = relationship("User")

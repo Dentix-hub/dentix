@@ -66,7 +66,9 @@ class InsuranceProvider(Base):
 
     # Status
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+    )
 
     # Relationships
     price_lists = relationship("PriceList", back_populates="insurance_provider")
@@ -120,8 +122,14 @@ class PriceList(Base):
     effective_to = Column(Date, nullable=True)
 
     # Metadata
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+    )
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+    )
 
     # Relationships
     insurance_provider = relationship("InsuranceProvider", back_populates="price_lists")
@@ -177,8 +185,14 @@ class PriceListItem(Base):
     requires_approval = Column(Boolean, default=False)  # Needs pre-approval
 
     # Metadata
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+    )
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+    )
 
     # Relationships
     price_list = relationship("PriceList", back_populates="items")

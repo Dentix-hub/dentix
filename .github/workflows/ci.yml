@@ -69,12 +69,60 @@ jobs:
           assert collection.get(ids=['1'])['ids'] == []
           PY
 
-      - name: Initialize Database
+      - name: Initialize Database via production Alembic preflight
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
+          DB_SSL_MODE: disable
           SECRET_KEY: test-secret-key-for-ci-only-at-least-32
           PYTHONPATH: .
-        run: python backend/scripts/init_db.py
+        run: python -m backend.scripts.preflight_migrations
+
+      - name: Provision restricted PostgreSQL role for RLS smoke
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
+        run: |
+          python - <<'PY'
+          import os
+          import psycopg2
+
+          with psycopg2.connect(os.environ['DATABASE_URL']) as conn:
+              conn.autocommit = True
+              with conn.cursor() as cur:
+                  cur.execute(
+                      """
+                      CREATE ROLE dentix_ci_app WITH
+                          LOGIN
+                          PASSWORD 'dentix_ci_app_pass'
+                          NOSUPERUSER
+                          NOCREATEDB
+                          NOCREATEROLE
+                          NOINHERIT
+                          NOREPLICATION
+                          NOBYPASSRLS
+                      """
+                  )
+                  cur.execute("GRANT CONNECT ON DATABASE dentix_test TO dentix_ci_app")
+                  cur.execute("GRANT USAGE ON SCHEMA public TO dentix_ci_app")
+                  cur.execute(
+                      "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO dentix_ci_app"
+                  )
+                  cur.execute(
+                      "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO dentix_ci_app"
+                  )
+          PY
+
+      - name: Finance PostgreSQL smoke
+        env:
+          DATABASE_URL: postgresql://dentix_ci_app:dentix_ci_app_pass@localhost:5432/dentix_test
+          DB_SSL_MODE: disable
+          SECRET_KEY: test-secret-key-for-ci-only-at-least-32
+          ENVIRONMENT: test
+          PYTHONPATH: .
+        run: |
+          pytest backend/ci_tests/test_finance_postgres_smoke.py \
+            -v \
+            --tb=short \
+            --confcutdir=backend/ci_tests
 
       - name: Run tests with coverage
         env:
@@ -90,7 +138,7 @@ jobs:
             --cov-fail-under=52 \
             -v \
             --tb=short \
-            -x
+            --maxfail=0
 
       - name: Upload coverage report
         uses: codecov/codecov-action@v4
@@ -202,8 +250,8 @@ jobs:
           pip install -r requirements.txt
           pip uninstall -y ecdsa
 
-      - name: Initialize E2E database
-        run: python backend/scripts/init_db.py
+      - name: Initialize E2E database via production Alembic preflight
+        run: python -m backend.scripts.preflight_migrations
 
       - name: Start backend
         shell: bash

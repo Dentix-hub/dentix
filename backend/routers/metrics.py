@@ -34,6 +34,12 @@ router.routes[:] = [
     )
 ]
 
+# Preserve the legacy helper as part of the module compatibility surface.  The
+# facade below intentionally skips private names, but this helper is imported
+# by regression/security tests and remains the authority for platform-only
+# process telemetry endpoints.
+_require_platform_metrics = _legacy._require_platform_metrics
+
 
 def _parse_local_date(value: str, field_name: str):
     try:

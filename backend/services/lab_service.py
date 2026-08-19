@@ -9,12 +9,12 @@ Central service for laboratory and lab order operations:
 """
 
 import logging
-from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select, or_
+from sqlalchemy import func, select
 
 from backend import models, schemas
+from backend.utils.tenant_time import utc_now_naive
 
 logger = logging.getLogger(__name__)
 
@@ -111,24 +111,21 @@ class LabService:
     async def create_lab_order(
         self, data: schemas.LabOrderCreate, doctor_id: int
     ) -> models.LabOrder:
-        """Create lab order with automatic linked treatment for billing."""
-        # Verify patient
+        """Create a lab order and its billable treatment atomically."""
         stmt_patient = select(models.Patient).where(
             models.Patient.id == data.patient_id,
             models.Patient.tenant_id == self.tenant_id,
+            models.Patient.is_deleted == False,  # noqa: E712
         )
-        res_patient = await self.db.execute(stmt_patient)
-        patient = res_patient.scalars().first()
+        patient = (await self.db.execute(stmt_patient)).scalars().first()
         if not patient:
             raise ValueError("Patient not found")
 
-        # Verify laboratory
         stmt_lab = select(models.Laboratory).where(
             models.Laboratory.id == data.laboratory_id,
             models.Laboratory.tenant_id == self.tenant_id,
         )
-        res_lab = await self.db.execute(stmt_lab)
-        lab = res_lab.scalars().first()
+        lab = (await self.db.execute(stmt_lab)).scalars().first()
         if not lab:
             raise ValueError("Laboratory not found")
 
@@ -138,13 +135,14 @@ class LabService:
             doctor_id=doctor_id,
         )
         self.db.add(db_order)
-        await self.db.commit()
-        await self.db.refresh(db_order)
+        # Generate the order ID without persisting a half-complete financial pair.
+        await self.db.flush()
 
-        # Auto-create linked treatment
         if db_order.price_to_patient and db_order.price_to_patient > 0:
             await self._create_linked_treatment(db_order, lab)
 
+        await self.db.commit()
+        await self.db.refresh(db_order)
         return db_order
 
     async def update_lab_order(
@@ -156,38 +154,29 @@ class LabService:
             raise ValueError("Lab order not found")
 
         update_data = data.model_dump(exclude_unset=True)
-
-        # If status changes to completed, set received_date
         if update_data.get("status") == "completed" and order.status != "completed":
-            update_data["received_date"] = datetime.now(timezone.utc)
+            update_data["received_date"] = utc_now_naive()
 
         for key, value in update_data.items():
             setattr(order, key, value)
 
-        if not order.doctor_id:
-            order.doctor_id = order.doctor_id
-
+        await self._sync_linked_treatment(order, commit=False)
         await self.db.commit()
         await self.db.refresh(order)
-
-        # Sync linked treatment
-        await self._sync_linked_treatment(order)
-
         return order
 
     async def delete_lab_order(self, order_id: int) -> bool:
-        """Delete lab order and its linked treatment."""
+        """Delete one lab order and only its exact linked treatment."""
         order = await self.get_lab_order(order_id)
         if not order:
             raise ValueError("Lab order not found")
 
-        # Delete linked treatment
         link_note = f"{TREATMENT_LINK_PREFIX}{order_id}"
         stmt_treatment = select(models.Treatment).where(
-            models.Treatment.notes.contains(link_note)
+            models.Treatment.tenant_id == self.tenant_id,
+            models.Treatment.notes == link_note,
         )
-        res_treatment = await self.db.execute(stmt_treatment)
-        linked_treatment = res_treatment.scalars().first()
+        linked_treatment = (await self.db.execute(stmt_treatment)).scalars().first()
         if linked_treatment:
             await self.db.delete(linked_treatment)
 
@@ -198,7 +187,13 @@ class LabService:
     async def get_patient_lab_orders(self, patient_id: int) -> List[models.LabOrder]:
         stmt = (
             select(models.LabOrder)
-            .where(models.LabOrder.patient_id == patient_id)
+            .join(models.Patient, models.LabOrder.patient_id == models.Patient.id)
+            .where(
+                models.LabOrder.patient_id == patient_id,
+                models.LabOrder.tenant_id == self.tenant_id,
+                models.Patient.tenant_id == self.tenant_id,
+                models.Patient.is_deleted == False,  # noqa: E712
+            )
             .order_by(models.LabOrder.order_date.desc())
         )
         result = await self.db.execute(stmt)
@@ -206,8 +201,12 @@ class LabService:
 
     # --- Linked Treatment Sync ---
 
-    async def _create_linked_treatment(self, order: models.LabOrder, lab: models.Laboratory):
-        """Create a linked treatment for lab order billing."""
+    async def _create_linked_treatment(
+        self,
+        order: models.LabOrder,
+        lab: models.Laboratory,
+    ) -> None:
+        """Stage the exact tenant-owned treatment linked to a lab order."""
         tooth_num = None
         if order.tooth_number:
             try:
@@ -225,18 +224,23 @@ class LabService:
             discount=0.0,
             date=order.order_date,
             notes=f"{TREATMENT_LINK_PREFIX}{order.id}",
+            tenant_id=self.tenant_id,
         )
         self.db.add(linked_treatment)
-        await self.db.commit()
 
-    async def _sync_linked_treatment(self, order: models.LabOrder):
-        """Update or create linked treatment for lab order."""
+    async def _sync_linked_treatment(
+        self,
+        order: models.LabOrder,
+        *,
+        commit: bool = True,
+    ) -> None:
+        """Update or create the exact tenant-owned linked treatment."""
         link_note = f"{TREATMENT_LINK_PREFIX}{order.id}"
         stmt_treatment = select(models.Treatment).where(
-            models.Treatment.notes.contains(link_note)
+            models.Treatment.tenant_id == self.tenant_id,
+            models.Treatment.notes == link_note,
         )
-        res_treatment = await self.db.execute(stmt_treatment)
-        linked_treatment = res_treatment.scalars().first()
+        linked_treatment = (await self.db.execute(stmt_treatment)).scalars().first()
 
         if linked_treatment:
             linked_treatment.cost = order.price_to_patient or 0
@@ -246,7 +250,6 @@ class LabService:
             linked_treatment.doctor_id = order.doctor_id
             if order.laboratory:
                 linked_treatment.diagnosis = f"تركيبة معملية - {order.laboratory.name}"
-            await self.db.commit()
         elif order.price_to_patient and order.price_to_patient > 0:
             tooth_num = None
             if order.tooth_number:
@@ -255,86 +258,75 @@ class LabService:
                 except (ValueError, AttributeError):
                     pass
 
-            # Make sure lab is loaded
             lab_name = "معمل"
             if order.laboratory_id:
                 stmt_lab = select(models.Laboratory).where(
-                    models.Laboratory.id == order.laboratory_id
+                    models.Laboratory.id == order.laboratory_id,
+                    models.Laboratory.tenant_id == self.tenant_id,
                 )
-                res_lab = await self.db.execute(stmt_lab)
-                lab = res_lab.scalars().first()
+                lab = (await self.db.execute(stmt_lab)).scalars().first()
                 if lab:
                     lab_name = lab.name
 
-            new_treatment = models.Treatment(
-                patient_id=order.patient_id,
-                tooth_number=tooth_num,
-                diagnosis=f"تركيبة معملية - {lab_name}",
-                procedure=_get_lab_procedure_name(order.work_type, order.material),
-                doctor_id=order.doctor_id,
-                cost=order.price_to_patient,
-                discount=0.0,
-                date=order.order_date,
-                notes=link_note,
+            self.db.add(
+                models.Treatment(
+                    patient_id=order.patient_id,
+                    tooth_number=tooth_num,
+                    diagnosis=f"تركيبة معملية - {lab_name}",
+                    procedure=_get_lab_procedure_name(order.work_type, order.material),
+                    doctor_id=order.doctor_id,
+                    cost=order.price_to_patient,
+                    discount=0.0,
+                    date=order.order_date,
+                    notes=link_note,
+                    tenant_id=self.tenant_id,
+                )
             )
-            self.db.add(new_treatment)
+
+        if commit:
             await self.db.commit()
 
     # --- Statistics ---
 
     async def get_stats_summary(self) -> Dict[str, Any]:
-        # Total orders count
         stmt_total = select(func.count()).select_from(models.LabOrder).where(
             models.LabOrder.tenant_id == self.tenant_id
         )
-        res_total = await self.db.execute(stmt_total)
-        total_orders = res_total.scalar() or 0
+        total_orders = (await self.db.execute(stmt_total)).scalar() or 0
 
-        # Pending count
         stmt_pending = select(func.count()).select_from(models.LabOrder).where(
             models.LabOrder.tenant_id == self.tenant_id,
-            models.LabOrder.status == "pending"
+            models.LabOrder.status == "pending",
         )
-        res_pending = await self.db.execute(stmt_pending)
-        pending_orders = res_pending.scalar() or 0
+        pending_orders = (await self.db.execute(stmt_pending)).scalar() or 0
 
-        # In progress count
         stmt_ip = select(func.count()).select_from(models.LabOrder).where(
             models.LabOrder.tenant_id == self.tenant_id,
-            models.LabOrder.status == "in_progress"
+            models.LabOrder.status == "in_progress",
         )
-        res_ip = await self.db.execute(stmt_ip)
-        in_progress = res_ip.scalar() or 0
+        in_progress = (await self.db.execute(stmt_ip)).scalar() or 0
 
-        # Completed count
         stmt_comp = select(func.count()).select_from(models.LabOrder).where(
             models.LabOrder.tenant_id == self.tenant_id,
-            models.LabOrder.status == "completed"
+            models.LabOrder.status == "completed",
         )
-        res_comp = await self.db.execute(stmt_comp)
-        completed = res_comp.scalar() or 0
+        completed = (await self.db.execute(stmt_comp)).scalar() or 0
 
-        # Total cost
         stmt_cost = select(func.sum(models.LabOrder.cost)).where(
             models.LabOrder.tenant_id == self.tenant_id
         )
-        res_cost = await self.db.execute(stmt_cost)
-        total_cost = res_cost.scalar() or 0
+        total_cost = (await self.db.execute(stmt_cost)).scalar() or 0
 
-        # Total revenue
         stmt_rev = select(func.sum(models.LabOrder.price_to_patient)).where(
             models.LabOrder.tenant_id == self.tenant_id
         )
-        res_rev = await self.db.execute(stmt_rev)
-        total_revenue = res_rev.scalar() or 0
+        total_revenue = (await self.db.execute(stmt_rev)).scalar() or 0
 
-        # Total active labs
         stmt_labs = select(func.count()).select_from(models.Laboratory).where(
             models.Laboratory.tenant_id == self.tenant_id,
-            models.Laboratory.is_active == True
+            models.Laboratory.is_active == True,  # noqa: E712
         )
-        res_labs = await self.db.execute(stmt_labs)
-        total_labs = res_labs.scalar() or 0
+        total_labs = (await self.db.execute(stmt_labs)).scalar() or 0
 
         return {
             "total_orders": total_orders,
@@ -352,55 +344,43 @@ class LabService:
         if not lab:
             raise ValueError("Laboratory not found")
 
-        # Total orders
         stmt_total = select(func.count()).select_from(models.LabOrder).where(
             models.LabOrder.laboratory_id == lab_id,
-            models.LabOrder.tenant_id == self.tenant_id
+            models.LabOrder.tenant_id == self.tenant_id,
         )
-        res_total = await self.db.execute(stmt_total)
-        total_orders = res_total.scalar() or 0
+        total_orders = (await self.db.execute(stmt_total)).scalar() or 0
 
-        # Pending orders
         stmt_pending = select(func.count()).select_from(models.LabOrder).where(
             models.LabOrder.laboratory_id == lab_id,
             models.LabOrder.tenant_id == self.tenant_id,
-            models.LabOrder.status == "pending"
+            models.LabOrder.status == "pending",
         )
-        res_pending = await self.db.execute(stmt_pending)
-        pending = res_pending.scalar() or 0
+        pending = (await self.db.execute(stmt_pending)).scalar() or 0
 
-        # Completed orders
         stmt_completed = select(func.count()).select_from(models.LabOrder).where(
             models.LabOrder.laboratory_id == lab_id,
             models.LabOrder.tenant_id == self.tenant_id,
-            models.LabOrder.status == "completed"
+            models.LabOrder.status == "completed",
         )
-        res_completed = await self.db.execute(stmt_completed)
-        completed = res_completed.scalar() or 0
+        completed = (await self.db.execute(stmt_completed)).scalar() or 0
 
-        # Total cost
         stmt_cost = select(func.sum(models.LabOrder.cost)).where(
             models.LabOrder.laboratory_id == lab_id,
             models.LabOrder.tenant_id == self.tenant_id,
         )
-        res_cost = await self.db.execute(stmt_cost)
-        total_cost = res_cost.scalar() or 0.0
+        total_cost = (await self.db.execute(stmt_cost)).scalar() or 0.0
 
-        # Total revenue
         stmt_rev = select(func.sum(models.LabOrder.price_to_patient)).where(
             models.LabOrder.laboratory_id == lab_id,
             models.LabOrder.tenant_id == self.tenant_id,
         )
-        res_rev = await self.db.execute(stmt_rev)
-        total_revenue = res_rev.scalar() or 0.0
+        total_revenue = (await self.db.execute(stmt_rev)).scalar() or 0.0
 
-        # Total paid
         stmt_paid = select(func.sum(models.LabPayment.amount)).where(
             models.LabPayment.laboratory_id == lab_id,
             models.LabPayment.tenant_id == self.tenant_id,
         )
-        res_paid = await self.db.execute(stmt_paid)
-        total_paid = res_paid.scalar() or 0.0
+        total_paid = (await self.db.execute(stmt_paid)).scalar() or 0.0
 
         return {
             "lab_id": lab_id,

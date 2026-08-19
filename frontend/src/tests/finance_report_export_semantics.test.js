@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    adaptComprehensiveStats,
     adaptExpensesReport,
     adaptProvidersReport,
 } from '../features/finance/reports/utils/reportAdapters';
@@ -32,5 +33,31 @@ describe('Finance report export semantics', () => {
 
         expect(expense.notes).toBe('Box of gloves');
         expect(expense.amount).toBe(450);
+    });
+
+    it('does not replace authoritative backend zero metrics with derived fallbacks', () => {
+        const summary = adaptComprehensiveStats({
+            income: {
+                gross_revenue: 1000,
+                net_revenue: 1000,
+                total_collected: 400,
+                all_time_outstanding: 0,
+                outstanding: 600,
+                period_balance: 0,
+            },
+            deductions: {
+                expenses: 100,
+                lab_costs: 100,
+                doctor_dues: { total: 100 },
+                staff_dues: { total: 100 },
+                total_deductions: 0,
+            },
+            net_profit: 0,
+        });
+
+        expect(summary.total_deductions).toBe(0);
+        expect(summary.net_profit).toBe(0);
+        expect(summary.all_time_outstanding).toBe(0);
+        expect(summary.period_balance).toBe(0);
     });
 });
