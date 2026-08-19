@@ -3,19 +3,37 @@
 Preflight Migrations Script — Run BEFORE starting the application.
 
 This script is the ONLY way database migrations should be applied in
-production. It runs Alembic migrations and verifies the result.
+production.
+
+Legacy note
+-----------
+The historical Alembic chain starts after Dentix already had a core schema;
+its first revision is intentionally a no-op and later revisions assume tables
+such as ``tenants`` and ``users`` already exist.  Rewriting those applied
+historical revisions would be unsafe for existing deployments.
+
+Therefore preflight has two explicit paths:
+
+* Existing schema: run ``alembic upgrade head`` normally.
+* Truly empty schema: create the *current* SQLAlchemy model baseline, install
+  the PostgreSQL RLS invariants that ``metadata.create_all`` cannot create,
+  then stamp Alembic at head.  No historical/data migration is skipped for an
+  existing database.
 
 Usage:
     python -m backend.scripts.preflight_migrations
 
 Exit codes:
-    0 — Migrations applied successfully
-    1 — Migration failed (deployment should be aborted)
+    0 — Migrations/bootstrap applied successfully
+    1 — Migration/bootstrap/health check failed (deployment should abort)
 """
 
-import sys
-import os
 import logging
+import os
+import sys
+from typing import Iterable
+
+from sqlalchemy import create_engine, inspect, text
 
 # Ensure project root is in path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -24,82 +42,267 @@ sys.path.insert(0, PROJECT_ROOT)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("preflight_migrations")
 
+# Keep this in sync with the established bf6c75e1c3d3 RLS migration.  Fresh
+# databases cannot execute that historical chain from base, so these current
+# invariants must be installed after metadata.create_all().
+RLS_TABLES = (
+    "users",
+    "patients",
+    "saved_medications",
+    "appointments",
+    "treatments",
+    "treatment_sessions",
+    "laboratories",
+    "lab_orders",
+    "procedures",
+    "payments",
+    "expenses",
+    "salary_payments",
+    "lab_payments",
+    "insurance_providers",
+    "price_lists",
+    "warehouses",
+    "materials",
+    "batches",
+    "stock_items",
+    "procedure_material_weights",
+    "material_learning_logs",
+    "treatment_material_usages",
+    "audit_logs",
+    "support_messages",
+    "tenant_features",
+    "background_jobs",
+    "system_errors",
+    "ai_logs",
+    "security_events",
+    "domain_events",
+)
 
-def run_alembic_upgrade():
-    """Run Alembic upgrade head and return success/failure."""
+
+def _database_url() -> str | None:
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        return None
+    db_url = db_url.strip().strip("'").strip('"')
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    # Preflight is synchronous.  Normalize an async SQLAlchemy URL if an
+    # operator supplied one explicitly.
+    if db_url.startswith("postgresql+asyncpg://"):
+        db_url = db_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    return db_url
+
+
+def _alembic_config():
     from alembic.config import Config
-    from alembic import command
 
-    # Locate alembic.ini
     ini_candidates = [
         os.path.join(PROJECT_ROOT, "backend", "alembic.ini"),
         os.path.join(PROJECT_ROOT, "alembic.ini"),
         os.path.join(os.getcwd(), "alembic.ini"),
     ]
-
-    ini_path = None
-    for candidate in ini_candidates:
-        if os.path.exists(candidate):
-            ini_path = candidate
-            break
-
+    ini_path = next((path for path in ini_candidates if os.path.exists(path)), None)
     if not ini_path:
-        logger.error("[PREFLIGHT] alembic.ini not found in any expected location.")
-        logger.error("[PREFLIGHT] Searched: %s", ini_candidates)
-        return False
+        raise RuntimeError(f"alembic.ini not found; searched: {ini_candidates}")
 
     logger.info("[PREFLIGHT] Using alembic.ini: %s", ini_path)
-
-    alembic_cfg = Config(ini_path)
-
-    # Override DB URL from environment
-    db_url = os.getenv("DATABASE_URL")
+    cfg = Config(ini_path)
+    db_url = _database_url()
     if db_url:
-        # Normalize postgres:// -> postgresql://
-        if db_url.startswith("postgres://"):
-            db_url = db_url.replace("postgres://", "postgresql://", 1)
-        # Escape percent signs for ConfigParser interpolation
-        db_url = db_url.replace("%", "%%")
-        alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+        cfg.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
+    return cfg
 
-    try:
-        logger.info("[PREFLIGHT] Running: alembic upgrade head ...")
-        command.upgrade(alembic_cfg, "head")
-        logger.info("[PREFLIGHT] Alembic upgrade completed successfully.")
-    except BaseException as e:
-        logger.error("[PREFLIGHT] Alembic upgrade FAILED with base exception: %s", e, exc_info=True)
+
+def _user_tables(engine) -> set[str]:
+    """Return application tables, excluding Alembic bookkeeping."""
+    return {
+        table
+        for table in inspect(engine).get_table_names()
+        if table != "alembic_version"
+    }
+
+
+def _install_postgresql_rls(connection) -> None:
+    """Install the same strict RLS contract used by the historical migration."""
+    if connection.dialect.name != "postgresql":
+        return
+
+    existing_tables = set(inspect(connection).get_table_names())
+    missing = sorted(set(RLS_TABLES + ("notifications",)) - existing_tables)
+    if missing:
+        raise RuntimeError(
+            "Fresh schema is missing tables required for RLS: " + ", ".join(missing)
+        )
+
+    tenant_expr = (
+        "tenant_id = NULLIF(current_setting('rls.tenant_id', true), '')::integer"
+    )
+    bypass_expr = (
+        "CAST(NULLIF(current_setting('rls.bypass_rls', true), '') AS BOOLEAN) = true"
+    )
+
+    for table in RLS_TABLES:
+        connection.execute(text(f'ALTER TABLE "{table}" ENABLE ROW LEVEL SECURITY'))
+        connection.execute(text(f'ALTER TABLE "{table}" FORCE ROW LEVEL SECURITY'))
+        connection.execute(text(f'DROP POLICY IF EXISTS "{table}_tenant_policy" ON "{table}"'))
+        connection.execute(
+            text(
+                f'''CREATE POLICY "{table}_tenant_policy" ON "{table}"
+                    FOR ALL
+                    USING (({tenant_expr}) OR {bypass_expr})
+                    WITH CHECK (({tenant_expr}) OR {bypass_expr})'''
+            )
+        )
+
+    notif_expr = (
+        "(tenant_id = NULLIF(current_setting('rls.tenant_id', true), '')::integer) "
+        "OR (is_global = true) OR (tenant_id IS NULL)"
+    )
+    connection.execute(text('ALTER TABLE "notifications" ENABLE ROW LEVEL SECURITY'))
+    connection.execute(text('ALTER TABLE "notifications" FORCE ROW LEVEL SECURITY'))
+    connection.execute(
+        text('DROP POLICY IF EXISTS "notifications_tenant_policy" ON "notifications"')
+    )
+    connection.execute(
+        text(
+            f'''CREATE POLICY "notifications_tenant_policy" ON "notifications"
+                FOR ALL
+                USING (({notif_expr}) OR {bypass_expr})
+                WITH CHECK (({notif_expr}) OR {bypass_expr})'''
+        )
+    )
+
+
+def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
+    """Create the current canonical schema for a truly empty database."""
+    from alembic import command
+    from backend import models
+
+    logger.warning(
+        "[PREFLIGHT] Empty database detected. Bootstrapping current model baseline."
+    )
+    with engine.begin() as connection:
+        models.Base.metadata.create_all(bind=connection)
+        _install_postgresql_rls(connection)
+
+    # The model baseline is current by definition.  Historical revisions are
+    # legacy deltas for pre-existing schemas and cannot safely be replayed from
+    # an empty DB, so stamp only after schema + invariants succeeded atomically.
+    command.stamp(alembic_cfg, "head")
+    logger.info("[PREFLIGHT] Fresh database baseline created and stamped at head.")
+
+
+def _verify_alembic_heads(engine, alembic_cfg) -> bool:
+    from alembic.migration import MigrationContext
+    from alembic.script import ScriptDirectory
+
+    expected = set(ScriptDirectory.from_config(alembic_cfg).get_heads())
+    with engine.connect() as connection:
+        current = set(MigrationContext.configure(connection).get_current_heads())
+    if current != expected:
+        logger.error(
+            "[PREFLIGHT] Alembic revision mismatch. current=%s expected=%s",
+            sorted(current),
+            sorted(expected),
+        )
         return False
-
-    # Verify current revision
-    try:
-        logger.info("[PREFLIGHT] Verifying current Alembic revision ...")
-        # command.current(alembic_cfg) # Commented out to prevent SystemExit/abort in container environment
-        logger.info("[PREFLIGHT] Migration state verified.")
-    except Exception as e:
-        logger.warning("[PREFLIGHT] Could not verify migration state: %s", e)
-
+    logger.info("[PREFLIGHT] Alembic heads verified: %s", sorted(current))
     return True
 
 
-def run_migration_health_check():
-    """Verify critical tables and columns exist after migrations."""
-    from sqlalchemy import create_engine, text
+def run_alembic_upgrade():
+    """Bootstrap an empty DB or upgrade an existing DB to Alembic head."""
+    from alembic import command
 
-    logger.info("[PREFLIGHT] Running migration health check ...")
-
-    db_url = os.getenv("DATABASE_URL")
+    db_url = _database_url()
     if not db_url:
         logger.error("[PREFLIGHT] DATABASE_URL is not set.")
         return False
 
-    # Normalize postgres:// -> postgresql://
-    if db_url.startswith("postgres://"):
-        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    try:
+        alembic_cfg = _alembic_config()
+        engine = create_engine(db_url)
+    except Exception as exc:
+        logger.error("[PREFLIGHT] Failed to initialize migration engine: %s", exc)
+        return False
+
+    try:
+        tables = _user_tables(engine)
+        if not tables:
+            _bootstrap_fresh_database(engine, alembic_cfg)
+        else:
+            # Never disguise a partial/corrupt legacy database as a fresh one.
+            # Existing Dentix schemas must contain the core tenant table.
+            if "tenants" not in tables:
+                logger.error(
+                    "[PREFLIGHT] Non-empty database has no tenants table; refusing "
+                    "automatic bootstrap. Existing tables: %s",
+                    sorted(tables),
+                )
+                return False
+            logger.info("[PREFLIGHT] Existing schema detected; running alembic upgrade head ...")
+            command.upgrade(alembic_cfg, "head")
+            logger.info("[PREFLIGHT] Alembic upgrade completed successfully.")
+
+        return _verify_alembic_heads(engine, alembic_cfg)
+    except BaseException as exc:
+        logger.error(
+            "[PREFLIGHT] Migration/bootstrap FAILED with base exception: %s",
+            exc,
+            exc_info=True,
+        )
+        return False
+    finally:
+        engine.dispose()
+
+
+def _verify_postgresql_rls(engine, tables: Iterable[str]) -> list[str]:
+    """Return RLS invariant failures for the requested PostgreSQL tables."""
+    if engine.name != "postgresql":
+        return []
+
+    failures: list[str] = []
+    with engine.connect() as connection:
+        for table in tables:
+            row = connection.execute(
+                text(
+                    """
+                    SELECT c.relrowsecurity, c.relforcerowsecurity,
+                           EXISTS (
+                               SELECT 1 FROM pg_policies p
+                               WHERE p.schemaname = current_schema()
+                                 AND p.tablename = :table
+                           ) AS has_policy
+                    FROM pg_class c
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE n.nspname = current_schema()
+                      AND c.relname = :table
+                    """
+                ),
+                {"table": table},
+            ).first()
+            if not row:
+                failures.append(f"{table}:missing")
+            elif not (bool(row[0]) and bool(row[1]) and bool(row[2])):
+                failures.append(
+                    f"{table}:enabled={bool(row[0])},forced={bool(row[1])},policy={bool(row[2])}"
+                )
+    return failures
+
+
+def run_migration_health_check():
+    """Verify critical schema and PostgreSQL tenant-isolation invariants."""
+    logger.info("[PREFLIGHT] Running migration health check ...")
+
+    db_url = _database_url()
+    if not db_url:
+        logger.error("[PREFLIGHT] DATABASE_URL is not set.")
+        return False
 
     try:
         engine = create_engine(db_url)
-    except Exception as e:
-        logger.error("[PREFLIGHT] Failed to create sync engine: %s", e)
+    except Exception as exc:
+        logger.error("[PREFLIGHT] Failed to create sync engine: %s", exc)
         return False
 
     checks = [
@@ -108,29 +311,37 @@ def run_migration_health_check():
         ("appointments", "tenant_id"),
         ("treatments", "tenant_id"),
         ("payments", "tenant_id"),
+        ("lab_orders", "tenant_id"),
+        ("salary_payments", "tenant_id"),
     ]
 
-    missing = []
-    for table, col in checks:
-        try:
-            with engine.connect() as conn:
-                if engine.name == "sqlite":
-                    res = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
-                    cols = [r[1] for r in res]
-                    if col not in cols:
-                        missing.append(f"{table}.{col}")
-                else:
-                    conn.execute(text(f"SELECT {col} FROM {table} LIMIT 0"))
-        except Exception as e:
-            logger.warning("[PREFLIGHT] Check failed for %s.%s: %s", table, col, e)
-            missing.append(f"{table}.{col}")
+    missing: list[str] = []
+    try:
+        inspector = inspect(engine)
+        table_names = set(inspector.get_table_names())
+        for table, column in checks:
+            if table not in table_names:
+                missing.append(f"{table}.{column}")
+                continue
+            columns = {item["name"] for item in inspector.get_columns(table)}
+            if column not in columns:
+                missing.append(f"{table}.{column}")
 
-    if missing:
-        logger.error("[PREFLIGHT] CRITICAL: Missing columns: %s", missing)
-        return False
+        if missing:
+            logger.error("[PREFLIGHT] CRITICAL: Missing schema components: %s", missing)
+            return False
 
-    logger.info("[PREFLIGHT] All critical schema components verified.")
-    return True
+        rls_failures = _verify_postgresql_rls(
+            engine, tuple(RLS_TABLES) + ("notifications",)
+        )
+        if rls_failures:
+            logger.error("[PREFLIGHT] CRITICAL: RLS invariant failures: %s", rls_failures)
+            return False
+
+        logger.info("[PREFLIGHT] All critical schema and RLS checks passed.")
+        return True
+    finally:
+        engine.dispose()
 
 
 def main():
@@ -138,12 +349,10 @@ def main():
     logger.info("[PREFLIGHT] Starting Dentix Migration Preflight Check")
     logger.info("=" * 60)
 
-    # Step 1: Run Alembic
     if not run_alembic_upgrade():
         logger.critical("[PREFLIGHT] MIGRATION FAILED — ABORTING DEPLOYMENT")
         sys.exit(1)
 
-    # Step 2: Health check
     if not run_migration_health_check():
         logger.critical("[PREFLIGHT] HEALTH CHECK FAILED — ABORTING DEPLOYMENT")
         sys.exit(1)
@@ -156,16 +365,19 @@ def main():
 
 if __name__ == "__main__":
     import traceback
+
     try:
         main()
-    except SystemExit as e:
-        if e.code == 0 or e.code is None:
+    except SystemExit as exc:
+        if exc.code == 0 or exc.code is None:
             sys.exit(0)
-        else:
-            print(f"CRITICAL: Captured non-zero SystemExit ({e.code}) at top level in preflight!", file=sys.stderr)
-            traceback.print_exc(file=sys.stderr)
-            sys.exit(e.code)
-    except BaseException as e:
+        print(
+            f"CRITICAL: Captured non-zero SystemExit ({exc.code}) at top level in preflight!",
+            file=sys.stderr,
+        )
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(exc.code)
+    except BaseException:
         print("CRITICAL: Captured BaseException at top level in preflight!", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
         sys.exit(2)
