@@ -1,10 +1,9 @@
-import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Search, X, Filter, RotateCcw } from 'lucide-react';
 
 /**
  * FilterBar component for tables and lists in Finance V2.
- * Syncs filters with URL search parameters and supports active filter chips.
+ * Uses controlled filter definitions and supports active filter chips.
  */
 export default function FilterBar({
     searchValue = '',
@@ -17,133 +16,141 @@ export default function FilterBar({
 }) {
     const { t } = useTranslation();
 
-    // Check if any filter or search is active
     const hasActiveFilters = Boolean(
         searchValue ||
-        filters.some((f) => f.value && f.value !== 'all' && f.value !== '')
+        filters.some((filter) => filter.value && filter.value !== 'all')
     );
 
     const handleClearAll = () => {
         if (onReset) {
             onReset();
-        } else {
-            if (onSearchChange) onSearchChange('');
-            filters.forEach((f) => f.onChange && f.onChange('all'));
+            return;
         }
+
+        if (onSearchChange) onSearchChange('');
+        filters.forEach((filter) => {
+            if (!filter.onChange) return;
+            const hasEmptyOption = filter.options?.some((option) => option.value === '');
+            filter.onChange(hasEmptyOption ? '' : 'all');
+        });
     };
 
     const resolvedSearchLabel = searchPlaceholder || t('common.search', 'بحث...');
 
     return (
         <div className={`space-y-3 ${className}`}>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                {/* Left: Search input + Primary Dropdowns */}
-                <div className="flex flex-wrap items-center gap-2.5 flex-1">
-                    {/* Search Box */}
+            <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
+                {/* Search input + primary dropdowns */}
+                <div className="flex min-w-0 flex-1 flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:items-center">
                     {onSearchChange && (
-                        <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
-                            <Search className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
+                        <div className="relative w-full min-w-0 flex-1 sm:min-w-[200px] sm:max-w-xs">
+                            <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" aria-hidden="true" />
                             <input
                                 type="text"
                                 value={searchValue}
-                                onChange={(e) => onSearchChange(e.target.value)}
+                                onChange={(event) => onSearchChange(event.target.value)}
                                 placeholder={resolvedSearchLabel}
                                 aria-label={resolvedSearchLabel}
-                                className="w-full ps-9 pe-8 py-2 text-xs sm:text-sm bg-card border border-border rounded-lg text-text-primary placeholder:text-text-secondary/70 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                                className="w-full rounded-lg border border-border bg-card py-2 ps-9 pe-8 text-sm text-text-primary placeholder:text-text-secondary/70 transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm"
                             />
                             {searchValue && (
                                 <button
                                     type="button"
                                     onClick={() => onSearchChange('')}
-                                    className="absolute end-2.5 top-1/2 -translate-y-1/2 p-0.5 text-text-secondary hover:text-text-primary rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                    className="absolute end-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-text-secondary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                                     aria-label={t('common.clear_search', 'مسح البحث')}
                                 >
-                                    <X className="w-3.5 h-3.5" aria-hidden="true" />
+                                    <X className="h-3.5 w-3.5" aria-hidden="true" />
                                 </button>
                             )}
                         </div>
                     )}
 
-                    {/* Filter Dropdowns */}
-                    {filters.map((filter) => (
-                        <div key={filter.id} className="relative min-w-[130px]">
-                            <select
-                                value={filter.value || 'all'}
-                                onChange={(e) => filter.onChange(e.target.value)}
-                                aria-label={filter.label}
-                                className="w-full px-3 py-2 text-xs sm:text-sm bg-card border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer appearance-none pe-8 font-medium transition-colors"
-                            >
-                                {filter.options.map((opt) => (
-                                    <option key={opt.value} value={opt.value}>
-                                        {opt.label}
-                                    </option>
-                                ))}
-                            </select>
-                            <div className="absolute end-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-text-secondary" aria-hidden="true">
-                                <Filter className="w-3.5 h-3.5" />
-                            </div>
-                        </div>
-                    ))}
+                    {filters.map((filter) => {
+                        const hasEmptyOption = filter.options?.some((option) => option.value === '');
+                        const resolvedValue = filter.value ?? (hasEmptyOption ? '' : 'all');
 
-                    {/* Reset All Button */}
+                        return (
+                            <div key={filter.id} className="relative w-full sm:w-auto sm:min-w-[130px]">
+                                <select
+                                    value={resolvedValue}
+                                    onChange={(event) => filter.onChange?.(event.target.value)}
+                                    aria-label={filter.label}
+                                    className="w-full cursor-pointer appearance-none rounded-lg border border-border bg-card px-3 py-2 pe-8 text-sm font-medium text-text-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm"
+                                >
+                                    {filter.options.map((option) => (
+                                        <option key={option.value} value={option.value}>
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="pointer-events-none absolute end-2.5 top-1/2 -translate-y-1/2 text-text-secondary" aria-hidden="true">
+                                    <Filter className="h-3.5 w-3.5" />
+                                </div>
+                            </div>
+                        );
+                    })}
+
                     {hasActiveFilters && (
                         <button
                             type="button"
                             onClick={handleClearAll}
-                            className="inline-flex items-center gap-1 px-2.5 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                            className="inline-flex w-full items-center justify-center gap-1 rounded-lg bg-rose-50 px-2.5 py-2 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 dark:bg-rose-950/30 dark:text-rose-400 sm:w-auto"
                         >
-                            <RotateCcw className="w-3 h-3" aria-hidden="true" />
+                            <RotateCcw className="h-3 w-3" aria-hidden="true" />
                             <span>{t('common.reset_filters', 'إعادة ضبط')}</span>
                         </button>
                     )}
                 </div>
 
-                {/* Right: Custom actions / Extra buttons */}
                 {children && (
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto">
                         {children}
                     </div>
                 )}
             </div>
 
-            {/* Active Filters Chips */}
             {hasActiveFilters && (
                 <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                    <span className="text-[11px] font-bold text-text-secondary uppercase tracking-wider me-1">
+                    <span className="me-1 text-[11px] font-bold uppercase tracking-wider text-text-secondary">
                         {t('common.active_filters', 'الفلاتر النشطة:')}
                     </span>
 
                     {searchValue && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-text-primary text-xs font-medium border border-border">
-                            <span>{t('common.search_for', 'بحث:')} &ldquo;{searchValue}&rdquo;</span>
+                        <span className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted px-2 py-0.5 text-xs font-medium text-text-primary">
+                            <span className="min-w-0 truncate">{t('common.search_for', 'بحث:')} &ldquo;{searchValue}&rdquo;</span>
                             <button
                                 type="button"
                                 onClick={() => onSearchChange('')}
-                                className="text-text-secondary hover:text-text-primary rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                className="shrink-0 rounded-sm text-text-secondary hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                                 aria-label={t('common.remove_search_filter', 'إزالة فلتر البحث')}
                             >
-                                <X className="w-3 h-3" aria-hidden="true" />
+                                <X className="h-3 w-3" aria-hidden="true" />
                             </button>
                         </span>
                     )}
 
                     {filters.map((filter) => {
                         if (!filter.value || filter.value === 'all') return null;
-                        const selectedOption = filter.options.find((o) => o.value === filter.value);
+                        const selectedOption = filter.options.find((option) => option.value === filter.value);
                         const selectedLabel = selectedOption?.label || filter.value;
+
                         return (
                             <span
                                 key={filter.id}
-                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-medium border border-primary/20"
+                                className="inline-flex max-w-full items-center gap-1 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
                             >
-                                <span>{filter.label}: {selectedLabel}</span>
+                                <span className="min-w-0 truncate">{filter.label}: {selectedLabel}</span>
                                 <button
                                     type="button"
-                                    onClick={() => filter.onChange('all')}
-                                    className="hover:opacity-75 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                    onClick={() => {
+                                        const hasEmptyOption = filter.options?.some((option) => option.value === '');
+                                        filter.onChange?.(hasEmptyOption ? '' : 'all');
+                                    }}
+                                    className="shrink-0 rounded-sm hover:opacity-75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                                     aria-label={`${t('common.remove_filter', 'إزالة الفلتر')} ${filter.label}: ${selectedLabel}`}
                                 >
-                                    <X className="w-3 h-3" aria-hidden="true" />
+                                    <X className="h-3 w-3" aria-hidden="true" />
                                 </button>
                             </span>
                         );
