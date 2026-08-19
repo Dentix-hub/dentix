@@ -1,4 +1,4 @@
-import { useEffect, Suspense, lazy, useCallback, useState } from 'react';
+import { useEffect, Suspense, lazy, useCallback, useRef, useState } from 'react';
 import logger from '@/utils/logger';
 import { motion } from '@/lib/motion';
 import { useLocation, Link, useNavigate, Outlet } from 'react-router-dom';
@@ -26,11 +26,9 @@ import {
     Users2,
     User
 } from 'lucide-react';
-
 import { useTranslation } from 'react-i18next';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { useAuth } from '@/auth/useAuth';
-// Components
 import GlobalSearch from '@/shared/ui/GlobalSearch';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import NotificationBell from '@/shared/ui/NotificationBell';
@@ -38,7 +36,6 @@ import GlobalBanner from '@/shared/ui/GlobalBanner';
 import SubscriptionBanner from '@/shared/ui/SubscriptionBanner';
 import CommandPalette from '@/shared/ui/CommandPalette';
 import SuperAdminCommandPalette from '@/features/admin/SuperAdmin/SuperAdminCommandPalette';
-// Prefetching hooks
 import { usePatients, usePrefetchPatients } from '@/hooks/usePatients';
 import { useAppointments, usePrefetchAppointments } from '@/hooks/useAppointments';
 import { usePrefetchDashboard } from '@/hooks/useDashboard';
@@ -46,10 +43,12 @@ import Tooltip from '@/shared/ui/Tooltip';
 import KeyboardShortcutsModal from '@/shared/ui/modals/KeyboardShortcutsModal';
 import ErrorBoundary from '@/shared/ui/ErrorBoundary';
 import GlobalErrorFallback from '@/shared/ui/GlobalErrorFallback';
-const AIChat = lazy(() => import('@/features/ai/AIChat'));
 import { useUIStore } from '@/store/ui.store';
 import { useTenantStore } from '@/store/tenant.store';
 import { API_URL } from '@/api';
+
+const AIChat = lazy(() => import('@/features/ai/AIChat'));
+const DESKTOP_BREAKPOINT = 1024;
 
 const Layout = () => {
     const location = useLocation();
@@ -58,45 +57,56 @@ const Layout = () => {
     const { sidebarOpen, setSidebarOpen, darkMode: isDarkMode, toggleDarkMode } = useUIStore();
     const { tenant } = useTenantStore();
     const { user: currentUser, logout } = useAuth();
-    
-    useEffect(() => {
-        logger.log(`[LAYOUT] Rendering Layout (Path: ${location.pathname})`);
-        if (window.innerWidth < 1024) {
-            setSidebarOpen(false);
-        }
-    }, [location.pathname, setSidebarOpen]);
-
-    useEffect(() => {
-        const handleResize = () => {
-            if (window.innerWidth < 1024) {
-                setSidebarOpen(false);
-            } else {
-                setSidebarOpen(true);
-            }
-        };
-        window.addEventListener('resize', handleResize);
-        handleResize(); // run immediately on mount
-        return () => window.removeEventListener('resize', handleResize);
-    }, [setSidebarOpen]);
-
     const [logoError, setLogoError] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-    // Role derived from user object directly
+    const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= DESKTOP_BREAKPOINT);
+    const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+    const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+    const menuButtonRef = useRef(null);
+    const previousSidebarOpenRef = useRef(sidebarOpen);
+
     const role = currentUser?.role || 'doctor';
     const isAdmin = role === 'admin';
     const isSuperAdmin = role === 'super_admin';
-    const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-    const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
 
-    // Fetch data for Command Palette (only for clinic users)
+    useEffect(() => {
+        logger.log(`[LAYOUT] Rendering Layout (Path: ${location.pathname})`);
+        if (!isDesktop) setSidebarOpen(false);
+    }, [location.pathname, isDesktop, setSidebarOpen]);
+
+    useEffect(() => {
+        const handleResize = () => {
+            const nextIsDesktop = window.innerWidth >= DESKTOP_BREAKPOINT;
+            setIsDesktop(nextIsDesktop);
+            setSidebarOpen(nextIsDesktop);
+        };
+        window.addEventListener('resize', handleResize);
+        handleResize();
+        return () => window.removeEventListener('resize', handleResize);
+    }, [setSidebarOpen]);
+
+    useEffect(() => {
+        if (isDesktop || !sidebarOpen) return undefined;
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = previousOverflow;
+        };
+    }, [isDesktop, sidebarOpen]);
+
+    useEffect(() => {
+        const wasOpen = previousSidebarOpenRef.current;
+        previousSidebarOpenRef.current = sidebarOpen;
+        if (!isDesktop && wasOpen && !sidebarOpen) {
+            menuButtonRef.current?.focus?.({ preventScroll: true });
+        }
+    }, [isDesktop, sidebarOpen]);
+
     const { data: patientsData } = usePatients({ enabled: !isSuperAdmin });
     const { data: appointmentsData } = useAppointments({ enabled: !isSuperAdmin });
-    
-    // Explicit initialization with safe fallbacks to prevent ReferenceErrors in production
     const patients = patientsData || [];
     const appointments = appointmentsData || [];
 
-    // Global Hotkeys
     useHotkeys('g+p', () => navigate('/patients'), { preventDefault: true });
     useHotkeys('g+a', () => navigate('/appointments'), { preventDefault: true });
     useHotkeys('g+b', () => navigate('/finance'), { preventDefault: true });
@@ -104,15 +114,14 @@ const Layout = () => {
     useHotkeys('g+s', () => navigate('/settings'), { preventDefault: true });
     useHotkeys('g+i', () => navigate('/inventory'), { preventDefault: true });
 
-    // Listen for Ctrl+K and ?
     useEffect(() => {
-        const handleKeyDown = (e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-                e.preventDefault();
+        const handleKeyDown = (event) => {
+            if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+                event.preventDefault();
                 setIsCommandPaletteOpen(prev => !prev);
             }
-            if (e.key === '?' && !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
-                e.preventDefault();
+            if (event.key === '?' && !['INPUT', 'TEXTAREA'].includes(event.target.tagName)) {
+                event.preventDefault();
                 setIsShortcutsOpen(true);
             }
         };
@@ -120,29 +129,25 @@ const Layout = () => {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-
-    // Redirect Super Admin to /admin if they land on root /
     useEffect(() => {
         if (isSuperAdmin && location.pathname === '/') {
             navigate('/admin', { replace: true });
         }
     }, [isSuperAdmin, location.pathname, navigate]);
-    // Navigation Items
+
     let navItems = [];
     if (isSuperAdmin) {
-        // System Admin View (Redesigned)
         navItems = [
             { icon: Shield, label: t('sidebar.dashboard'), path: '/admin' },
-            { icon: Home, label: t('sidebar.settings'), path: '/admin/tenants' }, // Using settings for tenants momentarily or add specific key
+            { icon: Home, label: t('sidebar.settings'), path: '/admin/tenants' },
             { icon: UserCog, label: t('sidebar.users'), path: '/admin/users' },
             { icon: Banknote, label: t('sidebar.billing'), path: '/admin/finance' },
             { icon: HelpCircle, label: t('sidebar.contact'), path: '/admin/messages' },
-            { icon: Brain, label: t('sidebar.ai'), path: '/ai/stats' }, // Existing
+            { icon: Brain, label: t('sidebar.ai'), path: '/ai/stats' },
             { icon: AlertTriangle, label: t('sidebar.error_log'), path: '/admin/system/logs' },
             { icon: SettingsIcon, label: t('sidebar.settings'), path: '/admin/settings' },
         ];
     } else {
-        // Clinic View
         navItems = [
             { icon: Home, label: t('sidebar.dashboard'), path: '/' },
             { icon: Calendar, label: t('sidebar.appointments'), path: '/appointments' },
@@ -150,7 +155,6 @@ const Layout = () => {
             { icon: Package, label: t('sidebar.inventory'), path: '/inventory' },
         ];
 
-        // Finance Module Access (Admins, Managers, Accountants, Receptionists, Doctors)
         const canAccessFinance = isAdmin || role === 'manager' || role === 'accountant' || role === 'receptionist' || role === 'doctor';
         if (canAccessFinance) {
             navItems.push({ icon: Banknote, label: t('sidebar.finance', 'المالية'), path: '/finance' });
@@ -163,31 +167,29 @@ const Layout = () => {
                 { icon: SettingsIcon, label: t('sidebar.settings'), path: '/settings' },
             );
         }
-        // Labs visible to Admin or users with permission (Always Enabled for Tenant)
+
         let hasLabPermission = isAdmin;
         if (!isAdmin && currentUser?.permissions) {
             try {
                 const perms = typeof currentUser.permissions === 'string'
                     ? JSON.parse(currentUser.permissions)
                     : currentUser.permissions;
-                if (Array.isArray(perms) && perms.includes('manage_lab')) {
-                    hasLabPermission = true;
-                }
-            } catch (e) {
-                // ignore parse error
+                if (Array.isArray(perms) && perms.includes('manage_lab')) hasLabPermission = true;
+            } catch {
+                // Preserve current behavior when legacy permission payloads are malformed.
             }
         }
         if (hasLabPermission) {
             navItems.push({ icon: FlaskConical, label: t('sidebar.labs'), path: '/labs' });
         }
     }
-    // Helper to calculate subscription days
+
     const getSubscriptionStatus = () => {
         if (!tenant?.subscription_end_date) return null;
         const now = new Date();
         const endDate = new Date(tenant.subscription_end_date);
         const daysLeft = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
-        
+
         if (daysLeft < 0) {
             const graceDate = tenant.grace_period_until ? new Date(tenant.grace_period_until) : null;
             if (graceDate && now <= graceDate) {
@@ -196,261 +198,263 @@ const Layout = () => {
             }
             return { text: t('sidebar.subscription.expired'), color: 'text-red-500 font-black' };
         }
-        
         if (daysLeft === 0) return { text: t('sidebar.subscription.ends_today'), color: 'text-amber-500' };
         if (daysLeft <= 7) return { text: t('sidebar.subscription.days_left', { count: daysLeft }), color: 'text-amber-500' };
         return { text: t('sidebar.subscription.days_left', { count: daysLeft }), color: 'text-text-secondary' };
     };
     const subStatus = getSubscriptionStatus();
-    // Prefetch functions for hover-based prefetching
+
     const prefetchPatients = usePrefetchPatients();
     const prefetchAppointments = usePrefetchAppointments();
     const prefetchDashboard = usePrefetchDashboard();
-    // Handler for prefetching on hover
     const handlePrefetch = useCallback((path) => {
         switch (path) {
             case '/':
-                if (prefetchDashboard) prefetchDashboard();
+                prefetchDashboard?.();
                 break;
             case '/patients':
-                if (prefetchPatients) prefetchPatients();
+                prefetchPatients?.();
                 break;
             case '/appointments':
-                if (prefetchAppointments) prefetchAppointments();
+                prefetchAppointments?.();
                 break;
             default:
                 break;
         }
     }, [prefetchPatients, prefetchAppointments, prefetchDashboard]);
+
+    const sidebarWidthClass = isDesktop && isSidebarCollapsed
+        ? 'w-20'
+        : 'w-[min(18rem,calc(100vw-1rem))] lg:w-72';
+
     return (
-        <div className={`flex h-screen bg-background`}>
-            {/* Global & Subscription Banners */}
-            <div className="fixed top-0 start-0 end-0 z-[60]">
+        <div className="flex h-[100dvh] min-h-0 w-full min-w-0 flex-col bg-background">
+            <div className="relative z-[60] shrink-0">
                 <GlobalBanner />
                 <SubscriptionBanner />
             </div>
-            
+
             {isSuperAdmin ? (
-                <SuperAdminCommandPalette 
-                    isOpen={isCommandPaletteOpen} 
+                <SuperAdminCommandPalette
+                    isOpen={isCommandPaletteOpen}
                     onClose={() => setIsCommandPaletteOpen(false)}
                 />
             ) : (
-                <CommandPalette 
-                    isOpen={isCommandPaletteOpen} 
+                <CommandPalette
+                    isOpen={isCommandPaletteOpen}
                     onClose={() => setIsCommandPaletteOpen(false)}
                     patients={patients}
                     appointments={appointments}
                 />
             )}
-            <KeyboardShortcutsModal 
-                isOpen={isShortcutsOpen} 
-                onClose={() => setIsShortcutsOpen(false)} 
+            <KeyboardShortcutsModal
+                isOpen={isShortcutsOpen}
+                onClose={() => setIsShortcutsOpen(false)}
             />
-            {/* Mobile Sidebar Overlay */}
-            {sidebarOpen && (
-                <div
-                    className="fixed inset-0 bg-black/50 z-20 lg:hidden"
-                    onClick={() => setSidebarOpen(false)}
-                />
-            )}
-            {/* Sidebar */}
-            <aside className={`
-                fixed inset-y-0 start-0 z-30 bg-white dark:bg-slate-900 border-e border-border/50 transform transition-all duration-300 ease-in-out lg:translate-x-0 lg:static shadow-2xl shadow-black/5 flex flex-col
-                ${sidebarOpen ? 'translate-x-0' : 'ltr:-translate-x-full rtl:translate-x-full'}
-                ${isSidebarCollapsed ? 'w-20' : 'w-72'}
-            `}>
-                <button
-                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                    aria-label={t('common.toggle_sidebar', 'Toggle Sidebar')}
-                    className="absolute -end-3 top-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-1 hidden lg:flex hover:bg-slate-50 transition-colors z-40 text-slate-500 rtl:rotate-180"
+
+            <div className="relative flex min-h-0 min-w-0 flex-1">
+                {sidebarOpen && !isDesktop && (
+                    <button
+                        type="button"
+                        aria-label={t('common.close_menu', 'Close menu')}
+                        className="absolute inset-0 z-40 bg-black/50"
+                        onClick={() => setSidebarOpen(false)}
+                    />
+                )}
+
+                <aside
+                    data-sidebar
+                    aria-label={t('common.main_navigation', 'Main navigation')}
+                    aria-hidden={!isDesktop && !sidebarOpen}
+                    className={`
+                        absolute inset-y-0 start-0 z-50 flex min-w-0 flex-col border-e border-border/50 bg-white shadow-2xl shadow-black/5
+                        transition-[transform,width] duration-300 ease-in-out dark:bg-slate-900 lg:static lg:translate-x-0
+                        ${sidebarOpen ? 'translate-x-0' : 'ltr:-translate-x-full rtl:translate-x-full'}
+                        ${sidebarWidthClass}
+                    `}
                 >
-                    {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-                </button>
-                <div className={`flex flex-col items-center justify-center border-b border-border p-4 transition-all duration-300`}>
-                    <div className={`${isSidebarCollapsed ? 'h-12' : 'h-28'} w-full overflow-hidden flex items-center justify-center mb-2 transition-all duration-300`}>
-                        {(!logoError && (tenant?.logo && tenant.logo !== 'null' ? (tenant.logo.startsWith('http') || tenant.logo.startsWith('/') ? tenant.logo : `${API_URL}/${tenant.logo}`) : '/logo.webp')) ? (
-                            <img
-                                src={tenant?.logo && tenant.logo !== 'null' ? (tenant.logo.startsWith('http') || tenant.logo.startsWith('/') ? tenant.logo : `${API_URL}/${tenant.logo}`) : '/logo.webp'}
-                                alt={t('common.logo')}
-                                onError={(e) => {
-                                    if (e.target.src.includes('/logo.webp')) {
-                                        setLogoError(true);
-                                    } else {
-                                        e.target.src = '/logo.webp';
-                                    }
-                                }}
-                                className="max-h-16 w-auto object-contain"
-                            />
-                        ) : (
-                        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                                <Building2 size={isSidebarCollapsed ? 24 : 40} className="transition-all" />
-                            </div>
-                        )}
-                    </div>
-                    {!isSidebarCollapsed && (
-                        <div className="animate-in fade-in zoom-in duration-300 flex flex-col items-center w-full">
-                            <p
-                                id="sidebar-clinic-name"
-                                className="text-base font-extrabold bg-gradient-to-r from-primary-600 to-blue-800 dark:from-sky-400 dark:to-blue-500 bg-clip-text text-transparent text-center tracking-tight"
-                            >
-                                {isSuperAdmin ? t('sidebar.system_admin') : (tenant?.name || t('common.default_clinic_name'))}
-                            </p>
-                            {/* Subscription Badge */}
-                            {tenant && (
-                                <div className="mt-2 text-center text-xs">
-                                    <span className={`px-2 py-1 rounded-full font-bold ${tenant.plan === 'premium' ? 'bg-amber-500/20 text-amber-600' :
-                                        tenant.plan === 'basic' ? 'bg-blue-500/20 text-blue-600' :
-                                            'bg-surface-hover text-text-secondary'
-                                        }`}>
-                                        {tenant.plan === 'premium' ? t('sidebar.subscription.plan_premium') :
-                                            tenant.plan === 'basic' ? t('sidebar.subscription.plan_basic') : t('sidebar.subscription.plan_trial')}
-                                    </span>
-                                    {subStatus && (
-                                        <p className={`mt-1 ${subStatus.color}`}>
-                                            {subStatus.text}
-                                        </p>
-                                    )}
+                    <button
+                        type="button"
+                        onClick={() => setIsSidebarCollapsed(prev => !prev)}
+                        aria-label={t('common.toggle_sidebar', 'Toggle Sidebar')}
+                        className="absolute -end-3 top-8 z-40 hidden h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 lg:flex rtl:rotate-180"
+                    >
+                        {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+                    </button>
+
+                    <div className="flex shrink-0 flex-col items-center justify-center border-b border-border p-3 transition-all duration-300 sm:p-4">
+                        <div className={`${isDesktop && isSidebarCollapsed ? 'h-12' : 'h-20 sm:h-28'} mb-2 flex w-full items-center justify-center overflow-hidden transition-all duration-300`}>
+                            {!logoError ? (
+                                <img
+                                    src={tenant?.logo && tenant.logo !== 'null'
+                                        ? (tenant.logo.startsWith('http') || tenant.logo.startsWith('/') ? tenant.logo : `${API_URL}/${tenant.logo}`)
+                                        : '/logo.webp'}
+                                    alt={t('common.logo')}
+                                    onError={(event) => {
+                                        if (event.target.src.includes('/logo.webp')) setLogoError(true);
+                                        else event.target.src = '/logo.webp';
+                                    }}
+                                    className="max-h-16 max-w-full object-contain"
+                                />
+                            ) : (
+                                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary sm:h-16 sm:w-16">
+                                    <Building2 size={isDesktop && isSidebarCollapsed ? 24 : 36} className="transition-all" />
                                 </div>
                             )}
                         </div>
-                    )}
-                </div>
-                <nav className="p-4 flex-1 flex flex-col overflow-y-auto space-y-2">
-                    {navItems.map((item) => {
-                        const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
-                        const Icon = item.icon;
-                        const link = (
-                            <Link
-                                key={item.path}
-                                id={`nav-${item.path.replace(/\//g, '') || 'dashboard'}`}
-                                to={item.path}
-                                onClick={() => {
-                                    if (window.innerWidth < 1024) {
-                                        setSidebarOpen(false);
-                                    }
-                                }}
-                                onMouseEnter={() => handlePrefetch(item.path)}
-                                className={`
-                                    relative flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all duration-300 group
-                                    ${isActive
-                                        ? 'bg-primary/10 text-primary shadow-inner font-bold'
-                                        : 'text-slate-700 dark:text-slate-200 font-medium hover:bg-surface-hover hover:text-primary hover:shadow-sm'}
-                                    ${isActive ? 'before:absolute before:inset-0 before:rounded-2xl before:bg-primary/20 before:blur-sm before:opacity-70 before:scale-x-105' : 'hover:before:absolute hover:before:inset-0 hover:before:rounded-2xl hover:before:bg-primary/10 hover:before:blur-sm hover:before:opacity-50 hover:before:scale-x-105'}
-                                `}
-                            >
-                                {isActive && (
-                                    <div className="absolute start-0 top-1/2 -translate-y-1/2 h-8 w-1 bg-primary rounded-e-full" />
-                                )}
-                                <Icon size={22} className={`shrink-0 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
-                                {!isSidebarCollapsed && <span className="text-sm animate-in fade-in">{item.label}</span>}
-                            </Link>
-                        );
 
-                        if (isSidebarCollapsed) {
-                            return (
-                                <Tooltip key={item.path} content={item.label} side={i18n.language === 'ar' ? 'left' : 'right'}>
-                                    {link}
-                                </Tooltip>
+                        {!(isDesktop && isSidebarCollapsed) && (
+                            <div className="flex w-full min-w-0 flex-col items-center animate-in fade-in zoom-in duration-300">
+                                <p
+                                    id="sidebar-clinic-name"
+                                    className="max-w-full break-words bg-gradient-to-r from-primary-600 to-blue-800 bg-clip-text text-center text-sm font-extrabold tracking-tight text-transparent dark:from-sky-400 dark:to-blue-500 sm:text-base"
+                                >
+                                    {isSuperAdmin ? t('sidebar.system_admin') : (tenant?.name || t('common.default_clinic_name'))}
+                                </p>
+                                {tenant && (
+                                    <div className="mt-2 text-center text-xs">
+                                        <span className={`rounded-full px-2 py-1 font-bold ${tenant.plan === 'premium' ? 'bg-amber-500/20 text-amber-600' : tenant.plan === 'basic' ? 'bg-blue-500/20 text-blue-600' : 'bg-surface-hover text-text-secondary'}`}>
+                                            {tenant.plan === 'premium'
+                                                ? t('sidebar.subscription.plan_premium')
+                                                : tenant.plan === 'basic'
+                                                    ? t('sidebar.subscription.plan_basic')
+                                                    : t('sidebar.subscription.plan_trial')}
+                                        </span>
+                                        {subStatus && <p className={`mt-1 ${subStatus.color}`}>{subStatus.text}</p>}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    <nav className="flex min-h-0 flex-1 flex-col space-y-1 overflow-y-auto overscroll-contain p-3 sm:space-y-2 sm:p-4">
+                        {navItems.map((item) => {
+                            const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
+                            const Icon = item.icon;
+                            const link = (
+                                <Link
+                                    key={item.path}
+                                    id={`nav-${item.path.replace(/\//g, '') || 'dashboard'}`}
+                                    to={item.path}
+                                    onClick={() => {
+                                        if (!isDesktop) setSidebarOpen(false);
+                                    }}
+                                    onMouseEnter={() => handlePrefetch(item.path)}
+                                    onFocus={() => handlePrefetch(item.path)}
+                                    className={`relative flex min-h-11 items-center gap-3 rounded-2xl px-3 py-2.5 transition-all duration-300 group sm:px-4 sm:py-3 ${isActive ? 'bg-primary/10 font-bold text-primary shadow-inner' : 'font-medium text-slate-700 hover:bg-surface-hover hover:text-primary dark:text-slate-200'}`}
+                                >
+                                    {isActive && <div className="absolute start-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-e-full bg-primary" />}
+                                    <Icon size={21} className={`shrink-0 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} aria-hidden="true" />
+                                    {!(isDesktop && isSidebarCollapsed) && <span className="min-w-0 break-words text-sm animate-in fade-in">{item.label}</span>}
+                                </Link>
                             );
-                        }
-                        return link;
-                    })}
-                    <div className="mt-auto pt-4 border-t border-border/50">
-                        {/* User Profile */}
-                        {!isSidebarCollapsed && currentUser && (
-                            <div className="flex items-center gap-3 p-3 mb-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-                                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold shrink-0">
-                                    {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : <User size={20} />}
+
+                            if (isDesktop && isSidebarCollapsed) {
+                                return (
+                                    <Tooltip key={item.path} content={item.label} side={i18n.language === 'ar' ? 'left' : 'right'}>
+                                        {link}
+                                    </Tooltip>
+                                );
+                            }
+                            return link;
+                        })}
+
+                        <div className="mt-auto border-t border-border/50 pt-4">
+                            {!(isDesktop && isSidebarCollapsed) && currentUser && (
+                                <div className="mb-4 flex min-w-0 items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/50">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 font-bold text-primary">
+                                        {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : <User size={20} />}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-200">{currentUser.name || t('sidebar.user')}</p>
+                                        <p className="truncate text-xs capitalize text-slate-500">{currentUser.role}</p>
+                                    </div>
                                 </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">
-                                        {currentUser.name || t('sidebar.user')}
-                                    </p>
-                                    <p className="text-xs text-slate-500 truncate capitalize">
-                                        {currentUser.role}
-                                    </p>
-                                </div>
+                            )}
+
+                            <div className={`grid ${isDesktop && isSidebarCollapsed ? 'grid-cols-1 gap-2' : 'grid-cols-2 gap-3'} mb-3`}>
+                                <button
+                                    type="button"
+                                    onClick={() => i18n.changeLanguage(i18n.language === 'ar' ? 'en' : 'ar')}
+                                    className="flex min-h-11 items-center justify-center rounded-2xl bg-surface-hover text-slate-600 transition-all hover:bg-primary/10 hover:text-primary dark:text-slate-300"
+                                    title={t('common.language')}
+                                    aria-label={t('common.language')}
+                                >
+                                    <Globe size={20} aria-hidden="true" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={toggleDarkMode}
+                                    className="flex min-h-11 items-center justify-center rounded-2xl bg-surface-hover text-slate-600 transition-all hover:bg-amber-400/10 hover:text-amber-500 dark:text-slate-300"
+                                    title={isDarkMode ? t('sidebar.mode.light') : t('sidebar.mode.dark')}
+                                    aria-label={isDarkMode ? t('sidebar.mode.light') : t('sidebar.mode.dark')}
+                                >
+                                    {isDarkMode ? <Sun size={20} aria-hidden="true" /> : <Moon size={20} aria-hidden="true" />}
+                                </button>
                             </div>
-                        )}
-                        {/* Utilities Row (Lang & Theme) */}
-                        <div className={`grid ${isSidebarCollapsed ? 'grid-cols-1 space-y-2' : 'grid-cols-2 gap-3'} mb-3`}>
-                            <button
-                                onClick={() => i18n.changeLanguage(i18n.language === 'ar' ? 'en' : 'ar')}
-                                className="flex items-center justify-center py-2.5 rounded-2xl bg-surface-hover text-slate-600 dark:text-slate-300 hover:bg-primary/10 hover:text-primary transition-all group"
-                                title={t('common.language')}
-                                aria-label={t('common.language')}
+
+                            <Link
+                                to="/support"
+                                onClick={() => {
+                                    if (!isDesktop) setSidebarOpen(false);
+                                }}
+                                className={`flex min-h-11 w-full items-center justify-center gap-3 rounded-2xl px-4 py-2.5 text-slate-600 transition-colors hover:bg-indigo-50 hover:text-indigo-600 dark:text-slate-300 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400 lg:justify-start ${location.pathname === '/support' ? 'bg-indigo-50 font-bold text-indigo-600 dark:bg-indigo-900/20' : 'font-medium'}`}
                             >
-                                <Globe size={20} className="transition-transform group-hover:rotate-12" />
-                            </button>
+                                <HelpCircle size={21} className="shrink-0" aria-hidden="true" />
+                                {!(isDesktop && isSidebarCollapsed) && <span className="text-sm font-medium animate-in fade-in">{t('common.help_support')}</span>}
+                            </Link>
+
                             <button
-                                onClick={toggleDarkMode}
-                                className="flex items-center justify-center py-2.5 rounded-2xl bg-surface-hover text-slate-600 dark:text-slate-300 hover:bg-amber-400/10 hover:text-amber-500 transition-all group"
-                                title={isDarkMode ? t('sidebar.mode.light') : t('sidebar.mode.dark')}
-                                aria-label={isDarkMode ? t('sidebar.mode.light') : t('sidebar.mode.dark')}
+                                type="button"
+                                onClick={() => logout()}
+                                className="mt-2 flex min-h-11 w-full items-center justify-center gap-3 rounded-2xl px-4 py-2.5 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 lg:justify-start"
                             >
-                                {isDarkMode ?
-                                    <Sun size={20} className="transition-transform group-hover:rotate-90" /> :
-                                    <Moon size={20} className="transition-transform group-hover:-rotate-12" />
-                                }
+                                <LogOut size={21} className="shrink-0" aria-hidden="true" />
+                                {!(isDesktop && isSidebarCollapsed) && <span className="text-sm font-bold animate-in fade-in">{t('sidebar.logout')}</span>}
                             </button>
+
+                            {!isAdmin && !isSuperAdmin && !(isDesktop && isSidebarCollapsed) && (
+                                <div className="mt-4 rounded-xl bg-surface-hover p-3 text-center sm:p-4">
+                                    <p className="text-xs text-text-secondary">{t('sidebar.limited_account')}</p>
+                                </div>
+                            )}
                         </div>
-                        <Link
-                            to="/support"
-                            onClick={() => {
-                                if (window.innerWidth < 1024) {
-                                    setSidebarOpen(false);
-                                }
-                            }}
-                            className={`w-full flex items-center justify-center lg:justify-start gap-3 px-4 py-3 rounded-2xl transition-colors text-slate-600 dark:text-slate-300 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400 ${location.pathname === '/support' ? 'bg-indigo-50 dark:bg-indigo-900/20 font-bold text-indigo-600' : 'font-medium'}`}
-                        >
-                            <HelpCircle size={22} className="shrink-0" />
-                            {!isSidebarCollapsed && <span className="text-sm font-medium animate-in fade-in">{t('common.help_support')}</span>}
-                        </Link>
-                        <button
-                            onClick={() => logout()}
-                            className="w-full flex items-center justify-center lg:justify-start gap-3 px-4 py-3.5 rounded-2xl transition-all text-red-500 hover:bg-red-50 hover:text-red-600 hover:scale-[1.02] mt-2 active:scale-95"
-                        >
-                            <LogOut size={22} className="shrink-0" />
-                            {!isSidebarCollapsed && <span className="text-sm font-bold animate-in fade-in">{t('sidebar.logout')}</span>}
-                        </button>
-                        {!isAdmin && !isSuperAdmin && !isSidebarCollapsed && (
-                            <div className="mt-4 p-4 bg-surface-hover rounded-xl text-center">
-                                <p className="text-xs text-text-secondary">{t('sidebar.limited_account')}</p>
+                    </nav>
+                </aside>
+
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background/50">
+                    <header className="sticky top-0 z-30 flex min-h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-surface/95 px-2.5 py-2 shadow-sm backdrop-blur-xl sm:px-4 md:px-6 lg:px-8">
+                        <div className="flex min-w-0 shrink items-center gap-1.5 lg:hidden sm:gap-2">
+                            <button
+                                ref={menuButtonRef}
+                                type="button"
+                                onClick={() => setSidebarOpen(true)}
+                                aria-label={t('common.open_menu', 'Open Menu')}
+                                aria-expanded={sidebarOpen}
+                                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-600 transition-colors hover:bg-slate-100 active:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
+                            >
+                                <Menu size={23} aria-hidden="true" />
+                            </button>
+                            <p className="hidden max-w-[11rem] truncate text-sm font-bold text-text-primary min-[430px]:block sm:max-w-[14rem] sm:text-base" dir="auto">
+                                {tenant?.name || currentUser?.tenant?.name || t('common.default_clinic_name')}
+                            </p>
+                        </div>
+
+                        <div className="mx-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:max-w-xl sm:gap-3">
+                            <GlobalSearch />
+                            <div className="hidden lg:block">
+                                <NotificationBell />
                             </div>
-                        )}
-                    </div>
-                </nav>
-            </aside>
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col h-screen overflow-hidden bg-background/50">
-                <header className={`h-16 border-b flex items-center justify-between px-6 md:px-8 shrink-0 sticky top-0 z-20 shadow-sm bg-surface/90 backdrop-blur-xl border-border/60`}>
-                    <div className="flex items-center gap-4 lg:hidden">
-                        <button
-                            onClick={() => setSidebarOpen(true)}
-                            aria-label={t('common.open_menu', 'Open Menu')}
-                            className="p-2 rounded-lg hover:bg-slate-50 text-slate-600 active:bg-slate-100 transition-colors"
-                        >
-                            <Menu size={24} />
-                        </button>
-                        <p className={`font-bold text-lg text-text-primary`}>
-                            {currentUser?.tenant?.name || t('common.default_clinic_name')}
-                        </p>
-                    </div>
-                    <div className="flex-1 flex max-w-xl mx-auto gap-4 items-center">
-                        <GlobalSearch />
-                        <div className="hidden lg:block">
+                        </div>
+                        <div className="shrink-0 lg:hidden">
                             <NotificationBell />
                         </div>
-                    </div>
-                    <div className="lg:hidden">
-                        <NotificationBell />
-                    </div>
-                </header>
-                    <main className="relative flex-1 p-4 lg:p-8 overflow-x-hidden pt-20 lg:pt-8" id="main-content">
+                    </header>
+
+                    <main className="relative min-h-0 min-w-0 flex-1 overflow-y-auto px-3 py-4 sm:p-4 lg:p-8" id="main-content">
                         <ErrorBoundary fallback={<GlobalErrorFallback />}>
                             <Suspense fallback={
-                                <div className="flex items-center justify-center min-h-[400px]">
+                                <div className="flex min-h-[50dvh] items-center justify-center">
                                     <LoadingSpinner variant="page" />
                                 </div>
                             }>
@@ -458,20 +462,22 @@ const Layout = () => {
                                     key={location.pathname}
                                     initial={{ opacity: 0, y: 8 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.2, ease: "easeOut" }}
-                                    className="h-full"
+                                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                                    className="min-h-full min-w-0"
                                 >
                                     <Outlet />
                                 </motion.div>
                             </Suspense>
                         </ErrorBoundary>
                     </main>
-                <Suspense fallback={null}>
-                    <AIChat />
-                </Suspense>
+
+                    <Suspense fallback={null}>
+                        <AIChat />
+                    </Suspense>
+                </div>
             </div>
-        </div >
+        </div>
     );
 };
-export default Layout;
 
+export default Layout;
