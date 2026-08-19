@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import logger from '@/utils/logger';
 import { Bell, Info, AlertTriangle, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -40,7 +40,7 @@ const NotificationBell = () => {
     const dropdownRef = useRef(null);
     const isCompact = useCompactViewport();
 
-    const fetchNotifications = async () => {
+    const fetchNotifications = useCallback(async () => {
         if (!user) return;
         try {
             const response = await getNotifications();
@@ -56,7 +56,7 @@ const NotificationBell = () => {
                 logger.error('Failed to sync notifications:', error);
             }
         }
-    };
+    }, [user]);
 
     useEffect(() => {
         if (user) {
@@ -67,7 +67,7 @@ const NotificationBell = () => {
         setNotifications([]);
         setUnreadCount(0);
         return undefined;
-    }, [user]);
+    }, [fetchNotifications, user]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
