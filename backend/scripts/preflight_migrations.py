@@ -9,16 +9,21 @@ Legacy note
 -----------
 The historical Alembic chain starts after Dentix already had a core schema;
 its first revision is intentionally a no-op and later revisions assume tables
-such as ``tenants`` and ``users`` already exist.  Rewriting those applied
+such as ``tenants`` and ``users`` already exist. Rewriting those applied
 historical revisions would be unsafe for existing deployments.
 
 Therefore preflight has two explicit paths:
 
-* Existing schema: run ``alembic upgrade head`` normally.
+* Existing versioned schema: run ``alembic upgrade head`` normally.
 * Truly empty schema: create the *current* SQLAlchemy model baseline, install
-  the PostgreSQL RLS invariants that ``metadata.create_all`` cannot create,
-  then stamp Alembic at head.  No historical/data migration is skipped for an
-  existing database.
+  the PostgreSQL RLS invariants that ``metadata.create_all`` cannot guarantee,
+  then stamp Alembic at head. No historical/data migration is skipped for an
+  existing versioned database.
+
+Fresh bootstrap is resumable. A private marker table is committed before any
+model DDL. If model/RLS/stamp work is interrupted, the next preflight run sees
+that marker and resumes the fresh-baseline path instead of mistaking a partial
+bootstrap for a legacy production schema.
 
 Usage:
     python -m backend.scripts.preflight_migrations
@@ -42,7 +47,11 @@ sys.path.insert(0, PROJECT_ROOT)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("preflight_migrations")
 
-# Keep this in sync with the established bf6c75e1c3d3 RLS migration.  Fresh
+# Internal marker used only while creating a brand-new current-schema baseline.
+# It is intentionally not part of SQLAlchemy metadata or Alembic history.
+BOOTSTRAP_MARKER = "_dentix_fresh_bootstrap"
+
+# Keep this in sync with the established bf6c75e1c3d3 RLS migration. Fresh
 # databases cannot execute that historical chain from base, so these current
 # invariants must be installed after metadata.create_all().
 RLS_TABLES = (
@@ -86,7 +95,7 @@ def _database_url() -> str | None:
     db_url = db_url.strip().strip("'").strip('"')
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
-    # Preflight is synchronous.  Normalize an async SQLAlchemy URL if an
+    # Preflight is synchronous. Normalize an async SQLAlchemy URL if an
     # operator supplied one explicitly.
     if db_url.startswith("postgresql+asyncpg://"):
         db_url = db_url.replace("postgresql+asyncpg://", "postgresql://", 1)
@@ -113,13 +122,46 @@ def _alembic_config():
     return cfg
 
 
+def _table_names(engine) -> set[str]:
+    return set(inspect(engine).get_table_names())
+
+
 def _user_tables(engine) -> set[str]:
-    """Return application tables, excluding Alembic bookkeeping."""
-    return {
-        table
-        for table in inspect(engine).get_table_names()
-        if table != "alembic_version"
-    }
+    """Return application tables, excluding migration/bootstrap bookkeeping."""
+    return _table_names(engine) - {"alembic_version", BOOTSTRAP_MARKER}
+
+
+def _ensure_bootstrap_marker(engine) -> None:
+    """Persist a resumable marker before any fresh-schema model DDL."""
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                f'''CREATE TABLE IF NOT EXISTS "{BOOTSTRAP_MARKER}" (
+                    id INTEGER PRIMARY KEY,
+                    started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )'''
+            )
+        )
+        if connection.dialect.name == "postgresql":
+            connection.execute(
+                text(
+                    f'''INSERT INTO "{BOOTSTRAP_MARKER}" (id)
+                        VALUES (1)
+                        ON CONFLICT (id) DO NOTHING'''
+                )
+            )
+        else:
+            connection.execute(
+                text(
+                    f'''INSERT OR IGNORE INTO "{BOOTSTRAP_MARKER}" (id)
+                        VALUES (1)'''
+                )
+            )
+
+
+def _drop_bootstrap_marker(engine) -> None:
+    with engine.begin() as connection:
+        connection.execute(text(f'DROP TABLE IF EXISTS "{BOOTSTRAP_MARKER}"'))
 
 
 def _install_postgresql_rls(connection) -> None:
@@ -174,21 +216,34 @@ def _install_postgresql_rls(connection) -> None:
 
 
 def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
-    """Create the current canonical schema for a truly empty database."""
+    """Create/resume the current canonical schema for a brand-new database."""
     from alembic import command
     from backend import models
 
     logger.warning(
-        "[PREFLIGHT] Empty database detected. Bootstrapping current model baseline."
+        "[PREFLIGHT] Fresh/resumable bootstrap detected. Building current model baseline."
     )
+    _ensure_bootstrap_marker(engine)
+
+    # register_rls(Base) installs SQLAlchemy DDL hooks. Some of those hooks may
+    # commit/close the transaction used by create_all, so never assume a single
+    # engine.begin() can safely contain both create_all and our explicit RLS
+    # verification/replacement phase. create_all itself is idempotent.
+    models.Base.metadata.create_all(bind=engine)
+
+    # Use a completely fresh transaction for explicit RLS installation. This
+    # phase is also idempotent because policies are dropped/recreated safely.
     with engine.begin() as connection:
-        models.Base.metadata.create_all(bind=connection)
         _install_postgresql_rls(connection)
 
-    # The model baseline is current by definition.  Historical revisions are
+    # The model baseline is current by definition. Historical revisions are
     # legacy deltas for pre-existing schemas and cannot safely be replayed from
-    # an empty DB, so stamp only after schema + invariants succeeded atomically.
+    # an empty DB. Stamp only after schema + RLS invariants both succeeded.
     command.stamp(alembic_cfg, "head")
+
+    # Drop the marker last. If stamp or any prior phase fails, the next preflight
+    # invocation resumes this path instead of attempting legacy migrations.
+    _drop_bootstrap_marker(engine)
     logger.info("[PREFLIGHT] Fresh database baseline created and stamped at head.")
 
 
@@ -211,7 +266,7 @@ def _verify_alembic_heads(engine, alembic_cfg) -> bool:
 
 
 def run_alembic_upgrade():
-    """Bootstrap an empty DB or upgrade an existing DB to Alembic head."""
+    """Bootstrap an empty DB or upgrade an existing versioned DB to head."""
     from alembic import command
 
     db_url = _database_url()
@@ -227,12 +282,21 @@ def run_alembic_upgrade():
         return False
 
     try:
-        tables = _user_tables(engine)
-        if not tables:
+        all_tables = _table_names(engine)
+        tables = all_tables - {"alembic_version", BOOTSTRAP_MARKER}
+        bootstrap_in_progress = BOOTSTRAP_MARKER in all_tables
+
+        if bootstrap_in_progress:
+            logger.warning(
+                "[PREFLIGHT] Incomplete fresh bootstrap marker found; resuming safely."
+            )
+            _bootstrap_fresh_database(engine, alembic_cfg)
+        elif not tables:
             _bootstrap_fresh_database(engine, alembic_cfg)
         else:
-            # Never disguise a partial/corrupt legacy database as a fresh one.
-            # Existing Dentix schemas must contain the core tenant table.
+            # Never disguise a partial/corrupt or unknown unversioned database
+            # as a fresh one. Existing Dentix schemas must have both the core
+            # tenant table and Alembic bookkeeping before historical deltas run.
             if "tenants" not in tables:
                 logger.error(
                     "[PREFLIGHT] Non-empty database has no tenants table; refusing "
@@ -240,7 +304,15 @@ def run_alembic_upgrade():
                     sorted(tables),
                 )
                 return False
-            logger.info("[PREFLIGHT] Existing schema detected; running alembic upgrade head ...")
+            if "alembic_version" not in all_tables:
+                logger.error(
+                    "[PREFLIGHT] Existing Dentix schema is not Alembic-versioned and "
+                    "has no fresh-bootstrap marker. Refusing to guess its migration "
+                    "state; manual migration review is required."
+                )
+                return False
+
+            logger.info("[PREFLIGHT] Existing versioned schema detected; running alembic upgrade head ...")
             command.upgrade(alembic_cfg, "head")
             logger.info("[PREFLIGHT] Alembic upgrade completed successfully.")
 
@@ -319,6 +391,12 @@ def run_migration_health_check():
     try:
         inspector = inspect(engine)
         table_names = set(inspector.get_table_names())
+        if BOOTSTRAP_MARKER in table_names:
+            logger.error(
+                "[PREFLIGHT] CRITICAL: fresh-bootstrap marker still present after migration."
+            )
+            return False
+
         for table, column in checks:
             if table not in table_names:
                 missing.append(f"{table}.{column}")
