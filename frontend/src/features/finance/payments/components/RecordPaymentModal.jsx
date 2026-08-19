@@ -79,10 +79,10 @@ export default function RecordPaymentModal({
     };
 
     return (
-        <div className="fixed inset-0 z-modal flex items-center justify-center overflow-y-auto p-4" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4" role="dialog" aria-modal="true">
             {/* Backdrop */}
             <div
-                className="fixed inset-0 bg-backdrop backdrop-blur-xs transition-opacity"
+                className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
                 onClick={onClose}
                 aria-hidden="true"
             />
