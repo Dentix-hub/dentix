@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, ArrowDownRight, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, ArrowRight } from 'lucide-react';
 import Money from './Money';
 import ScopeBadge from './ScopeBadge';
 
@@ -39,13 +39,13 @@ export default function MetricCard({
             <div className="space-y-3">
                 {/* Header: Title + Scope Badge */}
                 <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
                         {Icon && (
-                            <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                                <Icon className="w-4 h-4" />
+                            <div className="shrink-0 rounded-lg bg-primary/10 p-1.5 text-primary">
+                                <Icon className="h-4 w-4" />
                             </div>
                         )}
-                        <h3 className="text-sm font-semibold text-text-secondary line-clamp-1">
+                        <h3 className="min-w-0 truncate text-sm font-semibold text-text-secondary">
                             {title}
                         </h3>
                     </div>
