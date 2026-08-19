@@ -79,20 +79,20 @@ export default function RecordPaymentModal({
     };
 
     return (
-        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-modal flex items-center justify-center overflow-y-auto p-4" role="dialog" aria-modal="true">
             {/* Backdrop */}
             <div
-                className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+                className="fixed inset-0 bg-backdrop backdrop-blur-xs transition-opacity"
                 onClick={onClose}
                 aria-hidden="true"
             />
 
-            <div className="relative bg-card border border-border rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 z-10">
+            <div className="relative z-base w-full max-w-lg space-y-5 rounded-overlay border border-border bg-surface-elevated p-6 text-text-primary shadow-high">
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-border pb-4">
                     <div className="flex items-center gap-2.5">
-                        <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                            <CreditCard className="w-5 h-5" />
+                        <div className="rounded-xl bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
+                            <CreditCard className="h-5 w-5" />
                         </div>
                         <div>
                             <h3 className="text-base font-bold text-text-primary">
@@ -106,16 +106,16 @@ export default function RecordPaymentModal({
                     <button
                         type="button"
                         onClick={onClose}
-                        className="p-1.5 rounded-lg text-text-secondary hover:text-text-primary hover:bg-muted/60 transition-colors"
+                        className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-surface-subtle hover:text-text-primary"
                         aria-label={t('common.close', 'إغلاق')}
                     >
-                        <X className="w-5 h-5" />
+                        <X className="h-5 w-5" />
                     </button>
                 </div>
 
                 {error && (
-                    <div className="p-3 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 flex items-center gap-2 text-xs font-semibold text-rose-600 dark:text-rose-400">
-                        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-600 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-400">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
                         <span>{error}</span>
                     </div>
                 )}
@@ -124,15 +124,15 @@ export default function RecordPaymentModal({
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {/* Patient Select */}
                     <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-text-secondary flex items-center gap-1">
-                            <User className="w-3.5 h-3.5 text-primary" />
+                        <label className="flex items-center gap-1 text-xs font-semibold text-text-secondary">
+                            <User className="h-3.5 w-3.5 text-primary" />
                             <span>{t('finance.payments.select_patient', 'المريض')} *</span>
                         </label>
                         <select
                             value={patientId}
                             onChange={(e) => setPatientId(e.target.value)}
                             disabled={isLoadingPatients || isSubmitting}
-                            className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-xs sm:text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                            className="w-full rounded-xl border border-border bg-input px-3.5 py-2.5 text-xs text-text-primary transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm"
                             required
                         >
                             <option value="">
@@ -150,8 +150,8 @@ export default function RecordPaymentModal({
 
                     {/* Amount Input */}
                     <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-text-secondary flex items-center gap-1">
-                            <DollarSign className="w-3.5 h-3.5 text-primary" />
+                        <label className="flex items-center gap-1 text-xs font-semibold text-text-secondary">
+                            <DollarSign className="h-3.5 w-3.5 text-primary" />
                             <span>{t('finance.payments.amount', 'المبلغ (جنيه مصري)')} *</span>
                         </label>
                         <input
@@ -162,15 +162,15 @@ export default function RecordPaymentModal({
                             onChange={(e) => setAmount(e.target.value)}
                             placeholder="0.00"
                             disabled={isSubmitting}
-                            className="w-full px-3.5 py-2.5 bg-background border border-border rounded-xl text-xs sm:text-sm font-mono text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                            className="w-full rounded-xl border border-border bg-input px-3.5 py-2.5 font-mono text-xs text-text-primary transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm"
                             required
                         />
                     </div>
 
                     {/* Notes */}
                     <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-text-secondary flex items-center gap-1">
-                            <FileText className="w-3.5 h-3.5 text-primary" />
+                        <label className="flex items-center gap-1 text-xs font-semibold text-text-secondary">
+                            <FileText className="h-3.5 w-3.5 text-primary" />
                             <span>{t('finance.payments.notes_label', 'ملاحظات وسند التحصيل (اختياري)')}</span>
                         </label>
                         <textarea
@@ -179,26 +179,26 @@ export default function RecordPaymentModal({
                             onChange={(e) => setNotes(e.target.value)}
                             placeholder={t('finance.payments.notes_placeholder', 'مثال: دفعة تحت حساب تقويم الأسنان / جلسة حشو...')}
                             disabled={isSubmitting}
-                            className="w-full px-3.5 py-2 bg-background border border-border rounded-xl text-xs sm:text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none"
+                            className="w-full resize-none rounded-xl border border-border bg-input px-3.5 py-2 text-xs text-text-primary transition-all focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm"
                         />
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border">
+                    <div className="flex items-center justify-end gap-2.5 border-t border-border pt-3">
                         <button
                             type="button"
                             onClick={onClose}
                             disabled={isSubmitting}
-                            className="px-4 py-2 text-xs font-bold text-text-secondary hover:text-text-primary bg-muted/60 hover:bg-muted rounded-xl transition-colors"
+                            className="rounded-xl bg-surface-subtle px-4 py-2 text-xs font-bold text-text-secondary transition-colors hover:text-text-primary"
                         >
                             {t('common.cancel', 'إلغاء')}
                         </button>
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-bold text-white bg-primary hover:bg-primary/90 rounded-xl transition-colors disabled:opacity-50 shadow-sm"
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-5 py-2 text-xs font-bold text-white shadow-low transition-colors hover:bg-primary/90 disabled:opacity-50"
                         >
-                            <Check className="w-4 h-4" />
+                            <Check className="h-4 w-4" />
                             <span>{isSubmitting ? t('common.saving', 'جاري الحفظ...') : t('finance.payments.save_payment', 'تسجيل السند')}</span>
                         </button>
                     </div>
