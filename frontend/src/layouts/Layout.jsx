@@ -229,7 +229,7 @@ const Layout = () => {
 
     return (
         <div className="flex h-[100dvh] min-h-0 w-full min-w-0 flex-col bg-background">
-            <div className="relative z-[60] shrink-0">
+            <div className="relative z-drawer shrink-0">
                 <GlobalBanner />
                 <SubscriptionBanner />
             </div>
