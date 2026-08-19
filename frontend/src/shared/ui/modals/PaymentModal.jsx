@@ -1,51 +1,72 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
-import { DateTimePicker } from '../index';
+import Button from '../Button';
+import Input from '../Input';
+import Modal from '../Modal';
+import DateTimePicker from '../DateTimePicker';
+
 export default function PaymentModal({ isOpen, onClose, onAdd }) {
-    const [payment, setPayment] = useState({ amount: '', notes: '', date: new Date().toISOString().split('T')[0] });
-    if (!isOpen) return null;
+    const [payment, setPayment] = useState({
+        amount: '',
+        notes: '',
+        date: new Date().toISOString().split('T')[0],
+    });
+
     const handleSave = () => {
-        // Ensure date is valid ISO datetime for backend
+        // Preserve the existing backend contract: date-only UI becomes local midnight.
         const submissionData = {
             ...payment,
-            date: payment.date ? `${payment.date}T00:00:00` : new Date().toISOString()
+            date: payment.date ? `${payment.date}T00:00:00` : new Date().toISOString(),
         };
         onAdd(submissionData);
-        setPayment({ amount: '', notes: '', date: new Date().toISOString().split('T')[0] }); // Reset
+        setPayment({
+            amount: '',
+            notes: '',
+            date: new Date().toISOString().split('T')[0],
+        });
     };
+
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold">إضافة دفعة مالية</h3>
-                    <button onClick={onClose}><X /></button>
-                </div>
-                <div className="space-y-4">
-                    <input
-                        value={payment.amount}
-                        onChange={e => setPayment({ ...payment, amount: e.target.value })}
-                        placeholder="المبلغ المدفوع"
-                        type="number"
-                        className="w-full p-3 bg-slate-50 rounded-xl outline-none font-bold text-lg text-emerald-600"
-                    />
-                    <DateTimePicker
-                        value={payment.date}
-                        onChange={e => setPayment({ ...payment, date: e.target.value })}
-                        mode="date"
-                    />
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title="إضافة دفعة مالية"
+            maxWidth="max-w-md"
+        >
+            <div className="space-y-4">
+                <Input
+                    label="المبلغ المدفوع"
+                    value={payment.amount}
+                    onChange={(event) => setPayment({ ...payment, amount: event.target.value })}
+                    placeholder="المبلغ المدفوع"
+                    type="number"
+                    inputMode="decimal"
+                    className="text-lg font-bold text-emerald-600"
+                />
+
+                <DateTimePicker
+                    value={payment.date}
+                    onChange={(event) => setPayment({ ...payment, date: event.target.value })}
+                    mode="date"
+                />
+
+                <div className="space-y-1.5">
+                    <label htmlFor="payment-notes" className="block text-type-label text-text-secondary">
+                        ملاحظات
+                    </label>
                     <textarea
+                        id="payment-notes"
                         value={payment.notes}
-                        onChange={e => setPayment({ ...payment, notes: e.target.value })}
+                        onChange={(event) => setPayment({ ...payment, notes: event.target.value })}
                         placeholder="ملاحظات"
-                        className="w-full p-3 bg-slate-50 rounded-xl outline-none"
+                        className="min-h-24 w-full rounded-control border border-border bg-input px-3 py-2.5 text-text-primary outline-none transition-colors duration-fast placeholder:text-text-muted focus:border-focus focus:ring-1 focus:ring-focus"
                     />
-                    <div className="flex justify-end gap-3">
-                        <button onClick={onClose} className="px-4 py-2 hover:bg-slate-100 rounded-lg">إلغاء</button>
-                        <button onClick={handleSave} className="px-6 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600">إضافة</button>
-                    </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-1">
+                    <Button variant="ghost" onClick={onClose}>إلغاء</Button>
+                    <Button onClick={handleSave}>إضافة</Button>
                 </div>
             </div>
-        </div>
+        </Modal>
     );
 }
-

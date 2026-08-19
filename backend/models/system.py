@@ -53,10 +53,11 @@ class AuditLog(Base):
     new_value = Column(Text, nullable=True)
     details = Column(Text, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
-
-
-
+    created_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        index=True,
+    )
 
 
 class SupportMessage(Base):
@@ -77,7 +78,7 @@ class SupportMessage(Base):
     message = Column(Text)
     priority = Column(String, default="normal")
     status = Column(String, default="unread")
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     user = relationship("User")
     tenant = relationship("Tenant")
@@ -100,7 +101,11 @@ class Notification(Base):
     type = Column(String, default="info")
     is_global = Column(Boolean, default=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    created_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        index=True,
+    )
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     read_by = relationship(
@@ -127,7 +132,11 @@ class SystemSetting(Base):
     key = Column(String, primary_key=True, index=True)
     value = Column(String)
     description = Column(String, nullable=True)
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+    )
 
 
 class BlockedIP(Base):
@@ -137,7 +146,7 @@ class BlockedIP(Base):
     ip_address = Column(String, unique=True, index=True)
     reason = Column(String, nullable=True)
     blocked_by = Column(String, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     expires_at = Column(DateTime, nullable=True)
 
 
@@ -196,7 +205,11 @@ class BackgroundJob(Base):
     id = Column(Integer, primary_key=True, index=True)
     job_name = Column(String, index=True)
     status = Column(String, default="running")
-    started_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    started_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        index=True,
+    )
     completed_at = Column(DateTime, nullable=True)
     duration_seconds = Column(Float, default=0.0)
     error_message = Column(Text, nullable=True)
@@ -227,4 +240,8 @@ class SystemError(Base):
     tenant_id = Column(Integer, nullable=True)
     user_agent = Column(String, nullable=True)
     ip_address = Column(String, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    created_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        index=True,
+    )

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Package, Plus, Trash2, Droplets } from 'lucide-react';
+import { Package, Plus, Trash2, Droplets } from 'lucide-react';
 import { getMaterials, getStockSummary, getActiveSessions } from '@/api/inventory';
 import { palmerToFdi } from '@/utils/toothUtils';
 import TrackSessionModal from '@/features/inventory/components/TrackSessionModal';
@@ -9,7 +9,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { addTreatmentSession } from '@/api';
 import { MultiSessionPanel } from '../components/MultiSessionPanel';
+import Modal from '@/shared/ui/Modal';
 import logger from '@/utils/logger';
+
 export default function TreatmentModal({
     isOpen,
     onClose,
@@ -280,25 +282,30 @@ export default function TreatmentModal({
             setIsSaving(false);
         }
     };
+
+    const dialogTitle = isEditing
+        ? 'تعديل بيانات العلاج'
+        : (treatment.tooth_number ? `تفاصيل السن رقم #${treatment.tooth_number}` : 'تسجيل علاج جديد');
+
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold">
-                        {isEditing ? 'تعديل بيانات العلاج' : (treatment.tooth_number ? `تفاصيل السن رقم #${treatment.tooth_number}` : 'تسجيل علاج جديد')}
-                    </h3>
-                    <button onClick={onClose} className="p-1 hover:bg-slate-100 rounded-full"><X size={20} /></button>
-                </div>
+        <>
+            <Modal
+                isOpen={isOpen}
+                onClose={onClose}
+                size="3xl"
+                title={dialogTitle}
+                closeLabel="إغلاق نافذة العلاج"
+            >
                 <div className="space-y-4">
                     {treatment.tooth_number && (
-                        <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm mb-4">
+                        <div className="bg-surface rounded-2xl border border-border p-4 shadow-low mb-4">
                             {/* Segmented Control */}
-                            <div className="flex p-1 bg-slate-100 rounded-xl mb-6 relative">
+                            <div className="flex p-1 bg-surface-subtle rounded-xl mb-6 relative">
                                 {['Status', 'Pathology', 'Restorations'].map((tab) => (
                                     <button
                                         key={tab}
                                         onClick={() => setToothModalTab(tab)}
-                                        className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all duration-300 relative z-10 ${toothModalTab === tab ? 'bg-white text-slate-900 shadow-sm scale-100' : 'text-slate-500 hover:text-slate-700'}`}
+                                        className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all duration-300 relative z-10 ${toothModalTab === tab ? 'bg-surface text-text-primary shadow-low scale-100' : 'text-text-muted hover:text-text-secondary'}`}
                                     >
                                         {tab === 'Status' && 'العامة'}
                                         {tab === 'Pathology' && 'الأمراض'}
@@ -328,7 +335,7 @@ export default function TreatmentModal({
                                                     }}
                                                     className={`px-4 py-2 rounded-full text-sm font-bold transition-all border ${selectedToothCondition === status
                                                         ? 'bg-slate-800 text-white border-slate-800 shadow-md transform scale-105'
-                                                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                                        : 'bg-surface text-text-secondary border-border hover:bg-surface-subtle'
                                                         }`}
                                                 >
                                                     {status}
@@ -359,7 +366,7 @@ export default function TreatmentModal({
                                                         }}
                                                         className={`px-4 py-2 rounded-full text-sm font-bold transition-all border ${isSelected
                                                             ? 'bg-red-50 text-red-600 border-red-200 shadow-sm ring-1 ring-red-100'
-                                                            : 'bg-white text-slate-600 border-slate-200 hover:border-red-200 hover:text-red-500'
+                                                            : 'bg-surface text-text-secondary border-border hover:border-red-200 hover:text-red-500'
                                                             }`}
                                                     >
                                                         {item}
@@ -392,7 +399,7 @@ export default function TreatmentModal({
                                                         }}
                                                         className={`px-4 py-2 rounded-full text-sm font-bold transition-all border ${isSelected
                                                             ? 'bg-blue-50 text-blue-600 border-blue-200 shadow-sm ring-1 ring-blue-100'
-                                                            : 'bg-white text-slate-600 border-slate-200 hover:border-blue-200 hover:text-blue-500'
+                                                            : 'bg-surface text-text-secondary border-border hover:border-blue-200 hover:text-blue-500'
                                                             }`}
                                                     >
                                                         {item}
@@ -405,11 +412,22 @@ export default function TreatmentModal({
                             </div>
                         </div>
                     )}
-                    <input value={treatment.diagnosis} onChange={e => setTreatment({ ...treatment, diagnosis: e.target.value })} placeholder="التشخيص" className="w-full p-3 bg-slate-50 rounded-xl outline-none" />
+
+                    <div>
+                        <label htmlFor="treatment-diagnosis" className="mb-1 block text-xs font-bold text-text-muted">التشخيص</label>
+                        <input
+                            id="treatment-diagnosis"
+                            value={treatment.diagnosis}
+                            onChange={e => setTreatment({ ...treatment, diagnosis: e.target.value })}
+                            placeholder="التشخيص"
+                            className="w-full rounded-control border border-border bg-surface-subtle p-3 text-text-primary outline-none focus-visible:ring-focus"
+                        />
+                    </div>
+
                     {/* Procedure Selection & Price Calculation */}
-                    <div className="bg-slate-50 p-4 rounded-xl space-y-4">
+                    <div className="bg-surface-subtle p-4 rounded-xl space-y-4">
                         {/* Price List Selection (Optional Override) */}
-                        <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
+                        <div className="flex items-center justify-between text-xs text-text-muted mb-1">
                             <span>قائمة الأسعار:</span>
                             {/* In a real app, this could be a dropdown. For now, we just show the active one or allow toggle if needed */}
                         </div>
@@ -419,6 +437,7 @@ export default function TreatmentModal({
                                     value={treatment.procedure}
                                     onChange={e => setTreatment({ ...treatment, procedure: e.target.value })}
                                     placeholder="أدخل اسم الإجراء يدوياً..."
+                                    aria-label="اسم الإجراء العلاجي"
                                     className="flex-1 p-3 bg-blue-50/50 border border-blue-100 rounded-xl outline-none text-blue-900 placeholder-blue-300 font-bold"
                                     autoFocus
                                 />
@@ -427,14 +446,16 @@ export default function TreatmentModal({
                                         setIsManualProcedure(false);
                                         setTreatment({ ...treatment, procedure: '' });
                                     }}
-                                    className="px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-medium transition-colors"
+                                    className="px-4 bg-surface-subtle hover:bg-surface-muted text-text-secondary rounded-xl font-medium transition-colors"
                                 >
                                     قائمة
                                 </button>
                             </div>
                         ) : (
                             <div className="relative">
+                                <label htmlFor="treatment-procedure" className="sr-only">الإجراء العلاجي</label>
                                 <select
+                                    id="treatment-procedure"
                                     value={treatment.procedure}
                                     onChange={async e => {
                                         const val = e.target.value;
@@ -499,7 +520,7 @@ export default function TreatmentModal({
                                             price_list_id: activePriceListId
                                         });
                                     }}
-                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none appearance-none cursor-pointer font-bold text-slate-700 focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+                                    className="w-full p-3 bg-surface border border-border rounded-xl outline-none appearance-none cursor-pointer font-bold text-text-primary focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
                                 >
                                     <option value="">اختر الإجراء العلاجي...</option>
                                     <option value="MANUAL_ENTRY_OPTION" className="font-bold text-primary bg-blue-50">✍️ كتابة إجراء يدوي (غير مضاف)</option>
@@ -508,39 +529,41 @@ export default function TreatmentModal({
                                     ))}
                                 </select>
                                 <div className="absolute start-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                                    <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-5 h-5 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                     </svg>
                                 </div>
                             </div>
                         )}
                         {/* Price Display / Override */}
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                                <label className="text-xs font-bold text-slate-500 block mb-1">التكلفة</label>
+                                <label htmlFor="treatment-cost" className="text-xs font-bold text-text-muted block mb-1">التكلفة</label>
                                 <input
+                                    id="treatment-cost"
                                     value={treatment.cost}
                                     onChange={e => setTreatment({ ...treatment, cost: e.target.value })}
                                     placeholder="0.00"
                                     type="number"
-                                    className="w-full p-3 bg-white border border-slate-200 rounded-xl outline-none font-bold"
+                                    className="w-full p-3 bg-surface border border-border rounded-xl outline-none font-bold text-text-primary focus-visible:ring-focus"
                                 />
                             </div>
                             <div>
-                                <label className="text-xs font-bold text-slate-500 block mb-1">الخصم</label>
+                                <label htmlFor="treatment-discount" className="text-xs font-bold text-text-muted block mb-1">الخصم</label>
                                 <input
+                                    id="treatment-discount"
                                     value={treatment.discount}
                                     onChange={e => setTreatment({ ...treatment, discount: e.target.value })}
                                     placeholder="0.00"
                                     type="number"
-                                    className="w-full p-3 bg-white border border-slate-200 border-dashed rounded-xl outline-none"
+                                    className="w-full p-3 bg-surface border border-border border-dashed rounded-xl outline-none text-text-primary focus-visible:ring-focus"
                                 />
                             </div>
                         </div>
                         {/* Status Selection */}
-                        <div className="pt-2 border-t border-slate-200/50 mt-2">
-                            <label className="text-xs font-bold text-slate-500 block mb-2">حالة الإجراء</label>
-                            <div className="flex p-1 bg-white border border-slate-200 rounded-xl gap-1">
+                        <div className="pt-2 border-t border-border mt-2">
+                            <label className="text-xs font-bold text-text-muted block mb-2">حالة الإجراء</label>
+                            <div className="flex p-1 bg-surface border border-border rounded-xl gap-1">
                                 {[
                                     { id: 'Pending', label: 'قيد التنفيذ', color: 'text-amber-600 bg-amber-50 border-amber-200' },
                                     { id: 'Done', label: 'تم الانتهاء', color: 'text-green-600 bg-green-50 border-green-200' }
@@ -552,7 +575,7 @@ export default function TreatmentModal({
                                         className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${
                                             (treatment.status || 'Done') === s.id 
                                             ? s.color + ' border shadow-sm scale-[1.02]' 
-                                            : 'text-slate-400 hover:text-slate-600'
+                                            : 'text-text-muted hover:text-text-secondary'
                                         }`}
                                     >
                                         {s.label}
@@ -561,7 +584,18 @@ export default function TreatmentModal({
                             </div>
                         </div>
                     </div>
-                    <input value={treatment.tooth_number} onChange={e => setTreatment({ ...treatment, tooth_number: e.target.value })} placeholder="رقم السن" className="w-full p-3 bg-slate-50 rounded-xl outline-none" />
+
+                    <div>
+                        <label htmlFor="treatment-tooth-number" className="mb-1 block text-xs font-bold text-text-muted">رقم السن</label>
+                        <input
+                            id="treatment-tooth-number"
+                            value={treatment.tooth_number}
+                            onChange={e => setTreatment({ ...treatment, tooth_number: e.target.value })}
+                            placeholder="رقم السن"
+                            className="w-full rounded-control border border-border bg-surface-subtle p-3 text-text-primary outline-none focus-visible:ring-focus"
+                        />
+                    </div>
+
                     {/* Advanced Toggle */}
                     <button
                         onClick={() => setShowAdvanced(!showAdvanced)}
@@ -573,11 +607,11 @@ export default function TreatmentModal({
                         <div className="space-y-4 p-4 bg-primary/5 rounded-2xl border border-primary/10 animate-in slide-in-from-top-2 duration-200">
                             {/* Simplified Advanced Fields for Brevity - Keeping core functionality */}
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">عدد القنوات</label>
-                                <input type="number" value={treatment.canal_count} onChange={e => setTreatment({ ...treatment, canal_count: e.target.value })} className="w-full p-3 bg-white rounded-xl border border-slate-100" placeholder="e.g 3" />
+                                <label className="block text-xs font-bold text-text-muted mb-1">عدد القنوات</label>
+                                <input type="number" value={treatment.canal_count} onChange={e => setTreatment({ ...treatment, canal_count: e.target.value })} className="w-full p-3 bg-surface rounded-xl border border-border text-text-primary" placeholder="e.g 3" />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">تفاصيل القنوات</label>
+                                <label className="block text-xs font-bold text-text-muted mb-1">تفاصيل القنوات</label>
                                 {(() => {
                                     const normalizedCanals = Array.isArray(treatment.canals) ? treatment.canals : [];
                                     return (
@@ -587,11 +621,11 @@ export default function TreatmentModal({
                                                     <input value={canal.name} onChange={e => {
                                                         const newCanals = normalizedCanals.map((c, i) => i === idx ? { ...c, name: e.target.value } : c);
                                                         setTreatment({ ...treatment, canals: newCanals });
-                                                    }} placeholder="الاسم" className="flex-1 p-2 bg-white rounded-lg border border-slate-100" />
+                                                    }} placeholder="الاسم" aria-label={`اسم القناة ${idx + 1}`} className="flex-1 p-2 bg-surface rounded-lg border border-border text-text-primary" />
                                                     <input value={canal.length} onChange={e => {
                                                         const newCanals = normalizedCanals.map((c, i) => i === idx ? { ...c, length: e.target.value } : c);
                                                         setTreatment({ ...treatment, canals: newCanals });
-                                                    }} placeholder="مم" className="w-20 p-2 bg-white rounded-lg border border-slate-100" />
+                                                    }} placeholder="مم" aria-label={`طول القناة ${idx + 1}`} className="w-20 p-2 bg-surface rounded-lg border border-border text-text-primary" />
                                                 </div>
                                             ))}
                                             <button onClick={() => setTreatment({ ...treatment, canals: [...normalizedCanals, { name: '', length: '' }] })} className="text-xs text-primary">+ إضافة قناة</button>
@@ -599,15 +633,15 @@ export default function TreatmentModal({
                                     );
                                 })()}
                             </div>
-                            <textarea value={treatment.sessions} onChange={e => setTreatment({ ...treatment, sessions: e.target.value })} placeholder="جلسات" className="w-full p-3 bg-white rounded-xl border border-slate-100 h-20" />
-                            <textarea value={treatment.complications} onChange={e => setTreatment({ ...treatment, complications: e.target.value })} placeholder="المضاعفات" className="w-full p-3 bg-white rounded-xl border border-red-100 text-red-600 h-20" />
+                            <textarea value={treatment.sessions} onChange={e => setTreatment({ ...treatment, sessions: e.target.value })} placeholder="جلسات" aria-label="جلسات العلاج" className="w-full p-3 bg-surface rounded-xl border border-border h-20 text-text-primary" />
+                            <textarea value={treatment.complications} onChange={e => setTreatment({ ...treatment, complications: e.target.value })} placeholder="المضاعفات" aria-label="مضاعفات العلاج" className="w-full p-3 bg-surface rounded-xl border border-red-200 text-red-600 h-20" />
                         </div>
                     )}
                     {/* Inventory Consumption Section */}
-                    <div className="border border-slate-200 rounded-xl overflow-hidden">
-                        <div className="p-3 bg-slate-50 flex items-center justify-between">
-                            <h4 className="font-bold text-slate-700 flex items-center gap-2">
-                                <Package size={18} />
+                    <div className="border border-border rounded-xl overflow-hidden">
+                        <div className="p-3 bg-surface-subtle flex items-center justify-between">
+                            <h4 className="font-bold text-text-primary flex items-center gap-2">
+                                <Package size={18} aria-hidden="true" />
                                 المواد المستهلكة
                             </h4>
                             <button
@@ -617,14 +651,14 @@ export default function TreatmentModal({
                                 }}
                                 className="text-xs font-bold bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary-600 transition-colors flex items-center gap-1 shadow-sm shadow-primary/20"
                             >
-                                <Plus size={14} /> إضافة
+                                <Plus size={14} aria-hidden="true" /> إضافة
                             </button>
                         </div>
 
                         {/* Selected Materials List (Always at top if items exist) */}
                         {consumedMaterials.length > 0 && (
-                            <div className="p-3 bg-white border-b border-slate-100 space-y-2">
-                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">المواد المختارة</div>
+                            <div className="p-3 bg-surface border-b border-border space-y-2">
+                                <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">المواد المختارة</div>
                                 {consumedMaterials.map((item, idx) => {
                                     const mId = item.material_id || item.id;
                                     const matInfo = availableMaterials.find(m => 
@@ -639,11 +673,11 @@ export default function TreatmentModal({
                                     return (
                                         <div key={idx} className="p-2.5 rounded-xl border border-primary/20 bg-primary/5 shadow-sm transition-all flex items-center justify-between">
                                             <div className="flex items-center gap-2">
-                                                {(isDivisible || isReusable) ? <Droplets size={16} className="text-primary" /> : <Package size={16} className="text-primary" />}
-                                                <span className="font-bold text-slate-700 text-sm">{matName}</span>
+                                                {(isDivisible || isReusable) ? <Droplets size={16} className="text-primary" aria-hidden="true" /> : <Package size={16} className="text-primary" aria-hidden="true" />}
+                                                <span className="font-bold text-text-primary text-sm">{matName}</span>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-sm font-bold bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm text-slate-700">
+                                                <span className="text-sm font-bold bg-surface px-2 py-0.5 rounded border border-border shadow-sm text-text-primary">
                                                     {item.quantity} {isDivisible ? (item.unit || 'وزن نسبي') : (item.unit || 'وحدة')}
                                                 </span>
                                                 <button
@@ -652,9 +686,10 @@ export default function TreatmentModal({
                                                         newMats.splice(idx, 1);
                                                         setConsumedMaterials(newMats);
                                                     }}
-                                                    className="p-1 rounded text-red-400 hover:bg-white hover:text-red-600 transition-colors shadow-sm border border-transparent hover:border-red-100"
+                                                    aria-label={`حذف ${matName} من المواد المستهلكة`}
+                                                    className="p-1 rounded text-red-400 hover:bg-surface hover:text-red-600 transition-colors shadow-sm border border-transparent hover:border-red-100"
                                                 >
-                                                    <Trash2 size={14} />
+                                                    <Trash2 size={14} aria-hidden="true" />
                                                 </button>
                                             </div>
                                         </div>
@@ -665,8 +700,8 @@ export default function TreatmentModal({
 
                         {/* Material Consumption Panel - shows suggested materials */}
                         {treatment.procedure && (
-                            <div className="p-3 bg-white">
-                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">اقتراحات حسب الإجراء</div>
+                            <div className="p-3 bg-surface">
+                                <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">اقتراحات حسب الإجراء</div>
                                 <MaterialConsumptionPanel
                                     key={`mat-panel-${treatment.id || 'new'}-${treatment.procedure || 'none'}`}
                                     procedureId={safeProcedures.find(p => p.name === treatment.procedure)?.id}
@@ -696,16 +731,26 @@ export default function TreatmentModal({
                         )}
 
                         {consumedMaterials.length === 0 && (
-                            <div className="p-4 text-center text-xs text-slate-500 bg-slate-50/50">
+                            <div className="p-4 text-center text-xs text-text-muted bg-surface-subtle">
                                 لم يتم تسجيل أي مواد لهذا الإجراء
                             </div>
                         )}
                     </div>
-                    <textarea value={treatment.notes} onChange={e => setTreatment({ ...treatment, notes: e.target.value })} placeholder="ملاحظات عامة" className="w-full p-3 bg-slate-50 rounded-xl outline-none" />
+
+                    <div>
+                        <label htmlFor="treatment-notes" className="mb-1 block text-xs font-bold text-text-muted">ملاحظات عامة</label>
+                        <textarea
+                            id="treatment-notes"
+                            value={treatment.notes}
+                            onChange={e => setTreatment({ ...treatment, notes: e.target.value })}
+                            placeholder="ملاحظات عامة"
+                            className="w-full rounded-control border border-border bg-surface-subtle p-3 text-text-primary outline-none focus-visible:ring-focus"
+                        />
+                    </div>
                     
                     {/* Multi-Session Tracking (Only if editing existing treatment) */}
                     {isEditing && treatment.id && (
-                        <div className="pt-4 border-t border-slate-100">
+                        <div className="pt-4 border-t border-border">
                             <MultiSessionPanel 
                                 sessions={treatment.treatment_sessions || []}
                                 onAddSession={handleAddSession}
@@ -714,14 +759,15 @@ export default function TreatmentModal({
                         </div>
                     )}
 
-                    <div className="flex justify-end gap-3 text-lg font-bold pt-4 border-t border-slate-100">
-                        <button onClick={onClose} disabled={isSaving} className="px-4 py-2 hover:bg-slate-100 rounded-lg disabled:opacity-50">إلغاء</button>
-                        <button onClick={handleSave} disabled={isSaving} className="px-6 py-2 bg-primary text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                    <div className="flex justify-end gap-3 text-lg font-bold pt-4 border-t border-border">
+                        <button onClick={onClose} disabled={isSaving} className="px-4 py-2 hover:bg-surface-subtle rounded-control disabled:opacity-50">إلغاء</button>
+                        <button onClick={handleSave} disabled={isSaving} className="px-6 py-2 bg-primary text-white rounded-control disabled:opacity-50 disabled:cursor-not-allowed">
                             {isSaving ? 'جاري الحفظ...' : 'حفظ'}
                         </button>
                     </div>
                 </div>
-            </div>
+            </Modal>
+
             {/* Smart Inventory Modal */}
             <EnhancedMaterialConsumption
                 isOpen={isSmartConsumptionOpen}
@@ -772,6 +818,6 @@ export default function TreatmentModal({
                     }
                 }}
             />
-        </div>
+        </>
     );
 }

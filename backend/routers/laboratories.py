@@ -1,7 +1,5 @@
 """Laboratory and lab-order management."""
 
-from datetime import datetime, timezone
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,13 +7,14 @@ from sqlalchemy.orm import selectinload
 
 from .. import models, schemas
 from ..cache import cache_response, invalidate_cache
-from backend.core.permissions import Permission, require_permission
+from backend.core.permissions import DOCTOR_ROLES, Permission, require_permission
 from backend.core.response import success_response
 from backend.database import get_async_db
 from backend.services.patient_access_service import (
     ensure_patient_visible,
     visible_patient_ids_query,
 )
+from backend.utils.tenant_time import utc_now_naive
 
 router = APIRouter()
 TREATMENT_LINK_PREFIX = "Link:LabOrder:"
@@ -25,6 +24,67 @@ def _get_lab_procedure_name(work_type: str, material: str = None) -> str:
     if material:
         return f"عمل معمل: {work_type} - {material}"
     return f"عمل معمل: {work_type}"
+
+
+def _linked_treatment_stmt(tenant_id: int, order_id: int):
+    """Return the exact treatment link query for one lab order."""
+    return select(models.Treatment).where(
+        models.Treatment.tenant_id == tenant_id,
+        models.Treatment.notes == f"{TREATMENT_LINK_PREFIX}{order_id}",
+    )
+
+
+async def _valid_provider_id(db: AsyncSession, tenant_id: int, user_id: int | None):
+    if not user_id:
+        return None
+    stmt = select(models.User.id).where(
+        models.User.id == user_id,
+        models.User.tenant_id == tenant_id,
+        models.User.role.in_(DOCTOR_ROLES),
+        models.User.is_active == True,  # noqa: E712
+        models.User.is_deleted == False,  # noqa: E712
+    )
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+async def _resolve_lab_provider_id(
+    db: AsyncSession,
+    current_user: models.User,
+    patient: models.Patient,
+):
+    """Resolve the clinical provider without attributing nurse/staff activity as doctor revenue.
+
+    Priority is the patient's explicit assigned provider, then a provider actor, then the
+    most recent active treating provider. If none is trustworthy, leave attribution empty.
+    """
+    tenant_id = current_user.tenant_id
+
+    assigned = await _valid_provider_id(db, tenant_id, patient.assigned_doctor_id)
+    if assigned is not None:
+        return assigned
+
+    actor_role = str(getattr(current_user, "role", "")).lower()
+    if actor_role in DOCTOR_ROLES:
+        actor = await _valid_provider_id(db, tenant_id, current_user.id)
+        if actor is not None:
+            return actor
+
+    stmt = (
+        select(models.Treatment.doctor_id)
+        .join(models.User, models.Treatment.doctor_id == models.User.id)
+        .where(
+            models.Treatment.patient_id == patient.id,
+            models.Treatment.is_deleted == False,  # noqa: E712
+            models.Treatment.doctor_id.isnot(None),
+            models.User.tenant_id == tenant_id,
+            models.User.role.in_(DOCTOR_ROLES),
+            models.User.is_active == True,  # noqa: E712
+            models.User.is_deleted == False,  # noqa: E712
+        )
+        .order_by(models.Treatment.date.desc(), models.Treatment.id.desc())
+        .limit(1)
+    )
+    return (await db.execute(stmt)).scalar_one_or_none()
 
 
 @cache_response(ttl_seconds=300)
@@ -197,14 +257,14 @@ async def create_lab_order(
     if not lab:
         raise HTTPException(status_code=404, detail="Laboratory not found")
 
+    provider_id = await _resolve_lab_provider_id(db, current_user, patient)
     db_order = models.LabOrder(
         **order.model_dump(),
         tenant_id=current_user.tenant_id,
-        doctor_id=current_user.id,
+        doctor_id=provider_id,
     )
     db.add(db_order)
-    await db.commit()
-    await db.refresh(db_order)
+    await db.flush()
 
     if db_order.price_to_patient and db_order.price_to_patient > 0:
         tooth_num = None
@@ -213,20 +273,23 @@ async def create_lab_order(
                 tooth_num = int(db_order.tooth_number.split(",")[0].strip())
             except (ValueError, AttributeError):
                 pass
-        linked_treatment = models.Treatment(
-            patient_id=db_order.patient_id,
-            tooth_number=tooth_num,
-            diagnosis=f"تركيبة معملية - {lab.name}",
-            procedure=_get_lab_procedure_name(db_order.work_type, db_order.material),
-            doctor_id=db_order.doctor_id,
-            cost=db_order.price_to_patient,
-            discount=0.0,
-            date=db_order.order_date,
-            notes=f"{TREATMENT_LINK_PREFIX}{db_order.id}",
-            tenant_id=current_user.tenant_id,
+        db.add(
+            models.Treatment(
+                patient_id=db_order.patient_id,
+                tooth_number=tooth_num,
+                diagnosis=f"تركيبة معملية - {lab.name}",
+                procedure=_get_lab_procedure_name(db_order.work_type, db_order.material),
+                doctor_id=provider_id,
+                cost=db_order.price_to_patient,
+                discount=0.0,
+                date=db_order.order_date,
+                notes=f"{TREATMENT_LINK_PREFIX}{db_order.id}",
+                tenant_id=current_user.tenant_id,
+            )
         )
-        db.add(linked_treatment)
-        await db.commit()
+
+    await db.commit()
+    await db.refresh(db_order)
 
     result = schemas.LabOrder.model_validate(db_order).model_dump()
     result["patient_name"] = patient.name
@@ -234,203 +297,7 @@ async def create_lab_order(
     return success_response(result)
 
 
-@router.get("/lab-orders/{order_id}")
-async def get_lab_order(
-    order_id: int,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
-):
-    order = (
-        await db.execute(
-            select(models.LabOrder)
-            .options(
-                selectinload(models.LabOrder.patient),
-                selectinload(models.LabOrder.laboratory),
-            )
-            .where(
-                models.LabOrder.id == order_id,
-                models.LabOrder.tenant_id == current_user.tenant_id,
-            )
-        )
-    ).scalars().first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Lab order not found")
-    await ensure_patient_visible(db, current_user, order.patient_id, detail="Lab order not found")
-
-    result = schemas.LabOrder.model_validate(order).model_dump()
-    result["patient_name"] = order.patient.name if order.patient else None
-    result["laboratory_name"] = order.laboratory.name if order.laboratory else None
-    return success_response(result)
-
-
-@router.put("/lab-orders/{order_id}")
-async def update_lab_order(
-    order_id: int,
-    order_update: schemas.LabOrderUpdate,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
-):
-    order = (
-        await db.execute(
-            select(models.LabOrder)
-            .options(
-                selectinload(models.LabOrder.patient),
-                selectinload(models.LabOrder.laboratory),
-            )
-            .where(
-                models.LabOrder.id == order_id,
-                models.LabOrder.tenant_id == current_user.tenant_id,
-            )
-        )
-    ).scalars().first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Lab order not found")
-    await ensure_patient_visible(db, current_user, order.patient_id, detail="Lab order not found")
-
-    update_data = order_update.model_dump(exclude_unset=True)
-    if update_data.get("laboratory_id"):
-        target_lab = (
-            await db.execute(
-                select(models.Laboratory).where(
-                    models.Laboratory.id == update_data["laboratory_id"],
-                    models.Laboratory.tenant_id == current_user.tenant_id,
-                )
-            )
-        ).scalars().first()
-        if not target_lab:
-            raise HTTPException(status_code=404, detail="Laboratory not found")
-
-    if update_data.get("status") == "completed" and order.status != "completed":
-        update_data["received_date"] = datetime.now(timezone.utc)
-    for key, value in update_data.items():
-        setattr(order, key, value)
-    if not order.doctor_id:
-        order.doctor_id = current_user.id
-
-    await db.commit()
-    await db.refresh(order)
-
-    link_note = f"{TREATMENT_LINK_PREFIX}{order_id}"
-    linked_treatment = (
-        await db.execute(
-            select(models.Treatment).where(
-                models.Treatment.tenant_id == current_user.tenant_id,
-                models.Treatment.notes.contains(link_note),
-            )
-        )
-    ).scalars().first()
-
-    if linked_treatment:
-        linked_treatment.cost = order.price_to_patient or 0
-        linked_treatment.procedure = _get_lab_procedure_name(order.work_type, order.material)
-        linked_treatment.doctor_id = order.doctor_id
-        if order.laboratory:
-            linked_treatment.diagnosis = f"تركيبة معملية - {order.laboratory.name}"
-        await db.commit()
-    elif order.price_to_patient and order.price_to_patient > 0:
-        tooth_num = None
-        if order.tooth_number:
-            try:
-                tooth_num = int(order.tooth_number.split(",")[0].strip())
-            except (ValueError, AttributeError):
-                pass
-        lab_name = order.laboratory.name if order.laboratory else "معمل"
-        db.add(
-            models.Treatment(
-                patient_id=order.patient_id,
-                tooth_number=tooth_num,
-                diagnosis=f"تركيبة معملية - {lab_name}",
-                procedure=_get_lab_procedure_name(order.work_type, order.material),
-                doctor_id=order.doctor_id,
-                cost=order.price_to_patient,
-                discount=0.0,
-                date=order.order_date,
-                notes=link_note,
-                tenant_id=current_user.tenant_id,
-            )
-        )
-        await db.commit()
-
-    result = schemas.LabOrder.model_validate(order).model_dump()
-    result["patient_name"] = order.patient.name if order.patient else None
-    result["laboratory_name"] = order.laboratory.name if order.laboratory else None
-    return success_response(result)
-
-
-@router.delete("/lab-orders/{order_id}")
-async def delete_lab_order(
-    order_id: int,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
-):
-    order = (
-        await db.execute(
-            select(models.LabOrder).where(
-                models.LabOrder.id == order_id,
-                models.LabOrder.tenant_id == current_user.tenant_id,
-            )
-        )
-    ).scalars().first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Lab order not found")
-    await ensure_patient_visible(db, current_user, order.patient_id, detail="Lab order not found")
-
-    link_note = f"{TREATMENT_LINK_PREFIX}{order_id}"
-    linked_treatment = (
-        await db.execute(
-            select(models.Treatment).where(
-                models.Treatment.tenant_id == current_user.tenant_id,
-                models.Treatment.notes.contains(link_note),
-            )
-        )
-    ).scalars().first()
-    if linked_treatment:
-        await db.delete(linked_treatment)
-    await db.delete(order)
-    await db.commit()
-    return success_response(message="Lab order deleted successfully")
-
-
-@router.get("/patients/{patient_id}/lab_orders")
-async def get_patient_lab_orders(
-    patient_id: int,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
-):
-    await ensure_patient_visible(db, current_user, patient_id)
-    patient = (
-        await db.execute(
-            select(models.Patient).where(
-                models.Patient.id == patient_id,
-                models.Patient.tenant_id == current_user.tenant_id,
-                models.Patient.is_deleted == False,  # noqa: E712
-            )
-        )
-    ).scalars().first()
-    if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
-
-    orders = (
-        await db.execute(
-            select(models.LabOrder)
-            .options(selectinload(models.LabOrder.laboratory))
-            .where(
-                models.LabOrder.patient_id == patient_id,
-                models.LabOrder.tenant_id == current_user.tenant_id,
-            )
-            .order_by(models.LabOrder.order_date.desc())
-        )
-    ).scalars().all()
-
-    result = []
-    for order in orders:
-        order_dict = schemas.LabOrder.model_validate(order).model_dump()
-        order_dict["patient_name"] = patient.name
-        order_dict["laboratory_name"] = order.laboratory.name if order.laboratory else None
-        result.append(order_dict)
-    return success_response(result)
-
-
+# Register the static stats route before /lab-orders/{order_id}.
 @router.get("/lab-orders/stats/summary")
 async def get_lab_orders_stats(
     db: AsyncSession = Depends(get_async_db),
@@ -494,6 +361,197 @@ async def get_lab_orders_stats(
             "total_labs": total_labs,
         }
     )
+
+
+@router.get("/lab-orders/{order_id}")
+async def get_lab_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
+):
+    order = (
+        await db.execute(
+            select(models.LabOrder)
+            .options(
+                selectinload(models.LabOrder.patient),
+                selectinload(models.LabOrder.laboratory),
+            )
+            .where(
+                models.LabOrder.id == order_id,
+                models.LabOrder.tenant_id == current_user.tenant_id,
+            )
+        )
+    ).scalars().first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Lab order not found")
+    await ensure_patient_visible(db, current_user, order.patient_id, detail="Lab order not found")
+
+    result = schemas.LabOrder.model_validate(order).model_dump()
+    result["patient_name"] = order.patient.name if order.patient else None
+    result["laboratory_name"] = order.laboratory.name if order.laboratory else None
+    return success_response(result)
+
+
+@router.put("/lab-orders/{order_id}")
+async def update_lab_order(
+    order_id: int,
+    order_update: schemas.LabOrderUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    order = (
+        await db.execute(
+            select(models.LabOrder)
+            .options(
+                selectinload(models.LabOrder.patient),
+                selectinload(models.LabOrder.laboratory),
+            )
+            .where(
+                models.LabOrder.id == order_id,
+                models.LabOrder.tenant_id == current_user.tenant_id,
+            )
+        )
+    ).scalars().first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Lab order not found")
+    await ensure_patient_visible(db, current_user, order.patient_id, detail="Lab order not found")
+
+    update_data = order_update.model_dump(exclude_unset=True)
+    target_lab = None
+    if update_data.get("laboratory_id"):
+        target_lab = (
+            await db.execute(
+                select(models.Laboratory).where(
+                    models.Laboratory.id == update_data["laboratory_id"],
+                    models.Laboratory.tenant_id == current_user.tenant_id,
+                )
+            )
+        ).scalars().first()
+        if not target_lab:
+            raise HTTPException(status_code=404, detail="Laboratory not found")
+
+    if update_data.get("status") == "completed" and order.status != "completed":
+        update_data["received_date"] = utc_now_naive()
+    for key, value in update_data.items():
+        setattr(order, key, value)
+
+    valid_existing_provider = await _valid_provider_id(
+        db, current_user.tenant_id, order.doctor_id
+    )
+    if valid_existing_provider is None:
+        order.doctor_id = await _resolve_lab_provider_id(db, current_user, order.patient)
+
+    await db.flush()
+
+    linked_treatment = (
+        await db.execute(_linked_treatment_stmt(current_user.tenant_id, order_id))
+    ).scalars().first()
+    active_lab = target_lab or order.laboratory
+
+    if linked_treatment:
+        linked_treatment.cost = order.price_to_patient or 0
+        linked_treatment.procedure = _get_lab_procedure_name(order.work_type, order.material)
+        linked_treatment.doctor_id = order.doctor_id
+        if active_lab:
+            linked_treatment.diagnosis = f"تركيبة معملية - {active_lab.name}"
+    elif order.price_to_patient and order.price_to_patient > 0:
+        tooth_num = None
+        if order.tooth_number:
+            try:
+                tooth_num = int(order.tooth_number.split(",")[0].strip())
+            except (ValueError, AttributeError):
+                pass
+        lab_name = active_lab.name if active_lab else "معمل"
+        db.add(
+            models.Treatment(
+                patient_id=order.patient_id,
+                tooth_number=tooth_num,
+                diagnosis=f"تركيبة معملية - {lab_name}",
+                procedure=_get_lab_procedure_name(order.work_type, order.material),
+                doctor_id=order.doctor_id,
+                cost=order.price_to_patient,
+                discount=0.0,
+                date=order.order_date,
+                notes=f"{TREATMENT_LINK_PREFIX}{order_id}",
+                tenant_id=current_user.tenant_id,
+            )
+        )
+
+    await db.commit()
+    await db.refresh(order)
+
+    result = schemas.LabOrder.model_validate(order).model_dump()
+    result["patient_name"] = order.patient.name if order.patient else None
+    result["laboratory_name"] = active_lab.name if active_lab else None
+    return success_response(result)
+
+
+@router.delete("/lab-orders/{order_id}")
+async def delete_lab_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    order = (
+        await db.execute(
+            select(models.LabOrder).where(
+                models.LabOrder.id == order_id,
+                models.LabOrder.tenant_id == current_user.tenant_id,
+            )
+        )
+    ).scalars().first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Lab order not found")
+    await ensure_patient_visible(db, current_user, order.patient_id, detail="Lab order not found")
+
+    linked_treatment = (
+        await db.execute(_linked_treatment_stmt(current_user.tenant_id, order_id))
+    ).scalars().first()
+    if linked_treatment:
+        await db.delete(linked_treatment)
+    await db.delete(order)
+    await db.commit()
+    return success_response(message="Lab order deleted successfully")
+
+
+@router.get("/patients/{patient_id}/lab_orders")
+async def get_patient_lab_orders(
+    patient_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
+):
+    await ensure_patient_visible(db, current_user, patient_id)
+    patient = (
+        await db.execute(
+            select(models.Patient).where(
+                models.Patient.id == patient_id,
+                models.Patient.tenant_id == current_user.tenant_id,
+                models.Patient.is_deleted == False,  # noqa: E712
+            )
+        )
+    ).scalars().first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    orders = (
+        await db.execute(
+            select(models.LabOrder)
+            .options(selectinload(models.LabOrder.laboratory))
+            .where(
+                models.LabOrder.patient_id == patient_id,
+                models.LabOrder.tenant_id == current_user.tenant_id,
+            )
+            .order_by(models.LabOrder.order_date.desc())
+        )
+    ).scalars().all()
+
+    result = []
+    for order in orders:
+        order_dict = schemas.LabOrder.model_validate(order).model_dump()
+        order_dict["patient_name"] = patient.name
+        order_dict["laboratory_name"] = order.laboratory.name if order.laboratory else None
+        result.append(order_dict)
+    return success_response(result)
 
 
 @router.get("/laboratories/{lab_id}/stats")
@@ -576,8 +634,9 @@ async def create_lab_payment(
     ).scalars().first()
     if not lab:
         raise HTTPException(status_code=404, detail="Laboratory not found")
-    db_payment = models.LabPayment(**payment.model_dump(), tenant_id=current_user.tenant_id)
-    db_payment.laboratory_id = lab_id
+    payload = payment.model_dump()
+    payload["laboratory_id"] = lab_id
+    db_payment = models.LabPayment(**payload, tenant_id=current_user.tenant_id)
     db.add(db_payment)
     await db.commit()
     await db.refresh(db_payment)

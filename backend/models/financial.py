@@ -33,7 +33,11 @@ class Payment(Base):
     patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
     doctor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     amount = Column(Float)
-    date = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    date = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        index=True,
+    )
     notes = Column(Text, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
@@ -85,7 +89,9 @@ class SalaryPayment(Base):
     user_id = Column(Integer, ForeignKey("users.id"), index=True)
     month = Column(String, index=True)
     amount = Column(Float, default=0.0)
-    payment_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    payment_date = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+    )
     is_partial = Column(Boolean, default=False)
     days_worked = Column(Integer, nullable=True)
     notes = Column(Text, nullable=True)
@@ -108,7 +114,11 @@ class LabPayment(Base):
     id = Column(Integer, primary_key=True, index=True)
     laboratory_id = Column(Integer, ForeignKey("laboratories.id"), index=True)
     amount = Column(Float)
-    date = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    date = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        index=True,
+    )
     notes = Column(Text, nullable=True)
     method = Column(String, default="Cash")  # Cash, Bank Transfer, etc.
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)

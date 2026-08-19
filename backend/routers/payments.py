@@ -1,38 +1,44 @@
-"""
-Payments Router
-Handles billing, payments, and financial reporting.
-"""
+"""Payments Router — billing, payments, and financial reporting."""
+
+from datetime import datetime
+import logging
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-import logging
-from typing import List, Optional
 
 from .. import schemas, crud
 from backend.database import get_async_db
 from backend.core.permissions import Permission, require_permission
+from backend.core.tenant_context import require_tenant_id
 from backend.core.limiter import limiter
 from backend.core.response import success_response, StandardResponse
 from backend.core.idempotency import idempotent
 from ..utils.audit_logger import log_admin_action
+from ..services.billing_service import BillingService
+from ..services.financial_visibility_service import get_financial_visibility_service
+from backend.services.tenant_time_service import get_tenant_timezone
+from backend.utils.tenant_time import tenant_day_utc_bounds_naive
 
 logger = logging.getLogger("smart_clinic")
-from ..services.billing_service import BillingService
-
-# Multi-Doctor Financial Visibility
-from ..services.financial_visibility_service import get_financial_visibility_service
-
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
 
 def _today_visibility_scope(current_user) -> tuple[int | None, bool]:
-    """Mirror FinancialVisibilityService's established doctor visibility rule."""
     is_doctor = current_user.role == "doctor"
-    can_view_all = bool(
-        getattr(current_user, "can_view_other_doctors_history", False)
-    )
+    can_view_all = bool(getattr(current_user, "can_view_other_doctors_history", False))
     patient_scope_id = current_user.id if is_doctor and not can_view_all else None
     return patient_scope_id, is_doctor
+
+
+def _parse_date(value: str, field_name: str):
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid {field_name}; expected YYYY-MM-DD",
+        ) from exc
 
 
 @router.post(
@@ -49,12 +55,11 @@ async def create_payment(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
 ):
-    """Record a new payment."""
-    service = BillingService(db, current_user.tenant_id)
-
-    # Use current_user.id as default doctor_id if not provided
-    doctor_id = payment.doctor_id if payment.doctor_id else current_user.id
-
+    tenant_id = require_tenant_id(current_user)
+    service = BillingService(db, tenant_id)
+    # The user recording cash is not necessarily the treating doctor. Preserve an
+    # explicit doctor selection; otherwise resolve the latest active provider.
+    doctor_id = payment.doctor_id
     try:
         result = await service.create_payment(payment, doctor_id=doctor_id, commit=False)
         log_admin_action(
@@ -62,15 +67,15 @@ async def create_payment(
             admin_user=current_user,
             action="create",
             entity_type="payment",
-            entity_id=result.id if hasattr(result, 'id') else None,
+            entity_id=result.id if hasattr(result, "id") else None,
             details=f"Payment of {payment.amount} for patient {payment.patient_id}",
         )
         await db.commit()
 
-        # Re-fetch with patient loaded to prevent MissingGreenlet on serialization
         from sqlalchemy import select
         from sqlalchemy.orm import joinedload
         from backend import models
+
         stmt = (
             select(models.Payment)
             .where(models.Payment.id == result.id)
@@ -78,10 +83,9 @@ async def create_payment(
         )
         db_res = await db.execute(stmt)
         result = db_res.scalars().first()
-
         return success_response(data=result, message="Payment recorded successfully")
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.get(
@@ -101,21 +105,16 @@ async def read_payments(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """Get payments for current user (filtered by role and optional criteria)."""
-    from datetime import datetime
     from backend import models
 
-    visibility = get_financial_visibility_service(
-        db, current_user, current_user.tenant_id
-    )
+    tenant_id = require_tenant_id(current_user)
+    visibility = get_financial_visibility_service(db, current_user, tenant_id)
     query = visibility.get_visible_payments_query()
 
     if patient_id:
         query = query.where(models.Payment.patient_id == patient_id)
-
     if doctor_id:
         query = query.where(models.Payment.doctor_id == doctor_id)
-
     if search:
         search_pattern = f"%{search}%"
         query = query.where(
@@ -123,24 +122,35 @@ async def read_payments(
             | (models.Payment.notes.ilike(search_pattern))
         )
 
-    if start_date:
-        try:
-            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-            query = query.where(models.Payment.date >= start_dt)
-        except ValueError:
-            pass
+    timezone_name = None
+    if start_date or end_date:
+        timezone_name = await get_tenant_timezone(db, tenant_id)
 
-    if end_date:
-        try:
-            end_dt = datetime.strptime(f"{end_date} 23:59:59", "%Y-%m-%d %H:%M:%S")
-            query = query.where(models.Payment.date <= end_dt)
-        except ValueError:
-            pass
+    parsed_start = _parse_date(start_date, "start_date") if start_date else None
+    parsed_end = _parse_date(end_date, "end_date") if end_date else None
+    if parsed_start and parsed_end and parsed_end < parsed_start:
+        raise HTTPException(status_code=400, detail="end_date must be on or after start_date")
 
-    query = query.order_by(models.Payment.date.desc(), models.Payment.id.desc()).offset(skip).limit(limit)
+    if parsed_start:
+        utc_start, _ = tenant_day_utc_bounds_naive(
+            timezone_name, local_date=parsed_start
+        )
+        query = query.where(models.Payment.date >= utc_start)
+    if parsed_end:
+        _, utc_end_exclusive = tenant_day_utc_bounds_naive(
+            timezone_name, local_date=parsed_end
+        )
+        query = query.where(models.Payment.date < utc_end_exclusive)
+
+    query = (
+        query.order_by(models.Payment.date.desc(), models.Payment.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
     result = await db.execute(query)
-    payments = result.scalars().all()
-    return success_response(data=payments, message="Payments retrieved successfully")
+    return success_response(
+        data=result.scalars().all(), message="Payments retrieved successfully"
+    )
 
 
 @router.delete("/{payment_id}", response_model=StandardResponse[dict])
@@ -149,7 +159,7 @@ async def delete_payment(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
 ):
-    """Delete a payment record."""
+    tenant_id = require_tenant_id(current_user)
     log_admin_action(
         db=db,
         admin_user=current_user,
@@ -158,7 +168,10 @@ async def delete_payment(
         entity_id=payment_id,
         details=f"Deleted payment #{payment_id}",
     )
-    await crud.delete_payment(db, payment_id, current_user.tenant_id)
+    deleted = await crud.delete_payment(db, payment_id, tenant_id)
+    if not deleted:
+        await db.rollback()
+        raise HTTPException(status_code=404, detail="Payment not found")
     return success_response(
         data={"payment_id": payment_id},
         message="Payment deleted successfully",
@@ -170,11 +183,11 @@ async def get_today_payments_list(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """Get payments made in the current tenant business day."""
+    tenant_id = require_tenant_id(current_user)
     patient_scope_id, is_doctor = _today_visibility_scope(current_user)
     service = BillingService(
         db,
-        current_user.tenant_id,
+        tenant_id,
         doctor_patient_scope_id=patient_scope_id,
         is_doctor=is_doctor,
     )
@@ -187,11 +200,11 @@ async def get_today_debtors_list(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """Get positive same-day debtors in the current tenant business day."""
+    tenant_id = require_tenant_id(current_user)
     patient_scope_id, is_doctor = _today_visibility_scope(current_user)
     service = BillingService(
         db,
-        current_user.tenant_id,
+        tenant_id,
         doctor_patient_scope_id=patient_scope_id,
         is_doctor=is_doctor,
     )

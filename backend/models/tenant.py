@@ -34,7 +34,9 @@ class SubscriptionPlan(Base):
 
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)  # New Default Feature
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+    )
 
     tenants = relationship("Tenant", back_populates="subscription_plan")
     payments = relationship("SubscriptionPayment", back_populates="plan")
@@ -48,7 +50,9 @@ class SubscriptionPayment(Base):
     plan_id: Mapped[int] = mapped_column(Integer, ForeignKey("subscription_plans.id"))
     amount: Mapped[float] = mapped_column(Float)
     payment_method: Mapped[str] = mapped_column(String)
-    payment_date: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    payment_date: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+    )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by: Mapped[str | None] = mapped_column(String, nullable=True)
     paid_by: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -85,7 +89,9 @@ class Tenant(Base):
     )
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+    )
     total_revenue: Mapped[float] = mapped_column(Float, default=0.0)
 
     # Backup Settings

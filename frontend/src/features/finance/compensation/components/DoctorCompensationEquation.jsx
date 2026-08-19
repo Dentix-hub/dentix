@@ -1,10 +1,12 @@
 import { useTranslation } from 'react-i18next';
-import { Calculator, ArrowRight, Plus, Equal, Minus, Percent } from 'lucide-react';
+import { Calculator, Plus, Equal, Minus } from 'lucide-react';
 import Money from '../../components/Money';
 import ScopeBadge from '../../components/ScopeBadge';
 
 /**
  * Visual compensation equation explaining doctor entitlement derivation (§15 MASTER_SPEC).
+ * `fixedSalary` remains the configured monthly rule; `totalDue` is authoritative
+ * for the selected period, so the displayed fixed component is derived from it.
  */
 export default function DoctorCompensationEquation({
     collected = 0,
@@ -15,8 +17,12 @@ export default function DoctorCompensationEquation({
 }) {
     const { t } = useTranslation();
 
-    const commissionBase = Math.max(0, collected - labCost);
-    const commissionAmount = Number(((commissionBase * (commissionPercent / 100)) || 0).toFixed(2));
+    const commissionBase = Math.max(0, Number(collected || 0) - Number(labCost || 0));
+    const commissionAmount = Number(((commissionBase * (Number(commissionPercent || 0) / 100)) || 0).toFixed(2));
+    const authoritativeTotal = Number(totalDue || 0);
+    const periodFixedSalary = authoritativeTotal > 0
+        ? Math.max(0, Number((authoritativeTotal - commissionAmount).toFixed(2)))
+        : Math.max(0, Number(fixedSalary || 0));
 
     return (
         <div className="p-5 rounded-2xl border border-border bg-card shadow-sm space-y-4">
@@ -28,64 +34,41 @@ export default function DoctorCompensationEquation({
                 <ScopeBadge scope="period" />
             </div>
 
-            {/* Visual Formula Grid */}
             <div className="grid grid-cols-1 md:grid-cols-7 gap-3 items-center">
-                {/* 1. Collected */}
                 <div className="p-3 rounded-xl border border-border bg-muted/20 space-y-1 text-center">
                     <span className="text-[10px] font-bold text-text-secondary block">
                         {t('finance.metrics.collected', 'المحصل')}
                     </span>
                     <Money amount={collected} size="sm" colored />
                 </div>
-
-                {/* Operator: Minus */}
-                <div className="flex justify-center text-text-secondary">
-                    <Minus className="w-4 h-4" />
-                </div>
-
-                {/* 2. Lab Costs */}
+                <div className="flex justify-center text-text-secondary"><Minus className="w-4 h-4" /></div>
                 <div className="p-3 rounded-xl border border-border bg-muted/20 space-y-1 text-center">
                     <span className="text-[10px] font-bold text-text-secondary block">
                         {t('finance.expenses.lab_total', 'تكاليف المعمل')}
                     </span>
                     <Money amount={labCost} size="sm" colored />
                 </div>
-
-                {/* Operator: Equals / Multiplied */}
-                <div className="flex justify-center text-text-secondary">
-                    <Equal className="w-4 h-4" />
-                </div>
-
-                {/* 3. Commission Base & Rate */}
+                <div className="flex justify-center text-text-secondary"><Equal className="w-4 h-4" /></div>
                 <div className="p-3 rounded-xl border border-primary/20 bg-primary/5 space-y-1 text-center">
                     <span className="text-[10px] font-bold text-primary block">
                         {t('finance.compensation.commission_calc', 'العمولة')} ({commissionPercent}%)
                     </span>
                     <Money amount={commissionAmount} size="sm" />
                 </div>
-
-                {/* Operator: Plus */}
-                <div className="flex justify-center text-text-secondary">
-                    <Plus className="w-4 h-4" />
-                </div>
-
-                {/* 4. Fixed Salary */}
+                <div className="flex justify-center text-text-secondary"><Plus className="w-4 h-4" /></div>
                 <div className="p-3 rounded-xl border border-border bg-muted/20 space-y-1 text-center">
                     <span className="text-[10px] font-bold text-text-secondary block">
                         {t('finance.compensation.fixed_salary', 'الراتب الثابت')}
                     </span>
-                    <Money amount={fixedSalary} size="sm" />
+                    <Money amount={periodFixedSalary} size="sm" />
                 </div>
             </div>
 
-            {/* Result Total Due */}
             <div className="pt-3 border-t border-border flex items-center justify-between">
                 <span className="text-xs font-bold text-text-secondary">
                     {t('finance.compensation.total_entitlement', 'إجمالي المستحقات النهائية للطبيب')}
                 </span>
-                <div className="flex items-center gap-2">
-                    <Money amount={totalDue} size="xl" colored />
-                </div>
+                <div className="flex items-center gap-2"><Money amount={totalDue} size="xl" colored /></div>
             </div>
         </div>
     );

@@ -1,14 +1,31 @@
+import { useTenantStore } from '@/store/tenant.store';
+import { DEFAULT_TENANT_TIMEZONE, getDateInTimeZone } from '@/utils/dateTime';
+
 /**
- * Date range presets and utilities for DENTIX Finance V2.
- * Supports: today, yesterday, this_week, this_month, last_month, custom.
+ * Finance date range presets.
+ *
+ * A Finance "day" is a tenant business day, never the browser's local day.
+ * Calendar arithmetic is performed in UTC only after resolving the tenant-local
+ * YYYY-MM-DD key, so browser timezone/DST cannot shift the selected dates.
  */
 
-const formatDate = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+const formatCalendarDate = (date) => {
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
 };
+
+const calendarDateFromKey = (key) => {
+    const [year, month, day] = key.split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day));
+};
+
+const resolveFinanceTimeZone = (override) => (
+    override
+    || useTenantStore.getState().tenant?.timezone
+    || DEFAULT_TENANT_TIMEZONE
+);
 
 export const DATE_PRESETS = [
     { id: 'today', labelEn: 'Today', labelAr: 'اليوم' },
@@ -19,55 +36,75 @@ export const DATE_PRESETS = [
     { id: 'custom', labelEn: 'Custom', labelAr: 'مخصص' },
 ];
 
-export const getPresetDates = (presetId) => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+/**
+ * Resolve a preset from the tenant timezone already loaded in TenantStore.
+ * `timeZone` and `now` remain injectable for deterministic boundary tests.
+ */
+export const getPresetDates = (presetId, { timeZone, now = new Date() } = {}) => {
+    const tenantTimeZone = resolveFinanceTimeZone(timeZone);
+    const businessTodayKey = getDateInTimeZone(tenantTimeZone, now);
+    const today = calendarDateFromKey(businessTodayKey);
 
     switch (presetId) {
         case 'today':
             return {
-                from: formatDate(today),
-                to: formatDate(today),
+                from: formatCalendarDate(today),
+                to: formatCalendarDate(today),
             };
         case 'yesterday': {
             const yesterday = new Date(today);
-            yesterday.setDate(today.getDate() - 1);
+            yesterday.setUTCDate(today.getUTCDate() - 1);
             return {
-                from: formatDate(yesterday),
-                to: formatDate(yesterday),
+                from: formatCalendarDate(yesterday),
+                to: formatCalendarDate(yesterday),
             };
         }
         case 'this_week': {
-            // Saturday is start of week in Egypt/MENA, or Sunday in standard
-            const dayOfWeek = today.getDay(); // 0: Sunday, 6: Saturday
+            // Saturday is the DENTIX/MENA start of week.
+            const dayOfWeek = today.getUTCDay();
             const startOfWeek = new Date(today);
-            // Saturday as day 0 of week (if Saturday is 6, offset 0; Sunday is 0 -> offset 1)
             const diff = (dayOfWeek + 1) % 7;
-            startOfWeek.setDate(today.getDate() - diff);
+            startOfWeek.setUTCDate(today.getUTCDate() - diff);
             return {
-                from: formatDate(startOfWeek),
-                to: formatDate(today),
+                from: formatCalendarDate(startOfWeek),
+                to: formatCalendarDate(today),
             };
         }
         case 'this_month': {
-            const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const startOfMonth = new Date(Date.UTC(
+                today.getUTCFullYear(),
+                today.getUTCMonth(),
+                1,
+            ));
             return {
-                from: formatDate(startOfMonth),
-                to: formatDate(today),
+                from: formatCalendarDate(startOfMonth),
+                to: formatCalendarDate(today),
             };
         }
         case 'last_month': {
-            const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-            const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+            const startOfLastMonth = new Date(Date.UTC(
+                today.getUTCFullYear(),
+                today.getUTCMonth() - 1,
+                1,
+            ));
+            const endOfLastMonth = new Date(Date.UTC(
+                today.getUTCFullYear(),
+                today.getUTCMonth(),
+                0,
+            ));
             return {
-                from: formatDate(startOfLastMonth),
-                to: formatDate(endOfLastMonth),
+                from: formatCalendarDate(startOfLastMonth),
+                to: formatCalendarDate(endOfLastMonth),
             };
         }
         default:
             return {
-                from: formatDate(new Date(today.getFullYear(), today.getMonth(), 1)),
-                to: formatDate(today),
+                from: formatCalendarDate(new Date(Date.UTC(
+                    today.getUTCFullYear(),
+                    today.getUTCMonth(),
+                    1,
+                ))),
+                to: formatCalendarDate(today),
             };
     }
 };
@@ -75,12 +112,14 @@ export const getPresetDates = (presetId) => {
 export const formatRangeLabel = (from, to, locale = 'ar') => {
     if (!from || !to) return '';
     try {
-        const fromDate = new Date(from);
-        const toDate = new Date(to);
-
-        const options = { month: 'short', day: 'numeric' };
-        const fromStr = fromDate.toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US', options);
-        const toStr = toDate.toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US', options);
+        // Render date-only values in UTC so the viewer's browser timezone cannot
+        // move a displayed calendar day backward or forward.
+        const fromDate = calendarDateFromKey(from);
+        const toDate = calendarDateFromKey(to);
+        const options = { month: 'short', day: 'numeric', timeZone: 'UTC' };
+        const displayLocale = locale === 'ar' ? 'ar-EG' : 'en-US';
+        const fromStr = fromDate.toLocaleDateString(displayLocale, options);
+        const toStr = toDate.toLocaleDateString(displayLocale, options);
 
         if (from === to) {
             return fromStr;

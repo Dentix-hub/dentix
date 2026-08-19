@@ -127,8 +127,10 @@ from rls.register_rls import register_rls
 from rls.rls_session import AsyncRlsSession
 from backend.core.tenancy import get_current_tenant_id, is_super_admin_bypass
 
+
 class RlsContext(BaseModel):
     tenant_id: int | None
+
 
 # Configure extra connection arguments for asyncpg/sqlite
 connect_args_async = {}
@@ -149,33 +151,40 @@ elif "sqlite" in ASYNC_DATABASE_URL:
     connect_args_async["check_same_thread"] = False
 
 async_engine = create_async_engine(
-    ASYNC_DATABASE_URL, pool_pre_ping=_pre_ping, echo=False, connect_args=connect_args_async, **async_pool_args
+    ASYNC_DATABASE_URL,
+    pool_pre_ping=_pre_ping,
+    echo=False,
+    connect_args=connect_args_async,
+    **async_pool_args,
 )
 
-# Strip timezone info from datetimes before sending to database
+# Persist instant-like timestamps as UTC-by-convention naive datetimes.
+# SQLAlchemy callable defaults can be materialized only when a statement is
+# compiled, and bulk INSERTs arrive here as nested list/tuple parameter sets.
+# Normalize recursively so asyncpg never receives an aware datetime for a
+# TIMESTAMP WITHOUT TIME ZONE column.
 from sqlalchemy import event
 import datetime
 
+
+def _normalize_db_bind_value(value):
+    if isinstance(value, datetime.datetime):
+        if value.tzinfo is None:
+            return value
+        return value.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+    if isinstance(value, dict):
+        return {key: _normalize_db_bind_value(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return tuple(_normalize_db_bind_value(item) for item in value)
+    if isinstance(value, list):
+        return [_normalize_db_bind_value(item) for item in value]
+    return value
+
+
 @event.listens_for(async_engine.sync_engine, "before_cursor_execute", retval=True)
 def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-    if parameters:
-        if isinstance(parameters, dict):
-            for key, val in parameters.items():
-                if isinstance(val, datetime.datetime) and val.tzinfo is not None:
-                    parameters[key] = val.replace(tzinfo=None)
-        elif isinstance(parameters, list):
-            for i, val in enumerate(parameters):
-                if isinstance(val, datetime.datetime) and val.tzinfo is not None:
-                    parameters[i] = val.replace(tzinfo=None)
-        elif isinstance(parameters, tuple):
-            new_params = []
-            for val in parameters:
-                if isinstance(val, datetime.datetime) and val.tzinfo is not None:
-                    new_params.append(val.replace(tzinfo=None))
-                else:
-                    new_params.append(val)
-            parameters = tuple(new_params)
-    return statement, parameters
+    return statement, _normalize_db_bind_value(parameters)
+
 
 class CustomAsyncRlsSession(AsyncRlsSession):
     async def _execute_set_statements(self):
@@ -185,9 +194,28 @@ class CustomAsyncRlsSession(AsyncRlsSession):
             return
         await super()._execute_set_statements()
 
+    async def flush(self, objects=None):
+        # AsyncRlsSession applies tenant/bypass settings before explicit SQL
+        # execution, but SQLAlchemy can flush pending ORM writes without an
+        # execute() call. Ensure PostgreSQL sees the correct RLS context before
+        # any explicit flush.
+        await self._execute_set_statements()
+        await super().flush(objects=objects)
+
+    async def commit(self):
+        # commit() performs an internal flush. Prime the connection with the
+        # current tenant or bypass setting first so add()+commit() is safe even
+        # when no SELECT/execute occurred earlier in the transaction.
+        await self._execute_set_statements()
+        await super().commit()
+
+
 # Create session makers
 AsyncSessionLocal = async_sessionmaker(
-    bind=async_engine, class_=CustomAsyncRlsSession, expire_on_commit=False, autoflush=False
+    bind=async_engine,
+    class_=CustomAsyncRlsSession,
+    expire_on_commit=False,
+    autoflush=False,
 )
 
 # Base for models
@@ -206,8 +234,6 @@ async def get_async_db():
                 yield bypassed_session
         else:
             yield session
-
-# Register SQLAlchemy event listeners
 
 
 # Real synchronous engine for synchronous startup/maintenance code.

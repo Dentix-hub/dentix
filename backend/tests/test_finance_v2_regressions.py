@@ -1,12 +1,13 @@
 """Regression coverage for Finance V2 staging failures found during online validation."""
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 import pytest
 
 from backend import models
 from backend.routers.metrics import get_profitability_trend
 from backend.services.accounting_service import AccountingService
+from backend.utils.tenant_time import tenant_local_date
 
 
 @pytest.mark.asyncio
@@ -66,7 +67,8 @@ async def test_profitability_trend_returns_tenant_scoped_daily_series(async_db_s
     """The Finance Overview trend route must exist and isolate tenant cash movements."""
     tenant_id = 131
     other_tenant_id = 132
-    today = datetime.now(timezone.utc)
+    now_utc = datetime.now(timezone.utc)
+    tenant_today = tenant_local_date("Africa/Cairo")
 
     admin = models.User(
         id=1311,
@@ -100,7 +102,7 @@ async def test_profitability_trend_returns_tenant_scoped_daily_series(async_db_s
         id=1313,
         patient_id=patient.id,
         amount=1000.0,
-        date=today,
+        date=now_utc,
         tenant_id=tenant_id,
     )
     expense = models.Expense(
@@ -108,14 +110,14 @@ async def test_profitability_trend_returns_tenant_scoped_daily_series(async_db_s
         item_name="Supplies",
         cost=200.0,
         category="Supplies",
-        date=today.date(),
+        date=tenant_today,
         tenant_id=tenant_id,
     )
     other_payment = models.Payment(
         id=1323,
         patient_id=other_patient.id,
         amount=9999.0,
-        date=today,
+        date=now_utc,
         tenant_id=other_tenant_id,
     )
     other_expense = models.Expense(
@@ -123,7 +125,7 @@ async def test_profitability_trend_returns_tenant_scoped_daily_series(async_db_s
         item_name="Other expense",
         cost=9999.0,
         category="Other",
-        date=today.date(),
+        date=tenant_today,
         tenant_id=other_tenant_id,
     )
     async_db_session.add_all(
@@ -141,7 +143,9 @@ async def test_profitability_trend_returns_tenant_scoped_daily_series(async_db_s
     assert data["period"] == "7d"
     assert len(data["timeline"]) == 7
 
-    today_row = next(item for item in data["timeline"] if item["date"] == date.today().isoformat())
+    today_row = next(
+        item for item in data["timeline"] if item["date"] == tenant_today.isoformat()
+    )
     assert today_row["revenue"] == 1000.0
     assert today_row["expenses"] == 200.0
     assert today_row["net_profit"] == 800.0

@@ -4,20 +4,19 @@ import { getComprehensiveStats, getFinanceProfitabilityTrend } from '@/api/finan
 import { getAllPayments, getExpenses } from '@/api/billing';
 import { financeKeys } from '../../queryKeys';
 import { getPresetDates } from '../../utils/datePresets';
+import { authoritativeNumber } from '../../utils/financialTruth';
 
 /**
  * Hook for fetching all data required by the Finance Overview V2 page.
- * Respects URL date filters (`from` and `to`) and separates period metrics from all-time debt.
+ * Every period-scoped card/list/chart uses the same URL `from`/`to` contract.
  */
 export function useFinanceOverview() {
     const [searchParams] = useSearchParams();
 
-    // Default to this_month if no query params provided
     const defaultDates = getPresetDates('this_month');
     const from = searchParams.get('from') || defaultDates.from;
     const to = searchParams.get('to') || defaultDates.to;
 
-    // Determine approximate trend period
     let trendPeriod = '30d';
     try {
         const fromDate = new Date(from);
@@ -30,7 +29,6 @@ export function useFinanceOverview() {
         trendPeriod = '30d';
     }
 
-    // 1. Comprehensive Financial Statistics
     const statsQuery = useQuery({
         queryKey: financeKeys.overviewStats({ from, to }),
         queryFn: async () => {
@@ -40,39 +38,40 @@ export function useFinanceOverview() {
         staleTime: 60 * 1000,
     });
 
-    // 2. Profitability Trend Series
     const trendQuery = useQuery({
-        queryKey: financeKeys.overviewTrends({ period: trendPeriod }),
+        queryKey: financeKeys.overviewTrends({ period: trendPeriod, from, to }),
         queryFn: async () => {
-            const res = await getFinanceProfitabilityTrend(trendPeriod);
+            const res = await getFinanceProfitabilityTrend(trendPeriod, from, to);
             return res.data?.data || res.data;
         },
         staleTime: 2 * 60 * 1000,
     });
 
-    // 3. Recent Payments
     const paymentsQuery = useQuery({
-        queryKey: financeKeys.payments({ limit: 8 }),
+        queryKey: financeKeys.payments({ from, to, limit: 8, context: 'overview' }),
         queryFn: async () => {
-            const res = await getAllPayments();
+            const res = await getAllPayments({ start_date: from, end_date: to, limit: 8 });
             const list = Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res.data) ? res.data : [];
             return list.slice(0, 8);
         },
         staleTime: 60 * 1000,
     });
 
-    // 4. Recent Expenses
     const expensesQuery = useQuery({
-        queryKey: financeKeys.expenses({ limit: 8 }),
+        queryKey: financeKeys.expenses({ from, to, limit: 8, context: 'overview' }),
         queryFn: async () => {
-            const res = await getExpenses();
-            const list = Array.isArray(res.data?.data) ? res.data.data : Array.isArray(res.data) ? res.data : [];
+            const res = await getExpenses({ start_date: from, end_date: to, limit: 8 });
+            const payload = res.data?.data || res.data;
+            const list = Array.isArray(payload)
+                ? payload
+                : Array.isArray(payload?.items)
+                  ? payload.items
+                  : [];
             return list.slice(0, 8);
         },
         staleTime: 60 * 1000,
     });
 
-    // Merge recent activity items chronologically
     const paymentsList = (paymentsQuery.data || []).map((p) => ({
         id: `pay-${p.id}`,
         rawId: p.id,
@@ -92,7 +91,7 @@ export function useFinanceOverview() {
         type: 'expense',
         date: e.date ? new Date(e.date) : new Date(),
         dateStr: e.date ? String(e.date).split('T')[0] : '',
-        title: e.title || e.category || 'مصروف عام',
+        title: e.title || e.item_name || e.category || 'مصروف عام',
         subtitle: e.category ? `تصنيف: ${e.category}` : (e.notes || 'مصروف تشغيلي'),
         amount: Number(e.cost || e.amount) || 0,
         isIncome: false,
@@ -110,10 +109,19 @@ export function useFinanceOverview() {
     const netInvoiced = Number(income.total_revenue) || 0;
     const collected = Number(income.total_collected) || 0;
     const totalDeductions = Number(deductions.total_deductions) || 0;
-    const netResult = Number(statsData?.net_profit) || (collected - totalDeductions);
+    const netResult = authoritativeNumber(
+        statsData?.net_profit,
+        collected - totalDeductions,
+    );
 
-    const allTimeOutstanding = Number(income.all_time_outstanding || income.outstanding) || 0;
-    const periodBalance = Number(income.period_balance) || (netInvoiced - collected);
+    const allTimeOutstanding = authoritativeNumber(
+        income.all_time_outstanding,
+        income.outstanding,
+    );
+    const periodBalance = authoritativeNumber(
+        income.period_balance,
+        netInvoiced - collected,
+    );
 
     const doctorDuesTotal = Number(deductions.doctor_dues?.total) || 0;
     const staffDuesTotal = Number(deductions.staff_dues?.total) || 0;
@@ -121,12 +129,10 @@ export function useFinanceOverview() {
     return {
         from,
         to,
-        // Raw queries
         statsQuery,
         trendQuery,
         paymentsQuery,
         expensesQuery,
-        // Extracted Metrics
         netInvoiced,
         collected,
         totalDeductions,
@@ -135,7 +141,6 @@ export function useFinanceOverview() {
         periodBalance,
         doctorDuesTotal,
         staffDuesTotal,
-        // Processed Trends & Activity
         timeline: trendQuery.data?.timeline || [],
         recentActivity,
         isLoading: statsQuery.isLoading,

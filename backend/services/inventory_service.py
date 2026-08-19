@@ -671,7 +671,16 @@ class InventoryService:
         db: AsyncSession = None,
     ) -> List[StockMovement]:
         """
-        Reverse all stock movements for a given reference_id.
+        Reverse the currently outstanding stock effect for ``reference_id``.
+
+        The same business reference can legitimately receive new usage movements
+        after an earlier reversal (for example when a treatment is edited more
+        than once). Reversal therefore cannot be represented by a permanent
+        one-time marker. Instead, source and prior reversal movements are netted
+        per stock item and only the remaining outstanding effect is reversed.
+
+        This keeps the operation idempotent when nothing new was added while
+        allowing later movements under the same reference to be reversed safely.
         """
         db = self._get_db(db)
 
@@ -681,30 +690,41 @@ class InventoryService:
         if not movements:
             return []
 
-        reversals = []
         reverse_ref = f"REVERSE:{reference_id}"
+        stmt_reversal = select(StockMovement).where(StockMovement.reference_id == reverse_ref)
+        prior_reversals = (await db.execute(stmt_reversal)).scalars().all()
 
-        # Prevent double reversal
-        stmt_double = select(func.count(StockMovement.id)).where(StockMovement.reference_id == reverse_ref)
-        already_reversed = await db.scalar(stmt_double) or 0
-        if already_reversed > 0:
-            return []
+        outstanding_by_stock_item = {}
+        for move in [*movements, *prior_reversals]:
+            stock_item_id = move.stock_item_id
+            outstanding_by_stock_item[stock_item_id] = (
+                outstanding_by_stock_item.get(stock_item_id, 0.0)
+                + float(move.change_amount or 0.0)
+            )
 
-        for move in movements:
+        reversals = []
+        epsilon = 1e-9
+        for stock_item_id, outstanding_change in outstanding_by_stock_item.items():
+            if abs(outstanding_change) <= epsilon:
+                continue
+
             reverse_move = StockMovement(
-                stock_item_id=move.stock_item_id,
-                change_amount=-move.change_amount,
+                stock_item_id=stock_item_id,
+                change_amount=-outstanding_change,
                 reason="REVERSAL",
                 performed_by=user_id,
                 reference_id=reverse_ref,
             )
             db.add(reverse_move)
 
-            # Restore stock item quantity
-            stmt_si = select(StockItem).where(StockItem.id == move.stock_item_id)
+            # Restore only the still-outstanding quantity. If source and prior
+            # reversals already balance to zero this branch is intentionally not
+            # reached, making repeated calls a no-op until new source movement is
+            # recorded under the same reference.
+            stmt_si = select(StockItem).where(StockItem.id == stock_item_id)
             stock_item = (await db.execute(stmt_si)).scalars().first()
             if stock_item:
-                stock_item.quantity -= move.change_amount
+                stock_item.quantity -= outstanding_change
 
             reversals.append(reverse_move)
 

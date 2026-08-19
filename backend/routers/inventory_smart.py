@@ -8,11 +8,11 @@ from typing import List, Optional, Dict, Any
 from ..database import get_async_db
 from ..schemas import User
 from ..core.permissions import require_permission, Permission
+from ..core.tenant_context import require_tenant_id
 from ..services.inventory_learning_service import InventoryLearningService
 from ..services.material_resolution_service import MaterialResolutionService
 from ..models import inventory as inv_models
 from backend.core.response import StandardResponse, success_response, error_response
-from .auth import get_current_user
 
 router = APIRouter(prefix="/inventory/smart", tags=["Inventory Smart"])
 
@@ -30,19 +30,17 @@ async def get_material_suggestions(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
-    """
-    Get smart material suggestions for a procedure.
-    """
+    """Get smart material suggestions for a procedure."""
+    tenant_id = require_tenant_id(current_user)
     service = InventoryLearningService(db)
 
-    # Use current doctor if not specified and user is a doctor
     effective_doctor_id = doctor_id
     if not effective_doctor_id and current_user.role == "doctor":
         effective_doctor_id = current_user.id
 
     suggestions = await service.get_suggested_materials(
         procedure_id=procedure_id,
-        tenant_id=current_user.tenant_id,
+        tenant_id=tenant_id,
         doctor_id=effective_doctor_id,
     )
     return success_response(data=suggestions)
@@ -55,17 +53,11 @@ async def get_category_based_suggestions(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
-    """
-    Get category-based material suggestions for a procedure.
-    Returns materials grouped by category with active session status.
-    """
+    """Get category-based material suggestions for a procedure."""
+    tenant_id = require_tenant_id(current_user)
     try:
         service = MaterialResolutionService(db)
-        if not current_user.tenant_id:
-            raise HTTPException(status_code=403, detail="Tenant access required")
-        tenant_id = current_user.tenant_id
 
-        # Use current doctor if not specified and user is a doctor
         effective_doctor_id = doctor_id
         if not effective_doctor_id and current_user.role == "doctor":
             effective_doctor_id = current_user.id
@@ -75,6 +67,8 @@ async def get_category_based_suggestions(
             tenant_id=tenant_id,
         )
         return success_response(data=suggestions)
+    except HTTPException:
+        raise
     except Exception:
         logging.exception("Failed to resolve materials")
         return error_response(
@@ -85,15 +79,12 @@ async def get_category_based_suggestions(
 
 @router.post("/check-availability")
 async def check_availability(
-    request_data: Dict[str, Any], # Changed from List to Dict to support patient_id
+    request_data: Dict[str, Any],
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(require_permission(Permission.INVENTORY_READ)),
 ):
-    """
-    Pre-flight check for materials availability.
-    Returns warnings if stock is low or expired.
-    FIXED: Includes items with Active Sessions (quantity may be 0 but usable)
-    """
+    """Pre-flight check for tenant-owned materials availability."""
+    tenant_id = require_tenant_id(current_user)
     materials = request_data.get("materials", [])
     patient_id = request_data.get("patient_id")
     results = []
@@ -102,39 +93,54 @@ async def check_availability(
         mat_id = item.get("material_id")
         qty_needed = item.get("quantity", 0)
 
-        # First, get material info directly
         material_result = await db.execute(
-            select(inv_models.Material)
-            .filter(inv_models.Material.id == mat_id)
+            select(inv_models.Material).where(
+                inv_models.Material.id == mat_id,
+                inv_models.Material.tenant_id == tenant_id,
+            )
         )
         material = material_result.scalars().first()
-        material_name = material.name if material else "Unknown Material"
-        material_type = material.type if material else "DIVISIBLE"
+        if not material:
+            results.append(
+                {
+                    "material_id": mat_id,
+                    "material_name": "Unknown Material",
+                    "material_type": "UNKNOWN",
+                    "available": 0,
+                    "required": qty_needed,
+                    "status": "CRITICAL",
+                    "message": "Material not found",
+                    "has_active_session": False,
+                    "current_uses": 0,
+                    "session_id": None,
+                }
+            )
+            continue
 
-        # Check for active sessions for this material (virtual stock for divisible items)
+        material_name = material.name
+        material_type = material.type
+
         session_base_query = (
             select(inv_models.MaterialSession)
             .join(inv_models.StockItem)
             .join(inv_models.Batch)
-            .filter(
+            .where(
                 inv_models.Batch.material_id == mat_id,
+                inv_models.StockItem.tenant_id == tenant_id,
                 inv_models.MaterialSession.status == "ACTIVE",
             )
         )
 
-        # Patient-specific awareness
         if patient_id:
-            # Prioritize sessions for this patient
             patient_session_res = await db.execute(
-                session_base_query.filter(inv_models.MaterialSession.patient_id == patient_id)
+                session_base_query.where(inv_models.MaterialSession.patient_id == patient_id)
             )
             patient_session = patient_session_res.scalars().first()
             if patient_session:
                 active_session = patient_session
             else:
-                # If no patient session, check if there's a GENERAL session (null patient_id)
                 general_session_res = await db.execute(
-                    session_base_query.filter(inv_models.MaterialSession.patient_id.is_(None))
+                    session_base_query.where(inv_models.MaterialSession.patient_id.is_(None))
                 )
                 active_session = general_session_res.scalars().first()
         else:
@@ -145,16 +151,14 @@ async def check_availability(
         current_uses = active_session.current_uses if active_session else 0
         session_id = active_session.id if active_session else None
 
-        # Get total available stock (include 0-quantity items if active session exists)
         if has_active_session:
-            # If active session, we don't need to check quantity - it's virtual consumption
-            total_available = float("inf")  # Virtually unlimited while session is open
+            total_available = float("inf")
         else:
             stock_items_res = await db.execute(
                 select(inv_models.StockItem)
                 .join(inv_models.Batch)
-                .filter(
-                    inv_models.StockItem.tenant_id == current_user.tenant_id,
+                .where(
+                    inv_models.StockItem.tenant_id == tenant_id,
                     inv_models.Batch.material_id == mat_id,
                     inv_models.StockItem.quantity > 0,
                 )
@@ -162,20 +166,18 @@ async def check_availability(
             stock_items = stock_items_res.scalars().all()
             total_available = sum(s.quantity for s in stock_items)
 
-        status = "OK"
+        status_value = "OK"
         message = ""
 
         if has_active_session:
-            # Material has active session - always OK (virtual consumption)
-            status = "OK"
             message = "جلسة مفتوحة (استهلاك افتراضي)"
             if patient_id and active_session.patient_id == patient_id:
                 message = "جلسة نشطة لهذا المريض"
         elif total_available == 0:
-            status = "CRITICAL"
+            status_value = "CRITICAL"
             message = "Out of stock"
         elif total_available < qty_needed:
-            status = "WARNING"
+            status_value = "WARNING"
             message = f"Insufficient stock (Available: {total_available})"
 
         results.append(
@@ -183,11 +185,9 @@ async def check_availability(
                 "material_id": mat_id,
                 "material_name": material_name,
                 "material_type": material_type,
-                "available": total_available
-                if total_available != float("inf")
-                else 999,
+                "available": total_available if total_available != float("inf") else 999,
                 "required": qty_needed,
-                "status": status,
+                "status": status_value,
                 "message": message,
                 "has_active_session": has_active_session,
                 "current_uses": current_uses,
@@ -199,15 +199,16 @@ async def check_availability(
 
 
 @router.get("/debug/logs", tags=["debug"])
-def get_suggestion_logs():
+def get_suggestion_logs(
+    current_user: User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
     _ensure_not_production()
     """Debug endpoint to see what's happening with suggestions."""
 
-    import os
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     log_path = os.path.join(project_root, "suggestion_debug.log")
     if not os.path.exists(log_path):
         return success_response(data={"message": "No logs found"})
 
     with open(log_path, "r", encoding="utf-8") as f:
-        return success_response(data={"logs": f.read().splitlines()[-100:]})  # Return last 100 lines
+        return success_response(data={"logs": f.read().splitlines()[-100:]})

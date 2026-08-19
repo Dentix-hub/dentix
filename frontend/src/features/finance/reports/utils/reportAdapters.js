@@ -1,3 +1,5 @@
+import { authoritativeNumber } from '../../utils/financialTruth';
+
 /**
  * Explicit response-to-view-model adapters for Finance V2 Reports (§18 MASTER_SPEC, GEMINI_REPAIR_PLAN R1).
  * Translates backend StandardResponse payloads into strongly-typed canonical view models.
@@ -17,12 +19,22 @@ export function adaptComprehensiveStats(raw = {}) {
     const doctorDues = Number(deductions.doctor_dues?.total || 0);
     const staffDues = Number(deductions.staff_dues?.total || 0);
 
-    const totalDeductions = Number(
-        deductions.total_deductions || (manualExpenses + labCosts + doctorDues + staffDues)
+    const totalDeductions = authoritativeNumber(
+        deductions.total_deductions,
+        manualExpenses + labCosts + doctorDues + staffDues,
     );
-    const netProfit = Number(raw?.net_profit !== undefined ? raw.net_profit : (collected - totalDeductions));
-    const allTimeOutstanding = Number(income.all_time_outstanding || income.outstanding || 0);
-    const periodBalance = Number(income.period_balance || (invoiced - collected));
+    const netProfit = authoritativeNumber(
+        raw?.net_profit,
+        collected - totalDeductions,
+    );
+    const allTimeOutstanding = authoritativeNumber(
+        income.all_time_outstanding,
+        income.outstanding,
+    );
+    const periodBalance = authoritativeNumber(
+        income.period_balance,
+        invoiced - collected,
+    );
 
     return {
         period: {
@@ -48,12 +60,15 @@ export function adaptComprehensiveStats(raw = {}) {
 
 export function adaptPatientsReport(raw = {}) {
     const patientsList = Array.isArray(raw?.patients) ? raw.patients : [];
-    const totalCount = Number(raw?.total || patientsList.length);
+    const totalCount = authoritativeNumber(raw?.total, patientsList.length);
 
     const patients = patientsList.map((p) => {
         const invoiced = Number(p.total_invoiced || 0);
         const paid = Number(p.total_paid || 0);
-        const periodBalance = Number(p.outstanding_balance !== undefined ? p.outstanding_balance : (invoiced - paid));
+        const periodBalance = authoritativeNumber(
+            p.outstanding_balance,
+            invoiced - paid,
+        );
         const allTimeOutstanding = Number(p.all_time_outstanding || 0);
 
         return {
@@ -120,7 +135,12 @@ export function adaptProvidersReport(raw) {
         lab_cost: Number(d.lab_cost || 0),
         commission_percent: Number(d.commission_percent || 0),
         commission_amount: Number(d.commission_amount || 0),
+        // fixed_salary is the configured monthly rule; fixed_salary_period is
+        // the prorated share included in the selected period's total_due.
         fixed_salary: Number(d.fixed_salary || 0),
+        fixed_salary_period: Number(
+            d.fixed_salary_period !== undefined ? d.fixed_salary_period : d.fixed_salary || 0
+        ),
         total_due: Number(d.total_due || 0),
     }));
 }
@@ -133,10 +153,10 @@ export function adaptProfitabilityReport(raw) {
         : [];
 
     return rawProcs.map((p) => {
-        const price = Number(p.price || p.base_price || 0);
-        const cost = Number(p.material_cost !== undefined ? p.material_cost : p.cost || 0);
-        const margin = Number(p.profit_margin !== undefined ? p.profit_margin : (price - cost));
-        const marginPercent = Number(p.margin_percent !== undefined ? p.margin_percent : p.profit_margin_percent || 0);
+        const price = Number(p.price ?? p.base_price ?? 0);
+        const cost = Number(p.material_cost ?? p.cost ?? 0);
+        const margin = authoritativeNumber(p.profit_margin, price - cost);
+        const marginPercent = Number(p.margin_percent ?? p.profit_margin_percent ?? 0);
 
         return {
             id: p.id || p.procedure_id,
