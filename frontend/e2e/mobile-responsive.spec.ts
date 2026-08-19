@@ -37,19 +37,38 @@ async function expectNoDocumentOverflow(page: Page, tolerance = 2) {
   ).toBeLessThanOrEqual(dimensions.clientWidth + tolerance);
 }
 
+async function getVisibleViewport(page: Page) {
+  return page.evaluate(() => {
+    const visualViewport = window.visualViewport;
+    return {
+      x: visualViewport?.offsetLeft ?? 0,
+      y: visualViewport?.offsetTop ?? 0,
+      width: visualViewport?.width ?? window.innerWidth,
+      height: visualViewport?.height ?? window.innerHeight,
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+      clientWidth: document.documentElement.clientWidth,
+      clientHeight: document.documentElement.clientHeight,
+    };
+  });
+}
+
 async function expectLocatorInsideViewport(page: Page, locator) {
   await expect(locator).toBeVisible();
   const bounds = await locator.boundingBox();
-  const viewport = page.viewportSize();
+  const viewport = await getVisibleViewport(page);
   expect(bounds).not.toBeNull();
-  expect(viewport).not.toBeNull();
-  if (!bounds || !viewport) return;
+  if (!bounds) return;
 
   const tolerance = 2;
-  expect(bounds.x).toBeGreaterThanOrEqual(-tolerance);
-  expect(bounds.y).toBeGreaterThanOrEqual(-tolerance);
-  expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width + tolerance);
-  expect(bounds.y + Math.min(bounds.height, viewport.height)).toBeLessThanOrEqual(viewport.height + tolerance);
+  const viewportRight = viewport.x + viewport.width;
+  const viewportBottom = viewport.y + viewport.height;
+  const diagnostic = `bounds=${JSON.stringify(bounds)}, visualViewport=${JSON.stringify(viewport)}`;
+
+  expect(bounds.x, diagnostic).toBeGreaterThanOrEqual(viewport.x - tolerance);
+  expect(bounds.y, diagnostic).toBeGreaterThanOrEqual(viewport.y - tolerance);
+  expect(bounds.x + bounds.width, diagnostic).toBeLessThanOrEqual(viewportRight + tolerance);
+  expect(bounds.y + bounds.height, diagnostic).toBeLessThanOrEqual(viewportBottom + tolerance);
 }
 
 async function expectOverlayInsideViewport(page: Page, selector: string) {
@@ -117,12 +136,7 @@ test.describe('Dentix responsive shell regression', () => {
         Math.max(backdropBounds.y + 4, sidebarBounds.y + 8),
       );
 
-      await backdrop.click({
-        position: {
-          x: globalX - backdropBounds.x,
-          y: globalY - backdropBounds.y,
-        },
-      });
+      await page.mouse.click(globalX, globalY);
     }
 
     await expect(sidebar).toHaveAttribute('aria-hidden', 'true');
