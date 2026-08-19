@@ -36,43 +36,20 @@ jobs:
 
     steps:
       - name: Checkout the tested revision
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 1
+          lfs: true
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Push clean snapshot to Hugging Face staging
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_STAGING_SPACE: ${{ secrets.HF_STAGING_SPACE }}
-          DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
-        run: |
-          set -euo pipefail
-          test -n "$HF_TOKEN"
-          test -n "$HF_STAGING_SPACE"
-
-          # Materialize only LFS objects referenced by the tested staging revision.
-          # A direct force-push of the GitHub commit makes Git LFS scan history and
-          # can fail on legacy/missing local objects. Deploy a clean tracked-file
-          # snapshot instead, matching the production deployment safety pattern.
-          git lfs install --local
-          git lfs fetch origin "$DEPLOY_SHA"
-          git lfs checkout
-
-          SNAPSHOT_DIR="$(mktemp -d)"
-          trap 'rm -rf "$SNAPSHOT_DIR"' EXIT
-
-          git ls-files -z | tar --null -T - -cf - | tar -xf - -C "$SNAPSHOT_DIR"
-
-          cd "$SNAPSHOT_DIR"
-          git init -b main
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git lfs install --local
-          git add -A
-          git commit -m "Deploy Dentix staging ${DEPLOY_SHA}"
-          git remote add hf "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_STAGING_SPACE}"
-          git push hf main:refs/heads/main --force
+      - name: Sync tested revision to Hugging Face staging
+        uses: huggingface/hub-sync@v0.1.0
+        with:
+          github_repo_id: ${{ github.repository }}
+          huggingface_repo_id: ${{ secrets.HF_STAGING_SPACE }}
+          hf_token: ${{ secrets.HF_TOKEN }}
+          repo_type: space
+          space_sdk: docker
 
       - name: Verify staging health
         env:
