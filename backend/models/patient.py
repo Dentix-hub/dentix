@@ -42,7 +42,7 @@ class Patient(Base):
     medical_history: Mapped[str] = mapped_column(EncryptedString)
     notes: Mapped[str] = mapped_column(EncryptedString)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc)
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
 
     name_search_normalized: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
@@ -91,7 +91,7 @@ class Attachment(Base):
     filename: Mapped[str] = mapped_column(String)
     file_type: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc)
+        DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
 
     patient = relationship("Patient", back_populates="attachments")
