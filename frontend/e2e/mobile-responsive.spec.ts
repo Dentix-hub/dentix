@@ -37,11 +37,9 @@ async function expectNoDocumentOverflow(page: Page, tolerance = 2) {
   ).toBeLessThanOrEqual(dimensions.clientWidth + tolerance);
 }
 
-async function expectOverlayInsideViewport(page: Page, selector: string) {
-  const overlay = page.locator(selector).last();
-  await expect(overlay).toBeVisible();
-
-  const bounds = await overlay.boundingBox();
+async function expectLocatorInsideViewport(page: Page, locator) {
+  await expect(locator).toBeVisible();
+  const bounds = await locator.boundingBox();
   const viewport = page.viewportSize();
   expect(bounds).not.toBeNull();
   expect(viewport).not.toBeNull();
@@ -52,7 +50,11 @@ async function expectOverlayInsideViewport(page: Page, selector: string) {
   expect(bounds.y).toBeGreaterThanOrEqual(-tolerance);
   expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width + tolerance);
   expect(bounds.y + Math.min(bounds.height, viewport.height)).toBeLessThanOrEqual(viewport.height + tolerance);
+}
 
+async function expectOverlayInsideViewport(page: Page, selector: string) {
+  const overlay = page.locator(selector).last();
+  await expectLocatorInsideViewport(page, overlay);
   const background = await overlay.evaluate(node => getComputedStyle(node).backgroundColor);
   expect(background).not.toBe('transparent');
   expect(background).not.toBe('rgba(0, 0, 0, 0)');
@@ -142,17 +144,8 @@ test.describe('Dentix responsive overlay regression', () => {
     await expect(pickerTrigger).toBeVisible();
     await pickerTrigger.click();
 
-    const datePanel = page.locator('[role="dialog"]').last();
-    await expect(datePanel).toBeVisible();
-    const panel = datePanel.locator('div').filter({ has: page.getByRole('button', { name: /Close|إغلاق/i }) }).first();
-    if (await panel.count()) {
-      const bounds = await panel.boundingBox();
-      const currentViewport = page.viewportSize();
-      if (bounds && currentViewport) {
-        expect(bounds.x).toBeGreaterThanOrEqual(-2);
-        expect(bounds.x + bounds.width).toBeLessThanOrEqual(currentViewport.width + 2);
-      }
-    }
+    const dateDialog = page.getByRole('dialog').last();
+    await expectLocatorInsideViewport(page, dateDialog);
     await expectNoDocumentOverflow(page);
   });
 });
@@ -168,7 +161,7 @@ test.describe('Dentix mobile operational fallbacks', () => {
     await page.goto('/appointments');
     await page.locator('#main-content').waitFor({ state: 'visible' });
 
-    const statusSelect = page.locator('select[aria-label]').filter({ has: page.locator('option[value="Scheduled"]') }).first();
+    const statusSelect = page.locator('select:has(option[value="Scheduled"])').first();
     if (await statusSelect.count()) {
       await expect(statusSelect).toBeVisible();
       const box = await statusSelect.boundingBox();
