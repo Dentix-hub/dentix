@@ -22,7 +22,6 @@ const SubscriptionBanner = () => {
         const daysLeft = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
 
         if (daysLeft < 0) {
-            // Expired. Check Grace Period.
             if (graceDate && now <= graceDate) {
                 const graceDaysLeft = Math.ceil((graceDate - now) / (1000 * 60 * 60 * 24));
                 return {
@@ -31,17 +30,16 @@ const SubscriptionBanner = () => {
                     icon: AlertTriangle,
                     bg: 'bg-amber-500',
                 };
-            } else {
-                // Subscription AND Grace Period expired
-                return {
-                    message: t('sidebar.subscription.expired_readonly'),
-                    type: 'error',
-                    icon: ShieldAlert,
-                    bg: 'bg-red-600',
-                };
             }
-        } else if (daysLeft >= 0 && daysLeft <= 3) {
-            // Expiring soon (3 days or less)
+            return {
+                message: t('sidebar.subscription.expired_readonly'),
+                type: 'error',
+                icon: ShieldAlert,
+                bg: 'bg-red-600',
+            };
+        }
+
+        if (daysLeft <= 3) {
             return {
                 message: t('sidebar.subscription.expiring_soon', { count: daysLeft }),
                 type: 'info',
@@ -55,16 +53,21 @@ const SubscriptionBanner = () => {
 
     if (!bannerInfo) return null;
 
+    const BannerIcon = bannerInfo.icon;
+
     return (
-        <div className={`${bannerInfo.bg} text-white px-4 py-2 shadow-lg relative animate-in slide-in-from-top duration-300 z-50 border-b border-white/10`}>
-            <div className="container mx-auto flex items-center justify-center gap-3 text-sm font-bold text-center">
-                <bannerInfo.icon size={18} className="shrink-0 animate-pulse" />
-                <span>{bannerInfo.message}</span>
-                <button 
-                    onClick={() => window.location.href = '/settings'}
-                    className="ms-4 px-3 py-1 bg-white/20 hover:bg-white/30 rounded-lg transition-colors flex items-center gap-2 text-xs"
+        <div className={`${bannerInfo.bg} relative z-50 border-b border-white/10 px-2 py-2 text-white shadow-lg animate-in slide-in-from-top duration-300 sm:px-4`}>
+            <div className="mx-auto flex min-w-0 max-w-7xl flex-col items-stretch justify-center gap-2 text-xs font-bold sm:flex-row sm:items-center sm:gap-3 sm:text-sm sm:text-center">
+                <div className="flex min-w-0 items-start gap-2 sm:items-center">
+                    <BannerIcon size={18} className="mt-0.5 shrink-0 text-white motion-reduce:animate-none sm:mt-0" aria-hidden="true" />
+                    <span className="min-w-0 break-words text-white">{bannerInfo.message}</span>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => { window.location.href = '/settings'; }}
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white/20 px-3 py-2 text-xs text-white transition-colors hover:bg-white/30 sm:ms-2 sm:w-auto"
                 >
-                    <CreditCard size={14} />
+                    <CreditCard size={14} aria-hidden="true" />
                     {t('settings.tabs.subscription')}
                 </button>
             </div>
