@@ -134,6 +134,14 @@ test.describe('Dentix responsive shell regression', () => {
     const backdrop = page.getByRole('button', { name: /Close menu|إغلاق القائمة/i }).first();
     await expect(backdrop).toBeVisible();
 
+    // Wait for the drawer's CSS transition before deriving an exposed backdrop
+    // point. A raw page.mouse click can race the RTL translate animation between
+    // bounding-box measurement and dispatch, so use locator.click for normal
+    // Playwright stability/actionability checks at the verified exposed point.
+    await sidebar.evaluate(async node => {
+      await Promise.all(node.getAnimations().map(animation => animation.finished.catch(() => undefined)));
+    });
+
     const sidebarBounds = await sidebar.boundingBox();
     const backdropBounds = await backdrop.boundingBox();
     expect(sidebarBounds).not.toBeNull();
@@ -153,7 +161,12 @@ test.describe('Dentix responsive shell regression', () => {
         Math.max(backdropBounds.y + 4, sidebarBounds.y + 8),
       );
 
-      await page.mouse.click(globalX, globalY);
+      await backdrop.click({
+        position: {
+          x: globalX - backdropBounds.x,
+          y: globalY - backdropBounds.y,
+        },
+      });
     }
 
     await expect(sidebar).toHaveAttribute('aria-hidden', 'true');
