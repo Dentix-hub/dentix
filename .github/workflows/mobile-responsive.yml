@@ -1,0 +1,143 @@
+name: Dentix Mobile Responsive Gate
+
+on:
+  pull_request:
+    branches: [ staging, main ]
+  push:
+    branches: [ staging ]
+
+concurrency:
+  group: dentix-mobile-responsive-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  responsive:
+    name: Responsive Acceptance Matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: mobile_user
+          POSTGRES_PASSWORD: mobile_pass
+          POSTGRES_DB: dentix_mobile
+        options: >-
+          --health-cmd "pg_isready -U mobile_user -d dentix_mobile"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgresql://mobile_user:mobile_pass@localhost:5432/dentix_mobile
+      DB_SSL_MODE: disable
+      SECRET_KEY: mobile-responsive-ci-secret-at-least-32
+      ENVIRONMENT: test
+      PYTHONPATH: .
+      ENABLE_IN_PROCESS_WORKERS: 'false'
+      FRONTEND_URL: http://localhost:5173
+      CORS_ORIGINS: http://localhost:5173
+      VITE_API_URL: http://localhost:8000/api/v1
+      VITE_API_BASE_URL: http://localhost:8000
+      PLAYWRIGHT_BASE_URL: http://localhost:5173
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install backend dependencies
+        run: |
+          pip install -r requirements.txt
+          pip uninstall -y ecdsa
+
+      - name: Initialize responsive-test database
+        run: python -m backend.scripts.preflight_migrations
+
+      - name: Start backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup uvicorn backend.main:app --host 127.0.0.1 --port 8000 > /tmp/dentix-mobile-backend.log 2>&1 &
+          echo $! > /tmp/dentix-mobile-backend.pid
+
+          for attempt in {1..60}; do
+            if curl --fail --silent http://localhost:8000/api/v1/health > /dev/null; then
+              echo "Backend is ready."
+              exit 0
+            fi
+            if ! kill -0 "$(cat /tmp/dentix-mobile-backend.pid)" 2>/dev/null; then
+              echo "Backend exited before becoming ready."
+              cat /tmp/dentix-mobile-backend.log
+              exit 1
+            fi
+            sleep 2
+          done
+
+          echo "Backend did not become ready in time."
+          cat /tmp/dentix-mobile-backend.log
+          exit 1
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build recovered frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Design-system guardrails
+        working-directory: frontend
+        run: npm run design:guardrails
+
+      - name: Date/time responsive unit regression
+        working-directory: frontend
+        run: npx vitest run src/shared/ui/DateTimePicker.test.jsx --reporter=verbose
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install chromium
+
+      - name: Prepare isolated responsive-test data
+        working-directory: frontend
+        run: npx playwright test e2e/setup.spec.ts --config=playwright.config.ts --project=setup --retries=0
+
+      - name: Run 320 / Arabic / English / tablet matrix
+        working-directory: frontend
+        run: >-
+          npx playwright test e2e/mobile-responsive.spec.ts
+          --config=playwright.config.ts
+          --project=mobile-compact-320
+          --project=mobile-ar
+          --project=mobile-en
+          --project=tablet
+          --no-deps
+          --retries=0
+
+      - name: Show backend log on failure
+        if: failure()
+        run: cat /tmp/dentix-mobile-backend.log || true
+
+      - name: Upload Playwright responsive artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-responsive-playwright-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/

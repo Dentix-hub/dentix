@@ -1,17 +1,47 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
-import { FlaskConical, Plus, Edit2, Trash2, X, Phone, MapPin, Mail, User, Search, Building2, Crown } from 'lucide-react';
-import { getLaboratories, createLaboratory, updateLaboratory, deleteLaboratory, getLabOrdersStats } from '../api';
+import {
+    FlaskConical,
+    Plus,
+    Edit2,
+    Trash2,
+    Phone,
+    MapPin,
+    Mail,
+    User,
+    Search,
+    Building2,
+    Crown,
+    Home
+} from 'lucide-react';
+import {
+    getLaboratories,
+    createLaboratory,
+    updateLaboratory,
+    deleteLaboratory,
+    getLabOrdersStats
+} from '../api';
 import LabDetailsModal from './LabDetailsModal';
 import GlobalLabOrdersModal from './GlobalLabOrdersModal';
+import { Modal, PageHeader } from '@/shared/ui';
+
+const emptyForm = {
+    name: '',
+    phone: '',
+    address: '',
+    contact_person: '',
+    email: '',
+    specialties: '',
+    notes: ''
+};
+
 export default function Labs() {
     const { t } = useTranslation();
     const [labs, setLabs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [stats, setStats] = useState(null);
-    // Modal State
     const [selectedLab, setSelectedLab] = useState(null);
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
     const [isGlobalModalOpen, setIsGlobalModalOpen] = useState(false);
@@ -19,18 +49,13 @@ export default function Labs() {
     const [globalModalStatus, setGlobalModalStatus] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingLab, setEditingLab] = useState(null);
-    const [formData, setFormData] = useState({
-        name: '',
-        phone: '',
-        address: '',
-        contact_person: '',
-        email: '',
-        specialties: '',
-        notes: ''
-    });
+    const [formData, setFormData] = useState(emptyForm);
+    const [saving, setSaving] = useState(false);
+
     useEffect(() => {
         loadData();
     }, []);
+
     const loadData = async () => {
         try {
             setLoading(true);
@@ -38,9 +63,9 @@ export default function Labs() {
                 getLaboratories(),
                 getLabOrdersStats()
             ]);
-            
+
             if (labsRes.status === 'fulfilled') {
-                setLabs(labsRes.value.data);
+                setLabs(Array.isArray(labsRes.value.data) ? labsRes.value.data : []);
             } else {
                 logger.error('Failed to load labs:', labsRes.reason);
             }
@@ -50,12 +75,13 @@ export default function Labs() {
             } else {
                 logger.warn('Failed to load lab stats (likely permission issue):', statsRes.reason);
             }
-        } catch (err) {
-            logger.error('Critical error loading labs data:', err);
+        } catch (error) {
+            logger.error('Critical error loading labs data:', error);
         } finally {
             setLoading(false);
         }
     };
+
     const handleOpenModal = (lab = null) => {
         if (lab) {
             setEditingLab(lab);
@@ -70,369 +96,348 @@ export default function Labs() {
             });
         } else {
             setEditingLab(null);
-            setFormData({
-                name: '',
-                phone: '',
-                address: '',
-                contact_person: '',
-                email: '',
-                specialties: '',
-                notes: ''
-            });
+            setFormData(emptyForm);
         }
         setIsModalOpen(true);
     };
+
     const handleCloseModal = () => {
+        if (saving) return;
         setIsModalOpen(false);
         setEditingLab(null);
     };
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+
+    const handleSubmit = async (event) => {
+        event.preventDefault();
         try {
-            if (editingLab) {
-                await updateLaboratory(editingLab.id, formData);
-            } else {
-                await createLaboratory(formData);
-            }
-            handleCloseModal();
-            loadData();
-        } catch (err) {
+            setSaving(true);
+            if (editingLab) await updateLaboratory(editingLab.id, formData);
+            else await createLaboratory(formData);
+            setIsModalOpen(false);
+            setEditingLab(null);
+            await loadData();
+        } catch (error) {
             alert(t('labs.messages.save_error'));
-            logger.error(err);
+            logger.error(error);
+        } finally {
+            setSaving(false);
         }
     };
+
     const handleDelete = async (id) => {
         if (!window.confirm(t('labs.actions.confirm_delete'))) return;
         try {
             await deleteLaboratory(id);
-            loadData();
-        } catch (err) {
+            await loadData();
+        } catch (error) {
             alert(t('labs.messages.delete_error'));
-            logger.error(err);
+            logger.error(error);
         }
     };
-    const filteredLabs = labs.filter(lab =>
-        lab.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (lab.contact_person && lab.contact_person.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
+
+    const openGlobalOrders = (status, title) => {
+        setGlobalModalTitle(title);
+        setGlobalModalStatus(status);
+        setIsGlobalModalOpen(true);
+    };
+
+    const filteredLabs = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        return labs.filter(lab =>
+            lab.name?.toLowerCase().includes(query)
+            || lab.contact_person?.toLowerCase().includes(query)
+            || lab.phone?.toLowerCase().includes(query)
+        );
+    }, [labs, searchQuery]);
+
     if (loading) {
         return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+            <div className="flex min-h-[50dvh] items-center justify-center">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             </div>
         );
     }
+
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-                        <div className="p-2 bg-teal-100 rounded-xl">
-                            <FlaskConical className="text-teal-600" size={24} />
-                        </div>
-                        {t('labs.title')}
-                    </h1>
-                    <p className="text-slate-500 text-sm mt-1">{t('labs.subtitle')}</p>
-                </div>
-                <button 
-                    onClick={() => handleOpenModal()}
-                    className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 active:scale-95"
-                >
-                    <Plus size={20} />
-                    {t('labs.actions.add_lab')}
-                </button>
-            </div>
-            {/* Stats Cards */}
+        <div className="min-w-0 space-y-5 pb-8 sm:space-y-6 sm:pb-12">
+            <PageHeader
+                title={t('labs.title')}
+                subtitle={t('labs.subtitle')}
+                icon={FlaskConical}
+                breadcrumbs={[
+                    { label: t('nav.home', 'Home'), icon: Home, path: '/' },
+                    { label: t('labs.title') }
+                ]}
+                actions={
+                    <button
+                        type="button"
+                        onClick={() => handleOpenModal()}
+                        className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 font-bold text-white shadow-medium transition-colors hover:bg-indigo-700 sm:w-auto sm:px-6 sm:rounded-2xl"
+                    >
+                        <Plus size={20} aria-hidden="true" />
+                        <span>{t('labs.actions.add_lab')}</span>
+                    </button>
+                }
+            />
+
             {stats && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-teal-100 rounded-lg">
-                                <Building2 className="text-teal-600" size={20} />
-                            </div>
-                            <div>
-                                <p className="text-xs text-slate-500 font-bold">{t('labs.stats.total_labs')}</p>
-                                <p className="text-xl font-bold text-slate-800">{stats.total_labs}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div
-                        onClick={() => {
-                            setGlobalModalTitle(t('labs.stats.pending_orders'));
-                            setGlobalModalStatus('pending');
-                            setIsGlobalModalOpen(true);
-                        }}
-                        className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm cursor-pointer hover:shadow-md transition-all hover:border-amber-200"
-                    >
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-amber-100 rounded-lg">
-                                <Crown className="text-amber-600" size={20} />
-                            </div>
-                            <div>
-                                <p className="text-xs text-slate-500 font-bold">{t('labs.stats.pending_orders')}</p>
-                                <p className="text-xl font-bold text-amber-600">{stats.pending_orders}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div
-                        onClick={() => {
-                            setGlobalModalTitle(t('labs.stats.completed_orders'));
-                            setGlobalModalStatus('completed');
-                            setIsGlobalModalOpen(true);
-                        }}
-                        className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm cursor-pointer hover:shadow-md transition-all hover:border-emerald-200"
-                    >
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-emerald-100 rounded-lg">
-                                <Crown className="text-emerald-600" size={20} />
-                            </div>
-                            <div>
-                                <p className="text-xs text-slate-500 font-bold">{t('labs.stats.completed_orders')}</p>
-                                <p className="text-xl font-bold text-emerald-600">{stats.completed_orders}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-blue-100 rounded-lg">
-                                <FlaskConical className="text-blue-600" size={20} />
-                            </div>
-                            <div>
-                                <p className="text-xs text-slate-500 font-bold">{t('labs.stats.profit')}</p>
-                                <p className="text-xl font-bold text-blue-600">{stats.profit?.toFixed(0)}</p>
-                            </div>
-                        </div>
-                    </div>
+                <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+                    <StatCard
+                        label={t('labs.stats.total_labs')}
+                        value={stats.total_labs}
+                        icon={Building2}
+                        iconClass="bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-300"
+                    />
+                    <StatCard
+                        label={t('labs.stats.pending_orders')}
+                        value={stats.pending_orders}
+                        icon={Crown}
+                        iconClass="bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300"
+                        valueClass="text-amber-600 dark:text-amber-300"
+                        onClick={() => openGlobalOrders('pending', t('labs.stats.pending_orders'))}
+                    />
+                    <StatCard
+                        label={t('labs.stats.completed_orders')}
+                        value={stats.completed_orders}
+                        icon={Crown}
+                        iconClass="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300"
+                        valueClass="text-emerald-600 dark:text-emerald-300"
+                        onClick={() => openGlobalOrders('completed', t('labs.stats.completed_orders'))}
+                    />
+                    <StatCard
+                        label={t('labs.stats.profit')}
+                        value={stats.profit?.toFixed?.(0) ?? stats.profit ?? 0}
+                        icon={FlaskConical}
+                        iconClass="bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300"
+                        valueClass="text-blue-600 dark:text-blue-300"
+                    />
                 </div>
             )}
-            {/* Search */}
-            <div className="relative">
-                <Search className="absolute end-4 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
+
+            <div className="relative min-w-0">
+                <Search className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-slate-500 sm:end-4" size={20} aria-hidden="true" />
                 <input
-                    type="text"
+                    type="search"
                     placeholder={t('labs.search_placeholder')}
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pe-12 ps-4 py-3 bg-white border border-slate-200 rounded-xl outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
+                    onChange={event => setSearchQuery(event.target.value)}
+                    className="min-h-11 w-full rounded-xl border border-slate-200 bg-white py-2.5 ps-3 pe-11 outline-none transition-all focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 dark:border-slate-700 dark:bg-slate-900 sm:ps-4 sm:pe-12 sm:py-3"
                 />
             </div>
-            {/* Labs Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+            <div className="grid min-w-0 grid-cols-1 gap-3 md:grid-cols-2 md:gap-4 lg:grid-cols-3">
                 {filteredLabs.map(lab => (
-                    <div
-                        key={lab.id}
-                        onClick={(e) => {
-                            // Prevent opening details if clicking edit/delete buttons
-                            if (e.target.closest('button')) return;
-                            setSelectedLab(lab);
-                            setIsDetailsModalOpen(true);
-                        }}
-                        className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-teal-300 group"
-                    >
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="flex items-center gap-3">
-                                <div className="p-3 bg-gradient-to-br from-teal-500 to-indigo-600 rounded-xl text-white">
-                                    <FlaskConical size={24} />
+                    <article key={lab.id} className="min-w-0 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSelectedLab(lab);
+                                setIsDetailsModalOpen(true);
+                            }}
+                            className="w-full min-w-0 text-start"
+                            aria-label={`${t('labs.title')}: ${lab.name}`}
+                        >
+                            <div className="mb-3 flex min-w-0 items-start gap-3 sm:mb-4">
+                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-indigo-600 text-white">
+                                    <FlaskConical size={22} aria-hidden="true" />
                                 </div>
-                                <div>
-                                    <h3 className="font-bold text-slate-800">{lab.name}</h3>
+                                <div className="min-w-0 flex-1">
+                                    <h3 className="break-words font-bold text-slate-800 dark:text-white" dir="auto">{lab.name}</h3>
                                     {lab.contact_person && (
-                                        <p className="text-sm text-slate-500 flex items-center gap-1">
-                                            <User size={12} />
-                                            {lab.contact_person}
+                                        <p className="mt-1 flex min-w-0 items-center gap-1 text-sm text-slate-500 dark:text-slate-400">
+                                            <User size={12} className="shrink-0" aria-hidden="true" />
+                                            <span className="min-w-0 truncate" dir="auto">{lab.contact_person}</span>
                                         </p>
                                     )}
                                 </div>
+                                <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-bold ${lab.is_active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'}`}>
+                                    {lab.is_active ? t('labs.active') : t('labs.inactive')}
+                                </span>
                             </div>
-                            <div className={`px-2 py-1 rounded-full text-xs font-bold ${lab.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                                {lab.is_active ? t('labs.active') : t('labs.inactive')}
-                            </div>
-                        </div>
-                        <div className="space-y-2 text-sm text-slate-600 mb-4">
-                            {lab.phone && (
-                                <div className="flex items-center gap-2">
-                                    <Phone size={14} className="text-slate-500" />
-                                    <span dir="ltr">{lab.phone}</span>
-                                </div>
-                            )}
-                            {lab.email && (
-                                <div className="flex items-center gap-2">
-                                    <Mail size={14} className="text-slate-500" />
-                                    <span>{lab.email}</span>
-                                </div>
-                            )}
-                            {lab.address && (
-                                <div className="flex items-center gap-2">
-                                    <MapPin size={14} className="text-slate-500" />
-                                    <span className="truncate">{lab.address}</span>
-                                </div>
-                            )}
-                        </div>
-                        {lab.specialties && (
-                            <div className="flex flex-wrap gap-1 mb-3">
-                                {lab.specialties.split(',').map((s, i) => (
-                                    <span key={i} className="px-2 py-0.5 bg-teal-50 text-teal-700 text-xs rounded-full font-medium">
-                                        {s.trim()}
+
+                            <div className="mb-3 min-w-0 space-y-2 text-sm text-slate-600 dark:text-slate-300 sm:mb-4">
+                                {lab.phone && (
+                                    <span className="flex min-w-0 items-center gap-2">
+                                        <Phone size={14} className="shrink-0 text-slate-500" aria-hidden="true" />
+                                        <span dir="ltr" className="break-all">{lab.phone}</span>
                                     </span>
-                                ))}
+                                )}
+                                {lab.email && (
+                                    <span className="flex min-w-0 items-center gap-2">
+                                        <Mail size={14} className="shrink-0 text-slate-500" aria-hidden="true" />
+                                        <span className="min-w-0 break-all" dir="ltr">{lab.email}</span>
+                                    </span>
+                                )}
+                                {lab.address && (
+                                    <span className="flex min-w-0 items-start gap-2">
+                                        <MapPin size={14} className="mt-0.5 shrink-0 text-slate-500" aria-hidden="true" />
+                                        <span className="min-w-0 break-words" dir="auto">{lab.address}</span>
+                                    </span>
+                                )}
                             </div>
-                        )}
-                        {lab.notes && (
-                            <p className="text-xs text-slate-500 bg-slate-50 p-2 rounded-lg mb-4 line-clamp-2">
-                                {lab.notes}
-                            </p>
-                        )}
-                        <div className="flex gap-2 pt-3 border-t border-slate-100">
+
+                            {lab.specialties && (
+                                <div className="mb-3 flex min-w-0 flex-wrap gap-1.5">
+                                    {lab.specialties.split(',').filter(Boolean).map((specialty, index) => (
+                                        <span key={`${specialty}-${index}`} className="rounded-full bg-teal-50 px-2 py-1 text-xs font-medium text-teal-700 dark:bg-teal-900/20 dark:text-teal-300">
+                                            {specialty.trim()}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+                            {lab.notes && (
+                                <p className="mb-3 line-clamp-2 break-words rounded-lg bg-slate-50 p-2 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400 sm:mb-4" dir="auto">{lab.notes}</p>
+                            )}
+                        </button>
+
+                        <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                             <button
+                                type="button"
                                 onClick={() => handleOpenModal(lab)}
-                                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                             >
-                                <Edit2 size={16} />
+                                <Edit2 size={16} aria-hidden="true" />
                                 {t('labs.actions.edit')}
                             </button>
                             <button
+                                type="button"
                                 onClick={() => handleDelete(lab.id)}
-                                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30"
                             >
-                                <Trash2 size={16} />
+                                <Trash2 size={16} aria-hidden="true" />
                                 {t('labs.actions.delete')}
                             </button>
                         </div>
-                    </div>
+                    </article>
                 ))}
+
                 {filteredLabs.length === 0 && (
-                    <div className="col-span-full py-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                        <FlaskConical size={48} className="mx-auto mb-3 text-slate-300" />
+                    <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center dark:border-slate-700 dark:bg-slate-900 sm:py-12">
+                        <FlaskConical size={44} className="mx-auto mb-3 text-slate-300" aria-hidden="true" />
                         <p className="text-slate-500">{t('labs.empty')}</p>
                         <button
+                            type="button"
                             onClick={() => handleOpenModal()}
-                            className="mt-4 text-teal-600 font-bold hover:underline"
+                            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl px-4 font-bold text-teal-600 transition-colors hover:bg-teal-50 dark:hover:bg-teal-950/20"
                         >
                             {t('labs.add_new_empty')}
                         </button>
                     </div>
                 )}
             </div>
-            {/* Add/Edit Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-slate-800">
-                                {editingLab ? t('labs.form.edit_title') : t('labs.form.add_title')}
-                            </h3>
-                            <button
-                                onClick={handleCloseModal}
-                                className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-600 transition-colors"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-slate-600 mb-1">
-                                    {t('labs.form.name')} <span className="text-red-500">*</span>
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
-                                    placeholder={t('labs.form.placeholders.name')}
-                                    required
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-600 mb-1">{t('labs.form.phone')}</label>
-                                    <input
-                                        type="tel"
-                                        value={formData.phone}
-                                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
-                                        placeholder={t('labs.form.placeholders.phone')}
-                                        dir="ltr"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-600 mb-1">{t('labs.form.email')}</label>
-                                    <input
-                                        type="email"
-                                        value={formData.email}
-                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
-                                        placeholder={t('labs.form.placeholders.email')}
-                                        dir="ltr"
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-600 mb-1">{t('labs.form.address')}</label>
-                                <input
-                                    type="text"
-                                    value={formData.address}
-                                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
-                                    placeholder={t('labs.form.placeholders.address')}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-600 mb-1">{t('labs.form.contact_person')}</label>
-                                <input
-                                    type="text"
-                                    value={formData.contact_person}
-                                    onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
-                                    placeholder={t('labs.form.placeholders.contact_person')}
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-600 mb-1">{t('labs.form.specialties')}</label>
-                                <input
-                                    type="text"
-                                    value={formData.specialties}
-                                    onChange={(e) => setFormData({ ...formData, specialties: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
-                                    placeholder={t('labs.form.placeholders.specialties')}
-                                />
-                                <p className="text-xs text-slate-500 mt-1">{t('labs.form.specialties_hint')}</p>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-600 mb-1">{t('labs.form.notes')}</label>
-                                <textarea
-                                    value={formData.notes}
-                                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500 h-24 resize-none"
-                                    placeholder={t('labs.form.placeholders.notes')}
-                                />
-                            </div>
-                            <div className="flex gap-3 pt-4">
-                                <button
-                                    type="button"
-                                    onClick={handleCloseModal}
-                                    className="flex-1 px-4 py-3 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors font-bold"
-                                >
-                                    {t('labs.actions.cancel')}
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="flex-1 px-4 py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-colors font-bold shadow-lg shadow-teal-500/20"
-                                >
-                                    {editingLab ? t('labs.actions.save') : t('labs.actions.add')}
-                                </button>
-                            </div>
-                        </form>
+
+            <Modal
+                isOpen={isModalOpen}
+                onClose={handleCloseModal}
+                title={editingLab ? t('labs.form.edit_title') : t('labs.form.add_title')}
+                size="lg"
+                closeOnOutside={!saving}
+            >
+                <form onSubmit={handleSubmit} className="min-w-0 space-y-4">
+                    <LabField label={t('labs.form.name')} required>
+                        <input
+                            type="text"
+                            value={formData.name}
+                            onChange={event => setFormData({ ...formData, name: event.target.value })}
+                            className="min-h-11 w-full rounded-xl border border-border bg-background px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                            placeholder={t('labs.form.placeholders.name')}
+                            required
+                            autoComplete="organization"
+                        />
+                    </LabField>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <LabField label={t('labs.form.phone')}>
+                            <input
+                                type="tel"
+                                inputMode="tel"
+                                value={formData.phone}
+                                onChange={event => setFormData({ ...formData, phone: event.target.value })}
+                                className="min-h-11 w-full rounded-xl border border-border bg-background px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                                placeholder={t('labs.form.placeholders.phone')}
+                                dir="ltr"
+                                autoComplete="tel"
+                            />
+                        </LabField>
+                        <LabField label={t('labs.form.email')}>
+                            <input
+                                type="email"
+                                value={formData.email}
+                                onChange={event => setFormData({ ...formData, email: event.target.value })}
+                                className="min-h-11 w-full rounded-xl border border-border bg-background px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                                placeholder={t('labs.form.placeholders.email')}
+                                dir="ltr"
+                                autoComplete="email"
+                            />
+                        </LabField>
                     </div>
-                </div>
-            )}
-            {/* Lab Details Modal */}
+
+                    <LabField label={t('labs.form.address')}>
+                        <input
+                            type="text"
+                            value={formData.address}
+                            onChange={event => setFormData({ ...formData, address: event.target.value })}
+                            className="min-h-11 w-full rounded-xl border border-border bg-background px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                            placeholder={t('labs.form.placeholders.address')}
+                            autoComplete="street-address"
+                        />
+                    </LabField>
+
+                    <LabField label={t('labs.form.contact_person')}>
+                        <input
+                            type="text"
+                            value={formData.contact_person}
+                            onChange={event => setFormData({ ...formData, contact_person: event.target.value })}
+                            className="min-h-11 w-full rounded-xl border border-border bg-background px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                            placeholder={t('labs.form.placeholders.contact_person')}
+                            autoComplete="name"
+                        />
+                    </LabField>
+
+                    <LabField label={t('labs.form.specialties')} hint={t('labs.form.specialties_hint')}>
+                        <input
+                            type="text"
+                            value={formData.specialties}
+                            onChange={event => setFormData({ ...formData, specialties: event.target.value })}
+                            className="min-h-11 w-full rounded-xl border border-border bg-background px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                            placeholder={t('labs.form.placeholders.specialties')}
+                        />
+                    </LabField>
+
+                    <LabField label={t('labs.form.notes')}>
+                        <textarea
+                            value={formData.notes}
+                            onChange={event => setFormData({ ...formData, notes: event.target.value })}
+                            className="min-h-24 w-full resize-y rounded-xl border border-border bg-background px-3 py-2.5 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                            placeholder={t('labs.form.placeholders.notes')}
+                        />
+                    </LabField>
+
+                    <div className="sticky bottom-0 z-10 -mx-3 grid grid-cols-1 gap-2 border-t border-border bg-surface-elevated px-3 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-3 min-[360px]:grid-cols-2 sm:-mx-4 sm:px-4">
+                        <button
+                            type="button"
+                            onClick={handleCloseModal}
+                            disabled={saving}
+                            className="min-h-11 rounded-xl px-4 py-2 font-bold text-text-secondary transition-colors hover:bg-surface-hover disabled:opacity-50"
+                        >
+                            {t('labs.actions.cancel')}
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            className="min-h-11 rounded-xl bg-teal-600 px-4 py-2 font-bold text-white shadow-medium transition-colors hover:bg-teal-700 disabled:opacity-50"
+                        >
+                            {saving ? t('common.saving', 'Saving...') : editingLab ? t('labs.actions.save') : t('labs.actions.add')}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
+
             <LabDetailsModal
                 lab={selectedLab}
                 isOpen={isDetailsModalOpen}
                 onClose={() => setIsDetailsModalOpen(false)}
             />
-            {/* Global Orders Modal */}
             <GlobalLabOrdersModal
                 isOpen={isGlobalModalOpen}
                 onClose={() => setIsGlobalModalOpen(false)}
@@ -443,3 +448,46 @@ export default function Labs() {
     );
 }
 
+function StatCard({ label, value, icon: Icon, iconClass, valueClass = 'text-slate-800 dark:text-white', onClick }) {
+    const content = (
+        <>
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${iconClass}`}>
+                <Icon size={19} aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+                <span className="block break-words text-[11px] font-bold text-slate-500 dark:text-slate-400 sm:text-xs">{label}</span>
+                <strong className={`mt-0.5 block break-words text-lg font-bold sm:text-xl ${valueClass}`}>{value}</strong>
+            </span>
+        </>
+    );
+
+    if (onClick) {
+        return (
+            <button
+                type="button"
+                onClick={onClick}
+                className="flex min-h-24 min-w-0 items-center gap-2 rounded-xl border border-slate-100 bg-white p-3 text-start shadow-sm transition-[box-shadow,border-color] hover:border-primary/30 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 sm:gap-3 sm:p-4"
+            >
+                {content}
+            </button>
+        );
+    }
+
+    return (
+        <div className="flex min-h-24 min-w-0 items-center gap-2 rounded-xl border border-slate-100 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:gap-3 sm:p-4">
+            {content}
+        </div>
+    );
+}
+
+function LabField({ label, required = false, hint, children }) {
+    return (
+        <div className="min-w-0">
+            <label className="mb-1 block text-sm font-bold text-text-secondary">
+                {label}{required && <span className="ms-1 text-red-500">*</span>}
+            </label>
+            {children}
+            {hint && <p className="mt-1 break-words text-xs text-text-muted">{hint}</p>}
+        </div>
+    );
+}
