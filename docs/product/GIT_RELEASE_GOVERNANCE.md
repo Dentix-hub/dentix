@@ -21,7 +21,20 @@ scoped work branch
 
 Allowed staging work prefixes are `feat/`, `feature/`, `fix/`, `refactor/`, `chore/`, `docs/`, `test/`, and `hotfix/`.
 
-Production PRs must come from `staging`, except an explicitly scoped `hotfix/*` created from current `main` for a production-critical defect.
+Production PRs normally come from `staging`. Two explicitly scoped exceptions are allowed: `hotfix/*` for a production-critical defect created from current `main`, and `release/*` for a documented reconciliation release created from current `main` when historical branch divergence prevents a safe direct `staging -> main` merge.
+
+## Release reconciliation rule
+
+A `release/*` branch is an exception, not a parallel development path. It may target `main` only when direct `staging -> main` promotion is blocked by proven historical divergence or conflicts.
+
+1. Create `release/<scope>` from the current `main` head.
+2. Copy/reconcile only the already validated staging release content; do not use a force merge or history rewrite.
+3. Preserve `main`-authoritative infrastructure, especially `.github/workflows/cd.yml`, unless an intentional independently reviewed CD change is part of the release.
+4. Verify the release branch is ahead of and not behind current `main` before opening the PR.
+5. Require the same complete main-targeted CI suite as a normal staging promotion.
+6. Merge only after all required gates pass; then reconcile branch history/cleanup as needed.
+
+A `release/*` branch must never become a long-lived substitute for `staging`.
 
 ## Hotfix rule
 
@@ -51,7 +64,7 @@ The repository workflow is not a substitute for GitHub branch/ruleset protection
 
 ## Required release evidence
 
-Before a PR may move from `staging` to `main`:
+Before a production PR may merge into `main`:
 
 - backend tests and coverage pass;
 - security checks pass;
@@ -60,7 +73,7 @@ Before a PR may move from `staging` to `main`:
 - Playwright critical path passes;
 - visual regression passes;
 - responsive/mobile acceptance passes once the mobile gate is installed;
-- staging deployment is healthy;
+- the source release has completed staging deployment/acceptance when applicable;
 - representative manual staging QA is complete for user-visible release changes.
 
 ## CD workflow authority
@@ -84,4 +97,4 @@ A branch is eligible for cleanup only when all of the following are proven:
 
 ## Mobile forensic exception
 
-`fix/mobile-ux-responsive-forensic` / PR #22 is preserved temporarily as evidence only. It is not a release candidate and must not be directly merged, rebased-and-merged, or wholesale cherry-picked. Its changes are recovered from current `staging` in smaller scoped PRs and the original PR is closed only after every changed file is classified and accounted for.
+`fix/mobile-ux-responsive-forensic` / PR #22 is historical evidence only. It is not a release candidate and must not be directly merged, rebased-and-merged, or wholesale cherry-picked. Its validated replacement was recovered on current staging through scoped changes before production promotion.
