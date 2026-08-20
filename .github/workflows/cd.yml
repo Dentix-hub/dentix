@@ -1,5 +1,10 @@
 name: Dentix CD
 
+# IMPORTANT:
+# GitHub executes workflow_run workflows from the repository default branch.
+# `main` is therefore the authoritative source for this CD workflow even when
+# the tested revision belongs to `staging`. Keep this file on main deploy-safe.
+
 on:
   workflow_run:
     workflows: ["Dentix CI"]
@@ -25,7 +30,9 @@ jobs:
     name: Deploy staging to Hugging Face
     runs-on: ubuntu-latest
     if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.target == 'staging') ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == 'refs/heads/main' &&
+       inputs.target == 'staging') ||
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'staging')
@@ -35,12 +42,23 @@ jobs:
     environment: staging
 
     steps:
-      - name: Checkout the tested revision
+      - name: Checkout the tested staging revision
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
           lfs: true
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'staging' }}
+
+      - name: Verify staging revision identity
+        env:
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
+        run: |
+          set -euo pipefail
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          if [ -n "$EXPECTED_SHA" ]; then
+            test "$ACTUAL_SHA" = "$EXPECTED_SHA"
+          fi
+          echo "Deploying staging revision: $ACTUAL_SHA"
 
       - name: Sync tested revision to Hugging Face staging
         uses: huggingface/hub-sync@v0.1.0
@@ -63,70 +81,94 @@ jobs:
             */api/v1) HEALTH_URL="${HEALTH_URL}/health" ;;
             *) HEALTH_URL="${HEALTH_URL}/api/v1/health" ;;
           esac
-          curl --fail --show-error --retry 15 --retry-delay 12 --retry-all-errors "$HEALTH_URL"
+          curl --fail --show-error --retry 20 --retry-delay 12 --retry-all-errors "$HEALTH_URL"
+
+  production-change-gate:
+    name: Classify production deployment change
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == 'refs/heads/main' &&
+       inputs.target == 'production') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    outputs:
+      deploy: ${{ steps.gate.outputs.deploy }}
+
+    steps:
+      - name: Checkout candidate production revision
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
+
+      - name: Decide whether production content changed
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "Manual production deployment requested."
+            exit 0
+          fi
+
+          DEPLOY_SHA="$(git rev-parse HEAD)"
+          if ! git cat-file -e "${DEPLOY_SHA}^" 2>/dev/null; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "No parent commit available; fail-safe to deployment."
+            exit 0
+          fi
+
+          if git diff --quiet "${DEPLOY_SHA}^" "$DEPLOY_SHA" -- . ':(exclude).github/workflows/**'; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Only GitHub workflow files changed; production deployment skipped."
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "Deployable production content changed."
+          fi
 
   deploy-production:
     name: Deploy production to Hugging Face
     runs-on: ubuntu-latest
-    if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.target == 'production') ||
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main')
+    needs: production-change-gate
+    if: needs.production-change-gate.outputs.deploy == 'true'
     concurrency:
       group: dentix-production-deployment
       cancel-in-progress: false
     environment: production
 
     steps:
-      - name: Checkout the tested revision
-        uses: actions/checkout@v4
+      - name: Checkout the tested production revision
+        uses: actions/checkout@v6
         with:
-          fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 1
+          lfs: true
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
 
       - name: Verify tested revision is current main
         env:
-          DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
         run: |
           set -euo pipefail
-          git fetch origin main
-          test "$DEPLOY_SHA" = "$(git rev-parse origin/main)"
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          git fetch --depth=1 origin main
+          test "$ACTUAL_SHA" = "$(git rev-parse origin/main)"
+          if [ -n "$EXPECTED_SHA" ]; then
+            test "$ACTUAL_SHA" = "$EXPECTED_SHA"
+          fi
+          echo "Deploying production revision: $ACTUAL_SHA"
 
-      - name: Push clean snapshot to Hugging Face production
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_PRODUCTION_SPACE: ${{ secrets.HF_PRODUCTION_SPACE }}
-          DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
-        run: |
-          set -euo pipefail
-          test -n "$HF_TOKEN"
-          test -n "$HF_PRODUCTION_SPACE"
-
-          # Fetch only LFS objects referenced by the tested commit. Do not scan
-          # historical Git LFS objects, because legacy history contains a
-          # missing frontend/frontend.zip object that is not part of production.
-          git lfs install --local
-          git lfs fetch origin "$DEPLOY_SHA"
-          git lfs checkout
-
-          SNAPSHOT_DIR="$(mktemp -d)"
-          trap 'rm -rf "$SNAPSHOT_DIR"' EXIT
-
-          # Copy only tracked files from the tested working tree. LFS files are
-          # materialized by `git lfs checkout`, so the new repository can create
-          # and upload fresh LFS objects without inheriting broken Git history.
-          git ls-files -z | tar --null -T - -cf - | tar -xf - -C "$SNAPSHOT_DIR"
-
-          cd "$SNAPSHOT_DIR"
-          git init -b main
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git lfs install --local
-          git add -A
-          git commit -m "Deploy Dentix ${DEPLOY_SHA}"
-          git remote add hf "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_PRODUCTION_SPACE}"
-          git push hf main:refs/heads/main --force
+      - name: Sync tested revision to Hugging Face production
+        uses: huggingface/hub-sync@v0.1.0
+        with:
+          github_repo_id: ${{ github.repository }}
+          huggingface_repo_id: ${{ secrets.HF_PRODUCTION_SPACE }}
+          hf_token: ${{ secrets.HF_TOKEN }}
+          repo_type: space
+          space_sdk: docker
 
       - name: Verify production health
         env:
