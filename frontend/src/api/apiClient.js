@@ -217,6 +217,10 @@ api.interceptors.response.use(
                     return Promise.reject(err);
                 }
 
+                // The in-memory user can outlive expired/revoked httpOnly cookies.
+                // Clear it immediately so authenticated polling components unmount
+                // instead of continuing to send requests with a stale session.
+                useAuthStore.getState().clearAuth();
                 window.location.href = '/';
                 return Promise.reject(err);
             } finally {
