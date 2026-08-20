@@ -2,7 +2,7 @@ name: Dentix CI
 
 on:
   push:
-    branches: [ main, develop, staging ]
+    branches: [ main, staging ]
   pull_request:
     branches: [ main, staging ]
 
@@ -14,6 +14,8 @@ jobs:
   backend:
     name: Backend Tests + Security
     runs-on: ubuntu-latest
+    env:
+      DB_SSL_MODE: disable
 
     services:
       postgres:
@@ -223,6 +225,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://e2e_user:e2e_pass@localhost:5432/dentix_e2e
+      DB_SSL_MODE: disable
       SECRET_KEY: e2e-secret-key-for-ci-only-at-least-32
       ENVIRONMENT: test
       PYTHONPATH: .

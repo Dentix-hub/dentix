@@ -44,24 +44,24 @@ export default function DentixBottomSheet({
                             target.focus();
                         }
                     }}
-                    className={`fixed inset-x-0 bottom-0 z-drawer mx-auto flex max-h-[90dvh] w-full max-w-3xl flex-col rounded-t-overlay border border-b-0 border-border bg-surface-elevated text-text-primary shadow-high ${className}`}
+                    className={`fixed inset-x-0 bottom-0 z-drawer mx-auto flex max-h-[calc(100dvh-0.75rem)] w-full max-w-3xl flex-col overscroll-contain rounded-t-overlay border border-b-0 border-border bg-surface-elevated text-text-primary shadow-high sm:max-h-[90dvh] ${className}`}
                 >
-                    <div aria-hidden="true" className="mx-auto mt-2 h-1 w-10 rounded-pill bg-border-strong" />
-                    <div className="flex items-center gap-4 border-b border-border px-4 py-3 md:px-6">
-                        <DialogPrimitive.Title className="text-type-section text-text-primary">
+                    <div aria-hidden="true" className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-pill bg-border-strong" />
+                    <div className="flex min-w-0 shrink-0 items-center gap-3 border-b border-border px-3 py-2.5 sm:px-4 sm:py-3 md:px-6">
+                        <DialogPrimitive.Title className="min-w-0 flex-1 break-words text-base font-bold text-text-primary sm:text-type-section">
                             {title}
                         </DialogPrimitive.Title>
                         <DialogPrimitive.Close asChild>
                             <button
                                 type="button"
                                 aria-label={closeLabel}
-                                className="ms-auto inline-flex h-9 w-9 items-center justify-center rounded-control text-text-muted transition-colors duration-fast hover:bg-surface-subtle hover:text-text-primary"
+                                className="ms-auto inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors duration-fast hover:bg-surface-subtle hover:text-text-primary focus-visible:ring-focus"
                             >
                                 <X size={20} aria-hidden="true" />
                             </button>
                         </DialogPrimitive.Close>
                     </div>
-                    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:px-6 md:py-5">
+                    <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-4 sm:py-4 md:px-6 md:py-5">
                         {children}
                     </div>
                 </DialogPrimitive.Content>
