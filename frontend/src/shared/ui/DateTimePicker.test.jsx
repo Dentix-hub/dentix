@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import DateTimePicker from './DateTimePicker';
 
 function findCalendarPanel(dialog) {
-    return Array.from(dialog.querySelectorAll('div')).find((element) => {
+    return [dialog, ...Array.from(dialog.querySelectorAll('div'))].find((element) => {
         const classes = typeof element.className === 'string' ? element.className : '';
         return classes.includes('bg-surface-elevated') && classes.includes('overflow-hidden');
     });

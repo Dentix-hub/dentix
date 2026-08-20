@@ -1,5 +1,5 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
-import { Dialog, Transition, TransitionChild } from '@headlessui/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Calendar as CalendarIcon, Clock, ChevronLeft, ChevronRight, Check, ChevronDown, X } from 'lucide-react';
 import {
     format,
@@ -190,45 +190,26 @@ export default function DateTimePicker({
                 <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
             </button>
 
-            <Transition appear show={isOpen} as={Fragment}>
-                <Dialog as="div" className="relative z-[9999]" onClose={() => setIsOpen(false)}>
-                    <TransitionChild
-                        as={Fragment}
-                        enter="ease-out duration-200"
-                        enterFrom="opacity-0"
-                        enterTo="opacity-100"
-                        leave="ease-in duration-150"
-                        leaveFrom="opacity-100"
-                        leaveTo="opacity-0"
+            <DialogPrimitive.Root open={isOpen} onOpenChange={setIsOpen}>
+                <DialogPrimitive.Portal>
+                    <DialogPrimitive.Overlay className="fixed inset-0 z-[9998] bg-backdrop backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in data-[state=closed]:fade-out motion-reduce:animate-none motion-reduce:backdrop-blur-none" />
+                    <DialogPrimitive.Content
+                        aria-describedby={undefined}
+                        className="fixed inset-x-0 bottom-0 z-[9999] mx-auto flex max-h-[calc(100dvh-0.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-t-overlay border border-b-0 border-border bg-surface-elevated text-start align-middle shadow-high outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-bottom-6 data-[state=closed]:slide-out-to-bottom-6 duration-emphasized motion-reduce:animate-none sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:mx-0 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-overlay sm:border-b sm:data-[state=open]:zoom-in-95 sm:data-[state=closed]:zoom-out-95"
                     >
-                        <div className="fixed inset-0 bg-backdrop backdrop-blur-sm motion-reduce:backdrop-blur-none" />
-                    </TransitionChild>
-
-                    <div className="fixed inset-0 overflow-hidden">
-                        <div className="flex min-h-full items-end justify-center sm:items-center sm:p-4">
-                            <TransitionChild
-                                as={Fragment}
-                                enter="ease-out duration-200"
-                                enterFrom="opacity-0 translate-y-6 sm:translate-y-2 sm:scale-95"
-                                enterTo="opacity-100 translate-y-0 sm:scale-100"
-                                leave="ease-in duration-150"
-                                leaveFrom="opacity-100 translate-y-0 sm:scale-100"
-                                leaveTo="opacity-0 translate-y-6 sm:translate-y-2 sm:scale-95"
+                        <div className="flex min-w-0 shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2.5 sm:px-4">
+                            <DialogPrimitive.Title className="min-w-0 truncate text-sm font-bold text-text-primary sm:text-base">
+                                {label || t('common.date_time', isDateOnly || isMonthOnly ? 'Date' : 'Date & time')}
+                            </DialogPrimitive.Title>
+                            <button
+                                type="button"
+                                onClick={() => setIsOpen(false)}
+                                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text-muted transition-colors hover:bg-surface-subtle hover:text-text-primary"
+                                aria-label={t('common.close', 'Close')}
                             >
-                                <Dialog.Panel className="flex max-h-[calc(100dvh-0.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-t-overlay border border-b-0 border-border bg-surface-elevated text-start align-middle shadow-high transition-all sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:rounded-overlay sm:border-b">
-                                    <div className="flex min-w-0 shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2.5 sm:px-4">
-                                        <Dialog.Title className="min-w-0 truncate text-sm font-bold text-text-primary sm:text-base">
-                                            {label || t('common.date_time', isDateOnly || isMonthOnly ? 'Date' : 'Date & time')}
-                                        </Dialog.Title>
-                                        <button
-                                            type="button"
-                                            onClick={() => setIsOpen(false)}
-                                            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text-muted transition-colors hover:bg-surface-subtle hover:text-text-primary"
-                                            aria-label={t('common.close', 'Close')}
-                                        >
-                                            <X size={20} aria-hidden="true" />
-                                        </button>
-                                    </div>
+                                <X size={20} aria-hidden="true" />
+                            </button>
+                        </div>
 
                                     <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${isDateOnly || isMonthOnly ? '' : 'md:grid md:grid-cols-[minmax(0,1fr)_17.5rem]'}`}>
                                         <section className="flex min-w-0 flex-col p-3 sm:p-4 md:p-5">
@@ -410,12 +391,9 @@ export default function DateTimePicker({
                                             </section>
                                         )}
                                     </div>
-                                </Dialog.Panel>
-                            </TransitionChild>
-                        </div>
-                    </div>
-                </Dialog>
-            </Transition>
+                    </DialogPrimitive.Content>
+                </DialogPrimitive.Portal>
+            </DialogPrimitive.Root>
 
             {!compact && error && <p className="mt-1 text-xs font-bold text-red-500">{error}</p>}
         </div>
