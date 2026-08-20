@@ -122,6 +122,9 @@ jobs:
             exit 0
           fi
 
+          # A workflow-only change must never rebuild production merely to repair
+          # CI/CD orchestration. Any application/configuration/docs change still
+          # follows the normal automatic main -> production path.
           if git diff --quiet "${DEPLOY_SHA}^" "$DEPLOY_SHA" -- . ':(exclude).github/workflows/**'; then
             echo "deploy=false" >> "$GITHUB_OUTPUT"
             echo "Only GitHub workflow files changed; production deployment skipped."
