@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
 import {
     getPriceLists,
@@ -7,36 +7,32 @@ import {
     deactivatePriceList,
     getInsuranceProviders,
     getPriceList,
-    addPriceListItem,
-    getProcedures
+    addPriceListItem
 } from '../../api';
 import { DollarSign, Plus, Edit2, Trash2, List, ShieldCheck, X } from 'lucide-react';
 import { toast } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
+import { useProcedures } from '@/shared/context/ProceduresContext';
 const PriceListEditor = ({ priceListId, onClose }) => {
     const { t } = useTranslation();
     const [listDetails, setListDetails] = useState(null);
-    const [procedures, setProcedures] = useState([]);
+    const { procedures } = useProcedures();
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    useEffect(() => {
-        loadData();
-    }, [priceListId]);
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         setLoading(true);
         try {
-            const [listRes, procRes] = await Promise.all([
-                getPriceList(priceListId),
-                getProcedures()
-            ]);
+            const listRes = await getPriceList(priceListId);
             setListDetails(listRes.data);
-            setProcedures(procRes.data || []);
         } catch (error) {
             logger.error("Error loading details:", error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [priceListId]);
+    useEffect(() => {
+        void loadData();
+    }, [loadData]);
     const handlePriceUpdate = async (procId, price) => {
         try {
             await addPriceListItem(priceListId, {
@@ -430,4 +426,3 @@ export default function PriceLists() {
         </div>
     );
 }
-

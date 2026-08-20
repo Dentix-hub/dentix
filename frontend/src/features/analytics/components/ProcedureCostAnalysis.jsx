@@ -1,20 +1,17 @@
 import { useState, useEffect } from 'react';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
-import { getProcedures } from '@/api';
 import { getProcedureFinancials } from '@/api/financials';
 import { updateMaterial } from '@/api/inventory';
 import { Package, Search, TrendingUp, AlertTriangle } from 'lucide-react';
+import { useProcedures } from '@/shared/context/ProceduresContext';
 const ProcedureCostAnalysis = () => {
     const { t } = useTranslation();
-    const [procedures, setProcedures] = useState([]);
+    const { procedures } = useProcedures();
     const [selectedProcedure, setSelectedProcedure] = useState(null);
     const [analysis, setAnalysis] = useState(null);
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('analysis'); // analysis, coverage
-    useEffect(() => {
-        loadProcedures();
-    }, []);
     useEffect(() => {
         if (selectedProcedure) {
             loadFinancials(selectedProcedure);
@@ -22,14 +19,6 @@ const ProcedureCostAnalysis = () => {
             setAnalysis(null);
         }
     }, [selectedProcedure]);
-    const loadProcedures = async () => {
-        try {
-            const res = await getProcedures();
-            setProcedures(res.data || []);
-        } catch (err) {
-            logger.error("Failed to load procedures", err);
-        }
-    };
     const loadFinancials = async (procId) => {
         setLoading(true);
         try {
@@ -232,4 +221,3 @@ const ProcedureCostAnalysis = () => {
     );
 };
 export default ProcedureCostAnalysis;
-

@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const axiosState = vi.hoisted(() => ({
     responseErrorHandler: null,
     post: vi.fn(),
+    client: null,
 }));
 
 vi.mock('axios', () => {
     const client = vi.fn();
+    axiosState.client = client;
     client.interceptors = {
         request: { use: vi.fn() },
         response: {
@@ -31,6 +33,7 @@ describe('API client authentication recovery', () => {
         vi.resetModules();
         axiosState.responseErrorHandler = null;
         axiosState.post.mockReset();
+        axiosState.client?.mockReset();
         ({ useAuthStore: authStore } = await import('@/store/auth.store'));
         authStore.getState().clearAuth();
         await import('./apiClient');
@@ -50,5 +53,27 @@ describe('API client authentication recovery', () => {
 
         expect(authStore.getState().user).toBeNull();
         expect(authStore.getState().isAuthenticated).toBe(false);
+    });
+
+    it('refreshes an expired access cookie during silent startup auth', async () => {
+        axiosState.post.mockResolvedValue({ data: { access_token: 'rotated' } });
+        const originalRequest = {
+            url: '/api/auth/session',
+            _silentAuth: true,
+        };
+
+        await axiosState.responseErrorHandler({
+            config: originalRequest,
+            response: { status: 401 },
+        });
+
+        expect(axiosState.post).toHaveBeenCalledWith(
+            expect.stringContaining('/api/v1/auth/refresh'),
+            null,
+            expect.objectContaining({ withCredentials: true }),
+        );
+        expect(axiosState.client).toHaveBeenCalledWith(
+            expect.objectContaining({ url: '/api/auth/session', _retry: true }),
+        );
     });
 });

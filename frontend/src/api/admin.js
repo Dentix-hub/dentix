@@ -11,6 +11,9 @@ export const getSubscriptionPlans = () => api.get('/api/v1/admin/subscriptions/p
 export const createSubscriptionPlan = (data) => api.post('/api/v1/admin/subscriptions/plans', data);
 export const updateSubscriptionPlan = (id, data) => api.put(`/api/v1/admin/subscriptions/plans/${id}`, data);
 export const deleteSubscriptionPlan = (id) => api.delete(`/api/v1/admin/subscriptions/plans/${id}`);
+export const getSubscriptionPayments = () => api.get('/api/v1/admin/subscriptions/payments');
+export const recordSubscriptionPayment = (data) => api.post('/api/v1/admin/subscriptions/payments', data);
+export const deleteSubscriptionPayment = (id) => api.delete(`/api/v1/admin/subscriptions/payments/${id}`);
 
 export const getAIStats = (period = 'month') => api.get(`/api/v1/ai/admin/stats?period=${period}`);
 export const getAILogs = (skip = 0, limit = 20) => api.get(`/api/v1/ai/admin/logs?skip=${skip}&limit=${limit}`);

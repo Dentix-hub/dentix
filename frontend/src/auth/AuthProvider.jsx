@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { login as apiLogin, registerClinic, getSessionSilent, api } from '@/api';
+import { login as apiLogin, registerClinic, getSessionSilent, hasSessionCookieHint, api } from '@/api';
 import { logout as apiLogout } from '@/utils';
 import { logger } from '@/utils/logger';
 import AuthContext from './useAuth';
@@ -20,7 +20,7 @@ export default function AuthProvider({ children }) {
 
             // Safety timeout to prevent permanent loading state
             const safetyTimeout = setTimeout(() => {
-                if (isAuthLoading) {
+                if (useAuthStore.getState().isAuthLoading) {
                     logger.warn('[AUTH] Initialization hanging, forcing start...');
                     setLoading(false);
                 }
@@ -29,6 +29,11 @@ export default function AuthProvider({ children }) {
             try {
                 logger.log('[AUTH] Validating session via cookie...');
                 try {
+                    if (!hasSessionCookieHint()) {
+                        logger.info('[AUTH] No session cookie hint found');
+                        clearAuth();
+                        return;
+                    }
                     const sessionRes = await getSessionSilent();
                     const userData = sessionRes.data;
                     setUser(userData);
@@ -52,7 +57,7 @@ export default function AuthProvider({ children }) {
         };
 
         initAuth();
-    }, []);
+    }, [clearAuth, setLoading, setUser]);
 
     const login = async (username, password) => {
         setLoading(true);
