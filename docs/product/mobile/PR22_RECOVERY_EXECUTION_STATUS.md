@@ -15,7 +15,7 @@ The useful PR #22 behavior has been rebuilt on the governed staging baseline thr
 - `fix/mobile-labs`
 - `test/mobile-responsive-gate`
 
-Their combined content is assembled in `test/mobile-recovery-integration` for a single final staging validation. This branch is now a temporary **mobile recovery release candidate**; it is not a permanent branch.
+Their combined content is assembled in `test/mobile-recovery-integration` for a single final staging validation. This branch is a temporary **mobile recovery release candidate**; it is not a permanent branch.
 
 ## Included verification infrastructure
 
@@ -27,15 +27,24 @@ Their combined content is assembled in `test/mobile-recovery-integration` for a 
 - inventory mobile fallback coverage;
 - existing critical-path and visual-regression coverage remains authoritative and must also pass.
 
+## Verified recovery findings
+
+- the responsive matrix reached 24/24 passing checks after replacing a raw mouse-coordinate sidebar test with a locator/actionability-safe RTL interaction; the product sidebar behavior itself was not weakened;
+- the three patient-workspace visual differences were reviewed from the Playwright failure artifact and matched the intended recovered responsive UI;
+- only those three reviewed PNG baselines were regenerated and committed through Git LFS;
+- the temporary baseline-refresh workflow was removed immediately after the reviewed images were committed;
+- local GitHub Actions PostgreSQL now sets `DB_SSL_MODE=disable` in the permanent CI/mobile test jobs, preventing the sync SQLAlchemy engine from requesting SSL against the local non-SSL test service while leaving production database behavior unchanged;
+- the obsolete `develop` CI push trigger and the temporary mobile-integration push trigger were removed so the workflow matches the governed `main` / `staging` branch model.
+
 ## Visual baseline policy
 
-The three historical PR #22 PNG baselines were intentionally not copied. New baselines may be generated only after accepted recovered UI is reviewed; tests must not be made green by blindly replacing snapshots.
+The historical PR #22 PNGs were never copied blindly. The replacement baselines were generated from the recovered UI only after the actual/expected/diff images were reviewed. Future visual changes remain subject to the normal 1% screenshot-difference threshold unless an intentional UI change is reviewed and its baseline explicitly accepted.
 
 ## Current state
 
-`RELEASE_CANDIDATE_PENDING_PR_CI`
+`RELEASE_CANDIDATE_PENDING_FINAL_PR_CI`
 
-The candidate can enter `staging` only after the PR-triggered Dentix Branch Governance, Dentix CI, Playwright/visual checks, production container validation, and Mobile Responsive Gate complete successfully.
+The candidate can enter `staging` only after the final PR head passes Dentix Branch Governance, Dentix Design System Guardrails, Dentix CI, Playwright critical path, visual regression, production container validation, and Dentix Mobile Responsive Gate.
 
 ## After merge
 
