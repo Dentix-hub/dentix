@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import logger from '@/utils/logger';
-import { api, broadcastNotification, deleteNotification, deleteSupportMessage } from '@/api';
+import { api, broadcastNotification, deleteNotification, deleteSupportMessage, getNotifications } from '@/api';
 import SupportInbox from '@/features/admin/SuperAdmin/SupportInbox';
 import NotificationsManager from '@/features/admin/SuperAdmin/NotificationsManager';
 import { MessageSquare } from 'lucide-react';
@@ -17,7 +17,7 @@ export default function CommunicationsPage() {
         try {
             const [msgRes, notifRes, tenRes] = await Promise.all([
                 api.get('/support/messages'),
-                api.get('/api/v1/notifications/'),
+                getNotifications(),
                 api.get('/api/v1/admin/tenants')
             ]);
             setMessages(Array.isArray(msgRes.data) ? msgRes.data : []);
@@ -110,4 +110,3 @@ export default function CommunicationsPage() {
         </div>
     );
 }
-

@@ -1,4 +1,5 @@
 import { api } from './apiClient';
+export { hasSessionCookieHint } from './authSession';
 
 export const login = (username, password) => {
     const formData = new FormData();

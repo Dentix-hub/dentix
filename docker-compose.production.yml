@@ -107,6 +107,7 @@ services:
     restart: always
     environment:
       DOMAIN: ${DOMAIN:-dentixs.app}
+      WWW_DOMAIN: ${WWW_DOMAIN:-www.dentixs.app}
       ACME_EMAIL: ${ACME_EMAIL:-eslam@dentixs.app}
     deploy:
       resources:

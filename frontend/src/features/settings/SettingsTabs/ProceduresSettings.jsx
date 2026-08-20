@@ -1,20 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
 import { getMaterials, getProcedureWeights, setProcedureWeight, deleteProcedureWeight } from '@/api/inventory';
 import * as api from '@/api';
 import { Package, X, Search, Plus, Edit2, Trash2 } from 'lucide-react';
+import { useProcedures } from '@/shared/context/ProceduresContext';
 const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
     const [materials, setMaterials] = useState([]);
     const [weights, setWeights] = useState([]);
     // Form state
     const [selectedMaterial, setSelectedMaterial] = useState('');
     const [amount, setAmount] = useState(1);
-    useEffect(() => {
-        if (isOpen && procedure) {
-            loadData();
-        }
-    }, [isOpen, procedure]);
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         try {
             const [matRes, weightRes] = await Promise.all([
                 getMaterials(),
@@ -25,7 +21,12 @@ const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
         } catch (err) {
             logger.error("Failed to load inventory data", err);
         }
-    };
+    }, [procedure]);
+    useEffect(() => {
+        if (isOpen && procedure) {
+            void loadData();
+        }
+    }, [isOpen, procedure, loadData]);
     const handleAdd = async () => {
         if (!selectedMaterial || amount <= 0) return;
         try {
@@ -125,28 +126,13 @@ const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
     );
 };
 const ProceduresSettings = ({ setMessage }) => {
-    const [procedures, setProcedures] = useState([]);
-    const [isProcLoading, setIsProcLoading] = useState(false);
+    const { procedures, loading: isProcLoading, refresh: refreshProcedures } = useProcedures();
     const [isProcModalOpen, setIsProcModalOpen] = useState(false);
     const [editingProc, setEditingProc] = useState(null);
     const [newProc, setNewProc] = useState({ name: '', price: '' });
     const [procSearch, setProcSearch] = useState('');
     // Material Modal State
     const [materialModal, setMaterialModal] = useState({ open: false, procedure: null });
-    useEffect(() => {
-        loadProcedures();
-    }, []);
-    const loadProcedures = async () => {
-        setIsProcLoading(true);
-        try {
-            const res = await api.getProcedures();
-            setProcedures(res.data);
-        } catch (err) {
-            logger.error(err);
-        } finally {
-            setIsProcLoading(false);
-        }
-    };
     const handleSaveProcedure = async (e) => {
         e.preventDefault();
         try {
@@ -162,7 +148,7 @@ const ProceduresSettings = ({ setMessage }) => {
             setIsProcModalOpen(false);
             setNewProc({ name: '', price: '' });
             setEditingProc(null);
-            loadProcedures();
+            await refreshProcedures();
             setMessage({ type: 'success', text: editingProc ? 'تم تعديل الإجراء بنجاح' : 'تم إضافة الإجراء بنجاح' });
             setTimeout(() => setMessage(null), 3000);
         } catch (err) {
@@ -173,7 +159,7 @@ const ProceduresSettings = ({ setMessage }) => {
         if (!window.confirm('هل أنت متأكد من حذف هذا الإجراء؟')) return;
         try {
             await api.deleteProcedure(id);
-            loadProcedures();
+            await refreshProcedures();
             setMessage({ type: 'success', text: 'تم حذف الإجراء بنجاح' });
             setTimeout(() => setMessage(null), 3000);
         } catch (err) {

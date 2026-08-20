@@ -1,13 +1,16 @@
 import axios from 'axios';
 import { logger } from '../utils/logger';
+import { useAuthStore } from '../store/auth.store';
+import { queryClient } from '../lib/queryClient';
+import { resolveApiBaseUrl } from './apiOrigin';
 
 const getApiUrl = () => {
-    if (import.meta.env.VITE_API_BASE_URL) {
-        return import.meta.env.VITE_API_BASE_URL;
-    }
-
     const hostname = window.location.hostname;
-    const protocol = window.location.protocol;
+    const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL;
+
+    if (configuredBaseUrl) {
+        return resolveApiBaseUrl(configuredBaseUrl, window.location);
+    }
 
     if (hostname.includes('vercel.app')) {
         if (hostname.toLowerCase().includes('staging') ||
@@ -18,11 +21,7 @@ const getApiUrl = () => {
         return 'https://dentix-dentix.hf.space';
     }
 
-    if (hostname === 'localhost' || hostname === '127.0.0.1' || /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname)) {
-        return `${protocol}//${hostname}:8000`;
-    }
-
-    return '';
+    return resolveApiBaseUrl(undefined, window.location);
 };
 
 export const API_URL = getApiUrl();
@@ -146,11 +145,6 @@ api.interceptors.response.use(
 
         // Handle 401 - attempt token refresh via httpOnly cookie
         if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/api/v1/auth/token') && !originalRequest.url?.includes('/api/v1/auth/refresh')) {
-            // Silent auth mode: don't redirect, let the caller handle the error
-            if (originalRequest._silentAuth) {
-                return Promise.reject(error);
-            }
-            
             if (isRefreshing) {
                 return new Promise(function (resolve, reject) {
                     failedQueue.push({ resolve, reject });
@@ -183,10 +177,45 @@ api.interceptors.response.use(
 
                 const errorDetail = err.response?.data?.detail;
                 if (errorDetail && typeof errorDetail === 'string' && (errorDetail.includes('جهاز آخر') || errorDetail.includes('Session Mismatch'))) {
-                    window.location.href = '/login?reason=session_mismatch';
-                    return new Promise(() => { });
+                    useAuthStore.getState().setLoading(true);
+
+                    try {
+                        await axios.post(`${API_URL}/api/v1/auth/logout`, null, {
+                            withCredentials: true,
+                            timeout: 5000,
+                        });
+                    } catch (logoutError) {
+                        logger.warn('[API] Best-effort logout failed after session mismatch', logoutError);
+                    }
+
+                    try {
+                        await queryClient.cancelQueries();
+                    } catch (queryCancellationError) {
+                        logger.warn('[API] Query cancellation failed during session cleanup', queryCancellationError);
+                    }
+                    queryClient.clear();
+
+                    try {
+                        const { useTenantStore } = await import('../store/tenant.store');
+                        useTenantStore.getState().clearTenant();
+                    } catch (tenantCleanupError) {
+                        logger.warn('[API] Tenant cleanup failed after session mismatch', tenantCleanupError);
+                    }
+
+                    sessionStorage.removeItem('admin_token');
+                    sessionStorage.removeItem('print_rx_data');
+                    useAuthStore.getState().clearAuth();
+                    window.location.replace('/login?reason=session_mismatch');
+                    return Promise.reject(err);
                 }
 
+                // The in-memory user can outlive expired/revoked httpOnly cookies.
+                // Clear it immediately so authenticated polling components unmount
+                // instead of continuing to send requests with a stale session.
+                useAuthStore.getState().clearAuth();
+                if (originalRequest._silentAuth) {
+                    return Promise.reject(err);
+                }
                 window.location.href = '/';
                 return Promise.reject(err);
             } finally {

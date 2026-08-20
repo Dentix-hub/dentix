@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import logger from '@/utils/logger';
-import { api } from '@/api';
+import {
+    api,
+    deleteSubscriptionPayment,
+    getSubscriptionPayments,
+    getSubscriptionPlans,
+    recordSubscriptionPayment,
+    updateSubscriptionPlan,
+} from '@/api';
 import PaymentsManager from '@/features/admin/SuperAdmin/PaymentsManager';
 import PlansManager from '@/features/admin/SuperAdmin/PlansManager';
 import ActiveSubscriptions from '@/features/admin/SuperAdmin/ActiveSubscriptions';
@@ -35,20 +42,31 @@ export default function FinancePage() {
 
     const fetchData = async () => {
         setLoading(true);
-        try {
-            const [payRes, tenRes, planRes] = await Promise.all([
-                api.get('/api/v1/payments'),
-                api.get('/api/v1/admin/tenants'), // Needed for filtering payments
-                api.get('/api/v1/admin/subscriptions/plans')
-            ]);
-            setPayments(Array.isArray(payRes.data) ? payRes.data : []);
-            setTenants(Array.isArray(tenRes.data) ? tenRes.data : []);
-            setPlans(Array.isArray(planRes.data) ? planRes.data : []);
-        } catch (err) {
-            logger.error(err);
-        } finally {
-            setLoading(false);
+        const [paymentsResult, tenantsResult, plansResult] = await Promise.allSettled([
+            getSubscriptionPayments(),
+            api.get('/api/v1/admin/tenants'), // Needed for filtering payments
+            getSubscriptionPlans(),
+        ]);
+
+        if (paymentsResult.status === 'fulfilled') {
+            setPayments(Array.isArray(paymentsResult.value.data) ? paymentsResult.value.data : []);
+        } else {
+            logger.error('Failed to load subscription payments:', paymentsResult.reason);
         }
+
+        if (tenantsResult.status === 'fulfilled') {
+            setTenants(Array.isArray(tenantsResult.value.data) ? tenantsResult.value.data : []);
+        } else {
+            logger.error('Failed to load tenants:', tenantsResult.reason);
+        }
+
+        if (plansResult.status === 'fulfilled') {
+            setPlans(Array.isArray(plansResult.value.data) ? plansResult.value.data : []);
+        } else {
+            logger.error('Failed to load subscription plans:', plansResult.reason);
+        }
+
+        setLoading(false);
     };
 
     useEffect(() => {
@@ -57,7 +75,7 @@ export default function FinancePage() {
 
     const handleSavePlan = async (planId) => {
         try {
-            await api.put(`/api/v1/admin/subscriptions/plans/${planId}`, editedPlanData);
+            await updateSubscriptionPlan(planId, editedPlanData);
             setEditingPlan(null);
             setEditedPlanData({});
             fetchData();
@@ -88,7 +106,7 @@ export default function FinancePage() {
         }
         setProcessing(true);
         try {
-            await api.post('/api/v1/payments', paymentForm);
+            await recordSubscriptionPayment(paymentForm);
             setShowPaymentModal(false);
             setPaymentForm({
                 tenant_id: '',
@@ -176,7 +194,7 @@ export default function FinancePage() {
                     onDelete={async (id) => {
                         if (!window.confirm('هل أنت متأكد من حذف هذه الدفعة؟')) return;
                         try {
-                            await api.delete(`/api/v1/payments/${id}`);
+                            await deleteSubscriptionPayment(id);
                             fetchData();
                             toast.success('تم حذف الدفعة بنجاح');
                         } catch (err) {
