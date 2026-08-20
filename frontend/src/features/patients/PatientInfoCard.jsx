@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Edit2, FileText, Hash, Plus, User as UserIcon, Phone, MapPin } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getPriceList } from '@/api';
@@ -9,7 +9,6 @@ const PriceListBadge = ({ priceListId, t }) => {
 
     useEffect(() => {
         if (!priceListId) return;
-
         getPriceList(priceListId)
             .then((res) => {
                 setName(res.data.name);
@@ -18,18 +17,19 @@ const PriceListBadge = ({ priceListId, t }) => {
             .catch(() => setName(t('patientDetails.info_card.not_found')));
     }, [priceListId, t]);
 
-    if (!priceListId) return (
-        <span className="bg-slate-100 dark:bg-slate-800/50 text-slate-500 px-3 py-1 rounded-full text-xs font-bold border border-slate-200 dark:border-slate-700">
-            {t('patientDetails.info_card.basic_plan')}
-        </span>
-    );
+    if (!priceListId) {
+        return (
+            <span className="inline-flex min-h-7 max-w-full items-center rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500 dark:border-slate-700 dark:bg-slate-800/50">
+                {t('patientDetails.info_card.basic_plan')}
+            </span>
+        );
+    }
 
     return (
-        <span className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1 transition-all ${isInsurance
-            ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800'
-            : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800'
-            }`}>
-            {name || t('common.loading', 'Loading...')}
+        <span className={`inline-flex min-h-7 max-w-full items-center gap-1 rounded-full border px-3 py-1 text-xs font-bold transition-all ${isInsurance
+            ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400'
+            : 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-400'}`}>
+            <span className="min-w-0 truncate">{name || t('common.loading', 'Loading...')}</span>
         </span>
     );
 };
@@ -40,8 +40,7 @@ function calculateExactAge(dateOfBirth) {
     if (Number.isNaN(dob.getTime())) return null;
     const today = new Date();
     let age = today.getFullYear() - dob.getFullYear();
-    const hasHadBirthday =
-        today.getMonth() > dob.getMonth()
+    const hasHadBirthday = today.getMonth() > dob.getMonth()
         || (today.getMonth() === dob.getMonth() && today.getDate() >= dob.getDate());
     if (!hasHadBirthday) age -= 1;
     return Math.max(0, age);
@@ -49,7 +48,6 @@ function calculateExactAge(dateOfBirth) {
 
 const PatientInfoCard = ({ patient, onEdit, onPrescription, onNewAppointment }) => {
     const { t } = useTranslation();
-
     const computedAge = useMemo(() => {
         if (patient?.date_of_birth && patient?.date_of_birth_precision === 'exact') {
             return calculateExactAge(patient.date_of_birth);
@@ -59,66 +57,60 @@ const PatientInfoCard = ({ patient, onEdit, onPrescription, onNewAppointment }) 
 
     if (!patient) return null;
 
+    const actionClass = 'inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold transition-colors focus:outline-none focus:ring-2 sm:rounded-2xl sm:px-5';
+
     return (
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col lg:flex-row justify-between lg:items-center gap-6 animate-in fade-in slide-in-from-top-4 duration-500">
+        <section className="flex min-w-0 flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500 dark:border-slate-700 dark:bg-slate-800 sm:gap-5 sm:p-5 sm:rounded-3xl lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:p-6">
             <div className="min-w-0 space-y-2">
-                <div className="flex items-center gap-3 flex-wrap">
-                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white tracking-tight" dir="auto">
+                <div className="flex min-w-0 flex-col items-start gap-2 min-[360px]:flex-row min-[360px]:flex-wrap min-[360px]:items-center min-[360px]:gap-3">
+                    <h2 className="min-w-0 break-words text-xl font-bold tracking-tight text-slate-800 dark:text-white sm:text-2xl" dir="auto">
                         {patient.name}
                     </h2>
                     <PriceListBadge priceListId={patient.default_price_list_id} t={t} />
                 </div>
-                <div className="flex flex-wrap gap-x-4 gap-y-2 text-slate-500 dark:text-slate-400 text-sm font-bold items-center">
-                    <span dir="ltr" className="flex items-center gap-1.5">
-                        <Hash size={14} className="text-primary" aria-hidden="true" />
-                        {patient.file_number || patient.id}
+
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-xs font-bold text-slate-500 dark:text-slate-400 sm:gap-x-4 sm:text-sm">
+                    <span dir="ltr" className="inline-flex min-h-7 items-center gap-1.5">
+                        <Hash size={14} className="shrink-0 text-primary" aria-hidden="true" />
+                        <span className="break-all">{patient.file_number || patient.id}</span>
                     </span>
-                    <span className="opacity-20 hidden md:block">•</span>
-                    <span className="flex items-center gap-1.5">
-                        <UserIcon size={14} className="text-primary" aria-hidden="true" />
-                        {computedAge !== null ? t('patientDetails.info_card.age_years', { age: computedAge }) : t('patientDetails.info_card.age_unknown')}
+                    <span className="hidden opacity-20 md:block">•</span>
+                    <span className="inline-flex min-h-7 items-center gap-1.5">
+                        <UserIcon size={14} className="shrink-0 text-primary" aria-hidden="true" />
+                        <span>{computedAge !== null ? t('patientDetails.info_card.age_years', { age: computedAge }) : t('patientDetails.info_card.age_unknown')}</span>
                     </span>
-                    <span className="opacity-20 hidden md:block">•</span>
-                    <span dir="ltr" className="flex items-center gap-1.5">
-                        <Phone size={14} className="text-primary" aria-hidden="true" />
-                        {patient.phone || t('patientDetails.info_card.no_phone')}
+                    <span className="hidden opacity-20 md:block">•</span>
+                    <span dir="ltr" className="inline-flex min-h-7 max-w-full items-center gap-1.5">
+                        <Phone size={14} className="shrink-0 text-primary" aria-hidden="true" />
+                        <span className="break-all">{patient.phone || t('patientDetails.info_card.no_phone')}</span>
                     </span>
                     {patient.address && (
                         <>
-                            <span className="opacity-20 hidden md:block">•</span>
-                            <div className="flex items-center gap-1.5 min-w-0" dir="auto">
-                                <MapPin size={14} className="text-primary shrink-0" aria-hidden="true" />
-                                <span className="truncate">{patient.address}</span>
-                            </div>
+                            <span className="hidden opacity-20 md:block">•</span>
+                            <span className="inline-flex min-w-0 max-w-full items-center gap-1.5" dir="auto">
+                                <MapPin size={14} className="shrink-0 text-primary" aria-hidden="true" />
+                                <span className="min-w-0 break-words">{patient.address}</span>
+                            </span>
                         </>
                     )}
                 </div>
             </div>
 
-            <div className="flex flex-wrap gap-3">
-                <button
-                    type="button"
-                    onClick={onPrescription}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-teal-50 dark:bg-teal-900/30 font-bold rounded-2xl text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/50 transition-all active:scale-95 border border-teal-100 dark:border-teal-800/50 focus:outline-none focus:ring-2 focus:ring-teal-400/40"
-                >
-                    <FileText size={18} aria-hidden="true" /> {t('patientDetails.info_card.prescription')}
+            <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[420px]:grid-cols-3 lg:w-auto lg:min-w-fit">
+                <button type="button" onClick={onPrescription} className={`${actionClass} border border-teal-100 bg-teal-50 text-teal-700 hover:bg-teal-100 focus:ring-teal-400/40 dark:border-teal-800/50 dark:bg-teal-900/30 dark:text-teal-300 dark:hover:bg-teal-900/50`}>
+                    <FileText size={18} className="shrink-0" aria-hidden="true" />
+                    <span className="min-w-0 truncate">{t('patientDetails.info_card.prescription')}</span>
                 </button>
-                <button
-                    type="button"
-                    onClick={onEdit}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-slate-50 dark:bg-slate-700/50 font-bold rounded-2xl text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all active:scale-95 border border-slate-200 dark:border-slate-600/50 focus:outline-none focus:ring-2 focus:ring-primary/30"
-                >
-                    <Edit2 size={18} aria-hidden="true" /> {t('patientDetails.info_card.edit_data')}
+                <button type="button" onClick={onEdit} className={`${actionClass} border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 focus:ring-primary/30 dark:border-slate-600/50 dark:bg-slate-700/50 dark:text-slate-200 dark:hover:bg-slate-700`}>
+                    <Edit2 size={18} className="shrink-0" aria-hidden="true" />
+                    <span className="min-w-0 truncate">{t('patientDetails.info_card.edit_data')}</span>
                 </button>
-                <button
-                    type="button"
-                    onClick={onNewAppointment}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-primary font-bold rounded-2xl text-white hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-2"
-                >
-                    <Plus size={18} aria-hidden="true" /> {t('patientDetails.info_card.new_appointment')}
+                <button type="button" onClick={onNewAppointment} className={`${actionClass} bg-primary text-white shadow-medium hover:bg-primary-hover focus:ring-primary/40 focus:ring-offset-2`}>
+                    <Plus size={18} className="shrink-0" aria-hidden="true" />
+                    <span className="min-w-0 truncate">{t('patientDetails.info_card.new_appointment')}</span>
                 </button>
             </div>
-        </div>
+        </section>
     );
 };
 

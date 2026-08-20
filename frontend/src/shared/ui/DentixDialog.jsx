@@ -35,9 +35,6 @@ export default function DentixDialog({
     const wasOpenRef = useRef(false);
     const resolvedMaxWidth = maxWidth || SIZE_MAP[size] || SIZE_MAP.md;
 
-    // Capture the invoking element before Radix mounts the focus scope. Capturing
-    // in onOpenAutoFocus is too late in a real browser because focus may already
-    // have moved into the portal by then.
     if (open && !wasOpenRef.current && typeof document !== 'undefined') {
         previouslyFocusedRef.current = document.activeElement;
     }
@@ -64,10 +61,10 @@ export default function DentixDialog({
                         }
                     }}
                     className={`
-                        fixed left-1/2 top-1/2 z-modal w-[calc(100%-2rem)] ${resolvedMaxWidth}
+                        fixed left-1/2 top-1/2 z-modal w-[calc(100%-1rem)] ${resolvedMaxWidth}
                         -translate-x-1/2 -translate-y-1/2 border border-border bg-surface-elevated
                         text-text-primary shadow-high rounded-overlay
-                        max-h-[calc(100dvh-2rem)]
+                        max-h-[calc(100dvh-1rem)] overscroll-contain sm:w-[calc(100%-2rem)] sm:max-h-[calc(100dvh-2rem)]
                         data-[state=open]:animate-in data-[state=closed]:animate-out
                         data-[state=open]:fade-in data-[state=closed]:fade-out
                         data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95
@@ -76,21 +73,21 @@ export default function DentixDialog({
                         ${className}
                     `}
                 >
-                    <div className="sticky top-0 z-sticky flex items-center justify-between gap-4 border-b border-border bg-surface-elevated px-4 py-3 md:px-6">
-                        <DialogPrimitive.Title className={title ? 'text-type-section text-text-primary' : 'sr-only'}>
+                    <div className="sticky top-0 z-sticky flex min-w-0 items-center justify-between gap-3 border-b border-border bg-surface-elevated px-3 py-2.5 sm:px-4 sm:py-3 md:px-6">
+                        <DialogPrimitive.Title className={title ? 'min-w-0 break-words text-base font-bold text-text-primary sm:text-type-section' : 'sr-only'}>
                             {title || 'Dialog'}
                         </DialogPrimitive.Title>
                         <DialogPrimitive.Close asChild>
                             <button
                                 type="button"
                                 aria-label={closeLabel}
-                                className="ms-auto inline-flex h-9 w-9 items-center justify-center rounded-control text-text-muted transition-colors duration-fast hover:bg-surface-subtle hover:text-text-primary focus-visible:ring-focus"
+                                className="ms-auto inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-control text-text-muted transition-colors duration-fast hover:bg-surface-subtle hover:text-text-primary focus-visible:ring-focus"
                             >
                                 <X size={20} aria-hidden="true" />
                             </button>
                         </DialogPrimitive.Close>
                     </div>
-                    <div className={`relative px-4 py-4 md:px-6 md:py-5 ${scrollable ? '' : 'min-h-0 flex-1 overflow-y-auto'}`}>
+                    <div className={`relative min-w-0 px-3 py-3 sm:px-4 sm:py-4 md:px-6 md:py-5 ${scrollable ? '' : 'min-h-0 flex-1 overflow-y-auto overscroll-contain'}`}>
                         {children}
                     </div>
                 </DialogPrimitive.Content>

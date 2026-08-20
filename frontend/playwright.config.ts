@@ -26,7 +26,7 @@ export default defineConfig({
     },
     {
       name: 'chromium',
-      testIgnore: [/setup\.spec\.ts/, /ui-regression\.spec\.ts/],
+      testIgnore: [/setup\.spec\.ts/, /ui-regression\.spec\.ts/, /mobile-responsive\.spec\.ts/],
       use: { ...devices['Desktop Chrome'] },
       dependencies: ['setup'],
     },
@@ -40,6 +40,43 @@ export default defineConfig({
       name: 'visual-mobile',
       testMatch: /ui-regression\.spec\.ts/,
       use: { ...devices['Pixel 7'] },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'mobile-compact-320',
+      testMatch: /mobile-responsive\.spec\.ts/,
+      use: {
+        ...devices['Pixel 7'],
+        viewport: { width: 320, height: 640 },
+      },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'mobile-ar',
+      testMatch: /mobile-responsive\.spec\.ts/,
+      use: {
+        ...devices['Pixel 7'],
+        viewport: { width: 390, height: 844 },
+      },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'mobile-en',
+      testMatch: /mobile-responsive\.spec\.ts/,
+      use: {
+        ...devices['Pixel 7'],
+        viewport: { width: 412, height: 915 },
+      },
+      dependencies: ['setup'],
+    },
+    {
+      name: 'tablet',
+      testMatch: /mobile-responsive\.spec\.ts/,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 768, height: 1024 },
+        hasTouch: true,
+      },
       dependencies: ['setup'],
     },
   ],

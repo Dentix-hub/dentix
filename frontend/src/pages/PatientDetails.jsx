@@ -1,5 +1,5 @@
-import { useState, useCallback, memo, Suspense, lazy } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { lazy, memo, Suspense, useCallback, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import DentalChartSVG from '@/features/dental/DentalChartSVG';
 import PatientInfoCard from '@/features/patients/PatientInfoCard';
 import { useProcedures } from '@/shared/context/ProceduresContext';
@@ -7,10 +7,9 @@ import TreatmentModal from '@/shared/ui/modals/TreatmentModal';
 import PrescriptionModal from '@/shared/ui/modals/PrescriptionModal';
 import PaymentModal from '@/shared/ui/modals/PaymentModal';
 import EditPatientModal from '@/features/patients/modals/EditPatientModal.jsx';
-import { SkeletonBox, Breadcrumb, TabGroup } from '@/shared/ui';
+import { Breadcrumb, Modal, SkeletonBox, TabGroup, toast } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
 import { useHotkeys } from 'react-hotkeys-hook';
-// Hooks for lazy data loading
 import {
     usePatient,
     usePatientTeeth,
@@ -21,25 +20,24 @@ import {
     useDeletePayment
 } from '@/hooks/usePatientDetails';
 import { useTreatmentOperations } from '@/features/patients/hooks/useTreatmentOperations';
-import { Baby, User as X } from 'lucide-react';
+import { Baby } from 'lucide-react';
 import { toothToNumber, fdiToPalmer, getTodayStr, universalToPalmer } from '../utils/toothUtils';
 import {
-    updatePatient, deleteTreatment,
-    uploadAttachment, deleteAttachment,
+    updatePatient,
+    deleteTreatment,
+    uploadAttachment,
+    deleteAttachment,
     createPrescription
 } from '../api';
-import { toast } from '@/shared/ui';
 
-// Lazy load tab components
 const TreatmentHistory = lazy(() => import('@/features/patients/PatientTabs/TreatmentHistory'));
 const PatientFiles = lazy(() => import('@/features/patients/PatientTabs/PatientFiles'));
 const PatientBilling = lazy(() => import('@/features/patients/PatientTabs/PatientBilling'));
 const LabOrdersTab = lazy(() => import('@/features/lab/LabOrdersTab'));
 const PatientTimeline = lazy(() => import('@/features/patients/PatientTabs/PatientTimeline'));
 
-// Tab skeleton component
 const TabSkeleton = memo(() => (
-    <div className="space-y-4 p-4">
+    <div className="space-y-3 p-2 sm:space-y-4 sm:p-4">
         <SkeletonBox height="4rem" className="rounded-xl" />
         <SkeletonBox height="4rem" className="rounded-xl" />
         <SkeletonBox height="4rem" className="rounded-xl" />
@@ -47,15 +45,12 @@ const TabSkeleton = memo(() => (
 ));
 TabSkeleton.displayName = 'TabSkeleton';
 
-// Patient info skeleton
 const PatientInfoSkeleton = memo(() => (
-    <div className="bg-surface rounded-3xl p-6 border border-border animate-pulse">
-        <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-slate-200 dark:bg-slate-700 rounded-2xl" />
-            <div className="flex-1 space-y-2">
-                <div className="h-6 bg-slate-200 dark:bg-slate-700 rounded w-48" />
-                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-32" />
-            </div>
+    <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-border bg-surface p-3 animate-pulse sm:gap-4 sm:rounded-3xl sm:p-6">
+        <div className="h-12 w-12 shrink-0 rounded-xl bg-slate-200 dark:bg-slate-700 sm:h-16 sm:w-16 sm:rounded-2xl" />
+        <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-6 w-2/3 max-w-48 rounded bg-slate-200 dark:bg-slate-700" />
+            <div className="h-4 w-1/2 max-w-32 rounded bg-slate-200 dark:bg-slate-700" />
         </div>
     </div>
 ));
@@ -69,42 +64,39 @@ export default function PatientDetails() {
     const initialTab = searchParams.get('tab') || 'chart';
     const [activeTab, setActiveTab] = useState(initialTab);
 
-    // Sync tab changes to URL
     const handleTabChange = (tabId) => {
         setActiveTab(tabId);
         setSearchParams({ tab: tabId }, { replace: true });
     };
 
-    // Cache procedures from context
     const { procedures } = useProcedures();
-
-    // Feature Toggle
     const [isPediatric, setIsPediatric] = useState(false);
 
-    // === LAZY DATA LOADING ===
-    // Patient core data - loads immediately
-    const { data: patient, isLoading: patientLoading, isError: patientIsError, error: patientError, refetch: refetchPatient } = usePatient(id);
-    // Teeth data - loads for chart tab (default)
+    const {
+        data: patient,
+        isLoading: patientLoading,
+        isError: patientIsError,
+        error: patientError,
+        refetch: refetchPatient
+    } = usePatient(id);
     const { data: teethStatus = {}, isLoading: teethLoading, refetch: refetchTeeth } = usePatientTeeth(id, true);
-    // Tab-specific data - only loads when tab is active
     const { data: history = [], refetch: refetchHistory } = usePatientTreatments(
         id,
-        activeTab === 'history' || activeTab === 'billing' || activeTab === 'timeline' // Also needed for timeline
+        activeTab === 'history' || activeTab === 'billing' || activeTab === 'timeline'
     );
     const { data: payments = [] } = usePatientPayments(
         id,
-        activeTab === 'billing' || activeTab === 'timeline' // Also needed for timeline
+        activeTab === 'billing' || activeTab === 'timeline'
     );
-    const { data: attachments = [], isLoading: attachmentsLoading, refetch: refetchAttachments } = usePatientAttachments(
-        id,
-        activeTab === 'files'
-    );
+    const {
+        data: attachments = [],
+        isLoading: attachmentsLoading,
+        refetch: refetchAttachments
+    } = usePatientAttachments(id, activeTab === 'files');
 
-    // Local state for teeth (to allow optimistic updates)
     const [localTeethStatus] = useState(null);
     const effectiveTeethStatus = localTeethStatus ?? teethStatus;
 
-    // Modals
     const [isEditPatientOpen, setIsEditPatientOpen] = useState(false);
     const [isRxModalOpen, setIsRxModalOpen] = useState(false);
     const [isTreatmentModalOpen, setIsTreatmentModalOpen] = useState(false);
@@ -112,20 +104,25 @@ export default function PatientDetails() {
     const [isToothSelectModalOpen, setIsToothSelectModalOpen] = useState(false);
 
     const getInitialTreatment = () => ({
-        date: getTodayStr(), diagnosis: '', procedure: '', cost: '', discount: '',
-        tooth_number: '', canal_count: '', canals: [{ name: '', length: '' }],
-        sessions: '', complications: '', notes: ''
+        date: getTodayStr(),
+        diagnosis: '',
+        procedure: '',
+        cost: '',
+        discount: '',
+        tooth_number: '',
+        canal_count: '',
+        canals: [{ name: '', length: '' }],
+        sessions: '',
+        complications: '',
+        notes: ''
     });
 
     const [newTreatment, setNewTreatment] = useState(getInitialTreatment());
     const [editingTreatmentId, setEditingTreatmentId] = useState(null);
     const [selectedToothCondition, setSelectedToothCondition] = useState('Healthy');
 
-    // === MUTATION HOOKS ===
     const { mutateAsync: createPaymentMutate } = useCreatePayment();
     const { mutateAsync: deletePaymentMutate } = useDeletePayment();
-
-    // === CUSTOM HOOK FOR TREATMENT OPERATIONS ===
 
     const { handleSaveTreatment } = useTreatmentOperations({
         patientId: id,
@@ -137,25 +134,24 @@ export default function PatientDetails() {
         selectedToothCondition
     });
 
-    // === HANDLERS ===
-    const handleFileUpload = useCallback(async (e) => {
-        const file = e.target.files[0];
+    const handleFileUpload = useCallback(async (event) => {
+        const file = event.target.files[0];
         if (!file) return;
         try {
             await uploadAttachment(id, file);
             refetchAttachments();
-        } catch (err) {
+        } catch {
             toast.error(t('patient_details.alerts.upload_fail'));
         }
     }, [id, refetchAttachments, t]);
 
     const handleDeleteAttachment = useCallback(async (attachmentId) => {
-        if (!confirm('Delete this file?')) return;
+        if (!window.confirm('Delete this file?')) return;
         try {
             await deleteAttachment(attachmentId);
             refetchAttachments();
-        } catch (err) {
-            // Silent error
+        } catch {
+            // Preserve existing silent attachment-delete failure behavior.
         }
     }, [refetchAttachments]);
 
@@ -164,11 +160,10 @@ export default function PatientDetails() {
         const current = effectiveTeethStatus[fdi]?.condition || 'Healthy';
         setSelectedToothCondition(current);
         const palmerPrefix = universalToPalmer(number, isPediatric);
-
         setNewTreatment({
             ...getInitialTreatment(),
             tooth_number: palmerPrefix,
-            default_price_list_id: patient?.default_price_list_id // Inject default price list
+            default_price_list_id: patient?.default_price_list_id
         });
         setIsTreatmentModalOpen(true);
     }, [effectiveTeethStatus, isPediatric, patient]);
@@ -179,8 +174,8 @@ export default function PatientDetails() {
             setIsEditPatientOpen(false);
             refetchPatient();
             toast.success(t('patients.update_success'));
-        } catch (err) {
-            toast.error(t('common.error') + ': ' + (err.response?.data?.detail || err.message));
+        } catch (error) {
+            toast.error(`${t('common.error')}: ${error.response?.data?.detail || error.message}`);
         }
     }, [id, refetchPatient, t]);
 
@@ -193,9 +188,8 @@ export default function PatientDetails() {
             await createPaymentMutate({ ...data, patient_id: parseInt(id, 10) });
             setIsPaymentModalOpen(false);
             toast.success(t('finance.pay_success', 'تم الدفع بنجاح'));
-            // refetchPayments is handled by onSettled in hook
-        } catch (err) {
-            toast.error(err.response?.data?.detail || t('patient_details.alerts.payment_save_fail'));
+        } catch (error) {
+            toast.error(error.response?.data?.detail || t('patient_details.alerts.payment_save_fail'));
         }
     }, [id, createPaymentMutate, t]);
 
@@ -215,7 +209,9 @@ export default function PatientDetails() {
         try {
             const parsed = item.canal_lengths ? JSON.parse(item.canal_lengths) : null;
             if (Array.isArray(parsed) && parsed.length) canals = parsed;
-        } catch { /* ignore */ }
+        } catch {
+            // Preserve empty-canal fallback for malformed historical data.
+        }
 
         setNewTreatment({
             id: item.id,
@@ -245,8 +241,8 @@ export default function PatientDetails() {
             await deleteTreatment(treatmentId);
             refetchHistory();
             toast.success(t('common.delete_success', 'تم الحذف بنجاح'));
-        } catch (err) {
-            toast.error(err.response?.data?.detail || t('patient_details.alerts.delete_treatment_fail'));
+        } catch (error) {
+            toast.error(error.response?.data?.detail || t('patient_details.alerts.delete_treatment_fail'));
         }
     }, [refetchHistory, t]);
 
@@ -255,9 +251,8 @@ export default function PatientDetails() {
         try {
             await deletePaymentMutate({ paymentId, patientId: parseInt(id, 10) });
             toast.success(t('common.delete_success', 'تم الحذف بنجاح'));
-            // refetchPayments is handled by onSettled in hook
-        } catch (err) {
-            toast.error(err.response?.data?.detail || t('patient_details.alerts.delete_payment_fail'));
+        } catch (error) {
+            toast.error(error.response?.data?.detail || t('patient_details.alerts.delete_payment_fail'));
         }
     }, [id, deletePaymentMutate, t]);
 
@@ -273,62 +268,63 @@ export default function PatientDetails() {
                 notes: notes || ''
             };
             const res = await createPrescription(payload);
-            sessionStorage.setItem('print_rx_data', JSON.stringify({
-                patient,
-                prescription: res.data
-            }));
+            sessionStorage.setItem('print_rx_data', JSON.stringify({ patient, prescription: res.data }));
             setIsRxModalOpen(false);
             window.open(`/print/rx/${id}`, '_blank');
-        } catch (err) {
-            toast.error(err.response?.data?.detail || t('patient_details.alerts.rx_fail'));
+        } catch (error) {
+            toast.error(error.response?.data?.detail || t('patient_details.alerts.rx_fail'));
         }
-    }, [id, patient, navigate, t]);
+    }, [id, patient, t]);
 
-    // === KEYBOARD SHORTCUTS ===
-    useHotkeys('n', (e) => {
-        e.preventDefault();
+    useHotkeys('n', (event) => {
+        event.preventDefault();
         handleNewAppointment();
     }, [handleNewAppointment]);
 
-    useHotkeys('t', (e) => {
-        e.preventDefault();
+    useHotkeys('t', (event) => {
+        event.preventDefault();
         setIsToothSelectModalOpen(true);
     });
 
-    useHotkeys('e', (e) => {
-        e.preventDefault();
+    useHotkeys('e', (event) => {
+        event.preventDefault();
         setIsEditPatientOpen(true);
     });
 
     return (
-        <div className="space-y-6 p-4 md:p-6">
+        <div className="min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-10">
             {!patientIsError && !patientLoading && patient && (
-                <Breadcrumb items={[
-                    { label: t('sidebar.patients'), to: '/patients' },
-                    { label: patient.name }
-                ]} />
+                <div className="min-w-0 overflow-hidden">
+                    <Breadcrumb items={[
+                        { label: t('sidebar.patients'), to: '/patients' },
+                        { label: patient.name }
+                    ]} />
+                </div>
             )}
+
             {patientIsError ? (
-                <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-red-700">
-                    <div className="font-bold mb-1">{t('patient_details.loading_error')}</div>
-                    <div className="text-sm">
+                <section className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-700 sm:p-4">
+                    <h2 className="mb-1 font-bold text-red-700">{t('patient_details.loading_error')}</h2>
+                    <p className="break-words text-sm text-red-700">
                         {patientError?.response?.data?.detail || patientError?.message || t('patient_details.unknown_error')}
-                    </div>
-                    <div className="mt-3 flex gap-2">
+                    </p>
+                    <div className="mt-3 grid grid-cols-1 gap-2 min-[360px]:grid-cols-2 sm:flex">
                         <button
+                            type="button"
                             onClick={() => refetchPatient()}
-                            className="px-4 py-2 bg-white border border-red-200 rounded-lg text-sm font-bold hover:bg-red-50"
+                            className="min-h-11 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-700 transition-colors hover:bg-red-50"
                         >
                             {t('patient_details.retry')}
                         </button>
                         <button
+                            type="button"
                             onClick={() => navigate('/')}
-                            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700"
+                            className="min-h-11 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-red-700"
                         >
                             {t('patient_details.login')}
                         </button>
                     </div>
-                </div>
+                </section>
             ) : patientLoading ? (
                 <PatientInfoSkeleton />
             ) : patient ? (
@@ -339,13 +335,12 @@ export default function PatientDetails() {
                     onNewAppointment={handleNewAppointment}
                 />
             ) : (
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-700">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
                     {t('patient_details.no_data')}
                 </div>
             )}
-            {/* Content Cards */}
-            <div className="bg-surface border border-border rounded-2xl p-6 shadow-sm min-h-[600px]">
-                {/* Tabs */}
+
+            <section className="min-h-[32rem] min-w-0 rounded-2xl border border-border bg-surface p-2 shadow-sm sm:p-4 lg:min-h-[600px] lg:p-6">
                 <TabGroup
                     activeTab={activeTab}
                     onChange={handleTabChange}
@@ -359,28 +354,29 @@ export default function PatientDetails() {
                     ]}
                 />
 
-                {/* Tab Content */}
-                <div className="mt-8">
+                <div className="mt-4 min-w-0 sm:mt-6 lg:mt-8">
                     <Suspense fallback={<TabSkeleton />}>
                         {activeTab === 'chart' && (
-                            <div className="space-y-4">
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                                    <div>
-                                        <h3 className="font-bold text-slate-800">{t('patient_details.chart.title')}</h3>
-                                        <p className="text-xs text-slate-500">{t('patient_details.chart.subtitle')}</p>
+                            <div className="min-w-0 space-y-4">
+                                <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                    <div className="min-w-0">
+                                        <h3 className="break-words font-bold text-slate-800 dark:text-white">{t('patient_details.chart.title')}</h3>
+                                        <p className="mt-1 break-words text-xs text-slate-500 dark:text-slate-400">{t('patient_details.chart.subtitle')}</p>
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="grid w-full grid-cols-1 gap-2 min-[400px]:grid-cols-2 md:w-auto">
                                         <button
-                                            onClick={() => setIsPediatric(v => !v)}
-                                            className={`px-4 py-2 rounded-xl text-sm font-bold border transition-colors ${isPediatric ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
+                                            type="button"
+                                            onClick={() => setIsPediatric(value => !value)}
+                                            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition-colors ${isPediatric ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300' : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}
                                             title={t('patient_details.chart.pediatric_mode')}
                                         >
-                                            <Baby size={16} className="inline-block scale-x-[-1] ms-2 rtl:ms-0 rtl:me-2" />
-                                            {isPediatric ? t('patient_details.chart.child') : t('patient_details.chart.adult')}
+                                            <Baby size={16} className="shrink-0" aria-hidden="true" />
+                                            <span>{isPediatric ? t('patient_details.chart.child') : t('patient_details.chart.adult')}</span>
                                         </button>
                                         <button
+                                            type="button"
                                             onClick={() => setIsToothSelectModalOpen(true)}
-                                            className="px-4 py-2 rounded-xl text-sm font-bold bg-emerald-500 text-white hover:bg-emerald-600"
+                                            className="min-h-11 rounded-xl bg-emerald-500 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-emerald-600"
                                         >
                                             {t('patient_details.chart.new_treatment')}
                                         </button>
@@ -398,13 +394,7 @@ export default function PatientDetails() {
                             </div>
                         )}
 
-                        {activeTab === 'timeline' && (
-                            <PatientTimeline 
-                                history={history} 
-                                payments={payments} 
-                                t={t} 
-                            />
-                        )}
+                        {activeTab === 'timeline' && <PatientTimeline history={history} payments={payments} t={t} />}
 
                         {activeTab === 'history' && (
                             <TreatmentHistory
@@ -436,14 +426,11 @@ export default function PatientDetails() {
                             />
                         )}
 
-                        {activeTab === 'labs' && (
-                            <LabOrdersTab patientId={id} />
-                        )}
+                        {activeTab === 'labs' && <LabOrdersTab patientId={id} />}
                     </Suspense>
                 </div>
-            </div>
+            </section>
 
-            {/* Edit Patient Modal */}
             <EditPatientModal
                 isOpen={isEditPatientOpen}
                 onClose={() => setIsEditPatientOpen(false)}
@@ -474,54 +461,40 @@ export default function PatientDetails() {
                 onAdd={handleSavePayment}
             />
 
-            {isToothSelectModalOpen && (
-                <div 
-                    className="fixed inset-0 flex items-center justify-center p-4 z-[60]"
-                    onClick={(e) => e.target === e.currentTarget && setIsToothSelectModalOpen(false)}
-                >
-                    <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-                    <div className="bg-surface border border-border rounded-2xl p-6 shadow-2xl relative overflow-y-auto max-h-[95vh] z-10 w-full max-w-lg">
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-text-primary">
-                                {t('patientDetails.chart.select_tooth')}
-                            </h3>
-                            <button 
-                                onClick={() => setIsToothSelectModalOpen(false)}
-                                className="p-2 hover:bg-surface-hover rounded-xl text-text-secondary transition-colors"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="mb-8">
-                            <DentalChartSVG
-                                teethStatus={effectiveTeethStatus}
-                                onToothClick={(num) => {
-                                    handleToothClick(num);
-                                    setIsToothSelectModalOpen(false);
-                                }}
-                                isPediatric={isPediatric}
-                            />
-                        </div>
-                        <div className="flex justify-center gap-4">
-                            <button
-                                onClick={() => {
-                                    setNewTreatment({
-                                        ...getInitialTreatment(),
-                                        tooth_number: '',
-                                        default_price_list_id: patient?.default_price_list_id
-                                    });
-                                    setIsTreatmentModalOpen(true);
-                                    setIsToothSelectModalOpen(false);
-                                }}
-                                className="px-8 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all"
-                            >
-                                {t('patient_details.chart.continue_no_tooth')}
-                            </button>
-                        </div>
+            <Modal
+                isOpen={isToothSelectModalOpen}
+                onClose={() => setIsToothSelectModalOpen(false)}
+                title={t('patientDetails.chart.select_tooth')}
+                size="lg"
+            >
+                <div className="min-w-0 space-y-4">
+                    <DentalChartSVG
+                        teethStatus={effectiveTeethStatus}
+                        onToothClick={(number) => {
+                            handleToothClick(number);
+                            setIsToothSelectModalOpen(false);
+                        }}
+                        isPediatric={isPediatric}
+                    />
+                    <div className="sticky bottom-0 z-10 -mx-3 border-t border-border bg-surface-elevated px-3 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-3 sm:-mx-4 sm:px-4">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setNewTreatment({
+                                    ...getInitialTreatment(),
+                                    tooth_number: '',
+                                    default_price_list_id: patient?.default_price_list_id
+                                });
+                                setIsTreatmentModalOpen(true);
+                                setIsToothSelectModalOpen(false);
+                            }}
+                            className="min-h-11 w-full rounded-xl bg-slate-100 px-4 py-2.5 font-bold text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                        >
+                            {t('patient_details.chart.continue_no_tooth')}
+                        </button>
                     </div>
                 </div>
-            )}
+            </Modal>
         </div>
     );
 }
-
