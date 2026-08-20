@@ -1,0 +1,74 @@
+name: Dentix Branch Governance
+
+on:
+  pull_request:
+    branches: [main, staging]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  promotion-path:
+    name: Validate promotion path
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR source and target
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+          HEAD_BRANCH: ${{ github.head_ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Validating ${HEAD_BRANCH} -> ${BASE_BRANCH}"
+
+          if [ "$BASE_BRANCH" = "main" ]; then
+            case "$HEAD_BRANCH" in
+              staging|hotfix/*)
+                echo "Allowed production promotion path."
+                ;;
+              *)
+                echo "::error::Production PRs must come from staging or an explicitly scoped hotfix/* branch."
+                exit 1
+                ;;
+            esac
+            exit 0
+          fi
+
+          if [ "$BASE_BRANCH" = "staging" ]; then
+            case "$HEAD_BRANCH" in
+              feat/*|feature/*|fix/*|refactor/*|chore/*|docs/*|test/*|hotfix/*)
+                echo "Allowed staging integration path."
+                ;;
+              *)
+                echo "::error::Staging PRs must come from a scoped feat/feature/fix/refactor/chore/docs/test/hotfix branch."
+                exit 1
+                ;;
+            esac
+            exit 0
+          fi
+
+          echo "::error::Unexpected protected target: ${BASE_BRANCH}"
+          exit 1
+
+  workflow-authority:
+    name: Protect authoritative CD workflow
+    runs-on: ubuntu-latest
+    if: github.base_ref == 'staging'
+    steps:
+      - name: Checkout PR revision
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Reject staging-only CD workflow drift
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin main
+          if ! git diff --quiet origin/main -- .github/workflows/cd.yml; then
+            echo "::error::.github/workflows/cd.yml must stay aligned with the authoritative main copy. Update main intentionally first, then sync staging."
+            git diff -- .github/workflows/cd.yml || true
+            exit 1
+          fi
+          echo "CD workflow matches authoritative main copy."
