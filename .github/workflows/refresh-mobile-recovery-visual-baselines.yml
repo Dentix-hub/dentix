@@ -1,0 +1,152 @@
+name: Refresh Reviewed Mobile Recovery Baselines
+
+on:
+  push:
+    branches: [test/mobile-recovery-integration]
+    paths:
+      - .github/workflows/refresh-mobile-recovery-visual-baselines.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dentix-reviewed-mobile-baseline-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh-reviewed-baselines:
+    name: Refresh reviewed patient workspace baselines
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: visual_user
+          POSTGRES_PASSWORD: visual_pass
+          POSTGRES_DB: dentix_visual
+        options: >-
+          --health-cmd "pg_isready -U visual_user -d dentix_visual"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgresql://visual_user:visual_pass@localhost:5432/dentix_visual
+      SECRET_KEY: visual-baseline-refresh-secret-at-least-32
+      ENVIRONMENT: test
+      PYTHONPATH: .
+      ENABLE_IN_PROCESS_WORKERS: 'false'
+      FRONTEND_URL: http://localhost:5173
+      CORS_ORIGINS: http://localhost:5173
+      VITE_API_URL: http://localhost:8000/api/v1
+      VITE_API_BASE_URL: http://localhost:8000
+      PLAYWRIGHT_BASE_URL: http://localhost:5173
+
+    steps:
+      - name: Checkout reviewed PR branch with LFS
+        uses: actions/checkout@v4
+        with:
+          ref: test/mobile-recovery-integration
+          lfs: true
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install backend dependencies
+        run: |
+          pip install -r requirements.txt
+          pip uninstall -y ecdsa
+
+      - name: Initialize visual-test database
+        run: python -m backend.scripts.preflight_migrations
+
+      - name: Start backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup uvicorn backend.main:app --host 127.0.0.1 --port 8000 > /tmp/dentix-visual-backend.log 2>&1 &
+          echo $! > /tmp/dentix-visual-backend.pid
+          for attempt in {1..60}; do
+            if curl --fail --silent http://localhost:8000/api/v1/health > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$(cat /tmp/dentix-visual-backend.pid)" 2>/dev/null; then
+              cat /tmp/dentix-visual-backend.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/dentix-visual-backend.log
+          exit 1
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies and Chromium
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install chromium
+
+      - name: Prepare isolated visual-test data
+        working-directory: frontend
+        run: npx playwright test e2e/setup.spec.ts --config=playwright.config.ts --project=setup --retries=0
+
+      - name: Generate reviewed patient workspace baselines
+        working-directory: frontend
+        run: >-
+          npx playwright test e2e/ui-regression.spec.ts
+          --config=playwright.config.ts
+          --project=visual-desktop
+          --project=visual-mobile
+          --no-deps
+          --update-snapshots
+          --retries=0
+
+      - name: Verify only reviewed baselines changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t changed < <(git status --porcelain | sed 's/^...//' | sort)
+          printf 'Changed files:\n%s\n' "${changed[*]}"
+
+          expected=(
+            'frontend/e2e/ui-regression.spec.ts-snapshots/patients-ar-light-visual-desktop-linux.png'
+            'frontend/e2e/ui-regression.spec.ts-snapshots/patients-ar-light-visual-mobile-linux.png'
+            'frontend/e2e/ui-regression.spec.ts-snapshots/patients-en-dark-visual-desktop-linux.png'
+          )
+
+          test "${#changed[@]}" -eq "${#expected[@]}"
+          for file in "${expected[@]}"; do
+            printf '%s\n' "${changed[@]}" | grep -Fx -- "$file" >/dev/null
+          done
+
+      - name: Commit reviewed baselines through Git LFS
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'Dentix CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git lfs install --local
+          git add \
+            frontend/e2e/ui-regression.spec.ts-snapshots/patients-ar-light-visual-desktop-linux.png \
+            frontend/e2e/ui-regression.spec.ts-snapshots/patients-ar-light-visual-mobile-linux.png \
+            frontend/e2e/ui-regression.spec.ts-snapshots/patients-en-dark-visual-desktop-linux.png
+          git commit -m 'test(ui): accept reviewed mobile recovery visual baselines'
+          git push origin HEAD:test/mobile-recovery-integration
+
+      - name: Show backend log on failure
+        if: failure()
+        run: cat /tmp/dentix-visual-backend.log || true
