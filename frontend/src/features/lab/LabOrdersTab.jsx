@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
 import { FlaskConical, CheckCircle, Clock, AlertCircle, Plus, Edit2, Trash2, X } from 'lucide-react';
 import { getPatientLabOrders, getLaboratories, createLabOrder, updateLabOrder, deleteLabOrder } from '@/api';
@@ -13,12 +13,7 @@ const LabOrdersTab = ({ patientId }) => {
     const [editingLabOrder, setEditingLabOrder] = useState(null);
     const initialLabOrder = { laboratory_id: '', work_type: '', tooth_number: '', shade: '', material: '', cost: '', price_to_patient: '', notes: '' };
     const [newLabOrder, setNewLabOrder] = useState(initialLabOrder);
-    useEffect(() => {
-        if (patientId) {
-            loadData();
-        }
-    }, [patientId]);
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         setLoading(true);
         try {
             const [ordersRes, labsRes] = await Promise.all([
@@ -32,7 +27,12 @@ const LabOrdersTab = ({ patientId }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [patientId]);
+    useEffect(() => {
+        if (patientId) {
+            loadData();
+        }
+    }, [loadData, patientId]);
     const handleDeleteLabOrder = async (orderId) => {
         if (!window.confirm(t('patientDetails.lab_orders.confirm_delete'))) return;
         try {
@@ -364,4 +364,3 @@ const LabOrdersTab = ({ patientId }) => {
     );
 };
 export default LabOrdersTab;
-

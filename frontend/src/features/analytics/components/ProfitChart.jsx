@@ -8,7 +8,6 @@ const ProfitChart = ({ data }) => {
     if (!data) return null;
 
     const revenue = data.revenue || 0;
-    const totalCosts = data.total_costs || 0;
     const netProfit = data.net_profit || 0;
 
     // Outer ring: Revenue vs Costs breakdown

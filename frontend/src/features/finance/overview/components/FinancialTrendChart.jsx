@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
     AreaChart,
@@ -8,7 +7,6 @@ import {
     CartesianGrid,
     Tooltip,
     ResponsiveContainer,
-    Legend,
 } from 'recharts';
 import { TrendingUp, BarChart2 } from 'lucide-react';
 import { formatMoney } from '../../utils/currencyFormatter';

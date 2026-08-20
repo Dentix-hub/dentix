@@ -1,11 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
 import { Camera, X, Check, Loader2, Info, Scan } from 'lucide-react';
 import { performOCR } from '@/api';
 export default function PatientScanner({ onScanComplete, onClose }) {
     const [isReady, setIsReady] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [stream, setStream] = useState(null);
     const [capturedImage, setCapturedImage] = useState(null);
     const [ocrStatus, setOcrStatus] = useState('');
     const [isReviewing, setIsReviewing] = useState(false);
@@ -16,11 +15,15 @@ export default function PatientScanner({ onScanComplete, onClose }) {
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
     const fileInputRef = useRef(null);
-    useEffect(() => {
-        startCamera();
-        return () => stopCamera();
+    const streamRef = useRef(null);
+
+    const stopCamera = useCallback(() => {
+        streamRef.current?.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+        setIsReady(false);
     }, []);
-    const startCamera = async () => {
+
+    const startCamera = useCallback(async () => {
         if (!window.isSecureContext && window.location.hostname !== 'localhost') {
             setErrorHeader('الكاميرا تتطلب رابط آمن (HTTPS).');
             return;
@@ -38,7 +41,7 @@ export default function PatientScanner({ onScanComplete, onClose }) {
                 }
             };
             const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
-            setStream(mediaStream);
+            streamRef.current = mediaStream;
             if (videoRef.current) {
                 videoRef.current.srcObject = mediaStream;
                 setIsReady(true);
@@ -47,11 +50,12 @@ export default function PatientScanner({ onScanComplete, onClose }) {
             logger.error("Camera error:", err);
             setErrorHeader('حدث خطأ في الكاميرا. يمكنك رفع الصورة بدلاً من ذلك.');
         }
-    };
-    const stopCamera = () => {
-        if (stream) stream.getTracks().forEach(t => t.stop());
-        setIsReady(false);
-    };
+    }, []);
+
+    useEffect(() => {
+        startCamera();
+        return stopCamera;
+    }, [startCamera, stopCamera]);
     const retake = () => {
         setCapturedImage(null);
         setIsReviewing(false);
@@ -327,4 +331,3 @@ export default function PatientScanner({ onScanComplete, onClose }) {
         </div>
     );
 }
-

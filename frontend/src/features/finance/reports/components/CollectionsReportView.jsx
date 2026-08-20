@@ -3,13 +3,11 @@ import {
     DollarSign,
     TrendingUp,
     AlertCircle,
-    UserCheck,
     Users,
 } from 'lucide-react';
 import MetricCard from '../../components/MetricCard';
 import DataTable from '../../components/DataTable';
 import Money from '../../components/Money';
-import ScopeBadge from '../../components/ScopeBadge';
 
 /**
  * Collections & Receivables Report View (§18 MASTER_SPEC, `FIN-RPT-003`).

@@ -25,7 +25,6 @@ export default function SystemPage() {
     
     // Google Drive Handlers
     const [googleConnected, setGoogleConnected] = useState(false);
-    const [lastBackupStatus, setLastBackupStatus] = useState(null);
 
     const fetchData = async () => {
         setLoading(true);
@@ -39,7 +38,6 @@ export default function SystemPage() {
             setSettings(Array.isArray(setRes.data) ? setRes.data : []);
             setTenants(Array.isArray(tenantsRes.data) ? tenantsRes.data : []);
             setGoogleConnected(googleRes.data?.connected || false);
-            setLastBackupStatus(googleRes.data?.last_backup || null);
             setIs2faEnabled(userRes.data?.is_2fa_enabled || false);
         } catch (err) {
             logger.error(err);

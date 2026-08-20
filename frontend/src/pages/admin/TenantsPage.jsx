@@ -13,9 +13,6 @@ export default function TenantsPage() {
     const [loading, setLoading] = useState(true);
     const [selectedTenantId, setSelectedTenantId] = useState(null);
 
-    // Shared State for Payment Modal (passed down)
-    const [showPaymentModal, setShowPaymentModal] = useState(null);
-    const [paymentForm, setPaymentForm] = useState({ plan_id: '', amount: '', payment_method: 'cash', notes: '' });
     // Password Reset State
     const [showPasswordResetModal, setShowPasswordResetModal] = useState(null); // {tenantId, tenantName}
     const [tenantUsers, setTenantUsers] = useState([]);
@@ -165,8 +162,6 @@ export default function TenantsPage() {
                 tenants={tenants}
                 plans={plans}
                 handlePlanChange={handlePlanChange}
-                setShowPaymentModal={setShowPaymentModal}
-                setPaymentForm={setPaymentForm}
                 getDaysRemaining={getDaysRemaining}
                 handleArchiveTenant={handleArchiveTenant}
                 handleRestoreTenant={handleRestoreTenant}
@@ -180,11 +175,6 @@ export default function TenantsPage() {
                 onClose={() => setSelectedTenantId(null)}
                 onImpersonate={handleImpersonate}
             />
-            {/* Payment Modal Logic would arguably live here or in parent, but strict refactor suggests placing it where triggered.
-                However, for speed, assuming TenantsPage focuses on List.
-                If existing TenantsManager expects to trigger a modal relative to 'SuperAdmin.jsx', we might need to adapt it.
-                Currently TenantsManager accepts setShowPaymentModal.
-            */}
             {/* Password Reset Modal */}
             {showPasswordResetModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">

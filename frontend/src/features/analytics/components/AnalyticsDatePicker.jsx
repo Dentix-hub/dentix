@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Calendar, ChevronDown } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 
 export default function AnalyticsDatePicker({ period, setPeriod, customStartDate, setCustomStartDate, customEndDate, setCustomEndDate }) {
     const { t, i18n } = useTranslation();

@@ -1,14 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
-    Activity,
     ArrowDownLeft,
     ArrowUpRight,
-    DollarSign,
-    Receipt,
-    FlaskConical,
-    Users,
-    Calendar,
     Scale,
     ExternalLink,
 } from 'lucide-react';

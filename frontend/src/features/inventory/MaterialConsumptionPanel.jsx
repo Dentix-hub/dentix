@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { getSuggestedMaterials } from '@/api/inventory';
@@ -13,7 +13,9 @@ import { Package, Droplets, AlertCircle, CheckCircle2, Minus, Plus, Edit3 } from
  * - Multiple brands: radio selection
  * - Manual override toggle
  */
-const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, initialMaterials = [] }) => {
+const EMPTY_MATERIALS = [];
+
+const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, initialMaterials = EMPTY_MATERIALS }) => {
     const { t } = useTranslation();
     const [selectedMaterials, setSelectedMaterials] = useState({});
     const [manualOverrides, setManualOverrides] = useState({});
@@ -25,11 +27,14 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
         enabled: !!procedureId,
         staleTime: 30 * 1000
     });
-    const suggestions = Array.isArray(rawSuggestions) ? rawSuggestions : [];
+    const suggestions = useMemo(
+        () => Array.isArray(rawSuggestions) ? rawSuggestions : [],
+        [rawSuggestions]
+    );
 
     // Initialize selected materials from suggestions
     useEffect(() => {
-        if (Array.isArray(suggestions) && suggestions.length > 0 && Object.keys(selectedMaterials).length === 0) {
+        if (suggestions.length > 0) {
             const initial = {};
             suggestions.forEach(sugg => {
                 // If there's an active session, use it; otherwise use first alternative
@@ -49,7 +54,7 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
                     };
                 }
             });
-            setSelectedMaterials(initial);
+            setSelectedMaterials(current => Object.keys(current).length === 0 ? initial : current);
         }
     }, [suggestions]);
 
@@ -78,7 +83,7 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
             // Reset when switching to a new treatment with no materials
             setSelectedMaterials({});
         }
-    }, [procedureId]);
+    }, [initialMaterials, procedureId]);
 
     const handleMaterialSelect = (categoryId, material) => {
         setSelectedMaterials(prev => {

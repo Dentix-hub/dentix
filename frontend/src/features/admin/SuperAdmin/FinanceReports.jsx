@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/api';
@@ -32,11 +32,7 @@ export default function FinanceReports() {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        fetchReports();
-    }, []);
-
-    const fetchReports = async () => {
+    const fetchReports = useCallback(async () => {
         setLoading(true);
         try {
             const res = await api.get('/api/v1/admin/finance/reports');
@@ -47,7 +43,11 @@ export default function FinanceReports() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [t]);
+
+    useEffect(() => {
+        fetchReports();
+    }, [fetchReports]);
 
     const handleExport = (type) => {
         if (!data) return;

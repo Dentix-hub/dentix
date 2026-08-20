@@ -1,15 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
 import {
     Plus,
     CreditCard,
     Eye,
     Trash2,
-    Calendar,
-    User,
-    FileText,
-    Receipt,
 } from 'lucide-react';
 import { usePayments } from '../payments/hooks/usePayments';
 import { useFinancePermissions } from '../useFinancePermissions';
@@ -31,12 +26,9 @@ export default function PaymentsPage() {
     const {
         items,
         search,
-        from,
-        to,
         currentPage,
         pageSize,
         hasNextPage,
-        hasPrevPage,
         isLoading,
         isError,
         refetch,

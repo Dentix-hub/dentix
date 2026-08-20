@@ -7,11 +7,14 @@ import { api } from '@/api';
 import { toast } from 'react-hot-toast';
 import { Plus, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 import { cn } from '@/utils/cn';
+
+const EMPTY_MATERIALS = [];
+
 export function EnhancedMaterialConsumption({
     procedure,
     patientAge: _patientAge,
-    availableMaterials = [],
-    initialMaterials = [], // [{ material_id, quantity, unit }]
+    availableMaterials = EMPTY_MATERIALS,
+    initialMaterials = EMPTY_MATERIALS, // [{ material_id, quantity, unit }]
     mode = 'smart', // 'smart' | 'manual'
     patientId = null,
     onSave,
@@ -49,11 +52,8 @@ export function EnhancedMaterialConsumption({
             return;
         }
 
-        // Initialize if:
-        // 1. Modal just opened
-        // 2. OR we haven't initialized yet and initialMaterials is now available
-        // 3. OR the current materials list is empty but initialMaterials has data (reactive pop-in)
-        const shouldInitialize = !hasInitializedRef.current || (materials.length === 0 && initialMaterials?.length > 0);
+        // Initialize once per open modal session, including when initial data arrives asynchronously.
+        const shouldInitialize = !hasInitializedRef.current;
         
         if (shouldInitialize && Array.isArray(initialMaterials) && initialMaterials.length > 0) {
             logger.log('[EMC_DEBUG] Initializing/Syncing materials from:', initialMaterials.length, 'items');
@@ -94,7 +94,10 @@ export function EnhancedMaterialConsumption({
         },
         enabled: materials.length > 0
     });
-    const stockCheckData = Array.isArray(rawStockCheckData) ? rawStockCheckData : [];
+    const stockCheckData = useMemo(
+        () => Array.isArray(rawStockCheckData) ? rawStockCheckData : [],
+        [rawStockCheckData]
+    );
 
     const addManualMaterial = (materialId) => {
         logger.log('[EMC_ACTION] addManualMaterial called for ID:', materialId);
@@ -326,17 +329,6 @@ export function EnhancedMaterialConsumption({
                     </div>
                 </div>
             </div>
-            
-            {/* Visual Diagnostic for Debugging */}
-            {process.env.NODE_ENV === 'development' && (
-                <div style={{ display: 'none' }}>
-                    {logger.log('[EMC_DIAGNOSTIC]', { 
-                        available: availableMaterials?.length,
-                        filtered: availableMaterialsList?.length,
-                        selected: materials?.length
-                    })}
-                </div>
-            )}
         </Modal>
     );
 }

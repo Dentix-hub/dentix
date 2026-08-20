@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import logger from '@/utils/logger';
 import { User, Activity, Search, RotateCcw, Download, ChevronRight, ChevronLeft, Eye, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -22,16 +22,14 @@ const AuditLogViewer = ({ tenants = [] }) => {
     });
 
     const [selectedLog, setSelectedLog] = useState(null);
+    const filtersRef = useRef(filters);
+    filtersRef.current = filters;
 
-    useEffect(() => {
-        fetchLogs();
-    }, [filters.page, filters.limit]);
-
-    const fetchLogs = async () => {
+    const fetchLogs = useCallback(async (requestedFilters = filtersRef.current) => {
         try {
             setLoading(true);
             const params = new URLSearchParams();
-            Object.entries(filters).forEach(([key, val]) => {
+            Object.entries(requestedFilters).forEach(([key, val]) => {
                 if (val) params.append(key, val);
             });
             const res = await api.get(`/api/v1/admin/system/audit-logs?${params.toString()}`);
@@ -47,7 +45,11 @@ const AuditLogViewer = ({ tenants = [] }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchLogs();
+    }, [fetchLogs, filters.page, filters.limit]);
 
     const handleExport = async () => {
         try {
@@ -75,7 +77,7 @@ const AuditLogViewer = ({ tenants = [] }) => {
     };
 
     const handleReset = () => {
-        setFilters({
+        const resetFilters = {
             tenant_id: '',
             user_id: '',
             action: '',
@@ -83,8 +85,9 @@ const AuditLogViewer = ({ tenants = [] }) => {
             end_date: '',
             page: 1,
             limit: 20
-        });
-        setTimeout(fetchLogs, 0);
+        };
+        setFilters(resetFilters);
+        fetchLogs(resetFilters);
     };
 
     const getActionColor = (action) => {

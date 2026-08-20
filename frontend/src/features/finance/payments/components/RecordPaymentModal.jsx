@@ -18,6 +18,7 @@ import { getPatients } from '@/api/patients';
  */
 export default function RecordPaymentModal({
     isOpen,
+    initialPatientId = '',
     onClose,
     onSubmit,
     isSubmitting = false,
@@ -43,12 +44,12 @@ export default function RecordPaymentModal({
 
     useEffect(() => {
         if (isOpen) {
-            setPatientId('');
+            setPatientId(initialPatientId ? String(initialPatientId) : '');
             setAmount('');
             setNotes('');
             setError(null);
         }
-    }, [isOpen]);
+    }, [initialPatientId, isOpen]);
 
     if (!isOpen) return null;
 

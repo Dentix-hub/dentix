@@ -7,7 +7,6 @@ import {
     Calendar,
     FileText,
     Trash2,
-    CheckCircle2,
     ExternalLink,
     AlertTriangle,
 } from 'lucide-react';

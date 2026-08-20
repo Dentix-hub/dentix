@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import {
     X,
-    User,
     Phone,
     FileSpreadsheet,
     CreditCard,

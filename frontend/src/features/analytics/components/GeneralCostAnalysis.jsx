@@ -21,7 +21,7 @@ const GeneralCostAnalysis = () => {
         staleTime: 5 * 60 * 1000,
     });
 
-    const data = rawData || [];
+    const data = useMemo(() => rawData || [], [rawData]);
 
     const handleSort = (key) => {
         let direction = 'asc';

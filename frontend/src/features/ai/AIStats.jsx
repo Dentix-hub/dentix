@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
 import { api } from '@/api';
 import {
@@ -345,28 +345,7 @@ const AIStats = () => {
     const [selectedLog, setSelectedLog] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    // Initial Load
-    useEffect(() => {
-        fetchAllData();
-    }, [period]);
-    // Logs Pagination
-    useEffect(() => {
-        fetchLogs();
-    }, [logsPage]);
-    const fetchAllData = async () => {
-        setLoading(true);
-        try {
-            await Promise.all([
-                fetchDashboard(),
-                fetchAnalytics(),
-                fetchGovernance(),
-                fetchLogs()
-            ]);
-        } finally {
-            setLoading(false);
-        }
-    };
-    const fetchDashboard = async () => {
+    const fetchDashboard = useCallback(async () => {
         try {
             const [s, c, sug] = await Promise.all([
                 api.get(`/api/v1/admin/ai/stats?period=${period}`),
@@ -377,8 +356,8 @@ const AIStats = () => {
             setCosts(c.data);
             setSuggestions(Array.isArray(sug.data) ? sug.data : []);
         } catch (e) { logger.error(e); }
-    };
-    const fetchAnalytics = async () => {
+    }, [period]);
+    const fetchAnalytics = useCallback(async () => {
         try {
             const [f, h, i] = await Promise.all([
                 api.get('/api/v1/admin/ai/failures'),
@@ -389,20 +368,40 @@ const AIStats = () => {
             setHeatmap(Array.isArray(h.data) ? h.data : []);
             setIntents(Array.isArray(i.data) ? i.data : []);
         } catch (e) { logger.error(e); }
-    };
-    const fetchGovernance = async () => {
+    }, []);
+    const fetchGovernance = useCallback(async () => {
         try {
             const res = await api.get('/api/v1/admin/ai/governance');
             setGovernance(res.data);
         } catch (e) { logger.error(e); }
-    };
-    const fetchLogs = async () => {
+    }, []);
+    const fetchLogs = useCallback(async () => {
         try {
             const res = await api.get(`/api/v1/admin/ai/logs?page=${logsPage}&limit=15`);
             const logsData = res.data?.data;
             setLogs(Array.isArray(logsData) ? logsData : []);
         } catch (e) { logger.error(e); }
-    };
+    }, [logsPage]);
+    const fetchAllData = useCallback(async () => {
+        setLoading(true);
+        try {
+            await Promise.all([
+                fetchDashboard(),
+                fetchAnalytics(),
+                fetchGovernance()
+            ]);
+        } finally {
+            setLoading(false);
+        }
+    }, [fetchAnalytics, fetchDashboard, fetchGovernance]);
+    // Initial Load
+    useEffect(() => {
+        fetchAllData();
+    }, [fetchAllData]);
+    // Logs Pagination
+    useEffect(() => {
+        fetchLogs();
+    }, [fetchLogs]);
     const fetchLogDetails = async (id) => {
         try {
             const res = await api.get(`/api/v1/admin/ai/logs/${id}`);

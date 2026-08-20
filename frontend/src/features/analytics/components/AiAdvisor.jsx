@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import logger from '@/utils/logger';
-import { Sparkles, Brain, RefreshCw, Bot } from 'lucide-react';
+import { Sparkles, RefreshCw, Bot } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { analyzeClinic } from '@/api/analytics';
 import { toast } from '@/shared/ui';

@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { Badge, IconButton, Input } from '@/shared/ui';
 import { X, Check } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { api } from '@/api';
+import { toast } from 'react-hot-toast';
 export function SmartMaterialRow({
     material,
     stockInfo,

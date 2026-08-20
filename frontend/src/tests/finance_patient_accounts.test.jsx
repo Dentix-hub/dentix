@@ -1,13 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import PatientAccountsPage from '../features/finance/pages/PatientAccountsPage';
 import PatientStatementDrawer from '../features/finance/patient-accounts/components/PatientStatementDrawer';
 import * as financialsApi from '../api/financials';
-import * as billingApi from '../api/billing';
 
 // Mock react-i18next
 vi.mock('react-i18next', () => ({

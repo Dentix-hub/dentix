@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Download, FileSpreadsheet, Printer } from 'lucide-react';
+import { FileSpreadsheet, Printer } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getAllProceduresFinancials } from '@/api/financials';
 import { toast } from '@/shared/ui';
 
 export default function AnalyticsExportButton() {
-    const { t, i18n } = useTranslation();
+    const { i18n } = useTranslation();
     const isRtl = i18n.language === 'ar';
     const [exporting, setExporting] = useState(false);
 

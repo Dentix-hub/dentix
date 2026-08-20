@@ -1,10 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import {
     Activity,
-    DollarSign,
-    TrendingUp,
     Percent,
-    Sparkles,
 } from 'lucide-react';
 import MetricCard from '../../components/MetricCard';
 import DataTable from '../../components/DataTable';

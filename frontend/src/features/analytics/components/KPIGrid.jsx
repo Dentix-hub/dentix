@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { TrendingUp, TrendingDown, DollarSign, Activity, HelpCircle, Clock } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, Activity, HelpCircle } from 'lucide-react';
 import Tooltip from '@/shared/ui/Tooltip';
 
 // Helper Sparkline SVG component
@@ -21,7 +21,7 @@ const MiniSparkline = ({ color = '#0ea5e9', positive = true }) => {
     );
 };
 
-const StatCard = ({ title, value, subtext, delta, tooltipText, color, strokeColor, icon: Icon, positiveTrend = true }) => {
+const StatCard = ({ title, value, subtext, delta, tooltipText, strokeColor, positiveTrend = true }) => {
     return (
         <div className="bg-surface p-5 rounded-3xl border border-border/50 shadow-sm relative overflow-hidden group hover:border-primary/40 hover:shadow-md transition-all">
             <div className="flex items-center justify-between mb-2">

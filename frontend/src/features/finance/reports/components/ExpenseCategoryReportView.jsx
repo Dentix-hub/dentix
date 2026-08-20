@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import {
     Receipt,
-    Percent,
     PieChart,
     Layers,
 } from 'lucide-react';

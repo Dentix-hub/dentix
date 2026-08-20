@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { User, Calendar, Calculator } from 'lucide-react';
 import { getDoctorRevenue } from '@/api';
-import { Button, Card, SkeletonBox, EmptyState, toast, DateTimePicker } from '@/shared/ui';
+import { Button, Card, SkeletonBox, EmptyState, DateTimePicker } from '@/shared/ui';
 import DoctorRevenueDetails from './DoctorRevenueDetails';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -39,7 +39,7 @@ export default function DoctorRevenue() {
         setDetailsModalOpen(true);
     };
 
-    const handleDoctorUpdate = (doctorId, commission, salary) => {
+    const handleDoctorUpdate = (_doctorId, _commission, _salary) => {
         queryClient.invalidateQueries(['doctor_revenue']);
         queryClient.invalidateQueries(['billing_dashboard_stats']);
     };

@@ -14,9 +14,6 @@ export default function FeatureManager({ tenants }) {
     // Form State
     const [form, setForm] = useState({ key: '', description: '', is_global_enabled: false, rollout_percentage: 100 });
 
-    // Override State
-    const [overrideTenant, setOverrideTenant] = useState(null); // ID of tenant to override
-
     useEffect(() => {
         fetchFlags();
     }, []);

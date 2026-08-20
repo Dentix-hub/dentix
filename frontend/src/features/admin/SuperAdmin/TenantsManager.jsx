@@ -5,8 +5,6 @@ const TenantsManager = ({
     tenants, 
     plans, 
     handlePlanChange, 
-    setShowPaymentModal, 
-    setPaymentForm, 
     getDaysRemaining, 
     handleArchiveTenant, 
     handleRestoreTenant, 

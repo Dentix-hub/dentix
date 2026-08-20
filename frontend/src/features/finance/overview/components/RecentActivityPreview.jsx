@@ -19,8 +19,7 @@ export default function RecentActivityPreview({
     currency = 'EGP',
     className = '',
 }) {
-    const { t, i18n } = useTranslation();
-    const isArabic = i18n.language === 'ar';
+    const { t } = useTranslation();
 
     if (isLoading) {
         return (

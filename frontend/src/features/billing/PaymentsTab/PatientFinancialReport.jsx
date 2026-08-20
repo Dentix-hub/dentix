@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Button, DateTimePicker, PatientSelect } from '@/shared/ui';
-import { ChevronLeft, ChevronRight, X, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getPatientsReport, getPatients } from '@/api';
 import PatientFinancialModal from './PatientFinancialModal';

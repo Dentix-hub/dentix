@@ -1,14 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
 import {
     Users,
     AlertTriangle,
     Eye,
     Plus,
-    CreditCard,
-    FileSpreadsheet,
-    Phone,
 } from 'lucide-react';
 import { usePatientAccounts } from '../patient-accounts/hooks/usePatientAccounts';
 import { useFinancePermissions } from '../useFinancePermissions';
@@ -292,6 +288,7 @@ export default function PatientAccountsPage() {
             {/* Record Payment Modal */}
             <RecordPaymentModal
                 isOpen={isRecordModalOpen}
+                initialPatientId={recordPaymentForPatient?.patient_id || recordPaymentForPatient?.id || ''}
                 onClose={() => {
                     setIsRecordModalOpen(false);
                     setRecordPaymentForPatient(null);

@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import {
     UserCheck,
-    Stethoscope,
     TrendingUp,
     DollarSign,
     FlaskConical,

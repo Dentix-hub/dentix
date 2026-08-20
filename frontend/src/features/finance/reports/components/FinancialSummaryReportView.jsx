@@ -4,8 +4,6 @@ import {
     DollarSign,
     Receipt,
     Scale,
-    PieChart,
-    Calendar,
 } from 'lucide-react';
 import MetricCard from '../../components/MetricCard';
 import DataTable from '../../components/DataTable';

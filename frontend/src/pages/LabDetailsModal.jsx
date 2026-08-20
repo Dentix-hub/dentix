@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { X, FlaskConical, Plus } from 'lucide-react';
@@ -15,27 +15,15 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
     // Payment Form
     const [showPaymentForm, setShowPaymentForm] = useState(false);
     const [paymentData, setPaymentData] = useState({ amount: '', notes: '', method: 'Cash' });
-    useEffect(() => {
-        if (isOpen && lab) {
-            loadData();
-            setActiveTab('overview');
-            setOrderStatus('');
-            setShowPaymentForm(false);
-        }
-    }, [isOpen, lab]);
-    // Reload orders when filter changes
-    useEffect(() => {
-        if (activeTab === 'orders' && lab) {
-            loadOrders();
-        }
-    }, [orderStatus]);
-    const loadData = async () => {
+    const labId = lab?.id;
+    const loadData = useCallback(async () => {
+        if (!labId) return;
         setLoading(true);
         try {
             const [statsRes, ordersRes, paymentsRes] = await Promise.all([
-                getLabStats(lab.id),
-                getLabOrders({ laboratory_id: lab.id }),
-                getLabPayments(lab.id)
+                getLabStats(labId),
+                getLabOrders({ laboratory_id: labId }),
+                getLabPayments(labId)
             ]);
             setStats(statsRes.data);
             setOrders(ordersRes.data);
@@ -45,15 +33,30 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
         } finally {
             setLoading(false);
         }
-    };
-    const loadOrders = async () => {
+    }, [labId]);
+    const loadOrders = useCallback(async () => {
+        if (!labId) return;
         try {
-            const res = await getLabOrders({ laboratory_id: lab.id, status: orderStatus || undefined });
+            const res = await getLabOrders({ laboratory_id: labId, status: orderStatus || undefined });
             setOrders(res.data);
         } catch (error) {
             logger.error("Failed to filter orders", error);
         }
-    };
+    }, [labId, orderStatus]);
+    useEffect(() => {
+        if (isOpen && labId) {
+            loadData();
+            setActiveTab('overview');
+            setOrderStatus('');
+            setShowPaymentForm(false);
+        }
+    }, [isOpen, labId, loadData]);
+    // Reload orders when filter changes
+    useEffect(() => {
+        if (activeTab === 'orders' && labId) {
+            loadOrders();
+        }
+    }, [activeTab, labId, loadOrders]);
     const handleAddPayment = async (e) => {
         e.preventDefault();
         if (!paymentData.amount) return;
@@ -291,4 +294,3 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
     );
 };
 export default LabDetailsModal;
-

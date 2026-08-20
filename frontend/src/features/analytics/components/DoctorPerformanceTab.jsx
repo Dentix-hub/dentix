@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getDoctorRevenue } from '@/api';
 import { useTranslation } from 'react-i18next';
-import { Users, DollarSign, Award, TrendingUp, UserCheck, Calendar } from 'lucide-react';
+import { Users, Award, TrendingUp, UserCheck, Calendar } from 'lucide-react';
 
 export default function DoctorPerformanceTab() {
-    const { t, i18n } = useTranslation();
+    const { i18n } = useTranslation();
     const isRtl = i18n.language === 'ar';
 
     const today = new Date();
@@ -32,8 +32,6 @@ export default function DoctorPerformanceTab() {
         const comm = (doc.net_revenue || 0) * ((doc.commission_percent || 0) / 100);
         return acc + comm + (doc.fixed_salary || 0);
     }, 0);
-
-    const currency = t('analytics.general_analysis.currency') || 'EGP';
 
     if (isLoading) {
         return (

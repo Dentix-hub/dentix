@@ -5,11 +5,9 @@ import {
     ArrowLeft,
     ArrowRight,
     Stethoscope,
-    Calendar,
     Settings,
     FileSpreadsheet,
     FlaskConical,
-    Activity,
 } from 'lucide-react';
 import { useDoctorDetails } from '../compensation/hooks/useDoctorDetails';
 import { useFinancePermissions } from '../useFinancePermissions';

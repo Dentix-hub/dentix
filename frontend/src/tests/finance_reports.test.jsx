@@ -1,19 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import ReportsPage from '../features/finance/pages/ReportsPage';
-import FinancialSummaryReportView from '../features/finance/reports/components/FinancialSummaryReportView';
-import ExpenseCategoryReportView from '../features/finance/reports/components/ExpenseCategoryReportView';
-import ProcedureProfitabilityReportView from '../features/finance/reports/components/ProcedureProfitabilityReportView';
 import {
     adaptComprehensiveStats,
     adaptPatientsReport,
     adaptExpensesReport,
-    adaptProvidersReport,
-    adaptProfitabilityReport,
 } from '../features/finance/reports/utils/reportAdapters';
 import * as financialsApi from '../api/financials';
 import * as billingApi from '../api/billing';

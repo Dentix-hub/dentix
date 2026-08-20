@@ -8,9 +8,6 @@ import {
     AlertCircle,
     Settings,
     Trash2,
-    PlusCircle,
-    Calendar,
-    Sparkles,
 } from 'lucide-react';
 import { usePayroll } from '../payroll/hooks/usePayroll';
 import { useFinancePermissions } from '../useFinancePermissions';
@@ -46,7 +43,6 @@ export default function PayrollPage() {
         recordPayment,
         isRecording,
         deletePayment,
-        isDeleting,
         updateStaffRules,
         isUpdatingRules,
     } = usePayroll();

@@ -16,7 +16,7 @@ export default function ImpersonationBar() {
         <div className="bg-amber-500 text-white py-2 px-6 flex justify-between items-center z-[100] sticky top-0 shadow-lg border-b border-amber-600 animate-slide-down">
             <div className="flex items-center gap-3">
                 <Shield size={18} className="animate-pulse" />
-                <span className="font-bold text-sm">وضع المحاكاة: أنت تتصفح النظام الآن بصلاحيات "مدير العيادة"</span>
+                <span className="font-bold text-sm">وضع المحاكاة: أنت تتصفح النظام الآن بصلاحيات &quot;مدير العيادة&quot;</span>
             </div>
             <button
                 onClick={handleReturn}

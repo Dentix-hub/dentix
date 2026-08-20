@@ -38,7 +38,7 @@ export default function ResetPassword() {
             .finally(() => {
                 setLoading(false);
             });
-    }, [token]);
+    }, [t, token]);
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!password) return setError(t('auth.reset_password.errors.password_required'));

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
-import { Search, Building2, Users, CreditCard, Terminal, Cpu, ArrowRight, User } from 'lucide-react';
+import { Search, Building2, Users, CreditCard, Terminal, Cpu, ArrowRight, User, Command } from 'lucide-react';
 import { api } from '@/api';
 import { useNavigate } from 'react-router-dom';
 
@@ -10,6 +10,12 @@ export default function CommandPalette({ isOpen, onClose }) {
     const [loading, setLoading] = useState(false);
     const [selectedIndex, setSelectedIndex] = useState(0);
     const navigate = useNavigate();
+
+    const handleSelect = useCallback((item) => {
+        navigate(item.url);
+        onClose();
+        setQuery('');
+    }, [navigate, onClose]);
 
     const handleSearch = useCallback(async (q) => {
         if (q.length < 2) {
@@ -57,13 +63,7 @@ export default function CommandPalette({ isOpen, onClose }) {
             window.addEventListener('keydown', handleKeyDown);
         }
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, results, selectedIndex]);
-
-    const handleSelect = (item) => {
-        navigate(item.url);
-        onClose();
-        setQuery('');
-    };
+    }, [handleSelect, isOpen, onClose, results, selectedIndex]);
 
     if (!isOpen) return null;
 
@@ -132,7 +132,7 @@ export default function CommandPalette({ isOpen, onClose }) {
 
                     {!loading && query.length >= 2 && results.length === 0 && (
                         <div className="p-12 text-center text-slate-400 italic">
-                            لم يتم العثور على نتائج لـ "{query}"
+                            لم يتم العثور على نتائج لـ &quot;{query}&quot;
                         </div>
                     )}
 

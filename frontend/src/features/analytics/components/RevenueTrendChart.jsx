@@ -11,7 +11,7 @@ import {
     CartesianGrid,
     LazyChart
 } from '@/components/charts/LazyChart';
-import { TrendingUp, LineChart as LineChartIcon } from 'lucide-react';
+import { LineChart as LineChartIcon } from 'lucide-react';
 
 const CustomTooltip = ({ active, payload, label, currency }) => {
     if (active && payload && payload.length) {

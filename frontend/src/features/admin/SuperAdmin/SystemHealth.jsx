@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
 import { api } from '@/api';
 import { Activity, Server, Clock, CheckCircle } from 'lucide-react';
@@ -13,18 +13,7 @@ export default function SystemHealth() {
     const [loading, setLoading] = useState(true);
     const [runningTest, setRunningTest] = useState(false);
 
-    useEffect(() => {
-        fetchData();
-        const interval = setInterval(fetchData, 10000);
-        return () => clearInterval(interval);
-    }, []);
-
-    const fetchData = () => {
-        fetchJobs();
-        fetchHealth();
-    };
-
-    const fetchJobs = async () => {
+    const fetchJobs = useCallback(async () => {
         try {
             const res = await api.get('/api/v1/admin/security/jobs');
             setJobs(Array.isArray(res.data) ? res.data : []);
@@ -32,16 +21,27 @@ export default function SystemHealth() {
         } catch (error) {
             logger.error("Failed to fetch jobs", error);
         }
-    };
+    }, []);
 
-    const fetchHealth = async () => {
+    const fetchHealth = useCallback(async () => {
         try {
             const res = await api.get('/api/v1/admin/health/alerts');
             setHealth(res.data);
         } catch (error) {
             logger.error("Failed to fetch health", error);
         }
-    };
+    }, []);
+
+    const fetchData = useCallback(() => {
+        fetchJobs();
+        fetchHealth();
+    }, [fetchHealth, fetchJobs]);
+
+    useEffect(() => {
+        fetchData();
+        const interval = setInterval(fetchData, 10000);
+        return () => clearInterval(interval);
+    }, [fetchData]);
 
     const runHealthCheck = async () => {
         setRunningTest(true);

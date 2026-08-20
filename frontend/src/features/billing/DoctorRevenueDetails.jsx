@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
 import { DollarSign, Calendar } from 'lucide-react';
 import { Button, Input, SkeletonBox, Badge, Modal, toast } from '@/shared/ui';
@@ -15,20 +15,13 @@ export default function DoctorRevenueDetails({ isOpen = true, doctor, startDate,
     const [commission, setCommission] = useState(0);
     const [salary, setSalary] = useState(0);
     const [saving, setSaving] = useState(false);
+    const doctorId = doctor?.doctor_id;
 
-    useEffect(() => {
-        if (doctor) {
-            setCommission(doctor.commission_percent || 0);
-            setSalary(doctor.fixed_salary || 0);
-            loadDetails();
-        }
-    }, [doctor, startDate, endDate]);
-
-    const loadDetails = async () => {
-        if (!doctor?.doctor_id) return;
+    const loadDetails = useCallback(async () => {
+        if (!doctorId) return;
         setLoading(true);
         try {
-            const res = await getDoctorDetails(doctor.doctor_id, startDate, endDate);
+            const res = await getDoctorDetails(doctorId, startDate, endDate);
             setDetails(res.data);
         } catch (err) {
             logger.error(err);
@@ -36,7 +29,15 @@ export default function DoctorRevenueDetails({ isOpen = true, doctor, startDate,
         } finally {
             setLoading(false);
         }
-    };
+    }, [doctorId, endDate, startDate, t]);
+
+    useEffect(() => {
+        if (doctor) {
+            setCommission(doctor.commission_percent || 0);
+            setSalary(doctor.fixed_salary || 0);
+            loadDetails();
+        }
+    }, [doctor, loadDetails]);
 
     const handleSave = async () => {
         setSaving(true);

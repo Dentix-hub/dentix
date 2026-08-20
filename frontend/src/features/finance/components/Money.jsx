@@ -26,8 +26,6 @@ export default function Money({
 
     const isPositive = num > 0;
     const isNegative = num < 0;
-    const isZero = num === 0;
-
     const sizeClasses = {
         xs: 'text-xs',
         sm: 'text-sm font-medium',

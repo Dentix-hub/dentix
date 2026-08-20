@@ -54,7 +54,7 @@ export function useExpenses() {
         }
     });
 
-    const allExpenses = expensesData?.allExpenses || [];
+    const allExpenses = useMemo(() => expensesData?.allExpenses || [], [expensesData]);
     const stats = expensesData?.stats || null;
 
     const filteredExpenses = useMemo(() => {

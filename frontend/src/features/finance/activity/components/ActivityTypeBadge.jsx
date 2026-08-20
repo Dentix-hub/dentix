@@ -1,7 +1,5 @@
 import { useTranslation } from 'react-i18next';
 import {
-    ArrowDownLeft,
-    ArrowUpRight,
     DollarSign,
     Receipt,
     FlaskConical,

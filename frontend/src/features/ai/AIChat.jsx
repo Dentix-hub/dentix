@@ -3,7 +3,7 @@
  * Floating chat interface for natural language queries with voice support
  * Features: Context Memory, Medical Scribe Mode
  */
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
 import { Send, X, Bot, Loader2, Mic, MicOff, Calendar, Users, DollarSign, Building2, Volume2, VolumeX, FileEdit } from 'lucide-react';
 import { sendAIQuery } from '@/api';
@@ -48,6 +48,49 @@ export default function AIChat() {
         setTtsEnabled,
         speakText
     } = useTextToSpeech(false);
+
+    const handleSend = useCallback(async (overrideInput) => {
+        const messageText = typeof overrideInput === 'string' ? overrideInput.trim() : input.trim();
+        if (!messageText || isLoading) return;
+        if (isListening) {
+            stopListening();
+        }
+        setInput('');
+        setMessages(prev => [...prev, { role: 'user', content: messageText }]);
+        setIsLoading(true);
+        try {
+            const conversationContext = messages.slice(-10).map(m => ({
+                role: m.role,
+                content: m.content
+            }));
+            const response = await sendAIQuery(messageText, {
+                context: conversationContext,
+                last_patient_name: lastPatientName,
+                scribe_mode: scribeMode
+            });
+            const responseData = response?.data;
+            const assistantMessage = formatAIResponse(responseData);
+            setMessages(prev => [...prev, assistantMessage]);
+            if (ttsEnabled && assistantMessage.content) {
+                speakText(assistantMessage.content);
+            }
+            if (response.data?.data?.patient?.name) {
+                setLastPatientName(response.data.data.patient.name);
+            } else if (response.data?.data?.patient_name) {
+                setLastPatientName(response.data.data.patient_name);
+            }
+        } catch (err) {
+            logger.error('AI Query Error:', err);
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: err.response?.data?.detail || t('ai_chat.chat.connection_error'),
+                type: 'error'
+            }]);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [input, isLoading, isListening, lastPatientName, messages, scribeMode, speakText, stopListening, t, ttsEnabled]);
+
     // Sync transcript to input
     useEffect(() => {
         if (isListening) {
@@ -70,7 +113,7 @@ export default function AIChat() {
             setAutoSendAfterSpeech(false);
             handleSend();
         }
-    }, [autoSendAfterSpeech, isListening, input]);
+    }, [autoSendAfterSpeech, handleSend, isListening, input]);
     // Sync Scribe Mode with Microphone
     useEffect(() => {
         if (scribeMode) {
@@ -78,55 +121,7 @@ export default function AIChat() {
         } else {
             if (isListening) stopListening();
         }
-    }, [scribeMode]);
-    const handleSend = async () => {
-        if (!input.trim() || isLoading) return;
-        // Stop listening if active
-        if (isListening) {
-            stopListening();
-        }
-        const userMessage = input.trim();
-        setInput('');
-        // Add user message
-        setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-        setIsLoading(true);
-        try {
-            // Build conversation context (last 10 messages)
-            const conversationContext = messages.slice(-10).map(m => ({
-                role: m.role,
-                content: m.content
-            }));
-            // Send query with context (Phase 1: Memory)
-            const response = await sendAIQuery(userMessage, {
-                context: conversationContext,
-                last_patient_name: lastPatientName,
-                scribe_mode: scribeMode
-            });
-            // Format response based on tool
-            const responseData = response?.data;
-            let assistantMessage = formatAIResponse(responseData);
-            setMessages(prev => [...prev, assistantMessage]);
-            // Text-to-Speech
-            if (ttsEnabled && assistantMessage.content) {
-                speakText(assistantMessage.content);
-            }
-            // Remember patient name for context
-            if (response.data?.data?.patient?.name) {
-                setLastPatientName(response.data.data.patient.name);
-            } else if (response.data?.data?.patient_name) {
-                setLastPatientName(response.data.data.patient_name);
-            }
-        } catch (err) {
-            logger.error('AI Query Error:', err);
-            setMessages(prev => [...prev, {
-                role: 'assistant',
-                content: err.response?.data?.detail || t('ai_chat.chat.connection_error'),
-                type: 'error'
-            }]);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    }, [isListening, scribeMode, startListening, stopListening]);
     // Quick action handler - transmits the exact query to backend
     const handleQuickAction = (displayLabel, queryText) => {
         // We display the queryText in input for clarity, but the button label was translated
@@ -136,7 +131,7 @@ export default function AIChat() {
             if (inputRef.current) {
                 // const event = new KeyboardEvent('keypress', { key: 'Enter' }); 
                 // Removed unused event
-                handleSend();
+                handleSend(queryText);
             }
         }, 100);
     };
@@ -356,4 +351,3 @@ export default function AIChat() {
         </>
     );
 }
-
