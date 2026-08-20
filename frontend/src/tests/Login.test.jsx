@@ -30,6 +30,12 @@ const renderLogin = (props = {}) => render(
     </MemoryRouter>
 );
 
+const renderLoginAt = (path) => render(
+    <MemoryRouter initialEntries={[path]}>
+        <Login isDarkMode={false} toggleDarkMode={vi.fn()} />
+    </MemoryRouter>
+);
+
 describe('Login Component', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -79,6 +85,12 @@ describe('Login Component', () => {
         fireEvent.change(screen.getByPlaceholderText('auth.login.password'), { target: { value: 'wrongpass' } });
         fireEvent.click(screen.getByText('auth.login.submit'));
         await waitFor(() => expect(screen.getByText('Invalid credentials')).toBeInTheDocument());
+    });
+
+    it('shows a localized explanation after a session mismatch redirect', () => {
+        renderLoginAt('/login?reason=session_mismatch');
+
+        expect(screen.getByText('auth.login.errors.session_mismatch')).toBeInTheDocument();
     });
 
     it('renders footer terms and privacy links', () => {

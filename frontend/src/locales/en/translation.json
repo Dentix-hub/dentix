@@ -1311,6 +1311,7 @@
             "copyright": "© 2026 All Rights Reserved Smart Clinic",
             "errors": {
                 "server": "Server Error",
+                "session_mismatch": "Your session ended because this account was signed in on another device. Please sign in again.",
                 "connection": "Connection Failed. Ensure server is running.",
                 "unknown": "Unknown Error"
             }
@@ -2080,6 +2081,14 @@
         "reports": {
             "title": "Financial Reports & Analytics",
             "description": "Income statements, cash flow, and financial analytics"
+        }
+    },
+    "pwa": {
+        "update": {
+            "title": "A new DENTIX version is available",
+            "description": "Update after saving your current work",
+            "confirm": "Update now",
+            "later": "Later"
         }
     }
 }

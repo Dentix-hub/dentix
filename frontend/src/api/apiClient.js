@@ -1,5 +1,7 @@
 import axios from 'axios';
 import { logger } from '../utils/logger';
+import { useAuthStore } from '../store/auth.store';
+import { queryClient } from '../lib/queryClient';
 
 const getApiUrl = () => {
     if (import.meta.env.VITE_API_BASE_URL) {
@@ -183,8 +185,36 @@ api.interceptors.response.use(
 
                 const errorDetail = err.response?.data?.detail;
                 if (errorDetail && typeof errorDetail === 'string' && (errorDetail.includes('جهاز آخر') || errorDetail.includes('Session Mismatch'))) {
-                    window.location.href = '/login?reason=session_mismatch';
-                    return new Promise(() => { });
+                    useAuthStore.getState().setLoading(true);
+
+                    try {
+                        await axios.post(`${API_URL}/api/v1/auth/logout`, null, {
+                            withCredentials: true,
+                            timeout: 5000,
+                        });
+                    } catch (logoutError) {
+                        logger.warn('[API] Best-effort logout failed after session mismatch', logoutError);
+                    }
+
+                    try {
+                        await queryClient.cancelQueries();
+                    } catch (queryCancellationError) {
+                        logger.warn('[API] Query cancellation failed during session cleanup', queryCancellationError);
+                    }
+                    queryClient.clear();
+
+                    try {
+                        const { useTenantStore } = await import('../store/tenant.store');
+                        useTenantStore.getState().clearTenant();
+                    } catch (tenantCleanupError) {
+                        logger.warn('[API] Tenant cleanup failed after session mismatch', tenantCleanupError);
+                    }
+
+                    sessionStorage.removeItem('admin_token');
+                    sessionStorage.removeItem('print_rx_data');
+                    useAuthStore.getState().clearAuth();
+                    window.location.replace('/login?reason=session_mismatch');
+                    return Promise.reject(err);
                 }
 
                 window.location.href = '/';

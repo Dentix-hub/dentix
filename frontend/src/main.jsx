@@ -6,6 +6,10 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
 import './index.css';
 import './i18n'; // Initialize i18n
+import { deleteLegacyImageCache } from './pwa/legacyCacheCleanup';
+import { installPreloadRecovery } from './pwa/preloadRecovery';
+
+installPreloadRecovery();
 
 class DiagnosticErrorBoundary extends React.Component {
   constructor(props) {
@@ -37,15 +41,21 @@ class DiagnosticErrorBoundary extends React.Component {
   }
 }
 
-const container = document.getElementById('root');
-const root = createRoot(container);
+async function renderApplication() {
+  await deleteLegacyImageCache();
 
-root.render(
-  <StrictMode>
-    <DiagnosticErrorBoundary>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </DiagnosticErrorBoundary>
-  </StrictMode>
-);
+  const container = document.getElementById('root');
+  const root = createRoot(container);
+
+  root.render(
+    <StrictMode>
+      <DiagnosticErrorBoundary>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </DiagnosticErrorBoundary>
+    </StrictMode>
+  );
+}
+
+void renderApplication();

@@ -11,8 +11,8 @@ export default defineConfig({
     plugins: [
         react(),
         VitePWA({
-            registerType: 'autoUpdate',
-            includeAssets: ['favicon.ico', 'icons/icon-192.png', 'icons/icon-512.png'],
+            registerType: 'prompt',
+            includeAssets: ['icons/icon-192.png', 'icons/icon-512.png'],
             manifest: {
                 name: 'DENTIX — إدارة العيادة',
                 short_name: 'DENTIX',
@@ -60,23 +60,13 @@ export default defineConfig({
                     {
                         urlPattern: /^https?.*\/api\/.*/i,
                         handler: 'NetworkOnly',  // API = always live, never cached
-                    },
-                    {
-                        urlPattern: /^https?.*\.(png|jpg|jpeg|svg|gif|webp)$/i,
-                        handler: 'CacheFirst',
-                        options: {
-                            cacheName: 'images-cache',
-                            expiration: {
-                                maxEntries: 50,
-                                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-                            }
-                        }
                     }
                 ],
                 
-                // Skip waiting — update immediately when new version deployed
-                skipWaiting: true,
-                clientsClaim: true,
+                // Keep the active clinical session on its current version until the
+                // user confirms the update prompt exposed by virtual:pwa-register.
+                skipWaiting: false,
+                clientsClaim: false,
             }
         })
     ],

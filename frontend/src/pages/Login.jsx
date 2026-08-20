@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
 import { Sun, Moon, Globe, Loader2 } from 'lucide-react';
 export default function Login({ isDarkMode, toggleDarkMode }) {
@@ -10,10 +10,14 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { login, verify2FA } = useAuth();
     const [show2FA, setShow2FA] = useState(false);
     const [twoFACode, setTwoFACode] = useState('');
     const [tempToken, setTempToken] = useState('');
+    const sessionMismatchMessage = searchParams.get('reason') === 'session_mismatch'
+        ? t('auth.login.errors.session_mismatch')
+        : '';
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -86,9 +90,9 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
                     </button>
                 </div>
-                {error && (
+                {(error || sessionMismatchMessage) && (
                     <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-2xl text-sm font-bold mb-6 animate-shake">
-                        {error}
+                        {error || sessionMismatchMessage}
                     </div>
                 )}
                 {!show2FA ? (
@@ -193,4 +197,3 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
         </div>
     );
 }
-

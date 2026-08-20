@@ -210,6 +210,12 @@ dist
 # Gatsby files
 .cache/
 public
+!frontend/public/
+frontend/public/*
+!frontend/public/icons/
+frontend/public/icons/*
+!frontend/public/icons/icon-192.png
+!frontend/public/icons/icon-512.png
 
 # Storybook build outputs
 .out
@@ -388,4 +394,3 @@ dentix-staging/
 !.env.example
 .prefect/
 *.zip
-

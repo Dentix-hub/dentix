@@ -14,6 +14,13 @@ export const useTenantStore = create((set, get) => ({
         set({ tenant: data, features });
     },
 
+    clearTenant: () => set({
+        tenant: null,
+        loading: false,
+        error: null,
+        features: {},
+    }),
+
     fetchTenant: async () => {
         set({ loading: true });
         try {

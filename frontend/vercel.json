@@ -6,7 +6,7 @@
       "destination": "https://dentix-dentix.hf.space/api/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!api/|assets/|icons/|sw\\.js|workbox-|registerSW\\.js|manifest\\.webmanifest|favicon\\.ico).*)",
       "destination": "/index.html"
     }
   ]
