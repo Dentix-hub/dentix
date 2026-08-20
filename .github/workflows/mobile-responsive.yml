@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [ staging, main ]
   push:
-    branches: [ staging, test/mobile-recovery-integration ]
+    branches: [ staging ]
 
 concurrency:
   group: dentix-mobile-responsive-${{ github.event.pull_request.number || github.ref }}
@@ -33,6 +33,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://mobile_user:mobile_pass@localhost:5432/dentix_mobile
+      DB_SSL_MODE: disable
       SECRET_KEY: mobile-responsive-ci-secret-at-least-32
       ENVIRONMENT: test
       PYTHONPATH: .
