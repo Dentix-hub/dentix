@@ -24,6 +24,8 @@ If executable sources conflict and the correct current behavior cannot be establ
 - Current modules: [`docs/product/MODULE_REGISTRY.md`](docs/product/MODULE_REGISTRY.md)
 - Current capabilities: [`docs/product/CURRENT_PRODUCT_CAPABILITIES.md`](docs/product/CURRENT_PRODUCT_CAPABILITIES.md)
 - Environment/deployment: [`docs/product/ENVIRONMENT_AND_DEPLOYMENT_TRUTH.md`](docs/product/ENVIRONMENT_AND_DEPLOYMENT_TRUTH.md)
+- Deployment artifact ownership/retirement: [`docs/product/DEPLOYMENT_ARTIFACT_DISPOSITION.md`](docs/product/DEPLOYMENT_ARTIFACT_DISPOSITION.md)
+- Production architecture normalization closeout/blockers: [`docs/product/PRODUCTION_ARCHITECTURE_NORMALIZATION_STATUS.md`](docs/product/PRODUCTION_ARCHITECTURE_NORMALIZATION_STATUS.md)
 
 ## Current module map
 
@@ -32,24 +34,38 @@ The navigable product registry is `docs/product/MODULE_REGISTRY.md`. It covers D
 ## Security / RBAC truth links
 
 - Permission matrix: `backend/core/permissions.py`
-- Authentication/session implementation: `backend/routers/auth/`
+- Authentication/session implementation: `backend/routers/auth/`, `backend/services/auth_service.py`
+- Password-reset implementation: `backend/routers/password_reset.py`
 - CSRF enforcement and middleware composition: `backend/main.py`
 - Tenant context/session handling: `backend/database.py`, `backend/core/tenancy.py`, `backend/middleware/tenant.py`
 - ORM tenant criteria: `backend/core/tenant_scope.py`
-- PostgreSQL RLS policy migrations: `backend/alembic/versions/`
-- Security/isolation verification: `backend/tests/`
+- PostgreSQL RLS policy migrations/preflight: `backend/alembic/versions/`, `backend/scripts/preflight_migrations.py`
+- Security/isolation verification: `backend/tests/`, `backend/ci_tests/`, `.github/workflows/rls-concurrency.yml`
+- File/PHI boundary implementation: `backend/routers/upload.py`, `backend/services/file_service.py`
 
 ## Environment / deployment truth links
 
-Use `.github/workflows/ci.yml`, `.github/workflows/cd.yml`, deployment/container configuration, and environment key definitions. Production-only frontend rewrites are currently expressed in `frontend/vercel.json` on `main`. Do not copy external secret values or platform URLs into multiple documents.
+Use `.github/workflows/ci.yml`, dedicated verification workflows, `.github/workflows/cd.yml`, the root `Dockerfile`, `scripts/deployment/startup.sh`, `backend/scripts/preflight_migrations.py`, and environment key definitions. Repository-controlled production frontend rewrites are expressed in `frontend/vercel.json`.
+
+External Vercel/Hugging Face bindings and secret values are mutable platform state. Use `docs/product/ENVIRONMENT_AND_DEPLOYMENT_TRUTH.md` for the last verified human-readable map, and re-verify platform state before changes that depend on it.
 
 ## Test / CI truth links
 
-- CI behavior and current gates: `.github/workflows/ci.yml`
+- Core CI behavior and current gates: `.github/workflows/ci.yml`
+- PostgreSQL pooled-session tenant isolation: `.github/workflows/rls-concurrency.yml`
+- Stale deployment/PWA recovery: `.github/workflows/stale-deployment-recovery.yml`
+- Responsive/mobile web acceptance: `.github/workflows/mobile-responsive.yml`
+- Branch PR-path governance: `.github/workflows/branch-governance.yml`
 - CD behavior and health verification: `.github/workflows/cd.yml`
-- Backend tests: `backend/tests/`
+- Backend tests: `backend/tests/`, `backend/ci_tests/`
 - Frontend unit tests: `frontend/src/**/*.test.*`
 - End-to-end tests: `frontend/e2e/`
+
+## Release truth
+
+Architecture normalization evidence does not by itself authorize production promotion. The closeout/blocker record is `docs/product/PRODUCTION_ARCHITECTURE_NORMALIZATION_STATUS.md`, and production branch reconciliation rules are in `docs/product/GIT_RELEASE_GOVERNANCE.md`.
+
+Known release blockers must remain explicit rather than being hidden by documentation cleanup, allowlists, force merges, or assumptions about external platform settings.
 
 ## Documentation lifecycle rules
 
