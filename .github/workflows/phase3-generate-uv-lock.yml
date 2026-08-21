@@ -1,0 +1,57 @@
+name: Phase 3 Generate uv Lock
+
+on:
+  pull_request:
+    branches: [staging]
+    paths:
+      - pyproject.toml
+      - .github/workflows/phase3-generate-uv-lock.yml
+
+permissions:
+  contents: read
+
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: '0.12.5'
+
+      - name: Generate canonical lock
+        run: uv lock
+
+      - name: Verify security and compatibility invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv sync --frozen
+          uv run --frozen python - <<'PY'
+          from jose import jwt
+          import chromadb
+          secret = 'dentix-phase3-build-smoke-secret-32chars'
+          token = jwt.encode({'sub': 'build'}, secret, algorithm='HS256')
+          assert jwt.decode(token, secret, algorithms=['HS256'])['sub'] == 'build'
+          assert chromadb.__version__ == '0.6.3', chromadb.__version__
+          PY
+          if grep -Eq '^name = "ecdsa"$' uv.lock; then
+            echo 'ecdsa unexpectedly present in uv.lock'
+            exit 1
+          fi
+
+      - name: Upload uv.lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: dentix-uv-lock
+          path: uv.lock
+          if-no-files-found: error
+          retention-days: 2
