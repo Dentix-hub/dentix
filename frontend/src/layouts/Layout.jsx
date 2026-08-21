@@ -46,6 +46,7 @@ import GlobalErrorFallback from '@/shared/ui/GlobalErrorFallback';
 import { useUIStore } from '@/store/ui.store';
 import { useTenantStore } from '@/store/tenant.store';
 import { API_URL } from '@/api';
+import { shouldLoadCommandPaletteData } from './layoutDataPolicy';
 
 const AIChat = lazy(() => import('@/features/ai/AIChat'));
 const DESKTOP_BREAKPOINT = 1024;
@@ -102,8 +103,12 @@ const Layout = () => {
         }
     }, [isDesktop, sidebarOpen]);
 
-    const { data: patientsData } = usePatients({ enabled: !isSuperAdmin });
-    const { data: appointmentsData } = useAppointments({ enabled: !isSuperAdmin });
+    const loadCommandPaletteData = shouldLoadCommandPaletteData({
+        isOpen: isCommandPaletteOpen,
+        isSuperAdmin,
+    });
+    const { data: patientsData } = usePatients({ enabled: loadCommandPaletteData });
+    const { data: appointmentsData } = useAppointments({ enabled: loadCommandPaletteData });
     const patients = patientsData || [];
     const appointments = appointmentsData || [];
 

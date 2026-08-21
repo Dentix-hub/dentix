@@ -26,7 +26,7 @@ import os
 import logging
 import shutil
 import psutil
-from backend.database import get_async_db, async_engine
+from backend.database import get_async_db, async_engine, get_async_pool_status
 from backend.core.permissions import Permission, require_permission
 from backend import models
 
@@ -88,6 +88,7 @@ async def check_database(db: AsyncSession) -> ComponentHealth:
                 status="up",
                 latency_ms=round(latency, 2),
                 message="Database connection OK",
+                details={"pool": get_async_pool_status()},
             )
         else:
             return ComponentHealth(

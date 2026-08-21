@@ -213,14 +213,29 @@ test.describe('Dentix responsive overlay regression', () => {
       : '[data-dentix-overlay="dialog"]';
     await expectOverlayInsideViewport(page, modalSelector);
 
-    const pickerTrigger = page.locator(`${modalSelector} button[aria-haspopup="dialog"]`).first();
+    const pickerTrigger = page.locator(`${modalSelector} [data-date-time-picker-trigger]`).first();
     await expect(pickerTrigger).toBeVisible();
     await pickerTrigger.click();
 
-    const dateDialog = page.getByRole('dialog').last();
-    const datePanel = dateDialog.locator('.rounded-t-overlay').first();
+    const dateDialog = page.locator('[data-date-time-picker-dialog]').last();
+    const datePanel = dateDialog;
     await expectLocatorInsideViewport(page, datePanel);
     await expectNoDocumentOverflow(page);
+
+    const selectedDay = dateDialog.locator('[data-picker-option="day"][aria-pressed="true"]');
+    const alternativeDay = dateDialog.locator('[data-picker-option="day"][aria-pressed="false"].text-text-primary').first();
+    const alternativeHour = dateDialog.locator('[data-picker-option="hour"][aria-pressed="false"]').first();
+
+    await expect(selectedDay).toHaveCount(1);
+    const alternativeDayLabel = await alternativeDay.getAttribute('aria-label');
+    const alternativeHourLabel = await alternativeHour.getAttribute('aria-label');
+    if (!alternativeDayLabel || !alternativeHourLabel) {
+      throw new Error('Date picker alternatives must expose stable accessible labels');
+    }
+    await alternativeDay.click();
+    await alternativeHour.click();
+    await expect(dateDialog.locator('[data-picker-option="day"][aria-pressed="true"]')).toHaveAttribute('aria-label', alternativeDayLabel);
+    await expect(dateDialog.locator('[data-picker-option="hour"][aria-pressed="true"]')).toHaveAttribute('aria-label', alternativeHourLabel);
   });
 });
 

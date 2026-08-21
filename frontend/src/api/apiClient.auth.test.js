@@ -76,4 +76,20 @@ describe('API client authentication recovery', () => {
             expect.objectContaining({ url: '/api/auth/session', _retry: true }),
         );
     });
+
+    it('clears stale auth when a request is still unauthorized after refresh', async () => {
+        authStore.getState().setUser({ id: 2, role: 'super_admin', tenant_id: 7 });
+        const terminalUnauthorized = {
+            config: { url: '/api/v1/notifications', _retry: true, _silentAuth: true },
+            response: { status: 401 },
+        };
+
+        await expect(
+            axiosState.responseErrorHandler(terminalUnauthorized),
+        ).rejects.toBe(terminalUnauthorized);
+
+        expect(axiosState.post).not.toHaveBeenCalled();
+        expect(authStore.getState().user).toBeNull();
+        expect(authStore.getState().isAuthenticated).toBe(false);
+    });
 });

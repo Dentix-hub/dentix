@@ -191,4 +191,8 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Make verified audit identity available to outer error middleware without
+    # repeating a database lookup while handling an exception.
+    request.state.current_user = user
+
     return user
