@@ -213,7 +213,7 @@ test.describe('Dentix responsive overlay regression', () => {
       : '[data-dentix-overlay="dialog"]';
     await expectOverlayInsideViewport(page, modalSelector);
 
-    const pickerTrigger = page.locator(`${modalSelector} button[aria-haspopup="dialog"]`).first();
+    const pickerTrigger = page.locator(`${modalSelector} [data-date-time-picker-trigger]`).first();
     await expect(pickerTrigger).toBeVisible();
     await pickerTrigger.click();
 

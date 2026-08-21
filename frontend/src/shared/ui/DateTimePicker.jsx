@@ -178,6 +178,7 @@ export default function DateTimePicker({
                 className={`flex min-h-11 w-full min-w-0 items-center justify-between gap-2 rounded-2xl border-2 bg-surface text-sm font-bold text-text-primary shadow-sm outline-none transition-all hover:border-primary/40 hover:bg-slate-50 focus:ring-4 focus:ring-primary/10 dark:hover:bg-slate-800 ${compact ? 'px-3 py-1.5' : 'px-3 py-2.5 sm:px-4 sm:py-3'} ${error ? 'border-red-300' : 'border-border'}`}
                 aria-haspopup="dialog"
                 aria-expanded={isOpen}
+                data-date-time-picker-trigger
             >
                 <span className="flex min-w-0 items-center gap-2.5">
                     <span className={`shrink-0 rounded-lg p-1.5 transition-colors ${isOpen ? 'bg-primary text-white' : 'bg-primary/10 text-primary'}`}>
