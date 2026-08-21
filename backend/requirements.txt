@@ -1,3 +1,10 @@
+# LEGACY COMPATIBILITY ONLY.
+# Canonical Python dependency truth is the repository-root pyproject.toml + uv.lock.
+# This divergent list is retained temporarily because backend/Dockerfile is a
+# historical deployment artifact that still reads it. Do not add new canonical
+# dependencies here; Phase 2 removes or archives the legacy Docker path after
+# consumer proof.
+
 fastapi>=0.109.0,<0.137.0
 uvicorn>=0.27.0
 gunicorn>=21.2.0

@@ -1,3 +1,10 @@
+# LEGACY COMPATIBILITY ONLY.
+# Canonical Python dependency truth is pyproject.toml + uv.lock.
+# Current CI, production Docker, active dev Docker, and local test bootstrap must
+# not consume this file. It is retained temporarily only because the historical
+# scripts/deployment/deploy.py path still copies it; Phase 2 removes that legacy
+# deployment path after consumer proof.
+
 fastapi>=0.109.0,<0.137.0
 uvicorn>=0.27.0
 gunicorn>=21.2.0
