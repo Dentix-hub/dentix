@@ -1,7 +1,7 @@
 # ==========================================
 # Stage 1: Build Frontend
 # ==========================================
-FROM node:20-alpine AS build
+FROM node:20-alpine AS frontend-build
 WORKDIR /app/frontend
 
 COPY frontend/package*.json ./
@@ -11,44 +11,77 @@ RUN npm run build
 
 
 # ==========================================
-# Stage 2: Production Runtime (Python)
+# Stage 2: Build Python Environment
 # ==========================================
-FROM python:3.11-slim
-
+FROM python:3.11-slim AS python-deps
 WORKDIR /app
 
-# Phase 3 intentionally preserves the existing runtime system package set.
-# Builder/runtime separation and non-root hardening are handled independently
-# in Phase 4 so dependency normalization remains reversible and reviewable.
-RUN apt-get update && apt-get install -y \
+# Native build tooling is isolated to the dependency builder and is never
+# copied into the production runtime image.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
-    libmagic1 \
     libpq-dev \
-    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Pinned uv binary + canonical dependency inputs.
 COPY --from=ghcr.io/astral-sh/uv:0.12.5 /uv /uvx /bin/
 COPY pyproject.toml uv.lock ./
 
-# Production installs runtime dependencies only. `ecdsa` is excluded by the
-# canonical uv resolver policy in pyproject.toml; verify the JWT path immediately.
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
+
+# Install only locked runtime dependencies. Preserve the Phase 3 security
+# invariants before the environment is copied into the final image.
 RUN uv sync --frozen --no-dev \
     && .venv/bin/python -c "import importlib.util; assert importlib.util.find_spec('ecdsa') is None; from jose import jwt; import chromadb; assert chromadb.__version__ == '0.6.3'; s='dentix-build-smoke-secret-32chars'; t=jwt.encode({'sub':'build'}, s, algorithm='HS256'); assert jwt.decode(t, s, algorithms=['HS256'])['sub']=='build'"
 
+
+# ==========================================
+# Stage 3: Production Runtime (Python)
+# ==========================================
+FROM python:3.11-slim AS runtime
+WORKDIR /app
+
+# Keep only runtime OS capabilities that the application actually uses.
+# - libmagic1: file-content inspection support.
+# - postgresql-client: pg_dump/psql power the existing backup/restore API.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libmagic1 \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --system dentix \
+    && useradd --system --gid dentix --create-home --home-dir /home/dentix dentix
+
+COPY --from=python-deps /app/.venv /app/.venv
 COPY backend/ backend/
-COPY --from=build /app/frontend/dist /app/backend/static
+COPY --from=frontend-build /app/frontend/dist /app/backend/static
 
 ENV PYTHONPATH=/app \
     ENVIRONMENT=production \
-    PATH="/app/.venv/bin:${PATH}"
+    PATH="/app/.venv/bin:${PATH}" \
+    HOME=/home/dentix \
+    XDG_CACHE_HOME=/home/dentix/.cache
 
-RUN mkdir -p backend/uploads backend/static/logos /app/rag_storage /root/.cache/chroma \
-    && chmod -R 777 backend/uploads /app/rag_storage /root/.cache/chroma
+# Only application-owned mutable paths are writable by the runtime user.
+# Source code and built static assets remain root-owned/read-only.
+RUN mkdir -p \
+        /app/uploads \
+        /app/rag_storage \
+        /app/backend/static/logos \
+        /app/backend/static/assets \
+        /home/dentix/.cache/chroma \
+        /home/dentix/.cache/huggingface \
+        /home/dentix/.cache/torch \
+    && chown -R dentix:dentix \
+        /app/uploads \
+        /app/rag_storage \
+        /home/dentix
 
 COPY scripts/deployment/startup.sh /app/startup.sh
-RUN chmod +x /app/startup.sh
+RUN chmod 0755 /app/startup.sh
+
+USER dentix
 
 EXPOSE 7860
 
