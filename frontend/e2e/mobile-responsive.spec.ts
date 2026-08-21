@@ -227,10 +227,15 @@ test.describe('Dentix responsive overlay regression', () => {
     const alternativeHour = dateDialog.locator('[data-picker-option="hour"][aria-pressed="false"]').first();
 
     await expect(selectedDay).toHaveCount(1);
+    const alternativeDayLabel = await alternativeDay.getAttribute('aria-label');
+    const alternativeHourLabel = await alternativeHour.getAttribute('aria-label');
+    if (!alternativeDayLabel || !alternativeHourLabel) {
+      throw new Error('Date picker alternatives must expose stable accessible labels');
+    }
     await alternativeDay.click();
     await alternativeHour.click();
-    await expect(alternativeDay).toHaveAttribute('aria-pressed', 'true');
-    await expect(alternativeHour).toHaveAttribute('aria-pressed', 'true');
+    await expect(dateDialog.locator('[data-picker-option="day"][aria-pressed="true"]')).toHaveAttribute('aria-label', alternativeDayLabel);
+    await expect(dateDialog.locator('[data-picker-option="hour"][aria-pressed="true"]')).toHaveAttribute('aria-label', alternativeHourLabel);
   });
 });
 
