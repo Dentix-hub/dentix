@@ -127,7 +127,7 @@ Historical decisions about Celery/Prefect or particular providers are not curren
 | `PROJECT_STANDARDS.md` | engineering governance |
 | `WORKFLOW_RULES.md` | human operational rules; executable sources still win |
 | `.github/workflows/ci.yml` | core CI gates/tool versions/thresholds |
-| `.github/workflows/postgres-rls-concurrency.yml` | real PostgreSQL pooled-session tenant isolation gate |
+| `.github/workflows/rls-concurrency.yml` | real PostgreSQL pooled-session tenant isolation gate |
 | `.github/workflows/stale-deployment-recovery.yml` | stale hashed-asset/PWA recovery gate |
 | `.github/workflows/mobile-responsive.yml` | responsive/mobile acceptance gate |
 | `.github/workflows/cd.yml` | repository-controlled staging/production backend deployment flow |
