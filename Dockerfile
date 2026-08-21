@@ -50,8 +50,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-RUN groupadd --system dentix \
-    && useradd --system --gid dentix --create-home --home-dir /home/dentix dentix
+# Hugging Face Docker Spaces execute containers as uid 1000. Keep the image's
+# declared user aligned with that platform contract while retaining a named
+# non-root identity for local/container inspection.
+RUN groupadd --gid 1000 dentix \
+    && useradd --uid 1000 --gid 1000 --create-home --home-dir /home/dentix --shell /usr/sbin/nologin dentix
 
 COPY --from=python-deps /app/.venv /app/.venv
 COPY backend/ backend/
