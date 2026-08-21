@@ -34,11 +34,12 @@ def subscription_payment_rls_contract():
                 """
                 INSERT INTO tenants (
                     id, name, subscription_status, plan, is_active,
-                    created_at, total_revenue, backup_frequency, timezone
+                    created_at, total_revenue, backup_frequency, timezone,
+                    payment_failed_count
                 )
                 VALUES
-                    (%s, 'RLS Contract Tenant A', 'active', 'trial', TRUE, NOW(), 0, 'off', 'Africa/Cairo'),
-                    (%s, 'RLS Contract Tenant B', 'active', 'trial', TRUE, NOW(), 0, 'off', 'Africa/Cairo')
+                    (%s, 'RLS Contract Tenant A', 'active', 'trial', TRUE, NOW(), 0, 'off', 'Africa/Cairo', 0),
+                    (%s, 'RLS Contract Tenant B', 'active', 'trial', TRUE, NOW(), 0, 'off', 'Africa/Cairo', 0)
                 ON CONFLICT (id) DO NOTHING
                 """,
                 (tenant_a, tenant_b),
