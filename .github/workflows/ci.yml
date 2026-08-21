@@ -373,30 +373,20 @@ jobs:
             frontend/test-results/
 
   production-container:
-    name: Validate / Publish Production Container
+    name: Validate Production Container
     runs-on: ubuntu-latest
     needs: [backend, frontend, e2e, dependency-reproducibility]
     permissions:
       contents: read
-      packages: write
 
     steps:
       - name: Checkout tested revision
         uses: actions/checkout@v4
 
-      - name: Validate production Compose
-        shell: bash
-        run: |
-          set -euo pipefail
-          touch .env
-          DENTIX_IMAGE="dentix-ci:${GITHUB_SHA}" \
-            docker compose -f docker-compose.production.yml config --quiet
-
       - name: Configure BuildKit
         run: docker buildx create --name dentix-ci --driver docker-container --use
 
-      - name: Build production image on pull requests
-        if: github.event_name == 'pull_request'
+      - name: Build production image
         env:
           SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
         run: |
@@ -411,27 +401,3 @@ jobs:
             .
           IMAGE_REVISION="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "dentix-ci:${GITHUB_SHA}")"
           test "$IMAGE_REVISION" = "$GITHUB_SHA"
-
-      - name: Log in to GitHub Container Registry
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "$GHCR_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Publish immutable production image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
-        run: |
-          set -euo pipefail
-          IMAGE_REPOSITORY="ghcr.io/${GITHUB_REPOSITORY,,}"
-          docker buildx build \
-            --file Dockerfile \
-            --platform linux/amd64 \
-            --label "org.opencontainers.image.source=${SOURCE_URL}" \
-            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
-            --tag "${IMAGE_REPOSITORY}:${GITHUB_SHA}" \
-            --tag "${IMAGE_REPOSITORY}:main" \
-            --provenance=true \
-            --push \
-            .

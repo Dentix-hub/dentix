@@ -89,13 +89,19 @@ describe('production asset delivery contract', () => {
         expect(cleanupCall).toBeLessThan(renderSetup);
     });
 
-    it('canonicalizes www traffic before it reaches cookie-authenticated APIs', () => {
-        const caddyfile = fs.readFileSync(path.join(repositoryRoot, 'Caddyfile'), 'utf8');
-        const productionCompose = fs.readFileSync(path.join(repositoryRoot, 'docker-compose.production.yml'), 'utf8');
+    it('routes production API traffic to Hugging Face before SPA fallback', () => {
+        const config = JSON.parse(fs.readFileSync(path.join(frontendRoot, 'vercel.json'), 'utf8'));
+        const apiRewrite = config.rewrites.find((rewrite) => rewrite.source === '/api/:path*');
+        const fallback = config.rewrites.find((rewrite) => rewrite.destination === '/index.html');
 
-        expect(caddyfile).toContain('{$WWW_DOMAIN:www.dentixs.app}');
-        expect(caddyfile).toContain('redir https://{$DOMAIN:dentixs.app}{uri} permanent');
-        expect(caddyfile).toContain('header_up X-Forwarded-Host {host}');
-        expect(productionCompose).toContain('WWW_DOMAIN: ${WWW_DOMAIN:-www.dentixs.app}');
+        expect(apiRewrite).toEqual({
+            source: '/api/:path*',
+            destination: 'https://dentix-dentix.hf.space/api/:path*',
+        });
+        expect(config.rewrites.indexOf(apiRewrite)).toBeLessThan(config.rewrites.indexOf(fallback));
+
+        const fallbackPattern = new RegExp(`^${fallback.source}$`);
+        expect(fallbackPattern.test('/api/v1/health')).toBe(false);
+        expect(fallbackPattern.test('/patients/123')).toBe(true);
     });
 });
