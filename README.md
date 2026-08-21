@@ -60,13 +60,13 @@ Those inventories cover Dashboard, Patients, Appointments, Dental/Clinical, Fina
 
 ## Local Development
 
-Use the repository's current development configuration and environment templates. Typical direct commands are:
+Use the repository's current development configuration and environment templates. Canonical Python dependency truth is `pyproject.toml` + `uv.lock`.
 
 ```bash
 # Backend dependencies/tests/run
-pip install -r requirements.txt
-pytest backend/tests/ -v --tb=short
-uvicorn backend.main:app --reload --port 7860
+uv sync --frozen
+uv run pytest backend/tests/ -v --tb=short
+uv run uvicorn backend.main:app --reload --port 7860
 
 # Frontend
 cd frontend
