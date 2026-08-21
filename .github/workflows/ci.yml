@@ -44,6 +44,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          python -m pip install --upgrade "setuptools>=83.0.0"
           pip install -r requirements.txt
           pip uninstall -y ecdsa
           pip install pytest pytest-cov bandit safety
