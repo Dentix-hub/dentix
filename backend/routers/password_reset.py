@@ -56,7 +56,9 @@ async def forgot_password(
             message="إذا كان البريد الإلكتروني موجوداً لدى النظام، ستصل رسالة لإعادة تعيين كلمة المرور"
         )
 
-    # Invalidate previous tokens
+    # Invalidate previous tokens and persist that revocation before issuing a
+    # new reset path. This must also hold when Firebase email delivery succeeds
+    # and the legacy fallback branch is never entered.
     await db.execute(
         update(models.PasswordResetToken)
         .where(
@@ -65,6 +67,7 @@ async def forgot_password(
         )
         .values(used=True)
     )
+    await db.commit()
 
     # 1. Generate Firebase Reset Link
     firebase_link = firebase_client.generate_password_reset_link(email)
