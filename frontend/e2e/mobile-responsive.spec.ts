@@ -217,8 +217,8 @@ test.describe('Dentix responsive overlay regression', () => {
     await expect(pickerTrigger).toBeVisible();
     await pickerTrigger.click();
 
-    const dateDialog = page.getByRole('dialog').last();
-    const datePanel = dateDialog.locator('.rounded-t-overlay').first();
+    const dateDialog = page.locator('[data-date-time-picker-dialog]').last();
+    const datePanel = dateDialog;
     await expectLocatorInsideViewport(page, datePanel);
     await expectNoDocumentOverflow(page);
 

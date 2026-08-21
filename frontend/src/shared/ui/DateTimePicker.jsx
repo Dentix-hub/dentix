@@ -196,6 +196,7 @@ export default function DateTimePicker({
                     <DialogPrimitive.Overlay className="fixed inset-0 z-modal bg-backdrop backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in data-[state=closed]:fade-out motion-reduce:animate-none motion-reduce:backdrop-blur-none" />
                     <DialogPrimitive.Content
                         aria-describedby={undefined}
+                        data-date-time-picker-dialog
                         className="fixed inset-x-0 bottom-0 z-modal mx-auto flex max-h-[calc(100dvh-0.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-t-overlay border border-b-0 border-border bg-surface-elevated text-start align-middle shadow-high outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-bottom-6 data-[state=closed]:slide-out-to-bottom-6 duration-emphasized motion-reduce:animate-none sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:mx-0 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-overlay sm:border-b sm:data-[state=open]:zoom-in-95 sm:data-[state=closed]:zoom-out-95"
                     >
                         <div className="flex min-w-0 shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2.5 sm:px-4">
