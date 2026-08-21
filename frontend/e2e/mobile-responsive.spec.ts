@@ -221,6 +221,16 @@ test.describe('Dentix responsive overlay regression', () => {
     const datePanel = dateDialog.locator('.rounded-t-overlay').first();
     await expectLocatorInsideViewport(page, datePanel);
     await expectNoDocumentOverflow(page);
+
+    const selectedDay = dateDialog.locator('[data-picker-option="day"][aria-pressed="true"]');
+    const alternativeDay = dateDialog.locator('[data-picker-option="day"][aria-pressed="false"].text-text-primary').first();
+    const alternativeHour = dateDialog.locator('[data-picker-option="hour"][aria-pressed="false"]').first();
+
+    await expect(selectedDay).toHaveCount(1);
+    await alternativeDay.click();
+    await alternativeHour.click();
+    await expect(alternativeDay).toHaveAttribute('aria-pressed', 'true');
+    await expect(alternativeHour).toHaveAttribute('aria-pressed', 'true');
   });
 });
 

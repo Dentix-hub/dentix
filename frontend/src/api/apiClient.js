@@ -130,6 +130,8 @@ api.interceptors.response.use(
     },
     async error => {
         const originalRequest = error.config;
+        const isAuthRequest = originalRequest?.url?.includes('/api/v1/auth/token')
+            || originalRequest?.url?.includes('/api/v1/auth/refresh');
 
         if (error.response) {
             logger.error('[API] Request failed:', error.response.status, originalRequest.url);
@@ -144,8 +146,11 @@ api.interceptors.response.use(
         }
 
         // Handle 401 - attempt token refresh via httpOnly cookie
-        if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/api/v1/auth/token') && !originalRequest.url?.includes('/api/v1/auth/refresh')) {
+        if (error.response?.status === 401 && !originalRequest?._retry && !isAuthRequest) {
             if (isRefreshing) {
+                // Ensure a queued request cannot start a second refresh loop if its
+                // retry is also rejected after the active refresh completes.
+                originalRequest._retry = true;
                 return new Promise(function (resolve, reject) {
                     failedQueue.push({ resolve, reject });
                 }).then(() => {
@@ -220,6 +225,17 @@ api.interceptors.response.use(
                 return Promise.reject(err);
             } finally {
                 isRefreshing = false;
+            }
+        }
+
+        // A successful refresh followed by another 401 means the new cookie is
+        // unusable for this session (for example, a revoked/mismatched session).
+        // Stop authenticated polling instead of retrying forever while the UI
+        // still believes the user is signed in.
+        if (error.response?.status === 401 && originalRequest?._retry && !isAuthRequest) {
+            useAuthStore.getState().clearAuth();
+            if (!originalRequest._silentAuth) {
+                window.location.href = '/';
             }
         }
 
