@@ -1,6 +1,6 @@
 # Dentix Deployment Artifact Disposition
 
-**Baseline reviewed:** `staging` at `b9860167a1147fe7527a181dbb8d320d7155d345`  
+**Baseline reviewed:** `staging` through Phase 2 merge `a418c970ac9e2ffc750e95903f88198e81f04dfe`  
 **Review date:** 2026-08-21  
 **Scope:** production/development deployment surfaces and their proven consumers.
 
@@ -56,15 +56,17 @@ External verification on 2026-08-21 showed that the Vercel project `smartclinic-
 
 Repository-controlled routing is intentionally narrower and testable: `frontend/vercel.json` must route `/api/:path*` to the Hugging Face production backend before the SPA fallback. The frontend deployment contract tests assert that executable rule.
 
-## Deferred dependency compatibility cleanup
+## Retired dependency compatibility surfaces
 
-The following compatibility files are **not** part of this deployment-surface cleanup and must be handled in a separate dependency closeout change after confirming all remaining consumers/documentation:
+After the legacy deployment consumers above were removed, the historical requirements compatibility files no longer had an active consumer and were retired in a separate dependency closeout change:
 
-- `requirements.txt`
-- `backend/requirements.txt`
-- `backend/requirements_root.txt`
+| Retired artifact | Reason for retirement |
+|---|---|
+| `requirements.txt` | Temporary compatibility list retained only for the removed `scripts/deployment/deploy.py` path. Canonical dependency truth is `pyproject.toml` + `uv.lock`. |
+| `backend/requirements.txt` | Divergent compatibility list retained only for the removed `backend/Dockerfile`. |
+| `backend/requirements_root.txt` | Obsolete environment freeze with package drift (including a Chroma version inconsistent with the canonical locked runtime) and no active consumer. |
 
-The canonical dependency source is already `pyproject.toml` + `uv.lock`; keeping dependency-file retirement separate prevents deployment cleanup from silently changing local/test bootstrap behavior.
+Current dependency consumers use the canonical frozen uv contract: CI, root production Docker, `Dockerfile.do`, and local test bootstrap. README local commands use uv as well.
 
 ## Safety rule for future deployment changes
 
