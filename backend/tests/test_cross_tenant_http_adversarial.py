@@ -102,9 +102,28 @@ def _create_tenant_b_graph(db_session):
     }
 
 
-def _create_tenant_a_controls(db_session, test_tenant, test_user, test_patient):
+def _create_tenant_a_patient(db_session, test_tenant, test_user):
+    suffix = uuid.uuid4().hex[:8]
+    patient = models.Patient(
+        name="Tenant A Control Patient",
+        age=30,
+        phone=f"0107{suffix[:7]}",
+        email=None,
+        medical_history="",
+        notes="tenant-a-control",
+        tenant_id=test_tenant.id,
+        assigned_doctor_id=test_user.id,
+        is_deleted=False,
+    )
+    db_session.add(patient)
+    db_session.commit()
+    db_session.refresh(patient)
+    return patient
+
+
+def _create_tenant_a_controls(db_session, test_tenant, test_user, patient_a):
     appointment_a = models.Appointment(
-        patient_id=test_patient.id,
+        patient_id=patient_a.id,
         doctor_id=test_user.id,
         date_time=datetime.utcnow() + timedelta(days=3),
         status="Scheduled",
@@ -113,7 +132,7 @@ def _create_tenant_a_controls(db_session, test_tenant, test_user, test_patient):
         is_deleted=False,
     )
     payment_a = models.Payment(
-        patient_id=test_patient.id,
+        patient_id=patient_a.id,
         doctor_id=test_user.id,
         amount=100,
         notes="tenant-a-control",
@@ -131,18 +150,18 @@ def test_tenant_a_cannot_read_or_mutate_tenant_b_patient_resources(
     db_session,
     test_tenant,
     test_user,
-    test_patient,
     admin_headers,
 ):
     graph_b = _create_tenant_b_graph(db_session)
+    patient_a = _create_tenant_a_patient(db_session, test_tenant, test_user)
     appointment_a, payment_a = _create_tenant_a_controls(
-        db_session, test_tenant, test_user, test_patient
+        db_session, test_tenant, test_user, patient_a
     )
     patient_b = graph_b["patient"]
 
     patient_list = client.get("/api/v1/patients", headers=admin_headers)
     patient_ids = _response_ids(patient_list)
-    assert test_patient.id in patient_ids
+    assert patient_a.id in patient_ids
     assert patient_b.id not in patient_ids
 
     assert client.get(
