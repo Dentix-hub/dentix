@@ -209,3 +209,48 @@ def test_forgot_password_response_does_not_enumerate_accounts(
     assert known.status_code == 200, known.text
     assert unknown.status_code == 200, unknown.text
     assert known.json().get("message") == unknown.json().get("message")
+
+
+def test_forgot_password_commits_old_token_invalidation_on_firebase_success(
+    client, db_session, test_tenant, monkeypatch
+):
+    user, _ = _create_user(db_session, test_tenant, prefix="reset_invalidate")
+    raw_token = f"old-{uuid.uuid4().hex}"
+    old_token = models.PasswordResetToken(
+        token=hashlib.sha256(raw_token.encode()).hexdigest(),
+        user_id=user.id,
+        expires_at=(datetime.now(timezone.utc) + timedelta(minutes=10)).replace(
+            tzinfo=None
+        ),
+        used=False,
+    )
+    db_session.add(old_token)
+    db_session.commit()
+    db_session.refresh(old_token)
+
+    import backend.routers.password_reset as password_reset_router
+
+    monkeypatch.setattr(
+        password_reset_router.firebase_client,
+        "generate_password_reset_link",
+        lambda _email: "https://example.invalid/reset",
+    )
+    monkeypatch.setattr(
+        password_reset_router,
+        "send_password_reset_email",
+        lambda *_args, **_kwargs: True,
+    )
+
+    response = client.post(
+        "/api/v1/auth/forgot-password",
+        json={"email": user.email},
+    )
+    assert response.status_code == 200, response.text
+
+    db_session.expire_all()
+    persisted = (
+        db_session.query(models.PasswordResetToken)
+        .filter(models.PasswordResetToken.id == old_token.id)
+        .one()
+    )
+    assert persisted.used is True
