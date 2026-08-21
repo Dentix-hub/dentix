@@ -2,21 +2,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone
 import json
-import logging
-import sys
 from .. import models
+from backend.core.logging import get_logger
 
-# --- Configure System Logger ---
-LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-logging.basicConfig(
-    level=logging.INFO,
-    format=LOG_FORMAT,
-    handlers=[
-        logging.StreamHandler(sys.stdout),  # Output to console (for Docker/HF logs)
-        logging.FileHandler("app.log", encoding="utf-8"),  # Output to file
-    ],
-)
-logger = logging.getLogger("smart_clinic")
+logger = get_logger("smart_clinic")
 
 
 def log_security_event(
