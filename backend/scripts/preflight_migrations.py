@@ -56,6 +56,12 @@ BOOTSTRAP_MARKER = "_dentix_fresh_bootstrap"
 # the same ENABLE + FORCE + tenant-policy invariants. Fresh databases cannot
 # replay the historical chain from base, so this tuple is authoritative for
 # the explicit post-create_all RLS installation and health verification.
+#
+# `notifications` is intentionally outside this generic tuple. It is still a
+# FORCE-RLS table, but its valid visibility contract includes current-tenant
+# rows plus deliberately global rows (`is_global = true` or tenant_id NULL).
+# `_install_postgresql_rls()` installs that custom policy immediately after the
+# generic loop, and `run_migration_health_check()` verifies it explicitly.
 RLS_TABLES = (
     "users",
     "patients",
@@ -200,6 +206,8 @@ def _install_postgresql_rls(connection) -> None:
             )
         )
 
+    # Notifications are FORCE-RLS too, but their intentional global-announcement
+    # behavior requires this broader policy instead of the generic tenant-only one.
     notif_expr = (
         "(tenant_id = NULLIF(current_setting('rls.tenant_id', true), '')::integer) "
         "OR (is_global = true) OR (tenant_id IS NULL)"
