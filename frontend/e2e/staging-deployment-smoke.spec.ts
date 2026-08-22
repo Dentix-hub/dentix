@@ -142,13 +142,19 @@ test('HF staging passes production-like auth/patient/appointment/finance/file/RB
   expect(payments.ok(), await payments.text()).toBeTruthy();
   expect(apiItems(await payments.json()).some((item: any) => item.id === payment.id)).toBeTruthy();
 
+  // Use an allowlisted file type with a real matching magic signature. The
+  // production upload validator intentionally rejects text/plain/.txt.
+  const onePixelPng = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z6GQAAAAASUVORK5CYII=',
+    'base64',
+  );
   const upload = await page.request.post(`${API_URL}/upload?patient_id=${patient.id}&note=staging-smoke`, {
     headers: { 'X-CSRF-Token': csrf! },
     multipart: {
       file: {
-        name: `staging-smoke-${suffix}.txt`,
-        mimeType: 'text/plain',
-        buffer: Buffer.from(`Dentix staging smoke ${suffix}\n`, 'utf8'),
+        name: `staging-smoke-${suffix}.png`,
+        mimeType: 'image/png',
+        buffer: onePixelPng,
       },
     },
   });
