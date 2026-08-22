@@ -10,7 +10,9 @@ export const queryClient = new QueryClient({
             refetchOnReconnect: false,
         },
         mutations: {
-            retry: 1,
+            // Mutations can create duplicate payments, stock movements, or deletes.
+            // Call sites may opt in only when they carry an idempotency guarantee.
+            retry: false,
         },
     },
 });

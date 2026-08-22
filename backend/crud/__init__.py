@@ -20,6 +20,7 @@ from .patient import (
     get_tooth_status,
     update_tooth_status,
     create_attachment,
+    get_attachment,
     get_patient_attachments,
     delete_attachment,
     create_prescription,

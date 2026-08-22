@@ -555,7 +555,10 @@ async def get_detailed_analytics(db: AsyncSession, tenant_id: int, days: int = 3
     try:
         stmt = (
             select(Material.name)
-            .filter(Material.tenant_id == tenant_id)
+            .filter(
+                Material.tenant_id == tenant_id,
+                Material.is_deleted == False,  # noqa: E712
+            )
             .order_by(Material.alert_threshold.desc())
             .limit(3)
         )

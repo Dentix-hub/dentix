@@ -1,14 +1,48 @@
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+import os
 from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from backend import models, schemas
 from fastapi import HTTPException
+from backend.services.webhook_service import WebhookService
 
 
 class SubscriptionService:
     DEFAULT_GRACE_PERIOD_DAYS = 7
+    CHECKOUT_TTL_MINUTES = 15
+    WEBHOOK_MAX_AGE_SECONDS = 300
+
+    @staticmethod
+    def _utc_now_naive() -> datetime:
+        return datetime.now(timezone.utc).replace(tzinfo=None)
+
+    @staticmethod
+    def _money(value: float | Decimal) -> Decimal:
+        return Decimal(str(value)).quantize(Decimal("0.01"))
+
+    @staticmethod
+    def _verify_provider_signature(
+        raw_payload: bytes, timestamp: str, signature: str
+    ) -> None:
+        secret = os.getenv("SUBSCRIPTION_WEBHOOK_SECRET", "")
+        if len(secret) < 32:
+            raise HTTPException(
+                status_code=503,
+                detail="Subscription webhook verification is not configured",
+            )
+
+        verifier = WebhookService(secret)
+        if not verifier.verify_raw_signature(
+            raw_payload,
+            timestamp,
+            signature,
+            max_age_seconds=SubscriptionService.WEBHOOK_MAX_AGE_SECONDS,
+        ):
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     @staticmethod
     async def check_subscription_status(db: AsyncSession, tenant_id: int):
@@ -194,7 +228,11 @@ class SubscriptionService:
 
     @staticmethod
     async def record_payment(
-        db: AsyncSession, payment_data: schemas.SubscriptionPaymentCreate, created_by: str
+        db: AsyncSession,
+        payment_data: schemas.SubscriptionPaymentCreate,
+        created_by: str,
+        *,
+        commit: bool = True,
     ):
         if payment_data.provider_payment_id:
             stmt = select(models.SubscriptionPayment).where(
@@ -205,7 +243,11 @@ class SubscriptionService:
             if existing:
                 return existing
 
-        stmt = select(models.Tenant).where(models.Tenant.id == payment_data.tenant_id)
+        stmt = (
+            select(models.Tenant)
+            .where(models.Tenant.id == payment_data.tenant_id)
+            .with_for_update()
+        )
         tenant = (await db.execute(stmt)).scalar_one_or_none()
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found")
@@ -217,7 +259,7 @@ class SubscriptionService:
 
         payment = models.SubscriptionPayment(
             **payment_data.model_dump(exclude={"payment_date"}),
-            payment_date=payment_data.payment_date or datetime.now(timezone.utc),
+            payment_date=payment_data.payment_date or SubscriptionService._utc_now_naive(),
             created_by=created_by,
         )
         db.add(payment)
@@ -239,8 +281,10 @@ class SubscriptionService:
         tenant.is_active = True
         tenant.subscription_status = "active"
 
-        await db.commit()
-        await db.refresh(payment)
+        await db.flush()
+        if commit:
+            await db.commit()
+            await db.refresh(payment)
         return payment
 
     @staticmethod
@@ -264,32 +308,166 @@ class SubscriptionService:
             checkout.success_url
             or f"/billing/checkout/{checkout.provider}/{provider_reference}"
         )
+        checkout_record = models.SubscriptionCheckout(
+            provider_reference=provider_reference,
+            tenant_id=tenant.id,
+            plan_id=plan.id,
+            provider=checkout.provider,
+            expected_amount=plan.price or Decimal("0.00"),
+            currency="EGP",
+            status="pending",
+            expires_at=SubscriptionService._utc_now_naive()
+            + timedelta(minutes=SubscriptionService.CHECKOUT_TTL_MINUTES),
+        )
+        db.add(checkout_record)
+        await db.commit()
+
         return schemas.SubscriptionCheckoutSession(
             provider=checkout.provider,
             provider_reference=provider_reference,
             checkout_url=checkout_url,
-            amount=float(plan.price or 0),
+            amount=plan.price or Decimal("0.00"),
         )
 
     @staticmethod
     async def handle_provider_webhook(
-        db: AsyncSession, event: schemas.SubscriptionWebhookEvent
+        db: AsyncSession,
+        event: schemas.SubscriptionWebhookEvent,
+        *,
+        raw_payload: bytes,
+        timestamp: str,
+        signature: str,
     ) -> models.SubscriptionPayment:
+        SubscriptionService._verify_provider_signature(raw_payload, timestamp, signature)
+
+        # Provider callbacks have no authenticated tenant session. Elevate only
+        # after signature/replay verification, and keep the bypass scoped to the
+        # server-owned checkout transaction.
+        if hasattr(db, "bypass_rls"):
+            async with db.bypass_rls() as system_db:
+                return await SubscriptionService._handle_verified_provider_webhook(
+                    system_db, event
+                )
+
+        # Plain AsyncSession is used by the SQLite unit-test harness. Never
+        # allow this fallback on PostgreSQL, where FORCE RLS requires the
+        # explicit audited session context above.
+        bind = db.get_bind()
+        if bind.dialect.name == "postgresql":
+            raise RuntimeError("Webhook processing requires an RLS-aware session")
+        return await SubscriptionService._handle_verified_provider_webhook(db, event)
+
+    @staticmethod
+    async def _handle_verified_provider_webhook(
+        db: AsyncSession,
+        event: schemas.SubscriptionWebhookEvent,
+    ) -> models.SubscriptionPayment:
+
         if event.provider_status.lower() not in {"paid", "succeeded", "success", "completed"}:
             raise HTTPException(status_code=202, detail="Payment event ignored until it is paid")
 
-        payment = schemas.SubscriptionPaymentCreate(
-            tenant_id=event.tenant_id,
-            plan_id=event.plan_id,
-            amount=event.amount,
-            payment_method=event.provider,
-            paid_by=event.paid_by,
-            notes=event.notes,
-            provider=event.provider,
-            provider_payment_id=event.provider_payment_id,
-            provider_status=event.provider_status,
-        )
-        return await SubscriptionService.record_payment(db, payment, created_by=f"{event.provider}:webhook")
+        try:
+            checkout_stmt = (
+                select(models.SubscriptionCheckout)
+                .where(
+                    models.SubscriptionCheckout.provider_reference
+                    == event.provider_reference
+                )
+                .with_for_update()
+            )
+            checkout = (await db.execute(checkout_stmt)).scalar_one_or_none()
+            if not checkout:
+                raise HTTPException(status_code=400, detail="Unknown checkout reference")
+
+            if checkout.status == "completed":
+                if checkout.provider_payment_id != event.provider_payment_id:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Checkout was already completed by another payment",
+                    )
+                existing_stmt = select(models.SubscriptionPayment).where(
+                    models.SubscriptionPayment.provider == event.provider,
+                    models.SubscriptionPayment.provider_payment_id
+                    == event.provider_payment_id,
+                )
+                existing = (await db.execute(existing_stmt)).scalar_one_or_none()
+                if not existing:
+                    raise HTTPException(
+                        status_code=409, detail="Checkout payment state is inconsistent"
+                    )
+                return existing
+
+            if checkout.status != "pending":
+                raise HTTPException(
+                    status_code=409, detail="Checkout is not available for payment"
+                )
+
+            now = SubscriptionService._utc_now_naive()
+            if checkout.expires_at <= now:
+                checkout.status = "expired"
+                await db.commit()
+                raise HTTPException(status_code=410, detail="Checkout has expired")
+
+            fields_match = (
+                checkout.provider == event.provider
+                and checkout.tenant_id == event.tenant_id
+                and checkout.plan_id == event.plan_id
+                and checkout.currency == event.currency
+                and SubscriptionService._money(checkout.expected_amount)
+                == SubscriptionService._money(event.amount)
+            )
+            if not fields_match:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Webhook does not match the server checkout record",
+                )
+
+            duplicate_stmt = select(models.SubscriptionPayment).where(
+                models.SubscriptionPayment.provider == event.provider,
+                models.SubscriptionPayment.provider_payment_id
+                == event.provider_payment_id,
+            )
+            if (await db.execute(duplicate_stmt)).scalar_one_or_none():
+                raise HTTPException(
+                    status_code=409,
+                    detail="Provider payment ID is already bound to another checkout",
+                )
+
+            payment_data = schemas.SubscriptionPaymentCreate(
+                tenant_id=checkout.tenant_id,
+                plan_id=checkout.plan_id,
+                amount=checkout.expected_amount,
+                payment_method=checkout.provider,
+                paid_by=event.paid_by,
+                notes=event.notes,
+                provider=checkout.provider,
+                provider_payment_id=event.provider_payment_id,
+                provider_status=event.provider_status,
+            )
+            payment = await SubscriptionService.record_payment(
+                db,
+                payment_data,
+                created_by=f"{checkout.provider}:webhook",
+                commit=False,
+            )
+            checkout.status = "completed"
+            checkout.provider_payment_id = event.provider_payment_id
+            checkout.processed_at = now
+            await db.commit()
+            await db.refresh(payment)
+            return payment
+        except HTTPException:
+            if db.in_transaction():
+                await db.rollback()
+            raise
+        except IntegrityError as exc:
+            await db.rollback()
+            raise HTTPException(
+                status_code=409, detail="Webhook payment was already processed"
+            ) from exc
+        except Exception:
+            await db.rollback()
+            raise
 
     @staticmethod
     async def delete_payment(db: AsyncSession, payment_id: int):

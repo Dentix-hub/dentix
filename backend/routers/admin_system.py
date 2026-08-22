@@ -17,6 +17,11 @@ from backend.core.permissions import Permission, require_permission
 from backend.services.backup_service import run_backup_task
 from backend.services.auth_service import AuthService
 from backend.routers.settings import _create_backup_oauth_state
+from backend.services.secret_service import (
+    GOOGLE_SUPER_ADMIN_TOKEN_KEY,
+    SENSITIVE_SYSTEM_SETTING_KEYS,
+    decrypt_secret,
+)
 
 router = APIRouter(
     prefix="/admin",
@@ -121,7 +126,11 @@ async def get_system_settings(
     current_user: models.User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_async_db),
 ):
-    res = await db.execute(select(models.SystemSetting))
+    res = await db.execute(
+        select(models.SystemSetting).where(
+            models.SystemSetting.key.not_in(SENSITIVE_SYSTEM_SETTING_KEYS)
+        )
+    )
     return list(res.scalars().all())
 
 
@@ -132,6 +141,11 @@ async def update_system_setting(
     current_user: models.User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_async_db),
 ):
+    if key in SENSITIVE_SYSTEM_SETTING_KEYS:
+        raise HTTPException(
+            status_code=400,
+            detail="Sensitive settings must be managed through their dedicated endpoint",
+        )
     res = await db.execute(select(models.SystemSetting).where(models.SystemSetting.key == key))
     setting = res.scalar_one_or_none()
     if not setting:
@@ -152,7 +166,7 @@ async def get_google_drive_status(
     current_user: models.User = Depends(require_super_admin),
 ):
     res_setting = await db.execute(
-        select(models.SystemSetting).where(models.SystemSetting.key == "google_refresh_token_super_admin")
+        select(models.SystemSetting).where(models.SystemSetting.key == GOOGLE_SUPER_ADMIN_TOKEN_KEY)
     )
     setting = res_setting.scalar_one_or_none()
     res_status = await db.execute(
@@ -193,7 +207,7 @@ async def upload_to_google_drive(
     current_user: models.User = Depends(require_super_admin),
 ):
     res_setting = await db.execute(
-        select(models.SystemSetting).where(models.SystemSetting.key == "google_refresh_token_super_admin")
+        select(models.SystemSetting).where(models.SystemSetting.key == GOOGLE_SUPER_ADMIN_TOKEN_KEY)
     )
     setting = res_setting.scalar_one_or_none()
     if not setting or not setting.value:
@@ -201,7 +215,7 @@ async def upload_to_google_drive(
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         raise HTTPException(status_code=500, detail="DATABASE_URL configuration missing")
-    background_tasks.add_task(run_backup_task, setting.value, db_url)
+    background_tasks.add_task(run_backup_task, decrypt_secret(setting.value), db_url)
     return success_response({
         "success": True,
         "message": "Backup started in background.",
@@ -215,7 +229,7 @@ async def disconnect_google_drive(
     current_user: models.User = Depends(require_super_admin),
 ):
     res_setting = await db.execute(
-        select(models.SystemSetting).where(models.SystemSetting.key == "google_refresh_token_super_admin")
+        select(models.SystemSetting).where(models.SystemSetting.key == GOOGLE_SUPER_ADMIN_TOKEN_KEY)
     )
     setting = res_setting.scalar_one_or_none()
     if setting:

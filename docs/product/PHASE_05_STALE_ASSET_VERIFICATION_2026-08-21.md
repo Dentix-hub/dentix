@@ -1,6 +1,7 @@
 # Phase 05 — Stale Asset / PWA Verification
 
 **Date:** 2026-08-21  
+**Closeout matrix extended:** 2026-08-22  
 **Canonical public frontend:** Vercel (`smartclinic-v2plus`)  
 **Canonical production API:** Hugging Face production backend via `frontend/vercel.json`
 
@@ -15,7 +16,7 @@ The production recovery contract therefore has two independent requirements:
 
 ## Existing runtime controls
 
-The application already installs `installPreloadRecovery()` from `frontend/src/main.jsx` before rendering the React application.
+The application installs `installPreloadRecovery()` from `frontend/src/main.jsx` before rendering the React application.
 
 `frontend/src/pwa/preloadRecovery.js`:
 
@@ -25,7 +26,9 @@ The application already installs `installPreloadRecovery()` from `frontend/src/m
 - reloads the page;
 - suppresses another reload within the 30-second cooldown.
 
-`frontend/vite.config.js` also configures Workbox with `cleanupOutdatedCaches: true`, precaches content-hashed static assets, uses `/index.html` for SPA navigation, denies `/api/` from the navigation fallback, and keeps API requests `NetworkOnly`.
+`frontend/vite.config.js` configures Workbox with `cleanupOutdatedCaches: true`, precaches content-hashed static assets, uses `/index.html` for SPA navigation, denies `/api/` from the navigation fallback, and keeps API requests `NetworkOnly`.
+
+The service-worker update contract is intentionally prompt-driven: `registerType: 'prompt'`, `skipWaiting: false`, and `clientsClaim: false`. `frontend/src/components/InstallPrompt.jsx` calls `updateServiceWorker(true)` only when the user accepts the update and calls `setNeedRefresh(false)` when the user defers it.
 
 ## Deterministic Version A -> Version B reproduction
 
@@ -42,19 +45,31 @@ The application already installs `installPreloadRecovery()` from `frontend/src/m
 9. request the Version A asset from the Version B surface and require HTTP 404;
 10. request the Version B asset and require HTTP 200.
 
-This reproduces the stale deployment condition without depending on retention of a specific historical Vercel preview URL.
+This reproduces the stale deployment condition without depending on retention of a specific historical Vercel preview URL and without introducing a backend `/assets/*` MIME/JSON 404 workaround.
 
-## Browser recovery regression
+## Browser lifecycle recovery matrix
 
-`frontend/e2e/stale-deployment-recovery.spec.ts` runs against the real Vite application in Chromium. It dispatches a cancelable `vite:preloadError`, verifies that a navigation/reload occurs and the session-storage timestamp is written, then immediately dispatches a second preload error and proves no second reload occurs inside the cooldown window.
+`frontend/e2e/stale-deployment-recovery.spec.ts` now exercises the real application-level `vite:preloadError` recovery after each browser lifecycle that can leave a client on an older runtime:
 
-The pre-existing Vitest unit contract for `installPreloadRecovery()` remains in place as lower-level coverage.
+| Lifecycle | Permanent assertion |
+|---|---|
+| Existing stale session | First preload error performs one controlled reload; a second error inside the cooldown does not loop. |
+| Soft navigation | `history.pushState` changes the active SPA URL without a document request; a later preload failure reloads that exact route. |
+| Hard navigation | A fresh document navigation is completed before the stale preload failure; recovery still reloads successfully. |
+| Manual refresh | A user refresh is completed before the stale preload failure; recovery remains armed. |
+| Close / reopen | The old tab is closed after recovery; a newly opened app tab has a fresh session-storage cooldown scope and can recover independently. |
+| Update accepted | `InstallPrompt.test.jsx` proves confirmation calls `updateServiceWorker(true)`. |
+| Update deferred | `InstallPrompt.test.jsx` proves Later clears the refresh prompt with `setNeedRefresh(false)` and does not call `updateServiceWorker`. |
+
+The accepted/deferred assertions are intentionally tied to the actual `virtual:pwa-register/react` API used by the production component rather than an invented service-worker test API.
 
 ## Permanent CI gate
 
-`.github/workflows/stale-deployment-recovery.yml` runs independently on pull requests and pushes to `staging` / `main` and requires both:
+`.github/workflows/stale-deployment-recovery.yml` runs independently on pull requests and pushes to `staging` / `main` and requires all of the following on the same tested revision:
 
-- the production-build Version A -> Version B stale-asset reproduction; and
-- the Chromium browser reload/cooldown behavior.
+- the production-build Version A -> Version B stale-asset reproduction;
+- the update-accepted/update-deferred component contracts;
+- the preload recovery unit contract; and
+- the Chromium browser lifecycle matrix for normal, soft-navigation, hard-navigation, refresh, and close/reopen flows.
 
-Phase 05 is considered closed only after this workflow and the repository's existing required gates are green on the same pull-request head. No production cache/reload behavior is changed by this verification work; it formalizes and regression-tests the existing targeted Vite recovery mechanism.
+Phase 05 is considered closed only after this workflow and the repository's existing required gates are green on the same pull-request head. The fix remains frontend/PWA-scoped; there is no FastAPI-side `/assets/*` 404 handler used as the primary recovery mechanism.

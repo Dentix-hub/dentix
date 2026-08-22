@@ -34,6 +34,7 @@ export default function HeadlineMetrics({
                     icon={FileSpreadsheet}
                     to="/finance/reports"
                     isLoading={isLoading}
+                    maximumFractionDigits={0}
                 />
 
                 {/* 2. Cash Collected */}
@@ -46,6 +47,7 @@ export default function HeadlineMetrics({
                     to="/finance/payments"
                     colored
                     isLoading={isLoading}
+                    maximumFractionDigits={0}
                 />
 
                 {/* 3. Total Deductions */}
@@ -57,6 +59,7 @@ export default function HeadlineMetrics({
                     icon={Receipt}
                     to="/finance/expenses"
                     isLoading={isLoading}
+                    maximumFractionDigits={0}
                 />
 
                 {/* 4. Net Operational Result */}
@@ -69,6 +72,7 @@ export default function HeadlineMetrics({
                     to="/finance/reports"
                     colored
                     isLoading={isLoading}
+                    maximumFractionDigits={0}
                 />
             </div>
         </section>

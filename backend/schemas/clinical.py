@@ -1,9 +1,11 @@
 """Clinical/treatment-related schemas."""
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing import Optional
 from datetime import datetime
+from decimal import Decimal
 from .patient import PatientSummary
+from backend.core.money import NonNegativeMoney
 
 
 class AppointmentBase(BaseModel):
@@ -74,8 +76,8 @@ class TreatmentBase(BaseModel):
     diagnosis: Optional[str] = None
     procedure: Optional[str] = None
     doctor_id: Optional[int] = None
-    cost: float
-    discount: float = 0.0
+    cost: NonNegativeMoney
+    discount: NonNegativeMoney = Decimal("0.00")
     canal_count: Optional[int] = None
     canal_lengths: Optional[str] = None
     sessions: Optional[str] = None
@@ -83,10 +85,16 @@ class TreatmentBase(BaseModel):
     notes: Optional[str] = None
     status: str = "Done"  # Pending, In Progress, Done
 
+    @model_validator(mode="after")
+    def validate_discount_not_above_cost(self):
+        if self.discount > self.cost:
+            raise ValueError("discount cannot exceed treatment cost")
+        return self
+
 
 class ConsumedMaterialItem(BaseModel):
     material_id: int
-    quantity: float
+    quantity: float = Field(gt=0)
     session_id: Optional[int] = None
     weight_score: Optional[float] = 1.0
     is_manual_override: Optional[bool] = False
@@ -146,11 +154,11 @@ class Treatment(TreatmentBase):
 
 class ProcedureBase(BaseModel):
     name: str
-    price: float
+    price: NonNegativeMoney
 
 
 class ProcedureCreate(ProcedureBase):
-    price: float
+    price: NonNegativeMoney
 
 
 class Procedure(ProcedureBase):

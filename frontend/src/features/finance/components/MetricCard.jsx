@@ -19,6 +19,7 @@ export default function MetricCard({
     to,
     isLoading = false,
     colored = false,
+    maximumFractionDigits = 2,
     className = '',
 }) {
     if (isLoading) {
@@ -59,6 +60,7 @@ export default function MetricCard({
                         currency={currency}
                         colored={colored}
                         size="2xl"
+                        maximumFractionDigits={maximumFractionDigits}
                     />
                 </div>
             </div>

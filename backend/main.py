@@ -243,6 +243,13 @@ async def csrf_protection_middleware(request: Request, call_next):
 
     # Skip auth endpoints (they manage their own CSRF or are entry points)
     path = request.url.path
+    if request.method == "POST" and path in {
+        "/api/v1/system/logs",
+        "/api/v1/admin/system/logs",
+    }:
+        # Public, rate-limited diagnostics used before a login session exists.
+        return await call_next(request)
+
     exempt_paths = [
         "/api/v1/auth/token",         # Login
         "/api/v1/auth/refresh",       # Token refresh
@@ -432,7 +439,8 @@ app.include_router(ai.router, prefix=API_V1_STR)
 app.include_router(ai_admin.router, prefix=API_V1_STR)
 app.include_router(ai_assist.router, prefix=API_V1_STR)
 app.include_router(support.router, prefix=API_V1_STR)
-app.include_router(repair.router, prefix=API_V1_STR)
+if os.getenv("ENVIRONMENT", "development").lower() != "production":
+    app.include_router(repair.router, prefix=API_V1_STR)
 app.include_router(accounting.router, prefix=API_V1_STR)
 app.include_router(medications.router, prefix=API_V1_STR)
 app.include_router(prescriptions.router, prefix=API_V1_STR)

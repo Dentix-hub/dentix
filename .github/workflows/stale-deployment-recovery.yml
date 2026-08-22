@@ -38,11 +38,18 @@ jobs:
         working-directory: frontend
         run: node scripts/verify-stale-deployment-recovery.mjs
 
+      - name: Verify update accepted and update deferred contracts
+        working-directory: frontend
+        run: >-
+          npm test --
+          src/components/InstallPrompt.test.jsx
+          src/pwa/preloadRecovery.test.js
+
       - name: Install Playwright Chromium
         working-directory: frontend
         run: npx playwright install chromium
 
-      - name: Verify browser preload recovery and cooldown
+      - name: Verify browser lifecycle stale-preload recovery matrix
         working-directory: frontend
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:5173

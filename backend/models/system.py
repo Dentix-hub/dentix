@@ -6,6 +6,7 @@ from .base import (
     String,
     DateTime,
     Float,
+    Numeric,
     Text,
     Date,
     Boolean,
@@ -13,7 +14,7 @@ from .base import (
     relationship,
     datetime,
 )
-from sqlalchemy import column
+from sqlalchemy import CheckConstraint, column
 import enum
 from rls.schemas import Permissive, ConditionArg, Command
 
@@ -182,12 +183,17 @@ class TenantFeature(Base):
 
 class DailySystemStats(Base):
     __tablename__ = "daily_system_stats"
+    __table_args__ = (
+        CheckConstraint(
+            "total_revenue >= 0", name="ck_daily_system_stats_revenue_nonnegative"
+        ),
+    )
 
     date = Column(Date, primary_key=True, index=True)
     total_tenants = Column(Integer, default=0)
     active_tenants = Column(Integer, default=0)
     new_tenants = Column(Integer, default=0)
-    total_revenue = Column(Float, default=0.0)
+    total_revenue = Column(Numeric(14, 2), default=0.0)
     api_error_rate = Column(Float, default=0.0)
 
 

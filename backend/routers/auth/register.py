@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Form, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from backend import models, crud, schemas
 from backend import auth as auth_utils
 from backend.core.limiter import limiter
@@ -120,6 +120,16 @@ async def register_clinic(
             message="Clinic registered successfully"
         )
 
+    except HTTPException:
+        await db.rollback()
+        raise
+    except IntegrityError as e:
+        await db.rollback()
+        logger.warning("Registration conflict: %s", type(e).__name__)
+        raise HTTPException(
+            status_code=409,
+            detail="Username or email already registered",
+        ) from e
     except OperationalError as e:
         await db.rollback()
         logger.error(f"Registration DB error: {e}", exc_info=True)
@@ -129,5 +139,5 @@ async def register_clinic(
         )
     except Exception as e:
         await db.rollback()
-        logger.error(f"Registration error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Registration error: %s", type(e).__name__, exc_info=True)
+        raise HTTPException(status_code=500, detail="Clinic registration failed") from e

@@ -1,31 +1,27 @@
 import logging
-import os
 import datetime
 from datetime import timezone
 import json
 import csv
 import io
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Query
+from typing import List, Literal
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
 from backend.core.permissions import Permission, require_permission, Role  # noqa: F401 — used by guards below; explicit re-import is the regression guard for 2026-06-19 system_logs NameError on deployed staging
-from backend.core import startup
 from ..database import get_async_db
 from .. import models
 from ..schemas import system_log as schema_system
 from ..auth import get_password_hash
-import subprocess
-import shutil
-from ..services.backup_service import run_backup_task
 from ..services.admin_service import AdminService
 from ..services.security_service import SecurityService
 from ..services.auth_service import AuthService
 from .auth.dependencies import validate_password
 from backend.core.response import success_response, StandardResponse
+from backend.core.limiter import limiter
 
 
 logger = logging.getLogger(__name__)
@@ -46,16 +42,28 @@ router = APIRouter(
 )
 
 
+class LogContext(BaseModel):
+    stack_trace: str | None = Field(default=None, max_length=12000)
+    path: str | None = Field(default=None, max_length=2048)
+    user_agent: str | None = Field(default=None, max_length=512)
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class LogEntry(BaseModel):
-    level: str
-    message: str
-    context: dict = {}
-    timestamp: str = None
+    level: Literal["INFO", "WARNING", "ERROR", "CRITICAL"] = "ERROR"
+    message: str = Field(min_length=1, max_length=4000)
+    context: LogContext = Field(default_factory=LogContext)
+    timestamp: str | None = Field(default=None, max_length=64)
+
+    model_config = ConfigDict(extra="ignore")
 
 
 @router.post("/logs", response_model=StandardResponse[dict])
+@limiter.limit("10/minute")
 async def submit_frontend_log(
     log: LogEntry,
+    request: Request,
     db: AsyncSession = Depends(get_async_db),
 ):
     """Receive logs from frontend and save to DB."""
@@ -66,9 +74,10 @@ async def submit_frontend_log(
             level=level,
             source="FRONTEND",
             message=log.message,
-            stack_trace=log.context.get("stack_trace"),
-            path=log.context.get("path"),
-            user_agent=log.context.get("user_agent"),
+            stack_trace=log.context.stack_trace,
+            path=log.context.path,
+            user_agent=(request.headers.get("user-agent") or "")[:512] or None,
+            ip_address=request.client.host if request.client else None,
             created_at=datetime.datetime.now(timezone.utc),
         )
 
@@ -76,9 +85,9 @@ async def submit_frontend_log(
         await db.commit()
 
         return success_response(data={"status": "ok"})
-    except Exception as e:
-        logger.error("[LOG_FAIL] Could not save log to DB: %s", e)
-        return success_response(success=False, message=str(e))
+    except Exception:
+        logger.exception("[LOG_FAIL] Could not save log to DB")
+        return success_response(success=False, message="Log could not be saved")
 
 
 @router.get("/logs", response_model=StandardResponse[List[schema_system.SystemError]])
@@ -288,140 +297,6 @@ async def restore_backup(
         status_code=501,
         detail="File-based restore not supported in production (Postgres Only)",
     )
-
-
-# --- Google Drive Backup (Super Admin) ---
-
-
-@router.get("/backup/google-status", response_model=StandardResponse[dict])
-async def get_google_drive_status(
-    db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
-):
-    if current_user.role != Role.SUPER_ADMIN.value:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    res_setting = await db.execute(
-        select(models.SystemSetting)
-        .where(models.SystemSetting.key == "google_refresh_token_super_admin")
-    )
-    setting = res_setting.scalar_one_or_none()
-
-    # Fetch status
-    res_status = await db.execute(
-        select(models.SystemSetting)
-        .where(models.SystemSetting.key == "backup_last_status")
-    )
-    last_status = res_status.scalar_one_or_none()
-
-    res_message = await db.execute(
-        select(models.SystemSetting)
-        .where(models.SystemSetting.key == "backup_last_message")
-    )
-    last_message = res_message.scalar_one_or_none()
-
-    res_run = await db.execute(
-        select(models.SystemSetting)
-        .where(models.SystemSetting.key == "backup_last_run")
-    )
-    last_run = res_run.scalar_one_or_none()
-
-    return success_response(
-        data={
-            "connected": bool(setting and setting.value),
-            "last_backup": {
-                "status": last_status.value if last_status else None,
-                "message": last_message.value if last_message else None,
-                "date": last_run.value if last_run else None,
-            },
-        }
-    )
-
-
-@router.get("/backup/google-auth", response_model=StandardResponse[dict])
-def get_google_auth_url(current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
-    if current_user.role != Role.SUPER_ADMIN.value:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    auth_url = startup.drive_client.get_auth_url(state="super_admin")
-    return success_response(data={"url": auth_url})
-
-
-@router.post("/backup/google-upload", status_code=202, response_model=StandardResponse[dict])
-async def upload_to_google_drive(
-    background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
-):
-    if current_user.role != Role.SUPER_ADMIN.value:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    res_setting = await db.execute(
-        select(models.SystemSetting)
-        .where(models.SystemSetting.key == "google_refresh_token_super_admin")
-    )
-    setting = res_setting.scalar_one_or_none()
-    if not setting or not setting.value:
-        raise HTTPException(
-            status_code=400, detail="Google Drive not connected. Please connect first."
-        )
-
-    refresh_token = setting.value
-
-    try:
-        check_process = subprocess.run(
-            ["which", "pg_dump"], capture_output=True, timeout=5
-        )
-        if check_process.returncode != 0:
-            raise HTTPException(
-                status_code=503,
-                detail="System tools (pg_dump) are initializing. Please wait 2 minutes and try again.",
-            )
-    except FileNotFoundError:
-        try:
-            if not shutil.which("pg_dump"):
-                raise HTTPException(
-                    status_code=503,
-                    detail="System tools (pg_dump) are not available on this system.",
-                )
-        except Exception:
-            raise HTTPException(
-                status_code=503,
-                detail="System tools (pg_dump) are not available on this system.",
-            )
-
-    db_url = os.getenv("DATABASE_URL")
-    if not db_url:
-        raise HTTPException(
-            status_code=500, detail="DATABASE_URL configuration missing"
-        )
-
-    background_tasks.add_task(run_backup_task, refresh_token, db_url)
-
-    return success_response(
-        data={"status": "processing"},
-        message="Backup started in background. Please check Google Drive in a few minutes.",
-    )
-
-
-@router.delete("/backup/google-auth", response_model=StandardResponse[dict])
-async def disconnect_google_drive(
-    db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
-):
-    """Disconnect the Google Drive account."""
-    if current_user.role != Role.SUPER_ADMIN.value:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    res_setting = await db.execute(
-        select(models.SystemSetting)
-        .where(models.SystemSetting.key == "google_refresh_token_super_admin")
-    )
-    setting = res_setting.scalar_one_or_none()
-    if setting:
-        await db.delete(setting)
-        await db.commit()
-        return success_response(message="Google Drive disconnected successfully")
-    else:
-        return success_response(message="Google Drive was not connected")
 
 
 # --- Tenant Management Endpoints ---
@@ -720,5 +595,3 @@ async def export_audit_logs(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
-
-

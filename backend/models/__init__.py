@@ -11,7 +11,7 @@ AIUsageLog = AILog
 AIAuditLog = AILog
 
 from .security_event import SecurityEvent  # Phase 3: Security Hardening
-from .tenant import Tenant, SubscriptionPlan, SubscriptionPayment
+from .tenant import Tenant, SubscriptionPlan, SubscriptionPayment, SubscriptionCheckout
 from .user import User, PasswordResetToken, LoginHistory, UserSession
 from .medication import SavedMedication
 from .patient import Patient, Attachment

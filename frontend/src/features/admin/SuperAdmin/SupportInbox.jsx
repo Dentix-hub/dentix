@@ -1,10 +1,26 @@
 import { MessageSquare, AlertCircle, ShieldCheck, Trash2 } from 'lucide-react';
-import { api } from '@/api';
+import { updateMessageStatus } from '@/api';
 import { useTranslation } from 'react-i18next';
+import logger from '@/utils/logger';
 
 const SupportInbox = ({ messages, _setMessages, handleDeleteMessage, fetchData }) => {
     const { t, i18n } = useTranslation();
     const isRtl = i18n.language === 'ar';
+
+    const handleViewMessage = async (msg) => {
+        alert(`${t('super_admin.support.subject_col')}:\n${msg.message}`);
+        if (msg.status !== 'unread') return;
+
+        try {
+            await updateMessageStatus(msg.id, 'read');
+            _setMessages?.(current => current.map(item => (
+                item.id === msg.id ? { ...item, status: 'read' } : item
+            )));
+        } catch (error) {
+            logger.error('Failed to mark support message as read', error);
+            await fetchData();
+        }
+    };
 
     return (
         <div className={`space-y-8 animate-fade-in ${isRtl ? 'text-right' : 'text-left'}`} dir={isRtl ? 'rtl' : 'ltr'}>
@@ -92,12 +108,7 @@ const SupportInbox = ({ messages, _setMessages, handleDeleteMessage, fetchData }
                                     <td className="p-6 text-center">
                                         <div className="flex items-center justify-center gap-2">
                                             <button
-                                                onClick={() => {
-                                                    alert(`${t('super_admin.support.subject_col')}:\n${msg.message}`);
-                                                    if (msg.status === 'unread') {
-                                                        api.put(`/support/messages/${msg.id}/status?status=read`).then(() => fetchData());
-                                                    }
-                                                }}
+                                                onClick={() => handleViewMessage(msg)}
                                                 className="p-2 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-indigo-600 rounded-xl transition-all"
                                                 title={t('super_admin.support.view_details')}
                                             >

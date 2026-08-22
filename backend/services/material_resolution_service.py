@@ -163,6 +163,7 @@ class MaterialResolutionService:
                 .filter(
                     inv_models.Material.category_id == category.id,
                     inv_models.Material.tenant_id == tenant_id,
+                    inv_models.Material.is_deleted == False,  # noqa: E712
                 )
             )
             result_materials = await self.db.execute(stmt_materials)
@@ -245,6 +246,7 @@ class MaterialResolutionService:
             .filter(
                 inv_models.Material.category_id == category_id,
                 inv_models.Material.tenant_id == tenant_id,
+                inv_models.Material.is_deleted == False,  # noqa: E712
                 inv_models.TreatmentMaterialUsage.tenant_id == tenant_id,
             )
             .group_by(inv_models.TreatmentMaterialUsage.material_id)

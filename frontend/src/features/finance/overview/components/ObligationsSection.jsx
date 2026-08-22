@@ -113,6 +113,7 @@ export default function ObligationsSection({
                                         amount={item.amount}
                                         currency={currency}
                                         size="xl"
+                                        maximumFractionDigits={0}
                                     />
                                 </div>
 

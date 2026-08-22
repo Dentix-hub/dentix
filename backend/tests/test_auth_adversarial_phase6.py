@@ -95,6 +95,19 @@ def test_expired_access_token_is_rejected(client, test_user):
     assert response.status_code == 401
 
 
+def test_expired_refresh_token_is_rejected(client, test_user):
+    expired = auth.create_refresh_token(
+        data={"sub": test_user.username, "sid": "expired-refresh-session"},
+        expires_delta=timedelta(seconds=-1),
+    )
+
+    response = client.post(
+        "/api/v1/auth/refresh",
+        data={"refresh_token": expired},
+    )
+    assert response.status_code == 401
+
+
 def test_password_reset_token_is_single_use_and_revokes_existing_session(
     client, db_session, test_tenant
 ):

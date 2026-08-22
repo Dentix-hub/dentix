@@ -1,4 +1,5 @@
 import logging
+from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from typing import Dict, Any, List
@@ -6,6 +7,7 @@ from typing import Dict, Any, List
 from sqlalchemy import func, or_, select
 from backend.models.inventory import ProcedureMaterialWeight, Batch, StockItem, Material, TreatmentMaterialUsage
 from backend.models.clinical import Procedure
+from backend.core.money import as_decimal, quantize_money
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +17,7 @@ class CostEngine:
         self.db = db
         self.tenant_id = tenant_id
 
-    async def get_material_average_cost(self, material_id: int) -> float:
+    async def get_material_average_cost(self, material_id: int) -> Decimal:
         """
         Calculates the weighted average cost of a MATERIAL BASE UNIT (e.g. per gram).
         Batch.cost_per_unit already stores per-base-unit cost (frontend divides package_price / ratio).
@@ -37,12 +39,12 @@ class CostEngine:
         result = await self.db.execute(stmt)
         stock_query = result.all()
 
-        total_base_qty = sum(item.quantity for item in stock_query)
-        total_value = 0.0
+        total_base_qty = sum((as_decimal(item.quantity) for item in stock_query), Decimal("0"))
+        total_value = Decimal("0")
 
         for qty, batch_cost_per_unit, ratio in stock_query:
-            unit_cost = batch_cost_per_unit
-            total_value += qty * unit_cost
+            unit_cost = as_decimal(batch_cost_per_unit)
+            total_value += as_decimal(qty) * unit_cost
 
         if total_base_qty > 0:
             return total_value / total_base_qty
@@ -67,7 +69,7 @@ class CostEngine:
             batch, mat = last_batch
             return batch.cost_per_unit
 
-        return 0.0
+        return Decimal("0")
 
     async def calculate_procedure_cost(self, procedure_id: int) -> Dict[str, Any]:
         """
@@ -92,8 +94,8 @@ class CostEngine:
         result_w = await self.db.execute(stmt_w)
         weights = result_w.scalars().all()
 
-        total_cost = 0.0
-        total_actual_cost = 0.0
+        total_cost = Decimal("0")
+        total_actual_cost = Decimal("0")
         details = []
 
         for w in weights:
@@ -120,16 +122,16 @@ class CostEngine:
                 if actual_usage_stats:
                     current_avg = float(actual_usage_stats)
 
-            actual_usage = current_avg if current_avg and current_avg > 0 else 0.0
+            actual_usage = as_decimal(current_avg) if current_avg and current_avg > 0 else Decimal("0")
             actual_material_cost = actual_usage * unit_cost
 
             estimated_cost = actual_material_cost
 
             # Coverage Analysis
             pkg_ratio_val = getattr(w.material, "packaging_ratio", 1.0)
-            pkg_ratio = pkg_ratio_val if pkg_ratio_val and pkg_ratio_val > 0 else 1.0
+            pkg_ratio = as_decimal(pkg_ratio_val) if pkg_ratio_val and pkg_ratio_val > 0 else Decimal("1")
 
-            coverage_per_pack = pkg_ratio / actual_usage if actual_usage > 0 else 0
+            coverage_per_pack = pkg_ratio / actual_usage if actual_usage > 0 else Decimal("0")
 
             cost_per_pack = unit_cost * pkg_ratio
 
@@ -143,19 +145,19 @@ class CostEngine:
                     "base_unit": w.material.base_unit,
                     "weight_score": w.weight,
                     "weight_used": w.weight,
-                    "unit_cost": round(unit_cost, 2),
-                    "estimated_cost": round(estimated_cost, 2),
-                    "actual_usage": round(actual_usage, 4),
-                    "actual_cost": round(actual_material_cost, 2),
+                    "unit_cost": float(quantize_money(unit_cost)),
+                    "estimated_cost": float(quantize_money(estimated_cost)),
+                    "actual_usage": round(float(actual_usage), 4),
+                    "actual_cost": float(quantize_money(actual_material_cost)),
                     "sample_size": w.sample_size or 0,
                     "source": "learning" if (w.current_average_usage or 0) > 0 else ("actual_usage" if actual_usage > 0 else "estimated"),
-                    "pack_size": pkg_ratio,
-                    "cost_per_pack": round(cost_per_pack, 2),
-                    "coverage_per_pack": round(coverage_per_pack, 1),
+                    "pack_size": float(pkg_ratio),
+                    "cost_per_pack": float(quantize_money(cost_per_pack)),
+                    "coverage_per_pack": round(float(coverage_per_pack), 1),
                 }
             )
 
-        current_price = proc.price or 0.0
+        current_price = as_decimal(proc.price)
 
         # Theoretical Margin
         margin = current_price - total_cost
@@ -170,13 +172,13 @@ class CostEngine:
         return {
             "procedure_id": procedure_id,
             "procedure_name": proc.name,
-            "total_estimated_cost": round(total_cost, 2),
-            "total_actual_cost": round(total_actual_cost, 2),
-            "current_price": current_price,
-            "profit_margin": round(margin, 2),
-            "margin_percentage": round(margin_percent, 1),
-            "actual_profit_margin": round(actual_margin, 2),
-            "actual_margin_percentage": round(actual_margin_percent, 1),
+            "total_estimated_cost": float(quantize_money(total_cost)),
+            "total_actual_cost": float(quantize_money(total_actual_cost)),
+            "current_price": float(quantize_money(current_price)),
+            "profit_margin": float(quantize_money(margin)),
+            "margin_percentage": round(float(margin_percent), 1),
+            "actual_profit_margin": float(quantize_money(actual_margin)),
+            "actual_margin_percentage": round(float(actual_margin_percent), 1),
             "breakdown": details,
         }
 

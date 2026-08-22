@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Integer, String, ForeignKey, Date, Float, DateTime, Text, column
+from sqlalchemy import Boolean, CheckConstraint, Column, Integer, String, ForeignKey, Date, Float, Numeric, DateTime, Text, column, text
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from .base import Base
@@ -39,6 +39,12 @@ class MaterialCategory(Base):
 
 class Material(Base):
     __tablename__ = "materials"
+    __table_args__ = (
+        CheckConstraint(
+            "standard_price IS NULL OR standard_price >= 0",
+            name="ck_materials_standard_price_nonnegative",
+        ),
+    )
 
     __rls_policies__ = [
         Permissive(
@@ -55,7 +61,7 @@ class Material(Base):
     base_unit = Column(String, nullable=False)  # e.g., "ml", "g", "ampoule"
     alert_threshold = Column(Integer, default=10)
     standard_price = Column(
-        Float, default=0.0, nullable=True
+        Numeric(18, 6), default=0.0, nullable=True
     )  # Reference Cost (Market Price)
     max_uses = Column(Integer, default=1)  # For tools like endo files
 
@@ -64,6 +70,8 @@ class Material(Base):
 
     # Optional: packaging info for UI conversions (e.g. 1 Box = 50 Ampoules)
     packaging_ratio = Column(Float, default=1.0)
+    is_deleted = Column(Boolean, default=False, nullable=False, server_default=text("false"))
+    deleted_at = Column(DateTime, nullable=True)
 
     category = relationship("MaterialCategory", back_populates="materials")
     batches = relationship("Batch", back_populates="material")
@@ -72,6 +80,9 @@ class Material(Base):
 
 class Batch(Base):
     __tablename__ = "batches"
+    __table_args__ = (
+        CheckConstraint("cost_per_unit >= 0", name="ck_batches_unit_cost_nonnegative"),
+    )
 
     __rls_policies__ = [
         Permissive(
@@ -89,7 +100,7 @@ class Batch(Base):
     batch_number = Column(String, nullable=False)
     expiry_date = Column(Date, nullable=False, index=True)
     supplier = Column(String, nullable=True)
-    cost_per_unit = Column(Float, default=0.0)
+    cost_per_unit = Column(Numeric(18, 6), default=0.0)
     created_at = Column(
         DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
@@ -261,6 +272,12 @@ class TreatmentMaterialUsage(Base):
     """Links each treatment to the materials used."""
 
     __tablename__ = "treatment_material_usages"
+    __table_args__ = (
+        CheckConstraint(
+            "cost_calculated IS NULL OR cost_calculated >= 0",
+            name="ck_treatment_material_usage_cost_nonnegative",
+        ),
+    )
 
     __rls_policies__ = [
         Permissive(
@@ -277,7 +294,7 @@ class TreatmentMaterialUsage(Base):
 
     weight_score = Column(Float, default=1.0)       # Relative weight for this procedure
     quantity_used = Column(Float, nullable=True)     # Calculated AFTER session closes (for DIVISIBLE)
-    cost_calculated = Column(Float, nullable=True)   # Back-calculated cost
+    cost_calculated = Column(Numeric(18, 6), nullable=True)  # Back-calculated cost
 
     is_manual_override = Column(Boolean, default=False)  # Doctor adjusted manually
 
