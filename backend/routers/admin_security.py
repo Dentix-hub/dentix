@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from ..core.response import success_response, error_response
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from typing import List
 from backend import models, schemas
 from backend.database import get_async_db
@@ -45,36 +44,6 @@ async def get_security_stats(
     db: AsyncSession = Depends(get_async_db), _: models.User = Depends(get_super_admin)
 ):
     return await SecurityService.get_security_stats(db)
-
-
-@router.get("/blocked-ips", response_model=List[schemas.BlockedIP])
-async def get_blocked_ips(
-    db: AsyncSession = Depends(get_async_db), _: models.User = Depends(get_super_admin)
-):
-    stmt = select(models.BlockedIP)
-    res = await db.execute(stmt)
-    return list(res.scalars().all())
-
-
-@router.post("/ip-block", response_model=schemas.BlockedIP)
-async def block_ip(
-    ip_data: schemas.BlockedIP,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: models.User = Depends(get_super_admin),
-):
-    return await SecurityService.block_ip(
-        db, ip_data.ip_address, ip_data.reason, current_user.username
-    )
-
-
-@router.delete("/ip-block/{ip_address}")
-async def unblock_ip(
-    ip_address: str,
-    db: AsyncSession = Depends(get_async_db),
-    _: models.User = Depends(get_super_admin),
-):
-    await SecurityService.unblock_ip(db, ip_address)
-    return success_response(data={"message": "IP unblocked successfully"})
 
 
 # --- System Health & Jobs ---

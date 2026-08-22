@@ -71,6 +71,7 @@ RLS_TABLES = (
     "salary_payments",
     "lab_payments",
     "subscription_payments",
+    "subscription_checkouts",
     "insurance_providers",
     "price_lists",
     "warehouses",

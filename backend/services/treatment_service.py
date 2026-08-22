@@ -11,6 +11,7 @@ This removes business logic from the treatments router.
 
 import json
 import logging
+from decimal import Decimal
 from datetime import date, datetime, timezone
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +22,7 @@ from backend import models, schemas
 from backend.services.pricing_service import get_pricing_service
 from backend.services.inventory_service import inventory_service
 from backend.utils.audit_logger import log_admin_action
+from backend.core.money import as_decimal
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +193,11 @@ class TreatmentService:
         from fastapi import HTTPException
         from backend import crud
 
+        if treatment_data.cost < 0 or treatment_data.discount < 0:
+            raise HTTPException(status_code=422, detail="Treatment values cannot be negative")
+        if treatment_data.discount > treatment_data.cost:
+            raise HTTPException(status_code=422, detail="Discount cannot exceed treatment cost")
+
         # 1. Verify patient exists
         patient = await crud.patient.get_patient(self.db, treatment_data.patient_id, self.tenant_id)
         if not patient:
@@ -277,6 +284,11 @@ class TreatmentService:
         Update treatment with stock validation and consumption.
         """
         from backend import crud
+
+        if treatment_data.cost < 0 or treatment_data.discount < 0:
+            raise HTTPException(status_code=422, detail="Treatment values cannot be negative")
+        if treatment_data.discount > treatment_data.cost:
+            raise HTTPException(status_code=422, detail="Discount cannot exceed treatment cost")
 
         # 1. Reverse old stock movements for this treatment
         await inventory_service.reverse_stock_by_reference(
@@ -389,6 +401,7 @@ class TreatmentService:
         stmt_mat = select(inv_models.Material).where(
             inv_models.Material.id.in_(material_ids),
             inv_models.Material.tenant_id == self.tenant_id,
+            inv_models.Material.is_deleted == False,  # noqa: E712
         )
         materials = (await self.db.execute(stmt_mat)).scalars().all()
         material_map = {m.id: m for m in materials}
@@ -456,16 +469,16 @@ class TreatmentService:
                 movements = (await self.db.execute(stmt_moves)).scalars().all()
 
                 if movements:
-                    total_cost = 0.0
+                    total_cost = Decimal("0")
                     for move in movements:
                         # move.change_amount is negative for consumption
-                        cost_per_unit = move.stock_item.batch.cost_per_unit or 0.0
-                        total_cost += abs(move.change_amount) * cost_per_unit
+                        cost_per_unit = as_decimal(move.stock_item.batch.cost_per_unit)
+                        total_cost += as_decimal(abs(move.change_amount)) * cost_per_unit
                     cost_calculated = total_cost
                 else:
                     # Fallback to standard price
-                    standard_price = mat.standard_price or 0.0
-                    cost_calculated = quantity_used * standard_price
+                    standard_price = as_decimal(mat.standard_price)
+                    cost_calculated = as_decimal(quantity_used) * standard_price
             else:
                 # For divisible/reusable, quantity_used & cost_calculated will be set upon session close
                 quantity_used = None

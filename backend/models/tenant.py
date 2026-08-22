@@ -1,10 +1,12 @@
+from decimal import Decimal
+
 from .base import (
     Base,
     Integer,
     String,
     Boolean,
     DateTime,
-    Float,
+    Numeric,
     Text,
     ForeignKey,
     relationship,
@@ -12,16 +14,22 @@ from .base import (
     timezone,
     Mapped,
     mapped_column,
+    UniqueConstraint,
 )
+from sqlalchemy import CheckConstraint
+from backend.core.security import EncryptedString
 
 
 class SubscriptionPlan(Base):
     __tablename__ = "subscription_plans"
+    __table_args__ = (
+        CheckConstraint("price >= 0", name="ck_subscription_plans_price_nonnegative"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String, unique=True, index=True)
     display_name_ar: Mapped[str] = mapped_column(String)
-    price: Mapped[float] = mapped_column(Float, default=0.0)
+    price: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=Decimal("0.00"))
     duration_days: Mapped[int] = mapped_column(Integer, default=30)
     max_users: Mapped[int | None] = mapped_column(Integer, nullable=True)
     max_patients: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -44,11 +52,17 @@ class SubscriptionPlan(Base):
 
 class SubscriptionPayment(Base):
     __tablename__ = "subscription_payments"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider", "provider_payment_id", name="uq_subscription_payment_provider_id"
+        ),
+        CheckConstraint("amount > 0", name="ck_subscription_payments_amount_positive"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     tenant_id: Mapped[int] = mapped_column(Integer, ForeignKey("tenants.id"))
     plan_id: Mapped[int] = mapped_column(Integer, ForeignKey("subscription_plans.id"))
-    amount: Mapped[float] = mapped_column(Float)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     payment_method: Mapped[str] = mapped_column(String)
     payment_date: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
@@ -64,8 +78,46 @@ class SubscriptionPayment(Base):
     plan = relationship("SubscriptionPlan", back_populates="payments")
 
 
+class SubscriptionCheckout(Base):
+    """Server-owned checkout state used to validate provider webhooks."""
+
+    __tablename__ = "subscription_checkouts"
+    __table_args__ = (
+        CheckConstraint(
+            "expected_amount >= 0",
+            name="ck_subscription_checkouts_amount_nonnegative",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    provider_reference: Mapped[str] = mapped_column(
+        String(120), nullable=False, unique=True, index=True
+    )
+    tenant_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tenants.id"), nullable=False, index=True
+    )
+    plan_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("subscription_plans.id"), nullable=False, index=True
+    )
+    provider: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    expected_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False, default="EGP")
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending", index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    provider_payment_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+
+
 class Tenant(Base):
     __tablename__ = "tenants"
+    __table_args__ = (
+        CheckConstraint("total_revenue >= 0", name="ck_tenants_revenue_nonnegative"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String, index=True)  # Non-unique
@@ -92,11 +144,15 @@ class Tenant(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
-    total_revenue: Mapped[float] = mapped_column(Float, default=0.0)
+    total_revenue: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), default=Decimal("0.00")
+    )
 
     # Backup Settings
     backup_frequency: Mapped[str] = mapped_column(String, default="off")
-    google_refresh_token: Mapped[str | None] = mapped_column(String, nullable=True)
+    google_refresh_token: Mapped[str | None] = mapped_column(
+        EncryptedString(2048), nullable=True
+    )
     last_backup_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_login: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

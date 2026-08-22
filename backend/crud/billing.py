@@ -367,11 +367,20 @@ async def delete_payment(db: AsyncSession, payment_id: int, tenant_id: int):
 
 
 # --- Expenses ---
-async def create_expense(db: AsyncSession, expense: schemas.ExpenseCreate, tenant_id: int):
+async def create_expense(
+    db: AsyncSession,
+    expense: schemas.ExpenseCreate,
+    tenant_id: int,
+    *,
+    commit: bool = True,
+):
     db_expense = models.Expense(**expense.dict(), tenant_id=tenant_id)
     db.add(db_expense)
-    await db.commit()
-    await db.refresh(db_expense)
+    if commit:
+        await db.commit()
+        await db.refresh(db_expense)
+    else:
+        await db.flush()
     return db_expense
 
 

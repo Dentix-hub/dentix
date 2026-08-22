@@ -5,7 +5,7 @@ from .base import (
     Integer,
     String,
     DateTime,
-    Float,
+    Numeric,
     Text,
     Date,
     Boolean,
@@ -14,12 +14,15 @@ from .base import (
     Index,
     datetime,
 )
-from sqlalchemy import column
+from sqlalchemy import CheckConstraint, column
 from rls.schemas import Permissive, ConditionArg, Command
 
 
 class Payment(Base):
     __tablename__ = "payments"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_payments_amount_positive"),
+    )
 
     __rls_policies__ = [
         Permissive(
@@ -32,7 +35,7 @@ class Payment(Base):
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
     doctor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
-    amount = Column(Float)
+    amount = Column(Numeric(14, 2))
     date = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
@@ -55,7 +58,10 @@ class Payment(Base):
 
 class Expense(Base):
     __tablename__ = "expenses"
-    __table_args__ = (Index("idx_expense_tenant_date", "tenant_id", "date"),)
+    __table_args__ = (
+        Index("idx_expense_tenant_date", "tenant_id", "date"),
+        CheckConstraint("cost > 0", name="ck_expenses_cost_positive"),
+    )
 
     __rls_policies__ = [
         Permissive(
@@ -67,7 +73,7 @@ class Expense(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     item_name = Column(String)
-    cost = Column(Float)
+    cost = Column(Numeric(14, 2))
     category = Column(String)
     date = Column(Date, index=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
@@ -76,6 +82,9 @@ class Expense(Base):
 
 class SalaryPayment(Base):
     __tablename__ = "salary_payments"
+    __table_args__ = (
+        CheckConstraint("amount >= 0", name="ck_salary_payments_amount_nonnegative"),
+    )
 
     __rls_policies__ = [
         Permissive(
@@ -88,7 +97,7 @@ class SalaryPayment(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), index=True)
     month = Column(String, index=True)
-    amount = Column(Float, default=0.0)
+    amount = Column(Numeric(14, 2), default=0.0)
     payment_date = Column(
         DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
@@ -102,6 +111,9 @@ class SalaryPayment(Base):
 
 class LabPayment(Base):
     __tablename__ = "lab_payments"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_lab_payments_amount_positive"),
+    )
 
     __rls_policies__ = [
         Permissive(
@@ -113,7 +125,7 @@ class LabPayment(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     laboratory_id = Column(Integer, ForeignKey("laboratories.id"), index=True)
-    amount = Column(Float)
+    amount = Column(Numeric(14, 2))
     date = Column(
         DateTime,
         default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),

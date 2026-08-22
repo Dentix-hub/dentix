@@ -811,8 +811,9 @@
         },
         "messages": {
             "delete_success": "Material deleted successfully",
-            "delete_fail": "Failed to delete material. Ensure no stock or history exists.",
-            "delete_confirm": "Are you sure you want to delete \"{{name}}\"?\nCannot delete materials with current stock or history.",
+            "delete_fail": "Failed to delete material.",
+            "delete_requires_empty": "Materials with current stock or an open package cannot be deleted. Reduce stock to zero and close packages first.",
+            "delete_confirm": "Are you sure you want to delete \"{{name}}\"?\nIt will be hidden while its inventory audit history is preserved.",
             "open_packages_tooltip": "{{count}} open packages. Click to close one by one."
         },
         "warehouses": {

@@ -122,8 +122,8 @@ class AddTreatmentVoiceInput(BaseModel):
     tooth_number: Optional[str] = Field(None, description="رقم السن")
     diagnosis: Optional[str] = Field(None, description="التشخيص")
     notes: Optional[str] = Field(None, description="ملاحظات إضافية")
-    cost: FlexibleFloat = Field(None, description="التكلفة")
-    paid_amount: FlexibleFloat = Field(None, description="المبلغ المدفوع")
+    cost: FlexibleFloat = Field(None, ge=0, description="التكلفة")
+    paid_amount: FlexibleFloat = Field(None, ge=0, description="المبلغ المدفوع")
 
 
 class ParseMedicalDictationInput(BaseModel):
@@ -153,7 +153,7 @@ class GetClinicInfoInput(BaseModel):
 
 class CreatePaymentInput(BaseModel):
     patient_name: str = Field(..., description="اسم المريض")
-    amount: FlexibleFloat = Field(..., description="المبلغ المدفوع")
+    amount: FlexibleFloat = Field(..., gt=0, description="المبلغ المدفوع")
 
 
 # ============================================================

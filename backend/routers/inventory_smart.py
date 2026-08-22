@@ -97,6 +97,7 @@ async def check_availability(
             select(inv_models.Material).where(
                 inv_models.Material.id == mat_id,
                 inv_models.Material.tenant_id == tenant_id,
+                inv_models.Material.is_deleted == False,  # noqa: E712
             )
         )
         material = material_result.scalars().first()

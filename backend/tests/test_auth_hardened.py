@@ -251,6 +251,24 @@ def test_register_clinic_rejects_weak_password(client):
     assert resp.status_code == 400
 
 
+def test_register_clinic_preserves_duplicate_username_error(client, test_user):
+    """Expected registration conflicts must not be converted into a 500 response."""
+    uid = uuid.uuid4().hex[:10]
+    response = client.post(
+        "/api/v1/auth/register_clinic",
+        data={
+            "clinic_name": f"Clinic {uid}",
+            "admin_username": test_user.username,
+            "admin_email": f"{uid}@clinic.test",
+            "admin_password": "ValidPass1!",
+            "contact_phone": "0123456789",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Username already taken"
+
+
 def test_2fa_endpoint_rate_limit(client):
     """Verify that the 2FA endpoint is rate-limited to 5/minute."""
     for i in range(6):

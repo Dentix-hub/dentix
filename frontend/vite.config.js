@@ -79,27 +79,47 @@ export default defineConfig({
         port: 5173,
         host: true
     },
-    esbuild: {
-        drop: ['console', 'debugger'],
-    },
     build: {
-        rollupOptions: {
+        rolldownOptions: {
             output: {
-                manualChunks: {
-                    'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-                    'vendor-query': ['@tanstack/react-query', '@tanstack/react-table'],
-                    'vendor-charts': ['recharts'],
-                    'vendor-calendar': [
-                        '@fullcalendar/core',
-                        '@fullcalendar/react',
-                        '@fullcalendar/daygrid',
-                        '@fullcalendar/timegrid',
-                        '@fullcalendar/interaction'
+                minify: {
+                    compress: {
+                        dropConsole: true,
+                        dropDebugger: true,
+                    },
+                },
+                codeSplitting: {
+                    groups: [
+                        {
+                            name: 'vendor-react',
+                            test: /node_modules[\\/](react|react-dom|react-router|react-router-dom)[\\/]/,
+                        },
+                        {
+                            name: 'vendor-query',
+                            test: /node_modules[\\/]@tanstack[\\/](react-query|react-table)[\\/]/,
+                        },
+                        {
+                            name: 'vendor-charts',
+                            test: /node_modules[\\/]recharts[\\/]/,
+                        },
+                        {
+                            name: 'vendor-calendar',
+                            test: /node_modules[\\/]@fullcalendar[\\/]/,
+                        },
+                        {
+                            name: 'vendor-ui',
+                            test: /node_modules[\\/](lucide-react|@headlessui[\\/]react)[\\/]/,
+                        },
+                        {
+                            name: 'vendor-i18n',
+                            test: /node_modules[\\/](i18next|react-i18next)[\\/]/,
+                        },
+                        {
+                            name: 'vendor-utils',
+                            test: /node_modules[\\/](axios|date-fns|zustand)[\\/]/,
+                        },
                     ],
-                    'vendor-ui': ['lucide-react', '@headlessui/react'],
-                    'vendor-i18n': ['i18next', 'react-i18next'],
-                    'vendor-utils': ['axios', 'date-fns', 'zustand'],
-                }
+                },
             }
         },
         chunkSizeWarningLimit: 600,
@@ -110,11 +130,7 @@ export default defineConfig({
         setupFiles: './src/setupTests.js',
         include: ['src/**/*.test.{js,jsx,ts,tsx}'],
         pool: 'threads',
-        poolOptions: {
-            threads: {
-                singleThread: true,
-                isolate: true,
-            },
-        },
+        fileParallelism: false,
+        isolate: true,
     }
 })

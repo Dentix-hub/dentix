@@ -1,6 +1,7 @@
 import os
 import logging
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field, SecretStr
 from ..core.response import success_response, error_response
 from sqlalchemy import text, inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,17 +11,27 @@ from .auth.dependencies import validate_password, get_current_user
 from backend.database import get_async_db
 from ..core.permissions import Permission, require_permission
 from ..services.auth_service import AuthService
+from backend.utils.audit_logger import log_admin_action
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/repair", tags=["Repair"])
-
-
 def _ensure_not_production():
     if os.getenv("ENVIRONMENT", "development").lower() == "production":
         raise HTTPException(status_code=404, detail="Not Found")
 
 
-@router.get("/schema")
+router = APIRouter(
+    prefix="/repair",
+    tags=["Repair"],
+    dependencies=[Depends(_ensure_not_production)],
+)
+
+
+class RepairPasswordResetRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=255)
+    new_password: SecretStr
+
+
+@router.post("/schema")
 async def repair_schema_verbose(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
@@ -281,19 +292,20 @@ async def debug_login(
         return error_response(message="Critical error during login debug", data={"status": "critical_error", "logs": logs})
 
 
-@router.get("/reset-password")
+@router.post("/reset-password")
 async def reset_password(
-    username: str,
-    new_password: str,
+    payload: RepairPasswordResetRequest,
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
 ):
+    """Force reset a password in non-production repair environments."""
     if current_user.role != "super_admin":
         raise HTTPException(status_code=403, detail="Super Admin only")
-    """Force reset password for a user."""
+    username = payload.username.strip()
+    new_password = payload.new_password.get_secret_value()
     user = await crud.get_user(db, username)
     if not user:
-        return error_response(message="User not found")
+        raise HTTPException(status_code=404, detail="User not found")
 
     validate_password(new_password)
 
@@ -309,6 +321,17 @@ async def reset_password(
         if hasattr(user, "failed_login_attempts"):
             user.failed_login_attempts = 0
 
+        await AuthService.revoke_all_user_sessions(db, user.id, commit=False)
+        log_admin_action(
+            db=db,
+            admin_user=current_user,
+            action="update",
+            entity_type="user_password",
+            entity_id=user.id,
+            target_user_id=user.id,
+            tenant_id=user.tenant_id,
+            details="Password force-reset through non-production repair endpoint",
+        )
         await db.commit()
         return success_response(
             message=f"Password reset successfully for {username}",
@@ -316,6 +339,10 @@ async def reset_password(
                 "status": "success",
             }
         )
-    except Exception as e:
-        logger.error(f"Password reset failed: {str(e)}", exc_info=True)
-        return error_response(message="Password reset failed")
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception:
+        await db.rollback()
+        logger.exception("Password reset failed")
+        raise HTTPException(status_code=500, detail="Password reset failed")

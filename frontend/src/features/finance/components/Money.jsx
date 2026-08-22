@@ -11,6 +11,8 @@ export default function Money({
     compact = false,
     colored = false,
     showSign = false,
+    minimumFractionDigits = 0,
+    maximumFractionDigits = 2,
     size = 'md',
     className = '',
 }) {
@@ -22,7 +24,11 @@ export default function Money({
         currency,
         locale: isArabic ? 'ar-EG' : 'en-US',
         compact,
+        minimumFractionDigits,
+        maximumFractionDigits,
     });
+
+    const accessibleAmount = maximumFractionDigits === 0 ? Math.round(num) : num;
 
     const isPositive = num > 0;
     const isNegative = num < 0;
@@ -48,7 +54,7 @@ export default function Money({
         <span
             className={`inline-flex items-center gap-0.5 font-mono ${sizeClasses} ${colorClass} ${className}`}
             dir="ltr"
-            aria-label={`${num} ${currency}`}
+            aria-label={`${accessibleAmount} ${currency}`}
         >
             {signPrefix && <span className="font-sans me-0.5">{signPrefix}</span>}
             <span>{formatted}</span>

@@ -5,15 +5,62 @@ import logging
 import traceback
 import asyncio
 import tempfile
+import re
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy import select
+from sqlalchemy.engine import make_url
 
 from ..google_drive_client import GoogleDriveClient
 from ..database import ASYNC_DATABASE_URL, CustomAsyncRlsSession, RlsContext
 from .. import models
+from .secret_service import GOOGLE_SUPER_ADMIN_TOKEN_KEY
 
 # Configure logger
 logger = logging.getLogger("smart_clinic")
+
+
+def _postgres_connection_args(database_url: str) -> tuple[list[str], dict[str, str], str]:
+    """Build PostgreSQL CLI connection arguments without putting secrets in argv."""
+    normalized_url = database_url.replace("postgres://", "postgresql://", 1)
+    parsed = make_url(normalized_url)
+    if not parsed.drivername.startswith("postgresql") or not parsed.database:
+        raise ValueError("A valid PostgreSQL database URL is required")
+
+    args = ["--no-password"]
+    if parsed.host:
+        args.extend(["--host", parsed.host])
+    if parsed.port:
+        args.extend(["--port", str(parsed.port)])
+    if parsed.username:
+        args.extend(["--username", parsed.username])
+
+    env = os.environ.copy()
+    if parsed.password:
+        env["PGPASSWORD"] = parsed.password
+    ssl_mode = parsed.query.get("sslmode") or parsed.query.get("ssl")
+    if ssl_mode:
+        env["PGSSLMODE"] = "require" if ssl_mode == "true" else str(ssl_mode)
+    return args, env, parsed.database
+
+
+def build_pg_dump_command(database_url: str, filepath: str) -> tuple[list[str], dict[str, str]]:
+    connection_args, env, database_name = _postgres_connection_args(database_url)
+    return ["pg_dump", *connection_args, "--file", filepath, database_name], env
+
+
+def build_psql_command(database_url: str, filepath: str) -> tuple[list[str], dict[str, str]]:
+    connection_args, env, database_name = _postgres_connection_args(database_url)
+    return ["psql", *connection_args, "--file", filepath, database_name], env
+
+
+def create_secure_temp_file(*, prefix: str, suffix: str) -> str:
+    descriptor, filepath = tempfile.mkstemp(prefix=prefix, suffix=suffix)
+    os.close(descriptor)
+    try:
+        os.chmod(filepath, 0o600)
+    except OSError:
+        logger.warning("Could not tighten temporary backup file permissions")
+    return filepath
 
 # Dedicated async engine for backup with autocommit and separate connection pool
 backup_pool_args = {}
@@ -118,9 +165,12 @@ async def run_backup_task(
     if tenant_id is None:
         filename = f"backup_{timestamp}.sql"
     else:
-        safe_name = (tenant_name or "clinic").replace(" ", "_")[:30]
+        safe_name = re.sub(r"[^A-Za-z0-9_-]", "_", tenant_name or "clinic")[:30]
         filename = f"{safe_name}_backup_{timestamp}.json"
-    filepath = os.path.join(tempfile.gettempdir(), filename)
+    filepath = create_secure_temp_file(
+        prefix="dentix_backup_",
+        suffix=".sql" if tenant_id is None else ".json",
+    )
 
     logger.info(f"[{timestamp}] Background Backup Task Started: {filename}")
     await update_backup_status("processing", "Starting backup process...", tenant_id)
@@ -132,19 +182,18 @@ async def run_backup_task(
             await update_backup_status("processing", "Running pg_dump...", tenant_id)
 
             dump_url = db_url or os.getenv("DATABASE_URL") or ASYNC_DATABASE_URL
-            # pg_dump needs standard postgresql protocol
-            dump_url = dump_url.replace("postgresql+asyncpg://", "postgresql://")
+            command, process_env = build_pg_dump_command(dump_url, filepath)
 
             process = await asyncio.create_subprocess_exec(
-                "pg_dump",
-                "--dbname", dump_url,
-                "-f", filepath,
+                *command,
+                env=process_env,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await process.communicate()
             if process.returncode != 0:
-                raise RuntimeError(f"pg_dump failed: {stderr.decode()}")
+                logger.error("pg_dump failed: %s", stderr.decode(errors="replace")[:1000])
+                raise RuntimeError("Database backup command failed")
         else:
             # Create JSON export for tenant
             logger.info("Creating JSON export for tenant...")
@@ -200,7 +249,7 @@ async def run_backup_task(
                         from sqlalchemy import delete
                         await db.execute(
                             delete(models.SystemSetting).filter(
-                                models.SystemSetting.key == "google_refresh_token_super_admin"
+                                models.SystemSetting.key == GOOGLE_SUPER_ADMIN_TOKEN_KEY
                             )
                         )
                     # Reset status
@@ -221,9 +270,11 @@ async def run_backup_task(
             except Exception as db_e:
                 logger.error(f"Failed to auto-disconnect: {db_e}")
 
-        logger.error(f"Backup Task Failed: {str(e)}")
+        logger.error("Backup Task Failed: %s", type(e).__name__)
         logger.error(traceback.format_exc())
-        await update_backup_status("failed", f"Error: {str(e)}", tenant_id)
+        await update_backup_status(
+            "failed", "Backup failed. Check server logs for details.", tenant_id
+        )
     finally:
         # Cleanup
         if os.path.exists(filepath):

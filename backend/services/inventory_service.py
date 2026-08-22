@@ -4,6 +4,8 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy import func, select, or_
 import logging
 
+from backend.core.money import as_decimal, quantize_money
+
 from backend import schemas
 
 logger = logging.getLogger(__name__)
@@ -80,6 +82,26 @@ class InventoryService:
         return True
 
     # --- MATERIAL ---
+    async def create_material_category(
+        self, data: schemas.inventory.MaterialCategoryCreate, db: AsyncSession = None
+    ) -> MaterialCategory:
+        db = self._get_db(db)
+        existing = (
+            await db.execute(
+                select(MaterialCategory).where(
+                    func.lower(MaterialCategory.name_en) == data.name_en.strip().lower()
+                )
+            )
+        ).scalars().first()
+        if existing:
+            return existing
+
+        category = MaterialCategory(**data.model_dump())
+        db.add(category)
+        await db.commit()
+        await db.refresh(category)
+        return category
+
     async def create_material(
         self, data: schemas.MaterialCreate, tenant_id: int, db: AsyncSession = None
     ) -> Material:
@@ -96,7 +118,7 @@ class InventoryService:
         stmt = (
             select(Material)
             .options(joinedload(Material.category))
-            .where(Material.tenant_id == tenant_id)
+            .where(Material.tenant_id == tenant_id, Material.is_deleted == False)  # noqa: E712
         )
         result = await db.execute(stmt)
         return list(result.scalars().all())
@@ -109,7 +131,11 @@ class InventoryService:
         db: AsyncSession = None,
     ) -> Material:
         db = self._get_db(db)
-        stmt = select(Material).where(Material.id == material_id, Material.tenant_id == tenant_id)
+        stmt = select(Material).where(
+            Material.id == material_id,
+            Material.tenant_id == tenant_id,
+            Material.is_deleted == False,  # noqa: E712
+        )
         mat = (await db.execute(stmt)).scalars().first()
         if not mat:
             raise ValueError("Material not found")
@@ -153,7 +179,7 @@ class InventoryService:
             .outerjoin(MaterialCategory, MaterialCategory.id == Material.category_id)
             .outerjoin(Batch, Batch.material_id == Material.id)
             .outerjoin(StockItem, StockItem.batch_id == Batch.id)
-            .where(Material.tenant_id == tenant_id)
+            .where(Material.tenant_id == tenant_id, Material.is_deleted == False)  # noqa: E712
         )
 
         if warehouse_id:
@@ -230,13 +256,20 @@ class InventoryService:
             await db.flush()  # get ID
 
         # 2. Get Material for ratio and price update
-        stmt_mat = select(Material).where(Material.id == material_id)
+        stmt_mat = select(Material).where(
+            Material.id == material_id,
+            Material.tenant_id == tenant_id,
+            Material.is_deleted == False,  # noqa: E712
+        )
         mat = (await db.execute(stmt_mat)).scalars().first()
+        if not mat:
+            raise ValueError("Material not found")
         ratio = mat.packaging_ratio if mat and mat.packaging_ratio > 0 else 1.0
+        ratio_decimal = as_decimal(ratio)
 
         # Update Material Standard Price with latest cost
         if batch_data.cost_per_unit > 0:
-            new_package_price = batch_data.cost_per_unit * ratio
+            new_package_price = as_decimal(batch_data.cost_per_unit) * ratio_decimal
             mat.standard_price = new_package_price
             db.add(mat)
 
@@ -267,7 +300,11 @@ class InventoryService:
 
         # 4. Add to Expenses automatically
         if batch_data.cost_per_unit > 0:
-            total_cost = batch_data.cost_per_unit * ratio * quantity
+            total_cost = (
+                as_decimal(batch_data.cost_per_unit)
+                * ratio_decimal
+                * as_decimal(quantity)
+            )
             expense = Expense(
                 item_name=f"شراء: {mat.name}",
                 cost=total_cost,
@@ -308,7 +345,11 @@ class InventoryService:
         db = self._get_db(db)
 
         # Get Material Name
-        stmt_mat = select(Material).where(Material.id == material_id, Material.tenant_id == tenant_id)
+        stmt_mat = select(Material).where(
+            Material.id == material_id,
+            Material.tenant_id == tenant_id,
+            Material.is_deleted == False,  # noqa: E712
+        )
         mat = (await db.execute(stmt_mat)).scalars().first()
         mat_name = mat.name if mat else f"Unknown Material {material_id}"
 
@@ -492,7 +533,11 @@ class InventoryService:
                 warehouse_id = clinic_wh.id
 
         # 1. Validation: Non-Divisible Integer Check (SKIP if active session exists)
-        stmt_mat = select(Material).where(Material.id == material_id)
+        stmt_mat = select(Material).where(
+            Material.id == material_id,
+            Material.tenant_id == tenant_id,
+            Material.is_deleted == False,  # noqa: E712
+        )
         mat = (await db.execute(stmt_mat)).scalars().first()
         if not mat:
             raise ValueError(f"Material {material_id} not found")
@@ -771,11 +816,15 @@ class InventoryService:
 
     async def delete_material(self, material_id: int, tenant_id: int, db: AsyncSession = None):
         """
-        Delete material ensuring no dependencies block it.
+        Soft-delete an empty material while preserving its inventory audit trail.
         """
         db = self._get_db(db)
 
-        stmt_mat = select(Material).where(Material.id == material_id, Material.tenant_id == tenant_id)
+        stmt_mat = select(Material).where(
+            Material.id == material_id,
+            Material.tenant_id == tenant_id,
+            Material.is_deleted == False,  # noqa: E712
+        )
         mat = (await db.execute(stmt_mat)).scalars().first()
         if not mat:
             logger.warning(f"[DELETE_DEBUG] Material {material_id} not found for tenant {tenant_id}")
@@ -786,7 +835,9 @@ class InventoryService:
         # Check Active Stock
         stmt_stock = select(StockItem).join(Batch).where(
             Batch.material_id == material_id,
-            StockItem.quantity > 0
+            Batch.tenant_id == tenant_id,
+            StockItem.tenant_id == tenant_id,
+            StockItem.quantity > 0,
         )
         stock_items = (await db.execute(stmt_stock)).scalars().all()
         has_stock = len(stock_items) > 0
@@ -795,46 +846,25 @@ class InventoryService:
         if has_stock:
             raise ValueError(f"Cannot delete material '{mat.name}' with active stock ({len(stock_items)} items). Please consume or adjust stock to zero first.")
 
-        # Check History
-        stmt_history = select(func.count(StockMovement.id)).join(StockItem).join(Batch).where(
-            Batch.material_id == material_id, Batch.tenant_id == tenant_id
-        )
-        history_count = await db.scalar(stmt_history) or 0
-        logger.info(f"[DELETE_DEBUG] History check: {history_count} movements found")
-
-        if history_count > 0:
-            raise ValueError(f"Cannot delete material '{mat.name}' with {history_count} historical movements (Audit trail protected).")
+        active_sessions = await db.scalar(
+            select(func.count(MaterialSession.id))
+            .join(StockItem, StockItem.id == MaterialSession.stock_item_id)
+            .join(Batch, Batch.id == StockItem.batch_id)
+            .where(
+                Batch.material_id == material_id,
+                Batch.tenant_id == tenant_id,
+                StockItem.tenant_id == tenant_id,
+                MaterialSession.status == "ACTIVE",
+            )
+        ) or 0
+        if active_sessions > 0:
+            raise ValueError(
+                f"Cannot delete material '{mat.name}' while {active_sessions} package session(s) are open. Please close them first."
+            )
 
         try:
-            from ..models.inventory import ProcedureMaterialWeight, MaterialLearningLog
-            from sqlalchemy import delete
-
-            # Delete weights and learning logs
-            stmt_pw = delete(ProcedureMaterialWeight).where(ProcedureMaterialWeight.material_id == material_id)
-            await db.execute(stmt_pw)
-            stmt_ll = delete(MaterialLearningLog).where(MaterialLearningLog.material_id == material_id)
-            await db.execute(stmt_ll)
-
-            stmt_batches = select(Batch).where(Batch.material_id == material_id)
-            batches = (await db.execute(stmt_batches)).scalars().all()
-
-            for b in batches:
-                stmt_si = select(StockItem).where(StockItem.batch_id == b.id)
-                stock_items_to_del = (await db.execute(stmt_si)).scalars().all()
-
-                for si in stock_items_to_del:
-                    stmt_sess_del = delete(MaterialSession).where(MaterialSession.stock_item_id == si.id)
-                    await db.execute(stmt_sess_del)
-                    stmt_move_del = delete(StockMovement).where(StockMovement.stock_item_id == si.id)
-                    await db.execute(stmt_move_del)
-
-                stmt_si_del = delete(StockItem).where(StockItem.batch_id == b.id)
-                await db.execute(stmt_si_del)
-                stmt_b_del = delete(Batch).where(Batch.id == b.id)
-                await db.execute(stmt_b_del)
-
-            # Finally Delete Material
-            await db.delete(mat)
+            mat.is_deleted = True
+            mat.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
             await db.commit()
             return True
         except Exception:
@@ -868,17 +898,17 @@ class InventoryService:
         result = await db.execute(stmt)
         movements = result.all()
 
-        total_cogs = 0.0
+        total_cogs = as_decimal(0)
 
         for move, batch, mat in movements:
-            qty = abs(move.change_amount)
-            cost = batch.cost_per_unit
+            qty = as_decimal(abs(move.change_amount))
+            cost = as_decimal(batch.cost_per_unit)
             if cost <= 0:
-                cost = mat.standard_price or 0.0
+                cost = as_decimal(mat.standard_price)
 
             total_cogs += qty * cost
 
-        return total_cogs
+        return float(quantize_money(total_cogs))
 
     async def transfer_stock(
         self,

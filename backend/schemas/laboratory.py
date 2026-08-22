@@ -3,8 +3,10 @@
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
 from datetime import datetime
+from decimal import Decimal
 
 from backend.utils.tenant_time import utc_now_naive
+from backend.core.money import NonNegativeMoney, PositiveMoney
 
 
 class LaboratoryBase(BaseModel):
@@ -47,8 +49,8 @@ class LabOrderBase(BaseModel):
     tooth_number: Optional[str] = None
     shade: Optional[str] = None
     material: Optional[str] = None
-    cost: float = 0.0
-    price_to_patient: float = 0.0
+    cost: NonNegativeMoney = Decimal("0.00")
+    price_to_patient: NonNegativeMoney = Decimal("0.00")
     status: str = "pending"
     notes: Optional[str] = None
     delivery_date: Optional[datetime] = None
@@ -64,8 +66,8 @@ class LabOrderUpdate(BaseModel):
     tooth_number: Optional[str] = None
     shade: Optional[str] = None
     material: Optional[str] = None
-    cost: Optional[float] = None
-    price_to_patient: Optional[float] = None
+    cost: Optional[NonNegativeMoney] = None
+    price_to_patient: Optional[NonNegativeMoney] = None
     status: Optional[str] = None
     notes: Optional[str] = None
     delivery_date: Optional[datetime] = None
@@ -84,7 +86,7 @@ class LabOrder(LabOrderBase):
 
 class LabPaymentBase(BaseModel):
     laboratory_id: Optional[int] = None
-    amount: float
+    amount: PositiveMoney
     date: datetime = Field(default_factory=utc_now_naive)
     notes: Optional[str] = None
     method: str = "Cash"

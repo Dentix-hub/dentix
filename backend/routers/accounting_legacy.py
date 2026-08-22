@@ -13,6 +13,7 @@ from ..crud import billing as billing_crud
 from .auth import get_async_db, get_current_user
 from backend.core.permissions import Permission, require_permission
 from backend.core.response import success_response, StandardResponse, error_response
+from backend.core.money import NonNegativeMoney, Percentage
 from ..services.accounting_service import AccountingService
 
 # Forced Reload of Accounting Module
@@ -112,9 +113,9 @@ async def get_doctor_details(
 @router.put("/staff-compensation/{user_id}", response_model=StandardResponse[dict])
 async def update_staff_compensation(
     user_id: int,
-    commission_percent: float = 0.0,
-    fixed_salary: float = 0.0,
-    per_appointment_fee: float = 0.0,
+    commission_percent: Percentage = 0.0,
+    fixed_salary: NonNegativeMoney = 0.0,
+    per_appointment_fee: NonNegativeMoney = 0.0,
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):

@@ -7,6 +7,8 @@ from sqlalchemy import (
     ForeignKey,
     Boolean,
     Float,
+    Numeric,
+    CheckConstraint,
     column,
 )
 from sqlalchemy.orm import relationship
@@ -29,6 +31,9 @@ class AILog(Base):
     """
 
     __tablename__ = "ai_logs"
+    __table_args__ = (
+        CheckConstraint("cost >= 0", name="ck_ai_logs_cost_nonnegative"),
+    )
 
     __rls_policies__ = [
         Permissive(
@@ -61,7 +66,7 @@ class AILog(Base):
     execution_time_ms = Column(Integer)  # Total latency
     tokens_in = Column(Integer, default=0)
     tokens_out = Column(Integer, default=0)
-    cost = Column(Float, default=0.0)  # Estimated cost
+    cost = Column(Numeric(18, 6), default=0.0)  # Estimated cost
     confidence = Column(Float, default=1.0)  # 0.0 to 1.0
 
     # Status & Error Handling

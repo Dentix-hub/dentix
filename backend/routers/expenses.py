@@ -10,6 +10,7 @@ from backend.core.permissions import Permission, require_permission
 from backend.core.tenant_context import require_tenant_id
 from ..utils.audit_logger import log_admin_action
 from backend.core.response import success_response
+from backend.services.expense_service import ExpenseService
 
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
@@ -71,7 +72,11 @@ async def create_expense(
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
 ):
     tenant_id = require_tenant_id(current_user)
-    result = await crud.create_expense(db=db, expense=expense, tenant_id=tenant_id)
+    service = ExpenseService(db, tenant_id)
+    try:
+        result = await service.create_expense(expense, commit=False)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     log_admin_action(
         db=db,
         admin_user=current_user,
@@ -80,6 +85,8 @@ async def create_expense(
         entity_id=result.id if hasattr(result, "id") else None,
         details=f"Expense: {expense.item_name} - {expense.cost}",
     )
+    await db.commit()
+    await db.refresh(result)
     return success_response(result)
 
 
