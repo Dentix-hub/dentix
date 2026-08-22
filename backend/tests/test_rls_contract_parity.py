@@ -36,6 +36,9 @@ print(json.dumps(sorted(
 
 def test_runtime_tenant_models_match_canonical_rls_contract():
     model_tables = _runtime_tenant_tables()
+    # `notifications` is intentionally outside generic RLS_TABLES because its
+    # FORCE-RLS policy allows current-tenant rows plus deliberate global rows.
+    # preflight installs/verifies `notifications_tenant_policy` separately.
     configured_tables = set(RLS_TABLES) | {"notifications"}
 
     missing = sorted(model_tables - configured_tables)
