@@ -60,9 +60,24 @@ class Permission(str, Enum):
     APPOINTMENT_CANCEL = "appointment:cancel"
     APPOINTMENT_DELETE = "appointment:cancel"
 
-    # Financial
+    # Financial - legacy compatibility permissions.
+    # New finance endpoints must prefer the domain-specific permissions below.
     FINANCIAL_READ = "financial:read"
-    FINANCIAL_WRITE = "financial:write"  # Payments, invoices
+    FINANCIAL_WRITE = "financial:write"
+
+    # Finance V2 granular permissions.
+    FINANCE_OVERVIEW_READ = "finance:overview:read"
+    RECEIVABLE_READ = "finance:receivable:read"
+    PAYMENT_READ = "finance:payment:read"
+    PAYMENT_CREATE = "finance:payment:create"
+    PAYMENT_VOID = "finance:payment:void"
+    EXPENSE_READ = "finance:expense:read"
+    EXPENSE_MANAGE = "finance:expense:manage"
+    PAYROLL_READ = "finance:payroll:read"
+    PAYROLL_MANAGE = "finance:payroll:manage"
+    COMPENSATION_READ = "finance:compensation:read"
+    REPORT_READ = "finance:report:read"
+    REPORT_EXPORT = "finance:report:export"
 
     # Inventory
     INVENTORY_READ = "inventory:read"
@@ -93,6 +108,18 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
         Permission.APPOINTMENT_CANCEL,
         Permission.FINANCIAL_READ,
         Permission.FINANCIAL_WRITE,
+        Permission.FINANCE_OVERVIEW_READ,
+        Permission.RECEIVABLE_READ,
+        Permission.PAYMENT_READ,
+        Permission.PAYMENT_CREATE,
+        Permission.PAYMENT_VOID,
+        Permission.EXPENSE_READ,
+        Permission.EXPENSE_MANAGE,
+        Permission.PAYROLL_READ,
+        Permission.PAYROLL_MANAGE,
+        Permission.COMPENSATION_READ,
+        Permission.REPORT_READ,
+        Permission.REPORT_EXPORT,
         Permission.INVENTORY_READ,
         Permission.INVENTORY_MANAGE,
         Permission.SYSTEM_CONFIG,
@@ -129,8 +156,10 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
         Permission.APPOINTMENT_READ,
         Permission.APPOINTMENT_UPDATE,
         Permission.APPOINTMENT_CANCEL,
-        Permission.FINANCIAL_READ,  # View balance
-        Permission.FINANCIAL_WRITE,  # Collect payment
+        # Reception can collect money and inspect patient receivables, but does
+        # not receive clinic-wide reports, expenses, payroll, or compensation.
+        Permission.RECEIVABLE_READ,
+        Permission.PAYMENT_CREATE,
         Permission.INVENTORY_READ,
         Permission.AI_CHAT,
         Permission.CLINICAL_READ,
@@ -146,8 +175,22 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
         Permission.AI_CHAT,
     },
     Role.ACCOUNTANT: {
+        # Legacy permissions remain during migration for non-Finance-V2 callers.
         Permission.FINANCIAL_READ,
         Permission.FINANCIAL_WRITE,
+        Permission.FINANCE_OVERVIEW_READ,
+        Permission.RECEIVABLE_READ,
+        Permission.PAYMENT_READ,
+        Permission.PAYMENT_CREATE,
+        Permission.PAYMENT_VOID,
+        Permission.EXPENSE_READ,
+        Permission.EXPENSE_MANAGE,
+        Permission.PAYROLL_READ,
+        # PAYROLL_MANAGE intentionally remains admin/manager-only until the
+        # product contract explicitly grants accountants payroll mutation.
+        Permission.COMPENSATION_READ,
+        Permission.REPORT_READ,
+        Permission.REPORT_EXPORT,
         Permission.PATIENT_READ,  # Needs to see who paid
         Permission.APPOINTMENT_READ,
         Permission.AI_CHAT,
@@ -226,4 +269,3 @@ def _get_current_user_lazy():
         return get_current_user
     dep = _inner()
     return dep
-
