@@ -8,7 +8,10 @@ import pytest
 
 from backend.routers.laboratories_decimal import build_lab_stats_payload
 from backend.routers.metrics_decimal import build_profitability_payload
-from backend.services.accounting_decimal_service import _NumericSafeUserProxy
+from backend.services.accounting_decimal_service import (
+    DecimalSafeAccountingService,
+    _NumericSafeUserProxy,
+)
 from backend.services.inventory_decimal_service import DecimalInventoryService
 
 
@@ -60,6 +63,29 @@ def test_compensation_proxy_normalizes_numeric_columns_at_legacy_boundary():
     assert safe.per_appointment_fee == 20.0
     assert safe.username == "doctor"
     assert safe.commission_percent / 100.0 == 0.35
+
+
+def test_accounting_facade_preserves_finance_v2_doctor_details_layers():
+    """The Decimal patch must not replace the final Finance V2 override."""
+    # Importing the facade applies the compatibility patch.
+    import backend.routers.accounting_decimal  # noqa: F401
+
+    from backend.services.accounting_service import (
+        AccountingService as FinanceV2AccountingService,
+    )
+    from backend.services.accounting_service_legacy import (
+        AccountingService as LegacyAccountingService,
+    )
+
+    assert (
+        LegacyAccountingService.get_doctor_details_data
+        is DecimalSafeAccountingService.get_doctor_details_data
+    )
+    assert (
+        FinanceV2AccountingService.get_doctor_details_data
+        is not DecimalSafeAccountingService.get_doctor_details_data
+    )
+    assert issubclass(FinanceV2AccountingService, LegacyAccountingService)
 
 
 class _FakeExecuteResult:
