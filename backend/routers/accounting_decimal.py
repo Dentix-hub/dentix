@@ -1,19 +1,23 @@
-"""Accounting router compatibility facade for PostgreSQL NUMERIC values."""
+"""Accounting compatibility facade for PostgreSQL NUMERIC values.
+
+Only the doctor-details service method is patched.  Avoid replacing
+AccountingService module globals across the entire accounting router graph;
+that broad monkey-patch changed unrelated endpoint and test behavior.
+"""
 
 from importlib import import_module
 
 from backend.services.accounting_decimal_service import DecimalSafeAccountingService
+from backend.services.accounting_service import AccountingService as BaseAccountingService
+
+
+# Preserve every existing router dependency/permission and business route.  The
+# target method keeps the same public contract while using Decimal-safe math.
+BaseAccountingService.get_doctor_details_data = (
+    DecimalSafeAccountingService.get_doctor_details_data
+)
 
 _base = import_module("backend.routers.accounting")
-
-
-# Route callables in the layered accounting modules resolve ``AccountingService``
-# from their module globals at request time. Point every layer at the safe
-# compatibility facade so doctor revenue/details no longer mix Decimal and float.
-_base.AccountingService = DecimalSafeAccountingService
-_base._previous.AccountingService = DecimalSafeAccountingService
-_base._previous._legacy.AccountingService = DecimalSafeAccountingService
-
 router = _base.router
 
 # Preserve the public module surface expected by imports/tests.
