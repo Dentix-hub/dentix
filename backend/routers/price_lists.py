@@ -6,6 +6,7 @@ CRUD operations for tenant-scoped price lists and pricing.
 
 import logging
 from datetime import date
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.core.permissions import Permission, require_permission
 from backend.core.response import success_response, StandardResponse
 from backend.core.tenant_context import require_tenant_id
+from backend.core.money import NonNegativeMoney, Percentage
 from backend.database import get_async_db
 from ..core.permissions import ADMIN_ROLES
 from ..models import InsuranceProvider, PriceList, PriceListItem, Procedure, User
@@ -31,17 +33,17 @@ class PriceListCreate(BaseModel):
     description: Optional[str] = None
     is_default: bool = False
     insurance_provider_id: Optional[int] = None
-    coverage_percent: float = 100.0
-    copay_percent: float = 0.0
-    copay_fixed: float = 0.0
+    coverage_percent: Percentage = Decimal("100.0000")
+    copay_percent: Percentage = Decimal("0.0000")
+    copay_fixed: NonNegativeMoney = Decimal("0.00")
     effective_from: Optional[date] = None
     effective_to: Optional[date] = None
 
 
 class PriceListItemCreate(BaseModel):
     procedure_id: int
-    price: float
-    discount_percent: float = 0.0
+    price: NonNegativeMoney
+    discount_percent: Percentage = Decimal("0.0000")
     insurance_code: Optional[str] = None
     requires_approval: bool = False
 
@@ -52,8 +54,8 @@ class PriceListResponse(BaseModel):
     type: str
     is_default: bool
     is_active: bool
-    coverage_percent: float
-    copay_percent: float
+    coverage_percent: Percentage
+    copay_percent: Percentage
 
     class Config:
         from_attributes = True

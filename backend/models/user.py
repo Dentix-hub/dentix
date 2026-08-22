@@ -5,7 +5,7 @@ from .base import (
     String,
     Boolean,
     DateTime,
-    Float,
+    Numeric,
     Text,
     Date,
     ForeignKey,
@@ -16,12 +16,24 @@ from .base import (
     mapped_column,
 )
 from datetime import date
+from decimal import Decimal
 from rls.schemas import Permissive, ConditionArg, Command
-from sqlalchemy import column
+from sqlalchemy import CheckConstraint, column
 
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "commission_percent >= 0 AND commission_percent <= 100",
+            name="ck_users_commission_percent_range",
+        ),
+        CheckConstraint("fixed_salary >= 0", name="ck_users_fixed_salary_nonnegative"),
+        CheckConstraint(
+            "per_appointment_fee >= 0",
+            name="ck_users_appointment_fee_nonnegative",
+        ),
+    )
 
     __rls_policies__ = [
         Permissive(
@@ -57,9 +69,15 @@ class User(Base):
     can_view_other_doctors_history: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Compensation settings
-    commission_percent: Mapped[float] = mapped_column(Float, default=0.0)
-    fixed_salary: Mapped[float] = mapped_column(Float, default=0.0)
-    per_appointment_fee: Mapped[float] = mapped_column(Float, default=0.0)
+    commission_percent: Mapped[Decimal] = mapped_column(
+        Numeric(7, 4), default=Decimal("0.0000")
+    )
+    fixed_salary: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), default=Decimal("0.00")
+    )
+    per_appointment_fee: Mapped[Decimal] = mapped_column(
+        Numeric(14, 2), default=Decimal("0.00")
+    )
     hire_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     # Status Fields

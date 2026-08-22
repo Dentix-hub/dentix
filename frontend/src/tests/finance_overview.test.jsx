@@ -49,6 +49,23 @@ describe('Finance Overview V2 Components', () => {
             );
             expect(container.querySelectorAll('.animate-pulse').length).toBe(4);
         });
+
+        it('shows aggregated overview amounts as whole EGP without changing source values', () => {
+            render(
+                <MemoryRouter>
+                    <HeadlineMetrics
+                        netInvoiced={32500}
+                        collected={23900}
+                        totalDeductions={4369.35}
+                        netResult={19530.65}
+                    />
+                </MemoryRouter>
+            );
+
+            expect(screen.getByLabelText('4369 EGP')).toBeDefined();
+            expect(screen.getByLabelText('19531 EGP')).toBeDefined();
+            expect(screen.queryByLabelText('4369.35 EGP')).toBeNull();
+        });
     });
 
     describe('<ObligationsSection />', () => {
@@ -76,6 +93,17 @@ describe('Finance Overview V2 Components', () => {
             expect(links.some((l) => l.getAttribute('href') === '/finance/patient-accounts')).toBe(true);
             expect(links.some((l) => l.getAttribute('href') === '/finance/compensation/doctors')).toBe(true);
             expect(links.some((l) => l.getAttribute('href') === '/finance/compensation/payroll')).toBe(true);
+        });
+
+        it('shows prorated obligation totals as whole EGP in the overview', () => {
+            render(
+                <MemoryRouter>
+                    <ObligationsSection staffDuesTotal={1419.35} />
+                </MemoryRouter>
+            );
+
+            expect(screen.getByLabelText('1419 EGP')).toBeDefined();
+            expect(screen.queryByLabelText('1419.35 EGP')).toBeNull();
         });
     });
 

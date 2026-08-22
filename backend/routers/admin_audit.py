@@ -74,18 +74,3 @@ async def get_audit_logs(
     res = await db.execute(stmt)
     results = res.scalars().all()
     return success_response(list(results))
-
-
-# --- System Error Logs ---
-@router.get("/system/logs", response_model=StandardResponse[List[schemas.SystemError]])
-async def get_system_logs(
-    skip: int = 0,
-    limit: int = 50,
-    current_user: models.User = Depends(require_super_admin),
-    db: AsyncSession = Depends(get_async_db),
-):
-    """Retrieve system error logs (Super Admin only)."""
-    stmt = select(models.SystemError).order_by(models.SystemError.created_at.desc()).offset(skip).limit(limit)
-    res = await db.execute(stmt)
-    results = res.scalars().all()
-    return success_response(list(results))

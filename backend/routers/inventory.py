@@ -26,6 +26,7 @@ async def _require_material(db: AsyncSession, material_id: int, tenant_id: int):
         select(inv_models.Material).where(
             inv_models.Material.id == material_id,
             inv_models.Material.tenant_id == tenant_id,
+            inv_models.Material.is_deleted == False,  # noqa: E712
         )
     )).scalars().first()
     if not material:
@@ -103,11 +104,8 @@ async def create_material_category(
 ):
     """Create a new material category"""
     require_tenant_id(current_user)
-    new_cat = inv_models.MaterialCategory(**category.model_dump())
-    db.add(new_cat)
-    await db.commit()
-    await db.refresh(new_cat)
-    return success_response(data=new_cat, message="Category created")
+    result = await inventory_service.create_material_category(category, db)
+    return success_response(data=result, message="Category ready")
 
 
 @router.get("/categories", response_model=StandardResponse[List[schemas.inventory.MaterialCategoryOut]])
@@ -135,6 +133,7 @@ async def get_category_materials(
         .where(
             inv_models.Material.category_id == category_id,
             inv_models.Material.tenant_id == tenant_id,
+            inv_models.Material.is_deleted == False,  # noqa: E712
         )
     )
     materials = (await db.execute(stmt)).scalars().all()
@@ -190,7 +189,9 @@ async def delete_material(
     try:
         await inventory_service.delete_material(material_id, tenant_id, db)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        detail = str(e)
+        code = status.HTTP_404_NOT_FOUND if detail == "Material not found" else status.HTTP_409_CONFLICT
+        raise HTTPException(status_code=code, detail=detail)
     except Exception as e:
         await db.rollback()
         logger.error(f"delete_material failed: {e}", exc_info=True)

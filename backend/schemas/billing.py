@@ -3,12 +3,13 @@
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime, date
+from backend.core.money import PositiveMoney
 
 
 class PaymentBase(BaseModel):
     patient_id: int
     doctor_id: Optional[int] = None
-    amount: float
+    amount: PositiveMoney
     date: Optional[datetime] = None
     notes: Optional[str] = None
 
@@ -38,7 +39,7 @@ class Payment(PaymentBase):
 
 class ExpenseBase(BaseModel):
     item_name: str
-    cost: float
+    cost: PositiveMoney
     category: str
     date: date
     notes: Optional[str] = None

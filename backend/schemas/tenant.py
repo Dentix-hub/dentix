@@ -1,14 +1,16 @@
 """Tenant and subscription schemas."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from backend.utils.tenant_time import (
     DEFAULT_TENANT_TIMEZONE,
     validate_timezone_name,
 )
+from backend.core.money import NonNegativeMoney, PositiveMoney
 
 
 class TenantBase(BaseModel):
@@ -20,7 +22,6 @@ class TenantBase(BaseModel):
     subscription_end_date: Optional[datetime] = None
     grace_period_until: Optional[datetime] = None
     auto_suspend_at: Optional[datetime] = None
-    google_refresh_token: Optional[str] = None
     backup_frequency: Optional[str] = "off"
     last_backup_at: Optional[datetime] = None
     is_deleted: bool = False
@@ -56,7 +57,6 @@ class TenantUpdate(BaseModel):
 
     # Backup & System
     backup_frequency: Optional[str] = None
-    google_refresh_token: Optional[str] = None
 
     # Prescription Info
     doctor_name: Optional[str] = None
@@ -103,7 +103,7 @@ class ClinicRegistration(BaseModel):
 class SubscriptionPlanBase(BaseModel):
     name: str
     display_name_ar: str
-    price: float
+    price: NonNegativeMoney
     duration_days: int
     max_users: Optional[int] = None
     max_patients: Optional[int] = None
@@ -120,7 +120,7 @@ class SubscriptionPlanCreate(SubscriptionPlanBase):
 
 class SubscriptionPlanUpdate(BaseModel):
     display_name_ar: Optional[str] = None
-    price: Optional[float] = None
+    price: Optional[NonNegativeMoney] = None
     duration_days: Optional[int] = None
     max_users: Optional[int] = None
     max_patients: Optional[int] = None
@@ -143,7 +143,7 @@ class SubscriptionPlan(SubscriptionPlanBase):
 class SubscriptionPaymentBase(BaseModel):
     tenant_id: Optional[int] = None
     plan_id: Optional[int] = None
-    amount: Optional[float] = 0.0
+    amount: Optional[NonNegativeMoney] = Decimal("0.00")
     payment_method: Optional[str] = "Unknown"
     notes: Optional[str] = None
     payment_date: Optional[datetime] = None
@@ -156,7 +156,7 @@ class SubscriptionPaymentBase(BaseModel):
 class SubscriptionPaymentCreate(SubscriptionPaymentBase):
     tenant_id: int
     plan_id: int
-    amount: float
+    amount: PositiveMoney
     payment_method: str
 
 
@@ -172,27 +172,46 @@ class SubscriptionPayment(SubscriptionPaymentBase):
 
 
 class SubscriptionCheckoutCreate(BaseModel):
-    tenant_id: int
-    plan_id: int
-    provider: str = "manual"
+    tenant_id: int = Field(gt=0)
+    plan_id: int = Field(gt=0)
+    provider: str = Field(default="manual", min_length=1, max_length=50)
     success_url: Optional[str] = None
     cancel_url: Optional[str] = None
+
+    @field_validator("provider")
+    @classmethod
+    def normalize_provider(cls, value: str) -> str:
+        return value.strip().lower()
 
 
 class SubscriptionCheckoutSession(BaseModel):
     provider: str
     provider_reference: str
     checkout_url: str
-    amount: float
+    amount: NonNegativeMoney
     currency: str = "EGP"
 
 
 class SubscriptionWebhookEvent(BaseModel):
-    provider: str
-    provider_payment_id: str
-    provider_status: str
-    tenant_id: int
-    plan_id: int
-    amount: float
-    paid_by: Optional[str] = None
-    notes: Optional[str] = None
+    model_config = ConfigDict(extra="forbid")
+
+    provider: str = Field(min_length=1, max_length=50)
+    provider_reference: str = Field(min_length=1, max_length=120)
+    provider_payment_id: str = Field(min_length=1, max_length=160)
+    provider_status: str = Field(min_length=1, max_length=30)
+    tenant_id: int = Field(gt=0)
+    plan_id: int = Field(gt=0)
+    amount: PositiveMoney
+    currency: str = Field(default="EGP", min_length=3, max_length=3)
+    paid_by: Optional[str] = Field(default=None, max_length=255)
+    notes: Optional[str] = Field(default=None, max_length=2000)
+
+    @field_validator("provider")
+    @classmethod
+    def normalize_webhook_provider(cls, value: str) -> str:
+        return value.strip().lower()
+
+    @field_validator("currency")
+    @classmethod
+    def normalize_currency(cls, value: str) -> str:
+        return value.strip().upper()

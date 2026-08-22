@@ -30,16 +30,20 @@ const AddMaterialModal = ({ isOpen, onClose, initialData = null }) => {
         staleTime: 5 * 60 * 1000
     });
 
+    const applyCategory = (category) => {
+        setFormData(prev => ({
+            ...prev,
+            category_id: category.id,
+            name: category.name_ar,
+            type: category.default_type,
+            base_unit: category.default_unit
+        }));
+    };
+
     const handleCategoryChange = (categoryId) => {
         const category = categories.find(item => item.id === parseInt(categoryId, 10));
         if (category) {
-            setFormData(prev => ({
-                ...prev,
-                category_id: parseInt(categoryId, 10),
-                name: category.name_ar,
-                type: category.default_type,
-                base_unit: category.default_unit
-            }));
+            applyCategory(category);
         } else {
             setFormData(prev => ({ ...prev, category_id: null, name: '' }));
         }
@@ -48,12 +52,25 @@ const AddMaterialModal = ({ isOpen, onClose, initialData = null }) => {
     const categoryMutation = useMutation({
         mutationFn: createCategory,
         onSuccess: (res) => {
+            const category = res.data;
+            if (category?.id) {
+                queryClient.setQueryData(['material-categories'], (current = []) => {
+                    const withoutDuplicate = current.filter(item => item.id !== category.id);
+                    return [...withoutDuplicate, category];
+                });
+                // Do not look the new category up in the stale query result. Apply
+                // the response directly so the material form is immediately valid.
+                applyCategory(category);
+            }
             queryClient.invalidateQueries({ queryKey: ['material-categories'] });
             setShowNewCategoryForm(false);
             setNewCategoryData({ name_ar: '', name_en: '' });
-            if (res.data?.id) handleCategoryChange(res.data.id);
             toast.success(t('inventory.categories.success_add') || 'Category added');
-        }
+        },
+        onError: (error) => {
+            toast.error(`${t('inventory.categories.fail_add')}: ${error.response?.data?.detail || error.message}`);
+        },
+        retry: false,
     });
 
     useEffect(() => {
@@ -90,7 +107,8 @@ const AddMaterialModal = ({ isOpen, onClose, initialData = null }) => {
         },
         onError: (error) => {
             toast.error((initialData ? t('inventory.materials.fail_edit') : t('inventory.materials.fail_add')) + (error.response?.data?.detail || error.message));
-        }
+        },
+        retry: false,
     });
 
     const handleSubmit = (event) => {

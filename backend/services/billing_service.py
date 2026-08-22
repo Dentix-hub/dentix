@@ -24,6 +24,9 @@ class BillingService(LegacyBillingService):
         doctor_id: int = None,
         commit: bool = True,
     ):
+        if payment.amount <= 0:
+            raise ValueError("Payment amount must be greater than zero")
+
         patient_stmt = select(models.Patient).where(
             models.Patient.id == payment.patient_id,
             models.Patient.tenant_id == self.tenant_id,

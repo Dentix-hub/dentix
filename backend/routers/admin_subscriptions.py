@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from backend import models, schemas
@@ -97,10 +97,20 @@ async def create_checkout_session(
 
 @router.post("/webhooks/provider", response_model=StandardResponse[schemas.SubscriptionPayment])
 async def receive_provider_webhook(
+    request: Request,
     event: schemas.SubscriptionWebhookEvent,
+    x_webhook_signature: str = Header(..., alias="X-Webhook-Signature"),
+    x_webhook_timestamp: str = Header(..., alias="X-Webhook-Timestamp"),
     db: AsyncSession = Depends(get_async_db),
 ):
-    data = await SubscriptionService.handle_provider_webhook(db, event)
+    raw_payload = await request.body()
+    data = await SubscriptionService.handle_provider_webhook(
+        db,
+        event,
+        raw_payload=raw_payload,
+        timestamp=x_webhook_timestamp,
+        signature=x_webhook_signature,
+    )
     return success_response(data=data, message="Subscription payment webhook processed")
 
 
