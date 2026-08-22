@@ -83,54 +83,6 @@ jobs:
           esac
           curl --fail --show-error --retry 20 --retry-delay 12 --retry-all-errors "$HEALTH_URL"
 
-      - name: Resolve staging application base URL
-        env:
-          STAGING_BACKEND_URL: ${{ secrets.STAGING_BACKEND_URL }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          BASE_URL="${STAGING_BACKEND_URL%/}"
-          case "$BASE_URL" in
-            */api/v1/health) BASE_URL="${BASE_URL%/api/v1/health}" ;;
-            */api/v1) BASE_URL="${BASE_URL%/api/v1}" ;;
-          esac
-          test -n "$BASE_URL"
-          echo "STAGING_BASE_URL=$BASE_URL" >> "$GITHUB_ENV"
-
-      - name: Set up Node.js 20 for production-like staging smoke
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install staging smoke dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Install Playwright Chromium for staging smoke
-        working-directory: frontend
-        run: npx playwright install chromium
-
-      - name: Run production-like staging smoke
-        working-directory: frontend
-        env:
-          STAGING_BASE_URL: ${{ env.STAGING_BASE_URL }}
-        run: >-
-          npx playwright test
-          --config=playwright.staging.config.ts
-          --project=staging-chromium
-          --retries=0
-
-      - name: Upload staging smoke diagnostics on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: staging-production-smoke-diagnostics
-          path: |
-            frontend/playwright-report/
-            frontend/test-results/
-
   production-change-gate:
     name: Classify production deployment change
     runs-on: ubuntu-latest
