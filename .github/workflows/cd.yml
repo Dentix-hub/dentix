@@ -24,6 +24,7 @@ on:
 permissions:
   contents: read
   packages: read
+  statuses: write
 
 jobs:
   deploy-staging:
@@ -50,6 +51,7 @@ jobs:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'staging' }}
 
       - name: Verify staging revision identity
+        id: staging-revision
         env:
           EXPECTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
         run: |
@@ -58,7 +60,21 @@ jobs:
           if [ -n "$EXPECTED_SHA" ]; then
             test "$ACTUAL_SHA" = "$EXPECTED_SHA"
           fi
+          echo "sha=$ACTUAL_SHA" >> "$GITHUB_OUTPUT"
           echo "Deploying staging revision: $ACTUAL_SHA"
+
+      - name: Publish staging deployment pending status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVISION_SHA: ${{ steps.staging-revision.outputs.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${REVISION_SHA}" \
+            -f state='pending' \
+            -f context='Dentix CD - HF staging smoke' \
+            -f description='HF staging deploy and production-like smoke are running' \
+            -f target_url="$RUN_URL"
 
       - name: Sync tested revision to Hugging Face staging
         uses: huggingface/hub-sync@v0.1.0
@@ -131,6 +147,26 @@ jobs:
             frontend/playwright-report/
             frontend/test-results/
 
+      - name: Publish final staging deployment status
+        if: always() && steps.staging-revision.outputs.sha != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVISION_SHA: ${{ steps.staging-revision.outputs.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DEPLOYMENT_STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
+        run: |
+          set -euo pipefail
+          if [ "$DEPLOYMENT_STATE" = 'success' ]; then
+            DESCRIPTION='HF staging deploy, health, and production-like smoke passed'
+          else
+            DESCRIPTION='HF staging deploy, health, or production-like smoke failed'
+          fi
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${REVISION_SHA}" \
+            -f state="$DEPLOYMENT_STATE" \
+            -f context='Dentix CD - HF staging smoke' \
+            -f description="$DESCRIPTION" \
+            -f target_url="$RUN_URL"
+
   production-change-gate:
     name: Classify production deployment change
     runs-on: ubuntu-latest
@@ -200,6 +236,7 @@ jobs:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
 
       - name: Verify tested revision is current main
+        id: production-revision
         env:
           EXPECTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || '' }}
         run: |
@@ -210,7 +247,21 @@ jobs:
           if [ -n "$EXPECTED_SHA" ]; then
             test "$ACTUAL_SHA" = "$EXPECTED_SHA"
           fi
+          echo "sha=$ACTUAL_SHA" >> "$GITHUB_OUTPUT"
           echo "Deploying production revision: $ACTUAL_SHA"
+
+      - name: Publish production deployment pending status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVISION_SHA: ${{ steps.production-revision.outputs.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${REVISION_SHA}" \
+            -f state='pending' \
+            -f context='Dentix CD - HF production deploy' \
+            -f description='HF production deployment and health verification are running' \
+            -f target_url="$RUN_URL"
 
       - name: Sync tested revision to Hugging Face production
         uses: huggingface/hub-sync@v0.1.0
@@ -234,3 +285,23 @@ jobs:
             *) HEALTH_URL="${HEALTH_URL}/api/v1/health" ;;
           esac
           curl --fail --show-error --retry 30 --retry-delay 12 --retry-all-errors "$HEALTH_URL"
+
+      - name: Publish final production deployment status
+        if: always() && steps.production-revision.outputs.sha != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVISION_SHA: ${{ steps.production-revision.outputs.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          DEPLOYMENT_STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
+        run: |
+          set -euo pipefail
+          if [ "$DEPLOYMENT_STATE" = 'success' ]; then
+            DESCRIPTION='HF production deployment and health verification passed'
+          else
+            DESCRIPTION='HF production deployment or health verification failed'
+          fi
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${REVISION_SHA}" \
+            -f state="$DEPLOYMENT_STATE" \
+            -f context='Dentix CD - HF production deploy' \
+            -f description="$DESCRIPTION" \
+            -f target_url="$RUN_URL"
