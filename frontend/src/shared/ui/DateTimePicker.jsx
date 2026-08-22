@@ -178,6 +178,7 @@ export default function DateTimePicker({
                 className={`flex min-h-11 w-full min-w-0 items-center justify-between gap-2 rounded-2xl border-2 bg-surface text-sm font-bold text-text-primary shadow-sm outline-none transition-all hover:border-primary/40 hover:bg-slate-50 focus:ring-4 focus:ring-primary/10 dark:hover:bg-slate-800 ${compact ? 'px-3 py-1.5' : 'px-3 py-2.5 sm:px-4 sm:py-3'} ${error ? 'border-red-300' : 'border-border'}`}
                 aria-haspopup="dialog"
                 aria-expanded={isOpen}
+                data-date-time-picker-trigger
             >
                 <span className="flex min-w-0 items-center gap-2.5">
                     <span className={`shrink-0 rounded-lg p-1.5 transition-colors ${isOpen ? 'bg-primary text-white' : 'bg-primary/10 text-primary'}`}>
@@ -192,10 +193,11 @@ export default function DateTimePicker({
 
             <DialogPrimitive.Root open={isOpen} onOpenChange={setIsOpen}>
                 <DialogPrimitive.Portal>
-                    <DialogPrimitive.Overlay className="fixed inset-0 z-[9998] bg-backdrop backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in data-[state=closed]:fade-out motion-reduce:animate-none motion-reduce:backdrop-blur-none" />
+                    <DialogPrimitive.Overlay className="fixed inset-0 z-modal bg-backdrop backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in data-[state=closed]:fade-out motion-reduce:animate-none motion-reduce:backdrop-blur-none" />
                     <DialogPrimitive.Content
                         aria-describedby={undefined}
-                        className="fixed inset-x-0 bottom-0 z-[9999] mx-auto flex max-h-[calc(100dvh-0.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-t-overlay border border-b-0 border-border bg-surface-elevated text-start align-middle shadow-high outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-bottom-6 data-[state=closed]:slide-out-to-bottom-6 duration-emphasized motion-reduce:animate-none sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:mx-0 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-overlay sm:border-b sm:data-[state=open]:zoom-in-95 sm:data-[state=closed]:zoom-out-95"
+                        data-date-time-picker-dialog
+                        className="fixed inset-x-0 bottom-0 z-modal mx-auto flex max-h-[calc(100dvh-0.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-t-overlay border border-b-0 border-border bg-surface-elevated text-start align-middle shadow-high outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-bottom-6 data-[state=closed]:slide-out-to-bottom-6 duration-emphasized motion-reduce:animate-none sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:mx-0 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-overlay sm:border-b sm:data-[state=open]:zoom-in-95 sm:data-[state=closed]:zoom-out-95"
                     >
                         <div className="flex min-w-0 shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2.5 sm:px-4">
                             <DialogPrimitive.Title className="min-w-0 truncate text-sm font-bold text-text-primary sm:text-base">
@@ -259,6 +261,8 @@ export default function DateTimePicker({
                                                                 ref={viewDate.getFullYear() === year ? activeYearRef : null}
                                                                 type="button"
                                                                 onClick={() => handleYearSelect(year)}
+                                                                aria-pressed={viewDate.getFullYear() === year}
+                                                                data-picker-option="year"
                                                                 className={`min-h-11 rounded-xl px-1 py-2 text-sm font-bold transition-colors ${viewDate.getFullYear() === year ? 'bg-primary text-white shadow-medium' : 'text-text-primary hover:bg-primary/10'}`}
                                                             >
                                                                 {year}
@@ -275,6 +279,9 @@ export default function DateTimePicker({
                                                                     key={month}
                                                                     type="button"
                                                                     onClick={() => handleMonthSelect(month)}
+                                                                    aria-label={format(monthDate, 'yyyy-MM')}
+                                                                    aria-pressed={isSelectedMonth}
+                                                                    data-picker-option="month"
                                                                     className={`min-h-12 rounded-xl px-1 py-3 text-xs font-bold transition-colors sm:min-h-14 sm:text-sm ${isSelectedMonth ? 'bg-primary text-white shadow-medium' : 'text-text-primary hover:bg-primary/10'}`}
                                                                 >
                                                                     {format(monthDate, 'MMM')}
@@ -301,8 +308,10 @@ export default function DateTimePicker({
                                                                         key={day.toISOString()}
                                                                         type="button"
                                                                         onClick={() => handleDateClick(day)}
+                                                                        aria-label={format(day, 'yyyy-MM-dd')}
                                                                         className={`relative flex aspect-square min-h-9 min-w-0 items-center justify-center rounded-xl text-xs font-bold transition-colors sm:min-h-10 sm:text-sm ${isSelectedDay ? 'bg-primary text-white shadow-medium' : inCurrentMonth ? 'text-text-primary hover:bg-primary/10' : 'text-slate-400 opacity-45'}`}
                                                                         aria-pressed={isSelectedDay}
+                                                                        data-picker-option="day"
                                                                     >
                                                                         {format(day, 'd')}
                                                                         {today && !isSelectedDay && <span className="absolute end-1 top-1 h-1.5 w-1.5 rounded-full bg-primary" />}
@@ -351,6 +360,9 @@ export default function DateTimePicker({
                                                                     key={hour}
                                                                     type="button"
                                                                     onClick={() => setTempTime(current => ({ ...current, hours: hour }))}
+                                                                    aria-label={`${t('common.hour', 'Hour')} ${hour}`}
+                                                                    aria-pressed={tempTime.hours === hour}
+                                                                    data-picker-option="hour"
                                                                     className={`min-h-11 rounded-xl text-xs font-bold transition-colors ${tempTime.hours === hour ? 'bg-primary text-white shadow-medium' : 'border border-border bg-surface-elevated text-text-primary hover:bg-surface-hover'}`}
                                                                 >
                                                                     {hour}
@@ -367,6 +379,9 @@ export default function DateTimePicker({
                                                                     key={minute}
                                                                     type="button"
                                                                     onClick={() => setTempTime(current => ({ ...current, minutes: minute }))}
+                                                                    aria-label={`${t('common.minute', 'Minutes')} ${minute.toString().padStart(2, '0')}`}
+                                                                    aria-pressed={tempTime.minutes === minute}
+                                                                    data-picker-option="minute"
                                                                     className={`min-h-11 rounded-xl text-xs font-bold transition-colors ${tempTime.minutes === minute ? 'bg-primary text-white shadow-medium' : 'border border-border bg-surface-elevated text-text-primary hover:bg-surface-hover'}`}
                                                                 >
                                                                     {minute.toString().padStart(2, '0')}
@@ -381,6 +396,8 @@ export default function DateTimePicker({
                                                                 key={period}
                                                                 type="button"
                                                                 onClick={() => setTempTime(current => ({ ...current, ampm: period }))}
+                                                                aria-pressed={tempTime.ampm === period}
+                                                                data-picker-option="period"
                                                                 className={`min-h-11 rounded-lg text-xs font-bold transition-colors ${tempTime.ampm === period ? 'bg-primary text-white shadow-low' : 'text-slate-500 hover:bg-surface-hover hover:text-text-primary'}`}
                                                             >
                                                                 {period}

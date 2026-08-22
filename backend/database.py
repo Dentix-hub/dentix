@@ -9,12 +9,57 @@ principles.
 import os
 import logging
 import re
+import time
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
+
+
+def _get_int_setting(name: str, default: int, minimum: int = 0) -> int:
+    """Read a bounded integer setting without making startup fragile."""
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    try:
+        value = int(raw_value)
+    except ValueError:
+        logger.warning("Ignoring invalid %s=%r; using %d", name, raw_value, default)
+        return default
+    if value < minimum:
+        logger.warning(
+            "Ignoring %s=%d below minimum %d; using %d",
+            name,
+            value,
+            minimum,
+            default,
+        )
+        return default
+    return value
+
+
+def _get_float_setting(name: str, default: float, minimum: float = 0.0) -> float:
+    """Read a bounded float setting without making startup fragile."""
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    try:
+        value = float(raw_value)
+    except ValueError:
+        logger.warning("Ignoring invalid %s=%r; using %.2f", name, raw_value, default)
+        return default
+    if value < minimum:
+        logger.warning(
+            "Ignoring %s=%.2f below minimum %.2f; using %.2f",
+            name,
+            value,
+            minimum,
+            default,
+        )
+        return default
+    return value
 
 # Load environment variables
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -103,18 +148,18 @@ if "sqlite" not in SQLALCHEMY_DATABASE_URL:
         # PgBouncer manages its own pool — use minimal SQLAlchemy pool
         # Large pool_size + PgBouncer = connection exhaustion / circuit breaker
         sync_pool_args = {
-            "pool_size": 3,
-            "max_overflow": 2,
-            "pool_recycle": 300,
-            "pool_timeout": 15,
+            "pool_size": _get_int_setting("DB_POOL_SIZE", 3, minimum=1),
+            "max_overflow": _get_int_setting("DB_POOL_MAX_OVERFLOW", 2),
+            "pool_recycle": _get_int_setting("DB_POOL_RECYCLE", 300, minimum=1),
+            "pool_timeout": _get_float_setting("DB_POOL_TIMEOUT", 15.0, minimum=0.1),
         }
     else:
         # Direct PostgreSQL connection — can use larger pool
         sync_pool_args = {
-            "pool_size": 10,
-            "max_overflow": 5,
-            "pool_recycle": 1800,
-            "pool_timeout": 20,
+            "pool_size": _get_int_setting("DB_POOL_SIZE", 10, minimum=1),
+            "max_overflow": _get_int_setting("DB_POOL_MAX_OVERFLOW", 5),
+            "pool_recycle": _get_int_setting("DB_POOL_RECYCLE", 1800, minimum=1),
+            "pool_timeout": _get_float_setting("DB_POOL_TIMEOUT", 20.0, minimum=0.1),
         }
     async_pool_args = sync_pool_args.copy()
 
@@ -158,6 +203,36 @@ async_engine = create_async_engine(
     **async_pool_args,
 )
 
+
+def get_async_pool_status() -> dict[str, int | float | None]:
+    """Return production-safe pool saturation metrics for diagnostics."""
+    pool = async_engine.pool
+
+    def _read_metric(name: str):
+        metric = getattr(pool, name, None)
+        if not callable(metric):
+            return None
+        try:
+            return metric()
+        except (AttributeError, NotImplementedError):
+            return None
+
+    pool_size = _read_metric("size")
+    max_overflow = sync_pool_args.get("max_overflow")
+    return {
+        "pool_size": pool_size,
+        "max_overflow": max_overflow,
+        "capacity": (
+            pool_size + max_overflow
+            if pool_size is not None and max_overflow is not None
+            else None
+        ),
+        "checked_out": _read_metric("checkedout"),
+        "checked_in": _read_metric("checkedin"),
+        "overflow": _read_metric("overflow"),
+        "timeout_seconds": sync_pool_args.get("pool_timeout"),
+    }
+
 # Persist instant-like timestamps as UTC-by-convention naive datetimes.
 # SQLAlchemy callable defaults can be materialized only when a statement is
 # compiled, and bulk INSERTs arrive here as nested list/tuple parameter sets.
@@ -165,6 +240,51 @@ async_engine = create_async_engine(
 # TIMESTAMP WITHOUT TIME ZONE column.
 from sqlalchemy import event
 import datetime
+
+
+_POOL_CHECKOUT_STARTED_KEY = "dentix_checkout_started_at"
+_POOL_TRACE_ID_KEY = "dentix_checkout_trace_id"
+_POOL_TENANT_ID_KEY = "dentix_checkout_tenant_id"
+_POOL_HOLD_WARN_SECONDS = _get_float_setting(
+    "DB_CONNECTION_HOLD_WARN_SECONDS",
+    5.0,
+    minimum=0.1,
+)
+
+
+@event.listens_for(async_engine.sync_engine.pool, "checkout")
+def _record_pool_checkout(dbapi_connection, connection_record, connection_proxy):
+    """Attach request context so long-held connections can be traced safely."""
+    del dbapi_connection, connection_proxy
+    from backend.core.logging import get_trace_id
+    from backend.core.tenancy import get_current_tenant_id
+
+    connection_record.info[_POOL_CHECKOUT_STARTED_KEY] = time.monotonic()
+    connection_record.info[_POOL_TRACE_ID_KEY] = get_trace_id()
+    connection_record.info[_POOL_TENANT_ID_KEY] = get_current_tenant_id()
+
+
+@event.listens_for(async_engine.sync_engine.pool, "checkin")
+def _record_pool_checkin(dbapi_connection, connection_record):
+    """Warn when a request retains a database connection for too long."""
+    del dbapi_connection
+    started_at = connection_record.info.pop(_POOL_CHECKOUT_STARTED_KEY, None)
+    trace_id = connection_record.info.pop(_POOL_TRACE_ID_KEY, None)
+    tenant_id = connection_record.info.pop(_POOL_TENANT_ID_KEY, None)
+    if started_at is None:
+        return
+
+    held_seconds = time.monotonic() - started_at
+    if held_seconds < _POOL_HOLD_WARN_SECONDS:
+        return
+
+    logger.warning(
+        "Database connection held for %.2fs (threshold %.2fs); pool=%s",
+        held_seconds,
+        _POOL_HOLD_WARN_SECONDS,
+        get_async_pool_status(),
+        extra={"trace_id": trace_id, "tenant_id": tenant_id},
+    )
 
 
 def _normalize_db_bind_value(value):

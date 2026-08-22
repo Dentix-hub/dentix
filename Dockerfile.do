@@ -1,12 +1,10 @@
 # ==========================================
-# Fast DigitalOcean Runtime (Python only)
+# Dentix Development Runtime (Python only)
 # ==========================================
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
@@ -15,35 +13,28 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
-COPY requirements.txt .
+COPY --from=ghcr.io/astral-sh/uv:0.12.5 /uv /uvx /bin/
+COPY pyproject.toml uv.lock ./
 
-# Install dependencies, remove the unused pure-Python ECDSA backend, and prove
-# the HS256 JWT path used by Dentix remains operational.
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip uninstall -y ecdsa \
-    && python -c "from jose import jwt; s='dentix-build-smoke-secret-32chars'; t=jwt.encode({'sub':'build'}, s, algorithm='HS256'); assert jwt.decode(t, s, algorithms=['HS256'])['sub']=='build'"
+# This image is an active supporting development image used by
+# docker-compose.dev.yml, so include the development/test dependency group.
+RUN uv sync --frozen \
+    && .venv/bin/python -c "import importlib.util; assert importlib.util.find_spec('ecdsa') is None; from jose import jwt; import chromadb; assert chromadb.__version__ == '0.6.3'; s='dentix-build-smoke-secret-32chars'; t=jwt.encode({'sub':'build'}, s, algorithm='HS256'); assert jwt.decode(t, s, algorithms=['HS256'])['sub']=='build'"
 
-# Copy the backend code (which already contains static/ from local build)
 COPY backend/ backend/
 
-# Add /app to PYTHONPATH
-ENV PYTHONPATH=/app
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    PATH="/app/.venv/bin:${PATH}"
 
-# Create necessary directories
 RUN mkdir -p backend/uploads backend/static/logos && chmod -R 777 backend/uploads
 
-# Copy startup script
 COPY scripts/deployment/startup.sh /app/startup.sh
 RUN chmod +x /app/startup.sh
 
-# Expose port
 EXPOSE 7860
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/api/v1/health')" || exit 1
 
-# Run migrations then start the application
 CMD ["/app/startup.sh", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "7860"]

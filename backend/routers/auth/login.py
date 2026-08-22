@@ -444,8 +444,14 @@ async def revoke_session(
 
 
 @router.post("/logout")
-async def logout(response: Response):
-    """Logout user by clearing auth cookies."""
+async def logout(
+    response: Response,
+    current_user: models.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Revoke the authenticated server session and clear auth cookies."""
+    await AuthService.revoke_all_user_sessions(db, current_user.id)
+
     # Clear access_token cookie
     response.delete_cookie(
         key="access_token",

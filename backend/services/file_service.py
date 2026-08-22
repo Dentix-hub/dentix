@@ -1,5 +1,4 @@
-"""
-Centralized File Handling Service — Validates, stores, and serves files securely.
+"""Centralized File Handling Service — Validates, stores, and serves files securely.
 
 Security measures:
 - File size limits (10 MB default)
@@ -244,13 +243,15 @@ def get_file_path(relative_path: str) -> Path:
         HTTPException 404 if file doesn't exist
         HTTPException 400 if path traversal detected
     """
-    upload_root = _get_upload_root()
-
-    # Normalize and resolve to prevent path traversal
+    upload_root = _get_upload_root().resolve()
     resolved = (upload_root / relative_path).resolve()
 
-    # Verify the resolved path is still under upload_root
-    if not str(resolved).startswith(str(upload_root.resolve())):
+    # Path.relative_to performs a component-aware boundary check. A string
+    # prefix check is insufficient because a sibling such as `uploads_evil`
+    # also starts with the characters in `uploads`.
+    try:
+        resolved.relative_to(upload_root)
+    except ValueError:
         logger.warning("[FILE_SECURITY] Path traversal attempt: %s", relative_path)
         raise HTTPException(status_code=400, detail="مسار ملف غير صالح")
 

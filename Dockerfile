@@ -1,77 +1,94 @@
 # ==========================================
 # Stage 1: Build Frontend
 # ==========================================
-FROM node:20-alpine AS build
+FROM node:20-alpine AS frontend-build
 WORKDIR /app/frontend
 
-# Copy package files
 COPY frontend/package*.json ./
-
-# Install dependencies
 RUN npm ci
-
-# Copy source code
 COPY frontend .
-
-# Build for production
 RUN npm run build
 
 
 # ==========================================
-# Stage 2: Production Runtime (Python)
+# Stage 2: Build Python Environment
 # ==========================================
-FROM python:3.11-slim
-
-# Set working directory
+FROM python:3.11-slim AS python-deps
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# Native build tooling is isolated to the dependency builder and is never
+# copied into the production runtime image.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
-    libmagic1 \
     libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:0.12.5 /uv /uvx /bin/
+COPY pyproject.toml uv.lock ./
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
+
+# Install only locked runtime dependencies. Preserve the Phase 3 security
+# invariants before the environment is copied into the final image.
+RUN uv sync --frozen --no-dev \
+    && .venv/bin/python -c "import importlib.util; assert importlib.util.find_spec('ecdsa') is None; from jose import jwt; import chromadb; assert chromadb.__version__ == '0.6.3'; s='dentix-build-smoke-secret-32chars'; t=jwt.encode({'sub':'build'}, s, algorithm='HS256'); assert jwt.decode(t, s, algorithms=['HS256'])['sub']=='build'"
+
+
+# ==========================================
+# Stage 3: Production Runtime (Python)
+# ==========================================
+FROM python:3.11-slim AS runtime
+WORKDIR /app
+
+# Keep only runtime OS capabilities that the application actually uses.
+# - libmagic1: file-content inspection support.
+# - postgresql-client: pg_dump/psql power the existing backup/restore API.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libmagic1 \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements from root
-COPY requirements.txt .
+# Hugging Face Docker Spaces execute containers as uid 1000. Keep the image's
+# declared user aligned with that platform contract while retaining a named
+# non-root identity for local/container inspection.
+RUN groupadd --gid 1000 dentix \
+    && useradd --uid 1000 --gid 1000 --create-home --home-dir /home/dentix --shell /usr/sbin/nologin dentix
 
-# Install dependencies. python-jose installs the pure-Python ecdsa backend even
-# when the cryptography backend is selected; Dentix uses HS256, so remove that
-# unused vulnerable package and immediately verify JWT encode/decode still works.
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip uninstall -y ecdsa \
-    && python -c "from jose import jwt; s='dentix-build-smoke-secret-32chars'; t=jwt.encode({'sub':'build'}, s, algorithm='HS256'); assert jwt.decode(t, s, algorithms=['HS256'])['sub']=='build'"
-
-# Copy the backend code
+COPY --from=python-deps /app/.venv /app/.venv
 COPY backend/ backend/
+COPY --from=frontend-build /app/frontend/dist /app/backend/static
 
-# Copy Frontend Build Artifacts to Backend Static Directory
-# This allows FastAPI to serve the React App
-COPY --from=build /app/frontend/dist /app/backend/static
-
-# Docker deployments are production-like by default. Schema changes are handled
-# by /app/startup.sh + Alembic before Uvicorn starts, never by legacy in-app
-# create_all/ad-hoc migration code. A runtime environment may explicitly override
-# this value when needed.
 ENV PYTHONPATH=/app \
-    ENVIRONMENT=production
+    ENVIRONMENT=production \
+    PATH="/app/.venv/bin:${PATH}" \
+    HOME=/home/dentix \
+    XDG_CACHE_HOME=/home/dentix/.cache
 
-# Create necessary persistent-data mount points
-RUN mkdir -p backend/uploads backend/static/logos /app/rag_storage /root/.cache/chroma \
-    && chmod -R 777 backend/uploads /app/rag_storage /root/.cache/chroma
+# Only application-owned mutable paths are writable by the runtime user.
+# Source code and built static assets remain root-owned/read-only.
+RUN mkdir -p \
+        /app/uploads \
+        /app/rag_storage \
+        /app/backend/static/logos \
+        /app/backend/static/assets \
+        /home/dentix/.cache/chroma \
+        /home/dentix/.cache/huggingface \
+        /home/dentix/.cache/torch \
+    && chown -R dentix:dentix \
+        /app/uploads \
+        /app/rag_storage \
+        /home/dentix
 
-# Copy startup script
 COPY scripts/deployment/startup.sh /app/startup.sh
-RUN chmod +x /app/startup.sh
+RUN chmod 0755 /app/startup.sh
 
-# Expose port
+USER dentix
+
 EXPOSE 7860
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/api/v1/health')" || exit 1
 
-# Run migrations then start the application
 CMD ["/app/startup.sh", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "7860"]

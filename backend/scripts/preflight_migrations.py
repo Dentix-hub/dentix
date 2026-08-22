@@ -51,9 +51,11 @@ logger = logging.getLogger("preflight_migrations")
 # It is intentionally not part of SQLAlchemy metadata or Alembic history.
 BOOTSTRAP_MARKER = "_dentix_fresh_bootstrap"
 
-# Keep this in sync with the established bf6c75e1c3d3 RLS migration. Fresh
-# databases cannot execute that historical chain from base, so these current
-# invariants must be installed after metadata.create_all().
+# Canonical current PostgreSQL tenant-isolation contract. It extends the
+# historical bf6c75e1c3d3 migration when later/current tenant-owned models need
+# the same ENABLE + FORCE + tenant-policy invariants. Fresh databases cannot
+# replay the historical chain from base, so this tuple is authoritative for
+# the explicit post-create_all RLS installation and health verification.
 RLS_TABLES = (
     "users",
     "patients",
@@ -68,6 +70,7 @@ RLS_TABLES = (
     "expenses",
     "salary_payments",
     "lab_payments",
+    "subscription_payments",
     "insurance_providers",
     "price_lists",
     "warehouses",
@@ -385,6 +388,7 @@ def run_migration_health_check():
         ("payments", "tenant_id"),
         ("lab_orders", "tenant_id"),
         ("salary_payments", "tenant_id"),
+        ("subscription_payments", "tenant_id"),
     ]
 
     missing: list[str] = []
