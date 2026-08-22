@@ -1,19 +1,25 @@
 """Accounting compatibility facade for PostgreSQL NUMERIC values.
 
-Only the doctor-details service method is patched.  Avoid replacing
-AccountingService module globals across the entire accounting router graph;
-that broad monkey-patch changed unrelated endpoint and test behavior.
+Patch only the legacy doctor-details implementation where PostgreSQL NUMERIC
+values first meet float-oriented compensation math.  Keeping the patch at the
+legacy boundary preserves every Finance V2 wrapper layered above it (period,
+legacy-row compatibility, hire-date proration) and leaves router dependencies
+and permissions untouched.
 """
 
 from importlib import import_module
 
 from backend.services.accounting_decimal_service import DecimalSafeAccountingService
-from backend.services.accounting_service import AccountingService as BaseAccountingService
+from backend.services.accounting_service_legacy import (
+    AccountingService as LegacyAccountingService,
+)
 
 
-# Preserve every existing router dependency/permission and business route.  The
-# target method keeps the same public contract while using Decimal-safe math.
-BaseAccountingService.get_doctor_details_data = (
+# The final AccountingService subclasses several Finance V2 correctness layers.
+# Do not replace its top-level method: doing so bypasses those wrappers in the
+# full test suite.  Replace only the legacy implementation that contains the
+# Decimal/float boundary; normal calls still flow through every newer override.
+LegacyAccountingService.get_doctor_details_data = (
     DecimalSafeAccountingService.get_doctor_details_data
 )
 
