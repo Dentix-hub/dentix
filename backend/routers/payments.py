@@ -53,7 +53,7 @@ async def create_payment(
     request: Request,
     payment: schemas.PaymentCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
+    current_user: schemas.User = Depends(require_permission(Permission.PAYMENT_CREATE)),
 ):
     tenant_id = require_tenant_id(current_user)
     service = BillingService(db, tenant_id)
@@ -103,7 +103,7 @@ async def read_payments(
     patient_id: Optional[int] = None,
     doctor_id: Optional[int] = None,
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
+    current_user: schemas.User = Depends(require_permission(Permission.PAYMENT_READ)),
 ):
     from backend import models
 
@@ -157,7 +157,7 @@ async def read_payments(
 async def delete_payment(
     payment_id: int,
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
+    current_user: schemas.User = Depends(require_permission(Permission.PAYMENT_VOID)),
 ):
     tenant_id = require_tenant_id(current_user)
     log_admin_action(
@@ -181,7 +181,7 @@ async def delete_payment(
 @router.get("/today/payments", response_model=StandardResponse[List[dict]])
 async def get_today_payments_list(
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
+    current_user: schemas.User = Depends(require_permission(Permission.PAYMENT_READ)),
 ):
     tenant_id = require_tenant_id(current_user)
     patient_scope_id, is_doctor = _today_visibility_scope(current_user)
@@ -198,7 +198,7 @@ async def get_today_payments_list(
 @router.get("/today/debtors", response_model=StandardResponse[List[dict]])
 async def get_today_debtors_list(
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
+    current_user: schemas.User = Depends(require_permission(Permission.RECEIVABLE_READ)),
 ):
     tenant_id = require_tenant_id(current_user)
     patient_scope_id, is_doctor = _today_visibility_scope(current_user)
