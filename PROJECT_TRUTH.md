@@ -10,10 +10,11 @@ When sources disagree, use this order:
 
 1. **Executable runtime/configuration** — application code, registered routes, database/migration code, build/deploy configuration.
 2. **Executable verification** — CI workflows and tests that exercise the behavior.
-3. **Current governance** — `PROJECT_STANDARDS.md`, `AGENTS.md`, and corrected operational rules.
-4. **Canonical inventories in `docs/product/`** — verified maps of the current product.
-5. **Supporting documentation** — architecture, API, design, testing, and module-specific guides.
-6. **Historical material** — plans, implementation ledgers, old state snapshots, and `DENTIX_MEMORY.md` entries.
+3. **Current platform evidence** — GitHub rules/protection and externally verified hosting bindings/runtime health.
+4. **Current governance** — `PROJECT_STANDARDS.md`, `AGENTS.md`, and corrected operational rules.
+5. **Canonical inventories in `docs/product/`** — verified maps of the current product.
+6. **Supporting documentation** — architecture, API, design, testing, and module-specific guides.
+7. **Historical material** — plans, implementation ledgers, old state snapshots, and `DENTIX_MEMORY.md` entries.
 
 If executable sources conflict and the correct current behavior cannot be established, record the item as `BLOCKED`; do not guess.
 
@@ -25,7 +26,7 @@ If executable sources conflict and the correct current behavior cannot be establ
 - Current capabilities: [`docs/product/CURRENT_PRODUCT_CAPABILITIES.md`](docs/product/CURRENT_PRODUCT_CAPABILITIES.md)
 - Environment/deployment: [`docs/product/ENVIRONMENT_AND_DEPLOYMENT_TRUTH.md`](docs/product/ENVIRONMENT_AND_DEPLOYMENT_TRUTH.md)
 - Deployment artifact ownership/retirement: [`docs/product/DEPLOYMENT_ARTIFACT_DISPOSITION.md`](docs/product/DEPLOYMENT_ARTIFACT_DISPOSITION.md)
-- Production architecture normalization closeout/blockers: [`docs/product/PRODUCTION_ARCHITECTURE_NORMALIZATION_STATUS.md`](docs/product/PRODUCTION_ARCHITECTURE_NORMALIZATION_STATUS.md)
+- Production architecture normalization closeout status: [`docs/product/PRODUCTION_ARCHITECTURE_NORMALIZATION_STATUS.md`](docs/product/PRODUCTION_ARCHITECTURE_NORMALIZATION_STATUS.md)
 
 ## Current module map
 
@@ -41,6 +42,7 @@ The navigable product registry is `docs/product/MODULE_REGISTRY.md`. It covers D
 - ORM tenant criteria: `backend/core/tenant_scope.py`
 - PostgreSQL RLS policy migrations/preflight: `backend/alembic/versions/`, `backend/scripts/preflight_migrations.py`
 - Security/isolation verification: `backend/tests/`, `backend/ci_tests/`, `.github/workflows/rls-concurrency.yml`
+- Full-history secret verification: `.github/workflows/history-secret-scan.yml`
 - File/PHI boundary implementation: `backend/routers/upload.py`, `backend/services/file_service.py`
 
 ## Environment / deployment truth links
@@ -52,20 +54,23 @@ External Vercel/Hugging Face bindings and secret values are mutable platform sta
 ## Test / CI truth links
 
 - Core CI behavior and current gates: `.github/workflows/ci.yml`
+- Canonical production-container build **and runtime** smoke: `.github/workflows/ci.yml` → `Validate Production Container`
 - PostgreSQL pooled-session tenant isolation: `.github/workflows/rls-concurrency.yml`
 - Stale deployment/PWA recovery: `.github/workflows/stale-deployment-recovery.yml`
 - Responsive/mobile web acceptance: `.github/workflows/mobile-responsive.yml`
 - Branch PR-path governance: `.github/workflows/branch-governance.yml`
-- CD behavior and health verification: `.github/workflows/cd.yml`
+- GitHub-side branch/ruleset verification: `.github/workflows/platform-branch-protection.yml`
+- CD, HF health, and production-like HF staging smoke: `.github/workflows/cd.yml`
+- Staging smoke implementation: `frontend/e2e/staging-deployment-smoke.spec.ts`
 - Backend tests: `backend/tests/`, `backend/ci_tests/`
 - Frontend unit tests: `frontend/src/**/*.test.*`
 - End-to-end tests: `frontend/e2e/`
 
 ## Release truth
 
-Architecture normalization evidence does not by itself authorize production promotion. The closeout/blocker record is `docs/product/PRODUCTION_ARCHITECTURE_NORMALIZATION_STATUS.md`, and production branch reconciliation rules are in `docs/product/GIT_RELEASE_GOVERNANCE.md`.
+The normalization closeout record is `docs/product/PRODUCTION_ARCHITECTURE_NORMALIZATION_STATUS.md`, and production branch reconciliation rules are in `docs/product/GIT_RELEASE_GOVERNANCE.md`.
 
-Known release blockers must remain explicit rather than being hidden by documentation cleanup, allowlists, force merges, or assumptions about external platform settings.
+A prior production promotion does not make later acceptance gaps disappear. Any re-audit finding that affects the plan's Definition of Done must be closed through normal scoped-branch → protected `staging` → protected `main` promotion, with staging production-like smoke and production verification repeated. Do not hide a blocker through documentation cleanup, broad allowlists, force merges, or assumptions about external platform settings.
 
 ## Documentation lifecycle rules
 
