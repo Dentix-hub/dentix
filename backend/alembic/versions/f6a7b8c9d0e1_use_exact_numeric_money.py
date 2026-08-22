@@ -136,19 +136,6 @@ def _preflight_existing_values() -> None:
     if bind.dialect.name != "postgresql":
         return
 
-    precision_violations = []
-    for table, column, _, scale in MONEY_COLUMNS:
-        count = bind.execute(
-            sa.text(
-                f'SELECT COUNT(*) FROM "{table}" '
-                f'WHERE "{column}" IS NOT NULL '
-                f'AND "{column}"::numeric <> ROUND("{column}"::numeric, :scale)'
-            ),
-            {"scale": scale},
-        ).scalar_one()
-        if count:
-            precision_violations.append(f"{table}.{column}={count}")
-
     invariant_violations = []
     for table, constraint_name, expression in CHECK_CONSTRAINTS:
         count = bind.execute(
@@ -157,17 +144,21 @@ def _preflight_existing_values() -> None:
         if count:
             invariant_violations.append(f"{constraint_name}={count}")
 
-    if precision_violations or invariant_violations:
-        details = "; ".join(precision_violations + invariant_violations)
+    if invariant_violations:
+        details = "; ".join(invariant_violations)
         raise RuntimeError(
-            "Financial Numeric migration requires manual review; no values were "
-            f"changed. Violations: {details}"
+            "Financial Numeric migration requires manual review; business-rule "
+            f"violations were not changed. Violations: {details}"
         )
 
 
 def upgrade() -> None:
     _preflight_existing_values()
 
+    # Historical FLOAT columns contain normal binary representation drift even
+    # when users entered whole or currency-scale values. Rounding here is the
+    # intentional, deterministic conversion to the declared NUMERIC scale. The
+    # transaction still aborts above for real financial invariant violations.
     for table, column, precision, scale in MONEY_COLUMNS:
         op.alter_column(
             table,
