@@ -27,7 +27,7 @@ async def get_expenses(
     page: Optional[int] = Query(None, ge=1),
     page_size: Optional[int] = Query(None, ge=1),
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
+    current_user: schemas.User = Depends(require_permission(Permission.EXPENSE_READ)),
 ):
     tenant_id = require_tenant_id(current_user)
     effective_skip = skip
@@ -69,7 +69,7 @@ async def get_expenses(
 async def create_expense(
     expense: schemas.ExpenseCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
+    current_user: schemas.User = Depends(require_permission(Permission.EXPENSE_MANAGE)),
 ):
     tenant_id = require_tenant_id(current_user)
     service = ExpenseService(db, tenant_id)
@@ -94,7 +94,7 @@ async def create_expense(
 async def delete_expense(
     expense_id: int,
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
+    current_user: schemas.User = Depends(require_permission(Permission.EXPENSE_MANAGE)),
 ):
     tenant_id = require_tenant_id(current_user)
 
@@ -129,7 +129,7 @@ async def delete_expense(
 @router.get("/stats")
 async def get_stats(
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
+    current_user: schemas.User = Depends(require_permission(Permission.EXPENSE_READ)),
 ):
     tenant_id = require_tenant_id(current_user)
     data = await crud.get_financial_stats(db, tenant_id)
