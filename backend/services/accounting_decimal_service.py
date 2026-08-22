@@ -1,9 +1,8 @@
-"""Decimal-safe accounting facade for Finance V2 compensation endpoints.
+"""Decimal-safe accounting compatibility for PostgreSQL NUMERIC values.
 
-PostgreSQL NUMERIC values arrive as ``Decimal``.  Legacy compensation code still
-mixes those values with float literals (for example ``commission / 100.0``).
-This facade preserves the current business formulas while normalizing only the
-legacy float calculation boundary.
+The legacy compensation analytics are float-oriented while PostgreSQL NUMERIC
+columns arrive as ``Decimal``. Keep the compatibility conversion scoped to the
+doctor-details calculation instead of replacing AccountingService globally.
 """
 
 from __future__ import annotations
@@ -18,12 +17,7 @@ from backend.services.accounting_service import AccountingService as BaseAccount
 
 
 class _NumericSafeUserProxy:
-    """Forward a User while exposing legacy compensation fields as floats.
-
-    The base accounting implementation is still float-oriented.  Converting
-    these three values at that compatibility boundary avoids Decimal/float
-    TypeErrors without mutating the ORM object or the database representation.
-    """
+    """Forward a User while exposing legacy compensation fields as floats."""
 
     def __init__(self, user: models.User):
         self._user = user
@@ -100,7 +94,11 @@ class DecimalSafeAccountingService(BaseAccountingService):
             )
         ).all()
 
-        analytics = await self.get_doctor_revenue_analytics(start, end)
+        # Run legacy analytics through a dedicated Decimal-safe service instance.
+        # This keeps the float compatibility proxy local to this calculation and
+        # avoids mutating the AccountingService used by unrelated endpoints/tests.
+        analytics_service = DecimalSafeAccountingService(self.db, self.tenant_id)
+        analytics = await analytics_service.get_doctor_revenue_analytics(start, end)
         stat = next(
             (row for row in analytics if row.get("doctor_id") == doctor_id),
             None,
@@ -133,7 +131,9 @@ class DecimalSafeAccountingService(BaseAccountingService):
         total_due = (
             float(stat.get("total_due") or 0.0)
             if stat
-            else float(quantize_money(as_decimal(commission_amount) + as_decimal(fixed_salary)))
+            else float(
+                quantize_money(as_decimal(commission_amount) + as_decimal(fixed_salary))
+            )
         )
 
         return {
