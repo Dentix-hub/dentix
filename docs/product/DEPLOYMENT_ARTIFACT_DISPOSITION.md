@@ -37,6 +37,7 @@ The following files were removed after repository consumer tracing showed that t
 | `scripts/deployment/deploy.py` | Manual deployment manager containing obsolete Hugging Face Git-copy logic and a hard-coded DigitalOcean SSH/SCP production path. Current CD is GitHub Actions → Hugging Face sync. |
 | `backend/Dockerfile` | Stale pip/requirements/gunicorn production image with no current executable consumer; root `Dockerfile` is the canonical production image. |
 | `Procfile` | Unused gunicorn deployment entry point with no current executable consumer. |
+| `gunicorn_conf.py` | Removed Gunicorn-era root configuration after repository-wide consumer tracing found no executable/runtime consumer; the only remaining reference was its Ruff exclusion entry, which was removed with the file. |
 
 ## GHCR disposition
 
