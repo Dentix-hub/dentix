@@ -26,7 +26,7 @@ _TOOL_REQUIRED_PERMISSION = {
     # Patient tools
     "get_patient_file": Permission.PATIENT_READ,
     "search_patients": Permission.PATIENT_SEARCH,
-    "get_patients_with_balance": Permission.PATIENT_READ,
+    "get_patients_with_balance": Permission.RECEIVABLE_READ,
     "summarize_patient": Permission.PATIENT_READ,
     "create_patient": Permission.PATIENT_CREATE,
     # Appointment tools
@@ -34,13 +34,13 @@ _TOOL_REQUIRED_PERMISSION = {
     "find_available_slots": Permission.APPOINTMENT_READ,
     "smart_book_appointment": Permission.APPOINTMENT_CREATE,
     "create_appointment": Permission.APPOINTMENT_CREATE,
-    # Finance tools
-    "get_financial_record": Permission.FINANCIAL_READ,
-    "create_payment": Permission.FINANCIAL_WRITE,
-    "get_procedure_price": Permission.FINANCIAL_READ,
-    "get_today_payments": Permission.FINANCIAL_READ,
-    "get_expenses": Permission.FINANCIAL_READ,
-    "get_procedures_list": Permission.FINANCIAL_READ,
+    # Finance tools — keep AI enforcement aligned with the HTTP endpoints.
+    "get_financial_record": Permission.RECEIVABLE_READ,
+    "create_payment": Permission.PAYMENT_CREATE,
+    "get_procedure_price": Permission.REPORT_READ,
+    "get_today_payments": Permission.PAYMENT_READ,
+    "get_expenses": Permission.EXPENSE_READ,
+    "get_procedures_list": Permission.REPORT_READ,
     # Clinical tools
     "get_recent_treatments": Permission.CLINICAL_READ,
     "get_lab_orders": Permission.CLINICAL_READ,
@@ -53,14 +53,14 @@ _TOOL_REQUIRED_PERMISSION = {
     "get_subscription_info": Permission.SYSTEM_CONFIG,
     "get_clinic_info": Permission.SYSTEM_CONFIG,
     "get_users_list": Permission.SYSTEM_CONFIG,
-    "get_doctor_ranking": Permission.FINANCIAL_READ,
-    "compare_periods": Permission.FINANCIAL_READ,
+    "get_doctor_ranking": Permission.REPORT_READ,
+    "compare_periods": Permission.REPORT_READ,
     "get_ai_stats": Permission.SYSTEM_CONFIG,
     "learn_clinic_info": Permission.SYSTEM_CONFIG,
     "list_my_knowledge": Permission.SYSTEM_CONFIG,
     "forget_info": Permission.SYSTEM_CONFIG,
-    "get_top_procedures": Permission.FINANCIAL_READ,
-    "get_revenue_trend": Permission.FINANCIAL_READ,
+    "get_top_procedures": Permission.REPORT_READ,
+    "get_revenue_trend": Permission.REPORT_READ,
     "send_appointment_reminders": Permission.APPOINTMENT_UPDATE,
     "send_whatsapp_message": Permission.APPOINTMENT_UPDATE,
 }
