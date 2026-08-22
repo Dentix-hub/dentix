@@ -16,7 +16,7 @@ logger = logging.getLogger("smart_clinic")
 async def analyze_procedure_cost(
     procedure_id: int,
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
+    current_user: schemas.User = Depends(require_permission(Permission.REPORT_READ)),
 ):
     """Get detailed cost breakdown for a tenant-visible procedure."""
     tenant_id = require_tenant_id(current_user)
@@ -36,7 +36,7 @@ async def analyze_procedure_cost(
 @router.get("/procedures/analysis")
 async def analyze_all_procedures_cost(
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
+    current_user: schemas.User = Depends(require_permission(Permission.REPORT_READ)),
 ):
     """Get high-level cost analysis for all tenant-visible procedures."""
     tenant_id = require_tenant_id(current_user)
