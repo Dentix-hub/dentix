@@ -1,0 +1,104 @@
+name: Dentix PostgreSQL HTTP IDOR Gate
+
+on:
+  pull_request:
+    branches: [main, staging]
+  push:
+    branches: [main, staging]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dentix-pg-http-idor-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgres-http-idor:
+    name: PostgreSQL HTTP Cross-Tenant BOLA Matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DB_SSL_MODE: disable
+      SECRET_KEY: pg-http-idor-secret-key-for-ci-at-least-32
+      ENVIRONMENT: test
+      PYTHONPATH: .
+      ENABLE_IN_PROCESS_WORKERS: 'false'
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: dentix_idor
+        options: >-
+          --health-cmd "pg_isready -U test_user -d dentix_idor"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout tested revision
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: '0.12.5'
+
+      - name: Install dependencies from frozen lock
+        run: |
+          set -euo pipefail
+          uv sync --frozen
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Initialize PostgreSQL via production preflight
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_idor
+        run: python -m backend.scripts.preflight_migrations
+
+      - name: Provision NOBYPASSRLS application role
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_idor
+        run: |
+          python - <<'PY'
+          import os
+          import psycopg2
+
+          with psycopg2.connect(os.environ['DATABASE_URL']) as conn:
+              conn.autocommit = True
+              with conn.cursor() as cur:
+                  cur.execute(
+                      """
+                      CREATE ROLE dentix_idor_app WITH
+                          LOGIN PASSWORD 'dentix_idor_app_pass'
+                          NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT
+                          NOREPLICATION NOBYPASSRLS
+                      """
+                  )
+                  cur.execute("GRANT CONNECT ON DATABASE dentix_idor TO dentix_idor_app")
+                  cur.execute("GRANT USAGE ON SCHEMA public TO dentix_idor_app")
+                  cur.execute(
+                      "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO dentix_idor_app"
+                  )
+                  cur.execute(
+                      "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO dentix_idor_app"
+                  )
+          PY
+
+      - name: Run HTTP BOLA matrix through PostgreSQL FORCE RLS
+        env:
+          DATABASE_URL: postgresql://dentix_idor_app:dentix_idor_app_pass@localhost:5432/dentix_idor
+        run: >-
+          pytest backend/ci_tests/test_cross_tenant_http_postgres.py
+          -v
+          --tb=short
+          --confcutdir=backend/ci_tests

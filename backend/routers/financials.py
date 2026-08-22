@@ -18,11 +18,14 @@ async def analyze_procedure_cost(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
 ):
-    """Get detailed cost breakdown for a procedure based on BOM."""
+    """Get detailed cost breakdown for a tenant-visible procedure."""
     tenant_id = require_tenant_id(current_user)
     engine = CostEngine(db, tenant_id)
     try:
-        return await engine.calculate_procedure_cost(procedure_id)
+        analysis = await engine.calculate_procedure_cost(procedure_id)
+        if analysis.get("error") == "Procedure not found":
+            raise HTTPException(status_code=404, detail="Procedure not found")
+        return analysis
     except HTTPException:
         raise
     except Exception as e:
