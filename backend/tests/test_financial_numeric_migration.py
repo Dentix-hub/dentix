@@ -1,9 +1,6 @@
 import importlib.util
 from pathlib import Path
 
-import pytest
-
-
 MIGRATION_PATH = (
     Path(__file__).parents[1]
     / "alembic"
@@ -50,33 +47,49 @@ def test_numeric_migration_accepts_float_precision_drift(monkeypatch):
     bind = _PostgresBind()
     monkeypatch.setattr(migration.op, "get_bind", lambda: bind)
 
-    migration._preflight_existing_values()
+    violations = migration._existing_value_violations()
 
+    assert violations == {}
     assert len(bind.statements) == len(migration.CHECK_CONSTRAINTS)
     assert all("WHERE NOT" in sql for sql, _ in bind.statements)
     assert all(parameters is None for _, parameters in bind.statements)
 
 
-def test_numeric_migration_still_rejects_business_rule_violations(monkeypatch):
+def test_numeric_migration_reports_business_rule_violations(monkeypatch, capsys):
     migration = _load_migration()
     bind = _PostgresBind("amount > 0")
     monkeypatch.setattr(migration.op, "get_bind", lambda: bind)
 
-    with pytest.raises(RuntimeError, match="business-rule violations"):
-        migration._preflight_existing_values()
+    violations = migration._existing_value_violations()
+    migration._report_staged_constraints(violations)
+
+    assert violations == {
+        "ck_payments_amount_positive": 1,
+        "ck_lab_payments_amount_positive": 1,
+        "ck_subscription_payments_amount_positive": 1,
+    }
+    assert (
+        "Historical business-rule violations were preserved"
+        in capsys.readouterr().err
+    )
 
 
 def test_numeric_conversion_rounds_to_each_declared_scale(monkeypatch):
     migration = _load_migration()
     bind = _PostgresBind()
     altered = []
+    constraints = []
     monkeypatch.setattr(migration.op, "get_bind", lambda: bind)
     monkeypatch.setattr(
         migration.op,
         "alter_column",
         lambda table, column, **kwargs: altered.append((table, column, kwargs)),
     )
-    monkeypatch.setattr(migration.op, "create_check_constraint", lambda *args: None)
+    monkeypatch.setattr(
+        migration.op,
+        "create_check_constraint",
+        lambda *args, **kwargs: constraints.append((args, kwargs)),
+    )
 
     migration.upgrade()
 
@@ -88,3 +101,29 @@ def test_numeric_conversion_rounds_to_each_declared_scale(monkeypatch):
         (table, column): kwargs["postgresql_using"]
         for table, column, kwargs in altered
     } == expected
+    assert all(
+        kwargs == {"postgresql_not_valid": True} for _, kwargs in constraints
+    )
+
+
+def test_numeric_migration_stages_all_postgres_constraints(monkeypatch):
+    migration = _load_migration()
+    bind = _PostgresBind("discount <= cost")
+    constraints = []
+    monkeypatch.setattr(migration.op, "get_bind", lambda: bind)
+    monkeypatch.setattr(migration.op, "alter_column", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        migration.op,
+        "create_check_constraint",
+        lambda *args, **kwargs: constraints.append((args, kwargs)),
+    )
+
+    migration.upgrade()
+
+    options_by_name = {args[0]: kwargs for args, kwargs in constraints}
+    assert options_by_name["ck_treatments_discount_not_above_cost"] == {
+        "postgresql_not_valid": True
+    }
+    assert options_by_name["ck_treatments_cost_nonnegative"] == {
+        "postgresql_not_valid": True
+    }

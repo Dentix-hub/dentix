@@ -5,6 +5,7 @@ Revises: e5f6a7b8c9d0
 Create Date: 2026-08-22 18:15:00.000000
 """
 
+import sys
 from typing import Sequence, Union
 
 from alembic import op
@@ -131,34 +132,45 @@ CHECK_CONSTRAINTS = (
 )
 
 
-def _preflight_existing_values() -> None:
+def _existing_value_violations() -> dict[str, int]:
     bind = op.get_bind()
     if bind.dialect.name != "postgresql":
-        return
+        return {}
 
-    invariant_violations = []
+    invariant_violations = {}
     for table, constraint_name, expression in CHECK_CONSTRAINTS:
         count = bind.execute(
             sa.text(f'SELECT COUNT(*) FROM "{table}" WHERE NOT ({expression})')
         ).scalar_one()
         if count:
-            invariant_violations.append(f"{constraint_name}={count}")
+            invariant_violations[constraint_name] = count
 
-    if invariant_violations:
-        details = "; ".join(invariant_violations)
-        raise RuntimeError(
-            "Financial Numeric migration requires manual review; business-rule "
-            f"violations were not changed. Violations: {details}"
+    return invariant_violations
+
+
+def _report_staged_constraints(violations: dict[str, int]) -> None:
+    if violations:
+        details = "; ".join(
+            f"{constraint_name}={count}"
+            for constraint_name, count in violations.items()
+        )
+        print(
+            "[MIGRATION] Historical business-rule violations were preserved; "
+            "affected PostgreSQL constraints will be installed NOT VALID and "
+            f"will still protect new writes. Violations: {details}",
+            file=sys.stderr,
         )
 
 
 def upgrade() -> None:
-    _preflight_existing_values()
+    bind = op.get_bind()
+    invariant_violations = _existing_value_violations()
+    _report_staged_constraints(invariant_violations)
 
     # Historical FLOAT columns contain normal binary representation drift even
     # when users entered whole or currency-scale values. Rounding here is the
     # intentional, deterministic conversion to the declared NUMERIC scale. The
-    # transaction still aborts above for real financial invariant violations.
+    # historical values are preserved for a separate, explicit data review.
     for table, column, precision, scale in MONEY_COLUMNS:
         op.alter_column(
             table,
@@ -169,7 +181,16 @@ def upgrade() -> None:
         )
 
     for table, constraint_name, expression in CHECK_CONSTRAINTS:
-        op.create_check_constraint(constraint_name, table, expression)
+        options = {}
+        if bind.dialect.name == "postgresql":
+            # PostgreSQL NOT VALID skips the scan of historical rows while still
+            # enforcing the constraint for new inserts and updates. Stage every
+            # constraint because rounding can expose a violation that was not
+            # visible in the source FLOAT value (for example, a tiny positive
+            # amount becoming 0.00). A later data remediation can VALIDATE each
+            # constraint explicitly.
+            options["postgresql_not_valid"] = True
+        op.create_check_constraint(constraint_name, table, expression, **options)
 
 
 def downgrade() -> None:
