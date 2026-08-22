@@ -19,12 +19,28 @@ def require_super_admin(current_user: models.User = Depends(require_permission(P
     return current_user
 
 
+async def _require_visible_notification(
+    db: AsyncSession,
+    current_user: models.User,
+    notification_id: int,
+) -> models.Notification:
+    """Resolve an interaction target only from the user's visible notification set."""
+    stmt = select(models.Notification).filter(
+        models.Notification.id == notification_id,
+        (models.Notification.is_global)
+        | (models.Notification.tenant_id == current_user.tenant_id),
+    )
+    notification = (await db.execute(stmt)).scalars().first()
+    if notification is None:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    return notification
+
+
 @router.get("", response_model=StandardResponse[List[schemas.Notification]])
 async def get_notifications(
     db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_permission(Permission.PATIENT_READ))
 ):
     """Fetch notifications for the current user's tenant or global ones."""
-    # Get all potential notifications
     stmt = (
         select(models.Notification)
         .filter(
@@ -37,7 +53,6 @@ async def get_notifications(
     result = await db.execute(stmt)
     notifications = result.scalars().all()
 
-    # Get user's interaction records (Read/Deleted)
     stmt_read = (
         select(models.NotificationRead)
         .filter(models.NotificationRead.user_id == current_user.id)
@@ -48,7 +63,6 @@ async def get_notifications(
     read_ids = {r.notification_id for r in user_interactions}
     deleted_ids = {r.notification_id for r in user_interactions if r.is_deleted}
 
-    # Filter and Map
     final_result = []
     for n in notifications:
         if n.id in deleted_ids:
@@ -68,6 +82,8 @@ async def mark_as_read(
     current_user: models.User = Depends(require_permission(Permission.PATIENT_READ)),
 ):
     """Mark a notification as read for the current user."""
+    await _require_visible_notification(db, current_user, notification_id)
+
     stmt = (
         select(models.NotificationRead)
         .filter(
@@ -95,6 +111,8 @@ async def dismiss_notification(
     current_user: models.User = Depends(require_permission(Permission.PATIENT_READ)),
 ):
     """Dismiss (hide) a notification for the current user."""
+    await _require_visible_notification(db, current_user, notification_id)
+
     stmt = (
         select(models.NotificationRead)
         .filter(
@@ -107,7 +125,6 @@ async def dismiss_notification(
 
     if existing:
         existing.is_deleted = True
-        # Ensure it's marked as read too if we dismiss it
         if not existing.read_at:
             existing.read_at = datetime.now(timezone.utc)
     else:
@@ -146,10 +163,7 @@ async def delete_notification(
     current_user: models.User = Depends(require_super_admin),
 ):
     """Delete a notification (Super Admin only)."""
-    stmt = (
-        select(models.Notification)
-        .filter(models.Notification.id == notification_id)
-    )
+    stmt = select(models.Notification).filter(models.Notification.id == notification_id)
     result = await db.execute(stmt)
     db_notification = result.scalars().first()
     if not db_notification:
