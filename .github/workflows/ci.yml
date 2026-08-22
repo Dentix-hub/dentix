@@ -379,6 +379,21 @@ jobs:
     permissions:
       contents: read
 
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: container_user
+          POSTGRES_PASSWORD: container_pass
+          POSTGRES_DB: dentix_container
+        options: >-
+          --health-cmd "pg_isready -U container_user -d dentix_container"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
       - name: Checkout tested revision
         uses: actions/checkout@v4
@@ -401,3 +416,59 @@ jobs:
             .
           IMAGE_REVISION="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "dentix-ci:${GITHUB_SHA}")"
           test "$IMAGE_REVISION" = "$GITHUB_SHA"
+
+      - name: Run canonical image as non-root and verify startup contract
+        env:
+          DATABASE_URL: postgresql://container_user:container_pass@127.0.0.1:5432/dentix_container
+          SECRET_KEY: container-smoke-secret-key-for-ci-at-least-32
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="dentix-ci:${GITHUB_SHA}"
+
+          test "$(docker image inspect --format '{{.Config.User}}' "$IMAGE")" = "dentix"
+
+          docker run --detach \
+            --name dentix-runtime-smoke \
+            --network host \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e DB_SSL_MODE=disable \
+            -e SECRET_KEY="$SECRET_KEY" \
+            -e ENVIRONMENT=production \
+            -e ENABLE_IN_PROCESS_WORKERS=false \
+            "$IMAGE"
+
+          cleanup() {
+            docker logs dentix-runtime-smoke || true
+            docker rm --force dentix-runtime-smoke >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          ready=false
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:7860/api/v1/health >/tmp/dentix-container-health.json; then
+              ready=true
+              break
+            fi
+
+            state="$(docker inspect --format '{{.State.Status}}' dentix-runtime-smoke)"
+            if [ "$state" = "exited" ] || [ "$state" = "dead" ]; then
+              echo "Production container exited before health became ready."
+              exit 1
+            fi
+            sleep 2
+          done
+
+          test "$ready" = "true"
+          cat /tmp/dentix-container-health.json
+
+          test "$(docker exec dentix-runtime-smoke id -u)" = "1000"
+          test "$(docker exec dentix-runtime-smoke id -un)" = "dentix"
+
+          docker exec dentix-runtime-smoke sh -ec 'touch /app/uploads/.ci-write && rm /app/uploads/.ci-write'
+          docker exec dentix-runtime-smoke sh -ec 'touch /app/rag_storage/.ci-write && rm /app/rag_storage/.ci-write'
+
+          if docker exec dentix-runtime-smoke sh -ec 'touch /app/backend/.ci-must-not-write'; then
+            echo "Runtime user unexpectedly wrote into the root-owned source tree."
+            exit 1
+          fi
