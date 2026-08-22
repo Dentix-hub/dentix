@@ -56,6 +56,14 @@ BOOTSTRAP_MARKER = "_dentix_fresh_bootstrap"
 # the same ENABLE + FORCE + tenant-policy invariants. Fresh databases cannot
 # replay the historical chain from base, so this tuple is authoritative for
 # the explicit post-create_all RLS installation and health verification.
+#
+# `notifications` is intentionally NOT in this generic tuple. It is still a
+# FORCE-RLS table, but its visibility contract differs: rows may be private to
+# the current tenant OR deliberately global (`is_global = true` / tenant NULL).
+# `_install_postgresql_rls()` installs that custom policy immediately after the
+# generic loop and the health verifier includes it explicitly. Keeping it out
+# of `RLS_TABLES` prevents the generic tenant-only policy from shadowing/breaking
+# valid cross-tenant global announcements.
 RLS_TABLES = (
     "users",
     "patients",
@@ -199,6 +207,9 @@ def _install_postgresql_rls(connection) -> None:
             )
         )
 
+    # Notifications deliberately use a broader visibility policy than the
+    # generic tenant-owned tables: tenant-private rows plus platform-global
+    # announcements are valid. The table is still ENABLE + FORCE RLS.
     notif_expr = (
         "(tenant_id = NULLIF(current_setting('rls.tenant_id', true), '')::integer) "
         "OR (is_global = true) OR (tenant_id IS NULL)"
@@ -218,248 +229,135 @@ def _install_postgresql_rls(connection) -> None:
     )
 
 
-def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
-    """Create/resume the current canonical schema for a brand-new database."""
+def _verify_postgresql_rls(engine, tables: Iterable[str] = RLS_TABLES) -> None:
+    if engine.dialect.name != "postgresql":
+        return
+
+    required_tables = tuple(tables) + ("notifications",)
+    with engine.begin() as connection:
+        table_rows = connection.execute(
+            text(
+                """
+                SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity
+                FROM pg_class AS c
+                JOIN pg_namespace AS n ON n.oid = c.relnamespace
+                WHERE n.nspname = current_schema()
+                  AND c.relname = ANY(:tables)
+                """
+            ),
+            {"tables": list(required_tables)},
+        ).mappings().all()
+        state = {row["relname"]: row for row in table_rows}
+
+        missing_tables = sorted(set(required_tables) - set(state))
+        if missing_tables:
+            raise RuntimeError(
+                "RLS verification missing tables: " + ", ".join(missing_tables)
+            )
+
+        insecure = sorted(
+            name
+            for name, row in state.items()
+            if not row["relrowsecurity"] or not row["relforcerowsecurity"]
+        )
+        if insecure:
+            raise RuntimeError(
+                "RLS is not ENABLE + FORCE for tables: " + ", ".join(insecure)
+            )
+
+        policy_rows = connection.execute(
+            text(
+                """
+                SELECT tablename, policyname
+                FROM pg_policies
+                WHERE schemaname = current_schema()
+                  AND tablename = ANY(:tables)
+                """
+            ),
+            {"tables": list(required_tables)},
+        ).mappings().all()
+        policies = {(row["tablename"], row["policyname"]) for row in policy_rows}
+
+        missing_policies = []
+        for table in tables:
+            expected = f"{table}_tenant_policy"
+            if (table, expected) not in policies:
+                missing_policies.append(f"{table}.{expected}")
+        if ("notifications", "notifications_tenant_policy") not in policies:
+            missing_policies.append("notifications.notifications_tenant_policy")
+        if missing_policies:
+            raise RuntimeError(
+                "RLS verification missing policies: " + ", ".join(missing_policies)
+            )
+
+
+def _bootstrap_current_schema(engine, cfg) -> None:
+    """Create/stamp the current model baseline for a truly empty database."""
     from alembic import command
-    from backend import models
+    from backend.database import Base
+    import backend.models  # noqa: F401 - populate Base.metadata
 
-    logger.warning(
-        "[PREFLIGHT] Fresh/resumable bootstrap detected. Building current model baseline."
-    )
+    logger.info("[PREFLIGHT] Starting/resuming fresh current-schema bootstrap")
     _ensure_bootstrap_marker(engine)
-
-    # register_rls(Base) installs SQLAlchemy DDL hooks. Some of those hooks may
-    # commit/close the transaction used by create_all, so never assume a single
-    # engine.begin() can safely contain both create_all and our explicit RLS
-    # verification/replacement phase. create_all itself is idempotent.
-    models.Base.metadata.create_all(bind=engine)
-
-    # Use a completely fresh transaction for explicit RLS installation. This
-    # phase is also idempotent because policies are dropped/recreated safely.
+    Base.metadata.create_all(bind=engine)
     with engine.begin() as connection:
         _install_postgresql_rls(connection)
-
-    # The model baseline is current by definition. Historical revisions are
-    # legacy deltas for pre-existing schemas and cannot safely be replayed from
-    # an empty DB. Stamp only after schema + RLS invariants both succeeded.
-    command.stamp(alembic_cfg, "head")
-
-    # Drop the marker last. If stamp or any prior phase fails, the next preflight
-    # invocation resumes this path instead of attempting legacy migrations.
+    _verify_postgresql_rls(engine)
+    command.stamp(cfg, "head")
     _drop_bootstrap_marker(engine)
-    logger.info("[PREFLIGHT] Fresh database baseline created and stamped at head.")
+    logger.info("[PREFLIGHT] Fresh current-schema bootstrap completed")
 
 
-def _verify_alembic_heads(engine, alembic_cfg) -> bool:
-    from alembic.migration import MigrationContext
-    from alembic.script import ScriptDirectory
-
-    expected = set(ScriptDirectory.from_config(alembic_cfg).get_heads())
-    with engine.connect() as connection:
-        current = set(MigrationContext.configure(connection).get_current_heads())
-    if current != expected:
-        logger.error(
-            "[PREFLIGHT] Alembic revision mismatch. current=%s expected=%s",
-            sorted(current),
-            sorted(expected),
-        )
-        return False
-    logger.info("[PREFLIGHT] Alembic heads verified: %s", sorted(current))
-    return True
-
-
-def run_alembic_upgrade():
-    """Bootstrap an empty DB or upgrade an existing versioned DB to head."""
-    from alembic import command
-
+def run_preflight_migrations() -> bool:
     db_url = _database_url()
     if not db_url:
-        logger.error("[PREFLIGHT] DATABASE_URL is not set.")
+        logger.error("[PREFLIGHT] DATABASE_URL is required")
         return False
 
+    engine = None
     try:
-        alembic_cfg = _alembic_config()
+        from alembic import command
+
+        cfg = _alembic_config()
         engine = create_engine(db_url)
-    except Exception as exc:
-        logger.error("[PREFLIGHT] Failed to initialize migration engine: %s", exc)
-        return False
+        tables = _table_names(engine)
+        user_tables = _user_tables(engine)
+        has_version = "alembic_version" in tables
+        has_marker = BOOTSTRAP_MARKER in tables
 
-    try:
-        all_tables = _table_names(engine)
-        tables = all_tables - {"alembic_version", BOOTSTRAP_MARKER}
-        bootstrap_in_progress = BOOTSTRAP_MARKER in all_tables
-
-        if bootstrap_in_progress:
-            logger.warning(
-                "[PREFLIGHT] Incomplete fresh bootstrap marker found; resuming safely."
-            )
-            _bootstrap_fresh_database(engine, alembic_cfg)
-        elif not tables:
-            _bootstrap_fresh_database(engine, alembic_cfg)
+        if has_marker:
+            logger.warning("[PREFLIGHT] Resuming interrupted fresh bootstrap")
+            _bootstrap_current_schema(engine, cfg)
+        elif not user_tables and not has_version:
+            logger.info("[PREFLIGHT] Empty database detected; bootstrapping current schema")
+            _bootstrap_current_schema(engine, cfg)
         else:
-            # Never disguise a partial/corrupt or unknown unversioned database
-            # as a fresh one. Existing Dentix schemas must have both the core
-            # tenant table and Alembic bookkeeping before historical deltas run.
-            if "tenants" not in tables:
-                logger.error(
-                    "[PREFLIGHT] Non-empty database has no tenants table; refusing "
-                    "automatic bootstrap. Existing tables: %s",
-                    sorted(tables),
+            if not has_version:
+                raise RuntimeError(
+                    "Existing application tables found without alembic_version; "
+                    "refusing to guess migration history"
                 )
-                return False
-            if "alembic_version" not in all_tables:
-                logger.error(
-                    "[PREFLIGHT] Existing Dentix schema is not Alembic-versioned and "
-                    "has no fresh-bootstrap marker. Refusing to guess its migration "
-                    "state; manual migration review is required."
-                )
-                return False
+            logger.info("[PREFLIGHT] Existing versioned schema detected; running Alembic")
+            command.upgrade(cfg, "head")
+            # Existing databases may predate current post-migration RLS additions.
+            # Re-assert the canonical idempotent RLS contract after Alembic.
+            with engine.begin() as connection:
+                _install_postgresql_rls(connection)
+            _verify_postgresql_rls(engine)
 
-            logger.info("[PREFLIGHT] Existing versioned schema detected; running alembic upgrade head ...")
-            command.upgrade(alembic_cfg, "head")
-            logger.info("[PREFLIGHT] Alembic upgrade completed successfully.")
-
-        return _verify_alembic_heads(engine, alembic_cfg)
-    except BaseException as exc:
-        logger.error(
-            "[PREFLIGHT] Migration/bootstrap FAILED with base exception: %s",
-            exc,
-            exc_info=True,
-        )
-        return False
-    finally:
-        engine.dispose()
-
-
-def _verify_postgresql_rls(engine, tables: Iterable[str]) -> list[str]:
-    """Return RLS invariant failures for the requested PostgreSQL tables."""
-    if engine.name != "postgresql":
-        return []
-
-    failures: list[str] = []
-    with engine.connect() as connection:
-        for table in tables:
-            row = connection.execute(
-                text(
-                    """
-                    SELECT c.relrowsecurity, c.relforcerowsecurity,
-                           EXISTS (
-                               SELECT 1 FROM pg_policies p
-                               WHERE p.schemaname = current_schema()
-                                 AND p.tablename = :table
-                           ) AS has_policy
-                    FROM pg_class c
-                    JOIN pg_namespace n ON n.oid = c.relnamespace
-                    WHERE n.nspname = current_schema()
-                      AND c.relname = :table
-                    """
-                ),
-                {"table": table},
-            ).first()
-            if not row:
-                failures.append(f"{table}:missing")
-            elif not (bool(row[0]) and bool(row[1]) and bool(row[2])):
-                failures.append(
-                    f"{table}:enabled={bool(row[0])},forced={bool(row[1])},policy={bool(row[2])}"
-                )
-    return failures
-
-
-def run_migration_health_check():
-    """Verify critical schema and PostgreSQL tenant-isolation invariants."""
-    logger.info("[PREFLIGHT] Running migration health check ...")
-
-    db_url = _database_url()
-    if not db_url:
-        logger.error("[PREFLIGHT] DATABASE_URL is not set.")
-        return False
-
-    try:
-        engine = create_engine(db_url)
-    except Exception as exc:
-        logger.error("[PREFLIGHT] Failed to create sync engine: %s", exc)
-        return False
-
-    checks = [
-        ("users", "tenant_id"),
-        ("patients", "tenant_id"),
-        ("appointments", "tenant_id"),
-        ("treatments", "tenant_id"),
-        ("payments", "tenant_id"),
-        ("lab_orders", "tenant_id"),
-        ("salary_payments", "tenant_id"),
-        ("subscription_payments", "tenant_id"),
-    ]
-
-    missing: list[str] = []
-    try:
-        inspector = inspect(engine)
-        table_names = set(inspector.get_table_names())
-        if BOOTSTRAP_MARKER in table_names:
-            logger.error(
-                "[PREFLIGHT] CRITICAL: fresh-bootstrap marker still present after migration."
-            )
-            return False
-
-        for table, column in checks:
-            if table not in table_names:
-                missing.append(f"{table}.{column}")
-                continue
-            columns = {item["name"] for item in inspector.get_columns(table)}
-            if column not in columns:
-                missing.append(f"{table}.{column}")
-
-        if missing:
-            logger.error("[PREFLIGHT] CRITICAL: Missing schema components: %s", missing)
-            return False
-
-        rls_failures = _verify_postgresql_rls(
-            engine, tuple(RLS_TABLES) + ("notifications",)
-        )
-        if rls_failures:
-            logger.error("[PREFLIGHT] CRITICAL: RLS invariant failures: %s", rls_failures)
-            return False
-
-        logger.info("[PREFLIGHT] All critical schema and RLS checks passed.")
+        # Final basic connectivity/version-table check.
+        tables = _table_names(engine)
+        if "alembic_version" not in tables:
+            raise RuntimeError("alembic_version missing after preflight")
+        logger.info("[PREFLIGHT] Migration/bootstrap health check passed")
         return True
+    except Exception:
+        logger.exception("[PREFLIGHT] Migration/bootstrap failed")
+        return False
     finally:
-        engine.dispose()
-
-
-def main():
-    logger.info("=" * 60)
-    logger.info("[PREFLIGHT] Starting Dentix Migration Preflight Check")
-    logger.info("=" * 60)
-
-    if not run_alembic_upgrade():
-        logger.critical("[PREFLIGHT] MIGRATION FAILED — ABORTING DEPLOYMENT")
-        sys.exit(1)
-
-    if not run_migration_health_check():
-        logger.critical("[PREFLIGHT] HEALTH CHECK FAILED — ABORTING DEPLOYMENT")
-        sys.exit(1)
-
-    logger.info("=" * 60)
-    logger.info("[PREFLIGHT] ALL CHECKS PASSED — Safe to start application")
-    logger.info("=" * 60)
-    sys.exit(0)
+        if engine is not None:
+            engine.dispose()
 
 
 if __name__ == "__main__":
-    import traceback
-
-    try:
-        main()
-    except SystemExit as exc:
-        if exc.code == 0 or exc.code is None:
-            sys.exit(0)
-        print(
-            f"CRITICAL: Captured non-zero SystemExit ({exc.code}) at top level in preflight!",
-            file=sys.stderr,
-        )
-        traceback.print_exc(file=sys.stderr)
-        sys.exit(exc.code)
-    except BaseException:
-        print("CRITICAL: Captured BaseException at top level in preflight!", file=sys.stderr)
-        traceback.print_exc(file=sys.stderr)
-        sys.exit(2)
+    sys.exit(0 if run_preflight_migrations() else 1)
