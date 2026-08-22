@@ -1,12 +1,14 @@
 """Accounting router compatibility facade for PostgreSQL NUMERIC values."""
 
+from importlib import import_module
+
 from backend.services.accounting_decimal_service import DecimalSafeAccountingService
 
-from . import accounting as _base
+_base = import_module("backend.routers.accounting")
 
 
 # Route callables in the layered accounting modules resolve ``AccountingService``
-# from their module globals at request time.  Point every layer at the safe
+# from their module globals at request time. Point every layer at the safe
 # compatibility facade so doctor revenue/details no longer mix Decimal and float.
 _base.AccountingService = DecimalSafeAccountingService
 _base._previous.AccountingService = DecimalSafeAccountingService
