@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import logger from '@/utils/logger';
-import { api, broadcastNotification, deleteNotification, deleteSupportMessage, getNotifications } from '@/api';
+import { api, broadcastNotification, deleteNotification, deleteSupportMessage, getNotifications, getSupportMessages } from '@/api';
 import SupportInbox from '@/features/admin/SuperAdmin/SupportInbox';
 import NotificationsManager from '@/features/admin/SuperAdmin/NotificationsManager';
 import { MessageSquare } from 'lucide-react';
@@ -15,14 +15,29 @@ export default function CommunicationsPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [msgRes, notifRes, tenRes] = await Promise.all([
-                api.get('/support/messages'),
+            const [msgResult, notifResult, tenantResult] = await Promise.allSettled([
+                getSupportMessages(),
                 getNotifications(),
                 api.get('/api/v1/admin/tenants')
             ]);
-            setMessages(Array.isArray(msgRes.data) ? msgRes.data : []);
-            setNotifications(Array.isArray(notifRes.data) ? notifRes.data : []);
-            setTenants(Array.isArray(tenRes.data) ? tenRes.data : []);
+
+            if (msgResult.status === 'fulfilled') {
+                setMessages(Array.isArray(msgResult.value.data) ? msgResult.value.data : []);
+            } else {
+                logger.error('Failed to load support messages', msgResult.reason);
+            }
+
+            if (notifResult.status === 'fulfilled') {
+                setNotifications(Array.isArray(notifResult.value.data) ? notifResult.value.data : []);
+            } else {
+                logger.error('Failed to load notifications', notifResult.reason);
+            }
+
+            if (tenantResult.status === 'fulfilled') {
+                setTenants(Array.isArray(tenantResult.value.data) ? tenantResult.value.data : []);
+            } else {
+                logger.error('Failed to load tenants', tenantResult.reason);
+            }
         } catch (err) {
             logger.error(err);
         } finally {

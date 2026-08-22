@@ -15,7 +15,7 @@ from .base import (
     String,
     Boolean,
     DateTime,
-    Float,
+    Numeric,
     Text,
     Date,
     ForeignKey,
@@ -24,7 +24,7 @@ from .base import (
     datetime,
     timezone,
 )
-from sqlalchemy import column
+from sqlalchemy import CheckConstraint, column
 from rls.schemas import Permissive, ConditionArg, Command
 
 
@@ -87,6 +87,15 @@ class PriceList(Base):
     __table_args__ = (
         Index("idx_pricelist_tenant_type", "tenant_id", "type"),
         Index("idx_pricelist_active", "tenant_id", "is_active"),
+        CheckConstraint(
+            "coverage_percent >= 0 AND coverage_percent <= 100",
+            name="ck_price_lists_coverage_range",
+        ),
+        CheckConstraint(
+            "copay_percent >= 0 AND copay_percent <= 100",
+            name="ck_price_lists_copay_range",
+        ),
+        CheckConstraint("copay_fixed >= 0", name="ck_price_lists_copay_nonnegative"),
     )
 
     __rls_policies__ = [
@@ -113,9 +122,9 @@ class PriceList(Base):
     insurance_provider_id = Column(
         Integer, ForeignKey("insurance_providers.id"), nullable=True
     )
-    coverage_percent = Column(Float, default=100.0)  # What insurance covers
-    copay_percent = Column(Float, default=0.0)  # Patient copay %
-    copay_fixed = Column(Float, default=0.0)  # Fixed copay amount
+    coverage_percent = Column(Numeric(7, 4), default=100.0)
+    copay_percent = Column(Numeric(7, 4), default=0.0)
+    copay_fixed = Column(Numeric(14, 2), default=0.0)
 
     # Validity period
     effective_from = Column(Date, nullable=True)
@@ -165,6 +174,11 @@ class PriceListItem(Base):
     __tablename__ = "price_list_items"
     __table_args__ = (
         Index("idx_pricelist_item_procedure", "price_list_id", "procedure_id"),
+        CheckConstraint("price >= 0", name="ck_price_list_items_price_nonnegative"),
+        CheckConstraint(
+            "discount_percent >= 0 AND discount_percent <= 100",
+            name="ck_price_list_items_discount_range",
+        ),
     )
 
     id = Column(Integer, primary_key=True, index=True)
@@ -176,8 +190,8 @@ class PriceListItem(Base):
     )
 
     # Pricing
-    price = Column(Float, nullable=False)
-    discount_percent = Column(Float, default=0.0)  # Optional discount
+    price = Column(Numeric(14, 2), nullable=False)
+    discount_percent = Column(Numeric(7, 4), default=0.0)
 
     # Insurance-specific
     insurance_code = Column(String, nullable=True)  # Code for insurance claim

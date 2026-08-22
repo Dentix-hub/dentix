@@ -8,6 +8,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy import select, func, or_
 from ..models import inventory as inv_models
 from ..models import clinical as clinical_models
+from ..core.money import as_decimal
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +173,7 @@ class InventoryLearningService:
         usage_updates = []
 
         # Get unit cost from batch for cost calculation
-        unit_cost = session.stock_item.batch.cost_per_unit or 0.0
+        unit_cost = as_decimal(session.stock_item.batch.cost_per_unit)
 
         for t in treatments:
             if not t.procedure:
@@ -192,7 +193,7 @@ class InventoryLearningService:
 
             # Update usage record
             usage_rec.quantity_used = actual_quantity
-            usage_rec.cost_calculated = actual_quantity * unit_cost
+            usage_rec.cost_calculated = as_decimal(actual_quantity) * unit_cost
             usage_updates.append({
                 "treatment_id": t.id,
                 "quantity": actual_quantity,
@@ -292,7 +293,11 @@ class InventoryLearningService:
 
             # CASE A: Specific Material
             if w.material_id:
-                stmt_m = select(inv_models.Material).where(inv_models.Material.id == w.material_id)
+                stmt_m = select(inv_models.Material).where(
+                    inv_models.Material.id == w.material_id,
+                    inv_models.Material.tenant_id == tenant_id,
+                    inv_models.Material.is_deleted == False,  # noqa: E712
+                )
                 mat = (await self.db.execute(stmt_m)).scalars().first()
                 if mat:
                     resolved_materials.append(mat)
@@ -303,7 +308,8 @@ class InventoryLearningService:
                     select(inv_models.Material)
                     .where(
                         inv_models.Material.category_id == w.category_id,
-                        inv_models.Material.tenant_id == tenant_id
+                        inv_models.Material.tenant_id == tenant_id,
+                        inv_models.Material.is_deleted == False,  # noqa: E712
                     )
                 )
                 res_mats = await self.db.execute(stmt_mats)

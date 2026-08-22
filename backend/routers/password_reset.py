@@ -160,7 +160,9 @@ async def reset_password(
     user.hashed_password = get_password_hash(new_password)
 
     # REVOKE ALL SESSIONS: Force logout on all devices after password reset
-    revoked_count = await AuthService.revoke_all_user_sessions(db, user.id)
+    revoked_count = await AuthService.revoke_all_user_sessions(
+        db, user.id, commit=False
+    )
     if revoked_count > 0:
         logger.info(f"Revoked {revoked_count} sessions for user {user.username} after password reset")
 

@@ -136,6 +136,7 @@ async def save_treatment_materials(
         material = (await db.execute(select(inv_models.Material).where(
             inv_models.Material.id == item.material_id,
             inv_models.Material.tenant_id == tenant_id,
+            inv_models.Material.is_deleted == False,  # noqa: E712
         ))).scalars().first()
         if not material:
             continue

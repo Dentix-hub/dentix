@@ -102,7 +102,9 @@ class AuthService:
         return result.scalars().all()
 
     @staticmethod
-    async def revoke_all_user_sessions(db: AsyncSession, user_id: int) -> int:
+    async def revoke_all_user_sessions(
+        db: AsyncSession, user_id: int, *, commit: bool = True
+    ) -> int:
         """
         Revoke ALL active sessions for a user.
         Used when: password changed, 2FA toggled, user disabled, role changed.
@@ -132,8 +134,10 @@ class AuthService:
         if user:
             user.active_session_id = "revoked_all_" + str(user_id)
 
-        if count > 0 or user:
+        if commit and (count > 0 or user):
             await db.commit()
+        elif count > 0 or user:
+            await db.flush()
         return count
 
     # --- 2FA Logic ---

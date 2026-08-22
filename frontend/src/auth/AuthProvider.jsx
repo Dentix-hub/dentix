@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { login as apiLogin, registerClinic, getSessionSilent, hasSessionCookieHint, api } from '@/api';
 import { logout as apiLogout } from '@/utils';
 import { logger } from '@/utils/logger';
@@ -12,6 +12,21 @@ export default function AuthProvider({ children }) {
     const setUser = useAuthStore((state) => state.setUser);
     const setLoading = useAuthStore((state) => state.setLoading);
     const clearAuth = useAuthStore((state) => state.clearAuth);
+
+    const clearLocalSession = useCallback(() => {
+        clearAuth();
+        useTenantStore.getState().clearTenant();
+    }, [clearAuth]);
+
+    const finishAuthentication = useCallback(async (userData) => {
+        // The authenticated application reads tenant configuration during its
+        // first render. Keep the splash screen mounted until that configuration
+        // has finished loading so the dashboard cannot render against stale or
+        // incomplete tenant state immediately after login.
+        useTenantStore.getState().clearTenant();
+        await useTenantStore.getState().fetchTenant();
+        setUser(userData);
+    }, [setUser]);
 
     useEffect(() => {
         const initAuth = async () => {
@@ -31,25 +46,22 @@ export default function AuthProvider({ children }) {
                 try {
                     if (!hasSessionCookieHint()) {
                         logger.info('[AUTH] No session cookie hint found');
-                        clearAuth();
+                        clearLocalSession();
                         return;
                     }
                     const sessionRes = await getSessionSilent();
                     const userData = sessionRes.data;
-                    setUser(userData);
-
-                    // Sync Tenant Store immediately
-                    await useTenantStore.getState().fetchTenant();
+                    await finishAuthentication(userData);
 
                     logger.log(`[AUTH] Boot successful (${Math.round(performance.now() - startTime)}ms)`);
                 } catch (err) {
                     logger.info('[AUTH] No active session found (Unauthenticated start)');
                     // Cookie might be expired/invalid - user will need to login
-                    clearAuth();
+                    clearLocalSession();
                 }
             } catch (error) {
                 logger.error('[AUTH] Init error:', error);
-                clearAuth();
+                clearLocalSession();
             } finally {
                 clearTimeout(safetyTimeout);
                 setLoading(false);
@@ -57,7 +69,7 @@ export default function AuthProvider({ children }) {
         };
 
         initAuth();
-    }, [clearAuth, setLoading, setUser]);
+    }, [clearLocalSession, finishAuthentication, setLoading]);
 
     const login = async (username, password) => {
         setLoading(true);
@@ -77,14 +89,11 @@ export default function AuthProvider({ children }) {
                 role: user.role,
                 tenant_id: user.tenant_id
             };
-            setUser(userData);
-
-            // Fetch tenant after login
-            await useTenantStore.getState().fetchTenant();
+            await finishAuthentication(userData);
 
             return res.data;
         } catch (err) {
-            clearAuth();
+            clearLocalSession();
             throw err;
         }
     };
@@ -107,12 +116,10 @@ export default function AuthProvider({ children }) {
                 role: user.role,
                 tenant_id: user.tenant_id
             };
-            setUser(userData);
-
-            await useTenantStore.getState().fetchTenant();
+            await finishAuthentication(userData);
             return res.data;
         } catch (err) {
-            clearAuth();
+            clearLocalSession();
             throw err;
         }
     };
@@ -123,7 +130,7 @@ export default function AuthProvider({ children }) {
         } catch (err) {
             logger.error('[AUTH] Logout api failed:', err);
         } finally {
-            clearAuth();
+            clearLocalSession();
         }
     };
 
@@ -134,6 +141,7 @@ export default function AuthProvider({ children }) {
     const value = {
         user,
         loading: isAuthLoading,
+        isBooting: isAuthLoading,
         login,
         verify2FA,
         logout,

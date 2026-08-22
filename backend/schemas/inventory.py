@@ -2,6 +2,9 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import date, datetime
 from enum import Enum
+from decimal import Decimal
+
+from backend.core.money import NonNegativeMoney, NonNegativeUnitMoney
 
 
 class WarehouseType(str, Enum):
@@ -59,7 +62,7 @@ class MaterialBase(BaseModel):
     base_unit: str
     alert_threshold: int = 10
     packaging_ratio: float = 1.0
-    standard_price: Optional[float] = 0.0
+    standard_price: Optional[NonNegativeMoney] = Decimal("0.00")
     max_uses: Optional[int] = 1
     category_id: Optional[int] = None
     brand: Optional[str] = None
@@ -75,7 +78,7 @@ class MaterialUpdate(BaseModel):
     base_unit: Optional[str] = None
     alert_threshold: Optional[int] = None
     packaging_ratio: Optional[float] = None
-    standard_price: Optional[float] = None
+    standard_price: Optional[NonNegativeMoney] = None
     max_uses: Optional[int] = None
     category_id: Optional[int] = None
     brand: Optional[str] = None
@@ -95,7 +98,7 @@ class BatchBase(BaseModel):
     batch_number: str
     expiry_date: date
     supplier: Optional[str] = None
-    cost_per_unit: float = 0.0
+    cost_per_unit: NonNegativeUnitMoney = Decimal("0.000000")
 
 
 class BatchCreate(BatchBase):

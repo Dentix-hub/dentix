@@ -6,9 +6,9 @@ Handles backup and settings endpoints.
 import logging
 import os
 import shutil
-import subprocess
 import tempfile
 import uuid
+import asyncio
 from datetime import datetime, timedelta, timezone
 
 from fastapi import (
@@ -21,6 +21,7 @@ from fastapi import (
     BackgroundTasks,
 )
 from fastapi.responses import FileResponse, RedirectResponse, Response
+from starlette.background import BackgroundTask
 from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session as SyncSession
@@ -31,9 +32,18 @@ from .. import schemas, database, models
 from ..auth import ALGORITHM, SECRET_KEY
 from ..core.permissions import Permission, Role, require_permission
 from ..core.response import success_response, StandardResponse
-from ..services.backup_service import run_backup_task
+from ..services.backup_service import (
+    build_pg_dump_command,
+    build_psql_command,
+    create_secure_temp_file,
+    run_backup_task,
+)
 from ..services.import_service import restore_tenant_from_json
 from ..services.export_service import export_tenant_to_json
+from ..services.secret_service import (
+    GOOGLE_SUPER_ADMIN_TOKEN_KEY,
+    encrypt_secret,
+)
 from .auth import get_async_db
 
 logger = logging.getLogger(__name__)
@@ -84,6 +94,14 @@ def _decode_backup_oauth_state(state: str) -> dict:
 
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
+
+
+def _delete_temp_file(filepath: str) -> None:
+    try:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+    except OSError:
+        logger.exception("Failed to remove temporary backup file")
 
 
 @router.get("/backup/status", response_model=StandardResponse[dict])
@@ -192,18 +210,18 @@ async def backup_auth_callback_get(
             setting = (
                 await db.execute(
                     select(models.SystemSetting).where(
-                        models.SystemSetting.key == "google_refresh_token_super_admin"
+                        models.SystemSetting.key == GOOGLE_SUPER_ADMIN_TOKEN_KEY
                     )
                 )
             ).scalars().first()
             if not setting:
                 setting = models.SystemSetting(
-                    key="google_refresh_token_super_admin",
-                    value=refresh_token,
+                    key=GOOGLE_SUPER_ADMIN_TOKEN_KEY,
+                    value=encrypt_secret(refresh_token),
                 )
                 db.add(setting)
             else:
-                setting.value = refresh_token
+                setting.value = encrypt_secret(refresh_token)
         elif user.tenant:
             user.tenant.google_refresh_token = refresh_token
         else:
@@ -307,27 +325,39 @@ async def download_backup(
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"backup_{timestamp}.sql"
-            filepath = os.path.join("/tmp", filename)
-            dump_url = db_url.replace("postgresql://", "postgres://", 1)
+            filepath = create_secure_temp_file(prefix="dentix_download_", suffix=".sql")
+            command, process_env = build_pg_dump_command(db_url, filepath)
 
-            process = subprocess.Popen(
-                ["pg_dump", "--dbname", dump_url, "-f", filepath],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                env=process_env,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = process.communicate(timeout=60)
+            try:
+                _, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
+            except TimeoutError:
+                process.kill()
+                await process.communicate()
+                raise RuntimeError("Database backup timed out")
 
             if process.returncode != 0:
-                raise Exception(f"PG dump failed: {stderr.decode()}")
+                logger.error("pg_dump failed: %s", stderr.decode(errors="replace")[:1000])
+                raise RuntimeError("Database backup command failed")
 
             return FileResponse(
                 path=filepath,
                 filename=filename,
                 media_type="application/sql",
-                background=None,
+                background=BackgroundTask(_delete_temp_file, filepath),
             )
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+        except Exception as exc:
+            if "filepath" in locals():
+                _delete_temp_file(filepath)
+            logger.exception("Full database backup download failed")
+            raise HTTPException(
+                status_code=500, detail="Database backup could not be created"
+            ) from exc
 
     raise HTTPException(status_code=500, detail="Unsupported database type")
 
@@ -378,18 +408,27 @@ async def upload_backup(
                 tmp_path = tmp.name
 
             try:
-                restore_url = db_url.replace("postgresql://", "postgres://", 1)
-                process = subprocess.Popen(
-                    ["psql", restore_url, "-f", tmp_path],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                command, process_env = build_psql_command(db_url, tmp_path)
+                process = await asyncio.create_subprocess_exec(
+                    *command,
+                    env=process_env,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                 )
-                stdout, stderr = process.communicate(timeout=300)
+                try:
+                    _, stderr = await asyncio.wait_for(process.communicate(), timeout=300)
+                except TimeoutError:
+                    process.kill()
+                    await process.communicate()
+                    raise HTTPException(status_code=504, detail="Database restore timed out")
 
                 if process.returncode != 0:
-                    error_msg = stderr.decode()[:500]
+                    logger.error(
+                        "psql restore failed: %s",
+                        stderr.decode(errors="replace")[:1000],
+                    )
                     raise HTTPException(
-                        status_code=500, detail=f"Restore failed: {error_msg}"
+                        status_code=500, detail="Database restore failed"
                     )
 
                 return success_response(message="Database restored successfully from SQL backup.")

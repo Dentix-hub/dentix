@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import SmartLearningModal from './components/SmartLearningModal';
 import TrackSessionModal from './components/TrackSessionModal';
 import MaterialDetailsModal from './components/MaterialDetailsModal';
+import { toast } from '@/shared/ui';
 
 const ITEMS_PER_PAGE = 25;
 
@@ -61,15 +62,16 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
         mutationFn: deleteMaterial,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['inventory-stock'] });
-            alert(t('inventory.messages.delete_success'));
+            toast.success(t('inventory.messages.delete_success'));
         },
         onError: (err) => {
             logger.error(err);
             const msg = err.response?.data?.detail
                 || err.response?.data?.error?.message
                 || t('inventory.messages.delete_fail');
-            alert(msg);
-        }
+            toast.error(msg);
+        },
+        retry: false,
     });
 
     const activeSessionsMap = useMemo(() => {
@@ -119,9 +121,15 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
         });
     };
 
-    const handleDelete = (id, name) => {
-        if (window.confirm(t('inventory.messages.delete_confirm', { name }))) {
-            deleteMutation.mutate(id);
+    const handleDelete = (item) => {
+        const quantity = Number(item.total_quantity) || 0;
+        const hasActiveSession = (activeSessionsMap[item.material_id] || []).length > 0;
+        if (quantity > 0 || hasActiveSession) {
+            toast.error(t('inventory.messages.delete_requires_empty'));
+            return;
+        }
+        if (window.confirm(t('inventory.messages.delete_confirm', { name: item.material_name }))) {
+            deleteMutation.mutate(item.material_id);
         }
     };
 
@@ -339,7 +347,7 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => handleDelete(item.material_id, item.material_name)}
+                                        onClick={() => handleDelete(item)}
                                         className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition-colors hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300"
                                     >
                                         <Trash2 size={17} aria-hidden="true" />
@@ -445,7 +453,7 @@ const StockList = ({ onAddMaterial, onReceiveStock, onEditMaterial }) => {
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleDelete(item.material_id, item.material_name)}
+                                                    onClick={() => handleDelete(item)}
                                                     className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
                                                     title={t('inventory.actions.delete')}
                                                 >
