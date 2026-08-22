@@ -263,6 +263,24 @@ jobs:
             -f description='HF production deployment and health verification are running' \
             -f target_url="$RUN_URL"
 
+      - name: Capture current Hugging Face production revision
+        id: hf-production-before
+        env:
+          HF_PRODUCTION_SPACE: ${{ secrets.HF_PRODUCTION_SPACE }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$HF_PRODUCTION_SPACE"
+          test -n "$HF_TOKEN"
+          CURRENT_HF_SHA="$(
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer ${HF_TOKEN}" \
+              "https://huggingface.co/api/spaces/${HF_PRODUCTION_SPACE}" |
+              jq --raw-output '.sha // empty'
+          )"
+          test -n "$CURRENT_HF_SHA"
+          echo "sha=$CURRENT_HF_SHA" >> "$GITHUB_OUTPUT"
+
       - name: Sync tested revision to Hugging Face production
         uses: huggingface/hub-sync@v0.1.0
         with:
@@ -275,9 +293,51 @@ jobs:
       - name: Verify production health
         env:
           PRODUCTION_BACKEND_URL: ${{ secrets.PRODUCTION_BACKEND_URL }}
+          HF_PRODUCTION_SPACE: ${{ secrets.HF_PRODUCTION_SPACE }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          PREVIOUS_HF_SHA: ${{ steps.hf-production-before.outputs.sha }}
         run: |
           set -euo pipefail
           test -n "$PRODUCTION_BACKEND_URL"
+          test -n "$HF_PRODUCTION_SPACE"
+          test -n "$HF_TOKEN"
+          test -n "$PREVIOUS_HF_SHA"
+
+          # hub-sync returns after the repository update, while the previous
+          # container can still answer health checks for a short period. Wait
+          # until Hugging Face reports a new revision that is actually RUNNING
+          # so a stale healthy container cannot produce a false-positive CD.
+          NEW_HF_SHA=''
+          for attempt in $(seq 1 90); do
+            SPACE_STATE="$(
+              curl --fail --silent --show-error \
+                --header "Authorization: Bearer ${HF_TOKEN}" \
+                "https://huggingface.co/api/spaces/${HF_PRODUCTION_SPACE}"
+            )"
+            NEW_HF_SHA="$(jq --raw-output '.sha // empty' <<< "$SPACE_STATE")"
+            RUNTIME_STAGE="$(
+              jq --raw-output '.runtime.stage // "UNKNOWN"' <<< "$SPACE_STATE"
+            )"
+            if [ -n "$NEW_HF_SHA" ] && \
+               [ "$NEW_HF_SHA" != "$PREVIOUS_HF_SHA" ] && \
+               [ "$RUNTIME_STAGE" = 'RUNNING' ]; then
+              break
+            fi
+            if [ -n "$NEW_HF_SHA" ] && \
+               [ "$NEW_HF_SHA" != "$PREVIOUS_HF_SHA" ] && \
+               [ "$RUNTIME_STAGE" = 'RUNTIME_ERROR' ]; then
+              echo "Hugging Face runtime entered RUNTIME_ERROR." >&2
+              jq --raw-output '.runtime.errorMessage // "No runtime error message"' \
+                <<< "$SPACE_STATE" >&2
+              exit 1
+            fi
+            if [ "$attempt" -eq 90 ]; then
+              echo "Timed out waiting for the new Hugging Face revision to run." >&2
+              exit 1
+            fi
+            sleep 10
+          done
+
           HEALTH_URL="${PRODUCTION_BACKEND_URL%/}"
           case "$HEALTH_URL" in
             */api/v1/health) ;;
