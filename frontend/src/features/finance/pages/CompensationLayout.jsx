@@ -19,6 +19,10 @@ export default function CompensationLayout() {
         pathname: '/finance/compensation/doctors',
         search: periodSearch ? `?${periodSearch}` : '',
     };
+    const payrollTarget = {
+        pathname: '/finance/compensation/payroll',
+        search: periodSearch ? `?${periodSearch}` : '',
+    };
 
     if (location.pathname === '/finance/compensation' || location.pathname === '/finance/compensation/') {
         return <Navigate to={doctorsTarget} replace />;
@@ -43,13 +47,14 @@ export default function CompensationLayout() {
 
                 {(isAdmin || isAccountant) && (
                     <NavLink
-                        to="/finance/compensation/payroll"
+                        to={payrollTarget}
                         className={({ isActive }) =>
                             `inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
                                 isActive
                                     ? 'bg-primary/10 text-primary border border-primary/20'
                                     : 'text-text-secondary hover:text-text-primary hover:bg-muted'
                             }`
+                        }
                     >
                         <Users className="w-4 h-4" />
                         <span>{t('finance.compensation.payroll', 'رواتب الموظفين')}</span>
