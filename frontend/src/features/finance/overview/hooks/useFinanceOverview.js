@@ -5,6 +5,19 @@ import { getAllPayments, getExpenses } from '@/api/billing';
 import { financeKeys } from '../../queryKeys';
 import { getPresetDates } from '../../utils/datePresets';
 
+const financeLink = (pathname, from, to, extra = {}) => {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    Object.entries(extra).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+            params.set(key, String(value));
+        }
+    });
+    const query = params.toString();
+    return query ? `${pathname}?${query}` : pathname;
+};
+
 /**
  * Hook for fetching all data required by the Finance Overview V2 page.
  * Headline financial values come only from the authoritative backend summary.
@@ -71,30 +84,33 @@ export function useFinanceOverview() {
         staleTime: 60 * 1000,
     });
 
-    const paymentsList = (paymentsQuery.data || []).map((p) => ({
-        id: `pay-${p.id}`,
-        rawId: p.id,
+    const paymentsList = (paymentsQuery.data || []).map((payment) => ({
+        id: `pay-${payment.id}`,
+        rawId: payment.id,
         type: 'payment',
-        date: p.date ? new Date(p.date) : new Date(),
-        dateStr: p.date ? String(p.date).split('T')[0] : '',
-        title: p.patient_name || p.patient?.name || `مريض #${p.patient_id}`,
-        subtitle: p.notes || (p.doctor_name ? `د. ${p.doctor_name}` : 'دفعة مريض'),
-        amount: Number(p.amount) || 0,
+        date: payment.date ? new Date(payment.date) : new Date(),
+        dateStr: payment.date ? String(payment.date).split('T')[0] : '',
+        title: payment.patient_name || payment.patient?.name || `مريض #${payment.patient_id}`,
+        subtitle: payment.notes || (payment.doctor_name ? `د. ${payment.doctor_name}` : 'دفعة مريض'),
+        amount: Number(payment.amount) || 0,
         isIncome: true,
-        to: `/finance/payments`,
+        to: financeLink('/finance/payments', from, to, {
+            patient_id: payment.patient_id,
+            payment_id: payment.id,
+        }),
     }));
 
-    const expensesList = (expensesQuery.data || []).map((e) => ({
-        id: `exp-${e.id}`,
-        rawId: e.id,
+    const expensesList = (expensesQuery.data || []).map((expense) => ({
+        id: `exp-${expense.id}`,
+        rawId: expense.id,
         type: 'expense',
-        date: e.date ? new Date(e.date) : new Date(),
-        dateStr: e.date ? String(e.date).split('T')[0] : '',
-        title: e.title || e.item_name || e.category || 'مصروف عام',
-        subtitle: e.category ? `تصنيف: ${e.category}` : (e.notes || 'مصروف تشغيلي'),
-        amount: Number(e.cost || e.amount) || 0,
+        date: expense.date ? new Date(expense.date) : new Date(),
+        dateStr: expense.date ? String(expense.date).split('T')[0] : '',
+        title: expense.title || expense.item_name || expense.category || 'مصروف عام',
+        subtitle: expense.category ? `تصنيف: ${expense.category}` : (expense.notes || 'مصروف تشغيلي'),
+        amount: Number(expense.cost || expense.amount) || 0,
         isIncome: false,
-        to: `/finance/expenses`,
+        to: financeLink('/finance/expenses', from, to),
     }));
 
     const recentActivity = [...paymentsList, ...expensesList]
