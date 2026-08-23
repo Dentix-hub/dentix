@@ -2,7 +2,7 @@
 
 This module implements the shared financial definitions documented in
 ``docs/FINANCE_METRIC_CONTRACT.md`` without changing the legacy
-``/metrics/profitability`` formula.  The compatibility endpoint can therefore
+``/metrics/profitability`` formula. The compatibility endpoint can therefore
 remain stable while Finance V2 consumers migrate to one server-owned source of
 truth.
 """
@@ -148,13 +148,11 @@ class FinanceSummaryService:
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
     ) -> ResolvedFinancePeriod:
-        """Resolve an explicit range or the tenant-local current month.
-
-        A half-specified range is rejected.  This keeps the backend contract in
-        sync with the single date-range control used by Finance V2.
-        """
+        """Resolve an explicit range or the tenant-local current month."""
         if bool(start_date) != bool(end_date):
-            raise ValueError("Both start_date and end_date are required when filtering by date")
+            raise ValueError(
+                "Both start_date and end_date are required when filtering by date"
+            )
 
         timezone_name = await get_tenant_timezone(self.db, self.tenant_id)
         if start_date and end_date:
@@ -188,20 +186,23 @@ class FinanceSummaryService:
         patient_id: Optional[int] = None,
         search: Optional[str] = None,
     ) -> Decimal:
-        """Return current all-time positive receivables independently of activity filters.
+        """Return current all-time positive receivables independent of activity.
 
-        The aggregate is intentionally computed from the full tenant patient
-        population, not from a paginated or period-filtered report subquery.
-        Persistent identity/search filters may narrow the population, but a
-        selected activity period never does.
+        Historical DENTIX financial rows may have a NULL event-level tenant_id.
+        Tenant ownership for those rows is established through the Patient
+        relationship, matching the existing Finance V2 compatibility contract.
         """
         treatments = (
             select(
                 models.Treatment.patient_id.label("patient_id"),
-                func.sum(models.Treatment.cost - models.Treatment.discount).label("invoiced"),
+                func.sum(models.Treatment.cost - models.Treatment.discount).label(
+                    "invoiced"
+                ),
             )
+            .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
             .where(
-                models.Treatment.tenant_id == self.tenant_id,
+                models.Patient.tenant_id == self.tenant_id,
+                models.Patient.is_deleted == False,  # noqa: E712
                 models.Treatment.is_deleted == False,  # noqa: E712
             )
             .group_by(models.Treatment.patient_id)
@@ -212,7 +213,11 @@ class FinanceSummaryService:
                 models.Payment.patient_id.label("patient_id"),
                 func.sum(models.Payment.amount).label("paid"),
             )
-            .where(models.Payment.tenant_id == self.tenant_id)
+            .join(models.Patient, models.Payment.patient_id == models.Patient.id)
+            .where(
+                models.Patient.tenant_id == self.tenant_id,
+                models.Patient.is_deleted == False,  # noqa: E712
+            )
             .group_by(models.Payment.patient_id)
             .subquery()
         )
@@ -250,6 +255,7 @@ class FinanceSummaryService:
         period: ResolvedFinancePeriod,
         patient_id: Optional[int],
     ) -> tuple[Decimal, Decimal, int, int]:
+        """Return period production using Patient ownership as tenant boundary."""
         stmt = (
             select(
                 func.coalesce(func.sum(models.Treatment.cost), 0),
@@ -259,23 +265,44 @@ class FinanceSummaryService:
             )
             .join(models.Patient, models.Treatment.patient_id == models.Patient.id)
             .where(
-                models.Treatment.tenant_id == self.tenant_id,
-                models.Treatment.is_deleted == False,  # noqa: E712
                 models.Patient.tenant_id == self.tenant_id,
                 models.Patient.is_deleted == False,  # noqa: E712
+                models.Treatment.is_deleted == False,  # noqa: E712
                 models.Treatment.date >= period.utc_start,
                 models.Treatment.date < period.utc_end_exclusive,
             )
         )
         if patient_id is not None:
             stmt = stmt.where(models.Treatment.patient_id == patient_id)
-        gross, discounts, treatment_count, unique_patients = (await self.db.execute(stmt)).one()
+        gross, discounts, treatment_count, unique_patients = (
+            await self.db.execute(stmt)
+        ).one()
         return (
             quantize_money(as_decimal(gross)),
             quantize_money(as_decimal(discounts)),
             int(treatment_count or 0),
             int(unique_patients or 0),
         )
+
+    async def _collected_total(
+        self,
+        period: ResolvedFinancePeriod,
+        patient_id: Optional[int],
+    ) -> Decimal:
+        """Return period collections, retaining patient-owned legacy NULL rows."""
+        stmt = (
+            select(func.coalesce(func.sum(models.Payment.amount), 0))
+            .join(models.Patient, models.Payment.patient_id == models.Patient.id)
+            .where(
+                models.Patient.tenant_id == self.tenant_id,
+                models.Patient.is_deleted == False,  # noqa: E712
+                models.Payment.date >= period.utc_start,
+                models.Payment.date < period.utc_end_exclusive,
+            )
+        )
+        if patient_id is not None:
+            stmt = stmt.where(models.Payment.patient_id == patient_id)
+        return quantize_money(as_decimal((await self.db.execute(stmt)).scalar()))
 
     async def _valid_appointment_count(
         self,
@@ -319,15 +346,7 @@ class FinanceSummaryService:
             await self._production_totals(period, patient_id)
         )
         net_invoiced = quantize_money(gross_production - discounts)
-        collected = quantize_money(
-            as_decimal(
-                await self.accounting.get_total_collected(
-                    start_marker,
-                    end_marker,
-                    patient_id=patient_id,
-                )
-            )
-        )
+        collected = await self._collected_total(period, patient_id)
         valid_appointments = await self._valid_appointment_count(period, patient_id)
 
         doctor_details, doctor_due_raw = await self.accounting.calculate_doctor_dues(
@@ -345,11 +364,12 @@ class FinanceSummaryService:
 
         if patient_id is None:
             expenses = quantize_money(
-                as_decimal(await self.accounting.get_total_expenses(start_marker, end_marker))
+                as_decimal(
+                    await self.accounting.get_total_expenses(start_marker, end_marker)
+                )
             )
         else:
-            # Preserve the existing patient-filtered comprehensive endpoint:
-            # clinic-wide manual expenses are not attributed to one patient.
+            # Clinic-wide manual expenses are not attributed to one patient.
             expenses = Decimal("0.00")
 
         lab_costs = quantize_money(
@@ -363,7 +383,9 @@ class FinanceSummaryService:
         )
         current_debt = await self.get_current_patient_debt(patient_id=patient_id)
         period_balance = quantize_money(net_invoiced - collected)
-        total_deductions = quantize_money(doctor_due + staff_due + expenses + lab_costs)
+        total_deductions = quantize_money(
+            doctor_due + staff_due + expenses + lab_costs
+        )
         net_operational_result = quantize_money(collected - total_deductions)
 
         def money(value: Decimal | int | float) -> float:
@@ -440,10 +462,12 @@ class CompensationSettingsService:
 
         user = (
             await self.db.execute(
-                select(models.User).where(
+                select(models.User)
+                .where(
                     models.User.id == user_id,
                     models.User.tenant_id == self.tenant_id,
                 )
+                .with_for_update()
             )
         ).scalar_one_or_none()
         if user is None:
@@ -466,13 +490,7 @@ class CompensationSettingsService:
             new_value=new_values,
         )
 
-        try:
-            await self.db.commit()
-        except Exception:
-            await self.db.rollback()
-            raise
-
-        return {
+        result = {
             "user_id": user.id,
             "commission_percent": float(as_decimal(user.commission_percent)),
             "fixed_salary": float(as_decimal(user.fixed_salary)),
@@ -480,3 +498,11 @@ class CompensationSettingsService:
             "hire_date": user.hire_date.isoformat() if user.hire_date else None,
             "updated_fields": sorted(updates.keys()),
         }
+
+        try:
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            raise
+
+        return result
