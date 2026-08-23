@@ -50,19 +50,18 @@ class _LabOrdersListPageState extends ConsumerState<LabOrdersListPage> {
           PopupMenuButton<LabOrderStatus?>(
             icon: const Icon(Icons.filter_list),
             onSelected: (status) {
-              ref.read(labOrderNotifierProvider.notifier).loadLabOrders(
-                    status: status,
-                  );
+              ref
+                  .read(labOrderNotifierProvider.notifier)
+                  .loadLabOrders(status: status);
             },
             itemBuilder: (context) => [
-              PopupMenuItem(
-                value: null,
-                child: Text(l10n.all),
+              PopupMenuItem(value: null, child: Text(l10n.all)),
+              ...LabOrderStatus.values.map(
+                (status) => PopupMenuItem(
+                  value: status,
+                  child: Text(_getStatusLabel(status)),
+                ),
               ),
-              ...LabOrderStatus.values.map((status) => PopupMenuItem(
-                    value: status,
-                    child: Text(_getStatusLabel(status)),
-                  )),
             ],
           ),
         ],
@@ -92,47 +91,57 @@ class _LabOrdersListPageState extends ConsumerState<LabOrdersListPage> {
             ],
           ),
         ),
-        loaded: (labOrders, currentPage, totalPages, hasMore, filterStatus,
-            selectedPatientId) {
-          if (labOrders.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.science_outlined,
-                      size: 64, color: AppColors.textDisabled),
-                  const SizedBox(height: 16),
-                  Text(
-                    l10n.noLabOrders,
-                    style: TextStyle(color: AppColors.textSecondary),
+        loaded:
+            (
+              labOrders,
+              currentPage,
+              totalPages,
+              hasMore,
+              filterStatus,
+              selectedPatientId,
+            ) {
+              if (labOrders.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.science_outlined,
+                        size: 64,
+                        color: AppColors.textDisabled,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        l10n.noLabOrders,
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            );
-          }
+                );
+              }
 
-          return RefreshIndicator(
-            onRefresh: () async {
-              await ref
-                  .read(labOrderNotifierProvider.notifier)
-                  .loadLabOrders(status: filterStatus, refresh: true);
+              return RefreshIndicator(
+                onRefresh: () async {
+                  await ref
+                      .read(labOrderNotifierProvider.notifier)
+                      .loadLabOrders(status: filterStatus, refresh: true);
+                },
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: labOrders.length + (hasMore ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index >= labOrders.length) {
+                      return const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    return _buildLabOrderCard(labOrders[index]);
+                  },
+                ),
+              );
             },
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: labOrders.length + (hasMore ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index >= labOrders.length) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
-                return _buildLabOrderCard(labOrders[index]);
-              },
-            ),
-          );
-        },
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreateLabOrderDialog(context),
@@ -191,22 +200,27 @@ class _LabOrdersListPageState extends ConsumerState<LabOrdersListPage> {
             ),
             const Divider(height: 24),
             // Work items
-            ...labOrder.items.map((item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      Icon(Icons.check_circle_outline,
-                          size: 16, color: AppColors.primary),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '${item.workType} x${item.quantity}',
-                          style: const TextStyle(fontWeight: FontWeight.w500),
-                        ),
+            ...labOrder.items.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline,
+                      size: 16,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${item.workType} x${item.quantity}',
+                        style: const TextStyle(fontWeight: FontWeight.w500),
                       ),
-                    ],
-                  ),
-                )),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 12),
             // Due date
             Row(
@@ -220,15 +234,19 @@ class _LabOrdersListPageState extends ConsumerState<LabOrdersListPage> {
                 Text(
                   '${AppLocalizations.of(context)!.dueDate}: ${DateFormat('MMM d, yyyy').format(DateTime.parse(labOrder.dueDate))}',
                   style: TextStyle(
-                    color: isOverdue ? AppColors.error : AppColors.textSecondary,
+                    color: isOverdue
+                        ? AppColors.error
+                        : AppColors.textSecondary,
                     fontWeight: isOverdue ? FontWeight.bold : null,
                   ),
                 ),
                 if (isOverdue) ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.error.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(4),
@@ -273,9 +291,7 @@ class _LabOrdersListPageState extends ConsumerState<LabOrdersListPage> {
   void _showCreateLabOrderDialog(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const CreateLabOrderPage(),
-      ),
+      MaterialPageRoute(builder: (context) => const CreateLabOrderPage()),
     );
   }
 }

@@ -44,9 +44,7 @@ class _PrescriptionsListPageState extends ConsumerState<PrescriptionsListPage> {
     final state = ref.watch(prescriptionNotifierProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.prescriptions),
-      ),
+      appBar: AppBar(title: Text(l10n.prescriptions)),
       body: state.when(
         initial: () {
           Future.microtask(() {
@@ -74,46 +72,56 @@ class _PrescriptionsListPageState extends ConsumerState<PrescriptionsListPage> {
             ],
           ),
         ),
-        loaded: (prescriptions, currentPage, totalPages, hasMore, selectedPatientId) {
-          if (prescriptions.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.description_outlined,
-                      size: 64, color: AppColors.textDisabled),
-                  const SizedBox(height: 16),
-                  Text(
-                    l10n.noPrescriptions,
-                    style: TextStyle(color: AppColors.textSecondary),
+        loaded:
+            (
+              prescriptions,
+              currentPage,
+              totalPages,
+              hasMore,
+              selectedPatientId,
+            ) {
+              if (prescriptions.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.description_outlined,
+                        size: 64,
+                        color: AppColors.textDisabled,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        l10n.noPrescriptions,
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            );
-          }
+                );
+              }
 
-          return RefreshIndicator(
-            onRefresh: () async {
-              await ref
-                  .read(prescriptionNotifierProvider.notifier)
-                  .loadPrescriptions(refresh: true);
+              return RefreshIndicator(
+                onRefresh: () async {
+                  await ref
+                      .read(prescriptionNotifierProvider.notifier)
+                      .loadPrescriptions(refresh: true);
+                },
+                child: ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: prescriptions.length + (hasMore ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (index >= prescriptions.length) {
+                      return const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    return _buildPrescriptionCard(prescriptions[index]);
+                  },
+                ),
+              );
             },
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.all(16),
-              itemCount: prescriptions.length + (hasMore ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index >= prescriptions.length) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Center(child: CircularProgressIndicator()),
-                  );
-                }
-                return _buildPrescriptionCard(prescriptions[index]);
-              },
-            ),
-          );
-        },
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _navigateToCreatePrescription(context),
@@ -139,7 +147,8 @@ class _PrescriptionsListPageState extends ConsumerState<PrescriptionsListPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        prescription.patientName ?? 'Patient #${prescription.patientId}',
+                        prescription.patientName ??
+                            'Patient #${prescription.patientId}',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
@@ -147,9 +156,9 @@ class _PrescriptionsListPageState extends ConsumerState<PrescriptionsListPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        DateFormat('MMM d, yyyy').format(
-                          DateTime.parse(prescription.prescriptionDate),
-                        ),
+                        DateFormat(
+                          'MMM d, yyyy',
+                        ).format(DateTime.parse(prescription.prescriptionDate)),
                         style: TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 14,
@@ -170,36 +179,40 @@ class _PrescriptionsListPageState extends ConsumerState<PrescriptionsListPage> {
             ),
             const Divider(height: 24),
             // Medications list
-            ...prescription.medications.map((med) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.medication, size: 16, color: AppColors.primary),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+            ...prescription.medications.map(
+              (med) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.medication, size: 16, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            med.medicationName ??
+                                'Medication #${med.medicationId}',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          if (med.dosage != null)
                             Text(
-                              med.medicationName ?? 'Medication #${med.medicationId}',
-                              style: const TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            if (med.dosage != null)
-                              Text(
-                                '${med.dosage} • ${med.frequency ?? ''}',
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                ),
+                              '${med.dosage} • ${med.frequency ?? ''}',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
                               ),
-                          ],
-                        ),
+                            ),
+                        ],
                       ),
-                    ],
-                  ),
-                )),
-            if (prescription.notes != null && prescription.notes!.isNotEmpty) ...[
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (prescription.notes != null &&
+                prescription.notes!.isNotEmpty) ...[
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(8),
@@ -234,9 +247,7 @@ class _PrescriptionsListPageState extends ConsumerState<PrescriptionsListPage> {
   void _navigateToCreatePrescription(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const CreatePrescriptionPage(),
-      ),
+      MaterialPageRoute(builder: (context) => const CreatePrescriptionPage()),
     );
   }
 }

@@ -13,11 +13,7 @@ import 'package:dentix_mobile/app.dart';
 void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(
-      const ProviderScope(
-        child: DentixApp(),
-      ),
-    );
+    await tester.pumpWidget(const ProviderScope(child: DentixApp()));
 
     // Verify that the app starts (splash or login page)
     expect(find.byType(MaterialApp), findsOneWidget);

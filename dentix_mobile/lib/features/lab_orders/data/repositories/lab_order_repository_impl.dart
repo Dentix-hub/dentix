@@ -28,11 +28,13 @@ class LabOrderRepositoryImpl implements LabOrderRepository {
       );
       return Right(result.toEntity());
     } on DioException catch (e) {
-      return Left(ServerFailure(
-        message: NetworkExceptions.getErrorMessage(
-          NetworkExceptions.getDioException(e),
+      return Left(
+        ServerFailure(
+          message: NetworkExceptions.getErrorMessage(
+            NetworkExceptions.getDioException(e),
+          ),
         ),
-      ));
+      );
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
     }
@@ -44,11 +46,13 @@ class LabOrderRepositoryImpl implements LabOrderRepository {
       final result = await _remoteDataSource.getLabOrderById(id);
       return Right(result.toEntity());
     } on DioException catch (e) {
-      return Left(ServerFailure(
-        message: NetworkExceptions.getErrorMessage(
-          NetworkExceptions.getDioException(e),
+      return Left(
+        ServerFailure(
+          message: NetworkExceptions.getErrorMessage(
+            NetworkExceptions.getDioException(e),
+          ),
         ),
-      ));
+      );
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
     }
@@ -72,11 +76,13 @@ class LabOrderRepositoryImpl implements LabOrderRepository {
       );
       return Right(result.toEntity());
     } on DioException catch (e) {
-      return Left(ServerFailure(
-        message: NetworkExceptions.getErrorMessage(
-          NetworkExceptions.getDioException(e),
+      return Left(
+        ServerFailure(
+          message: NetworkExceptions.getErrorMessage(
+            NetworkExceptions.getDioException(e),
+          ),
         ),
-      ));
+      );
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
     }
@@ -96,11 +102,13 @@ class LabOrderRepositoryImpl implements LabOrderRepository {
       );
       return Right(result.toEntity());
     } on DioException catch (e) {
-      return Left(ServerFailure(
-        message: NetworkExceptions.getErrorMessage(
-          NetworkExceptions.getDioException(e),
+      return Left(
+        ServerFailure(
+          message: NetworkExceptions.getErrorMessage(
+            NetworkExceptions.getDioException(e),
+          ),
         ),
-      ));
+      );
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
     }
@@ -112,11 +120,13 @@ class LabOrderRepositoryImpl implements LabOrderRepository {
       await _remoteDataSource.deleteLabOrder(id);
       return const Right(null);
     } on DioException catch (e) {
-      return Left(ServerFailure(
-        message: NetworkExceptions.getErrorMessage(
-          NetworkExceptions.getDioException(e),
+      return Left(
+        ServerFailure(
+          message: NetworkExceptions.getErrorMessage(
+            NetworkExceptions.getDioException(e),
+          ),
         ),
-      ));
+      );
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
     }

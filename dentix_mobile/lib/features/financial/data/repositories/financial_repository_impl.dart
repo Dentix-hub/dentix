@@ -27,11 +27,13 @@ class FinancialRepositoryImpl implements FinancialRepository {
       );
       return Right(result.toEntity());
     } on DioException catch (e) {
-      return Left(ServerFailure(
-        message: NetworkExceptions.getErrorMessage(
-          NetworkExceptions.getDioException(e),
+      return Left(
+        ServerFailure(
+          message: NetworkExceptions.getErrorMessage(
+            NetworkExceptions.getDioException(e),
+          ),
         ),
-      ));
+      );
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
     }
@@ -57,11 +59,13 @@ class FinancialRepositoryImpl implements FinancialRepository {
       );
       return Right(result.toEntity());
     } on DioException catch (e) {
-      return Left(ServerFailure(
-        message: NetworkExceptions.getErrorMessage(
-          NetworkExceptions.getDioException(e),
+      return Left(
+        ServerFailure(
+          message: NetworkExceptions.getErrorMessage(
+            NetworkExceptions.getDioException(e),
+          ),
         ),
-      ));
+      );
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
     }

@@ -36,14 +36,16 @@ class AuthRepositoryImpl implements AuthRepository {
       // Get user details
       final user = await remoteDataSource.getCurrentUser();
 
-      return Right(UserEntity(
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        tenantId: user.tenantId,
-        is2faEnabled: user.is2faEnabled,
-      ));
+      return Right(
+        UserEntity(
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          tenantId: user.tenantId,
+          is2faEnabled: user.is2faEnabled,
+        ),
+      );
     } on ServerException catch (e) {
       return Left(ServerFailure(message: e.message, code: e.code));
     } on AuthException catch (e) {
@@ -78,14 +80,16 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       final user = await remoteDataSource.getCurrentUser();
 
-      return Right(UserEntity(
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        tenantId: user.tenantId,
-        is2faEnabled: user.is2faEnabled,
-      ));
+      return Right(
+        UserEntity(
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          tenantId: user.tenantId,
+          is2faEnabled: user.is2faEnabled,
+        ),
+      );
     } on ServerException catch (e) {
       return Left(ServerFailure(message: e.message, code: e.code));
     } catch (e) {

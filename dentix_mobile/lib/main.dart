@@ -16,10 +16,6 @@ final authProvider = StateNotifierProvider<AuthNotifier, AuthState>((ref) {
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  runApp(
-    const ProviderScope(
-      child: DentixApp(),
-    ),
-  );
+
+  runApp(const ProviderScope(child: DentixApp()));
 }

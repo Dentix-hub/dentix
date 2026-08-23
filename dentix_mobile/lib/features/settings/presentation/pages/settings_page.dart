@@ -28,9 +28,9 @@ class SettingsPage extends ConsumerWidget {
           children: [
             // User Profile Section
             _buildProfileSection(context, authState),
-            
+
             const Divider(),
-            
+
             // Appearance Section
             _buildSectionTitle(context, l10n.appearance),
             ListTile(
@@ -47,9 +47,9 @@ class SettingsPage extends ConsumerWidget {
               trailing: const Icon(Icons.chevron_right),
               onTap: () => _showLanguageDialog(context, ref, locale, l10n),
             ),
-            
+
             const Divider(),
-            
+
             // Account Section
             _buildSectionTitle(context, l10n.account),
             ListTile(
@@ -65,9 +65,9 @@ class SettingsPage extends ConsumerWidget {
                 );
               },
             ),
-            
+
             const Divider(),
-            
+
             // Logout
             ListTile(
               leading: const Icon(Icons.logout, color: AppColors.error),
@@ -79,7 +79,7 @@ class SettingsPage extends ConsumerWidget {
                 _showLogoutDialog(context, ref);
               },
             ),
-            
+
             const SizedBox(height: 32),
           ],
         ),
@@ -88,9 +88,7 @@ class SettingsPage extends ConsumerWidget {
   }
 
   Widget _buildProfileSection(BuildContext context, AuthState authState) {
-    final user = authState.mapOrNull(
-      authenticated: (state) => state.user,
-    );
+    final user = authState.mapOrNull(authenticated: (state) => state.user);
 
     final String displayName = user?.username ?? 'User'; // Fallback
     final String displayEmail = user?.email ?? '';
@@ -134,9 +132,7 @@ class SettingsPage extends ConsumerWidget {
                   const SizedBox(height: 4),
                   Text(
                     displayEmail,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                    ),
+                    style: const TextStyle(color: AppColors.textSecondary),
                   ),
                 ],
               ],
@@ -159,9 +155,9 @@ class SettingsPage extends ConsumerWidget {
       child: Text(
         title,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: AppColors.primary,
-              fontWeight: FontWeight.bold,
-            ),
+          color: AppColors.primary,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }

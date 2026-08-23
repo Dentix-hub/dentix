@@ -21,36 +21,36 @@ _$TreatmentModelImpl _$$TreatmentModelImplFromJson(Map<String, dynamic> json) =>
     );
 
 Map<String, dynamic> _$$TreatmentModelImplToJson(
-        _$TreatmentModelImpl instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'patient_id': instance.patientId,
-      'appointment_id': instance.appointmentId,
-      'procedure_type': instance.procedureType,
-      'description': instance.description,
-      'cost': instance.cost,
-      'status': instance.status,
-      'treatment_date': instance.treatmentDate,
-      'created_at': instance.createdAt,
-      'updated_at': instance.updatedAt,
-    };
+  _$TreatmentModelImpl instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'patient_id': instance.patientId,
+  'appointment_id': instance.appointmentId,
+  'procedure_type': instance.procedureType,
+  'description': instance.description,
+  'cost': instance.cost,
+  'status': instance.status,
+  'treatment_date': instance.treatmentDate,
+  'created_at': instance.createdAt,
+  'updated_at': instance.updatedAt,
+};
 
 _$TreatmentListResponseImpl _$$TreatmentListResponseImplFromJson(
-        Map<String, dynamic> json) =>
-    _$TreatmentListResponseImpl(
-      items: (json['items'] as List<dynamic>)
-          .map((e) => TreatmentModel.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      total: (json['total'] as num).toInt(),
-      currentPage: (json['page'] as num).toInt(),
-      totalPages: (json['pages'] as num).toInt(),
-    );
+  Map<String, dynamic> json,
+) => _$TreatmentListResponseImpl(
+  items: (json['items'] as List<dynamic>)
+      .map((e) => TreatmentModel.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  total: (json['total'] as num).toInt(),
+  currentPage: (json['page'] as num).toInt(),
+  totalPages: (json['pages'] as num).toInt(),
+);
 
 Map<String, dynamic> _$$TreatmentListResponseImplToJson(
-        _$TreatmentListResponseImpl instance) =>
-    <String, dynamic>{
-      'items': instance.items,
-      'total': instance.total,
-      'page': instance.currentPage,
-      'pages': instance.totalPages,
-    };
+  _$TreatmentListResponseImpl instance,
+) => <String, dynamic>{
+  'items': instance.items,
+  'total': instance.total,
+  'page': instance.currentPage,
+  'pages': instance.totalPages,
+};

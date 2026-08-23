@@ -65,7 +65,9 @@ class _PatientListPageState extends ConsumerState<PatientListPage> {
                 onChanged: (value) {
                   _debounceTimer?.cancel();
                   _debounceTimer = Timer(_debounceDelay, () {
-                    ref.read(patientListNotifierProvider.notifier).searchPatients(value);
+                    ref
+                        .read(patientListNotifierProvider.notifier)
+                        .searchPatients(value);
                   });
                 },
                 decoration: InputDecoration(
@@ -77,19 +79,20 @@ class _PatientListPageState extends ConsumerState<PatientListPage> {
                 ),
               ),
             ),
-            
+
             // Patient List
             Expanded(
               child: state.when(
                 initial: () => const SizedBox.shrink(),
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (message) => _buildErrorView(message),
-                loaded: (patients, totalPages, currentPage, hasMore, searchQuery) {
-                  if (patients.isEmpty) {
-                    return _buildEmptyState();
-                  }
-                  return _buildPatientList(patients, hasMore);
-                },
+                loaded:
+                    (patients, totalPages, currentPage, hasMore, searchQuery) {
+                      if (patients.isEmpty) {
+                        return _buildEmptyState();
+                      }
+                      return _buildPatientList(patients, hasMore);
+                    },
               ),
             ),
           ],
@@ -99,9 +102,7 @@ class _PatientListPageState extends ConsumerState<PatientListPage> {
         onPressed: () {
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => const AddPatientPage(),
-            ),
+            MaterialPageRoute(builder: (context) => const AddPatientPage()),
           );
         },
         icon: const Icon(Icons.add),
@@ -114,7 +115,9 @@ class _PatientListPageState extends ConsumerState<PatientListPage> {
     return ErrorRetryWidget(
       message: message,
       onRetry: () {
-        ref.read(patientListNotifierProvider.notifier).loadPatients(refresh: true);
+        ref
+            .read(patientListNotifierProvider.notifier)
+            .loadPatients(refresh: true);
       },
     );
   }
@@ -130,7 +133,7 @@ class _PatientListPageState extends ConsumerState<PatientListPage> {
             child: Center(child: CircularProgressIndicator()),
           );
         }
-        
+
         final patient = patients[index];
         return _buildPatientCard(patient);
       },
@@ -144,7 +147,9 @@ class _PatientListPageState extends ConsumerState<PatientListPage> {
         leading: CircleAvatar(
           backgroundColor: AppColors.primary,
           child: Text(
-            patient.fullName.isNotEmpty ? patient.fullName[0].toUpperCase() : '?',
+            patient.fullName.isNotEmpty
+                ? patient.fullName[0].toUpperCase()
+                : '?',
             style: const TextStyle(color: Colors.white),
           ),
         ),

@@ -95,47 +95,56 @@ class _FinancialOverviewPageState extends ConsumerState<FinancialOverviewPage> {
             ],
           ),
         ),
-        loaded: (transactions, totalRevenue, totalExpenses, netIncome,
-            currentPage, totalPages, hasMore, selectedMonth) {
-          return RefreshIndicator(
-            onRefresh: () async {
-              await ref
-                  .read(financialNotifierProvider.notifier)
-                  .loadFinancialOverview(month: _selectedMonth, refresh: true);
-            },
-            child: CustomScrollView(
-              controller: _scrollController,
-              slivers: [
-                // Summary cards
-                SliverToBoxAdapter(
-                  child: _buildSummaryCards(
-                    totalRevenue: totalRevenue,
-                    totalExpenses: totalExpenses,
-                    netIncome: netIncome,
-                  ),
-                ),
-                // Transactions list
-                SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      if (index >= transactions.length) {
-                        if (hasMore) {
-                          return const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Center(child: CircularProgressIndicator()),
-                          );
+        loaded:
+            (
+              transactions,
+              totalRevenue,
+              totalExpenses,
+              netIncome,
+              currentPage,
+              totalPages,
+              hasMore,
+              selectedMonth,
+            ) {
+              return RefreshIndicator(
+                onRefresh: () async {
+                  await ref
+                      .read(financialNotifierProvider.notifier)
+                      .loadFinancialOverview(
+                        month: _selectedMonth,
+                        refresh: true,
+                      );
+                },
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  slivers: [
+                    // Summary cards
+                    SliverToBoxAdapter(
+                      child: _buildSummaryCards(
+                        totalRevenue: totalRevenue,
+                        totalExpenses: totalExpenses,
+                        netIncome: netIncome,
+                      ),
+                    ),
+                    // Transactions list
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        if (index >= transactions.length) {
+                          if (hasMore) {
+                            return const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Center(child: CircularProgressIndicator()),
+                            );
+                          }
+                          return const SizedBox.shrink();
                         }
-                        return const SizedBox.shrink();
-                      }
-                      return _buildTransactionCard(transactions[index]);
-                    },
-                    childCount: transactions.length + (hasMore ? 1 : 0),
-                  ),
+                        return _buildTransactionCard(transactions[index]);
+                      }, childCount: transactions.length + (hasMore ? 1 : 0)),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          );
-        },
+              );
+            },
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showRecordPaymentSheet(context),
@@ -250,7 +259,9 @@ class _FinancialOverviewPageState extends ConsumerState<FinancialOverviewPage> {
             color: color,
           ),
         ),
-        title: Text(transaction.description ?? l10n.transactionNumber(transaction.id)),
+        title: Text(
+          transaction.description ?? l10n.transactionNumber(transaction.id),
+        ),
         subtitle: Text(
           DateFormat('MMM d, yyyy').format(DateTime.parse(transaction.date)),
         ),

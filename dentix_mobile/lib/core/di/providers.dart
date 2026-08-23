@@ -34,25 +34,23 @@ import '../network/retry_interceptor.dart';
 final secureStorageProvider = Provider((ref) => const FlutterSecureStorage());
 
 final authInterceptorProvider = Provider((ref) {
-  return AuthInterceptor(
-    secureStorage: ref.watch(secureStorageProvider),
-  );
+  return AuthInterceptor(secureStorage: ref.watch(secureStorageProvider));
 });
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = DioClient.dio;
-  
+
   // Add interceptors safely
   bool hasAuthInterceptor = dio.interceptors.any((i) => i is AuthInterceptor);
   if (!hasAuthInterceptor) {
     dio.interceptors.add(ref.watch(authInterceptorProvider));
   }
-  
+
   bool hasRetryInterceptor = dio.interceptors.any((i) => i is RetryInterceptor);
   if (!hasRetryInterceptor) {
     dio.interceptors.add(RetryInterceptor());
   }
-  
+
   // Configure base URL.
   // HIGH-07: production/staging base URLs must be injected at build time via
   // --dart-define=DENTIX_API_BASE_URL=https://... Localhost fallbacks exist
@@ -67,7 +65,7 @@ final dioProvider = Provider<Dio>((ref) {
   }
 
   DioClient.configureBaseUrl(baseUrl);
-  
+
   return dio;
 });
 
@@ -98,7 +96,9 @@ final changePasswordUseCaseProvider = Provider<ChangePasswordUseCase>((ref) {
 
 // ==================== FINANCIAL ====================
 
-final financialRemoteDataSourceProvider = Provider<FinancialRemoteDataSource>((ref) {
+final financialRemoteDataSourceProvider = Provider<FinancialRemoteDataSource>((
+  ref,
+) {
   return FinancialRemoteDataSource();
 });
 
@@ -106,9 +106,12 @@ final financialRepositoryProvider = Provider<FinancialRepository>((ref) {
   return FinancialRepositoryImpl(ref.watch(financialRemoteDataSourceProvider));
 });
 
-final getFinancialOverviewUseCaseProvider = Provider<GetFinancialOverviewUseCase>((ref) {
-  return GetFinancialOverviewUseCase(ref.watch(financialRepositoryProvider));
-});
+final getFinancialOverviewUseCaseProvider =
+    Provider<GetFinancialOverviewUseCase>((ref) {
+      return GetFinancialOverviewUseCase(
+        ref.watch(financialRepositoryProvider),
+      );
+    });
 
 final recordPaymentUseCaseProvider = Provider<RecordPaymentUseCase>((ref) {
   return RecordPaymentUseCase(ref.watch(financialRepositoryProvider));
@@ -116,25 +119,34 @@ final recordPaymentUseCaseProvider = Provider<RecordPaymentUseCase>((ref) {
 
 // ==================== PRESCRIPTIONS ====================
 
-final prescriptionRemoteDataSourceProvider = Provider<PrescriptionRemoteDataSource>((ref) {
-  return PrescriptionRemoteDataSource();
-});
+final prescriptionRemoteDataSourceProvider =
+    Provider<PrescriptionRemoteDataSource>((ref) {
+      return PrescriptionRemoteDataSource();
+    });
 
 final prescriptionRepositoryProvider = Provider<PrescriptionRepository>((ref) {
-  return PrescriptionRepositoryImpl(ref.watch(prescriptionRemoteDataSourceProvider));
+  return PrescriptionRepositoryImpl(
+    ref.watch(prescriptionRemoteDataSourceProvider),
+  );
 });
 
-final getPrescriptionsUseCaseProvider = Provider<GetPrescriptionsUseCase>((ref) {
+final getPrescriptionsUseCaseProvider = Provider<GetPrescriptionsUseCase>((
+  ref,
+) {
   return GetPrescriptionsUseCase(ref.watch(prescriptionRepositoryProvider));
 });
 
-final createPrescriptionUseCaseProvider = Provider<CreatePrescriptionUseCase>((ref) {
+final createPrescriptionUseCaseProvider = Provider<CreatePrescriptionUseCase>((
+  ref,
+) {
   return CreatePrescriptionUseCase(ref.watch(prescriptionRepositoryProvider));
 });
 
 // ==================== LAB ORDERS ====================
 
-final labOrderRemoteDataSourceProvider = Provider<LabOrderRemoteDataSource>((ref) {
+final labOrderRemoteDataSourceProvider = Provider<LabOrderRemoteDataSource>((
+  ref,
+) {
   return LabOrderRemoteDataSource();
 });
 

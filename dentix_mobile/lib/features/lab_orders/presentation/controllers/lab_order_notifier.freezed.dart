@@ -12,7 +12,8 @@ part of 'lab_order_notifier.dart';
 T _$identity<T>(T value) => value;
 
 final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
+  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
+);
 
 /// @nodoc
 mixin _$LabOrderState {
@@ -21,63 +22,61 @@ mixin _$LabOrderState {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(
-            List<LabOrderEntity> labOrders,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            LabOrderStatus? filterStatus,
-            int? selectedPatientId)
-        loaded,
+      List<LabOrderEntity> labOrders,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      LabOrderStatus? filterStatus,
+      int? selectedPatientId,
+    )
+    loaded,
     required TResult Function(String message) error,
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(
-            List<LabOrderEntity> labOrders,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            LabOrderStatus? filterStatus,
-            int? selectedPatientId)?
-        loaded,
+      List<LabOrderEntity> labOrders,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      LabOrderStatus? filterStatus,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult? Function(String message)? error,
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(
-            List<LabOrderEntity> labOrders,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            LabOrderStatus? filterStatus,
-            int? selectedPatientId)?
-        loaded,
+      List<LabOrderEntity> labOrders,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      LabOrderStatus? filterStatus,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult map<TResult extends Object?>({
     required TResult Function(_Initial value) initial,
     required TResult Function(_Loading value) loading,
     required TResult Function(_Loaded value) loaded,
     required TResult Function(_Error value) error,
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult? mapOrNull<TResult extends Object?>({
     TResult? Function(_Initial value)? initial,
     TResult? Function(_Loading value)? loading,
     TResult? Function(_Loaded value)? loaded,
     TResult? Function(_Error value)? error,
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult maybeMap<TResult extends Object?>({
     TResult Function(_Initial value)? initial,
@@ -85,15 +84,15 @@ mixin _$LabOrderState {
     TResult Function(_Loaded value)? loaded,
     TResult Function(_Error value)? error,
     required TResult orElse(),
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
 }
 
 /// @nodoc
 abstract class $LabOrderStateCopyWith<$Res> {
   factory $LabOrderStateCopyWith(
-          LabOrderState value, $Res Function(LabOrderState) then) =
-      _$LabOrderStateCopyWithImpl<$Res, LabOrderState>;
+    LabOrderState value,
+    $Res Function(LabOrderState) then,
+  ) = _$LabOrderStateCopyWithImpl<$Res, LabOrderState>;
 }
 
 /// @nodoc
@@ -110,8 +109,9 @@ class _$LabOrderStateCopyWithImpl<$Res, $Val extends LabOrderState>
 /// @nodoc
 abstract class _$$InitialImplCopyWith<$Res> {
   factory _$$InitialImplCopyWith(
-          _$InitialImpl value, $Res Function(_$InitialImpl) then) =
-      __$$InitialImplCopyWithImpl<$Res>;
+    _$InitialImpl value,
+    $Res Function(_$InitialImpl) then,
+  ) = __$$InitialImplCopyWithImpl<$Res>;
 }
 
 /// @nodoc
@@ -119,8 +119,9 @@ class __$$InitialImplCopyWithImpl<$Res>
     extends _$LabOrderStateCopyWithImpl<$Res, _$InitialImpl>
     implements _$$InitialImplCopyWith<$Res> {
   __$$InitialImplCopyWithImpl(
-      _$InitialImpl _value, $Res Function(_$InitialImpl) _then)
-      : super(_value, _then);
+    _$InitialImpl _value,
+    $Res Function(_$InitialImpl) _then,
+  ) : super(_value, _then);
 }
 
 /// @nodoc
@@ -148,13 +149,14 @@ class _$InitialImpl implements _Initial {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(
-            List<LabOrderEntity> labOrders,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            LabOrderStatus? filterStatus,
-            int? selectedPatientId)
-        loaded,
+      List<LabOrderEntity> labOrders,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      LabOrderStatus? filterStatus,
+      int? selectedPatientId,
+    )
+    loaded,
     required TResult Function(String message) error,
   }) {
     return initial();
@@ -166,13 +168,14 @@ class _$InitialImpl implements _Initial {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(
-            List<LabOrderEntity> labOrders,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            LabOrderStatus? filterStatus,
-            int? selectedPatientId)?
-        loaded,
+      List<LabOrderEntity> labOrders,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      LabOrderStatus? filterStatus,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult? Function(String message)? error,
   }) {
     return initial?.call();
@@ -184,13 +187,14 @@ class _$InitialImpl implements _Initial {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(
-            List<LabOrderEntity> labOrders,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            LabOrderStatus? filterStatus,
-            int? selectedPatientId)?
-        loaded,
+      List<LabOrderEntity> labOrders,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      LabOrderStatus? filterStatus,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -245,8 +249,9 @@ abstract class _Initial implements LabOrderState {
 /// @nodoc
 abstract class _$$LoadingImplCopyWith<$Res> {
   factory _$$LoadingImplCopyWith(
-          _$LoadingImpl value, $Res Function(_$LoadingImpl) then) =
-      __$$LoadingImplCopyWithImpl<$Res>;
+    _$LoadingImpl value,
+    $Res Function(_$LoadingImpl) then,
+  ) = __$$LoadingImplCopyWithImpl<$Res>;
 }
 
 /// @nodoc
@@ -254,8 +259,9 @@ class __$$LoadingImplCopyWithImpl<$Res>
     extends _$LabOrderStateCopyWithImpl<$Res, _$LoadingImpl>
     implements _$$LoadingImplCopyWith<$Res> {
   __$$LoadingImplCopyWithImpl(
-      _$LoadingImpl _value, $Res Function(_$LoadingImpl) _then)
-      : super(_value, _then);
+    _$LoadingImpl _value,
+    $Res Function(_$LoadingImpl) _then,
+  ) : super(_value, _then);
 }
 
 /// @nodoc
@@ -283,13 +289,14 @@ class _$LoadingImpl implements _Loading {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(
-            List<LabOrderEntity> labOrders,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            LabOrderStatus? filterStatus,
-            int? selectedPatientId)
-        loaded,
+      List<LabOrderEntity> labOrders,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      LabOrderStatus? filterStatus,
+      int? selectedPatientId,
+    )
+    loaded,
     required TResult Function(String message) error,
   }) {
     return loading();
@@ -301,13 +308,14 @@ class _$LoadingImpl implements _Loading {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(
-            List<LabOrderEntity> labOrders,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            LabOrderStatus? filterStatus,
-            int? selectedPatientId)?
-        loaded,
+      List<LabOrderEntity> labOrders,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      LabOrderStatus? filterStatus,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult? Function(String message)? error,
   }) {
     return loading?.call();
@@ -319,13 +327,14 @@ class _$LoadingImpl implements _Loading {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(
-            List<LabOrderEntity> labOrders,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            LabOrderStatus? filterStatus,
-            int? selectedPatientId)?
-        loaded,
+      List<LabOrderEntity> labOrders,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      LabOrderStatus? filterStatus,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -380,16 +389,18 @@ abstract class _Loading implements LabOrderState {
 /// @nodoc
 abstract class _$$LoadedImplCopyWith<$Res> {
   factory _$$LoadedImplCopyWith(
-          _$LoadedImpl value, $Res Function(_$LoadedImpl) then) =
-      __$$LoadedImplCopyWithImpl<$Res>;
+    _$LoadedImpl value,
+    $Res Function(_$LoadedImpl) then,
+  ) = __$$LoadedImplCopyWithImpl<$Res>;
   @useResult
-  $Res call(
-      {List<LabOrderEntity> labOrders,
-      int currentPage,
-      int totalPages,
-      bool hasMore,
-      LabOrderStatus? filterStatus,
-      int? selectedPatientId});
+  $Res call({
+    List<LabOrderEntity> labOrders,
+    int currentPage,
+    int totalPages,
+    bool hasMore,
+    LabOrderStatus? filterStatus,
+    int? selectedPatientId,
+  });
 }
 
 /// @nodoc
@@ -397,8 +408,9 @@ class __$$LoadedImplCopyWithImpl<$Res>
     extends _$LabOrderStateCopyWithImpl<$Res, _$LoadedImpl>
     implements _$$LoadedImplCopyWith<$Res> {
   __$$LoadedImplCopyWithImpl(
-      _$LoadedImpl _value, $Res Function(_$LoadedImpl) _then)
-      : super(_value, _then);
+    _$LoadedImpl _value,
+    $Res Function(_$LoadedImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -410,46 +422,48 @@ class __$$LoadedImplCopyWithImpl<$Res>
     Object? filterStatus = freezed,
     Object? selectedPatientId = freezed,
   }) {
-    return _then(_$LoadedImpl(
-      labOrders: null == labOrders
-          ? _value._labOrders
-          : labOrders // ignore: cast_nullable_to_non_nullable
-              as List<LabOrderEntity>,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-      hasMore: null == hasMore
-          ? _value.hasMore
-          : hasMore // ignore: cast_nullable_to_non_nullable
-              as bool,
-      filterStatus: freezed == filterStatus
-          ? _value.filterStatus
-          : filterStatus // ignore: cast_nullable_to_non_nullable
-              as LabOrderStatus?,
-      selectedPatientId: freezed == selectedPatientId
-          ? _value.selectedPatientId
-          : selectedPatientId // ignore: cast_nullable_to_non_nullable
-              as int?,
-    ));
+    return _then(
+      _$LoadedImpl(
+        labOrders: null == labOrders
+            ? _value._labOrders
+            : labOrders // ignore: cast_nullable_to_non_nullable
+                  as List<LabOrderEntity>,
+        currentPage: null == currentPage
+            ? _value.currentPage
+            : currentPage // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalPages: null == totalPages
+            ? _value.totalPages
+            : totalPages // ignore: cast_nullable_to_non_nullable
+                  as int,
+        hasMore: null == hasMore
+            ? _value.hasMore
+            : hasMore // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        filterStatus: freezed == filterStatus
+            ? _value.filterStatus
+            : filterStatus // ignore: cast_nullable_to_non_nullable
+                  as LabOrderStatus?,
+        selectedPatientId: freezed == selectedPatientId
+            ? _value.selectedPatientId
+            : selectedPatientId // ignore: cast_nullable_to_non_nullable
+                  as int?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 
 class _$LoadedImpl implements _Loaded {
-  const _$LoadedImpl(
-      {required final List<LabOrderEntity> labOrders,
-      required this.currentPage,
-      required this.totalPages,
-      required this.hasMore,
-      this.filterStatus,
-      this.selectedPatientId})
-      : _labOrders = labOrders;
+  const _$LoadedImpl({
+    required final List<LabOrderEntity> labOrders,
+    required this.currentPage,
+    required this.totalPages,
+    required this.hasMore,
+    this.filterStatus,
+    this.selectedPatientId,
+  }) : _labOrders = labOrders;
 
   final List<LabOrderEntity> _labOrders;
   @override
@@ -480,8 +494,10 @@ class _$LoadedImpl implements _Loaded {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$LoadedImpl &&
-            const DeepCollectionEquality()
-                .equals(other._labOrders, _labOrders) &&
+            const DeepCollectionEquality().equals(
+              other._labOrders,
+              _labOrders,
+            ) &&
             (identical(other.currentPage, currentPage) ||
                 other.currentPage == currentPage) &&
             (identical(other.totalPages, totalPages) ||
@@ -495,13 +511,14 @@ class _$LoadedImpl implements _Loaded {
 
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      const DeepCollectionEquality().hash(_labOrders),
-      currentPage,
-      totalPages,
-      hasMore,
-      filterStatus,
-      selectedPatientId);
+    runtimeType,
+    const DeepCollectionEquality().hash(_labOrders),
+    currentPage,
+    totalPages,
+    hasMore,
+    filterStatus,
+    selectedPatientId,
+  );
 
   @JsonKey(ignore: true)
   @override
@@ -515,17 +532,24 @@ class _$LoadedImpl implements _Loaded {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(
-            List<LabOrderEntity> labOrders,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            LabOrderStatus? filterStatus,
-            int? selectedPatientId)
-        loaded,
+      List<LabOrderEntity> labOrders,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      LabOrderStatus? filterStatus,
+      int? selectedPatientId,
+    )
+    loaded,
     required TResult Function(String message) error,
   }) {
-    return loaded(labOrders, currentPage, totalPages, hasMore, filterStatus,
-        selectedPatientId);
+    return loaded(
+      labOrders,
+      currentPage,
+      totalPages,
+      hasMore,
+      filterStatus,
+      selectedPatientId,
+    );
   }
 
   @override
@@ -534,17 +558,24 @@ class _$LoadedImpl implements _Loaded {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(
-            List<LabOrderEntity> labOrders,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            LabOrderStatus? filterStatus,
-            int? selectedPatientId)?
-        loaded,
+      List<LabOrderEntity> labOrders,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      LabOrderStatus? filterStatus,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult? Function(String message)? error,
   }) {
-    return loaded?.call(labOrders, currentPage, totalPages, hasMore,
-        filterStatus, selectedPatientId);
+    return loaded?.call(
+      labOrders,
+      currentPage,
+      totalPages,
+      hasMore,
+      filterStatus,
+      selectedPatientId,
+    );
   }
 
   @override
@@ -553,19 +584,26 @@ class _$LoadedImpl implements _Loaded {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(
-            List<LabOrderEntity> labOrders,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            LabOrderStatus? filterStatus,
-            int? selectedPatientId)?
-        loaded,
+      List<LabOrderEntity> labOrders,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      LabOrderStatus? filterStatus,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
     if (loaded != null) {
-      return loaded(labOrders, currentPage, totalPages, hasMore, filterStatus,
-          selectedPatientId);
+      return loaded(
+        labOrders,
+        currentPage,
+        totalPages,
+        hasMore,
+        filterStatus,
+        selectedPatientId,
+      );
     }
     return orElse();
   }
@@ -609,13 +647,14 @@ class _$LoadedImpl implements _Loaded {
 }
 
 abstract class _Loaded implements LabOrderState {
-  const factory _Loaded(
-      {required final List<LabOrderEntity> labOrders,
-      required final int currentPage,
-      required final int totalPages,
-      required final bool hasMore,
-      final LabOrderStatus? filterStatus,
-      final int? selectedPatientId}) = _$LoadedImpl;
+  const factory _Loaded({
+    required final List<LabOrderEntity> labOrders,
+    required final int currentPage,
+    required final int totalPages,
+    required final bool hasMore,
+    final LabOrderStatus? filterStatus,
+    final int? selectedPatientId,
+  }) = _$LoadedImpl;
 
   List<LabOrderEntity> get labOrders;
   int get currentPage;
@@ -631,8 +670,9 @@ abstract class _Loaded implements LabOrderState {
 /// @nodoc
 abstract class _$$ErrorImplCopyWith<$Res> {
   factory _$$ErrorImplCopyWith(
-          _$ErrorImpl value, $Res Function(_$ErrorImpl) then) =
-      __$$ErrorImplCopyWithImpl<$Res>;
+    _$ErrorImpl value,
+    $Res Function(_$ErrorImpl) then,
+  ) = __$$ErrorImplCopyWithImpl<$Res>;
   @useResult
   $Res call({String message});
 }
@@ -642,20 +682,21 @@ class __$$ErrorImplCopyWithImpl<$Res>
     extends _$LabOrderStateCopyWithImpl<$Res, _$ErrorImpl>
     implements _$$ErrorImplCopyWith<$Res> {
   __$$ErrorImplCopyWithImpl(
-      _$ErrorImpl _value, $Res Function(_$ErrorImpl) _then)
-      : super(_value, _then);
+    _$ErrorImpl _value,
+    $Res Function(_$ErrorImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
-  $Res call({
-    Object? message = null,
-  }) {
-    return _then(_$ErrorImpl(
-      null == message
-          ? _value.message
-          : message // ignore: cast_nullable_to_non_nullable
-              as String,
-    ));
+  $Res call({Object? message = null}) {
+    return _then(
+      _$ErrorImpl(
+        null == message
+            ? _value.message
+            : message // ignore: cast_nullable_to_non_nullable
+                  as String,
+      ),
+    );
   }
 }
 
@@ -695,13 +736,14 @@ class _$ErrorImpl implements _Error {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(
-            List<LabOrderEntity> labOrders,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            LabOrderStatus? filterStatus,
-            int? selectedPatientId)
-        loaded,
+      List<LabOrderEntity> labOrders,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      LabOrderStatus? filterStatus,
+      int? selectedPatientId,
+    )
+    loaded,
     required TResult Function(String message) error,
   }) {
     return error(message);
@@ -713,13 +755,14 @@ class _$ErrorImpl implements _Error {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(
-            List<LabOrderEntity> labOrders,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            LabOrderStatus? filterStatus,
-            int? selectedPatientId)?
-        loaded,
+      List<LabOrderEntity> labOrders,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      LabOrderStatus? filterStatus,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult? Function(String message)? error,
   }) {
     return error?.call(message);
@@ -731,13 +774,14 @@ class _$ErrorImpl implements _Error {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(
-            List<LabOrderEntity> labOrders,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            LabOrderStatus? filterStatus,
-            int? selectedPatientId)?
-        loaded,
+      List<LabOrderEntity> labOrders,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      LabOrderStatus? filterStatus,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {

@@ -12,7 +12,8 @@ part of 'financial_notifier.dart';
 T _$identity<T>(T value) => value;
 
 final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
+  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
+);
 
 /// @nodoc
 mixin _$FinancialState {
@@ -21,69 +22,67 @@ mixin _$FinancialState {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(
-            List<FinancialTransactionEntity> transactions,
-            int totalRevenue,
-            int totalExpenses,
-            double netIncome,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            String? selectedMonth)
-        loaded,
+      List<FinancialTransactionEntity> transactions,
+      int totalRevenue,
+      int totalExpenses,
+      double netIncome,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      String? selectedMonth,
+    )
+    loaded,
     required TResult Function(String message) error,
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(
-            List<FinancialTransactionEntity> transactions,
-            int totalRevenue,
-            int totalExpenses,
-            double netIncome,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            String? selectedMonth)?
-        loaded,
+      List<FinancialTransactionEntity> transactions,
+      int totalRevenue,
+      int totalExpenses,
+      double netIncome,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      String? selectedMonth,
+    )?
+    loaded,
     TResult? Function(String message)? error,
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(
-            List<FinancialTransactionEntity> transactions,
-            int totalRevenue,
-            int totalExpenses,
-            double netIncome,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            String? selectedMonth)?
-        loaded,
+      List<FinancialTransactionEntity> transactions,
+      int totalRevenue,
+      int totalExpenses,
+      double netIncome,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      String? selectedMonth,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult map<TResult extends Object?>({
     required TResult Function(_Initial value) initial,
     required TResult Function(_Loading value) loading,
     required TResult Function(_Loaded value) loaded,
     required TResult Function(_Error value) error,
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult? mapOrNull<TResult extends Object?>({
     TResult? Function(_Initial value)? initial,
     TResult? Function(_Loading value)? loading,
     TResult? Function(_Loaded value)? loaded,
     TResult? Function(_Error value)? error,
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult maybeMap<TResult extends Object?>({
     TResult Function(_Initial value)? initial,
@@ -91,15 +90,15 @@ mixin _$FinancialState {
     TResult Function(_Loaded value)? loaded,
     TResult Function(_Error value)? error,
     required TResult orElse(),
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
 }
 
 /// @nodoc
 abstract class $FinancialStateCopyWith<$Res> {
   factory $FinancialStateCopyWith(
-          FinancialState value, $Res Function(FinancialState) then) =
-      _$FinancialStateCopyWithImpl<$Res, FinancialState>;
+    FinancialState value,
+    $Res Function(FinancialState) then,
+  ) = _$FinancialStateCopyWithImpl<$Res, FinancialState>;
 }
 
 /// @nodoc
@@ -116,8 +115,9 @@ class _$FinancialStateCopyWithImpl<$Res, $Val extends FinancialState>
 /// @nodoc
 abstract class _$$InitialImplCopyWith<$Res> {
   factory _$$InitialImplCopyWith(
-          _$InitialImpl value, $Res Function(_$InitialImpl) then) =
-      __$$InitialImplCopyWithImpl<$Res>;
+    _$InitialImpl value,
+    $Res Function(_$InitialImpl) then,
+  ) = __$$InitialImplCopyWithImpl<$Res>;
 }
 
 /// @nodoc
@@ -125,8 +125,9 @@ class __$$InitialImplCopyWithImpl<$Res>
     extends _$FinancialStateCopyWithImpl<$Res, _$InitialImpl>
     implements _$$InitialImplCopyWith<$Res> {
   __$$InitialImplCopyWithImpl(
-      _$InitialImpl _value, $Res Function(_$InitialImpl) _then)
-      : super(_value, _then);
+    _$InitialImpl _value,
+    $Res Function(_$InitialImpl) _then,
+  ) : super(_value, _then);
 }
 
 /// @nodoc
@@ -154,15 +155,16 @@ class _$InitialImpl implements _Initial {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(
-            List<FinancialTransactionEntity> transactions,
-            int totalRevenue,
-            int totalExpenses,
-            double netIncome,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            String? selectedMonth)
-        loaded,
+      List<FinancialTransactionEntity> transactions,
+      int totalRevenue,
+      int totalExpenses,
+      double netIncome,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      String? selectedMonth,
+    )
+    loaded,
     required TResult Function(String message) error,
   }) {
     return initial();
@@ -174,15 +176,16 @@ class _$InitialImpl implements _Initial {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(
-            List<FinancialTransactionEntity> transactions,
-            int totalRevenue,
-            int totalExpenses,
-            double netIncome,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            String? selectedMonth)?
-        loaded,
+      List<FinancialTransactionEntity> transactions,
+      int totalRevenue,
+      int totalExpenses,
+      double netIncome,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      String? selectedMonth,
+    )?
+    loaded,
     TResult? Function(String message)? error,
   }) {
     return initial?.call();
@@ -194,15 +197,16 @@ class _$InitialImpl implements _Initial {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(
-            List<FinancialTransactionEntity> transactions,
-            int totalRevenue,
-            int totalExpenses,
-            double netIncome,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            String? selectedMonth)?
-        loaded,
+      List<FinancialTransactionEntity> transactions,
+      int totalRevenue,
+      int totalExpenses,
+      double netIncome,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      String? selectedMonth,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -257,8 +261,9 @@ abstract class _Initial implements FinancialState {
 /// @nodoc
 abstract class _$$LoadingImplCopyWith<$Res> {
   factory _$$LoadingImplCopyWith(
-          _$LoadingImpl value, $Res Function(_$LoadingImpl) then) =
-      __$$LoadingImplCopyWithImpl<$Res>;
+    _$LoadingImpl value,
+    $Res Function(_$LoadingImpl) then,
+  ) = __$$LoadingImplCopyWithImpl<$Res>;
 }
 
 /// @nodoc
@@ -266,8 +271,9 @@ class __$$LoadingImplCopyWithImpl<$Res>
     extends _$FinancialStateCopyWithImpl<$Res, _$LoadingImpl>
     implements _$$LoadingImplCopyWith<$Res> {
   __$$LoadingImplCopyWithImpl(
-      _$LoadingImpl _value, $Res Function(_$LoadingImpl) _then)
-      : super(_value, _then);
+    _$LoadingImpl _value,
+    $Res Function(_$LoadingImpl) _then,
+  ) : super(_value, _then);
 }
 
 /// @nodoc
@@ -295,15 +301,16 @@ class _$LoadingImpl implements _Loading {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(
-            List<FinancialTransactionEntity> transactions,
-            int totalRevenue,
-            int totalExpenses,
-            double netIncome,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            String? selectedMonth)
-        loaded,
+      List<FinancialTransactionEntity> transactions,
+      int totalRevenue,
+      int totalExpenses,
+      double netIncome,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      String? selectedMonth,
+    )
+    loaded,
     required TResult Function(String message) error,
   }) {
     return loading();
@@ -315,15 +322,16 @@ class _$LoadingImpl implements _Loading {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(
-            List<FinancialTransactionEntity> transactions,
-            int totalRevenue,
-            int totalExpenses,
-            double netIncome,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            String? selectedMonth)?
-        loaded,
+      List<FinancialTransactionEntity> transactions,
+      int totalRevenue,
+      int totalExpenses,
+      double netIncome,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      String? selectedMonth,
+    )?
+    loaded,
     TResult? Function(String message)? error,
   }) {
     return loading?.call();
@@ -335,15 +343,16 @@ class _$LoadingImpl implements _Loading {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(
-            List<FinancialTransactionEntity> transactions,
-            int totalRevenue,
-            int totalExpenses,
-            double netIncome,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            String? selectedMonth)?
-        loaded,
+      List<FinancialTransactionEntity> transactions,
+      int totalRevenue,
+      int totalExpenses,
+      double netIncome,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      String? selectedMonth,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -398,18 +407,20 @@ abstract class _Loading implements FinancialState {
 /// @nodoc
 abstract class _$$LoadedImplCopyWith<$Res> {
   factory _$$LoadedImplCopyWith(
-          _$LoadedImpl value, $Res Function(_$LoadedImpl) then) =
-      __$$LoadedImplCopyWithImpl<$Res>;
+    _$LoadedImpl value,
+    $Res Function(_$LoadedImpl) then,
+  ) = __$$LoadedImplCopyWithImpl<$Res>;
   @useResult
-  $Res call(
-      {List<FinancialTransactionEntity> transactions,
-      int totalRevenue,
-      int totalExpenses,
-      double netIncome,
-      int currentPage,
-      int totalPages,
-      bool hasMore,
-      String? selectedMonth});
+  $Res call({
+    List<FinancialTransactionEntity> transactions,
+    int totalRevenue,
+    int totalExpenses,
+    double netIncome,
+    int currentPage,
+    int totalPages,
+    bool hasMore,
+    String? selectedMonth,
+  });
 }
 
 /// @nodoc
@@ -417,8 +428,9 @@ class __$$LoadedImplCopyWithImpl<$Res>
     extends _$FinancialStateCopyWithImpl<$Res, _$LoadedImpl>
     implements _$$LoadedImplCopyWith<$Res> {
   __$$LoadedImplCopyWithImpl(
-      _$LoadedImpl _value, $Res Function(_$LoadedImpl) _then)
-      : super(_value, _then);
+    _$LoadedImpl _value,
+    $Res Function(_$LoadedImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -432,56 +444,58 @@ class __$$LoadedImplCopyWithImpl<$Res>
     Object? hasMore = null,
     Object? selectedMonth = freezed,
   }) {
-    return _then(_$LoadedImpl(
-      transactions: null == transactions
-          ? _value._transactions
-          : transactions // ignore: cast_nullable_to_non_nullable
-              as List<FinancialTransactionEntity>,
-      totalRevenue: null == totalRevenue
-          ? _value.totalRevenue
-          : totalRevenue // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalExpenses: null == totalExpenses
-          ? _value.totalExpenses
-          : totalExpenses // ignore: cast_nullable_to_non_nullable
-              as int,
-      netIncome: null == netIncome
-          ? _value.netIncome
-          : netIncome // ignore: cast_nullable_to_non_nullable
-              as double,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-      hasMore: null == hasMore
-          ? _value.hasMore
-          : hasMore // ignore: cast_nullable_to_non_nullable
-              as bool,
-      selectedMonth: freezed == selectedMonth
-          ? _value.selectedMonth
-          : selectedMonth // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ));
+    return _then(
+      _$LoadedImpl(
+        transactions: null == transactions
+            ? _value._transactions
+            : transactions // ignore: cast_nullable_to_non_nullable
+                  as List<FinancialTransactionEntity>,
+        totalRevenue: null == totalRevenue
+            ? _value.totalRevenue
+            : totalRevenue // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalExpenses: null == totalExpenses
+            ? _value.totalExpenses
+            : totalExpenses // ignore: cast_nullable_to_non_nullable
+                  as int,
+        netIncome: null == netIncome
+            ? _value.netIncome
+            : netIncome // ignore: cast_nullable_to_non_nullable
+                  as double,
+        currentPage: null == currentPage
+            ? _value.currentPage
+            : currentPage // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalPages: null == totalPages
+            ? _value.totalPages
+            : totalPages // ignore: cast_nullable_to_non_nullable
+                  as int,
+        hasMore: null == hasMore
+            ? _value.hasMore
+            : hasMore // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        selectedMonth: freezed == selectedMonth
+            ? _value.selectedMonth
+            : selectedMonth // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 
 class _$LoadedImpl implements _Loaded {
-  const _$LoadedImpl(
-      {required final List<FinancialTransactionEntity> transactions,
-      required this.totalRevenue,
-      required this.totalExpenses,
-      required this.netIncome,
-      required this.currentPage,
-      required this.totalPages,
-      required this.hasMore,
-      this.selectedMonth})
-      : _transactions = transactions;
+  const _$LoadedImpl({
+    required final List<FinancialTransactionEntity> transactions,
+    required this.totalRevenue,
+    required this.totalExpenses,
+    required this.netIncome,
+    required this.currentPage,
+    required this.totalPages,
+    required this.hasMore,
+    this.selectedMonth,
+  }) : _transactions = transactions;
 
   final List<FinancialTransactionEntity> _transactions;
   @override
@@ -516,8 +530,10 @@ class _$LoadedImpl implements _Loaded {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$LoadedImpl &&
-            const DeepCollectionEquality()
-                .equals(other._transactions, _transactions) &&
+            const DeepCollectionEquality().equals(
+              other._transactions,
+              _transactions,
+            ) &&
             (identical(other.totalRevenue, totalRevenue) ||
                 other.totalRevenue == totalRevenue) &&
             (identical(other.totalExpenses, totalExpenses) ||
@@ -535,15 +551,16 @@ class _$LoadedImpl implements _Loaded {
 
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      const DeepCollectionEquality().hash(_transactions),
-      totalRevenue,
-      totalExpenses,
-      netIncome,
-      currentPage,
-      totalPages,
-      hasMore,
-      selectedMonth);
+    runtimeType,
+    const DeepCollectionEquality().hash(_transactions),
+    totalRevenue,
+    totalExpenses,
+    netIncome,
+    currentPage,
+    totalPages,
+    hasMore,
+    selectedMonth,
+  );
 
   @JsonKey(ignore: true)
   @override
@@ -557,19 +574,28 @@ class _$LoadedImpl implements _Loaded {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(
-            List<FinancialTransactionEntity> transactions,
-            int totalRevenue,
-            int totalExpenses,
-            double netIncome,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            String? selectedMonth)
-        loaded,
+      List<FinancialTransactionEntity> transactions,
+      int totalRevenue,
+      int totalExpenses,
+      double netIncome,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      String? selectedMonth,
+    )
+    loaded,
     required TResult Function(String message) error,
   }) {
-    return loaded(transactions, totalRevenue, totalExpenses, netIncome,
-        currentPage, totalPages, hasMore, selectedMonth);
+    return loaded(
+      transactions,
+      totalRevenue,
+      totalExpenses,
+      netIncome,
+      currentPage,
+      totalPages,
+      hasMore,
+      selectedMonth,
+    );
   }
 
   @override
@@ -578,19 +604,28 @@ class _$LoadedImpl implements _Loaded {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(
-            List<FinancialTransactionEntity> transactions,
-            int totalRevenue,
-            int totalExpenses,
-            double netIncome,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            String? selectedMonth)?
-        loaded,
+      List<FinancialTransactionEntity> transactions,
+      int totalRevenue,
+      int totalExpenses,
+      double netIncome,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      String? selectedMonth,
+    )?
+    loaded,
     TResult? Function(String message)? error,
   }) {
-    return loaded?.call(transactions, totalRevenue, totalExpenses, netIncome,
-        currentPage, totalPages, hasMore, selectedMonth);
+    return loaded?.call(
+      transactions,
+      totalRevenue,
+      totalExpenses,
+      netIncome,
+      currentPage,
+      totalPages,
+      hasMore,
+      selectedMonth,
+    );
   }
 
   @override
@@ -599,21 +634,30 @@ class _$LoadedImpl implements _Loaded {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(
-            List<FinancialTransactionEntity> transactions,
-            int totalRevenue,
-            int totalExpenses,
-            double netIncome,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            String? selectedMonth)?
-        loaded,
+      List<FinancialTransactionEntity> transactions,
+      int totalRevenue,
+      int totalExpenses,
+      double netIncome,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      String? selectedMonth,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
     if (loaded != null) {
-      return loaded(transactions, totalRevenue, totalExpenses, netIncome,
-          currentPage, totalPages, hasMore, selectedMonth);
+      return loaded(
+        transactions,
+        totalRevenue,
+        totalExpenses,
+        netIncome,
+        currentPage,
+        totalPages,
+        hasMore,
+        selectedMonth,
+      );
     }
     return orElse();
   }
@@ -657,15 +701,16 @@ class _$LoadedImpl implements _Loaded {
 }
 
 abstract class _Loaded implements FinancialState {
-  const factory _Loaded(
-      {required final List<FinancialTransactionEntity> transactions,
-      required final int totalRevenue,
-      required final int totalExpenses,
-      required final double netIncome,
-      required final int currentPage,
-      required final int totalPages,
-      required final bool hasMore,
-      final String? selectedMonth}) = _$LoadedImpl;
+  const factory _Loaded({
+    required final List<FinancialTransactionEntity> transactions,
+    required final int totalRevenue,
+    required final int totalExpenses,
+    required final double netIncome,
+    required final int currentPage,
+    required final int totalPages,
+    required final bool hasMore,
+    final String? selectedMonth,
+  }) = _$LoadedImpl;
 
   List<FinancialTransactionEntity> get transactions;
   int get totalRevenue;
@@ -683,8 +728,9 @@ abstract class _Loaded implements FinancialState {
 /// @nodoc
 abstract class _$$ErrorImplCopyWith<$Res> {
   factory _$$ErrorImplCopyWith(
-          _$ErrorImpl value, $Res Function(_$ErrorImpl) then) =
-      __$$ErrorImplCopyWithImpl<$Res>;
+    _$ErrorImpl value,
+    $Res Function(_$ErrorImpl) then,
+  ) = __$$ErrorImplCopyWithImpl<$Res>;
   @useResult
   $Res call({String message});
 }
@@ -694,20 +740,21 @@ class __$$ErrorImplCopyWithImpl<$Res>
     extends _$FinancialStateCopyWithImpl<$Res, _$ErrorImpl>
     implements _$$ErrorImplCopyWith<$Res> {
   __$$ErrorImplCopyWithImpl(
-      _$ErrorImpl _value, $Res Function(_$ErrorImpl) _then)
-      : super(_value, _then);
+    _$ErrorImpl _value,
+    $Res Function(_$ErrorImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
-  $Res call({
-    Object? message = null,
-  }) {
-    return _then(_$ErrorImpl(
-      null == message
-          ? _value.message
-          : message // ignore: cast_nullable_to_non_nullable
-              as String,
-    ));
+  $Res call({Object? message = null}) {
+    return _then(
+      _$ErrorImpl(
+        null == message
+            ? _value.message
+            : message // ignore: cast_nullable_to_non_nullable
+                  as String,
+      ),
+    );
   }
 }
 
@@ -747,15 +794,16 @@ class _$ErrorImpl implements _Error {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(
-            List<FinancialTransactionEntity> transactions,
-            int totalRevenue,
-            int totalExpenses,
-            double netIncome,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            String? selectedMonth)
-        loaded,
+      List<FinancialTransactionEntity> transactions,
+      int totalRevenue,
+      int totalExpenses,
+      double netIncome,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      String? selectedMonth,
+    )
+    loaded,
     required TResult Function(String message) error,
   }) {
     return error(message);
@@ -767,15 +815,16 @@ class _$ErrorImpl implements _Error {
     TResult? Function()? initial,
     TResult? Function()? loading,
     TResult? Function(
-            List<FinancialTransactionEntity> transactions,
-            int totalRevenue,
-            int totalExpenses,
-            double netIncome,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            String? selectedMonth)?
-        loaded,
+      List<FinancialTransactionEntity> transactions,
+      int totalRevenue,
+      int totalExpenses,
+      double netIncome,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      String? selectedMonth,
+    )?
+    loaded,
     TResult? Function(String message)? error,
   }) {
     return error?.call(message);
@@ -787,15 +836,16 @@ class _$ErrorImpl implements _Error {
     TResult Function()? initial,
     TResult Function()? loading,
     TResult Function(
-            List<FinancialTransactionEntity> transactions,
-            int totalRevenue,
-            int totalExpenses,
-            double netIncome,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            String? selectedMonth)?
-        loaded,
+      List<FinancialTransactionEntity> transactions,
+      int totalRevenue,
+      int totalExpenses,
+      double netIncome,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      String? selectedMonth,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {

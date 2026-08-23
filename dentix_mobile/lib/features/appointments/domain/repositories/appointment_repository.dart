@@ -12,9 +12,9 @@ abstract class AppointmentRepository {
     String? endDate,
     int? patientId,
   });
-  
+
   Future<Either<Failure, AppointmentEntity>> getAppointmentById(int id);
-  
+
   Future<Either<Failure, AppointmentEntity>> createAppointment({
     required int patientId,
     required int dentistId,
@@ -24,7 +24,7 @@ abstract class AppointmentRepository {
     String? notes,
     String? procedureType,
   });
-  
+
   Future<Either<Failure, AppointmentEntity>> updateAppointment({
     required int id,
     required int patientId,
@@ -35,8 +35,8 @@ abstract class AppointmentRepository {
     String? notes,
     String? procedureType,
   });
-  
+
   Future<Either<Failure, void>> cancelAppointment(int id);
-  
+
   Future<Either<Failure, void>> completeAppointment(int id);
 }

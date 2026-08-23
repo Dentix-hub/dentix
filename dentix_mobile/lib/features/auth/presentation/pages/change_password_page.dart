@@ -10,8 +10,7 @@ class ChangePasswordPage extends ConsumerStatefulWidget {
   const ChangePasswordPage({super.key});
 
   @override
-  ConsumerState<ChangePasswordPage> createState() =>
-      _ChangePasswordPageState();
+  ConsumerState<ChangePasswordPage> createState() => _ChangePasswordPageState();
 }
 
 class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
@@ -19,7 +18,7 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  
+
   bool _isLoading = false;
   bool _obscureCurrent = true;
   bool _obscureNew = true;
@@ -38,9 +37,7 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.changePassword),
-      ),
+      appBar: AppBar(title: Text(l10n.changePassword)),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -56,9 +53,9 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
                   labelText: l10n.currentPassword,
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
-                    icon: Icon(_obscureCurrent
-                        ? Icons.visibility_off
-                        : Icons.visibility),
+                    icon: Icon(
+                      _obscureCurrent ? Icons.visibility_off : Icons.visibility,
+                    ),
                     onPressed: () {
                       setState(() => _obscureCurrent = !_obscureCurrent);
                     },
@@ -73,7 +70,7 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
                 },
               ),
               const SizedBox(height: 16),
-              
+
               // New Password
               TextFormField(
                 controller: _newPasswordController,
@@ -82,9 +79,9 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
                   labelText: l10n.newPassword,
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
-                    icon: Icon(_obscureNew
-                        ? Icons.visibility_off
-                        : Icons.visibility),
+                    icon: Icon(
+                      _obscureNew ? Icons.visibility_off : Icons.visibility,
+                    ),
                     onPressed: () {
                       setState(() => _obscureNew = !_obscureNew);
                     },
@@ -102,7 +99,7 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
                 },
               ),
               const SizedBox(height: 16),
-              
+
               // Confirm Password
               TextFormField(
                 controller: _confirmPasswordController,
@@ -111,9 +108,9 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
                   labelText: l10n.confirmPassword,
                   prefixIcon: const Icon(Icons.lock_outline),
                   suffixIcon: IconButton(
-                    icon: Icon(_obscureConfirm
-                        ? Icons.visibility_off
-                        : Icons.visibility),
+                    icon: Icon(
+                      _obscureConfirm ? Icons.visibility_off : Icons.visibility,
+                    ),
                     onPressed: () {
                       setState(() => _obscureConfirm = !_obscureConfirm);
                     },
@@ -131,7 +128,7 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
                 },
               ),
               const SizedBox(height: 24),
-              
+
               // Submit Button
               SizedBox(
                 height: 50,
@@ -154,10 +151,12 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
 
     setState(() => _isLoading = true);
 
-    final result = await ref.read(authProvider.notifier).changePassword(
-      currentPassword: _currentPasswordController.text,
-      newPassword: _newPasswordController.text,
-    );
+    final result = await ref
+        .read(authProvider.notifier)
+        .changePassword(
+          currentPassword: _currentPasswordController.text,
+          newPassword: _newPasswordController.text,
+        );
 
     setState(() => _isLoading = false);
 
@@ -173,7 +172,9 @@ class _ChangePasswordPageState extends ConsumerState<ChangePasswordPage> {
       final error = ref.read(authProvider).errorMessage;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(error ?? AppLocalizations.of(context)!.passwordChangeFailed),
+          content: Text(
+            error ?? AppLocalizations.of(context)!.passwordChangeFailed,
+          ),
           backgroundColor: AppColors.error,
         ),
       );

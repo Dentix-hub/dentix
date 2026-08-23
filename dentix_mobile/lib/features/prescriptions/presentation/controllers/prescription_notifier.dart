@@ -32,25 +32,18 @@ class PrescriptionNotifier extends StateNotifier<PrescriptionState> {
   PrescriptionNotifier({
     required GetPrescriptionsUseCase getPrescriptionsUseCase,
     required CreatePrescriptionUseCase createPrescriptionUseCase,
-  })  : _getPrescriptionsUseCase = getPrescriptionsUseCase,
-        _createPrescriptionUseCase = createPrescriptionUseCase,
-        super(const PrescriptionState.initial());
+  }) : _getPrescriptionsUseCase = getPrescriptionsUseCase,
+       _createPrescriptionUseCase = createPrescriptionUseCase,
+       super(const PrescriptionState.initial());
 
   /// Load prescriptions
-  Future<void> loadPrescriptions({
-    int? patientId,
-    bool refresh = false,
-  }) async {
+  Future<void> loadPrescriptions({int? patientId, bool refresh = false}) async {
     if (state is _Initial || refresh) {
       state = const PrescriptionState.loading();
     }
 
     final result = await _getPrescriptionsUseCase(
-      GetPrescriptionsParams(
-        page: 1,
-        limit: _pageSize,
-        patientId: patientId,
-      ),
+      GetPrescriptionsParams(page: 1, limit: _pageSize, patientId: patientId),
     );
 
     result.fold(
@@ -124,11 +117,15 @@ class PrescriptionNotifier extends StateNotifier<PrescriptionState> {
 /// Provider for prescription notifier
 final prescriptionNotifierProvider =
     StateNotifierProvider<PrescriptionNotifier, PrescriptionState>((ref) {
-  final getPrescriptionsUseCase = ref.watch(getPrescriptionsUseCaseProvider);
-  final createPrescriptionUseCase = ref.watch(createPrescriptionUseCaseProvider);
+      final getPrescriptionsUseCase = ref.watch(
+        getPrescriptionsUseCaseProvider,
+      );
+      final createPrescriptionUseCase = ref.watch(
+        createPrescriptionUseCaseProvider,
+      );
 
-  return PrescriptionNotifier(
-    getPrescriptionsUseCase: getPrescriptionsUseCase,
-    createPrescriptionUseCase: createPrescriptionUseCase,
-  );
-});
+      return PrescriptionNotifier(
+        getPrescriptionsUseCase: getPrescriptionsUseCase,
+        createPrescriptionUseCase: createPrescriptionUseCase,
+      );
+    });

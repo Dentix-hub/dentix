@@ -19,7 +19,9 @@ class FinancialRemoteDataSource {
   /// StandardResponse envelopes ({success, data}) unwrap to their payload;
   /// raw payloads (lists, plain maps) pass through untouched.
   dynamic _unwrap(dynamic data) {
-    if (data is Map && data.containsKey('success') && data.containsKey('data')) {
+    if (data is Map &&
+        data.containsKey('success') &&
+        data.containsKey('data')) {
       return data['data'];
     }
     return data;
@@ -72,17 +74,20 @@ class FinancialRemoteDataSource {
       },
     );
     final paymentsPayload = _unwrap(paymentsResponse.data);
-    final payments = _asList(paymentsPayload is Map
-        ? paymentsPayload['items']
-        : paymentsPayload);
+    final payments = _asList(
+      paymentsPayload is Map ? paymentsPayload['items'] : paymentsPayload,
+    );
 
     final totalItems = payments.length;
     final totalPages = limit > 0 ? (totalItems / limit).ceil() : 1;
 
     return FinancialOverviewResponseModel(
       items: payments
-          .map((raw) =>
-              FinancialTransactionModel.fromJson(_paymentToTransaction(_asMap(raw))))
+          .map(
+            (raw) => FinancialTransactionModel.fromJson(
+              _paymentToTransaction(_asMap(raw)),
+            ),
+          )
           .toList(),
       totalRevenue: _numOf(stats['total_revenue']).toInt(),
       totalExpenses: _numOf(stats['total_expenses']).toInt(),

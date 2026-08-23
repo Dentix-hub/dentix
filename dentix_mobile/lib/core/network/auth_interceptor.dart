@@ -10,7 +10,7 @@ class AuthInterceptor extends Interceptor {
   final FlutterSecureStorage _secureStorage;
 
   AuthInterceptor({FlutterSecureStorage? secureStorage})
-      : _secureStorage = secureStorage ?? const FlutterSecureStorage();
+    : _secureStorage = secureStorage ?? const FlutterSecureStorage();
 
   static const String _accessTokenKey = 'access_token';
   static const String _refreshTokenKey = 'refresh_token';
@@ -51,7 +51,7 @@ class AuthInterceptor extends Interceptor {
         final token = await _secureStorage.read(key: _accessTokenKey);
         final options = err.requestOptions;
         options.headers['Authorization'] = 'Bearer $token';
-        
+
         try {
           final response = await DioClient.dio.fetch(options);
           return handler.resolve(response);
@@ -64,7 +64,9 @@ class AuthInterceptor extends Interceptor {
         return handler.reject(
           DioException(
             requestOptions: err.requestOptions,
-            error: const AuthException(message: 'Session expired. Please login again.'),
+            error: const AuthException(
+              message: 'Session expired. Please login again.',
+            ),
           ),
         );
       }
@@ -81,9 +83,7 @@ class AuthInterceptor extends Interceptor {
       final response = await DioClient.dio.post(
         ApiEndpoints.refresh,
         data: {'refresh_token': refreshToken},
-        options: Options(
-          contentType: Headers.formUrlEncodedContentType,
-        ),
+        options: Options(contentType: Headers.formUrlEncodedContentType),
       );
 
       if (response.statusCode == 200) {
@@ -91,10 +91,16 @@ class AuthInterceptor extends Interceptor {
         final newRefreshToken = response.data['refresh_token'] as String?;
 
         if (newAccessToken != null) {
-          await _secureStorage.write(key: _accessTokenKey, value: newAccessToken);
+          await _secureStorage.write(
+            key: _accessTokenKey,
+            value: newAccessToken,
+          );
         }
         if (newRefreshToken != null) {
-          await _secureStorage.write(key: _refreshTokenKey, value: newRefreshToken);
+          await _secureStorage.write(
+            key: _refreshTokenKey,
+            value: newRefreshToken,
+          );
         }
 
         return true;
@@ -112,7 +118,10 @@ class AuthInterceptor extends Interceptor {
   }
 
   // Public methods for auth management
-  Future<void> saveTokens({required String accessToken, required String refreshToken}) async {
+  Future<void> saveTokens({
+    required String accessToken,
+    required String refreshToken,
+  }) async {
     await _secureStorage.write(key: _accessTokenKey, value: accessToken);
     await _secureStorage.write(key: _refreshTokenKey, value: refreshToken);
   }

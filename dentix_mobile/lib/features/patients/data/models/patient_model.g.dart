@@ -37,23 +37,23 @@ Map<String, dynamic> _$$PatientModelImplToJson(_$PatientModelImpl instance) =>
     };
 
 _$PatientListResponseImpl _$$PatientListResponseImplFromJson(
-        Map<String, dynamic> json) =>
-    _$PatientListResponseImpl(
-      items: (json['items'] as List<dynamic>)
-          .map((e) => PatientModel.fromJson(e as Map<String, dynamic>))
-          .toList(),
-      total: (json['total'] as num).toInt(),
-      currentPage: (json['page'] as num).toInt(),
-      totalPages: (json['pages'] as num).toInt(),
-      pageSize: (json['size'] as num).toInt(),
-    );
+  Map<String, dynamic> json,
+) => _$PatientListResponseImpl(
+  items: (json['items'] as List<dynamic>)
+      .map((e) => PatientModel.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  total: (json['total'] as num).toInt(),
+  currentPage: (json['page'] as num).toInt(),
+  totalPages: (json['pages'] as num).toInt(),
+  pageSize: (json['size'] as num).toInt(),
+);
 
 Map<String, dynamic> _$$PatientListResponseImplToJson(
-        _$PatientListResponseImpl instance) =>
-    <String, dynamic>{
-      'items': instance.items,
-      'total': instance.total,
-      'page': instance.currentPage,
-      'pages': instance.totalPages,
-      'size': instance.pageSize,
-    };
+  _$PatientListResponseImpl instance,
+) => <String, dynamic>{
+  'items': instance.items,
+  'total': instance.total,
+  'page': instance.currentPage,
+  'pages': instance.totalPages,
+  'size': instance.pageSize,
+};

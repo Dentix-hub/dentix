@@ -9,7 +9,7 @@ abstract class PatientRepository {
     required int limit,
     String? search,
   });
-  
+
   Future<Either<Failure, PatientEntity>> getPatientById(int id);
 
   Future<Either<Failure, PatientEntity>> createPatient({

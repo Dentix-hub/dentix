@@ -48,13 +48,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     try {
       final response = await dio.post(
         ApiEndpoints.login,
-        data: {
-          'username': email,
-          'password': password,
-        },
-        options: Options(
-          contentType: Headers.formUrlEncodedContentType,
-        ),
+        data: {'username': email, 'password': password},
+        options: Options(contentType: Headers.formUrlEncodedContentType),
       );
 
       if (response.statusCode == 200) {
@@ -80,8 +75,11 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       String errorMessage = 'Network error during login';
       if (data is Map<String, dynamic>) {
         // Backend returns {error: {message: "..."}} or {detail: "..."}
-        errorMessage = data['detail'] as String? ??
-            (data['error'] is Map ? data['error']['message'] as String? : null) ??
+        errorMessage =
+            data['detail'] as String? ??
+            (data['error'] is Map
+                ? data['error']['message'] as String?
+                : null) ??
             data['message'] as String? ??
             errorMessage;
       }

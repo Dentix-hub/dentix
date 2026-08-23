@@ -10,9 +10,9 @@ abstract class PatientRemoteDataSource {
     required int limit,
     String? search,
   });
-  
+
   Future<PatientModel> getPatientById(int id);
-  
+
   Future<PatientModel> createPatient(Map<String, dynamic> data);
 }
 
@@ -32,7 +32,7 @@ class PatientRemoteDataSourceImpl implements PatientRemoteDataSource {
         'skip': (page - 1) * limit,
         'limit': limit,
       };
-      
+
       if (search != null && search.isNotEmpty) {
         queryParams['search'] = search;
       }
@@ -43,7 +43,9 @@ class PatientRemoteDataSourceImpl implements PatientRemoteDataSource {
       );
 
       if (response.statusCode == 200) {
-        return PatientListResponse.fromJson(response.data as Map<String, dynamic>);
+        return PatientListResponse.fromJson(
+          response.data as Map<String, dynamic>,
+        );
       } else {
         throw ServerException(
           message: 'Failed to load patients',
@@ -82,10 +84,7 @@ class PatientRemoteDataSourceImpl implements PatientRemoteDataSource {
   @override
   Future<PatientModel> createPatient(Map<String, dynamic> data) async {
     try {
-      final response = await dio.post(
-        ApiEndpoints.patients,
-        data: data,
-      );
+      final response = await dio.post(ApiEndpoints.patients, data: data);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return PatientModel.fromJson(response.data as Map<String, dynamic>);

@@ -12,7 +12,8 @@ part of 'patient_model.dart';
 T _$identity<T>(T value) => value;
 
 final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
+  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
+);
 
 PatientModel _$PatientModelFromJson(Map<String, dynamic> json) {
   return _PatientModel.fromJson(json);
@@ -51,21 +52,23 @@ mixin _$PatientModel {
 /// @nodoc
 abstract class $PatientModelCopyWith<$Res> {
   factory $PatientModelCopyWith(
-          PatientModel value, $Res Function(PatientModel) then) =
-      _$PatientModelCopyWithImpl<$Res, PatientModel>;
+    PatientModel value,
+    $Res Function(PatientModel) then,
+  ) = _$PatientModelCopyWithImpl<$Res, PatientModel>;
   @useResult
-  $Res call(
-      {int id,
-      @JsonKey(name: 'full_name') String fullName,
-      @JsonKey(name: 'phone') String? phone,
-      @JsonKey(name: 'email') String? email,
-      @JsonKey(name: 'date_of_birth') String? dateOfBirth,
-      @JsonKey(name: 'gender') String? gender,
-      @JsonKey(name: 'address') String? address,
-      @JsonKey(name: 'medical_history') String? medicalHistory,
-      @JsonKey(name: 'allergies') String? allergies,
-      @JsonKey(name: 'created_at') String? createdAt,
-      @JsonKey(name: 'updated_at') String? updatedAt});
+  $Res call({
+    int id,
+    @JsonKey(name: 'full_name') String fullName,
+    @JsonKey(name: 'phone') String? phone,
+    @JsonKey(name: 'email') String? email,
+    @JsonKey(name: 'date_of_birth') String? dateOfBirth,
+    @JsonKey(name: 'gender') String? gender,
+    @JsonKey(name: 'address') String? address,
+    @JsonKey(name: 'medical_history') String? medicalHistory,
+    @JsonKey(name: 'allergies') String? allergies,
+    @JsonKey(name: 'created_at') String? createdAt,
+    @JsonKey(name: 'updated_at') String? updatedAt,
+  });
 }
 
 /// @nodoc
@@ -93,52 +96,55 @@ class _$PatientModelCopyWithImpl<$Res, $Val extends PatientModel>
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
-    return _then(_value.copyWith(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      fullName: null == fullName
-          ? _value.fullName
-          : fullName // ignore: cast_nullable_to_non_nullable
-              as String,
-      phone: freezed == phone
-          ? _value.phone
-          : phone // ignore: cast_nullable_to_non_nullable
-              as String?,
-      email: freezed == email
-          ? _value.email
-          : email // ignore: cast_nullable_to_non_nullable
-              as String?,
-      dateOfBirth: freezed == dateOfBirth
-          ? _value.dateOfBirth
-          : dateOfBirth // ignore: cast_nullable_to_non_nullable
-              as String?,
-      gender: freezed == gender
-          ? _value.gender
-          : gender // ignore: cast_nullable_to_non_nullable
-              as String?,
-      address: freezed == address
-          ? _value.address
-          : address // ignore: cast_nullable_to_non_nullable
-              as String?,
-      medicalHistory: freezed == medicalHistory
-          ? _value.medicalHistory
-          : medicalHistory // ignore: cast_nullable_to_non_nullable
-              as String?,
-      allergies: freezed == allergies
-          ? _value.allergies
-          : allergies // ignore: cast_nullable_to_non_nullable
-              as String?,
-      createdAt: freezed == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-      updatedAt: freezed == updatedAt
-          ? _value.updatedAt
-          : updatedAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            fullName: null == fullName
+                ? _value.fullName
+                : fullName // ignore: cast_nullable_to_non_nullable
+                      as String,
+            phone: freezed == phone
+                ? _value.phone
+                : phone // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            email: freezed == email
+                ? _value.email
+                : email // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            dateOfBirth: freezed == dateOfBirth
+                ? _value.dateOfBirth
+                : dateOfBirth // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            gender: freezed == gender
+                ? _value.gender
+                : gender // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            address: freezed == address
+                ? _value.address
+                : address // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            medicalHistory: freezed == medicalHistory
+                ? _value.medicalHistory
+                : medicalHistory // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            allergies: freezed == allergies
+                ? _value.allergies
+                : allergies // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            createdAt: freezed == createdAt
+                ? _value.createdAt
+                : createdAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            updatedAt: freezed == updatedAt
+                ? _value.updatedAt
+                : updatedAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
   }
 }
 
@@ -146,22 +152,24 @@ class _$PatientModelCopyWithImpl<$Res, $Val extends PatientModel>
 abstract class _$$PatientModelImplCopyWith<$Res>
     implements $PatientModelCopyWith<$Res> {
   factory _$$PatientModelImplCopyWith(
-          _$PatientModelImpl value, $Res Function(_$PatientModelImpl) then) =
-      __$$PatientModelImplCopyWithImpl<$Res>;
+    _$PatientModelImpl value,
+    $Res Function(_$PatientModelImpl) then,
+  ) = __$$PatientModelImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {int id,
-      @JsonKey(name: 'full_name') String fullName,
-      @JsonKey(name: 'phone') String? phone,
-      @JsonKey(name: 'email') String? email,
-      @JsonKey(name: 'date_of_birth') String? dateOfBirth,
-      @JsonKey(name: 'gender') String? gender,
-      @JsonKey(name: 'address') String? address,
-      @JsonKey(name: 'medical_history') String? medicalHistory,
-      @JsonKey(name: 'allergies') String? allergies,
-      @JsonKey(name: 'created_at') String? createdAt,
-      @JsonKey(name: 'updated_at') String? updatedAt});
+  $Res call({
+    int id,
+    @JsonKey(name: 'full_name') String fullName,
+    @JsonKey(name: 'phone') String? phone,
+    @JsonKey(name: 'email') String? email,
+    @JsonKey(name: 'date_of_birth') String? dateOfBirth,
+    @JsonKey(name: 'gender') String? gender,
+    @JsonKey(name: 'address') String? address,
+    @JsonKey(name: 'medical_history') String? medicalHistory,
+    @JsonKey(name: 'allergies') String? allergies,
+    @JsonKey(name: 'created_at') String? createdAt,
+    @JsonKey(name: 'updated_at') String? updatedAt,
+  });
 }
 
 /// @nodoc
@@ -169,8 +177,9 @@ class __$$PatientModelImplCopyWithImpl<$Res>
     extends _$PatientModelCopyWithImpl<$Res, _$PatientModelImpl>
     implements _$$PatientModelImplCopyWith<$Res> {
   __$$PatientModelImplCopyWithImpl(
-      _$PatientModelImpl _value, $Res Function(_$PatientModelImpl) _then)
-      : super(_value, _then);
+    _$PatientModelImpl _value,
+    $Res Function(_$PatientModelImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -187,70 +196,73 @@ class __$$PatientModelImplCopyWithImpl<$Res>
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
-    return _then(_$PatientModelImpl(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      fullName: null == fullName
-          ? _value.fullName
-          : fullName // ignore: cast_nullable_to_non_nullable
-              as String,
-      phone: freezed == phone
-          ? _value.phone
-          : phone // ignore: cast_nullable_to_non_nullable
-              as String?,
-      email: freezed == email
-          ? _value.email
-          : email // ignore: cast_nullable_to_non_nullable
-              as String?,
-      dateOfBirth: freezed == dateOfBirth
-          ? _value.dateOfBirth
-          : dateOfBirth // ignore: cast_nullable_to_non_nullable
-              as String?,
-      gender: freezed == gender
-          ? _value.gender
-          : gender // ignore: cast_nullable_to_non_nullable
-              as String?,
-      address: freezed == address
-          ? _value.address
-          : address // ignore: cast_nullable_to_non_nullable
-              as String?,
-      medicalHistory: freezed == medicalHistory
-          ? _value.medicalHistory
-          : medicalHistory // ignore: cast_nullable_to_non_nullable
-              as String?,
-      allergies: freezed == allergies
-          ? _value.allergies
-          : allergies // ignore: cast_nullable_to_non_nullable
-              as String?,
-      createdAt: freezed == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-      updatedAt: freezed == updatedAt
-          ? _value.updatedAt
-          : updatedAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ));
+    return _then(
+      _$PatientModelImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        fullName: null == fullName
+            ? _value.fullName
+            : fullName // ignore: cast_nullable_to_non_nullable
+                  as String,
+        phone: freezed == phone
+            ? _value.phone
+            : phone // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        email: freezed == email
+            ? _value.email
+            : email // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        dateOfBirth: freezed == dateOfBirth
+            ? _value.dateOfBirth
+            : dateOfBirth // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        gender: freezed == gender
+            ? _value.gender
+            : gender // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        address: freezed == address
+            ? _value.address
+            : address // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        medicalHistory: freezed == medicalHistory
+            ? _value.medicalHistory
+            : medicalHistory // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        allergies: freezed == allergies
+            ? _value.allergies
+            : allergies // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        createdAt: freezed == createdAt
+            ? _value.createdAt
+            : createdAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        updatedAt: freezed == updatedAt
+            ? _value.updatedAt
+            : updatedAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 @JsonSerializable()
 class _$PatientModelImpl implements _PatientModel {
-  const _$PatientModelImpl(
-      {required this.id,
-      @JsonKey(name: 'full_name') required this.fullName,
-      @JsonKey(name: 'phone') this.phone,
-      @JsonKey(name: 'email') this.email,
-      @JsonKey(name: 'date_of_birth') this.dateOfBirth,
-      @JsonKey(name: 'gender') this.gender,
-      @JsonKey(name: 'address') this.address,
-      @JsonKey(name: 'medical_history') this.medicalHistory,
-      @JsonKey(name: 'allergies') this.allergies,
-      @JsonKey(name: 'created_at') this.createdAt,
-      @JsonKey(name: 'updated_at') this.updatedAt});
+  const _$PatientModelImpl({
+    required this.id,
+    @JsonKey(name: 'full_name') required this.fullName,
+    @JsonKey(name: 'phone') this.phone,
+    @JsonKey(name: 'email') this.email,
+    @JsonKey(name: 'date_of_birth') this.dateOfBirth,
+    @JsonKey(name: 'gender') this.gender,
+    @JsonKey(name: 'address') this.address,
+    @JsonKey(name: 'medical_history') this.medicalHistory,
+    @JsonKey(name: 'allergies') this.allergies,
+    @JsonKey(name: 'created_at') this.createdAt,
+    @JsonKey(name: 'updated_at') this.updatedAt,
+  });
 
   factory _$PatientModelImpl.fromJson(Map<String, dynamic> json) =>
       _$$PatientModelImplFromJson(json);
@@ -320,18 +332,19 @@ class _$PatientModelImpl implements _PatientModel {
   @JsonKey(ignore: true)
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      id,
-      fullName,
-      phone,
-      email,
-      dateOfBirth,
-      gender,
-      address,
-      medicalHistory,
-      allergies,
-      createdAt,
-      updatedAt);
+    runtimeType,
+    id,
+    fullName,
+    phone,
+    email,
+    dateOfBirth,
+    gender,
+    address,
+    medicalHistory,
+    allergies,
+    createdAt,
+    updatedAt,
+  );
 
   @JsonKey(ignore: true)
   @override
@@ -341,26 +354,24 @@ class _$PatientModelImpl implements _PatientModel {
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$PatientModelImplToJson(
-      this,
-    );
+    return _$$PatientModelImplToJson(this);
   }
 }
 
 abstract class _PatientModel implements PatientModel {
-  const factory _PatientModel(
-          {required final int id,
-          @JsonKey(name: 'full_name') required final String fullName,
-          @JsonKey(name: 'phone') final String? phone,
-          @JsonKey(name: 'email') final String? email,
-          @JsonKey(name: 'date_of_birth') final String? dateOfBirth,
-          @JsonKey(name: 'gender') final String? gender,
-          @JsonKey(name: 'address') final String? address,
-          @JsonKey(name: 'medical_history') final String? medicalHistory,
-          @JsonKey(name: 'allergies') final String? allergies,
-          @JsonKey(name: 'created_at') final String? createdAt,
-          @JsonKey(name: 'updated_at') final String? updatedAt}) =
-      _$PatientModelImpl;
+  const factory _PatientModel({
+    required final int id,
+    @JsonKey(name: 'full_name') required final String fullName,
+    @JsonKey(name: 'phone') final String? phone,
+    @JsonKey(name: 'email') final String? email,
+    @JsonKey(name: 'date_of_birth') final String? dateOfBirth,
+    @JsonKey(name: 'gender') final String? gender,
+    @JsonKey(name: 'address') final String? address,
+    @JsonKey(name: 'medical_history') final String? medicalHistory,
+    @JsonKey(name: 'allergies') final String? allergies,
+    @JsonKey(name: 'created_at') final String? createdAt,
+    @JsonKey(name: 'updated_at') final String? updatedAt,
+  }) = _$PatientModelImpl;
 
   factory _PatientModel.fromJson(Map<String, dynamic> json) =
       _$PatientModelImpl.fromJson;
@@ -427,15 +438,17 @@ mixin _$PatientListResponse {
 /// @nodoc
 abstract class $PatientListResponseCopyWith<$Res> {
   factory $PatientListResponseCopyWith(
-          PatientListResponse value, $Res Function(PatientListResponse) then) =
-      _$PatientListResponseCopyWithImpl<$Res, PatientListResponse>;
+    PatientListResponse value,
+    $Res Function(PatientListResponse) then,
+  ) = _$PatientListResponseCopyWithImpl<$Res, PatientListResponse>;
   @useResult
-  $Res call(
-      {List<PatientModel> items,
-      int total,
-      @JsonKey(name: 'page') int currentPage,
-      @JsonKey(name: 'pages') int totalPages,
-      @JsonKey(name: 'size') int pageSize});
+  $Res call({
+    List<PatientModel> items,
+    int total,
+    @JsonKey(name: 'page') int currentPage,
+    @JsonKey(name: 'pages') int totalPages,
+    @JsonKey(name: 'size') int pageSize,
+  });
 }
 
 /// @nodoc
@@ -457,54 +470,60 @@ class _$PatientListResponseCopyWithImpl<$Res, $Val extends PatientListResponse>
     Object? totalPages = null,
     Object? pageSize = null,
   }) {
-    return _then(_value.copyWith(
-      items: null == items
-          ? _value.items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<PatientModel>,
-      total: null == total
-          ? _value.total
-          : total // ignore: cast_nullable_to_non_nullable
-              as int,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-      pageSize: null == pageSize
-          ? _value.pageSize
-          : pageSize // ignore: cast_nullable_to_non_nullable
-              as int,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            items: null == items
+                ? _value.items
+                : items // ignore: cast_nullable_to_non_nullable
+                      as List<PatientModel>,
+            total: null == total
+                ? _value.total
+                : total // ignore: cast_nullable_to_non_nullable
+                      as int,
+            currentPage: null == currentPage
+                ? _value.currentPage
+                : currentPage // ignore: cast_nullable_to_non_nullable
+                      as int,
+            totalPages: null == totalPages
+                ? _value.totalPages
+                : totalPages // ignore: cast_nullable_to_non_nullable
+                      as int,
+            pageSize: null == pageSize
+                ? _value.pageSize
+                : pageSize // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
   }
 }
 
 /// @nodoc
 abstract class _$$PatientListResponseImplCopyWith<$Res>
     implements $PatientListResponseCopyWith<$Res> {
-  factory _$$PatientListResponseImplCopyWith(_$PatientListResponseImpl value,
-          $Res Function(_$PatientListResponseImpl) then) =
-      __$$PatientListResponseImplCopyWithImpl<$Res>;
+  factory _$$PatientListResponseImplCopyWith(
+    _$PatientListResponseImpl value,
+    $Res Function(_$PatientListResponseImpl) then,
+  ) = __$$PatientListResponseImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {List<PatientModel> items,
-      int total,
-      @JsonKey(name: 'page') int currentPage,
-      @JsonKey(name: 'pages') int totalPages,
-      @JsonKey(name: 'size') int pageSize});
+  $Res call({
+    List<PatientModel> items,
+    int total,
+    @JsonKey(name: 'page') int currentPage,
+    @JsonKey(name: 'pages') int totalPages,
+    @JsonKey(name: 'size') int pageSize,
+  });
 }
 
 /// @nodoc
 class __$$PatientListResponseImplCopyWithImpl<$Res>
     extends _$PatientListResponseCopyWithImpl<$Res, _$PatientListResponseImpl>
     implements _$$PatientListResponseImplCopyWith<$Res> {
-  __$$PatientListResponseImplCopyWithImpl(_$PatientListResponseImpl _value,
-      $Res Function(_$PatientListResponseImpl) _then)
-      : super(_value, _then);
+  __$$PatientListResponseImplCopyWithImpl(
+    _$PatientListResponseImpl _value,
+    $Res Function(_$PatientListResponseImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -515,41 +534,43 @@ class __$$PatientListResponseImplCopyWithImpl<$Res>
     Object? totalPages = null,
     Object? pageSize = null,
   }) {
-    return _then(_$PatientListResponseImpl(
-      items: null == items
-          ? _value._items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<PatientModel>,
-      total: null == total
-          ? _value.total
-          : total // ignore: cast_nullable_to_non_nullable
-              as int,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-      pageSize: null == pageSize
-          ? _value.pageSize
-          : pageSize // ignore: cast_nullable_to_non_nullable
-              as int,
-    ));
+    return _then(
+      _$PatientListResponseImpl(
+        items: null == items
+            ? _value._items
+            : items // ignore: cast_nullable_to_non_nullable
+                  as List<PatientModel>,
+        total: null == total
+            ? _value.total
+            : total // ignore: cast_nullable_to_non_nullable
+                  as int,
+        currentPage: null == currentPage
+            ? _value.currentPage
+            : currentPage // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalPages: null == totalPages
+            ? _value.totalPages
+            : totalPages // ignore: cast_nullable_to_non_nullable
+                  as int,
+        pageSize: null == pageSize
+            ? _value.pageSize
+            : pageSize // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
   }
 }
 
 /// @nodoc
 @JsonSerializable()
 class _$PatientListResponseImpl implements _PatientListResponse {
-  const _$PatientListResponseImpl(
-      {required final List<PatientModel> items,
-      required this.total,
-      @JsonKey(name: 'page') required this.currentPage,
-      @JsonKey(name: 'pages') required this.totalPages,
-      @JsonKey(name: 'size') required this.pageSize})
-      : _items = items;
+  const _$PatientListResponseImpl({
+    required final List<PatientModel> items,
+    required this.total,
+    @JsonKey(name: 'page') required this.currentPage,
+    @JsonKey(name: 'pages') required this.totalPages,
+    @JsonKey(name: 'size') required this.pageSize,
+  }) : _items = items;
 
   factory _$PatientListResponseImpl.fromJson(Map<String, dynamic> json) =>
       _$$PatientListResponseImplFromJson(json);
@@ -597,36 +618,37 @@ class _$PatientListResponseImpl implements _PatientListResponse {
   @JsonKey(ignore: true)
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      const DeepCollectionEquality().hash(_items),
-      total,
-      currentPage,
-      totalPages,
-      pageSize);
+    runtimeType,
+    const DeepCollectionEquality().hash(_items),
+    total,
+    currentPage,
+    totalPages,
+    pageSize,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$PatientListResponseImplCopyWith<_$PatientListResponseImpl> get copyWith =>
       __$$PatientListResponseImplCopyWithImpl<_$PatientListResponseImpl>(
-          this, _$identity);
+        this,
+        _$identity,
+      );
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$PatientListResponseImplToJson(
-      this,
-    );
+    return _$$PatientListResponseImplToJson(this);
   }
 }
 
 abstract class _PatientListResponse implements PatientListResponse {
-  const factory _PatientListResponse(
-          {required final List<PatientModel> items,
-          required final int total,
-          @JsonKey(name: 'page') required final int currentPage,
-          @JsonKey(name: 'pages') required final int totalPages,
-          @JsonKey(name: 'size') required final int pageSize}) =
-      _$PatientListResponseImpl;
+  const factory _PatientListResponse({
+    required final List<PatientModel> items,
+    required final int total,
+    @JsonKey(name: 'page') required final int currentPage,
+    @JsonKey(name: 'pages') required final int totalPages,
+    @JsonKey(name: 'size') required final int pageSize,
+  }) = _$PatientListResponseImpl;
 
   factory _PatientListResponse.fromJson(Map<String, dynamic> json) =
       _$PatientListResponseImpl.fromJson;

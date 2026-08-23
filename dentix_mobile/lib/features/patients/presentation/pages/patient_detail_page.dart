@@ -49,7 +49,10 @@ class _PatientDetailPageState extends ConsumerState<PatientDetailPage>
           controller: _tabController,
           tabs: [
             Tab(text: l10n.profile, icon: const Icon(Icons.person)),
-            Tab(text: l10n.treatments, icon: const Icon(Icons.medical_services)),
+            Tab(
+              text: l10n.treatments,
+              icon: const Icon(Icons.medical_services),
+            ),
             Tab(text: l10n.history, icon: const Icon(Icons.history)),
           ],
         ),
@@ -93,45 +96,62 @@ class _PatientDetailPageState extends ConsumerState<PatientDetailPage>
                 Text(
                   patient.fullName,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 32),
-          
+
           // Contact Info
           _buildSectionTitle(AppLocalizations.of(context)!.contactInfo),
           const SizedBox(height: 12),
-          _buildInfoRow(Icons.phone, patient.phone ?? AppLocalizations.of(context)!.notAvailable),
-          _buildInfoRow(Icons.email, patient.email ?? AppLocalizations.of(context)!.notAvailable),
-          _buildInfoRow(Icons.location_on, patient.address ?? AppLocalizations.of(context)!.notAvailable),
+          _buildInfoRow(
+            Icons.phone,
+            patient.phone ?? AppLocalizations.of(context)!.notAvailable,
+          ),
+          _buildInfoRow(
+            Icons.email,
+            patient.email ?? AppLocalizations.of(context)!.notAvailable,
+          ),
+          _buildInfoRow(
+            Icons.location_on,
+            patient.address ?? AppLocalizations.of(context)!.notAvailable,
+          ),
           const SizedBox(height: 24),
-          
+
           // Personal Info
           _buildSectionTitle(AppLocalizations.of(context)!.personalInfo),
           const SizedBox(height: 12),
           _buildInfoRow(
             Icons.calendar_today,
             patient.dateOfBirth != null
-                ? DateFormat('MMM d, yyyy').format(DateTime.parse(patient.dateOfBirth!))
+                ? DateFormat(
+                    'MMM d, yyyy',
+                  ).format(DateTime.parse(patient.dateOfBirth!))
                 : AppLocalizations.of(context)!.notAvailable,
           ),
-          _buildInfoRow(Icons.person_outline, patient.gender ?? AppLocalizations.of(context)!.notAvailable),
+          _buildInfoRow(
+            Icons.person_outline,
+            patient.gender ?? AppLocalizations.of(context)!.notAvailable,
+          ),
           const SizedBox(height: 24),
-          
+
           // Medical Info
           _buildSectionTitle(AppLocalizations.of(context)!.medicalInfo),
           const SizedBox(height: 12),
           _buildInfoCard(
             title: AppLocalizations.of(context)!.medicalHistory,
-            content: patient.medicalHistory ?? AppLocalizations.of(context)!.noMedicalHistory,
+            content:
+                patient.medicalHistory ??
+                AppLocalizations.of(context)!.noMedicalHistory,
           ),
           const SizedBox(height: 12),
           _buildInfoCard(
             title: AppLocalizations.of(context)!.allergies,
-            content: patient.allergies ?? AppLocalizations.of(context)!.noAllergies,
+            content:
+                patient.allergies ?? AppLocalizations.of(context)!.noAllergies,
           ),
         ],
       ),
@@ -144,7 +164,9 @@ class _PatientDetailPageState extends ConsumerState<PatientDetailPage>
     return treatmentState.when(
       initial: () {
         Future.microtask(() {
-          ref.read(treatmentNotifierProvider(patientId).notifier).loadTreatments();
+          ref
+              .read(treatmentNotifierProvider(patientId).notifier)
+              .loadTreatments();
         });
         return const Center(child: CircularProgressIndicator());
       },
@@ -152,7 +174,9 @@ class _PatientDetailPageState extends ConsumerState<PatientDetailPage>
       error: (message) => ErrorRetryWidget(
         message: message,
         onRetry: () {
-          ref.read(treatmentNotifierProvider(patientId).notifier).loadTreatments();
+          ref
+              .read(treatmentNotifierProvider(patientId).notifier)
+              .loadTreatments();
         },
       ),
       loaded: (treatments, totalPages, currentPage, hasMore) {
@@ -165,14 +189,18 @@ class _PatientDetailPageState extends ConsumerState<PatientDetailPage>
 
         return RefreshIndicator(
           onRefresh: () async {
-            await ref.read(treatmentNotifierProvider(patientId).notifier).loadTreatments(refresh: true);
+            await ref
+                .read(treatmentNotifierProvider(patientId).notifier)
+                .loadTreatments(refresh: true);
           },
           child: ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: treatments.length + (hasMore ? 1 : 0),
             itemBuilder: (context, index) {
               if (index >= treatments.length) {
-                ref.read(treatmentNotifierProvider(patientId).notifier).loadMoreTreatments();
+                ref
+                    .read(treatmentNotifierProvider(patientId).notifier)
+                    .loadMoreTreatments();
                 return const Padding(
                   padding: EdgeInsets.all(16),
                   child: Center(child: CircularProgressIndicator()),
@@ -224,10 +252,13 @@ class _PatientDetailPageState extends ConsumerState<PatientDetailPage>
             ),
             const SizedBox(height: 8),
             Text(
-              DateFormat('MMM d, yyyy').format(DateTime.parse(treatment.treatmentDate)),
+              DateFormat(
+                'MMM d, yyyy',
+              ).format(DateTime.parse(treatment.treatmentDate)),
               style: TextStyle(color: AppColors.textSecondary),
             ),
-            if (treatment.description != null && treatment.description!.isNotEmpty) ...[
+            if (treatment.description != null &&
+                treatment.description!.isNotEmpty) ...[
               const SizedBox(height: 8),
               Text(
                 treatment.description!,
@@ -256,19 +287,27 @@ class _PatientDetailPageState extends ConsumerState<PatientDetailPage>
 
         return state.when(
           initial: () {
-            Future.microtask(() => ref.read(patientAppointmentsProvider(widget.patient.id).notifier).loadAppointments());
+            Future.microtask(
+              () => ref
+                  .read(patientAppointmentsProvider(widget.patient.id).notifier)
+                  .loadAppointments(),
+            );
             return const Center(child: CircularProgressIndicator());
           },
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (message) => ErrorRetryWidget(
             message: message,
-            onRetry: () => ref.read(patientAppointmentsProvider(widget.patient.id).notifier).loadAppointments(refresh: true),
+            onRetry: () => ref
+                .read(patientAppointmentsProvider(widget.patient.id).notifier)
+                .loadAppointments(refresh: true),
           ),
           loaded: (appointments, _, __, ___, ____) {
             if (appointments.isEmpty) {
               return EmptyState(
                 icon: Icons.history,
-                message: AppLocalizations.of(context)!.noInfoAvailable, // Use generic 'no info' if no specific 'history' key
+                message: AppLocalizations.of(
+                  context,
+                )!.noInfoAvailable, // Use generic 'no info' if no specific 'history' key
                 subtitle: 'No appointment history available.',
               );
             }
@@ -288,13 +327,21 @@ class _PatientDetailPageState extends ConsumerState<PatientDetailPage>
   }
 
   Widget _buildAppointmentCard(AppointmentEntity appointment) {
-     return Card(
+    return Card(
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: _getStatusColor(appointment.status).withValues(alpha: 0.1),
-          child: Icon(_getStatusIcon(appointment.status), color: _getStatusColor(appointment.status), size: 16),
+          backgroundColor: _getStatusColor(
+            appointment.status,
+          ).withValues(alpha: 0.1),
+          child: Icon(
+            _getStatusIcon(appointment.status),
+            color: _getStatusColor(appointment.status),
+            size: 16,
+          ),
         ),
-        title: Text('${appointment.appointmentDate} - ${appointment.startTime}'),
+        title: Text(
+          '${appointment.appointmentDate} - ${appointment.startTime}',
+        ),
         subtitle: Text(appointment.procedureType ?? 'General Checkup'),
         trailing: Text(
           appointment.status.toUpperCase(),
@@ -338,9 +385,9 @@ class _PatientDetailPageState extends ConsumerState<PatientDetailPage>
     return Text(
       title,
       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: AppColors.primary,
-          ),
+        fontWeight: FontWeight.bold,
+        color: AppColors.primary,
+      ),
     );
   }
 
@@ -376,16 +423,10 @@ class _PatientDetailPageState extends ConsumerState<PatientDetailPage>
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
           ),
           const SizedBox(height: 4),
-          Text(
-            content,
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
+          Text(content, style: TextStyle(color: AppColors.textSecondary)),
         ],
       ),
     );

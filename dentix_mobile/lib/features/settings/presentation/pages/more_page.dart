@@ -15,10 +15,7 @@ class MorePage extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.more),
-        automaticallyImplyLeading: false,
-      ),
+      appBar: AppBar(title: Text(l10n.more), automaticallyImplyLeading: false),
       body: ListView(
         children: [
           _buildMenuItem(
@@ -56,30 +53,30 @@ class MorePage extends ConsumerWidget {
             title: l10n.logout,
             color: AppColors.error,
             onTap: () {
-               // Show confirmation dialog
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text(l10n.logout),
-                    content: Text(l10n.confirmLogout),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text(l10n.cancel),
+              // Show confirmation dialog
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: Text(l10n.logout),
+                  content: Text(l10n.confirmLogout),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(l10n.cancel),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        ref.read(authProvider.notifier).logout();
+                      },
+                      child: Text(
+                        l10n.logout,
+                        style: const TextStyle(color: AppColors.error),
                       ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          ref.read(authProvider.notifier).logout();
-                        },
-                        child: Text(
-                          l10n.logout,
-                          style: const TextStyle(color: AppColors.error),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
+                    ),
+                  ],
+                ),
+              );
             },
           ),
         ],

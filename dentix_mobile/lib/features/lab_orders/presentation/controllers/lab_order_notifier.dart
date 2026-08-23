@@ -31,9 +31,9 @@ class LabOrderNotifier extends StateNotifier<LabOrderState> {
   LabOrderNotifier({
     required GetLabOrdersUseCase getLabOrdersUseCase,
     required CreateLabOrderUseCase createLabOrderUseCase,
-  })  : _getLabOrdersUseCase = getLabOrdersUseCase,
-        _createLabOrderUseCase = createLabOrderUseCase,
-        super(const LabOrderState.initial());
+  }) : _getLabOrdersUseCase = getLabOrdersUseCase,
+       _createLabOrderUseCase = createLabOrderUseCase,
+       super(const LabOrderState.initial());
 
   Future<void> loadLabOrders({
     LabOrderStatus? status,
@@ -127,11 +127,11 @@ class LabOrderNotifier extends StateNotifier<LabOrderState> {
 
 final labOrderNotifierProvider =
     StateNotifierProvider<LabOrderNotifier, LabOrderState>((ref) {
-  final getLabOrdersUseCase = ref.watch(getLabOrdersUseCaseProvider);
-  final createLabOrderUseCase = ref.watch(createLabOrderUseCaseProvider);
+      final getLabOrdersUseCase = ref.watch(getLabOrdersUseCaseProvider);
+      final createLabOrderUseCase = ref.watch(createLabOrderUseCaseProvider);
 
-  return LabOrderNotifier(
-    getLabOrdersUseCase: getLabOrdersUseCase,
-    createLabOrderUseCase: createLabOrderUseCase,
-  );
-});
+      return LabOrderNotifier(
+        getLabOrdersUseCase: getLabOrdersUseCase,
+        createLabOrderUseCase: createLabOrderUseCase,
+      );
+    });

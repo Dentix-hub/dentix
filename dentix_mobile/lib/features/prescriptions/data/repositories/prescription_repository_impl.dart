@@ -27,27 +27,33 @@ class PrescriptionRepositoryImpl implements PrescriptionRepository {
       );
       return Right(result.toEntity());
     } on DioException catch (e) {
-      return Left(ServerFailure(
-        message: NetworkExceptions.getErrorMessage(
-          NetworkExceptions.getDioException(e),
+      return Left(
+        ServerFailure(
+          message: NetworkExceptions.getErrorMessage(
+            NetworkExceptions.getDioException(e),
+          ),
         ),
-      ));
+      );
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
     }
   }
 
   @override
-  Future<Either<Failure, PrescriptionEntity>> getPrescriptionById(int id) async {
+  Future<Either<Failure, PrescriptionEntity>> getPrescriptionById(
+    int id,
+  ) async {
     try {
       final result = await _remoteDataSource.getPrescriptionById(id);
       return Right(result.toEntity());
     } on DioException catch (e) {
-      return Left(ServerFailure(
-        message: NetworkExceptions.getErrorMessage(
-          NetworkExceptions.getDioException(e),
+      return Left(
+        ServerFailure(
+          message: NetworkExceptions.getErrorMessage(
+            NetworkExceptions.getDioException(e),
+          ),
         ),
-      ));
+      );
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
     }
@@ -67,11 +73,13 @@ class PrescriptionRepositoryImpl implements PrescriptionRepository {
       );
       return Right(result.toEntity());
     } on DioException catch (e) {
-      return Left(ServerFailure(
-        message: NetworkExceptions.getErrorMessage(
-          NetworkExceptions.getDioException(e),
+      return Left(
+        ServerFailure(
+          message: NetworkExceptions.getErrorMessage(
+            NetworkExceptions.getDioException(e),
+          ),
         ),
-      ));
+      );
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
     }
@@ -91,11 +99,13 @@ class PrescriptionRepositoryImpl implements PrescriptionRepository {
       );
       return Right(result.toEntity());
     } on DioException catch (e) {
-      return Left(ServerFailure(
-        message: NetworkExceptions.getErrorMessage(
-          NetworkExceptions.getDioException(e),
+      return Left(
+        ServerFailure(
+          message: NetworkExceptions.getErrorMessage(
+            NetworkExceptions.getDioException(e),
+          ),
         ),
-      ));
+      );
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
     }
@@ -107,11 +117,13 @@ class PrescriptionRepositoryImpl implements PrescriptionRepository {
       await _remoteDataSource.deletePrescription(id);
       return const Right(null);
     } on DioException catch (e) {
-      return Left(ServerFailure(
-        message: NetworkExceptions.getErrorMessage(
-          NetworkExceptions.getDioException(e),
+      return Left(
+        ServerFailure(
+          message: NetworkExceptions.getErrorMessage(
+            NetworkExceptions.getDioException(e),
+          ),
         ),
-      ));
+      );
     } catch (e) {
       return Left(ServerFailure(message: e.toString()));
     }

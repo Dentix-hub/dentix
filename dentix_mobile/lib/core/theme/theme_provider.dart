@@ -3,11 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 /// Theme mode enum for persistence
-enum ThemeModeOption {
-  system,
-  light,
-  dark,
-}
+enum ThemeModeOption { system, light, dark }
 
 /// Provider for theme mode with persistence
 final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>(
@@ -27,7 +23,7 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
   Future<void> _loadTheme() async {
     final box = await Hive.openBox<String>(_boxName);
     final savedTheme = box.get(_key);
-    
+
     if (savedTheme != null) {
       state = _parseThemeMode(savedTheme);
     }

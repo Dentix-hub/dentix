@@ -63,15 +63,12 @@ abstract class NetworkExceptions {
       conflict: () => 'A conflict occurred. Please try again.',
       unprocessableEntity: () =>
           'Unable to process your request. Please check your input.',
-      internalServerError: () =>
-          'Server error. Please try again later.',
-      badGateway: () =>
-          'Gateway error. Please try again later.',
+      internalServerError: () => 'Server error. Please try again later.',
+      badGateway: () => 'Gateway error. Please try again later.',
       serviceUnavailable: () =>
           'Service temporarily unavailable. Please try again later.',
       requestCancelled: () => 'Request was cancelled.',
-      unexpectedError: () =>
-          'An unexpected error occurred. Please try again.',
+      unexpectedError: () => 'An unexpected error occurred. Please try again.',
     );
   }
 

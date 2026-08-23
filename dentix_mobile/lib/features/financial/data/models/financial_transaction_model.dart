@@ -48,8 +48,8 @@ class FinancialTransactionModel with _$FinancialTransactionModel {
 
   /// Parse transaction type string to enum
   static TransactionType _parseTransactionType(String type) {
-    return type.toLowerCase() == 'expense' 
-        ? TransactionType.expense 
+    return type.toLowerCase() == 'expense'
+        ? TransactionType.expense
         : TransactionType.revenue;
   }
 }

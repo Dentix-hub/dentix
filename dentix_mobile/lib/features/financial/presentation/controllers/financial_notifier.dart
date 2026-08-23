@@ -35,9 +35,9 @@ class FinancialNotifier extends StateNotifier<FinancialState> {
   FinancialNotifier({
     required GetFinancialOverviewUseCase getFinancialOverviewUseCase,
     required RecordPaymentUseCase recordPaymentUseCase,
-  })  : _getFinancialOverviewUseCase = getFinancialOverviewUseCase,
-        _recordPaymentUseCase = recordPaymentUseCase,
-        super(const FinancialState.initial());
+  }) : _getFinancialOverviewUseCase = getFinancialOverviewUseCase,
+       _recordPaymentUseCase = recordPaymentUseCase,
+       super(const FinancialState.initial());
 
   /// Load financial overview
   Future<void> loadFinancialOverview({
@@ -49,11 +49,7 @@ class FinancialNotifier extends StateNotifier<FinancialState> {
     }
 
     final result = await _getFinancialOverviewUseCase(
-      GetFinancialOverviewParams(
-        page: 1,
-        limit: _pageSize,
-        month: month,
-      ),
+      GetFinancialOverviewParams(page: 1, limit: _pageSize, month: month),
     );
 
     result.fold(
@@ -136,12 +132,13 @@ class FinancialNotifier extends StateNotifier<FinancialState> {
 /// Provider for financial notifier
 final financialNotifierProvider =
     StateNotifierProvider<FinancialNotifier, FinancialState>((ref) {
-  final getFinancialOverviewUseCase =
-      ref.watch(getFinancialOverviewUseCaseProvider);
-  final recordPaymentUseCase = ref.watch(recordPaymentUseCaseProvider);
+      final getFinancialOverviewUseCase = ref.watch(
+        getFinancialOverviewUseCaseProvider,
+      );
+      final recordPaymentUseCase = ref.watch(recordPaymentUseCaseProvider);
 
-  return FinancialNotifier(
-    getFinancialOverviewUseCase: getFinancialOverviewUseCase,
-    recordPaymentUseCase: recordPaymentUseCase,
-  );
-});
+      return FinancialNotifier(
+        getFinancialOverviewUseCase: getFinancialOverviewUseCase,
+        recordPaymentUseCase: recordPaymentUseCase,
+      );
+    });

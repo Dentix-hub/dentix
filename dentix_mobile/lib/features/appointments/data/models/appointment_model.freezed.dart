@@ -12,7 +12,8 @@ part of 'appointment_model.dart';
 T _$identity<T>(T value) => value;
 
 final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
+  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
+);
 
 AppointmentModel _$AppointmentModelFromJson(Map<String, dynamic> json) {
   return _AppointmentModel.fromJson(json);
@@ -36,8 +37,7 @@ mixin _$AppointmentModel {
   @JsonKey(name: 'end_time')
   String? get endTime => throw _privateConstructorUsedError;
   @JsonKey(name: 'status')
-  String get status =>
-      throw _privateConstructorUsedError; // scheduled, completed, cancelled, no_show
+  String get status => throw _privateConstructorUsedError; // scheduled, completed, cancelled, no_show
   @JsonKey(name: 'notes')
   String? get notes => throw _privateConstructorUsedError;
   @JsonKey(name: 'procedure_type')
@@ -56,23 +56,25 @@ mixin _$AppointmentModel {
 /// @nodoc
 abstract class $AppointmentModelCopyWith<$Res> {
   factory $AppointmentModelCopyWith(
-          AppointmentModel value, $Res Function(AppointmentModel) then) =
-      _$AppointmentModelCopyWithImpl<$Res, AppointmentModel>;
+    AppointmentModel value,
+    $Res Function(AppointmentModel) then,
+  ) = _$AppointmentModelCopyWithImpl<$Res, AppointmentModel>;
   @useResult
-  $Res call(
-      {int id,
-      @JsonKey(name: 'patient_id') int patientId,
-      @JsonKey(name: 'patient_name') String? patientName,
-      @JsonKey(name: 'dentist_id') int dentistId,
-      @JsonKey(name: 'dentist_name') String? dentistName,
-      @JsonKey(name: 'appointment_date') String appointmentDate,
-      @JsonKey(name: 'start_time') String startTime,
-      @JsonKey(name: 'end_time') String? endTime,
-      @JsonKey(name: 'status') String status,
-      @JsonKey(name: 'notes') String? notes,
-      @JsonKey(name: 'procedure_type') String? procedureType,
-      @JsonKey(name: 'created_at') String? createdAt,
-      @JsonKey(name: 'updated_at') String? updatedAt});
+  $Res call({
+    int id,
+    @JsonKey(name: 'patient_id') int patientId,
+    @JsonKey(name: 'patient_name') String? patientName,
+    @JsonKey(name: 'dentist_id') int dentistId,
+    @JsonKey(name: 'dentist_name') String? dentistName,
+    @JsonKey(name: 'appointment_date') String appointmentDate,
+    @JsonKey(name: 'start_time') String startTime,
+    @JsonKey(name: 'end_time') String? endTime,
+    @JsonKey(name: 'status') String status,
+    @JsonKey(name: 'notes') String? notes,
+    @JsonKey(name: 'procedure_type') String? procedureType,
+    @JsonKey(name: 'created_at') String? createdAt,
+    @JsonKey(name: 'updated_at') String? updatedAt,
+  });
 }
 
 /// @nodoc
@@ -102,94 +104,100 @@ class _$AppointmentModelCopyWithImpl<$Res, $Val extends AppointmentModel>
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
-    return _then(_value.copyWith(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientId: null == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientName: freezed == patientName
-          ? _value.patientName
-          : patientName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      dentistId: null == dentistId
-          ? _value.dentistId
-          : dentistId // ignore: cast_nullable_to_non_nullable
-              as int,
-      dentistName: freezed == dentistName
-          ? _value.dentistName
-          : dentistName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      appointmentDate: null == appointmentDate
-          ? _value.appointmentDate
-          : appointmentDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      startTime: null == startTime
-          ? _value.startTime
-          : startTime // ignore: cast_nullable_to_non_nullable
-              as String,
-      endTime: freezed == endTime
-          ? _value.endTime
-          : endTime // ignore: cast_nullable_to_non_nullable
-              as String?,
-      status: null == status
-          ? _value.status
-          : status // ignore: cast_nullable_to_non_nullable
-              as String,
-      notes: freezed == notes
-          ? _value.notes
-          : notes // ignore: cast_nullable_to_non_nullable
-              as String?,
-      procedureType: freezed == procedureType
-          ? _value.procedureType
-          : procedureType // ignore: cast_nullable_to_non_nullable
-              as String?,
-      createdAt: freezed == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-      updatedAt: freezed == updatedAt
-          ? _value.updatedAt
-          : updatedAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            patientId: null == patientId
+                ? _value.patientId
+                : patientId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            patientName: freezed == patientName
+                ? _value.patientName
+                : patientName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            dentistId: null == dentistId
+                ? _value.dentistId
+                : dentistId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            dentistName: freezed == dentistName
+                ? _value.dentistName
+                : dentistName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            appointmentDate: null == appointmentDate
+                ? _value.appointmentDate
+                : appointmentDate // ignore: cast_nullable_to_non_nullable
+                      as String,
+            startTime: null == startTime
+                ? _value.startTime
+                : startTime // ignore: cast_nullable_to_non_nullable
+                      as String,
+            endTime: freezed == endTime
+                ? _value.endTime
+                : endTime // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            status: null == status
+                ? _value.status
+                : status // ignore: cast_nullable_to_non_nullable
+                      as String,
+            notes: freezed == notes
+                ? _value.notes
+                : notes // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            procedureType: freezed == procedureType
+                ? _value.procedureType
+                : procedureType // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            createdAt: freezed == createdAt
+                ? _value.createdAt
+                : createdAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            updatedAt: freezed == updatedAt
+                ? _value.updatedAt
+                : updatedAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
   }
 }
 
 /// @nodoc
 abstract class _$$AppointmentModelImplCopyWith<$Res>
     implements $AppointmentModelCopyWith<$Res> {
-  factory _$$AppointmentModelImplCopyWith(_$AppointmentModelImpl value,
-          $Res Function(_$AppointmentModelImpl) then) =
-      __$$AppointmentModelImplCopyWithImpl<$Res>;
+  factory _$$AppointmentModelImplCopyWith(
+    _$AppointmentModelImpl value,
+    $Res Function(_$AppointmentModelImpl) then,
+  ) = __$$AppointmentModelImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {int id,
-      @JsonKey(name: 'patient_id') int patientId,
-      @JsonKey(name: 'patient_name') String? patientName,
-      @JsonKey(name: 'dentist_id') int dentistId,
-      @JsonKey(name: 'dentist_name') String? dentistName,
-      @JsonKey(name: 'appointment_date') String appointmentDate,
-      @JsonKey(name: 'start_time') String startTime,
-      @JsonKey(name: 'end_time') String? endTime,
-      @JsonKey(name: 'status') String status,
-      @JsonKey(name: 'notes') String? notes,
-      @JsonKey(name: 'procedure_type') String? procedureType,
-      @JsonKey(name: 'created_at') String? createdAt,
-      @JsonKey(name: 'updated_at') String? updatedAt});
+  $Res call({
+    int id,
+    @JsonKey(name: 'patient_id') int patientId,
+    @JsonKey(name: 'patient_name') String? patientName,
+    @JsonKey(name: 'dentist_id') int dentistId,
+    @JsonKey(name: 'dentist_name') String? dentistName,
+    @JsonKey(name: 'appointment_date') String appointmentDate,
+    @JsonKey(name: 'start_time') String startTime,
+    @JsonKey(name: 'end_time') String? endTime,
+    @JsonKey(name: 'status') String status,
+    @JsonKey(name: 'notes') String? notes,
+    @JsonKey(name: 'procedure_type') String? procedureType,
+    @JsonKey(name: 'created_at') String? createdAt,
+    @JsonKey(name: 'updated_at') String? updatedAt,
+  });
 }
 
 /// @nodoc
 class __$$AppointmentModelImplCopyWithImpl<$Res>
     extends _$AppointmentModelCopyWithImpl<$Res, _$AppointmentModelImpl>
     implements _$$AppointmentModelImplCopyWith<$Res> {
-  __$$AppointmentModelImplCopyWithImpl(_$AppointmentModelImpl _value,
-      $Res Function(_$AppointmentModelImpl) _then)
-      : super(_value, _then);
+  __$$AppointmentModelImplCopyWithImpl(
+    _$AppointmentModelImpl _value,
+    $Res Function(_$AppointmentModelImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -208,80 +216,83 @@ class __$$AppointmentModelImplCopyWithImpl<$Res>
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
-    return _then(_$AppointmentModelImpl(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientId: null == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientName: freezed == patientName
-          ? _value.patientName
-          : patientName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      dentistId: null == dentistId
-          ? _value.dentistId
-          : dentistId // ignore: cast_nullable_to_non_nullable
-              as int,
-      dentistName: freezed == dentistName
-          ? _value.dentistName
-          : dentistName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      appointmentDate: null == appointmentDate
-          ? _value.appointmentDate
-          : appointmentDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      startTime: null == startTime
-          ? _value.startTime
-          : startTime // ignore: cast_nullable_to_non_nullable
-              as String,
-      endTime: freezed == endTime
-          ? _value.endTime
-          : endTime // ignore: cast_nullable_to_non_nullable
-              as String?,
-      status: null == status
-          ? _value.status
-          : status // ignore: cast_nullable_to_non_nullable
-              as String,
-      notes: freezed == notes
-          ? _value.notes
-          : notes // ignore: cast_nullable_to_non_nullable
-              as String?,
-      procedureType: freezed == procedureType
-          ? _value.procedureType
-          : procedureType // ignore: cast_nullable_to_non_nullable
-              as String?,
-      createdAt: freezed == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-      updatedAt: freezed == updatedAt
-          ? _value.updatedAt
-          : updatedAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ));
+    return _then(
+      _$AppointmentModelImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        patientId: null == patientId
+            ? _value.patientId
+            : patientId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        patientName: freezed == patientName
+            ? _value.patientName
+            : patientName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        dentistId: null == dentistId
+            ? _value.dentistId
+            : dentistId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        dentistName: freezed == dentistName
+            ? _value.dentistName
+            : dentistName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        appointmentDate: null == appointmentDate
+            ? _value.appointmentDate
+            : appointmentDate // ignore: cast_nullable_to_non_nullable
+                  as String,
+        startTime: null == startTime
+            ? _value.startTime
+            : startTime // ignore: cast_nullable_to_non_nullable
+                  as String,
+        endTime: freezed == endTime
+            ? _value.endTime
+            : endTime // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        status: null == status
+            ? _value.status
+            : status // ignore: cast_nullable_to_non_nullable
+                  as String,
+        notes: freezed == notes
+            ? _value.notes
+            : notes // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        procedureType: freezed == procedureType
+            ? _value.procedureType
+            : procedureType // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        createdAt: freezed == createdAt
+            ? _value.createdAt
+            : createdAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        updatedAt: freezed == updatedAt
+            ? _value.updatedAt
+            : updatedAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 @JsonSerializable()
 class _$AppointmentModelImpl implements _AppointmentModel {
-  const _$AppointmentModelImpl(
-      {required this.id,
-      @JsonKey(name: 'patient_id') required this.patientId,
-      @JsonKey(name: 'patient_name') this.patientName,
-      @JsonKey(name: 'dentist_id') required this.dentistId,
-      @JsonKey(name: 'dentist_name') this.dentistName,
-      @JsonKey(name: 'appointment_date') required this.appointmentDate,
-      @JsonKey(name: 'start_time') required this.startTime,
-      @JsonKey(name: 'end_time') this.endTime,
-      @JsonKey(name: 'status') required this.status,
-      @JsonKey(name: 'notes') this.notes,
-      @JsonKey(name: 'procedure_type') this.procedureType,
-      @JsonKey(name: 'created_at') this.createdAt,
-      @JsonKey(name: 'updated_at') this.updatedAt});
+  const _$AppointmentModelImpl({
+    required this.id,
+    @JsonKey(name: 'patient_id') required this.patientId,
+    @JsonKey(name: 'patient_name') this.patientName,
+    @JsonKey(name: 'dentist_id') required this.dentistId,
+    @JsonKey(name: 'dentist_name') this.dentistName,
+    @JsonKey(name: 'appointment_date') required this.appointmentDate,
+    @JsonKey(name: 'start_time') required this.startTime,
+    @JsonKey(name: 'end_time') this.endTime,
+    @JsonKey(name: 'status') required this.status,
+    @JsonKey(name: 'notes') this.notes,
+    @JsonKey(name: 'procedure_type') this.procedureType,
+    @JsonKey(name: 'created_at') this.createdAt,
+    @JsonKey(name: 'updated_at') this.updatedAt,
+  });
 
   factory _$AppointmentModelImpl.fromJson(Map<String, dynamic> json) =>
       _$$AppointmentModelImplFromJson(json);
@@ -312,7 +323,7 @@ class _$AppointmentModelImpl implements _AppointmentModel {
   @override
   @JsonKey(name: 'status')
   final String status;
-// scheduled, completed, cancelled, no_show
+  // scheduled, completed, cancelled, no_show
   @override
   @JsonKey(name: 'notes')
   final String? notes;
@@ -363,52 +374,53 @@ class _$AppointmentModelImpl implements _AppointmentModel {
   @JsonKey(ignore: true)
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      id,
-      patientId,
-      patientName,
-      dentistId,
-      dentistName,
-      appointmentDate,
-      startTime,
-      endTime,
-      status,
-      notes,
-      procedureType,
-      createdAt,
-      updatedAt);
+    runtimeType,
+    id,
+    patientId,
+    patientName,
+    dentistId,
+    dentistName,
+    appointmentDate,
+    startTime,
+    endTime,
+    status,
+    notes,
+    procedureType,
+    createdAt,
+    updatedAt,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$AppointmentModelImplCopyWith<_$AppointmentModelImpl> get copyWith =>
       __$$AppointmentModelImplCopyWithImpl<_$AppointmentModelImpl>(
-          this, _$identity);
+        this,
+        _$identity,
+      );
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$AppointmentModelImplToJson(
-      this,
-    );
+    return _$$AppointmentModelImplToJson(this);
   }
 }
 
 abstract class _AppointmentModel implements AppointmentModel {
-  const factory _AppointmentModel(
-      {required final int id,
-      @JsonKey(name: 'patient_id') required final int patientId,
-      @JsonKey(name: 'patient_name') final String? patientName,
-      @JsonKey(name: 'dentist_id') required final int dentistId,
-      @JsonKey(name: 'dentist_name') final String? dentistName,
-      @JsonKey(name: 'appointment_date') required final String appointmentDate,
-      @JsonKey(name: 'start_time') required final String startTime,
-      @JsonKey(name: 'end_time') final String? endTime,
-      @JsonKey(name: 'status') required final String status,
-      @JsonKey(name: 'notes') final String? notes,
-      @JsonKey(name: 'procedure_type') final String? procedureType,
-      @JsonKey(name: 'created_at') final String? createdAt,
-      @JsonKey(name: 'updated_at')
-      final String? updatedAt}) = _$AppointmentModelImpl;
+  const factory _AppointmentModel({
+    required final int id,
+    @JsonKey(name: 'patient_id') required final int patientId,
+    @JsonKey(name: 'patient_name') final String? patientName,
+    @JsonKey(name: 'dentist_id') required final int dentistId,
+    @JsonKey(name: 'dentist_name') final String? dentistName,
+    @JsonKey(name: 'appointment_date') required final String appointmentDate,
+    @JsonKey(name: 'start_time') required final String startTime,
+    @JsonKey(name: 'end_time') final String? endTime,
+    @JsonKey(name: 'status') required final String status,
+    @JsonKey(name: 'notes') final String? notes,
+    @JsonKey(name: 'procedure_type') final String? procedureType,
+    @JsonKey(name: 'created_at') final String? createdAt,
+    @JsonKey(name: 'updated_at') final String? updatedAt,
+  }) = _$AppointmentModelImpl;
 
   factory _AppointmentModel.fromJson(Map<String, dynamic> json) =
       _$AppointmentModelImpl.fromJson;
@@ -458,7 +470,8 @@ abstract class _AppointmentModel implements AppointmentModel {
 }
 
 AppointmentListResponse _$AppointmentListResponseFromJson(
-    Map<String, dynamic> json) {
+  Map<String, dynamic> json,
+) {
   return _AppointmentListResponse.fromJson(json);
 }
 
@@ -479,20 +492,24 @@ mixin _$AppointmentListResponse {
 
 /// @nodoc
 abstract class $AppointmentListResponseCopyWith<$Res> {
-  factory $AppointmentListResponseCopyWith(AppointmentListResponse value,
-          $Res Function(AppointmentListResponse) then) =
-      _$AppointmentListResponseCopyWithImpl<$Res, AppointmentListResponse>;
+  factory $AppointmentListResponseCopyWith(
+    AppointmentListResponse value,
+    $Res Function(AppointmentListResponse) then,
+  ) = _$AppointmentListResponseCopyWithImpl<$Res, AppointmentListResponse>;
   @useResult
-  $Res call(
-      {List<AppointmentModel> items,
-      int total,
-      @JsonKey(name: 'page') int currentPage,
-      @JsonKey(name: 'pages') int totalPages});
+  $Res call({
+    List<AppointmentModel> items,
+    int total,
+    @JsonKey(name: 'page') int currentPage,
+    @JsonKey(name: 'pages') int totalPages,
+  });
 }
 
 /// @nodoc
-class _$AppointmentListResponseCopyWithImpl<$Res,
-        $Val extends AppointmentListResponse>
+class _$AppointmentListResponseCopyWithImpl<
+  $Res,
+  $Val extends AppointmentListResponse
+>
     implements $AppointmentListResponseCopyWith<$Res> {
   _$AppointmentListResponseCopyWithImpl(this._value, this._then);
 
@@ -509,24 +526,27 @@ class _$AppointmentListResponseCopyWithImpl<$Res,
     Object? currentPage = null,
     Object? totalPages = null,
   }) {
-    return _then(_value.copyWith(
-      items: null == items
-          ? _value.items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<AppointmentModel>,
-      total: null == total
-          ? _value.total
-          : total // ignore: cast_nullable_to_non_nullable
-              as int,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            items: null == items
+                ? _value.items
+                : items // ignore: cast_nullable_to_non_nullable
+                      as List<AppointmentModel>,
+            total: null == total
+                ? _value.total
+                : total // ignore: cast_nullable_to_non_nullable
+                      as int,
+            currentPage: null == currentPage
+                ? _value.currentPage
+                : currentPage // ignore: cast_nullable_to_non_nullable
+                      as int,
+            totalPages: null == totalPages
+                ? _value.totalPages
+                : totalPages // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
   }
 }
 
@@ -534,27 +554,31 @@ class _$AppointmentListResponseCopyWithImpl<$Res,
 abstract class _$$AppointmentListResponseImplCopyWith<$Res>
     implements $AppointmentListResponseCopyWith<$Res> {
   factory _$$AppointmentListResponseImplCopyWith(
-          _$AppointmentListResponseImpl value,
-          $Res Function(_$AppointmentListResponseImpl) then) =
-      __$$AppointmentListResponseImplCopyWithImpl<$Res>;
+    _$AppointmentListResponseImpl value,
+    $Res Function(_$AppointmentListResponseImpl) then,
+  ) = __$$AppointmentListResponseImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {List<AppointmentModel> items,
-      int total,
-      @JsonKey(name: 'page') int currentPage,
-      @JsonKey(name: 'pages') int totalPages});
+  $Res call({
+    List<AppointmentModel> items,
+    int total,
+    @JsonKey(name: 'page') int currentPage,
+    @JsonKey(name: 'pages') int totalPages,
+  });
 }
 
 /// @nodoc
 class __$$AppointmentListResponseImplCopyWithImpl<$Res>
-    extends _$AppointmentListResponseCopyWithImpl<$Res,
-        _$AppointmentListResponseImpl>
+    extends
+        _$AppointmentListResponseCopyWithImpl<
+          $Res,
+          _$AppointmentListResponseImpl
+        >
     implements _$$AppointmentListResponseImplCopyWith<$Res> {
   __$$AppointmentListResponseImplCopyWithImpl(
-      _$AppointmentListResponseImpl _value,
-      $Res Function(_$AppointmentListResponseImpl) _then)
-      : super(_value, _then);
+    _$AppointmentListResponseImpl _value,
+    $Res Function(_$AppointmentListResponseImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -564,36 +588,38 @@ class __$$AppointmentListResponseImplCopyWithImpl<$Res>
     Object? currentPage = null,
     Object? totalPages = null,
   }) {
-    return _then(_$AppointmentListResponseImpl(
-      items: null == items
-          ? _value._items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<AppointmentModel>,
-      total: null == total
-          ? _value.total
-          : total // ignore: cast_nullable_to_non_nullable
-              as int,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-    ));
+    return _then(
+      _$AppointmentListResponseImpl(
+        items: null == items
+            ? _value._items
+            : items // ignore: cast_nullable_to_non_nullable
+                  as List<AppointmentModel>,
+        total: null == total
+            ? _value.total
+            : total // ignore: cast_nullable_to_non_nullable
+                  as int,
+        currentPage: null == currentPage
+            ? _value.currentPage
+            : currentPage // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalPages: null == totalPages
+            ? _value.totalPages
+            : totalPages // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
   }
 }
 
 /// @nodoc
 @JsonSerializable()
 class _$AppointmentListResponseImpl implements _AppointmentListResponse {
-  const _$AppointmentListResponseImpl(
-      {required final List<AppointmentModel> items,
-      required this.total,
-      @JsonKey(name: 'page') required this.currentPage,
-      @JsonKey(name: 'pages') required this.totalPages})
-      : _items = items;
+  const _$AppointmentListResponseImpl({
+    required final List<AppointmentModel> items,
+    required this.total,
+    @JsonKey(name: 'page') required this.currentPage,
+    @JsonKey(name: 'pages') required this.totalPages,
+  }) : _items = items;
 
   factory _$AppointmentListResponseImpl.fromJson(Map<String, dynamic> json) =>
       _$$AppointmentListResponseImplFromJson(json);
@@ -636,34 +662,35 @@ class _$AppointmentListResponseImpl implements _AppointmentListResponse {
   @JsonKey(ignore: true)
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      const DeepCollectionEquality().hash(_items),
-      total,
-      currentPage,
-      totalPages);
+    runtimeType,
+    const DeepCollectionEquality().hash(_items),
+    total,
+    currentPage,
+    totalPages,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$AppointmentListResponseImplCopyWith<_$AppointmentListResponseImpl>
-      get copyWith => __$$AppointmentListResponseImplCopyWithImpl<
-          _$AppointmentListResponseImpl>(this, _$identity);
+  get copyWith =>
+      __$$AppointmentListResponseImplCopyWithImpl<
+        _$AppointmentListResponseImpl
+      >(this, _$identity);
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$AppointmentListResponseImplToJson(
-      this,
-    );
+    return _$$AppointmentListResponseImplToJson(this);
   }
 }
 
 abstract class _AppointmentListResponse implements AppointmentListResponse {
-  const factory _AppointmentListResponse(
-          {required final List<AppointmentModel> items,
-          required final int total,
-          @JsonKey(name: 'page') required final int currentPage,
-          @JsonKey(name: 'pages') required final int totalPages}) =
-      _$AppointmentListResponseImpl;
+  const factory _AppointmentListResponse({
+    required final List<AppointmentModel> items,
+    required final int total,
+    @JsonKey(name: 'page') required final int currentPage,
+    @JsonKey(name: 'pages') required final int totalPages,
+  }) = _$AppointmentListResponseImpl;
 
   factory _AppointmentListResponse.fromJson(Map<String, dynamic> json) =
       _$AppointmentListResponseImpl.fromJson;
@@ -681,11 +708,12 @@ abstract class _AppointmentListResponse implements AppointmentListResponse {
   @override
   @JsonKey(ignore: true)
   _$$AppointmentListResponseImplCopyWith<_$AppointmentListResponseImpl>
-      get copyWith => throw _privateConstructorUsedError;
+  get copyWith => throw _privateConstructorUsedError;
 }
 
 CreateAppointmentRequest _$CreateAppointmentRequestFromJson(
-    Map<String, dynamic> json) {
+  Map<String, dynamic> json,
+) {
   return _CreateAppointmentRequest.fromJson(json);
 }
 
@@ -714,23 +742,27 @@ mixin _$CreateAppointmentRequest {
 
 /// @nodoc
 abstract class $CreateAppointmentRequestCopyWith<$Res> {
-  factory $CreateAppointmentRequestCopyWith(CreateAppointmentRequest value,
-          $Res Function(CreateAppointmentRequest) then) =
-      _$CreateAppointmentRequestCopyWithImpl<$Res, CreateAppointmentRequest>;
+  factory $CreateAppointmentRequestCopyWith(
+    CreateAppointmentRequest value,
+    $Res Function(CreateAppointmentRequest) then,
+  ) = _$CreateAppointmentRequestCopyWithImpl<$Res, CreateAppointmentRequest>;
   @useResult
-  $Res call(
-      {@JsonKey(name: 'patient_id') int patientId,
-      @JsonKey(name: 'dentist_id') int dentistId,
-      @JsonKey(name: 'appointment_date') String appointmentDate,
-      @JsonKey(name: 'start_time') String startTime,
-      @JsonKey(name: 'end_time') String? endTime,
-      @JsonKey(name: 'notes') String? notes,
-      @JsonKey(name: 'procedure_type') String? procedureType});
+  $Res call({
+    @JsonKey(name: 'patient_id') int patientId,
+    @JsonKey(name: 'dentist_id') int dentistId,
+    @JsonKey(name: 'appointment_date') String appointmentDate,
+    @JsonKey(name: 'start_time') String startTime,
+    @JsonKey(name: 'end_time') String? endTime,
+    @JsonKey(name: 'notes') String? notes,
+    @JsonKey(name: 'procedure_type') String? procedureType,
+  });
 }
 
 /// @nodoc
-class _$CreateAppointmentRequestCopyWithImpl<$Res,
-        $Val extends CreateAppointmentRequest>
+class _$CreateAppointmentRequestCopyWithImpl<
+  $Res,
+  $Val extends CreateAppointmentRequest
+>
     implements $CreateAppointmentRequestCopyWith<$Res> {
   _$CreateAppointmentRequestCopyWithImpl(this._value, this._then);
 
@@ -750,36 +782,39 @@ class _$CreateAppointmentRequestCopyWithImpl<$Res,
     Object? notes = freezed,
     Object? procedureType = freezed,
   }) {
-    return _then(_value.copyWith(
-      patientId: null == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int,
-      dentistId: null == dentistId
-          ? _value.dentistId
-          : dentistId // ignore: cast_nullable_to_non_nullable
-              as int,
-      appointmentDate: null == appointmentDate
-          ? _value.appointmentDate
-          : appointmentDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      startTime: null == startTime
-          ? _value.startTime
-          : startTime // ignore: cast_nullable_to_non_nullable
-              as String,
-      endTime: freezed == endTime
-          ? _value.endTime
-          : endTime // ignore: cast_nullable_to_non_nullable
-              as String?,
-      notes: freezed == notes
-          ? _value.notes
-          : notes // ignore: cast_nullable_to_non_nullable
-              as String?,
-      procedureType: freezed == procedureType
-          ? _value.procedureType
-          : procedureType // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            patientId: null == patientId
+                ? _value.patientId
+                : patientId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            dentistId: null == dentistId
+                ? _value.dentistId
+                : dentistId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            appointmentDate: null == appointmentDate
+                ? _value.appointmentDate
+                : appointmentDate // ignore: cast_nullable_to_non_nullable
+                      as String,
+            startTime: null == startTime
+                ? _value.startTime
+                : startTime // ignore: cast_nullable_to_non_nullable
+                      as String,
+            endTime: freezed == endTime
+                ? _value.endTime
+                : endTime // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            notes: freezed == notes
+                ? _value.notes
+                : notes // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            procedureType: freezed == procedureType
+                ? _value.procedureType
+                : procedureType // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
   }
 }
 
@@ -787,30 +822,34 @@ class _$CreateAppointmentRequestCopyWithImpl<$Res,
 abstract class _$$CreateAppointmentRequestImplCopyWith<$Res>
     implements $CreateAppointmentRequestCopyWith<$Res> {
   factory _$$CreateAppointmentRequestImplCopyWith(
-          _$CreateAppointmentRequestImpl value,
-          $Res Function(_$CreateAppointmentRequestImpl) then) =
-      __$$CreateAppointmentRequestImplCopyWithImpl<$Res>;
+    _$CreateAppointmentRequestImpl value,
+    $Res Function(_$CreateAppointmentRequestImpl) then,
+  ) = __$$CreateAppointmentRequestImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {@JsonKey(name: 'patient_id') int patientId,
-      @JsonKey(name: 'dentist_id') int dentistId,
-      @JsonKey(name: 'appointment_date') String appointmentDate,
-      @JsonKey(name: 'start_time') String startTime,
-      @JsonKey(name: 'end_time') String? endTime,
-      @JsonKey(name: 'notes') String? notes,
-      @JsonKey(name: 'procedure_type') String? procedureType});
+  $Res call({
+    @JsonKey(name: 'patient_id') int patientId,
+    @JsonKey(name: 'dentist_id') int dentistId,
+    @JsonKey(name: 'appointment_date') String appointmentDate,
+    @JsonKey(name: 'start_time') String startTime,
+    @JsonKey(name: 'end_time') String? endTime,
+    @JsonKey(name: 'notes') String? notes,
+    @JsonKey(name: 'procedure_type') String? procedureType,
+  });
 }
 
 /// @nodoc
 class __$$CreateAppointmentRequestImplCopyWithImpl<$Res>
-    extends _$CreateAppointmentRequestCopyWithImpl<$Res,
-        _$CreateAppointmentRequestImpl>
+    extends
+        _$CreateAppointmentRequestCopyWithImpl<
+          $Res,
+          _$CreateAppointmentRequestImpl
+        >
     implements _$$CreateAppointmentRequestImplCopyWith<$Res> {
   __$$CreateAppointmentRequestImplCopyWithImpl(
-      _$CreateAppointmentRequestImpl _value,
-      $Res Function(_$CreateAppointmentRequestImpl) _then)
-      : super(_value, _then);
+    _$CreateAppointmentRequestImpl _value,
+    $Res Function(_$CreateAppointmentRequestImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -823,50 +862,53 @@ class __$$CreateAppointmentRequestImplCopyWithImpl<$Res>
     Object? notes = freezed,
     Object? procedureType = freezed,
   }) {
-    return _then(_$CreateAppointmentRequestImpl(
-      patientId: null == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int,
-      dentistId: null == dentistId
-          ? _value.dentistId
-          : dentistId // ignore: cast_nullable_to_non_nullable
-              as int,
-      appointmentDate: null == appointmentDate
-          ? _value.appointmentDate
-          : appointmentDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      startTime: null == startTime
-          ? _value.startTime
-          : startTime // ignore: cast_nullable_to_non_nullable
-              as String,
-      endTime: freezed == endTime
-          ? _value.endTime
-          : endTime // ignore: cast_nullable_to_non_nullable
-              as String?,
-      notes: freezed == notes
-          ? _value.notes
-          : notes // ignore: cast_nullable_to_non_nullable
-              as String?,
-      procedureType: freezed == procedureType
-          ? _value.procedureType
-          : procedureType // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ));
+    return _then(
+      _$CreateAppointmentRequestImpl(
+        patientId: null == patientId
+            ? _value.patientId
+            : patientId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        dentistId: null == dentistId
+            ? _value.dentistId
+            : dentistId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        appointmentDate: null == appointmentDate
+            ? _value.appointmentDate
+            : appointmentDate // ignore: cast_nullable_to_non_nullable
+                  as String,
+        startTime: null == startTime
+            ? _value.startTime
+            : startTime // ignore: cast_nullable_to_non_nullable
+                  as String,
+        endTime: freezed == endTime
+            ? _value.endTime
+            : endTime // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        notes: freezed == notes
+            ? _value.notes
+            : notes // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        procedureType: freezed == procedureType
+            ? _value.procedureType
+            : procedureType // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 @JsonSerializable()
 class _$CreateAppointmentRequestImpl implements _CreateAppointmentRequest {
-  const _$CreateAppointmentRequestImpl(
-      {@JsonKey(name: 'patient_id') required this.patientId,
-      @JsonKey(name: 'dentist_id') required this.dentistId,
-      @JsonKey(name: 'appointment_date') required this.appointmentDate,
-      @JsonKey(name: 'start_time') required this.startTime,
-      @JsonKey(name: 'end_time') this.endTime,
-      @JsonKey(name: 'notes') this.notes,
-      @JsonKey(name: 'procedure_type') this.procedureType});
+  const _$CreateAppointmentRequestImpl({
+    @JsonKey(name: 'patient_id') required this.patientId,
+    @JsonKey(name: 'dentist_id') required this.dentistId,
+    @JsonKey(name: 'appointment_date') required this.appointmentDate,
+    @JsonKey(name: 'start_time') required this.startTime,
+    @JsonKey(name: 'end_time') this.endTime,
+    @JsonKey(name: 'notes') this.notes,
+    @JsonKey(name: 'procedure_type') this.procedureType,
+  });
 
   factory _$CreateAppointmentRequestImpl.fromJson(Map<String, dynamic> json) =>
       _$$CreateAppointmentRequestImplFromJson(json);
@@ -919,34 +961,42 @@ class _$CreateAppointmentRequestImpl implements _CreateAppointmentRequest {
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode => Object.hash(runtimeType, patientId, dentistId,
-      appointmentDate, startTime, endTime, notes, procedureType);
+  int get hashCode => Object.hash(
+    runtimeType,
+    patientId,
+    dentistId,
+    appointmentDate,
+    startTime,
+    endTime,
+    notes,
+    procedureType,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$CreateAppointmentRequestImplCopyWith<_$CreateAppointmentRequestImpl>
-      get copyWith => __$$CreateAppointmentRequestImplCopyWithImpl<
-          _$CreateAppointmentRequestImpl>(this, _$identity);
+  get copyWith =>
+      __$$CreateAppointmentRequestImplCopyWithImpl<
+        _$CreateAppointmentRequestImpl
+      >(this, _$identity);
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$CreateAppointmentRequestImplToJson(
-      this,
-    );
+    return _$$CreateAppointmentRequestImplToJson(this);
   }
 }
 
 abstract class _CreateAppointmentRequest implements CreateAppointmentRequest {
-  const factory _CreateAppointmentRequest(
-      {@JsonKey(name: 'patient_id') required final int patientId,
-      @JsonKey(name: 'dentist_id') required final int dentistId,
-      @JsonKey(name: 'appointment_date') required final String appointmentDate,
-      @JsonKey(name: 'start_time') required final String startTime,
-      @JsonKey(name: 'end_time') final String? endTime,
-      @JsonKey(name: 'notes') final String? notes,
-      @JsonKey(name: 'procedure_type')
-      final String? procedureType}) = _$CreateAppointmentRequestImpl;
+  const factory _CreateAppointmentRequest({
+    @JsonKey(name: 'patient_id') required final int patientId,
+    @JsonKey(name: 'dentist_id') required final int dentistId,
+    @JsonKey(name: 'appointment_date') required final String appointmentDate,
+    @JsonKey(name: 'start_time') required final String startTime,
+    @JsonKey(name: 'end_time') final String? endTime,
+    @JsonKey(name: 'notes') final String? notes,
+    @JsonKey(name: 'procedure_type') final String? procedureType,
+  }) = _$CreateAppointmentRequestImpl;
 
   factory _CreateAppointmentRequest.fromJson(Map<String, dynamic> json) =
       _$CreateAppointmentRequestImpl.fromJson;
@@ -975,5 +1025,5 @@ abstract class _CreateAppointmentRequest implements CreateAppointmentRequest {
   @override
   @JsonKey(ignore: true)
   _$$CreateAppointmentRequestImplCopyWith<_$CreateAppointmentRequestImpl>
-      get copyWith => throw _privateConstructorUsedError;
+  get copyWith => throw _privateConstructorUsedError;
 }
