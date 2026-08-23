@@ -21,7 +21,7 @@ from backend.services.finance_report_service import FinanceReportService, build_
 from backend.services.finance_summary_service import FinanceSummaryService
 from backend.services.tenant_time_service import get_tenant_timezone
 
-router = APIRouter(prefix="/accounting/reports", tags=["Finance Reports"])
+router = APIRouter(prefix="/reports", tags=["Finance Reports"])
 
 
 def _csv_response(content: str, filename: str) -> Response:
