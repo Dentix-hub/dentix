@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   flutter-analyze-test:
@@ -53,21 +53,24 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
-      - name: Apply Dart formatting on audit branch
+      - name: Export Dart formatter output
         if: github.event_name == 'pull_request' && github.head_ref == 'fix/program-wide-defect-audit-20260823'
         shell: bash
         run: |
           set -euo pipefail
           dart format lib test
-          if git diff --quiet -- lib test; then
+          mapfile -t changed < <(git diff --name-only -- lib test)
+          if [ ${#changed[@]} -eq 0 ]; then
             echo "Dart sources already formatted."
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add lib test
-          git commit -m "style(mobile): apply dart format"
-          git push origin HEAD:${{ github.head_ref }}
+          printf '%s\n' "${changed[@]}"
+          tar -czf /tmp/dart-formatted.tar.gz "${changed[@]}"
+          echo "DART_FORMATTED_TAR_GZ_BASE64_BEGIN"
+          base64 -w 0 /tmp/dart-formatted.tar.gz
+          echo
+          echo "DART_FORMATTED_TAR_GZ_BASE64_END"
+          exit 1
 
       - name: Verify Dart formatting
         run: dart format --output=none --set-exit-if-changed lib test
