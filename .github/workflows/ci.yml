@@ -131,7 +131,7 @@ jobs:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
           SECRET_KEY: test-secret-key-for-ci-only-at-least-32
           PYTHONPATH: .
-        run: alembic check
+        run: alembic -c backend/alembic.ini check
 
       - name: Provision restricted PostgreSQL role for RLS smoke
         env:
