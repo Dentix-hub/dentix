@@ -191,7 +191,7 @@ describe('Finance PR5 information-architecture contracts', () => {
     it('Reports & Insights keeps one canonical workspace without recreating operational report tabs', async () => {
         renderReports('/finance/reports?from=2026-08-01&to=2026-08-15&type=summary');
 
-        expect(screen.getByTestId('reports-insights-hub')).toBeDefined();
+        expect(screen.getByTestId('reports-insights-workspace')).toBeDefined();
         expect(screen.getByText('التقارير والرؤى')).toBeDefined();
         expect(screen.getByText('الملخص المالي المعتمد')).toBeDefined();
         expect(screen.getByText('التحصيلات والذمم')).toBeDefined();
