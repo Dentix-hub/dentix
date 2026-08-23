@@ -9,7 +9,6 @@ import {
     Menu,
     Settings as SettingsIcon,
     Package,
-    LineChart,
     Globe,
     LogOut,
     Shield,
@@ -166,7 +165,6 @@ const Layout = () => {
         }
 
         if (isAdmin) {
-            navItems.push({ icon: LineChart, label: t('sidebar.reports'), path: '/analytics' });
             navItems.push(
                 { icon: UserCog, label: t('sidebar.users'), path: '/users' },
                 { icon: SettingsIcon, label: t('sidebar.settings'), path: '/settings' },

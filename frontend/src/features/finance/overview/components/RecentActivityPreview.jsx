@@ -11,7 +11,7 @@ import Money from '../../components/Money';
 
 /**
  * Recent Activity Preview for Finance Overview V2.
- * Shows the last 8-10 actual cash movements (Payments & Expenses) with type indicator and link to full Activity.
+ * Shows actual cash movements with canonical drill-down links.
  */
 export default function RecentActivityPreview({
     activities = [],
@@ -54,7 +54,7 @@ export default function RecentActivityPreview({
                 </div>
 
                 <Link
-                    to="/finance/activity"
+                    to="/finance/cash-movements/activity"
                     className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:text-primary/80 transition-colors"
                 >
                     <span>{t('common.view_all', 'عرض الكل')}</span>
@@ -79,7 +79,7 @@ export default function RecentActivityPreview({
                         return (
                             <Link
                                 key={item.id}
-                                to={item.to || '/finance/activity'}
+                                to={item.to || '/finance/cash-movements/activity'}
                                 className="flex items-center justify-between py-3 px-2 rounded-xl hover:bg-muted/40 transition-colors group"
                             >
                                 <div className="flex items-center gap-3">

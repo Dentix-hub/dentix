@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import {
     MemoryRouter,
@@ -6,13 +6,12 @@ import {
     Routes,
     useLocation,
 } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import FinanceNav from '../features/finance/components/FinanceNav';
-import CompensationLayout from '../features/finance/pages/CompensationLayout';
+import CashMovementsLayout from '../features/finance/pages/CashMovementsLayout';
+import TeamLayout from '../features/finance/pages/TeamLayout';
 import LegacyFinanceRedirect from '../features/finance/LegacyFinanceRedirect';
 import ReportsPage from '../features/finance/pages/ReportsPage';
-import * as financialsApi from '../api/financials';
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
@@ -39,21 +38,6 @@ vi.mock('../features/finance/useFinancePermissions', () => ({
     }),
 }));
 
-vi.mock('../api/financials', () => ({
-    getFinanceSummary: vi.fn(),
-    getPatientsReport: vi.fn(),
-    getDoctorRevenue: vi.fn(),
-    getAllProceduresFinancials: vi.fn(),
-}));
-
-vi.mock('../api/billing', () => ({
-    getExpenses: vi.fn(),
-}));
-
-function createTestQueryClient() {
-    return new QueryClient({ defaultOptions: { queries: { retry: false } } });
-}
-
 function LocationProbe() {
     const location = useLocation();
     return (
@@ -63,69 +47,25 @@ function LocationProbe() {
     );
 }
 
-const summaryPayload = {
-    definition_version: 'finance-summary-v1',
-    period: {
-        start: '2026-08-01',
-        end: '2026-08-15',
-        timezone: 'Africa/Cairo',
-        scope: 'period',
-    },
-    income: {
-        gross_revenue: 1000,
-        total_revenue: 900,
-        total_discounts: 100,
-        net_revenue: 900,
-        total_collected: 700,
-        all_time_outstanding: 200,
-        period_balance: 200,
-        total_appointments: 2,
-        unique_patients: 2,
-    },
-    deductions: {
-        doctor_dues: { total: 100, details: [] },
-        staff_dues: { total: 50, details: [] },
-        lab_costs: 25,
-        expenses: 25,
-        total_deductions: 200,
-    },
-    net_operational_result: 500,
-    net_profit: 500,
-};
-
-describe('Finance PR4 URL/navigation contracts', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-        financialsApi.getFinanceSummary.mockResolvedValue({
-            data: { data: summaryPayload },
-        });
-    });
-
-    it('canonicalizes an invalid reports type to summary instead of rendering a blank report', async () => {
+describe('Finance PR5 information-architecture contracts', () => {
+    it('exposes exactly five canonical Finance destinations and preserves only shared period params', () => {
         render(
-            <QueryClientProvider client={createTestQueryClient()}>
-                <MemoryRouter initialEntries={['/finance/reports?type=not-a-report&from=2026-08-01&to=2026-08-15']}>
-                    <ReportsPage />
-                    <LocationProbe />
-                </MemoryRouter>
-            </QueryClientProvider>
-        );
-
-        await waitFor(() => {
-            expect(screen.getByText('قائمة الدخل والتدفقات المالية المعتمدة')).toBeDefined();
-            expect(financialsApi.getFinanceSummary).toHaveBeenCalledWith('2026-08-01', '2026-08-15');
-            expect(screen.getByTestId('location-probe').textContent).toContain('type=summary');
-        });
-    });
-
-    it('FinanceNav preserves only shared period params across destinations', () => {
-        render(
-            <MemoryRouter initialEntries={['/finance/payments?from=2026-08-01&to=2026-08-15&preset=custom&q=ali&page=3&payment_id=99']}>
+            <MemoryRouter initialEntries={['/finance/cash-movements/payments?from=2026-08-01&to=2026-08-15&preset=custom&q=ali&page=3&payment_id=99']}>
                 <FinanceNav />
             </MemoryRouter>
         );
 
-        const reportsLink = screen.getByRole('link', { name: /التقارير المالية/ });
+        const links = screen.getAllByRole('link');
+        expect(links).toHaveLength(5);
+        expect(links.map((link) => link.textContent)).toEqual([
+            'الملخص',
+            'حسابات المرضى',
+            'الحركات النقدية',
+            'الفريق',
+            'التقارير والرؤى',
+        ]);
+
+        const reportsLink = screen.getByRole('link', { name: /التقارير والرؤى/ });
         const url = new URL(reportsLink.getAttribute('href'), 'https://dentix.test');
         expect(url.pathname).toBe('/finance/reports');
         expect(url.searchParams.get('from')).toBe('2026-08-01');
@@ -136,19 +76,19 @@ describe('Finance PR4 URL/navigation contracts', () => {
         expect(url.searchParams.has('payment_id')).toBe(false);
     });
 
-    it('compensation index redirect preserves the shared period', async () => {
+    it('Cash Movements index redirects to the first authorized operational child with the shared period only', async () => {
         render(
-            <MemoryRouter initialEntries={['/finance/compensation?from=2026-08-01&to=2026-08-15&preset=custom&q=drop-me']}>
+            <MemoryRouter initialEntries={['/finance/cash-movements?from=2026-08-01&to=2026-08-15&preset=custom&q=drop-me']}>
                 <Routes>
-                    <Route path="/finance/compensation" element={<CompensationLayout />} />
-                    <Route path="/finance/compensation/doctors" element={<LocationProbe />} />
+                    <Route path="/finance/cash-movements" element={<CashMovementsLayout />} />
+                    <Route path="/finance/cash-movements/payments" element={<LocationProbe />} />
                 </Routes>
             </MemoryRouter>
         );
 
         await waitFor(() => {
             const text = screen.getByTestId('location-probe').textContent;
-            expect(text).toContain('/finance/compensation/doctors');
+            expect(text).toContain('/finance/cash-movements/payments');
             expect(text).toContain('from=2026-08-01');
             expect(text).toContain('to=2026-08-15');
             expect(text).toContain('preset=custom');
@@ -156,20 +96,76 @@ describe('Finance PR4 URL/navigation contracts', () => {
         });
     });
 
-    it('legacy redirects preserve query and hash while changing only the pathname', async () => {
+    it('Team index redirects to doctors while preserving the shared period', async () => {
         render(
+            <MemoryRouter initialEntries={['/finance/team?from=2026-08-01&to=2026-08-15&preset=custom&q=drop-me']}>
+                <Routes>
+                    <Route path="/finance/team" element={<TeamLayout />} />
+                    <Route path="/finance/team/doctors" element={<LocationProbe />} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => {
+            const text = screen.getByTestId('location-probe').textContent;
+            expect(text).toContain('/finance/team/doctors');
+            expect(text).toContain('from=2026-08-01');
+            expect(text).toContain('to=2026-08-15');
+            expect(text).toContain('preset=custom');
+            expect(text).not.toContain('q=drop-me');
+        });
+    });
+
+    it('legacy expense and doctor-detail bookmarks redirect to canonical paths without losing query/hash', async () => {
+        const { unmount } = render(
             <MemoryRouter initialEntries={['/expenses?from=2026-08-01&to=2026-08-15#manual-42']}>
                 <Routes>
-                    <Route path="/expenses" element={<LegacyFinanceRedirect to="/finance/expenses" />} />
-                    <Route path="/finance/expenses" element={<LocationProbe />} />
+                    <Route path="/expenses" element={<LegacyFinanceRedirect to="/finance/cash-movements/expenses" />} />
+                    <Route path="/finance/cash-movements/expenses" element={<LocationProbe />} />
                 </Routes>
             </MemoryRouter>
         );
 
         await waitFor(() => {
             expect(screen.getByTestId('location-probe').textContent).toBe(
-                '/finance/expenses?from=2026-08-01&to=2026-08-15#manual-42',
+                '/finance/cash-movements/expenses?from=2026-08-01&to=2026-08-15#manual-42',
             );
         });
+        unmount();
+
+        render(
+            <MemoryRouter initialEntries={['/finance/compensation/doctors/42?from=2026-08-01#due']}>
+                <Routes>
+                    <Route
+                        path="/finance/compensation/doctors/:doctorId"
+                        element={<LegacyFinanceRedirect to={({ doctorId }) => `/finance/team/doctors/${doctorId}`} />}
+                    />
+                    <Route path="/finance/team/doctors/:doctorId" element={<LocationProbe />} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        await waitFor(() => {
+            expect(screen.getByTestId('location-probe').textContent).toBe(
+                '/finance/team/doctors/42?from=2026-08-01#due',
+            );
+        });
+    });
+
+    it('Reports & Insights is a non-duplicated hub instead of a second operational report workspace', () => {
+        render(
+            <MemoryRouter initialEntries={['/finance/reports?from=2026-08-01&to=2026-08-15&type=summary']}>
+                <ReportsPage />
+            </MemoryRouter>
+        );
+
+        expect(screen.getByTestId('reports-insights-hub')).toBeDefined();
+        expect(screen.getByText('التقارير والرؤى')).toBeDefined();
+        expect(screen.getByText('الملخص المالي المعتمد')).toBeDefined();
+        expect(screen.getByText('التحصيلات والذمم')).toBeDefined();
+        expect(screen.getByText('الحركات النقدية')).toBeDefined();
+        expect(screen.getByText('الفريق والمستحقات')).toBeDefined();
+        expect(screen.queryByText('الملخص المالي العام')).toBeNull();
+        expect(screen.queryByText('تصدير')).toBeNull();
     });
 });

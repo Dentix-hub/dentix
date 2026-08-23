@@ -54,9 +54,9 @@ test.describe('RBAC - Role Based Access Control', () => {
 
     const routes = [
       ['/billing', /\/finance\/overview/],
-      ['/expenses', /\/finance\/expenses/],
+      ['/expenses', /\/finance\/cash-movements\/expenses/],
       ['/labs', /\/labs/],
-      ['/analytics', /\/analytics/],
+      ['/analytics', /\/finance\/reports/],
       ['/users', /\/users/],
       ['/settings', /\/settings/],
     ];

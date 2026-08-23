@@ -94,7 +94,7 @@ export function useFinanceOverview() {
         subtitle: payment.notes || (payment.doctor_name ? `د. ${payment.doctor_name}` : 'دفعة مريض'),
         amount: Number(payment.amount) || 0,
         isIncome: true,
-        to: financeLink('/finance/payments', from, to, {
+        to: financeLink('/finance/cash-movements/payments', from, to, {
             patient_id: payment.patient_id,
             payment_id: payment.id,
         }),
@@ -110,7 +110,7 @@ export function useFinanceOverview() {
         subtitle: expense.category ? `تصنيف: ${expense.category}` : (expense.notes || 'مصروف تشغيلي'),
         amount: Number(expense.cost || expense.amount) || 0,
         isIncome: false,
-        to: financeLink('/finance/expenses', from, to),
+        to: financeLink('/finance/cash-movements/expenses', from, to),
     }));
 
     const recentActivity = [...paymentsList, ...expensesList]
