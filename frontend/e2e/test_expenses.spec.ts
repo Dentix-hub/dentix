@@ -5,83 +5,51 @@ const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173';
 
 const testExpense = {
   description: generateRandomName('Expense'),
-  amount: Math.floor(Math.random() * 1000).toString(),
-  category: 'supplies',
+  amount: Math.floor(Math.random() * 1000 + 1).toString(),
 };
 
-test.describe('Expenses Management', () => {
-
+test.describe('Finance V2 Expenses Management', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
   });
 
-  test('EXP-01: View expenses list', async ({ page }) => {
-    await page.goto(`${BASE_URL}/expenses`);
-    
-    // Should load expenses page
-    await expect(page).toHaveURL(/.*expenses/);
-    
-    // Should show expenses table
-    await expect(page.locator('table, [data-testid="expenses-list"]').first()).toBeVisible({ timeout: 10000 });
+  test('EXP-01: legacy expenses URL redirects to canonical Finance route', async ({ page }) => {
+    await page.goto(`${BASE_URL}/expenses?from=2026-08-01&to=2026-08-31`);
+
+    await expect(page).toHaveURL(/\/finance\/expenses\?from=2026-08-01&to=2026-08-31/);
+    await expect(page.getByText(/المصروفات التشغيلية المباشرة/).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('table').first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('EXP-02: Add new expense', async ({ page }) => {
-    await page.goto(`${BASE_URL}/expenses`);
-    
-    // Click add expense button
-    const addBtn = page.getByRole('button').filter({ hasText: /إضافة|Expense|New/i }).first();
-    await addBtn.click();
-    
-    // Fill expense form
-    await page.locator('input[name="description"]').first().fill(testExpense.description);
-    await page.locator('input[name="amount"]').first().fill(testExpense.amount);
-    
-    // Save
-    const saveBtn = page.getByRole('button').filter({ hasText: /حفظ|Save/i }).first();
-    await saveBtn.click();
-    
-    // Verify expense was added
-    await page.waitForTimeout(2000);
+  test('EXP-02: add a manual expense from the canonical page', async ({ page }) => {
+    await page.goto(`${BASE_URL}/finance/expenses`);
+
+    await page.getByRole('button', { name: /تسجيل مصروف/ }).click();
+    await page.getByPlaceholder(/شراء مواد تخدير/).fill(testExpense.description);
+    await page.getByPlaceholder('0.00').fill(testExpense.amount);
+    await page.getByRole('button', { name: /حفظ المصروف/ }).click();
+
+    await expect(page.getByText(testExpense.description).first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('EXP-03: Edit expense', async ({ page }) => {
-    await page.goto(`${BASE_URL}/expenses`);
-    
-    // Find and click on test expense
-    const expenseRow = page.locator(`text=${testExpense.description}`);
-    if (await expenseRow.isVisible()) {
-      await expenseRow.first().click();
-      
-      // Click edit button
-      const editBtn = page.getByRole('button').filter({ hasText: /تعديل|Edit/i }).first();
-      await editBtn.click();
-      
-      // Change amount
-      const amountField = page.locator('input[name="amount"]').first();
-      await amountField.fill('500');
-      
-      // Save
-      const saveBtn = page.getByRole('button').filter({ hasText: /حفظ|Save/i }).first();
-      await saveBtn.click();
-    }
+  test('EXP-03: canonical expense page survives direct refresh', async ({ page }) => {
+    await page.goto(`${BASE_URL}/finance/expenses`);
+    await page.reload();
+
+    await expect(page).toHaveURL(/\/finance\/expenses/);
+    await expect(page.getByRole('button', { name: /تسجيل مصروف/ })).toBeVisible({ timeout: 10000 });
   });
 
-  test('EXP-04: Delete expense', async ({ page }) => {
-    await page.goto(`${BASE_URL}/expenses`);
-    
-    // Find and click on test expense
-    const expenseRow = page.locator(`text=${testExpense.description}`);
-    if (await expenseRow.isVisible()) {
-      await expenseRow.first().click();
-      
-      // Click delete button
-      const deleteBtn = page.getByRole('button').filter({ hasText: /حذف|Delete/i }).first();
-      await deleteBtn.click();
-      
-      // Confirm deletion
-      const confirmBtn = page.getByRole('button').filter({ hasText: /تأكيد|نعم/i }).first();
-      await confirmBtn.click();
-    }
-  });
+  test('EXP-04: delete a visible manual expense through Finance V2', async ({ page }) => {
+    await page.goto(`${BASE_URL}/finance/expenses`);
 
+    const expenseText = page.getByText(testExpense.description).first();
+    if (!(await expenseText.isVisible().catch(() => false))) return;
+
+    const row = expenseText.locator('xpath=ancestor::tr');
+    await row.getByRole('button', { name: /حذف/ }).click();
+    await expect(page.getByText('تأكيد حذف المصروف')).toBeVisible();
+    await page.getByRole('button', { name: /حذف المصروف نهائياً/ }).click();
+    await expect(page.getByText(testExpense.description)).toHaveCount(0);
+  });
 });
