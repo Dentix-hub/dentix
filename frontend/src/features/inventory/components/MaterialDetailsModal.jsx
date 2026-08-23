@@ -52,8 +52,8 @@ const MaterialDetailsModal = ({ isOpen, onClose, material, activeSessions = [] }
             await updateMaterial(materialId, formData);
             setIsEditing(false);
             // FIX: Invalidate both stock and materials queries, then close modal
-            queryClient.invalidateQueries(['inventory-stock']);
-            queryClient.invalidateQueries(['materials']);
+            queryClient.invalidateQueries({ queryKey: ['inventory-stock'] });
+            queryClient.invalidateQueries({ queryKey: ['materials'] });
             toast.success(t('inventory.material_details.messages.update_success'));
             // Close modal to force refresh of parent component
             onClose();

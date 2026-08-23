@@ -14,10 +14,12 @@ class AppointmentCalendarPage extends ConsumerStatefulWidget {
   const AppointmentCalendarPage({super.key});
 
   @override
-  ConsumerState<AppointmentCalendarPage> createState() => _AppointmentCalendarPageState();
+  ConsumerState<AppointmentCalendarPage> createState() =>
+      _AppointmentCalendarPageState();
 }
 
-class _AppointmentCalendarPageState extends ConsumerState<AppointmentCalendarPage> {
+class _AppointmentCalendarPageState
+    extends ConsumerState<AppointmentCalendarPage> {
   DateTime _selectedDate = DateTime.now();
 
   @override
@@ -78,10 +80,7 @@ class _AppointmentCalendarPageState extends ConsumerState<AppointmentCalendarPag
         title: Text(AppLocalizations.of(context)!.appointments),
         automaticallyImplyLeading: false,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.today),
-            onPressed: _goToToday,
-          ),
+          IconButton(icon: const Icon(Icons.today), onPressed: _goToToday),
         ],
       ),
       body: SafeArea(
@@ -94,12 +93,19 @@ class _AppointmentCalendarPageState extends ConsumerState<AppointmentCalendarPag
                 initial: () => const SizedBox.shrink(),
                 loading: () => const Center(child: CircularProgressIndicator()),
                 error: (message) => _buildErrorView(message),
-                loaded: (appointments, totalPages, currentPage, hasMore, selectedDate) {
-                  if (appointments.isEmpty) {
-                    return _buildEmptyState();
-                  }
-                  return _buildAppointmentsList(appointments, hasMore);
-                },
+                loaded:
+                    (
+                      appointments,
+                      totalPages,
+                      currentPage,
+                      hasMore,
+                      selectedDate,
+                    ) {
+                      if (appointments.isEmpty) {
+                        return _buildEmptyState();
+                      }
+                      return _buildAppointmentsList(appointments, hasMore);
+                    },
               ),
             ),
           ],
@@ -109,9 +115,7 @@ class _AppointmentCalendarPageState extends ConsumerState<AppointmentCalendarPag
         onPressed: () async {
           await Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => const AddAppointmentPage(),
-            ),
+            MaterialPageRoute(builder: (context) => const AddAppointmentPage()),
           );
           _loadAppointmentsForSelectedDate();
         },
@@ -143,7 +147,10 @@ class _AppointmentCalendarPageState extends ConsumerState<AppointmentCalendarPag
                 child: Text(
                   dateStr,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
                 ),
               ),
             ),
@@ -164,14 +171,19 @@ class _AppointmentCalendarPageState extends ConsumerState<AppointmentCalendarPag
     );
   }
 
-  Widget _buildAppointmentsList(List<AppointmentEntity> appointments, bool hasMore) {
+  Widget _buildAppointmentsList(
+    List<AppointmentEntity> appointments,
+    bool hasMore,
+  ) {
     return RefreshIndicator(
       onRefresh: () async => _loadAppointmentsForSelectedDate(),
       child: ListView.builder(
         itemCount: appointments.length + (hasMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index >= appointments.length) {
-            ref.read(appointmentNotifierProvider.notifier).loadMoreAppointments();
+            ref
+                .read(appointmentNotifierProvider.notifier)
+                .loadMoreAppointments();
             return const Padding(
               padding: EdgeInsets.all(16),
               child: Center(child: CircularProgressIndicator()),
@@ -188,28 +200,37 @@ class _AppointmentCalendarPageState extends ConsumerState<AppointmentCalendarPag
             ),
             direction: DismissDirection.endToStart,
             confirmDismiss: (direction) async {
-               return await showDialog(
-                 context: context,
-                 builder: (BuildContext context) {
-                   return AlertDialog(
-                     title: Text(AppLocalizations.of(context)!.cancel), // Reusing existing keys or generic
-                     content: const Text("Are you sure you want to cancel this appointment?"),
-                     actions: <Widget>[
-                       TextButton(onPressed: () => Navigator.of(context).pop(false), child: Text(AppLocalizations.of(context)!.cancel)),
-                       TextButton(
-                         onPressed: () {
-                           Navigator.of(context).pop(true);
-                           // Actual delete/cancel call
-                           ref.read(appointmentNotifierProvider.notifier).cancelAppointment(appointment.id);
-                         },
-                         child: const Text("Yes"),
-                       ),
-                     ],
-                   );
-                 },
-               );
-             },
-            child: _buildAppointmentCard(appointment)
+              return await showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return AlertDialog(
+                    title: Text(
+                      AppLocalizations.of(context)!.cancel,
+                    ), // Reusing existing keys or generic
+                    content: const Text(
+                      "Are you sure you want to cancel this appointment?",
+                    ),
+                    actions: <Widget>[
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: Text(AppLocalizations.of(context)!.cancel),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pop(true);
+                          // Actual delete/cancel call
+                          ref
+                              .read(appointmentNotifierProvider.notifier)
+                              .cancelAppointment(appointment.id);
+                        },
+                        child: const Text("Yes"),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+            child: _buildAppointmentCard(appointment),
           );
         },
       ),
@@ -225,37 +246,58 @@ class _AppointmentCalendarPageState extends ConsumerState<AppointmentCalendarPag
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ListTile(
-        leading: Container(width: 4, height: 40, decoration: BoxDecoration(color: statusColor, borderRadius: BorderRadius.circular(2))),
-        title: Text(appointment.patientName ?? 'Unknown', style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text('${appointment.startTime} - ${appointment.procedureType ?? 'General'}', style: TextStyle(color: AppColors.textSecondary)),
+        leading: Container(
+          width: 4,
+          height: 40,
+          decoration: BoxDecoration(
+            color: statusColor,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        title: Text(
+          appointment.patientName ?? 'Unknown',
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          '${appointment.startTime} - ${appointment.procedureType ?? 'General'}',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
         trailing: Chip(
-          label: Text(appointment.status, style: const TextStyle(fontSize: 12, color: Colors.white)),
+          label: Text(
+            appointment.status,
+            style: const TextStyle(fontSize: 12, color: Colors.white),
+          ),
           backgroundColor: statusColor,
         ),
         onTap: () {
           // TODO: Open detail or edit logic
         },
         onLongPress: () {
-             // Quick complete action
-               showDialog(
-                 context: context,
-                 builder: (BuildContext context) {
-                   return AlertDialog(
-                     title: const Text("Complete Appointment?"),
-                     content: const Text("Mark this appointment as completed?"),
-                     actions: <Widget>[
-                       TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(AppLocalizations.of(context)!.cancel)),
-                       TextButton(
-                         onPressed: () {
-                           Navigator.of(context).pop();
-                           ref.read(appointmentNotifierProvider.notifier).completeAppointment(appointment.id);
-                         },
-                         child: const Text("Yes")
-                       ),
-                     ],
-                   );
-                 },
-               );
+          // Quick complete action
+          showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: const Text("Complete Appointment?"),
+                content: const Text("Mark this appointment as completed?"),
+                actions: <Widget>[
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(AppLocalizations.of(context)!.cancel),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      ref
+                          .read(appointmentNotifierProvider.notifier)
+                          .completeAppointment(appointment.id);
+                    },
+                    child: const Text("Yes"),
+                  ),
+                ],
+              );
+            },
+          );
         },
       ),
     );

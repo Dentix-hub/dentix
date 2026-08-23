@@ -1,46 +1,39 @@
 import { useState, useEffect } from 'react';
 import logger from '@/utils/logger';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getTenantSettings } from '../api';
+import { getPrescriptionPrint } from '../api';
 import { Stethoscope, MapPin, Phone } from 'lucide-react';
+
 export default function PrintRx() {
+    // `id` is the REAL prescription id — data comes from a tenant-scoped
+    // server DTO, never from stale sessionStorage PHI.
     const { id } = useParams();
     const navigate = useNavigate();
-    const [patient, setPatient] = useState(null);
-    const [prescription, setPrescription] = useState(null);
-    const [headerInfo, setHeaderInfo] = useState({
-        doctor_name: 'اسم الطبيب',
-        doctor_title: 'التخصص',
-        clinic_address: 'العنوان',
-        clinic_phone: '0000000000'
-    });
+    const [data, setData] = useState(null);
+    const [error, setError] = useState(null);
+
     useEffect(() => {
-        // Fetch Tenant Settings (Rx Header)
-        getTenantSettings().then((res) => {
-            if (res.data) {
-                setHeaderInfo({
-                    doctor_name: res.data.doctor_name || 'اسم الطبيب',
-                    doctor_title: res.data.doctor_title || 'التخصص',
-                    clinic_address: res.data.clinic_address || 'العنوان',
-                    clinic_phone: res.data.clinic_phone || '0000000000',
-                });
-            }
-        }).catch(err => logger.error("Failed to fetch rx header info", err));
-        // In a real app, you'd fetch the specific prescription by an ID
-        // For now, let's look for state passed via router or fetch last one
-        const data = sessionStorage.getItem('print_rx_data');
-        if (data) {
-            const parsed = JSON.parse(data);
-            setPrescription(parsed.prescription);
-            setPatient(parsed.patient);
-            // Auto print and close tab/go back
-            setTimeout(() => {
-                window.print();
-            }, 1000); // Increased delay slightly to ensure font loading
-        }
+        let cancelled = false;
+        getPrescriptionPrint(id)
+            .then((res) => {
+                if (cancelled) return;
+                setData(res.data);
+                setTimeout(() => window.print(), 1000);
+            })
+            .catch((err) => {
+                if (!cancelled) {
+                    logger.error('Failed to fetch prescription print data', err);
+                    setError('تعذر تحميل بيانات الوصفة');
+                }
+            });
+        return () => { cancelled = true; };
     }, [id]);
-    if (!patient || !prescription) return <div className="p-10 text-center text-slate-500">Loading Prescription Data...</div>;
-    const medications = JSON.parse(prescription.medications);
+
+    if (error) return <div className="p-10 text-center text-red-600">{error}</div>;
+    if (!data) return <div className="p-10 text-center text-slate-500">Loading Prescription Data...</div>;
+
+    const { prescription, patient, clinic } = data;
+    const medications = JSON.parse(prescription.medications || '[]');
     return (
         <div className="min-h-screen bg-white p-4 sm:p-10 font-['Cairo']" dir="rtl">
             <div className="max-w-2xl mx-auto border-2 border-slate-900 min-h-[90vh] flex flex-col p-8 relative overflow-hidden">
@@ -49,8 +42,8 @@ export default function PrintRx() {
                 {/* Header */}
                 <div className="flex justify-between items-start border-b-2 border-slate-900 pb-6 mb-8 relative z-10">
                     <div>
-                        <h1 className="text-3xl font-extrabold text-slate-900 mb-1">{headerInfo.doctor_name}</h1>
-                        <p className="text-lg font-bold text-primary">{headerInfo.doctor_title}</p>
+                        <h1 className="text-3xl font-extrabold text-slate-900 mb-1">{clinic.doctor_name || 'اسم الطبيب'}</h1>
+                        <p className="text-lg font-bold text-primary">{clinic.doctor_title || 'التخصص'}</p>
                     </div>
                     <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
                         <Stethoscope size={40} />
@@ -98,16 +91,22 @@ export default function PrintRx() {
                     </div>
                 </div>
                 {/* Contact Info Footer */}
-                <div className="mt-10 pt-6 border-t border-slate-200 flex flex-wrap justify-center gap-x-10 gap-y-2 text-sm text-slate-500">
-                    <div className="flex items-center gap-2">
-                        <Phone size={14} className="text-primary" />
-                        <span dir="ltr">{headerInfo.clinic_phone}</span>
+                {(clinic.clinic_address || clinic.clinic_phone) && (
+                    <div className="mt-10 pt-6 border-t border-slate-200 flex flex-wrap justify-center gap-x-10 gap-y-2 text-sm text-slate-500">
+                        {clinic.clinic_phone && (
+                            <div className="flex items-center gap-2">
+                                <Phone size={14} className="text-primary" />
+                                <span dir="ltr">{clinic.clinic_phone}</span>
+                            </div>
+                        )}
+                        {clinic.clinic_address && (
+                            <div className="flex items-center gap-2">
+                                <MapPin size={14} className="text-primary" />
+                                <span>{clinic.clinic_address}</span>
+                            </div>
+                        )}
                     </div>
-                    <div className="flex items-center gap-2">
-                        <MapPin size={14} className="text-primary" />
-                        <span>{headerInfo.clinic_address}</span>
-                    </div>
-                </div>
+                )}
             </div>
             {/* Print Instructions Hide on Print */}
             <div className="mt-8 text-center print:hidden flex flex-col items-center gap-4">
@@ -136,4 +135,3 @@ export default function PrintRx() {
         </div>
     );
 }
-

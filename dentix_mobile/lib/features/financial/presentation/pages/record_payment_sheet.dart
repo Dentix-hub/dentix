@@ -20,7 +20,7 @@ class _RecordPaymentBottomSheetState
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _patientIdController = TextEditingController();
-  
+
   DateTime _selectedDate = DateTime.now();
   bool _isRevenue = true;
   bool _isLoading = false;
@@ -61,17 +61,17 @@ class _RecordPaymentBottomSheetState
                 ),
               ),
               const SizedBox(height: 24),
-              
+
               // Title
               Text(
                 l10n.recordPayment,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  fontWeight: FontWeight.bold,
+                ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
-              
+
               // Transaction Type Toggle
               SegmentedButton<bool>(
                 segments: [
@@ -92,7 +92,7 @@ class _RecordPaymentBottomSheetState
                 },
               ),
               const SizedBox(height: 16),
-              
+
               // Amount Field
               TextFormField(
                 controller: _amountController,
@@ -114,7 +114,7 @@ class _RecordPaymentBottomSheetState
                 },
               ),
               const SizedBox(height: 16),
-              
+
               // Date Picker
               InkWell(
                 onTap: () => _selectDate(context),
@@ -124,13 +124,11 @@ class _RecordPaymentBottomSheetState
                     prefixIcon: const Icon(Icons.calendar_today),
                     border: const OutlineInputBorder(),
                   ),
-                  child: Text(
-                    DateFormat('MMM d, yyyy').format(_selectedDate),
-                  ),
+                  child: Text(DateFormat('MMM d, yyyy').format(_selectedDate)),
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Patient ID Field
               TextFormField(
                 controller: _patientIdController,
@@ -151,7 +149,7 @@ class _RecordPaymentBottomSheetState
                 },
               ),
               const SizedBox(height: 16),
-              
+
               // Description Field
               TextFormField(
                 controller: _descriptionController,
@@ -164,7 +162,7 @@ class _RecordPaymentBottomSheetState
                 ),
               ),
               const SizedBox(height: 24),
-              
+
               // Submit Button
               SizedBox(
                 height: 50,
@@ -202,15 +200,17 @@ class _RecordPaymentBottomSheetState
 
     final amount = double.parse(_amountController.text);
     final finalAmount = _isRevenue ? amount : -amount;
-    
-    final success = await ref.read(financialNotifierProvider.notifier).recordPayment(
-      patientId: int.parse(_patientIdController.text),
-      amount: finalAmount,
-      date: DateFormat('yyyy-MM-dd').format(_selectedDate),
-      description: _descriptionController.text.isEmpty
-          ? null
-          : _descriptionController.text,
-    );
+
+    final success = await ref
+        .read(financialNotifierProvider.notifier)
+        .recordPayment(
+          patientId: int.parse(_patientIdController.text),
+          amount: finalAmount,
+          date: DateFormat('yyyy-MM-dd').format(_selectedDate),
+          description: _descriptionController.text.isEmpty
+              ? null
+              : _descriptionController.text,
+        );
 
     setState(() => _isLoading = false);
 

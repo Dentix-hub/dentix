@@ -122,6 +122,17 @@ jobs:
           PYTHONPATH: .
         run: python -m backend.scripts.preflight_migrations
 
+      # HIGH-11 (partial): the historical chain is documented as unsafe for
+      # replay-from-base, so a full N-1 upgrade matrix needs a baseline redesign.
+      # Meanwhile this guards the supported path: models must match the
+      # migrated schema exactly — no silent drift between ORM and migrations.
+      - name: Alembic model/migration drift check
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
+          SECRET_KEY: test-secret-key-for-ci-only-at-least-32
+          PYTHONPATH: .
+        run: python -m backend.scripts.check_migration_drift
+
       - name: Provision restricted PostgreSQL role for RLS smoke
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
@@ -165,6 +176,11 @@ jobs:
           PYTHONPATH: .
         run: |
           pytest backend/ci_tests/test_finance_postgres_smoke.py \
+            -v \
+            --tb=short \
+            --confcutdir=backend/ci_tests
+          pytest backend/ci_tests/test_auth_bootstrap_rls_probe.py \
+            backend/ci_tests/test_auth_cookie_flow_http.py \
             -v \
             --tb=short \
             --confcutdir=backend/ci_tests

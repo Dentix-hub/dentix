@@ -12,7 +12,8 @@ part of 'lab_order_entity.dart';
 T _$identity<T>(T value) => value;
 
 final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
+  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
+);
 
 /// @nodoc
 mixin _$LabOrderEntity {
@@ -40,25 +41,27 @@ mixin _$LabOrderEntity {
 /// @nodoc
 abstract class $LabOrderEntityCopyWith<$Res> {
   factory $LabOrderEntityCopyWith(
-          LabOrderEntity value, $Res Function(LabOrderEntity) then) =
-      _$LabOrderEntityCopyWithImpl<$Res, LabOrderEntity>;
+    LabOrderEntity value,
+    $Res Function(LabOrderEntity) then,
+  ) = _$LabOrderEntityCopyWithImpl<$Res, LabOrderEntity>;
   @useResult
-  $Res call(
-      {int id,
-      int patientId,
-      String? patientName,
-      int dentistId,
-      String? dentistName,
-      String labName,
-      String orderDate,
-      String dueDate,
-      List<LabWorkItemEntity> items,
-      String? notes,
-      LabOrderStatus status,
-      String? receivedDate,
-      double? totalCost,
-      String? createdAt,
-      String? updatedAt});
+  $Res call({
+    int id,
+    int patientId,
+    String? patientName,
+    int dentistId,
+    String? dentistName,
+    String labName,
+    String orderDate,
+    String dueDate,
+    List<LabWorkItemEntity> items,
+    String? notes,
+    LabOrderStatus status,
+    String? receivedDate,
+    double? totalCost,
+    String? createdAt,
+    String? updatedAt,
+  });
 }
 
 /// @nodoc
@@ -90,95 +93,100 @@ class _$LabOrderEntityCopyWithImpl<$Res, $Val extends LabOrderEntity>
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
-    return _then(_value.copyWith(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientId: null == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientName: freezed == patientName
-          ? _value.patientName
-          : patientName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      dentistId: null == dentistId
-          ? _value.dentistId
-          : dentistId // ignore: cast_nullable_to_non_nullable
-              as int,
-      dentistName: freezed == dentistName
-          ? _value.dentistName
-          : dentistName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      labName: null == labName
-          ? _value.labName
-          : labName // ignore: cast_nullable_to_non_nullable
-              as String,
-      orderDate: null == orderDate
-          ? _value.orderDate
-          : orderDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      dueDate: null == dueDate
-          ? _value.dueDate
-          : dueDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      items: null == items
-          ? _value.items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<LabWorkItemEntity>,
-      notes: freezed == notes
-          ? _value.notes
-          : notes // ignore: cast_nullable_to_non_nullable
-              as String?,
-      status: null == status
-          ? _value.status
-          : status // ignore: cast_nullable_to_non_nullable
-              as LabOrderStatus,
-      receivedDate: freezed == receivedDate
-          ? _value.receivedDate
-          : receivedDate // ignore: cast_nullable_to_non_nullable
-              as String?,
-      totalCost: freezed == totalCost
-          ? _value.totalCost
-          : totalCost // ignore: cast_nullable_to_non_nullable
-              as double?,
-      createdAt: freezed == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-      updatedAt: freezed == updatedAt
-          ? _value.updatedAt
-          : updatedAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            patientId: null == patientId
+                ? _value.patientId
+                : patientId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            patientName: freezed == patientName
+                ? _value.patientName
+                : patientName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            dentistId: null == dentistId
+                ? _value.dentistId
+                : dentistId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            dentistName: freezed == dentistName
+                ? _value.dentistName
+                : dentistName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            labName: null == labName
+                ? _value.labName
+                : labName // ignore: cast_nullable_to_non_nullable
+                      as String,
+            orderDate: null == orderDate
+                ? _value.orderDate
+                : orderDate // ignore: cast_nullable_to_non_nullable
+                      as String,
+            dueDate: null == dueDate
+                ? _value.dueDate
+                : dueDate // ignore: cast_nullable_to_non_nullable
+                      as String,
+            items: null == items
+                ? _value.items
+                : items // ignore: cast_nullable_to_non_nullable
+                      as List<LabWorkItemEntity>,
+            notes: freezed == notes
+                ? _value.notes
+                : notes // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            status: null == status
+                ? _value.status
+                : status // ignore: cast_nullable_to_non_nullable
+                      as LabOrderStatus,
+            receivedDate: freezed == receivedDate
+                ? _value.receivedDate
+                : receivedDate // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            totalCost: freezed == totalCost
+                ? _value.totalCost
+                : totalCost // ignore: cast_nullable_to_non_nullable
+                      as double?,
+            createdAt: freezed == createdAt
+                ? _value.createdAt
+                : createdAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            updatedAt: freezed == updatedAt
+                ? _value.updatedAt
+                : updatedAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
   }
 }
 
 /// @nodoc
 abstract class _$$LabOrderEntityImplCopyWith<$Res>
     implements $LabOrderEntityCopyWith<$Res> {
-  factory _$$LabOrderEntityImplCopyWith(_$LabOrderEntityImpl value,
-          $Res Function(_$LabOrderEntityImpl) then) =
-      __$$LabOrderEntityImplCopyWithImpl<$Res>;
+  factory _$$LabOrderEntityImplCopyWith(
+    _$LabOrderEntityImpl value,
+    $Res Function(_$LabOrderEntityImpl) then,
+  ) = __$$LabOrderEntityImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {int id,
-      int patientId,
-      String? patientName,
-      int dentistId,
-      String? dentistName,
-      String labName,
-      String orderDate,
-      String dueDate,
-      List<LabWorkItemEntity> items,
-      String? notes,
-      LabOrderStatus status,
-      String? receivedDate,
-      double? totalCost,
-      String? createdAt,
-      String? updatedAt});
+  $Res call({
+    int id,
+    int patientId,
+    String? patientName,
+    int dentistId,
+    String? dentistName,
+    String labName,
+    String orderDate,
+    String dueDate,
+    List<LabWorkItemEntity> items,
+    String? notes,
+    LabOrderStatus status,
+    String? receivedDate,
+    double? totalCost,
+    String? createdAt,
+    String? updatedAt,
+  });
 }
 
 /// @nodoc
@@ -186,8 +194,9 @@ class __$$LabOrderEntityImplCopyWithImpl<$Res>
     extends _$LabOrderEntityCopyWithImpl<$Res, _$LabOrderEntityImpl>
     implements _$$LabOrderEntityImplCopyWith<$Res> {
   __$$LabOrderEntityImplCopyWithImpl(
-      _$LabOrderEntityImpl _value, $Res Function(_$LabOrderEntityImpl) _then)
-      : super(_value, _then);
+    _$LabOrderEntityImpl _value,
+    $Res Function(_$LabOrderEntityImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -208,92 +217,94 @@ class __$$LabOrderEntityImplCopyWithImpl<$Res>
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
-    return _then(_$LabOrderEntityImpl(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientId: null == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientName: freezed == patientName
-          ? _value.patientName
-          : patientName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      dentistId: null == dentistId
-          ? _value.dentistId
-          : dentistId // ignore: cast_nullable_to_non_nullable
-              as int,
-      dentistName: freezed == dentistName
-          ? _value.dentistName
-          : dentistName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      labName: null == labName
-          ? _value.labName
-          : labName // ignore: cast_nullable_to_non_nullable
-              as String,
-      orderDate: null == orderDate
-          ? _value.orderDate
-          : orderDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      dueDate: null == dueDate
-          ? _value.dueDate
-          : dueDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      items: null == items
-          ? _value._items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<LabWorkItemEntity>,
-      notes: freezed == notes
-          ? _value.notes
-          : notes // ignore: cast_nullable_to_non_nullable
-              as String?,
-      status: null == status
-          ? _value.status
-          : status // ignore: cast_nullable_to_non_nullable
-              as LabOrderStatus,
-      receivedDate: freezed == receivedDate
-          ? _value.receivedDate
-          : receivedDate // ignore: cast_nullable_to_non_nullable
-              as String?,
-      totalCost: freezed == totalCost
-          ? _value.totalCost
-          : totalCost // ignore: cast_nullable_to_non_nullable
-              as double?,
-      createdAt: freezed == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-      updatedAt: freezed == updatedAt
-          ? _value.updatedAt
-          : updatedAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ));
+    return _then(
+      _$LabOrderEntityImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        patientId: null == patientId
+            ? _value.patientId
+            : patientId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        patientName: freezed == patientName
+            ? _value.patientName
+            : patientName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        dentistId: null == dentistId
+            ? _value.dentistId
+            : dentistId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        dentistName: freezed == dentistName
+            ? _value.dentistName
+            : dentistName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        labName: null == labName
+            ? _value.labName
+            : labName // ignore: cast_nullable_to_non_nullable
+                  as String,
+        orderDate: null == orderDate
+            ? _value.orderDate
+            : orderDate // ignore: cast_nullable_to_non_nullable
+                  as String,
+        dueDate: null == dueDate
+            ? _value.dueDate
+            : dueDate // ignore: cast_nullable_to_non_nullable
+                  as String,
+        items: null == items
+            ? _value._items
+            : items // ignore: cast_nullable_to_non_nullable
+                  as List<LabWorkItemEntity>,
+        notes: freezed == notes
+            ? _value.notes
+            : notes // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        status: null == status
+            ? _value.status
+            : status // ignore: cast_nullable_to_non_nullable
+                  as LabOrderStatus,
+        receivedDate: freezed == receivedDate
+            ? _value.receivedDate
+            : receivedDate // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        totalCost: freezed == totalCost
+            ? _value.totalCost
+            : totalCost // ignore: cast_nullable_to_non_nullable
+                  as double?,
+        createdAt: freezed == createdAt
+            ? _value.createdAt
+            : createdAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        updatedAt: freezed == updatedAt
+            ? _value.updatedAt
+            : updatedAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 
 class _$LabOrderEntityImpl extends _LabOrderEntity {
-  const _$LabOrderEntityImpl(
-      {required this.id,
-      required this.patientId,
-      this.patientName,
-      required this.dentistId,
-      this.dentistName,
-      required this.labName,
-      required this.orderDate,
-      required this.dueDate,
-      required final List<LabWorkItemEntity> items,
-      this.notes,
-      required this.status,
-      this.receivedDate,
-      this.totalCost,
-      this.createdAt,
-      this.updatedAt})
-      : _items = items,
-        super._();
+  const _$LabOrderEntityImpl({
+    required this.id,
+    required this.patientId,
+    this.patientName,
+    required this.dentistId,
+    this.dentistName,
+    required this.labName,
+    required this.orderDate,
+    required this.dueDate,
+    required final List<LabWorkItemEntity> items,
+    this.notes,
+    required this.status,
+    this.receivedDate,
+    this.totalCost,
+    this.createdAt,
+    this.updatedAt,
+  }) : _items = items,
+       super._();
 
   @override
   final int id;
@@ -370,48 +381,52 @@ class _$LabOrderEntityImpl extends _LabOrderEntity {
 
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      id,
-      patientId,
-      patientName,
-      dentistId,
-      dentistName,
-      labName,
-      orderDate,
-      dueDate,
-      const DeepCollectionEquality().hash(_items),
-      notes,
-      status,
-      receivedDate,
-      totalCost,
-      createdAt,
-      updatedAt);
+    runtimeType,
+    id,
+    patientId,
+    patientName,
+    dentistId,
+    dentistName,
+    labName,
+    orderDate,
+    dueDate,
+    const DeepCollectionEquality().hash(_items),
+    notes,
+    status,
+    receivedDate,
+    totalCost,
+    createdAt,
+    updatedAt,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$LabOrderEntityImplCopyWith<_$LabOrderEntityImpl> get copyWith =>
       __$$LabOrderEntityImplCopyWithImpl<_$LabOrderEntityImpl>(
-          this, _$identity);
+        this,
+        _$identity,
+      );
 }
 
 abstract class _LabOrderEntity extends LabOrderEntity {
-  const factory _LabOrderEntity(
-      {required final int id,
-      required final int patientId,
-      final String? patientName,
-      required final int dentistId,
-      final String? dentistName,
-      required final String labName,
-      required final String orderDate,
-      required final String dueDate,
-      required final List<LabWorkItemEntity> items,
-      final String? notes,
-      required final LabOrderStatus status,
-      final String? receivedDate,
-      final double? totalCost,
-      final String? createdAt,
-      final String? updatedAt}) = _$LabOrderEntityImpl;
+  const factory _LabOrderEntity({
+    required final int id,
+    required final int patientId,
+    final String? patientName,
+    required final int dentistId,
+    final String? dentistName,
+    required final String labName,
+    required final String orderDate,
+    required final String dueDate,
+    required final List<LabWorkItemEntity> items,
+    final String? notes,
+    required final LabOrderStatus status,
+    final String? receivedDate,
+    final double? totalCost,
+    final String? createdAt,
+    final String? updatedAt,
+  }) = _$LabOrderEntityImpl;
   const _LabOrderEntity._() : super._();
 
   @override
@@ -467,16 +482,18 @@ mixin _$LabWorkItemEntity {
 /// @nodoc
 abstract class $LabWorkItemEntityCopyWith<$Res> {
   factory $LabWorkItemEntityCopyWith(
-          LabWorkItemEntity value, $Res Function(LabWorkItemEntity) then) =
-      _$LabWorkItemEntityCopyWithImpl<$Res, LabWorkItemEntity>;
+    LabWorkItemEntity value,
+    $Res Function(LabWorkItemEntity) then,
+  ) = _$LabWorkItemEntityCopyWithImpl<$Res, LabWorkItemEntity>;
   @useResult
-  $Res call(
-      {int id,
-      String workType,
-      String? description,
-      int quantity,
-      String? shade,
-      String? material});
+  $Res call({
+    int id,
+    String workType,
+    String? description,
+    int quantity,
+    String? shade,
+    String? material,
+  });
 }
 
 /// @nodoc
@@ -499,59 +516,65 @@ class _$LabWorkItemEntityCopyWithImpl<$Res, $Val extends LabWorkItemEntity>
     Object? shade = freezed,
     Object? material = freezed,
   }) {
-    return _then(_value.copyWith(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      workType: null == workType
-          ? _value.workType
-          : workType // ignore: cast_nullable_to_non_nullable
-              as String,
-      description: freezed == description
-          ? _value.description
-          : description // ignore: cast_nullable_to_non_nullable
-              as String?,
-      quantity: null == quantity
-          ? _value.quantity
-          : quantity // ignore: cast_nullable_to_non_nullable
-              as int,
-      shade: freezed == shade
-          ? _value.shade
-          : shade // ignore: cast_nullable_to_non_nullable
-              as String?,
-      material: freezed == material
-          ? _value.material
-          : material // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            workType: null == workType
+                ? _value.workType
+                : workType // ignore: cast_nullable_to_non_nullable
+                      as String,
+            description: freezed == description
+                ? _value.description
+                : description // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            quantity: null == quantity
+                ? _value.quantity
+                : quantity // ignore: cast_nullable_to_non_nullable
+                      as int,
+            shade: freezed == shade
+                ? _value.shade
+                : shade // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            material: freezed == material
+                ? _value.material
+                : material // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
   }
 }
 
 /// @nodoc
 abstract class _$$LabWorkItemEntityImplCopyWith<$Res>
     implements $LabWorkItemEntityCopyWith<$Res> {
-  factory _$$LabWorkItemEntityImplCopyWith(_$LabWorkItemEntityImpl value,
-          $Res Function(_$LabWorkItemEntityImpl) then) =
-      __$$LabWorkItemEntityImplCopyWithImpl<$Res>;
+  factory _$$LabWorkItemEntityImplCopyWith(
+    _$LabWorkItemEntityImpl value,
+    $Res Function(_$LabWorkItemEntityImpl) then,
+  ) = __$$LabWorkItemEntityImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {int id,
-      String workType,
-      String? description,
-      int quantity,
-      String? shade,
-      String? material});
+  $Res call({
+    int id,
+    String workType,
+    String? description,
+    int quantity,
+    String? shade,
+    String? material,
+  });
 }
 
 /// @nodoc
 class __$$LabWorkItemEntityImplCopyWithImpl<$Res>
     extends _$LabWorkItemEntityCopyWithImpl<$Res, _$LabWorkItemEntityImpl>
     implements _$$LabWorkItemEntityImplCopyWith<$Res> {
-  __$$LabWorkItemEntityImplCopyWithImpl(_$LabWorkItemEntityImpl _value,
-      $Res Function(_$LabWorkItemEntityImpl) _then)
-      : super(_value, _then);
+  __$$LabWorkItemEntityImplCopyWithImpl(
+    _$LabWorkItemEntityImpl _value,
+    $Res Function(_$LabWorkItemEntityImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -563,46 +586,48 @@ class __$$LabWorkItemEntityImplCopyWithImpl<$Res>
     Object? shade = freezed,
     Object? material = freezed,
   }) {
-    return _then(_$LabWorkItemEntityImpl(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      workType: null == workType
-          ? _value.workType
-          : workType // ignore: cast_nullable_to_non_nullable
-              as String,
-      description: freezed == description
-          ? _value.description
-          : description // ignore: cast_nullable_to_non_nullable
-              as String?,
-      quantity: null == quantity
-          ? _value.quantity
-          : quantity // ignore: cast_nullable_to_non_nullable
-              as int,
-      shade: freezed == shade
-          ? _value.shade
-          : shade // ignore: cast_nullable_to_non_nullable
-              as String?,
-      material: freezed == material
-          ? _value.material
-          : material // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ));
+    return _then(
+      _$LabWorkItemEntityImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        workType: null == workType
+            ? _value.workType
+            : workType // ignore: cast_nullable_to_non_nullable
+                  as String,
+        description: freezed == description
+            ? _value.description
+            : description // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        quantity: null == quantity
+            ? _value.quantity
+            : quantity // ignore: cast_nullable_to_non_nullable
+                  as int,
+        shade: freezed == shade
+            ? _value.shade
+            : shade // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        material: freezed == material
+            ? _value.material
+            : material // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 
 class _$LabWorkItemEntityImpl extends _LabWorkItemEntity {
-  const _$LabWorkItemEntityImpl(
-      {required this.id,
-      required this.workType,
-      this.description,
-      required this.quantity,
-      this.shade,
-      this.material})
-      : super._();
+  const _$LabWorkItemEntityImpl({
+    required this.id,
+    required this.workType,
+    this.description,
+    required this.quantity,
+    this.shade,
+    this.material,
+  }) : super._();
 
   @override
   final int id;
@@ -641,24 +666,34 @@ class _$LabWorkItemEntityImpl extends _LabWorkItemEntity {
 
   @override
   int get hashCode => Object.hash(
-      runtimeType, id, workType, description, quantity, shade, material);
+    runtimeType,
+    id,
+    workType,
+    description,
+    quantity,
+    shade,
+    material,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$LabWorkItemEntityImplCopyWith<_$LabWorkItemEntityImpl> get copyWith =>
       __$$LabWorkItemEntityImplCopyWithImpl<_$LabWorkItemEntityImpl>(
-          this, _$identity);
+        this,
+        _$identity,
+      );
 }
 
 abstract class _LabWorkItemEntity extends LabWorkItemEntity {
-  const factory _LabWorkItemEntity(
-      {required final int id,
-      required final String workType,
-      final String? description,
-      required final int quantity,
-      final String? shade,
-      final String? material}) = _$LabWorkItemEntityImpl;
+  const factory _LabWorkItemEntity({
+    required final int id,
+    required final String workType,
+    final String? description,
+    required final int quantity,
+    final String? shade,
+    final String? material,
+  }) = _$LabWorkItemEntityImpl;
   const _LabWorkItemEntity._() : super._();
 
   @override
@@ -694,14 +729,16 @@ mixin _$LabOrderListEntity {
 /// @nodoc
 abstract class $LabOrderListEntityCopyWith<$Res> {
   factory $LabOrderListEntityCopyWith(
-          LabOrderListEntity value, $Res Function(LabOrderListEntity) then) =
-      _$LabOrderListEntityCopyWithImpl<$Res, LabOrderListEntity>;
+    LabOrderListEntity value,
+    $Res Function(LabOrderListEntity) then,
+  ) = _$LabOrderListEntityCopyWithImpl<$Res, LabOrderListEntity>;
   @useResult
-  $Res call(
-      {List<LabOrderEntity> items,
-      int currentPage,
-      int totalPages,
-      int totalItems});
+  $Res call({
+    List<LabOrderEntity> items,
+    int currentPage,
+    int totalPages,
+    int totalItems,
+  });
 }
 
 /// @nodoc
@@ -722,49 +759,55 @@ class _$LabOrderListEntityCopyWithImpl<$Res, $Val extends LabOrderListEntity>
     Object? totalPages = null,
     Object? totalItems = null,
   }) {
-    return _then(_value.copyWith(
-      items: null == items
-          ? _value.items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<LabOrderEntity>,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalItems: null == totalItems
-          ? _value.totalItems
-          : totalItems // ignore: cast_nullable_to_non_nullable
-              as int,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            items: null == items
+                ? _value.items
+                : items // ignore: cast_nullable_to_non_nullable
+                      as List<LabOrderEntity>,
+            currentPage: null == currentPage
+                ? _value.currentPage
+                : currentPage // ignore: cast_nullable_to_non_nullable
+                      as int,
+            totalPages: null == totalPages
+                ? _value.totalPages
+                : totalPages // ignore: cast_nullable_to_non_nullable
+                      as int,
+            totalItems: null == totalItems
+                ? _value.totalItems
+                : totalItems // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
   }
 }
 
 /// @nodoc
 abstract class _$$LabOrderListEntityImplCopyWith<$Res>
     implements $LabOrderListEntityCopyWith<$Res> {
-  factory _$$LabOrderListEntityImplCopyWith(_$LabOrderListEntityImpl value,
-          $Res Function(_$LabOrderListEntityImpl) then) =
-      __$$LabOrderListEntityImplCopyWithImpl<$Res>;
+  factory _$$LabOrderListEntityImplCopyWith(
+    _$LabOrderListEntityImpl value,
+    $Res Function(_$LabOrderListEntityImpl) then,
+  ) = __$$LabOrderListEntityImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {List<LabOrderEntity> items,
-      int currentPage,
-      int totalPages,
-      int totalItems});
+  $Res call({
+    List<LabOrderEntity> items,
+    int currentPage,
+    int totalPages,
+    int totalItems,
+  });
 }
 
 /// @nodoc
 class __$$LabOrderListEntityImplCopyWithImpl<$Res>
     extends _$LabOrderListEntityCopyWithImpl<$Res, _$LabOrderListEntityImpl>
     implements _$$LabOrderListEntityImplCopyWith<$Res> {
-  __$$LabOrderListEntityImplCopyWithImpl(_$LabOrderListEntityImpl _value,
-      $Res Function(_$LabOrderListEntityImpl) _then)
-      : super(_value, _then);
+  __$$LabOrderListEntityImplCopyWithImpl(
+    _$LabOrderListEntityImpl _value,
+    $Res Function(_$LabOrderListEntityImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -774,37 +817,39 @@ class __$$LabOrderListEntityImplCopyWithImpl<$Res>
     Object? totalPages = null,
     Object? totalItems = null,
   }) {
-    return _then(_$LabOrderListEntityImpl(
-      items: null == items
-          ? _value._items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<LabOrderEntity>,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalItems: null == totalItems
-          ? _value.totalItems
-          : totalItems // ignore: cast_nullable_to_non_nullable
-              as int,
-    ));
+    return _then(
+      _$LabOrderListEntityImpl(
+        items: null == items
+            ? _value._items
+            : items // ignore: cast_nullable_to_non_nullable
+                  as List<LabOrderEntity>,
+        currentPage: null == currentPage
+            ? _value.currentPage
+            : currentPage // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalPages: null == totalPages
+            ? _value.totalPages
+            : totalPages // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalItems: null == totalItems
+            ? _value.totalItems
+            : totalItems // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
   }
 }
 
 /// @nodoc
 
 class _$LabOrderListEntityImpl extends _LabOrderListEntity {
-  const _$LabOrderListEntityImpl(
-      {required final List<LabOrderEntity> items,
-      required this.currentPage,
-      required this.totalPages,
-      required this.totalItems})
-      : _items = items,
-        super._();
+  const _$LabOrderListEntityImpl({
+    required final List<LabOrderEntity> items,
+    required this.currentPage,
+    required this.totalPages,
+    required this.totalItems,
+  }) : _items = items,
+       super._();
 
   final List<LabOrderEntity> _items;
   @override
@@ -842,26 +887,30 @@ class _$LabOrderListEntityImpl extends _LabOrderListEntity {
 
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      const DeepCollectionEquality().hash(_items),
-      currentPage,
-      totalPages,
-      totalItems);
+    runtimeType,
+    const DeepCollectionEquality().hash(_items),
+    currentPage,
+    totalPages,
+    totalItems,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$LabOrderListEntityImplCopyWith<_$LabOrderListEntityImpl> get copyWith =>
       __$$LabOrderListEntityImplCopyWithImpl<_$LabOrderListEntityImpl>(
-          this, _$identity);
+        this,
+        _$identity,
+      );
 }
 
 abstract class _LabOrderListEntity extends LabOrderListEntity {
-  const factory _LabOrderListEntity(
-      {required final List<LabOrderEntity> items,
-      required final int currentPage,
-      required final int totalPages,
-      required final int totalItems}) = _$LabOrderListEntityImpl;
+  const factory _LabOrderListEntity({
+    required final List<LabOrderEntity> items,
+    required final int currentPage,
+    required final int totalPages,
+    required final int totalItems,
+  }) = _$LabOrderListEntityImpl;
   const _LabOrderListEntity._() : super._();
 
   @override

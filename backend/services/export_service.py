@@ -7,6 +7,7 @@ This is separate from the full pg_dump which is reserved for Super Admin only.
 
 import json
 from datetime import datetime, date, timezone
+from decimal import Decimal
 from typing import Any, Dict, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.inspection import inspect
@@ -25,6 +26,9 @@ def serialize_value(value: Any) -> Any:
         return value.isoformat()
     if isinstance(value, bytes):
         return value.decode("utf-8", errors="replace")
+    if isinstance(value, Decimal):
+        # Numeric columns yield Decimal; plain json.dumps would fail.
+        return float(value)
     return value
 
 

@@ -58,14 +58,17 @@ final completeAppointmentUseCaseProvider = Provider((ref) {
   );
 });
 
-final appointmentNotifierProvider = StateNotifierProvider<AppointmentNotifier, AppointmentState>((ref) {
-  return AppointmentNotifier(
-    getAppointmentsUseCase: ref.watch(getAppointmentsUseCaseProvider),
-    createAppointmentUseCase: ref.watch(createAppointmentUseCaseProvider),
-    cancelAppointmentUseCase: ref.watch(cancelAppointmentUseCaseProvider),
-    completeAppointmentUseCase: ref.watch(completeAppointmentUseCaseProvider),
-  );
-});
+final appointmentNotifierProvider =
+    StateNotifierProvider<AppointmentNotifier, AppointmentState>((ref) {
+      return AppointmentNotifier(
+        getAppointmentsUseCase: ref.watch(getAppointmentsUseCaseProvider),
+        createAppointmentUseCase: ref.watch(createAppointmentUseCaseProvider),
+        cancelAppointmentUseCase: ref.watch(cancelAppointmentUseCaseProvider),
+        completeAppointmentUseCase: ref.watch(
+          completeAppointmentUseCaseProvider,
+        ),
+      );
+    });
 
 class AppointmentNotifier extends StateNotifier<AppointmentState> {
   final GetAppointmentsUseCase _getAppointmentsUseCase;
@@ -79,11 +82,11 @@ class AppointmentNotifier extends StateNotifier<AppointmentState> {
     required CreateAppointmentUseCase createAppointmentUseCase,
     required CancelAppointmentUseCase cancelAppointmentUseCase,
     required CompleteAppointmentUseCase completeAppointmentUseCase,
-  })  : _getAppointmentsUseCase = getAppointmentsUseCase,
-        _createAppointmentUseCase = createAppointmentUseCase,
-        _cancelAppointmentUseCase = cancelAppointmentUseCase,
-        _completeAppointmentUseCase = completeAppointmentUseCase,
-        super(const AppointmentState.initial());
+  }) : _getAppointmentsUseCase = getAppointmentsUseCase,
+       _createAppointmentUseCase = createAppointmentUseCase,
+       _cancelAppointmentUseCase = cancelAppointmentUseCase,
+       _completeAppointmentUseCase = completeAppointmentUseCase,
+       super(const AppointmentState.initial());
 
   Future<void> loadAppointments({String? date, bool refresh = false}) async {
     if (refresh) {

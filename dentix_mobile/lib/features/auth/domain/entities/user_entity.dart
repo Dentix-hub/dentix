@@ -19,13 +19,13 @@ class UserEntity extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        username,
-        email,
-        role,
-        tenantId,
-        is2faEnabled,
-      ];
+    id,
+    username,
+    email,
+    role,
+    tenantId,
+    is2faEnabled,
+  ];
 }
 
 class TokenEntity extends Equatable {
@@ -42,10 +42,5 @@ class TokenEntity extends Equatable {
   });
 
   @override
-  List<Object?> get props => [
-        accessToken,
-        refreshToken,
-        role,
-        username,
-      ];
+  List<Object?> get props => [accessToken, refreshToken, role, username];
 }

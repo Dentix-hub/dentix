@@ -13,7 +13,9 @@ class CreateLabOrderUseCase
   CreateLabOrderUseCase(this.repository);
 
   @override
-  Future<Either<Failure, LabOrderEntity>> call(CreateLabOrderParams params) async {
+  Future<Either<Failure, LabOrderEntity>> call(
+    CreateLabOrderParams params,
+  ) async {
     return await repository.createLabOrder(
       patientId: params.patientId,
       labName: params.labName,

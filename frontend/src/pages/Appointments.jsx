@@ -75,6 +75,9 @@ export default function Appointments() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { t, i18n } = useTranslation();
     const preselectPatientId = searchParams.get('patient_id');
+    // Command palette links use ?action=new or ?id=<patientId>
+    const openNewAction = searchParams.get('action') === 'new';
+    const commandPalettePatientId = preselectPatientId || searchParams.get('id');
     const [viewMode, setViewMode] = useState(getInitialViewMode);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null });
@@ -92,8 +95,16 @@ export default function Appointments() {
             setNewAppt(prev => ({ ...prev, patient_id: preselectPatientId }));
             setIsModalOpen(true);
             setSearchParams({}, { replace: true });
+        } else if (commandPalettePatientId || openNewAction) {
+            // Support /appointments?id=<patientId> and /appointments?action=new
+            // links emitted by the Command Palette.
+            if (commandPalettePatientId) {
+                setNewAppt(prev => ({ ...prev, patient_id: commandPalettePatientId }));
+            }
+            setIsModalOpen(true);
+            setSearchParams({}, { replace: true });
         }
-    }, [preselectPatientId, setSearchParams]);
+    }, [preselectPatientId, commandPalettePatientId, openNewAction, setSearchParams]);
 
     useEffect(() => {
         if (user?.id && !newAppt.doctor_id && user.role === 'doctor') {

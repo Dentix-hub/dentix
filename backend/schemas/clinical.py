@@ -185,6 +185,25 @@ class Prescription(PrescriptionBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PrescriptionPatientInfo(BaseModel):
+    id: int
+    name: str
+
+
+class PrescriptionClinicInfo(BaseModel):
+    doctor_name: Optional[str] = None
+    doctor_title: Optional[str] = None
+    clinic_address: Optional[str] = None
+    clinic_phone: Optional[str] = None
+
+
+class PrescriptionPrint(BaseModel):
+    """Server-authoritative print DTO; the client renders it verbatim."""
+    prescription: Prescription
+    patient: PrescriptionPatientInfo
+    clinic: PrescriptionClinicInfo
+
+
 class SavedMedicationBase(BaseModel):
     name: str
     strength: Optional[str] = None

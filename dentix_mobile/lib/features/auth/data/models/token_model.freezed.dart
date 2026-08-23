@@ -12,7 +12,8 @@ part of 'token_model.dart';
 T _$identity<T>(T value) => value;
 
 final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
+  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
+);
 
 TokenModel _$TokenModelFromJson(Map<String, dynamic> json) {
   return _TokenModel.fromJson(json);
@@ -40,16 +41,18 @@ mixin _$TokenModel {
 /// @nodoc
 abstract class $TokenModelCopyWith<$Res> {
   factory $TokenModelCopyWith(
-          TokenModel value, $Res Function(TokenModel) then) =
-      _$TokenModelCopyWithImpl<$Res, TokenModel>;
+    TokenModel value,
+    $Res Function(TokenModel) then,
+  ) = _$TokenModelCopyWithImpl<$Res, TokenModel>;
   @useResult
-  $Res call(
-      {@JsonKey(name: 'access_token') String accessToken,
-      @JsonKey(name: 'refresh_token') String refreshToken,
-      @JsonKey(name: 'token_type') String? tokenType,
-      @JsonKey(name: 'user_status') String? userStatus,
-      String role,
-      String username});
+  $Res call({
+    @JsonKey(name: 'access_token') String accessToken,
+    @JsonKey(name: 'refresh_token') String refreshToken,
+    @JsonKey(name: 'token_type') String? tokenType,
+    @JsonKey(name: 'user_status') String? userStatus,
+    String role,
+    String username,
+  });
 }
 
 /// @nodoc
@@ -72,32 +75,35 @@ class _$TokenModelCopyWithImpl<$Res, $Val extends TokenModel>
     Object? role = null,
     Object? username = null,
   }) {
-    return _then(_value.copyWith(
-      accessToken: null == accessToken
-          ? _value.accessToken
-          : accessToken // ignore: cast_nullable_to_non_nullable
-              as String,
-      refreshToken: null == refreshToken
-          ? _value.refreshToken
-          : refreshToken // ignore: cast_nullable_to_non_nullable
-              as String,
-      tokenType: freezed == tokenType
-          ? _value.tokenType
-          : tokenType // ignore: cast_nullable_to_non_nullable
-              as String?,
-      userStatus: freezed == userStatus
-          ? _value.userStatus
-          : userStatus // ignore: cast_nullable_to_non_nullable
-              as String?,
-      role: null == role
-          ? _value.role
-          : role // ignore: cast_nullable_to_non_nullable
-              as String,
-      username: null == username
-          ? _value.username
-          : username // ignore: cast_nullable_to_non_nullable
-              as String,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            accessToken: null == accessToken
+                ? _value.accessToken
+                : accessToken // ignore: cast_nullable_to_non_nullable
+                      as String,
+            refreshToken: null == refreshToken
+                ? _value.refreshToken
+                : refreshToken // ignore: cast_nullable_to_non_nullable
+                      as String,
+            tokenType: freezed == tokenType
+                ? _value.tokenType
+                : tokenType // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            userStatus: freezed == userStatus
+                ? _value.userStatus
+                : userStatus // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            role: null == role
+                ? _value.role
+                : role // ignore: cast_nullable_to_non_nullable
+                      as String,
+            username: null == username
+                ? _value.username
+                : username // ignore: cast_nullable_to_non_nullable
+                      as String,
+          )
+          as $Val,
+    );
   }
 }
 
@@ -105,17 +111,19 @@ class _$TokenModelCopyWithImpl<$Res, $Val extends TokenModel>
 abstract class _$$TokenModelImplCopyWith<$Res>
     implements $TokenModelCopyWith<$Res> {
   factory _$$TokenModelImplCopyWith(
-          _$TokenModelImpl value, $Res Function(_$TokenModelImpl) then) =
-      __$$TokenModelImplCopyWithImpl<$Res>;
+    _$TokenModelImpl value,
+    $Res Function(_$TokenModelImpl) then,
+  ) = __$$TokenModelImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {@JsonKey(name: 'access_token') String accessToken,
-      @JsonKey(name: 'refresh_token') String refreshToken,
-      @JsonKey(name: 'token_type') String? tokenType,
-      @JsonKey(name: 'user_status') String? userStatus,
-      String role,
-      String username});
+  $Res call({
+    @JsonKey(name: 'access_token') String accessToken,
+    @JsonKey(name: 'refresh_token') String refreshToken,
+    @JsonKey(name: 'token_type') String? tokenType,
+    @JsonKey(name: 'user_status') String? userStatus,
+    String role,
+    String username,
+  });
 }
 
 /// @nodoc
@@ -123,8 +131,9 @@ class __$$TokenModelImplCopyWithImpl<$Res>
     extends _$TokenModelCopyWithImpl<$Res, _$TokenModelImpl>
     implements _$$TokenModelImplCopyWith<$Res> {
   __$$TokenModelImplCopyWithImpl(
-      _$TokenModelImpl _value, $Res Function(_$TokenModelImpl) _then)
-      : super(_value, _then);
+    _$TokenModelImpl _value,
+    $Res Function(_$TokenModelImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -136,45 +145,48 @@ class __$$TokenModelImplCopyWithImpl<$Res>
     Object? role = null,
     Object? username = null,
   }) {
-    return _then(_$TokenModelImpl(
-      accessToken: null == accessToken
-          ? _value.accessToken
-          : accessToken // ignore: cast_nullable_to_non_nullable
-              as String,
-      refreshToken: null == refreshToken
-          ? _value.refreshToken
-          : refreshToken // ignore: cast_nullable_to_non_nullable
-              as String,
-      tokenType: freezed == tokenType
-          ? _value.tokenType
-          : tokenType // ignore: cast_nullable_to_non_nullable
-              as String?,
-      userStatus: freezed == userStatus
-          ? _value.userStatus
-          : userStatus // ignore: cast_nullable_to_non_nullable
-              as String?,
-      role: null == role
-          ? _value.role
-          : role // ignore: cast_nullable_to_non_nullable
-              as String,
-      username: null == username
-          ? _value.username
-          : username // ignore: cast_nullable_to_non_nullable
-              as String,
-    ));
+    return _then(
+      _$TokenModelImpl(
+        accessToken: null == accessToken
+            ? _value.accessToken
+            : accessToken // ignore: cast_nullable_to_non_nullable
+                  as String,
+        refreshToken: null == refreshToken
+            ? _value.refreshToken
+            : refreshToken // ignore: cast_nullable_to_non_nullable
+                  as String,
+        tokenType: freezed == tokenType
+            ? _value.tokenType
+            : tokenType // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        userStatus: freezed == userStatus
+            ? _value.userStatus
+            : userStatus // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        role: null == role
+            ? _value.role
+            : role // ignore: cast_nullable_to_non_nullable
+                  as String,
+        username: null == username
+            ? _value.username
+            : username // ignore: cast_nullable_to_non_nullable
+                  as String,
+      ),
+    );
   }
 }
 
 /// @nodoc
 @JsonSerializable()
 class _$TokenModelImpl implements _TokenModel {
-  const _$TokenModelImpl(
-      {@JsonKey(name: 'access_token') required this.accessToken,
-      @JsonKey(name: 'refresh_token') required this.refreshToken,
-      @JsonKey(name: 'token_type') this.tokenType,
-      @JsonKey(name: 'user_status') this.userStatus,
-      required this.role,
-      required this.username});
+  const _$TokenModelImpl({
+    @JsonKey(name: 'access_token') required this.accessToken,
+    @JsonKey(name: 'refresh_token') required this.refreshToken,
+    @JsonKey(name: 'token_type') this.tokenType,
+    @JsonKey(name: 'user_status') this.userStatus,
+    required this.role,
+    required this.username,
+  });
 
   factory _$TokenModelImpl.fromJson(Map<String, dynamic> json) =>
       _$$TokenModelImplFromJson(json);
@@ -221,8 +233,15 @@ class _$TokenModelImpl implements _TokenModel {
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode => Object.hash(runtimeType, accessToken, refreshToken,
-      tokenType, userStatus, role, username);
+  int get hashCode => Object.hash(
+    runtimeType,
+    accessToken,
+    refreshToken,
+    tokenType,
+    userStatus,
+    role,
+    username,
+  );
 
   @JsonKey(ignore: true)
   @override
@@ -232,20 +251,19 @@ class _$TokenModelImpl implements _TokenModel {
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$TokenModelImplToJson(
-      this,
-    );
+    return _$$TokenModelImplToJson(this);
   }
 }
 
 abstract class _TokenModel implements TokenModel {
-  const factory _TokenModel(
-      {@JsonKey(name: 'access_token') required final String accessToken,
-      @JsonKey(name: 'refresh_token') required final String refreshToken,
-      @JsonKey(name: 'token_type') final String? tokenType,
-      @JsonKey(name: 'user_status') final String? userStatus,
-      required final String role,
-      required final String username}) = _$TokenModelImpl;
+  const factory _TokenModel({
+    @JsonKey(name: 'access_token') required final String accessToken,
+    @JsonKey(name: 'refresh_token') required final String refreshToken,
+    @JsonKey(name: 'token_type') final String? tokenType,
+    @JsonKey(name: 'user_status') final String? userStatus,
+    required final String role,
+    required final String username,
+  }) = _$TokenModelImpl;
 
   factory _TokenModel.fromJson(Map<String, dynamic> json) =
       _$TokenModelImpl.fromJson;

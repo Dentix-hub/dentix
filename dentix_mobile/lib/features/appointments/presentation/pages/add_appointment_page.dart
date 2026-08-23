@@ -3,9 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/l10n/app_localizations.dart';
-import '../../../../core/theme/app_colors.dart';
 import '../controllers/appointment_notifier.dart';
-import '../../domain/entities/appointment_entity.dart';
 
 class AddAppointmentPage extends ConsumerStatefulWidget {
   const AddAppointmentPage({super.key});
@@ -16,14 +14,17 @@ class AddAppointmentPage extends ConsumerStatefulWidget {
 
 class _AddAppointmentPageState extends ConsumerState<AddAppointmentPage> {
   final _formKey = GlobalKey<FormState>();
-  final _patientIdController = TextEditingController(); // TODO: Replace with Patient Picker
+  final _patientIdController =
+      TextEditingController(); // TODO: Replace with Patient Picker
   final _notesController = TextEditingController();
-  
+
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _startTime = TimeOfDay.now();
-  TimeOfDay _endTime = TimeOfDay.now().replacing(hour: TimeOfDay.now().hour + 1);
+  TimeOfDay _endTime = TimeOfDay.now().replacing(
+    hour: TimeOfDay.now().hour + 1,
+  );
   String _procedureType = 'Checkup';
-  
+
   bool _isLoading = false;
 
   final List<String> _procedures = [
@@ -49,9 +50,7 @@ class _AddAppointmentPageState extends ConsumerState<AddAppointmentPage> {
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.newAppointment),
-      ),
+      appBar: AppBar(title: Text(l10n.newAppointment)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -133,7 +132,7 @@ class _AddAppointmentPageState extends ConsumerState<AddAppointmentPage> {
 
               // Procedure Dropdown
               DropdownButtonFormField<String>(
-                value: _procedureType,
+                initialValue: _procedureType,
                 decoration: const InputDecoration(
                   labelText: 'Procedure', // TODO: Add l10n
                   prefixIcon: Icon(Icons.medical_services),
@@ -153,7 +152,8 @@ class _AddAppointmentPageState extends ConsumerState<AddAppointmentPage> {
                 controller: _notesController,
                 maxLines: 3,
                 decoration: InputDecoration(
-                  labelText: l10n.description, // Reusing description key as Notes
+                  labelText:
+                      l10n.description, // Reusing description key as Notes
                   prefixIcon: const Icon(Icons.notes),
                   border: const OutlineInputBorder(),
                 ),
@@ -199,9 +199,13 @@ class _AddAppointmentPageState extends ConsumerState<AddAppointmentPage> {
         if (isStart) {
           _startTime = picked;
           // Auto-adjust end time if it's before start time
-          if (_endTime.hour < _startTime.hour || 
-              (_endTime.hour == _startTime.hour && _endTime.minute <= _startTime.minute)) {
-             _endTime = TimeOfDay(hour: _startTime.hour + 1, minute: _startTime.minute);
+          if (_endTime.hour < _startTime.hour ||
+              (_endTime.hour == _startTime.hour &&
+                  _endTime.minute <= _startTime.minute)) {
+            _endTime = TimeOfDay(
+              hour: _startTime.hour + 1,
+              minute: _startTime.minute,
+            );
           }
         } else {
           _endTime = picked;
@@ -222,27 +226,31 @@ class _AddAppointmentPageState extends ConsumerState<AddAppointmentPage> {
     setState(() => _isLoading = true);
 
     final dateStr = DateFormat('yyyy-MM-dd').format(_selectedDate);
-    
+
     // We are using a fixed doctor ID (1) for now as Mobile App context usually implies logged-in doctor
     // In a real app, we get this from AuthState
-    const doctorId = 1; 
+    const doctorId = 1;
 
-    final success = await ref.read(appointmentNotifierProvider.notifier).createAppointment(
-      patientId: int.parse(_patientIdController.text),
-      dentistId: doctorId,
-      appointmentDate: dateStr,
-      startTime: _formatTimeOfDay(_startTime),
-      endTime: _formatTimeOfDay(_endTime),
-      notes: _notesController.text,
-      procedureType: _procedureType,
-    );
+    final success = await ref
+        .read(appointmentNotifierProvider.notifier)
+        .createAppointment(
+          patientId: int.parse(_patientIdController.text),
+          dentistId: doctorId,
+          appointmentDate: dateStr,
+          startTime: _formatTimeOfDay(_startTime),
+          endTime: _formatTimeOfDay(_endTime),
+          notes: _notesController.text,
+          procedureType: _procedureType,
+        );
 
     setState(() => _isLoading = false);
 
     if (success && mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppLocalizations.of(context)!.appointmentCreated ?? 'Appointment Created')),
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.appointmentCreated),
+        ),
       );
     }
   }

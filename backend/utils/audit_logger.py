@@ -73,8 +73,13 @@ def log_admin_action(
     """
     try:
         # 1. System Log
+        actor = (
+            admin_user.username
+            if admin_user is not None and getattr(admin_user, "username", None)
+            else "system"
+        )
         logger.info(
-            f"ADMIN_ACTION [{action}] Entity: {entity_type} ID: {entity_id} by {admin_user.username}"
+            f"ADMIN_ACTION [{action}] Entity: {entity_type} ID: {entity_id} by {actor}"
         )
 
         # 2. Database Entry

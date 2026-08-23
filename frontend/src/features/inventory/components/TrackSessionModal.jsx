@@ -30,7 +30,7 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
     const openMutation = useMutation({
         mutationFn: openSession,
         onSuccess: () => {
-            queryClient.invalidateQueries(['active-sessions']);
+            queryClient.invalidateQueries({ queryKey: ['active-sessions'] });
             if (onSuccess) onSuccess();
             onClose();
         }
@@ -39,8 +39,8 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
     const closeMutation = useMutation({
         mutationFn: (data) => closeSession(session.id, data),
         onSuccess: () => {
-            queryClient.invalidateQueries(['active-sessions']);
-            queryClient.invalidateQueries(['procedure-weights']);
+            queryClient.invalidateQueries({ queryKey: ['active-sessions'] });
+            queryClient.invalidateQueries({ queryKey: ['procedure-weights'] });
             if (onSuccess) onSuccess();
             onClose();
         }

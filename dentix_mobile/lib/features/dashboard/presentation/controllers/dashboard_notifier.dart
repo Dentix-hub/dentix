@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
-import '../../../../core/network/dio_client.dart';
+import '../../../../core/di/providers.dart';
 import '../../data/datasources/dashboard_remote.dart';
 import '../../data/repositories/dashboard_repo_impl.dart';
 import '../../domain/entities/dashboard_entity.dart';
@@ -34,19 +34,20 @@ final getDashboardStatsUseCaseProvider = Provider((ref) {
   );
 });
 
-final dashboardNotifierProvider = StateNotifierProvider<DashboardNotifier, DashboardState>((ref) {
-  return DashboardNotifier(
-    getDashboardStatsUseCase: ref.watch(getDashboardStatsUseCaseProvider),
-  );
-});
+final dashboardNotifierProvider =
+    StateNotifierProvider<DashboardNotifier, DashboardState>((ref) {
+      return DashboardNotifier(
+        getDashboardStatsUseCase: ref.watch(getDashboardStatsUseCaseProvider),
+      );
+    });
 
 class DashboardNotifier extends StateNotifier<DashboardState> {
   final GetDashboardStatsUseCase _getDashboardStatsUseCase;
 
   DashboardNotifier({
     required GetDashboardStatsUseCase getDashboardStatsUseCase,
-  })  : _getDashboardStatsUseCase = getDashboardStatsUseCase,
-        super(const DashboardState.initial());
+  }) : _getDashboardStatsUseCase = getDashboardStatsUseCase,
+       super(const DashboardState.initial());
 
   Future<void> loadDashboardStats() async {
     state = const DashboardState.loading();

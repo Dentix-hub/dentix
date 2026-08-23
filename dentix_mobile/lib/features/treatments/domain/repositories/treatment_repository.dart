@@ -9,6 +9,6 @@ abstract class TreatmentRepository {
     required int page,
     required int limit,
   });
-  
+
   Future<Either<Failure, TreatmentEntity>> getTreatmentById(int id);
 }

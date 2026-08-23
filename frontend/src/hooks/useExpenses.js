@@ -93,8 +93,8 @@ export function useExpenses() {
             setIsExpenseModalOpen(false);
             setNewExpense({ item_name: '', cost: '', category: 'General', date: getTodayStr(), notes: '' });
             toast.success(t('billing.alerts.expense_add_success'));
-            queryClient.invalidateQueries(['expenses_tab_data']);
-            queryClient.invalidateQueries(['billing_data']);
+            queryClient.invalidateQueries({ queryKey: ['expenses_tab_data'] });
+            queryClient.invalidateQueries({ queryKey: ['billing_data'] });
         } catch (err) {
             logger.error(err);
             toast.error(t('billing.alerts.expense_add_fail'));
@@ -109,8 +109,8 @@ export function useExpenses() {
         try {
             await deleteExpense(id);
             toast.success(t('billing.alerts.expense_delete_success'));
-            queryClient.invalidateQueries(['expenses_tab_data']);
-            queryClient.invalidateQueries(['billing_data']);
+            queryClient.invalidateQueries({ queryKey: ['expenses_tab_data'] });
+            queryClient.invalidateQueries({ queryKey: ['billing_data'] });
         } catch (err) {
             logger.error(err);
             toast.error(t('billing.alerts.delete_error'));

@@ -28,7 +28,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     Future.microtask(() {
       ref.read(dashboardNotifierProvider.notifier).loadDashboardStats();
       final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      ref.read(appointmentNotifierProvider.notifier).loadAppointments(date: today);
+      ref
+          .read(appointmentNotifierProvider.notifier)
+          .loadAppointments(date: today);
     });
   }
 
@@ -42,20 +44,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         title: Text(l10n.dashboard),
         automaticallyImplyLeading: false,
         actions: [
-          IconButton(
-            onPressed: _loadData,
-            icon: const Icon(Icons.refresh),
-          ),
+          IconButton(onPressed: _loadData, icon: const Icon(Icons.refresh)),
         ],
       ),
       body: SafeArea(
         child: dashboardState.when(
           initial: () => const SizedBox.shrink(),
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (message) => ErrorRetryWidget(
-            message: message, 
-            onRetry: _loadData,
-          ),
+          error: (message) =>
+              ErrorRetryWidget(message: message, onRetry: _loadData),
           loaded: (stats) => RefreshIndicator(
             onRefresh: () async => _loadData(),
             child: SingleChildScrollView(
@@ -67,8 +64,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   Text(
                     l10n.welcomeBack,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   _buildStatsGrid(context, stats),
@@ -248,9 +245,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   Widget _buildSectionTitle(BuildContext context, String title) {
     return Text(
       title,
-      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
     );
   }
 
@@ -261,7 +258,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       initial: () => const SizedBox.shrink(),
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (message) => Text('Error loading appointments: $message'),
-      loaded: (appointments, _, __, ___, ____) {
+      loaded: (appointments, _, _, _, _) {
         if (appointments.isEmpty) {
           return Card(
             child: SizedBox(
@@ -276,7 +273,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           );
         }
         return Column(
-          children: appointments.take(5).map((appt) => _buildAppointmentItem(appt)).toList(),
+          children: appointments
+              .take(5)
+              .map((appt) => _buildAppointmentItem(appt))
+              .toList(),
         );
       },
     );
@@ -289,12 +289,16 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         leading: CircleAvatar(
           backgroundColor: AppColors.primary.withValues(alpha: 0.1),
           child: Text(
-            appointment.patientName?.isNotEmpty == true ? appointment.patientName![0] : '?',
+            appointment.patientName?.isNotEmpty == true
+                ? appointment.patientName![0]
+                : '?',
             style: const TextStyle(color: AppColors.primary),
           ),
         ),
         title: Text(appointment.patientName ?? 'Unknown'),
-        subtitle: Text('${appointment.startTime} - ${appointment.procedureType ?? 'General'}'),
+        subtitle: Text(
+          '${appointment.startTime} - ${appointment.procedureType ?? 'General'}',
+        ),
         trailing: Icon(Icons.chevron_right, color: AppColors.textDisabled),
         onTap: () {
           // TODO: Maybe navigate to detail

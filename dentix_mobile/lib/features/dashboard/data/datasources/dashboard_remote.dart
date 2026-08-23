@@ -19,7 +19,9 @@ class DashboardRemoteDataSourceImpl implements DashboardRemoteDataSource {
       final response = await dio.get(ApiEndpoints.dashboardStats);
 
       if (response.statusCode == 200) {
-        return DashboardStatsModel.fromJson(response.data as Map<String, dynamic>);
+        return DashboardStatsModel.fromJson(
+          response.data as Map<String, dynamic>,
+        );
       } else {
         throw ServerException(
           message: 'Failed to load dashboard stats',

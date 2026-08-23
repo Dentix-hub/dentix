@@ -13,15 +13,18 @@ abstract class AppointmentRemoteDataSource {
     String? endDate,
     int? patientId,
   });
-  
+
   Future<AppointmentModel> getAppointmentById(int id);
-  
+
   Future<AppointmentModel> createAppointment(CreateAppointmentRequest request);
-  
-  Future<AppointmentModel> updateAppointment(int id, CreateAppointmentRequest request);
-  
+
+  Future<AppointmentModel> updateAppointment(
+    int id,
+    CreateAppointmentRequest request,
+  );
+
   Future<void> cancelAppointment(int id);
-  
+
   Future<void> completeAppointment(int id);
 }
 
@@ -44,7 +47,7 @@ class AppointmentRemoteDataSourceImpl implements AppointmentRemoteDataSource {
         'skip': (page - 1) * limit,
         'limit': limit,
       };
-      
+
       if (date != null) queryParams['date'] = date;
       if (startDate != null) queryParams['start_date'] = startDate;
       if (endDate != null) queryParams['end_date'] = endDate;
@@ -56,7 +59,9 @@ class AppointmentRemoteDataSourceImpl implements AppointmentRemoteDataSource {
       );
 
       if (response.statusCode == 200) {
-        return AppointmentListResponse.fromJson(response.data as Map<String, dynamic>);
+        return AppointmentListResponse.fromJson(
+          response.data as Map<String, dynamic>,
+        );
       } else {
         throw ServerException(
           message: 'Failed to load appointments',
@@ -93,7 +98,9 @@ class AppointmentRemoteDataSourceImpl implements AppointmentRemoteDataSource {
   }
 
   @override
-  Future<AppointmentModel> createAppointment(CreateAppointmentRequest request) async {
+  Future<AppointmentModel> createAppointment(
+    CreateAppointmentRequest request,
+  ) async {
     try {
       final response = await dio.post(
         ApiEndpoints.appointments,
@@ -117,7 +124,10 @@ class AppointmentRemoteDataSourceImpl implements AppointmentRemoteDataSource {
   }
 
   @override
-  Future<AppointmentModel> updateAppointment(int id, CreateAppointmentRequest request) async {
+  Future<AppointmentModel> updateAppointment(
+    int id,
+    CreateAppointmentRequest request,
+  ) async {
     try {
       final response = await dio.put(
         '${ApiEndpoints.appointments}/$id',

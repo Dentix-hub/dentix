@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
 import { Camera, X, Check, Loader2, Info, Scan } from 'lucide-react';
-import { performOCR } from '@/api';
+import { performOCR, OCR_ENABLED } from '@/api';
 export default function PatientScanner({ onScanComplete, onClose }) {
     const [isReady, setIsReady] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -75,6 +75,11 @@ export default function PatientScanner({ onScanComplete, onClose }) {
         }
     };
     const processOCR = async (useOriginal = false) => {
+        if (!OCR_ENABLED) {
+            logger.warn('OCR attempted while the feature is disabled');
+            alert('ميزة اسكان الكارت غير مفعلة في هذه البيئة.');
+            return;
+        }
         setIsProcessing(true);
         setOcrStatus('جاري تحليل الكارت...');
         try {

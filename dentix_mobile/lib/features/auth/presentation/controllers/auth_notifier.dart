@@ -19,10 +19,8 @@ class AuthState with _$AuthState {
   const AuthState._();
 
   /// Get error message if in error state
-  String? get errorMessage => maybeWhen(
-        error: (message) => message,
-        orElse: () => null,
-      );
+  String? get errorMessage =>
+      maybeWhen(error: (message) => message, orElse: () => null);
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
@@ -34,10 +32,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required LoginUseCase loginUseCase,
     required LogoutUseCase logoutUseCase,
     required ChangePasswordUseCase changePasswordUseCase,
-  })  : _loginUseCase = loginUseCase,
-        _logoutUseCase = logoutUseCase,
-        _changePasswordUseCase = changePasswordUseCase,
-        super(const AuthState.initial());
+  }) : _loginUseCase = loginUseCase,
+       _logoutUseCase = logoutUseCase,
+       _changePasswordUseCase = changePasswordUseCase,
+       super(const AuthState.initial());
 
   Future<void> login({required String email, required String password}) async {
     state = const AuthState.loading();

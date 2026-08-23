@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
+import { queryKeys } from '@/lib/queryClient';
 import {
     getPatient,
     getPatientTeeth,
@@ -102,7 +103,7 @@ export function useCreatePayment() {
         onSettled: (data, err, variables, context) => {
             queryClient.invalidateQueries({ queryKey: ['patient', context.patientId, 'payments'] });
             queryClient.invalidateQueries({ queryKey: ['patient', context.patientId] });
-            queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
         },
     });
 }
@@ -135,7 +136,7 @@ export function useDeletePayment() {
         onSettled: (data, err, variables, context) => {
             queryClient.invalidateQueries({ queryKey: ['patient', context.patientId, 'payments'] });
             queryClient.invalidateQueries({ queryKey: ['patient', context.patientId] });
-            queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
         },
     });
 }

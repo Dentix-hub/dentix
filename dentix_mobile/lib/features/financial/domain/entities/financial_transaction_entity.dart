@@ -3,10 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'financial_transaction_entity.freezed.dart';
 
 /// Financial transaction types
-enum TransactionType {
-  revenue,
-  expense,
-}
+enum TransactionType { revenue, expense }
 
 /// Financial transaction entity representing a single transaction
 @freezed

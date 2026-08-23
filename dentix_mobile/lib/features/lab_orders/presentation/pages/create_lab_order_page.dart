@@ -10,8 +10,7 @@ class CreateLabOrderPage extends ConsumerStatefulWidget {
   const CreateLabOrderPage({super.key});
 
   @override
-  ConsumerState<CreateLabOrderPage> createState() =>
-      _CreateLabOrderPageState();
+  ConsumerState<CreateLabOrderPage> createState() => _CreateLabOrderPageState();
 }
 
 class _CreateLabOrderPageState extends ConsumerState<CreateLabOrderPage> {
@@ -55,9 +54,7 @@ class _CreateLabOrderPageState extends ConsumerState<CreateLabOrderPage> {
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.createLabOrder),
-      ),
+      appBar: AppBar(title: Text(l10n.createLabOrder)),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -110,9 +107,7 @@ class _CreateLabOrderPageState extends ConsumerState<CreateLabOrderPage> {
                   prefixIcon: const Icon(Icons.calendar_today),
                   border: const OutlineInputBorder(),
                 ),
-                child: Text(
-                  DateFormat('MMM d, yyyy').format(_selectedDate),
-                ),
+                child: Text(DateFormat('MMM d, yyyy').format(_selectedDate)),
               ),
             ),
             const SizedBox(height: 16),
@@ -124,8 +119,8 @@ class _CreateLabOrderPageState extends ConsumerState<CreateLabOrderPage> {
                 Text(
                   l10n.workItems,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 TextButton.icon(
                   onPressed: _addWorkItem,
@@ -290,22 +285,22 @@ class _CreateLabOrderPageState extends ConsumerState<CreateLabOrderPage> {
 
     setState(() => _isLoading = true);
 
-    final success = await ref.read(labOrderNotifierProvider.notifier).createLabOrder(
-      patientId: int.parse(_patientIdController.text),
-      labName: _labNameController.text,
-      dueDate: DateFormat('yyyy-MM-dd').format(_selectedDate),
-      items: _workItems,
-      notes: _notesController.text.isEmpty ? null : _notesController.text,
-    );
+    final success = await ref
+        .read(labOrderNotifierProvider.notifier)
+        .createLabOrder(
+          patientId: int.parse(_patientIdController.text),
+          labName: _labNameController.text,
+          dueDate: DateFormat('yyyy-MM-dd').format(_selectedDate),
+          items: _workItems,
+          notes: _notesController.text.isEmpty ? null : _notesController.text,
+        );
 
     setState(() => _isLoading = false);
 
     if (success && mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context)!.labOrderCreated),
-        ),
+        SnackBar(content: Text(AppLocalizations.of(context)!.labOrderCreated)),
       );
     }
   }

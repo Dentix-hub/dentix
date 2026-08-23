@@ -3,12 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'lab_order_entity.freezed.dart';
 
 /// Lab order status enum
-enum LabOrderStatus {
-  pending,
-  inProgress,
-  completed,
-  cancelled,
-}
+enum LabOrderStatus { pending, inProgress, completed, cancelled }
 
 /// Lab order entity representing a lab work order
 @freezed

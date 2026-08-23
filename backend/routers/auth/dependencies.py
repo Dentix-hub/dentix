@@ -121,11 +121,28 @@ async def get_current_user(
         logger.error("Unexpected authentication error: %s", e, exc_info=True)
         raise credentials_exception
 
-    from sqlalchemy.orm import joinedload
     from sqlalchemy import select
-    stmt = select(models.User).where(models.User.username == token_data.username).options(joinedload(models.User.tenant).joinedload(models.Tenant.subscription_plan))
-    result = await db.execute(stmt)
-    user = result.scalars().first()
+    from sqlalchemy.orm import joinedload
+    from backend.core.tenancy import get_current_tenant_id
+    from backend.services.auth_bootstrap import (
+        lookup_user_for_authentication,
+        REASON_SESSION_RESOLVE,
+    )
+
+    if get_current_tenant_id() is not None:
+        # Tenant bound from the signed request token/cookie by middleware:
+        # the identity read stays fully tenant-scoped (FORCE RLS enforced).
+        stmt = select(models.User).where(models.User.username == token_data.username).options(joinedload(models.User.tenant).joinedload(models.Tenant.subscription_plan))
+        result = await db.execute(stmt)
+        user = result.scalars().first()
+    else:
+        # HIGH-RLS-01: no tenant could be bound from the request itself
+        # (super-admin, or a contextless internal path). Resolve identity via
+        # the audited bootstrap scope; every other row stays invisible. The
+        # helper also re-binds the session/process to the resolved tenant.
+        user = await lookup_user_for_authentication(
+            db, token_data.username, reason=REASON_SESSION_RESOLVE
+        )
     if user is None:
         logger.debug("User not found in DB for authenticated username: %s", token_data.username)
         raise credentials_exception

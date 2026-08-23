@@ -89,7 +89,8 @@ export function EnhancedMaterialConsumption({
                 patient_id: patientId
             };
             const res = await api.post('/api/v1/inventory/smart/check-availability', payload);
-            const rawData = res.data?.data;
+            // apiClient interceptor already unwraps StandardResponse -> res.data IS the payload.
+            const rawData = res.data;
             return Array.isArray(rawData) ? rawData : [];
         },
         enabled: materials.length > 0
@@ -202,7 +203,7 @@ export function EnhancedMaterialConsumption({
                                 stockInfo={stockCheckData?.find(s => s.material_id === (mat.material_id || mat.id))}
                                 onChange={(updated) => updateMaterial(idx, updated)}
                                 onRemove={() => removeMaterial(idx)}
-                                onRefresh={() => queryClient.invalidateQueries(['stock-check', materials])}
+                                onRefresh={() => queryClient.invalidateQueries({ queryKey: ['stock-check', materials] })}
                             />
                         ))}
                         {/* Inline Picker */}
@@ -297,7 +298,7 @@ export function EnhancedMaterialConsumption({
                                         size="sm"
                                         onClick={() => {
                                             logger.log('[EMC_DEBUG_MANUAL] Current State:', { availableMaterials, materials, initialMaterials });
-                                            queryClient.invalidateQueries(['stock-summary']);
+                                            queryClient.invalidateQueries({ queryKey: ['stock-summary'] });
                                         }}
                                         title="تحديث المخزون"
                                     >

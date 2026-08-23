@@ -278,16 +278,32 @@ async def update_backup_schedule(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Update tenant backup schedule frequency."""
+    """Update tenant backup schedule frequency.
+
+    HIGH-12 honesty contract: no persistent scheduler consumes this value yet,
+    so only 'off' is accepted. Promising automated backups that would never
+    run is a silent data-loss risk; re-enable schedules when a durable
+    scheduler with due-at/status/heartbeat exists.
+    """
     tenant = current_user.tenant
     if not tenant:
         raise HTTPException(status_code=400, detail="User has no tenant assigned")
-    tenant.backup_frequency = frequency
+
+    normalized = (frequency or "").strip().lower()
+    if normalized not in {"off", "daily", "weekly", "monthly"}:
+        raise HTTPException(status_code=400, detail="Invalid backup frequency")
+    if normalized != "off":
+        raise HTTPException(
+            status_code=501,
+            detail="النسخ الاحتياطي التلقائي غير مفعّل بعد. استخدم النسخ اليدوي حتى إطلاق المجدول.",
+        )
+
+    tenant.backup_frequency = "off"
     await db.commit()
 
     return success_response(
-        data={"frequency": frequency},
-        message=f"تم تحديث جدول النسخ الاحتياطي إلى: {frequency}",
+        data={"frequency": "off"},
+        message="النسخ الاحتياطي التلقائي متوقف؛ يعتمد النظام حالياً على النسخ اليدوي.",
     )
 
 

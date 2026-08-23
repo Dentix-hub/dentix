@@ -133,7 +133,9 @@ class AppointmentRepositoryImpl implements AppointmentRepository {
     }
   }
 
-  AppointmentListEntity _mapListResponseToEntity(AppointmentListResponse response) {
+  AppointmentListEntity _mapListResponseToEntity(
+    AppointmentListResponse response,
+  ) {
     return AppointmentListEntity(
       items: response.items.map(_mapModelToEntity).toList(),
       total: response.total,

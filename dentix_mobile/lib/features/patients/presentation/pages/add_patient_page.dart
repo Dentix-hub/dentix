@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/l10n/app_localizations.dart';
-import '../../../../core/theme/app_colors.dart';
 import '../controllers/patient_list_notifier.dart';
 
 class AddPatientPage extends ConsumerStatefulWidget {
@@ -19,7 +18,7 @@ class _AddPatientPageState extends ConsumerState<AddPatientPage> {
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _addressController = TextEditingController();
-  
+
   String _gender = 'Male';
   DateTime? _dob;
   bool _isLoading = false;
@@ -36,14 +35,9 @@ class _AddPatientPageState extends ConsumerState<AddPatientPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    
-    // Fallback translations if keys missing
-    final String labelFullName = l10n.personalInfo; 
-    
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.addPatient),
-      ),
+      appBar: AppBar(title: Text(l10n.addPatient)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -97,11 +91,11 @@ class _AddPatientPageState extends ConsumerState<AddPatientPage> {
                   border: const OutlineInputBorder(),
                 ),
                 validator: (value) {
-                   if (value != null && value.isNotEmpty) {
-                     // Simple email validation if not empty
-                     if (!value.contains('@')) return l10n.invalidEmail;
-                   }
-                   return null;
+                  if (value != null && value.isNotEmpty) {
+                    // Simple email validation if not empty
+                    if (!value.contains('@')) return l10n.invalidEmail;
+                  }
+                  return null;
                 },
               ),
               const SizedBox(height: 16),
@@ -111,7 +105,7 @@ class _AddPatientPageState extends ConsumerState<AddPatientPage> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _gender,
+                      initialValue: _gender,
                       decoration: const InputDecoration(
                         labelText: 'Gender', // TODO: Localize
                         prefixIcon: Icon(Icons.people),
@@ -124,7 +118,7 @@ class _AddPatientPageState extends ConsumerState<AddPatientPage> {
                         );
                       }).toList(),
                       onChanged: (newValue) {
-                         setState(() => _gender = newValue!);
+                        setState(() => _gender = newValue!);
                       },
                     ),
                   ),
@@ -139,7 +133,9 @@ class _AddPatientPageState extends ConsumerState<AddPatientPage> {
                           border: const OutlineInputBorder(),
                         ),
                         child: Text(
-                          _dob == null ? '' : DateFormat('dd/MM/yyyy').format(_dob!),
+                          _dob == null
+                              ? ''
+                              : DateFormat('dd/MM/yyyy').format(_dob!),
                         ),
                       ),
                     ),
@@ -180,7 +176,9 @@ class _AddPatientPageState extends ConsumerState<AddPatientPage> {
   Future<void> _selectDate(BuildContext context) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().subtract(const Duration(days: 365 * 20)), // Default 20 years old
+      initialDate: DateTime.now().subtract(
+        const Duration(days: 365 * 20),
+      ), // Default 20 years old
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
     );
@@ -191,27 +189,33 @@ class _AddPatientPageState extends ConsumerState<AddPatientPage> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     // Verify DOB is selected if mandatory? Let's make it optional for now or check backend requirements.
     // Assuming backend might need it, but for UI we allow null.
 
     setState(() => _isLoading = true);
 
-    final success = await ref.read(patientListNotifierProvider.notifier).createPatient(
-      fullName: _nameController.text,
-      phone: _phoneController.text,
-      email: _emailController.text,
-      gender: _gender,
-      birthDate: _dob != null ? DateFormat('yyyy-MM-dd').format(_dob!) : null,
-      address: _addressController.text,
-    );
+    final success = await ref
+        .read(patientListNotifierProvider.notifier)
+        .createPatient(
+          fullName: _nameController.text,
+          phone: _phoneController.text,
+          email: _emailController.text,
+          gender: _gender,
+          birthDate: _dob != null
+              ? DateFormat('yyyy-MM-dd').format(_dob!)
+              : null,
+          address: _addressController.text,
+        );
 
     setState(() => _isLoading = false);
 
     if (success && mounted) {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Patient added successfully')), // TODO: Localize
+        const SnackBar(
+          content: Text('Patient added successfully'),
+        ), // TODO: Localize
       );
     }
   }

@@ -52,6 +52,16 @@ export default function Patients() {
         }
     }, [search, scope, searchParams, setSearchParams]);
 
+    useEffect(() => {
+        // Command palette emits /patients?action=new to open the add form.
+        if (searchParams.get('action') === 'new') {
+            setIsModalOpen(true);
+            const next = new URLSearchParams(searchParams);
+            next.delete('action');
+            setSearchParams(next, { replace: true });
+        }
+    }, [searchParams, setSearchParams]);
+
     const directory = usePatientDirectory({
         query: debouncedSearch,
         limit: 30,

@@ -11,6 +11,17 @@ const PatientFiles = ({
 }) => {
     const { t } = useTranslation();
 
+    // Join base + path without touching protocol slashes: a naive
+    // `.replace('//','/')` would corrupt absolute origins into "https:/".
+    const buildAttachmentUrl = (filePath) => {
+        if (!filePath) return '';
+        if (filePath.startsWith('http')) return filePath;
+        if (filePath.includes('http')) return filePath.substring(filePath.indexOf('http'));
+        const base = (API_URL || '').replace(/\/+$/, '');
+        const path = String(filePath).replace(/^\/+/, '');
+        return `${base}/${path}`;
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
             <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
@@ -43,14 +54,14 @@ const PatientFiles = ({
                                     if (!file.file_path) return '';
                                     if (file.file_path.startsWith('http')) return file.file_path;
                                     if (file.file_path.includes('http')) return file.file_path.substring(file.file_path.indexOf('http'));
-                                    return `${API_URL || ''}/${file.file_path}`.replace('//', '/');
+                                    return buildAttachmentUrl(file.file_path);
                                 })()}
                                 alt={file.filename}
                                 className="w-full h-full object-cover transition-transform group-hover:scale-105"
                                 onClick={() => {
                                     const url = file.file_path.startsWith('http') ? file.file_path :
                                         (file.file_path.includes('http') ? file.file_path.substring(file.file_path.indexOf('http')) :
-                                            `${API_URL || ''}/${file.file_path}`.replace('//', '/'));
+                                            buildAttachmentUrl(file.file_path));
                                     window.open(url, '_blank');
                                 }}
                             />
@@ -63,7 +74,7 @@ const PatientFiles = ({
 
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                             <button
-                                onClick={() => window.open(file.file_path.startsWith('http') ? file.file_path : `${API_URL || ''}/${file.file_path}`.replace('//', '/'), '_blank')}
+                                onClick={() => window.open(buildAttachmentUrl(file.file_path), '_blank')}
                                 className="p-2 bg-white rounded-full text-slate-700 hover:text-primary hover:scale-110 transition-all"
                             >
                                 <Edit2 size={16} />

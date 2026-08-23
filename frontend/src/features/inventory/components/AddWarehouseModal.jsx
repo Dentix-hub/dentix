@@ -13,7 +13,7 @@ const AddWarehouseModal = ({ isOpen, onClose, onSuccess }) => {
     const mutation = useMutation({
         mutationFn: createWarehouse,
         onSuccess: (res) => {
-            queryClient.invalidateQueries(['inventory-warehouses']);
+            queryClient.invalidateQueries({ queryKey: ['inventory-warehouses'] });
             toast.success(t('inventory.warehouses.add_success', 'تم إضافة المخزن بنجاح'));
             if (onSuccess) onSuccess(res.data);
             handleClose();

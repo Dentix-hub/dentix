@@ -3,12 +3,18 @@ class ApiEndpoints {
 
   static const String baseUrl = '/api/v1';
 
-  // Auth
-  static const String login = '$baseUrl/token';
-  static const String logout = '$baseUrl/logout';
-  static const String refresh = '$baseUrl/refresh';
+  // Auth — backend registers the auth package under /api/v1/auth.
+  // The legacy /token, /logout and /refresh paths DO NOT exist server-side
+  // (HIGH-07 route probe); these constants now match the live registry.
+  static const String login = '$baseUrl/auth/token';
+  static const String logout = '$baseUrl/auth/logout';
+  static const String refresh = '$baseUrl/auth/refresh';
   static const String me = '$baseUrl/users/me';
-  static const String changePassword = '$baseUrl/change-password';
+
+  // Password changes go through the same PUT /users/me contract the web app
+  // uses (UserUpdate.password) — a dedicated /change-password route was
+  // never registered server-side.
+  static const String changePassword = me;
 
   // Users
   static const String usersMe = '$baseUrl/users/me';
@@ -18,34 +24,38 @@ class ApiEndpoints {
   static const String financeStats = '$baseUrl/stats/finance';
 
   // Patients
-  static const String patients = '$baseUrl/patients/';
+  static const String patients = '$baseUrl/patients';
   static String patientById(String id) => '$baseUrl/patients/$id';
 
   // Appointments
-  static const String appointments = '$baseUrl/appointments/';
+  static const String appointments = '$baseUrl/appointments';
   static String appointmentById(String id) => '$baseUrl/appointments/$id';
 
   // Treatments
   static String treatmentsByPatient(String patientId) =>
       '$baseUrl/treatments/$patientId';
-  static const String treatments = '$baseUrl/treatments/';
+  static const String treatments = '$baseUrl/treatments';
 
-  // Financial
-  static const String financialOverview = '$baseUrl/financial/overview';
-  static const String recordPayment = '$baseUrl/financial/record-payment';
+  // Financial — mapped to the real registry (HIGH-07):
+  // - Overview composes GET /stats/dashboard (tenant totals) with
+  //   GET /payments (paged items).
+  // - Recording a payment posts the canonical PaymentCreate contract.
+  static const String financialOverview = '$baseUrl/stats/dashboard';
+  static const String paymentsList = '$baseUrl/payments';
+  static const String recordPayment = '$baseUrl/payments';
 
   // Lab Orders
-  static const String labOrders = '$baseUrl/lab-orders/';
+  static const String labOrders = '$baseUrl/lab-orders';
 
   // Medications
-  static const String medications = '$baseUrl/medications/';
+  static const String medications = '$baseUrl/medications';
 
   // Procedures
-  static const String procedures = '$baseUrl/procedures/';
+  static const String procedures = '$baseUrl/procedures';
 
   // Prescriptions
-  static const String prescriptions = '$baseUrl/prescriptions/';
+  static const String prescriptions = '$baseUrl/prescriptions';
 
   // Notifications
-  static const String notifications = '$baseUrl/notifications/';
+  static const String notifications = '$baseUrl/notifications';
 }

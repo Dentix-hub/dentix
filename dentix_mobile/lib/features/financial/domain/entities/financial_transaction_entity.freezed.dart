@@ -12,7 +12,8 @@ part of 'financial_transaction_entity.dart';
 T _$identity<T>(T value) => value;
 
 final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
+  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
+);
 
 /// @nodoc
 mixin _$FinancialTransactionEntity {
@@ -31,34 +32,41 @@ mixin _$FinancialTransactionEntity {
 
   @JsonKey(ignore: true)
   $FinancialTransactionEntityCopyWith<FinancialTransactionEntity>
-      get copyWith => throw _privateConstructorUsedError;
+  get copyWith => throw _privateConstructorUsedError;
 }
 
 /// @nodoc
 abstract class $FinancialTransactionEntityCopyWith<$Res> {
-  factory $FinancialTransactionEntityCopyWith(FinancialTransactionEntity value,
-          $Res Function(FinancialTransactionEntity) then) =
-      _$FinancialTransactionEntityCopyWithImpl<$Res,
-          FinancialTransactionEntity>;
+  factory $FinancialTransactionEntityCopyWith(
+    FinancialTransactionEntity value,
+    $Res Function(FinancialTransactionEntity) then,
+  ) =
+      _$FinancialTransactionEntityCopyWithImpl<
+        $Res,
+        FinancialTransactionEntity
+      >;
   @useResult
-  $Res call(
-      {int id,
-      TransactionType type,
-      double amount,
-      String date,
-      String? description,
-      int? patientId,
-      String? patientName,
-      int? appointmentId,
-      int? treatmentId,
-      String? category,
-      String? createdAt,
-      String? updatedAt});
+  $Res call({
+    int id,
+    TransactionType type,
+    double amount,
+    String date,
+    String? description,
+    int? patientId,
+    String? patientName,
+    int? appointmentId,
+    int? treatmentId,
+    String? category,
+    String? createdAt,
+    String? updatedAt,
+  });
 }
 
 /// @nodoc
-class _$FinancialTransactionEntityCopyWithImpl<$Res,
-        $Val extends FinancialTransactionEntity>
+class _$FinancialTransactionEntityCopyWithImpl<
+  $Res,
+  $Val extends FinancialTransactionEntity
+>
     implements $FinancialTransactionEntityCopyWith<$Res> {
   _$FinancialTransactionEntityCopyWithImpl(this._value, this._then);
 
@@ -83,56 +91,59 @@ class _$FinancialTransactionEntityCopyWithImpl<$Res,
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
-    return _then(_value.copyWith(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      type: null == type
-          ? _value.type
-          : type // ignore: cast_nullable_to_non_nullable
-              as TransactionType,
-      amount: null == amount
-          ? _value.amount
-          : amount // ignore: cast_nullable_to_non_nullable
-              as double,
-      date: null == date
-          ? _value.date
-          : date // ignore: cast_nullable_to_non_nullable
-              as String,
-      description: freezed == description
-          ? _value.description
-          : description // ignore: cast_nullable_to_non_nullable
-              as String?,
-      patientId: freezed == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      patientName: freezed == patientName
-          ? _value.patientName
-          : patientName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      appointmentId: freezed == appointmentId
-          ? _value.appointmentId
-          : appointmentId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      treatmentId: freezed == treatmentId
-          ? _value.treatmentId
-          : treatmentId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      category: freezed == category
-          ? _value.category
-          : category // ignore: cast_nullable_to_non_nullable
-              as String?,
-      createdAt: freezed == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-      updatedAt: freezed == updatedAt
-          ? _value.updatedAt
-          : updatedAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            type: null == type
+                ? _value.type
+                : type // ignore: cast_nullable_to_non_nullable
+                      as TransactionType,
+            amount: null == amount
+                ? _value.amount
+                : amount // ignore: cast_nullable_to_non_nullable
+                      as double,
+            date: null == date
+                ? _value.date
+                : date // ignore: cast_nullable_to_non_nullable
+                      as String,
+            description: freezed == description
+                ? _value.description
+                : description // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            patientId: freezed == patientId
+                ? _value.patientId
+                : patientId // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            patientName: freezed == patientName
+                ? _value.patientName
+                : patientName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            appointmentId: freezed == appointmentId
+                ? _value.appointmentId
+                : appointmentId // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            treatmentId: freezed == treatmentId
+                ? _value.treatmentId
+                : treatmentId // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            category: freezed == category
+                ? _value.category
+                : category // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            createdAt: freezed == createdAt
+                ? _value.createdAt
+                : createdAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            updatedAt: freezed == updatedAt
+                ? _value.updatedAt
+                : updatedAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
   }
 }
 
@@ -140,35 +151,39 @@ class _$FinancialTransactionEntityCopyWithImpl<$Res,
 abstract class _$$FinancialTransactionEntityImplCopyWith<$Res>
     implements $FinancialTransactionEntityCopyWith<$Res> {
   factory _$$FinancialTransactionEntityImplCopyWith(
-          _$FinancialTransactionEntityImpl value,
-          $Res Function(_$FinancialTransactionEntityImpl) then) =
-      __$$FinancialTransactionEntityImplCopyWithImpl<$Res>;
+    _$FinancialTransactionEntityImpl value,
+    $Res Function(_$FinancialTransactionEntityImpl) then,
+  ) = __$$FinancialTransactionEntityImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {int id,
-      TransactionType type,
-      double amount,
-      String date,
-      String? description,
-      int? patientId,
-      String? patientName,
-      int? appointmentId,
-      int? treatmentId,
-      String? category,
-      String? createdAt,
-      String? updatedAt});
+  $Res call({
+    int id,
+    TransactionType type,
+    double amount,
+    String date,
+    String? description,
+    int? patientId,
+    String? patientName,
+    int? appointmentId,
+    int? treatmentId,
+    String? category,
+    String? createdAt,
+    String? updatedAt,
+  });
 }
 
 /// @nodoc
 class __$$FinancialTransactionEntityImplCopyWithImpl<$Res>
-    extends _$FinancialTransactionEntityCopyWithImpl<$Res,
-        _$FinancialTransactionEntityImpl>
+    extends
+        _$FinancialTransactionEntityCopyWithImpl<
+          $Res,
+          _$FinancialTransactionEntityImpl
+        >
     implements _$$FinancialTransactionEntityImplCopyWith<$Res> {
   __$$FinancialTransactionEntityImplCopyWithImpl(
-      _$FinancialTransactionEntityImpl _value,
-      $Res Function(_$FinancialTransactionEntityImpl) _then)
-      : super(_value, _then);
+    _$FinancialTransactionEntityImpl _value,
+    $Res Function(_$FinancialTransactionEntityImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -186,76 +201,78 @@ class __$$FinancialTransactionEntityImplCopyWithImpl<$Res>
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
-    return _then(_$FinancialTransactionEntityImpl(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      type: null == type
-          ? _value.type
-          : type // ignore: cast_nullable_to_non_nullable
-              as TransactionType,
-      amount: null == amount
-          ? _value.amount
-          : amount // ignore: cast_nullable_to_non_nullable
-              as double,
-      date: null == date
-          ? _value.date
-          : date // ignore: cast_nullable_to_non_nullable
-              as String,
-      description: freezed == description
-          ? _value.description
-          : description // ignore: cast_nullable_to_non_nullable
-              as String?,
-      patientId: freezed == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      patientName: freezed == patientName
-          ? _value.patientName
-          : patientName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      appointmentId: freezed == appointmentId
-          ? _value.appointmentId
-          : appointmentId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      treatmentId: freezed == treatmentId
-          ? _value.treatmentId
-          : treatmentId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      category: freezed == category
-          ? _value.category
-          : category // ignore: cast_nullable_to_non_nullable
-              as String?,
-      createdAt: freezed == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-      updatedAt: freezed == updatedAt
-          ? _value.updatedAt
-          : updatedAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ));
+    return _then(
+      _$FinancialTransactionEntityImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        type: null == type
+            ? _value.type
+            : type // ignore: cast_nullable_to_non_nullable
+                  as TransactionType,
+        amount: null == amount
+            ? _value.amount
+            : amount // ignore: cast_nullable_to_non_nullable
+                  as double,
+        date: null == date
+            ? _value.date
+            : date // ignore: cast_nullable_to_non_nullable
+                  as String,
+        description: freezed == description
+            ? _value.description
+            : description // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        patientId: freezed == patientId
+            ? _value.patientId
+            : patientId // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        patientName: freezed == patientName
+            ? _value.patientName
+            : patientName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        appointmentId: freezed == appointmentId
+            ? _value.appointmentId
+            : appointmentId // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        treatmentId: freezed == treatmentId
+            ? _value.treatmentId
+            : treatmentId // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        category: freezed == category
+            ? _value.category
+            : category // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        createdAt: freezed == createdAt
+            ? _value.createdAt
+            : createdAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        updatedAt: freezed == updatedAt
+            ? _value.updatedAt
+            : updatedAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 
 class _$FinancialTransactionEntityImpl extends _FinancialTransactionEntity {
-  const _$FinancialTransactionEntityImpl(
-      {required this.id,
-      required this.type,
-      required this.amount,
-      required this.date,
-      this.description,
-      this.patientId,
-      this.patientName,
-      this.appointmentId,
-      this.treatmentId,
-      this.category,
-      this.createdAt,
-      this.updatedAt})
-      : super._();
+  const _$FinancialTransactionEntityImpl({
+    required this.id,
+    required this.type,
+    required this.amount,
+    required this.date,
+    this.description,
+    this.patientId,
+    this.patientName,
+    this.appointmentId,
+    this.treatmentId,
+    this.category,
+    this.createdAt,
+    this.updatedAt,
+  }) : super._();
 
   @override
   final int id;
@@ -316,42 +333,46 @@ class _$FinancialTransactionEntityImpl extends _FinancialTransactionEntity {
 
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      id,
-      type,
-      amount,
-      date,
-      description,
-      patientId,
-      patientName,
-      appointmentId,
-      treatmentId,
-      category,
-      createdAt,
-      updatedAt);
+    runtimeType,
+    id,
+    type,
+    amount,
+    date,
+    description,
+    patientId,
+    patientName,
+    appointmentId,
+    treatmentId,
+    category,
+    createdAt,
+    updatedAt,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$FinancialTransactionEntityImplCopyWith<_$FinancialTransactionEntityImpl>
-      get copyWith => __$$FinancialTransactionEntityImplCopyWithImpl<
-          _$FinancialTransactionEntityImpl>(this, _$identity);
+  get copyWith =>
+      __$$FinancialTransactionEntityImplCopyWithImpl<
+        _$FinancialTransactionEntityImpl
+      >(this, _$identity);
 }
 
 abstract class _FinancialTransactionEntity extends FinancialTransactionEntity {
-  const factory _FinancialTransactionEntity(
-      {required final int id,
-      required final TransactionType type,
-      required final double amount,
-      required final String date,
-      final String? description,
-      final int? patientId,
-      final String? patientName,
-      final int? appointmentId,
-      final int? treatmentId,
-      final String? category,
-      final String? createdAt,
-      final String? updatedAt}) = _$FinancialTransactionEntityImpl;
+  const factory _FinancialTransactionEntity({
+    required final int id,
+    required final TransactionType type,
+    required final double amount,
+    required final String date,
+    final String? description,
+    final int? patientId,
+    final String? patientName,
+    final int? appointmentId,
+    final int? treatmentId,
+    final String? category,
+    final String? createdAt,
+    final String? updatedAt,
+  }) = _$FinancialTransactionEntityImpl;
   const _FinancialTransactionEntity._() : super._();
 
   @override
@@ -381,7 +402,7 @@ abstract class _FinancialTransactionEntity extends FinancialTransactionEntity {
   @override
   @JsonKey(ignore: true)
   _$$FinancialTransactionEntityImplCopyWith<_$FinancialTransactionEntityImpl>
-      get copyWith => throw _privateConstructorUsedError;
+  get copyWith => throw _privateConstructorUsedError;
 }
 
 /// @nodoc
@@ -402,23 +423,27 @@ mixin _$FinancialOverviewEntity {
 
 /// @nodoc
 abstract class $FinancialOverviewEntityCopyWith<$Res> {
-  factory $FinancialOverviewEntityCopyWith(FinancialOverviewEntity value,
-          $Res Function(FinancialOverviewEntity) then) =
-      _$FinancialOverviewEntityCopyWithImpl<$Res, FinancialOverviewEntity>;
+  factory $FinancialOverviewEntityCopyWith(
+    FinancialOverviewEntity value,
+    $Res Function(FinancialOverviewEntity) then,
+  ) = _$FinancialOverviewEntityCopyWithImpl<$Res, FinancialOverviewEntity>;
   @useResult
-  $Res call(
-      {List<FinancialTransactionEntity> items,
-      int totalRevenue,
-      int totalExpenses,
-      double netIncome,
-      int currentPage,
-      int totalPages,
-      int totalItems});
+  $Res call({
+    List<FinancialTransactionEntity> items,
+    int totalRevenue,
+    int totalExpenses,
+    double netIncome,
+    int currentPage,
+    int totalPages,
+    int totalItems,
+  });
 }
 
 /// @nodoc
-class _$FinancialOverviewEntityCopyWithImpl<$Res,
-        $Val extends FinancialOverviewEntity>
+class _$FinancialOverviewEntityCopyWithImpl<
+  $Res,
+  $Val extends FinancialOverviewEntity
+>
     implements $FinancialOverviewEntityCopyWith<$Res> {
   _$FinancialOverviewEntityCopyWithImpl(this._value, this._then);
 
@@ -438,36 +463,39 @@ class _$FinancialOverviewEntityCopyWithImpl<$Res,
     Object? totalPages = null,
     Object? totalItems = null,
   }) {
-    return _then(_value.copyWith(
-      items: null == items
-          ? _value.items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<FinancialTransactionEntity>,
-      totalRevenue: null == totalRevenue
-          ? _value.totalRevenue
-          : totalRevenue // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalExpenses: null == totalExpenses
-          ? _value.totalExpenses
-          : totalExpenses // ignore: cast_nullable_to_non_nullable
-              as int,
-      netIncome: null == netIncome
-          ? _value.netIncome
-          : netIncome // ignore: cast_nullable_to_non_nullable
-              as double,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalItems: null == totalItems
-          ? _value.totalItems
-          : totalItems // ignore: cast_nullable_to_non_nullable
-              as int,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            items: null == items
+                ? _value.items
+                : items // ignore: cast_nullable_to_non_nullable
+                      as List<FinancialTransactionEntity>,
+            totalRevenue: null == totalRevenue
+                ? _value.totalRevenue
+                : totalRevenue // ignore: cast_nullable_to_non_nullable
+                      as int,
+            totalExpenses: null == totalExpenses
+                ? _value.totalExpenses
+                : totalExpenses // ignore: cast_nullable_to_non_nullable
+                      as int,
+            netIncome: null == netIncome
+                ? _value.netIncome
+                : netIncome // ignore: cast_nullable_to_non_nullable
+                      as double,
+            currentPage: null == currentPage
+                ? _value.currentPage
+                : currentPage // ignore: cast_nullable_to_non_nullable
+                      as int,
+            totalPages: null == totalPages
+                ? _value.totalPages
+                : totalPages // ignore: cast_nullable_to_non_nullable
+                      as int,
+            totalItems: null == totalItems
+                ? _value.totalItems
+                : totalItems // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
   }
 }
 
@@ -475,30 +503,34 @@ class _$FinancialOverviewEntityCopyWithImpl<$Res,
 abstract class _$$FinancialOverviewEntityImplCopyWith<$Res>
     implements $FinancialOverviewEntityCopyWith<$Res> {
   factory _$$FinancialOverviewEntityImplCopyWith(
-          _$FinancialOverviewEntityImpl value,
-          $Res Function(_$FinancialOverviewEntityImpl) then) =
-      __$$FinancialOverviewEntityImplCopyWithImpl<$Res>;
+    _$FinancialOverviewEntityImpl value,
+    $Res Function(_$FinancialOverviewEntityImpl) then,
+  ) = __$$FinancialOverviewEntityImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {List<FinancialTransactionEntity> items,
-      int totalRevenue,
-      int totalExpenses,
-      double netIncome,
-      int currentPage,
-      int totalPages,
-      int totalItems});
+  $Res call({
+    List<FinancialTransactionEntity> items,
+    int totalRevenue,
+    int totalExpenses,
+    double netIncome,
+    int currentPage,
+    int totalPages,
+    int totalItems,
+  });
 }
 
 /// @nodoc
 class __$$FinancialOverviewEntityImplCopyWithImpl<$Res>
-    extends _$FinancialOverviewEntityCopyWithImpl<$Res,
-        _$FinancialOverviewEntityImpl>
+    extends
+        _$FinancialOverviewEntityCopyWithImpl<
+          $Res,
+          _$FinancialOverviewEntityImpl
+        >
     implements _$$FinancialOverviewEntityImplCopyWith<$Res> {
   __$$FinancialOverviewEntityImplCopyWithImpl(
-      _$FinancialOverviewEntityImpl _value,
-      $Res Function(_$FinancialOverviewEntityImpl) _then)
-      : super(_value, _then);
+    _$FinancialOverviewEntityImpl _value,
+    $Res Function(_$FinancialOverviewEntityImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -511,52 +543,54 @@ class __$$FinancialOverviewEntityImplCopyWithImpl<$Res>
     Object? totalPages = null,
     Object? totalItems = null,
   }) {
-    return _then(_$FinancialOverviewEntityImpl(
-      items: null == items
-          ? _value._items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<FinancialTransactionEntity>,
-      totalRevenue: null == totalRevenue
-          ? _value.totalRevenue
-          : totalRevenue // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalExpenses: null == totalExpenses
-          ? _value.totalExpenses
-          : totalExpenses // ignore: cast_nullable_to_non_nullable
-              as int,
-      netIncome: null == netIncome
-          ? _value.netIncome
-          : netIncome // ignore: cast_nullable_to_non_nullable
-              as double,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalItems: null == totalItems
-          ? _value.totalItems
-          : totalItems // ignore: cast_nullable_to_non_nullable
-              as int,
-    ));
+    return _then(
+      _$FinancialOverviewEntityImpl(
+        items: null == items
+            ? _value._items
+            : items // ignore: cast_nullable_to_non_nullable
+                  as List<FinancialTransactionEntity>,
+        totalRevenue: null == totalRevenue
+            ? _value.totalRevenue
+            : totalRevenue // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalExpenses: null == totalExpenses
+            ? _value.totalExpenses
+            : totalExpenses // ignore: cast_nullable_to_non_nullable
+                  as int,
+        netIncome: null == netIncome
+            ? _value.netIncome
+            : netIncome // ignore: cast_nullable_to_non_nullable
+                  as double,
+        currentPage: null == currentPage
+            ? _value.currentPage
+            : currentPage // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalPages: null == totalPages
+            ? _value.totalPages
+            : totalPages // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalItems: null == totalItems
+            ? _value.totalItems
+            : totalItems // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
   }
 }
 
 /// @nodoc
 
 class _$FinancialOverviewEntityImpl extends _FinancialOverviewEntity {
-  const _$FinancialOverviewEntityImpl(
-      {required final List<FinancialTransactionEntity> items,
-      required this.totalRevenue,
-      required this.totalExpenses,
-      required this.netIncome,
-      required this.currentPage,
-      required this.totalPages,
-      required this.totalItems})
-      : _items = items,
-        super._();
+  const _$FinancialOverviewEntityImpl({
+    required final List<FinancialTransactionEntity> items,
+    required this.totalRevenue,
+    required this.totalExpenses,
+    required this.netIncome,
+    required this.currentPage,
+    required this.totalPages,
+    required this.totalItems,
+  }) : _items = items,
+       super._();
 
   final List<FinancialTransactionEntity> _items;
   @override
@@ -606,32 +640,36 @@ class _$FinancialOverviewEntityImpl extends _FinancialOverviewEntity {
 
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      const DeepCollectionEquality().hash(_items),
-      totalRevenue,
-      totalExpenses,
-      netIncome,
-      currentPage,
-      totalPages,
-      totalItems);
+    runtimeType,
+    const DeepCollectionEquality().hash(_items),
+    totalRevenue,
+    totalExpenses,
+    netIncome,
+    currentPage,
+    totalPages,
+    totalItems,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$FinancialOverviewEntityImplCopyWith<_$FinancialOverviewEntityImpl>
-      get copyWith => __$$FinancialOverviewEntityImplCopyWithImpl<
-          _$FinancialOverviewEntityImpl>(this, _$identity);
+  get copyWith =>
+      __$$FinancialOverviewEntityImplCopyWithImpl<
+        _$FinancialOverviewEntityImpl
+      >(this, _$identity);
 }
 
 abstract class _FinancialOverviewEntity extends FinancialOverviewEntity {
-  const factory _FinancialOverviewEntity(
-      {required final List<FinancialTransactionEntity> items,
-      required final int totalRevenue,
-      required final int totalExpenses,
-      required final double netIncome,
-      required final int currentPage,
-      required final int totalPages,
-      required final int totalItems}) = _$FinancialOverviewEntityImpl;
+  const factory _FinancialOverviewEntity({
+    required final List<FinancialTransactionEntity> items,
+    required final int totalRevenue,
+    required final int totalExpenses,
+    required final double netIncome,
+    required final int currentPage,
+    required final int totalPages,
+    required final int totalItems,
+  }) = _$FinancialOverviewEntityImpl;
   const _FinancialOverviewEntity._() : super._();
 
   @override
@@ -651,5 +689,5 @@ abstract class _FinancialOverviewEntity extends FinancialOverviewEntity {
   @override
   @JsonKey(ignore: true)
   _$$FinancialOverviewEntityImplCopyWith<_$FinancialOverviewEntityImpl>
-      get copyWith => throw _privateConstructorUsedError;
+  get copyWith => throw _privateConstructorUsedError;
 }

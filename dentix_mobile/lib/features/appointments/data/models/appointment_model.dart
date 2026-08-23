@@ -15,7 +15,8 @@ class AppointmentModel with _$AppointmentModel {
     @JsonKey(name: 'appointment_date') required String appointmentDate,
     @JsonKey(name: 'start_time') required String startTime,
     @JsonKey(name: 'end_time') String? endTime,
-    @JsonKey(name: 'status') required String status, // scheduled, completed, cancelled, no_show
+    @JsonKey(name: 'status')
+    required String status, // scheduled, completed, cancelled, no_show
     @JsonKey(name: 'notes') String? notes,
     @JsonKey(name: 'procedure_type') String? procedureType,
     @JsonKey(name: 'created_at') String? createdAt,

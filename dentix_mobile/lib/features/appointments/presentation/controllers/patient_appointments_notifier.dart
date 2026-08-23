@@ -2,12 +2,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/usecases/appointment_usecases.dart';
 import 'appointment_notifier.dart';
 
-final patientAppointmentsProvider = StateNotifierProvider.family<PatientAppointmentsNotifier, AppointmentState, int>((ref, patientId) {
-  return PatientAppointmentsNotifier(
-    getAppointmentsUseCase: ref.watch(getAppointmentsUseCaseProvider),
-    patientId: patientId,
-  );
-});
+final patientAppointmentsProvider =
+    StateNotifierProvider.family<
+      PatientAppointmentsNotifier,
+      AppointmentState,
+      int
+    >((ref, patientId) {
+      return PatientAppointmentsNotifier(
+        getAppointmentsUseCase: ref.watch(getAppointmentsUseCaseProvider),
+        patientId: patientId,
+      );
+    });
 
 class PatientAppointmentsNotifier extends StateNotifier<AppointmentState> {
   final GetAppointmentsUseCase _getAppointmentsUseCase;
@@ -16,8 +21,8 @@ class PatientAppointmentsNotifier extends StateNotifier<AppointmentState> {
   PatientAppointmentsNotifier({
     required GetAppointmentsUseCase getAppointmentsUseCase,
     required this.patientId,
-  })  : _getAppointmentsUseCase = getAppointmentsUseCase,
-        super(const AppointmentState.initial());
+  }) : _getAppointmentsUseCase = getAppointmentsUseCase,
+       super(const AppointmentState.initial());
 
   Future<void> loadAppointments({bool refresh = false}) async {
     final isInitial = state == const AppointmentState.initial();

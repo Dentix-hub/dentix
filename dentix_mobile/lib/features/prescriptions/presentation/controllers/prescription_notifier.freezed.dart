@@ -12,7 +12,8 @@ part of 'prescription_notifier.dart';
 T _$identity<T>(T value) => value;
 
 final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
+  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
+);
 
 /// @nodoc
 mixin _$PrescriptionState {
@@ -21,52 +22,58 @@ mixin _$PrescriptionState {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(
-            List<PrescriptionEntity> prescriptions,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            int? selectedPatientId)
-        loaded,
+      List<PrescriptionEntity> prescriptions,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      int? selectedPatientId,
+    )
+    loaded,
     required TResult Function(String message) error,
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PrescriptionEntity> prescriptions, int currentPage,
-            int totalPages, bool hasMore, int? selectedPatientId)?
-        loaded,
+    TResult? Function(
+      List<PrescriptionEntity> prescriptions,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult? Function(String message)? error,
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PrescriptionEntity> prescriptions, int currentPage,
-            int totalPages, bool hasMore, int? selectedPatientId)?
-        loaded,
+    TResult Function(
+      List<PrescriptionEntity> prescriptions,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult map<TResult extends Object?>({
     required TResult Function(_Initial value) initial,
     required TResult Function(_Loading value) loading,
     required TResult Function(_Loaded value) loaded,
     required TResult Function(_Error value) error,
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult? mapOrNull<TResult extends Object?>({
     TResult? Function(_Initial value)? initial,
     TResult? Function(_Loading value)? loading,
     TResult? Function(_Loaded value)? loaded,
     TResult? Function(_Error value)? error,
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult maybeMap<TResult extends Object?>({
     TResult Function(_Initial value)? initial,
@@ -74,15 +81,15 @@ mixin _$PrescriptionState {
     TResult Function(_Loaded value)? loaded,
     TResult Function(_Error value)? error,
     required TResult orElse(),
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
 }
 
 /// @nodoc
 abstract class $PrescriptionStateCopyWith<$Res> {
   factory $PrescriptionStateCopyWith(
-          PrescriptionState value, $Res Function(PrescriptionState) then) =
-      _$PrescriptionStateCopyWithImpl<$Res, PrescriptionState>;
+    PrescriptionState value,
+    $Res Function(PrescriptionState) then,
+  ) = _$PrescriptionStateCopyWithImpl<$Res, PrescriptionState>;
 }
 
 /// @nodoc
@@ -99,8 +106,9 @@ class _$PrescriptionStateCopyWithImpl<$Res, $Val extends PrescriptionState>
 /// @nodoc
 abstract class _$$InitialImplCopyWith<$Res> {
   factory _$$InitialImplCopyWith(
-          _$InitialImpl value, $Res Function(_$InitialImpl) then) =
-      __$$InitialImplCopyWithImpl<$Res>;
+    _$InitialImpl value,
+    $Res Function(_$InitialImpl) then,
+  ) = __$$InitialImplCopyWithImpl<$Res>;
 }
 
 /// @nodoc
@@ -108,8 +116,9 @@ class __$$InitialImplCopyWithImpl<$Res>
     extends _$PrescriptionStateCopyWithImpl<$Res, _$InitialImpl>
     implements _$$InitialImplCopyWith<$Res> {
   __$$InitialImplCopyWithImpl(
-      _$InitialImpl _value, $Res Function(_$InitialImpl) _then)
-      : super(_value, _then);
+    _$InitialImpl _value,
+    $Res Function(_$InitialImpl) _then,
+  ) : super(_value, _then);
 }
 
 /// @nodoc
@@ -137,12 +146,13 @@ class _$InitialImpl implements _Initial {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(
-            List<PrescriptionEntity> prescriptions,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            int? selectedPatientId)
-        loaded,
+      List<PrescriptionEntity> prescriptions,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      int? selectedPatientId,
+    )
+    loaded,
     required TResult Function(String message) error,
   }) {
     return initial();
@@ -153,9 +163,14 @@ class _$InitialImpl implements _Initial {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PrescriptionEntity> prescriptions, int currentPage,
-            int totalPages, bool hasMore, int? selectedPatientId)?
-        loaded,
+    TResult? Function(
+      List<PrescriptionEntity> prescriptions,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult? Function(String message)? error,
   }) {
     return initial?.call();
@@ -166,9 +181,14 @@ class _$InitialImpl implements _Initial {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PrescriptionEntity> prescriptions, int currentPage,
-            int totalPages, bool hasMore, int? selectedPatientId)?
-        loaded,
+    TResult Function(
+      List<PrescriptionEntity> prescriptions,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -223,8 +243,9 @@ abstract class _Initial implements PrescriptionState {
 /// @nodoc
 abstract class _$$LoadingImplCopyWith<$Res> {
   factory _$$LoadingImplCopyWith(
-          _$LoadingImpl value, $Res Function(_$LoadingImpl) then) =
-      __$$LoadingImplCopyWithImpl<$Res>;
+    _$LoadingImpl value,
+    $Res Function(_$LoadingImpl) then,
+  ) = __$$LoadingImplCopyWithImpl<$Res>;
 }
 
 /// @nodoc
@@ -232,8 +253,9 @@ class __$$LoadingImplCopyWithImpl<$Res>
     extends _$PrescriptionStateCopyWithImpl<$Res, _$LoadingImpl>
     implements _$$LoadingImplCopyWith<$Res> {
   __$$LoadingImplCopyWithImpl(
-      _$LoadingImpl _value, $Res Function(_$LoadingImpl) _then)
-      : super(_value, _then);
+    _$LoadingImpl _value,
+    $Res Function(_$LoadingImpl) _then,
+  ) : super(_value, _then);
 }
 
 /// @nodoc
@@ -261,12 +283,13 @@ class _$LoadingImpl implements _Loading {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(
-            List<PrescriptionEntity> prescriptions,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            int? selectedPatientId)
-        loaded,
+      List<PrescriptionEntity> prescriptions,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      int? selectedPatientId,
+    )
+    loaded,
     required TResult Function(String message) error,
   }) {
     return loading();
@@ -277,9 +300,14 @@ class _$LoadingImpl implements _Loading {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PrescriptionEntity> prescriptions, int currentPage,
-            int totalPages, bool hasMore, int? selectedPatientId)?
-        loaded,
+    TResult? Function(
+      List<PrescriptionEntity> prescriptions,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult? Function(String message)? error,
   }) {
     return loading?.call();
@@ -290,9 +318,14 @@ class _$LoadingImpl implements _Loading {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PrescriptionEntity> prescriptions, int currentPage,
-            int totalPages, bool hasMore, int? selectedPatientId)?
-        loaded,
+    TResult Function(
+      List<PrescriptionEntity> prescriptions,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -347,15 +380,17 @@ abstract class _Loading implements PrescriptionState {
 /// @nodoc
 abstract class _$$LoadedImplCopyWith<$Res> {
   factory _$$LoadedImplCopyWith(
-          _$LoadedImpl value, $Res Function(_$LoadedImpl) then) =
-      __$$LoadedImplCopyWithImpl<$Res>;
+    _$LoadedImpl value,
+    $Res Function(_$LoadedImpl) then,
+  ) = __$$LoadedImplCopyWithImpl<$Res>;
   @useResult
-  $Res call(
-      {List<PrescriptionEntity> prescriptions,
-      int currentPage,
-      int totalPages,
-      bool hasMore,
-      int? selectedPatientId});
+  $Res call({
+    List<PrescriptionEntity> prescriptions,
+    int currentPage,
+    int totalPages,
+    bool hasMore,
+    int? selectedPatientId,
+  });
 }
 
 /// @nodoc
@@ -363,8 +398,9 @@ class __$$LoadedImplCopyWithImpl<$Res>
     extends _$PrescriptionStateCopyWithImpl<$Res, _$LoadedImpl>
     implements _$$LoadedImplCopyWith<$Res> {
   __$$LoadedImplCopyWithImpl(
-      _$LoadedImpl _value, $Res Function(_$LoadedImpl) _then)
-      : super(_value, _then);
+    _$LoadedImpl _value,
+    $Res Function(_$LoadedImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -375,41 +411,43 @@ class __$$LoadedImplCopyWithImpl<$Res>
     Object? hasMore = null,
     Object? selectedPatientId = freezed,
   }) {
-    return _then(_$LoadedImpl(
-      prescriptions: null == prescriptions
-          ? _value._prescriptions
-          : prescriptions // ignore: cast_nullable_to_non_nullable
-              as List<PrescriptionEntity>,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-      hasMore: null == hasMore
-          ? _value.hasMore
-          : hasMore // ignore: cast_nullable_to_non_nullable
-              as bool,
-      selectedPatientId: freezed == selectedPatientId
-          ? _value.selectedPatientId
-          : selectedPatientId // ignore: cast_nullable_to_non_nullable
-              as int?,
-    ));
+    return _then(
+      _$LoadedImpl(
+        prescriptions: null == prescriptions
+            ? _value._prescriptions
+            : prescriptions // ignore: cast_nullable_to_non_nullable
+                  as List<PrescriptionEntity>,
+        currentPage: null == currentPage
+            ? _value.currentPage
+            : currentPage // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalPages: null == totalPages
+            ? _value.totalPages
+            : totalPages // ignore: cast_nullable_to_non_nullable
+                  as int,
+        hasMore: null == hasMore
+            ? _value.hasMore
+            : hasMore // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        selectedPatientId: freezed == selectedPatientId
+            ? _value.selectedPatientId
+            : selectedPatientId // ignore: cast_nullable_to_non_nullable
+                  as int?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 
 class _$LoadedImpl implements _Loaded {
-  const _$LoadedImpl(
-      {required final List<PrescriptionEntity> prescriptions,
-      required this.currentPage,
-      required this.totalPages,
-      required this.hasMore,
-      this.selectedPatientId})
-      : _prescriptions = prescriptions;
+  const _$LoadedImpl({
+    required final List<PrescriptionEntity> prescriptions,
+    required this.currentPage,
+    required this.totalPages,
+    required this.hasMore,
+    this.selectedPatientId,
+  }) : _prescriptions = prescriptions;
 
   final List<PrescriptionEntity> _prescriptions;
   @override
@@ -438,8 +476,10 @@ class _$LoadedImpl implements _Loaded {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$LoadedImpl &&
-            const DeepCollectionEquality()
-                .equals(other._prescriptions, _prescriptions) &&
+            const DeepCollectionEquality().equals(
+              other._prescriptions,
+              _prescriptions,
+            ) &&
             (identical(other.currentPage, currentPage) ||
                 other.currentPage == currentPage) &&
             (identical(other.totalPages, totalPages) ||
@@ -451,12 +491,13 @@ class _$LoadedImpl implements _Loaded {
 
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      const DeepCollectionEquality().hash(_prescriptions),
-      currentPage,
-      totalPages,
-      hasMore,
-      selectedPatientId);
+    runtimeType,
+    const DeepCollectionEquality().hash(_prescriptions),
+    currentPage,
+    totalPages,
+    hasMore,
+    selectedPatientId,
+  );
 
   @JsonKey(ignore: true)
   @override
@@ -470,16 +511,22 @@ class _$LoadedImpl implements _Loaded {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(
-            List<PrescriptionEntity> prescriptions,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            int? selectedPatientId)
-        loaded,
+      List<PrescriptionEntity> prescriptions,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      int? selectedPatientId,
+    )
+    loaded,
     required TResult Function(String message) error,
   }) {
     return loaded(
-        prescriptions, currentPage, totalPages, hasMore, selectedPatientId);
+      prescriptions,
+      currentPage,
+      totalPages,
+      hasMore,
+      selectedPatientId,
+    );
   }
 
   @override
@@ -487,13 +534,23 @@ class _$LoadedImpl implements _Loaded {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PrescriptionEntity> prescriptions, int currentPage,
-            int totalPages, bool hasMore, int? selectedPatientId)?
-        loaded,
+    TResult? Function(
+      List<PrescriptionEntity> prescriptions,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult? Function(String message)? error,
   }) {
     return loaded?.call(
-        prescriptions, currentPage, totalPages, hasMore, selectedPatientId);
+      prescriptions,
+      currentPage,
+      totalPages,
+      hasMore,
+      selectedPatientId,
+    );
   }
 
   @override
@@ -501,15 +558,25 @@ class _$LoadedImpl implements _Loaded {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PrescriptionEntity> prescriptions, int currentPage,
-            int totalPages, bool hasMore, int? selectedPatientId)?
-        loaded,
+    TResult Function(
+      List<PrescriptionEntity> prescriptions,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
     if (loaded != null) {
       return loaded(
-          prescriptions, currentPage, totalPages, hasMore, selectedPatientId);
+        prescriptions,
+        currentPage,
+        totalPages,
+        hasMore,
+        selectedPatientId,
+      );
     }
     return orElse();
   }
@@ -553,12 +620,13 @@ class _$LoadedImpl implements _Loaded {
 }
 
 abstract class _Loaded implements PrescriptionState {
-  const factory _Loaded(
-      {required final List<PrescriptionEntity> prescriptions,
-      required final int currentPage,
-      required final int totalPages,
-      required final bool hasMore,
-      final int? selectedPatientId}) = _$LoadedImpl;
+  const factory _Loaded({
+    required final List<PrescriptionEntity> prescriptions,
+    required final int currentPage,
+    required final int totalPages,
+    required final bool hasMore,
+    final int? selectedPatientId,
+  }) = _$LoadedImpl;
 
   List<PrescriptionEntity> get prescriptions;
   int get currentPage;
@@ -573,8 +641,9 @@ abstract class _Loaded implements PrescriptionState {
 /// @nodoc
 abstract class _$$ErrorImplCopyWith<$Res> {
   factory _$$ErrorImplCopyWith(
-          _$ErrorImpl value, $Res Function(_$ErrorImpl) then) =
-      __$$ErrorImplCopyWithImpl<$Res>;
+    _$ErrorImpl value,
+    $Res Function(_$ErrorImpl) then,
+  ) = __$$ErrorImplCopyWithImpl<$Res>;
   @useResult
   $Res call({String message});
 }
@@ -584,20 +653,21 @@ class __$$ErrorImplCopyWithImpl<$Res>
     extends _$PrescriptionStateCopyWithImpl<$Res, _$ErrorImpl>
     implements _$$ErrorImplCopyWith<$Res> {
   __$$ErrorImplCopyWithImpl(
-      _$ErrorImpl _value, $Res Function(_$ErrorImpl) _then)
-      : super(_value, _then);
+    _$ErrorImpl _value,
+    $Res Function(_$ErrorImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
-  $Res call({
-    Object? message = null,
-  }) {
-    return _then(_$ErrorImpl(
-      null == message
-          ? _value.message
-          : message // ignore: cast_nullable_to_non_nullable
-              as String,
-    ));
+  $Res call({Object? message = null}) {
+    return _then(
+      _$ErrorImpl(
+        null == message
+            ? _value.message
+            : message // ignore: cast_nullable_to_non_nullable
+                  as String,
+      ),
+    );
   }
 }
 
@@ -637,12 +707,13 @@ class _$ErrorImpl implements _Error {
     required TResult Function() initial,
     required TResult Function() loading,
     required TResult Function(
-            List<PrescriptionEntity> prescriptions,
-            int currentPage,
-            int totalPages,
-            bool hasMore,
-            int? selectedPatientId)
-        loaded,
+      List<PrescriptionEntity> prescriptions,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      int? selectedPatientId,
+    )
+    loaded,
     required TResult Function(String message) error,
   }) {
     return error(message);
@@ -653,9 +724,14 @@ class _$ErrorImpl implements _Error {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<PrescriptionEntity> prescriptions, int currentPage,
-            int totalPages, bool hasMore, int? selectedPatientId)?
-        loaded,
+    TResult? Function(
+      List<PrescriptionEntity> prescriptions,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult? Function(String message)? error,
   }) {
     return error?.call(message);
@@ -666,9 +742,14 @@ class _$ErrorImpl implements _Error {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<PrescriptionEntity> prescriptions, int currentPage,
-            int totalPages, bool hasMore, int? selectedPatientId)?
-        loaded,
+    TResult Function(
+      List<PrescriptionEntity> prescriptions,
+      int currentPage,
+      int totalPages,
+      bool hasMore,
+      int? selectedPatientId,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {

@@ -177,6 +177,27 @@ class RlsContext(BaseModel):
     tenant_id: int | None
 
 
+def rebind_session_tenant(session: AsyncSession, tenant_id: int | None) -> bool:
+    """Bind an existing request session to a tenant (HIGH-RLS-01).
+
+    Used by the audited authentication bootstrap: after the identity row is
+    resolved, every subsequent statement on this request session — including
+    writes to ``users`` — must run WITH a tenant binding so FORCE RLS keeps
+    enforcing isolation. ``RlsContext`` is intentionally mutable and
+    ``CustomAsyncRlsSession`` re-emits its SET LOCAL statement whenever the
+    context changes; flipping ``_rls_dirty`` guarantees that happens even if
+    no statement ran inside the bootstrap scope.
+    """
+    context = getattr(session, "_context", None)
+    if not isinstance(context, RlsContext):
+        return False
+    context.tenant_id = tenant_id
+    dirty = getattr(session, "_rls_dirty", None)
+    if dirty is not None:
+        session._rls_dirty = True
+    return True
+
+
 # Configure extra connection arguments for asyncpg/sqlite
 connect_args_async = {}
 if "postgresql" in ASYNC_DATABASE_URL:
