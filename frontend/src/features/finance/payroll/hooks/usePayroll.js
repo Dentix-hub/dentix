@@ -4,8 +4,7 @@ import {
     getSalariesStatus,
     recordSalaryPayment,
     deleteSalaryPayment,
-    updateStaffCompensation,
-    updateHireDate,
+    patchStaffCompensation,
 } from '@/api/financials';
 import { financeKeys } from '../../queryKeys';
 
@@ -20,7 +19,7 @@ export function getCurrentMonthStr() {
 }
 
 /**
- * Hook for managing Payroll V2 state, monthly records, payments, and staff compensation rules (§16 MASTER_SPEC, GEMINI_REPAIR_PLAN R3).
+ * Hook for managing Payroll V2 state, monthly records, payments, and staff compensation rules.
  */
 export function usePayroll() {
     const queryClient = useQueryClient();
@@ -30,7 +29,6 @@ export function usePayroll() {
     const month = searchParams.get('month') || currentMonth;
     const search = searchParams.get('q') || '';
 
-    // 1. Fetch Salaries for Month
     const payrollQuery = useQuery({
         queryKey: financeKeys.payroll(month),
         queryFn: async () => {
@@ -43,14 +41,11 @@ export function usePayroll() {
     });
 
     const employees = payrollQuery.data || [];
-
-    // Filter by search query
     const filteredEmployees = employees.filter((emp) => {
         if (!search.trim()) return true;
         return (emp.username || '').toLowerCase().includes(search.trim().toLowerCase());
     });
 
-    // Authoritative Aggregates derived from backend employee state
     const totalPayable = employees.reduce(
         (sum, emp) => sum + (Number(emp.payable_amount !== undefined ? emp.payable_amount : emp.prorated_salary) || 0),
         0
@@ -60,12 +55,11 @@ export function usePayroll() {
         0
     );
     const totalRemaining = employees.reduce(
-        (sum, emp) => sum + (Number(emp.remaining_amount !== undefined ? emp.remaining_amount : Math.max(0, (emp.payable_amount || emp.prorated_salary || 0) - (emp.paid_amount || 0))) || 0),
+        (sum, emp) => sum + (Number(emp.remaining_amount ?? 0) || 0),
         0
     );
     const employeeCount = employees.length;
 
-    // Month Navigation
     const setMonth = (newMonth) => {
         const params = new URLSearchParams(searchParams);
         if (newMonth && newMonth !== currentMonth) {
@@ -83,39 +77,31 @@ export function usePayroll() {
         setSearchParams(params);
     };
 
-    // 2. Mutations
+    const invalidateFinancialTruth = () => {
+        queryClient.invalidateQueries({ queryKey: financeKeys.summaryRoot() });
+        queryClient.invalidateQueries({ queryKey: financeKeys.compensationRoot() });
+        queryClient.invalidateQueries({ queryKey: financeKeys.activityRoot() });
+    };
+
     const recordPaymentMutation = useMutation({
         mutationFn: ({ userId, amount, isPartial, daysWorked, notes }) =>
             recordSalaryPayment(userId, month, amount, isPartial, daysWorked, notes),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: financeKeys.payroll(month) });
-            queryClient.invalidateQueries({ queryKey: financeKeys.overview() });
-            queryClient.invalidateQueries({ queryKey: financeKeys.activity() });
-        },
+        onSuccess: invalidateFinancialTruth,
     });
 
     const deletePaymentMutation = useMutation({
         mutationFn: (paymentId) => deleteSalaryPayment(paymentId),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: financeKeys.payroll(month) });
-            queryClient.invalidateQueries({ queryKey: financeKeys.overview() });
-            queryClient.invalidateQueries({ queryKey: financeKeys.activity() });
-        },
+        onSuccess: invalidateFinancialTruth,
     });
 
     const updateStaffRulesMutation = useMutation({
-        mutationFn: async ({ userId, salary, hireDate }) => {
-            if (salary !== undefined) {
-                await updateStaffCompensation(userId, 0, salary, 0);
-            }
-            if (hireDate !== undefined) {
-                await updateHireDate(userId, hireDate);
-            }
+        mutationFn: ({ userId, salary, hireDate }) => {
+            const updates = {};
+            if (salary !== undefined) updates.fixed_salary = salary;
+            if (hireDate !== undefined) updates.hire_date = hireDate;
+            return patchStaffCompensation(userId, updates);
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: financeKeys.payroll(month) });
-            queryClient.invalidateQueries({ queryKey: financeKeys.overview() });
-        },
+        onSuccess: invalidateFinancialTruth,
     });
 
     return {

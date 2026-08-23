@@ -7,7 +7,6 @@ import PatientAccountsPage from '../features/finance/pages/PatientAccountsPage';
 import PatientStatementDrawer from '../features/finance/patient-accounts/components/PatientStatementDrawer';
 import * as financialsApi from '../api/financials';
 
-// Mock react-i18next
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
         t: (key, fallback) => (typeof fallback === 'string' ? fallback : key),
@@ -15,7 +14,6 @@ vi.mock('react-i18next', () => ({
     }),
 }));
 
-// Mock permissions hook
 vi.mock('../features/finance/useFinancePermissions', () => ({
     useFinancePermissions: () => ({
         canReadFinance: true,
@@ -26,10 +24,9 @@ vi.mock('../features/finance/useFinancePermissions', () => ({
     }),
 }));
 
-// Mock financials and billing APIs
 vi.mock('../api/financials', () => ({
     getPatientsReport: vi.fn(),
-    getComprehensiveStats: vi.fn(),
+    getFinanceSummary: vi.fn(),
 }));
 
 vi.mock('../api/billing', () => ({
@@ -51,7 +48,7 @@ describe('Finance Patient Accounts & Receivables V2', () => {
 
     describe('<PatientAccountsPage />', () => {
         it('renders headline debt summary and paginated patient accounts table', async () => {
-            financialsApi.getComprehensiveStats.mockResolvedValueOnce({
+            financialsApi.getFinanceSummary.mockResolvedValueOnce({
                 data: {
                     data: {
                         income: {
@@ -109,9 +106,9 @@ describe('Finance Patient Accounts & Receivables V2', () => {
             });
 
             await waitFor(() => {
-                expect(financialsApi.getComprehensiveStats).toHaveBeenCalled();
+                expect(financialsApi.getFinanceSummary).toHaveBeenCalled();
             });
-            const [statsFrom, statsTo] = financialsApi.getComprehensiveStats.mock.calls[0];
+            const [statsFrom, statsTo] = financialsApi.getFinanceSummary.mock.calls[0];
             expect(statsFrom).toMatch(/^\d{4}-\d{2}-\d{2}$/);
             expect(statsTo).toMatch(/^\d{4}-\d{2}-\d{2}$/);
             expect(statsFrom).not.toBe('');
@@ -155,8 +152,6 @@ describe('Finance Patient Accounts & Receivables V2', () => {
             expect(screen.getByLabelText('6000 EGP')).toBeDefined();
             expect(screen.getByLabelText('4500 EGP')).toBeDefined();
 
-            // Regression: the drawer must remain opaque so underlying Finance text
-            // cannot bleed through and overlap the statement content.
             const panel = screen.getByTestId('patient-statement-panel');
             expect(panel.className).toContain('bg-white');
             expect(panel.className).toContain('dark:bg-slate-950');

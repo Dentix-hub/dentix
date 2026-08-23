@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
-    getComprehensiveStats,
+    getFinanceSummary,
     getPatientsReport,
     getDoctorRevenue,
     getAllProceduresFinancials,
@@ -70,19 +70,18 @@ export function useReports() {
         setSearchParams(params);
     };
 
-    // 1. Summary Query
+    // Shared cache stores the raw authoritative server contract. Consumers may
+    // adapt it for display only after reading, never inside the shared queryFn.
     const summaryQuery = useQuery({
-        queryKey: financeKeys.reports('summary', { from, to }),
+        queryKey: financeKeys.summary({ from, to }),
         queryFn: async () => {
-            const res = await getComprehensiveStats(from, to);
-            const raw = res.data?.data || res.data || {};
-            return adaptComprehensiveStats(raw);
+            const res = await getFinanceSummary(from, to);
+            return res.data?.data || res.data || {};
         },
         enabled: reportType === 'summary' && Boolean(from && to),
         staleTime: 60 * 1000,
     });
 
-    // 2. Collections Query
     const collectionsQuery = useQuery({
         queryKey: financeKeys.reports('collections', { from, to, search }),
         queryFn: async () => {
@@ -105,7 +104,6 @@ export function useReports() {
         staleTime: 60 * 1000,
     });
 
-    // 3. Expenses Query
     const expensesQuery = useQuery({
         queryKey: financeKeys.reports('expenses', { from, to }),
         queryFn: async () => {
@@ -129,7 +127,6 @@ export function useReports() {
         staleTime: 60 * 1000,
     });
 
-    // 4. Providers Query
     const providersQuery = useQuery({
         queryKey: financeKeys.reports('providers', { from, to }),
         queryFn: async () => {
@@ -141,7 +138,8 @@ export function useReports() {
         staleTime: 60 * 1000,
     });
 
-    // 5. Profitability Query
+    // Procedure cost/margin analysis is separate from the deprecated headline
+    // /metrics/profitability source.
     const profitabilityQuery = useQuery({
         queryKey: financeKeys.reports('profitability', {}),
         queryFn: async () => {
@@ -153,7 +151,8 @@ export function useReports() {
         staleTime: 60 * 1000,
     });
 
-    // Export CSV Helper with UTF-8 BOM and ObjectURL revocation
+    // Server-side export hardening belongs to PR6; PR3 only changes financial
+    // truth ownership and cache identity.
     const exportToCsv = (filename, headers, rows) => {
         const csvRows = [];
         csvRows.push(headers.join(','));
@@ -194,7 +193,7 @@ export function useReports() {
         from,
         to,
         search,
-        summaryData: summaryQuery.data || adaptComprehensiveStats({}),
+        summaryData: adaptComprehensiveStats(summaryQuery.data || {}),
         collectionsData: collectionsQuery.data || adaptPatientsReport({}),
         expensesData: expensesQuery.data || [],
         providersData: providersQuery.data || [],

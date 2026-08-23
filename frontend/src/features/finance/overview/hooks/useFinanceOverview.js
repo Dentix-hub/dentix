@@ -1,14 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { getComprehensiveStats, getFinanceProfitabilityTrend } from '@/api/financials';
+import { getFinanceSummary, getFinanceProfitabilityTrend } from '@/api/financials';
 import { getAllPayments, getExpenses } from '@/api/billing';
 import { financeKeys } from '../../queryKeys';
 import { getPresetDates } from '../../utils/datePresets';
-import { authoritativeNumber } from '../../utils/financialTruth';
 
 /**
  * Hook for fetching all data required by the Finance Overview V2 page.
- * Every period-scoped card/list/chart uses the same URL `from`/`to` contract.
+ * Headline financial values come only from the authoritative backend summary.
  */
 export function useFinanceOverview() {
     const [searchParams] = useSearchParams();
@@ -30,9 +29,9 @@ export function useFinanceOverview() {
     }
 
     const statsQuery = useQuery({
-        queryKey: financeKeys.overviewStats({ from, to }),
+        queryKey: financeKeys.summary({ from, to }),
         queryFn: async () => {
-            const res = await getComprehensiveStats(from, to);
+            const res = await getFinanceSummary(from, to);
             return res.data?.data || res.data;
         },
         staleTime: 60 * 1000,
@@ -106,25 +105,18 @@ export function useFinanceOverview() {
     const income = statsData?.income || {};
     const deductions = statsData?.deductions || {};
 
-    const netInvoiced = Number(income.total_revenue) || 0;
-    const collected = Number(income.total_collected) || 0;
-    const totalDeductions = Number(deductions.total_deductions) || 0;
-    const netResult = authoritativeNumber(
-        statsData?.net_profit,
-        collected - totalDeductions,
+    const netInvoiced = Number(income.net_revenue ?? income.total_revenue ?? 0);
+    const collected = Number(income.total_collected ?? 0);
+    const totalDeductions = Number(deductions.total_deductions ?? 0);
+    const netResult = Number(
+        statsData?.net_operational_result ?? statsData?.net_profit ?? 0,
     );
-
-    const allTimeOutstanding = authoritativeNumber(
-        income.all_time_outstanding,
-        income.outstanding,
+    const allTimeOutstanding = Number(
+        income.all_time_outstanding ?? income.outstanding ?? 0,
     );
-    const periodBalance = authoritativeNumber(
-        income.period_balance,
-        netInvoiced - collected,
-    );
-
-    const doctorDuesTotal = Number(deductions.doctor_dues?.total) || 0;
-    const staffDuesTotal = Number(deductions.staff_dues?.total) || 0;
+    const periodBalance = Number(income.period_balance ?? 0);
+    const doctorDuesTotal = Number(deductions.doctor_dues?.total ?? 0);
+    const staffDuesTotal = Number(deductions.staff_dues?.total ?? 0);
 
     return {
         from,
