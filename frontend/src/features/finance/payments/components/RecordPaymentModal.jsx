@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
-    X,
     CreditCard,
     User,
     DollarSign,
@@ -11,7 +10,7 @@ import {
     Check,
 } from 'lucide-react';
 import { getPatients } from '@/api/patients';
-import useModalFocusManagement from '../../hooks/useModalFocusManagement';
+import DentixDialog from '@/shared/ui/DentixDialog';
 
 /**
  * Record Payment Modal.
@@ -25,7 +24,6 @@ export default function RecordPaymentModal({
     isSubmitting = false,
 }) {
     const { t } = useTranslation();
-    const dialogRef = useModalFocusManagement(isOpen, onClose);
 
     const [patientId, setPatientId] = useState('');
     const [amount, setAmount] = useState('');
@@ -52,10 +50,8 @@ export default function RecordPaymentModal({
         }
     }, [initialPatientId, isOpen]);
 
-    if (!isOpen) return null;
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const handleSubmit = async (event) => {
+        event.preventDefault();
         setError(null);
 
         const numAmount = parseFloat(amount);
@@ -81,45 +77,24 @@ export default function RecordPaymentModal({
     };
 
     return (
-        <div
-            className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-label={t('finance.payments.record_title', 'تسجيل دفعة مريض')}
+        <DentixDialog
+            open={Boolean(isOpen)}
+            onOpenChange={(open) => {
+                if (!open) onClose?.();
+            }}
+            title={t('finance.payments.record_title', 'تسجيل دفعة مريض')}
+            size="lg"
+            closeLabel={t('common.close', 'إغلاق')}
+            closeOnOutside={!isSubmitting}
         >
-            <div
-                className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
-                onClick={onClose}
-                aria-hidden="true"
-            />
-
-            <div
-                ref={dialogRef}
-                tabIndex={-1}
-                className="relative z-base w-full max-w-lg space-y-5 rounded-overlay border border-border bg-surface-elevated p-6 text-text-primary shadow-high outline-none"
-            >
-                <div className="flex items-center justify-between border-b border-border pb-4">
-                    <div className="flex items-center gap-2.5">
-                        <div className="rounded-xl bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
-                            <CreditCard className="h-5 w-5" aria-hidden="true" />
-                        </div>
-                        <div>
-                            <h3 className="text-base font-bold text-text-primary">
-                                {t('finance.payments.record_title', 'تسجيل دفعة مريض')}
-                            </h3>
-                            <p className="text-xs text-text-secondary">
-                                {t('finance.payments.record_subtitle', 'سند قبض نقدي جديد يتم ترحيله للحسابات')}
-                            </p>
-                        </div>
+            <div className="space-y-5">
+                <div className="flex items-center gap-2.5 rounded-xl bg-emerald-500/5 p-3">
+                    <div className="rounded-xl bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
+                        <CreditCard className="h-5 w-5" aria-hidden="true" />
                     </div>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-surface-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                        aria-label={t('common.close', 'إغلاق')}
-                    >
-                        <X className="h-5 w-5" aria-hidden="true" />
-                    </button>
+                    <p className="text-xs text-text-secondary">
+                        {t('finance.payments.record_subtitle', 'سند قبض نقدي جديد يتم ترحيله للحسابات')}
+                    </p>
                 </div>
 
                 {error && (
@@ -151,9 +126,9 @@ export default function RecordPaymentModal({
                                     ? t('common.loading', 'جاري تحميل قائمة المرضى...')
                                     : t('finance.payments.choose_patient', 'اختر المريض من القائمة...')}
                             </option>
-                            {patients.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                    {p.name} {p.file_number ? `(#${p.file_number})` : `(#${p.id})`}
+                            {patients.map((patient) => (
+                                <option key={patient.id} value={patient.id}>
+                                    {patient.name} {patient.file_number ? `(#${patient.file_number})` : `(#${patient.id})`}
                                 </option>
                             ))}
                         </select>
@@ -201,7 +176,7 @@ export default function RecordPaymentModal({
                             type="button"
                             onClick={onClose}
                             disabled={isSubmitting}
-                            className="rounded-xl bg-surface-subtle px-4 py-2 text-xs font-bold text-text-secondary transition-colors hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            className="rounded-xl bg-surface-subtle px-4 py-2 text-xs font-bold text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         >
                             {t('common.cancel', 'إلغاء')}
                         </button>
@@ -216,6 +191,6 @@ export default function RecordPaymentModal({
                     </div>
                 </form>
             </div>
-        </div>
+        </DentixDialog>
     );
 }
