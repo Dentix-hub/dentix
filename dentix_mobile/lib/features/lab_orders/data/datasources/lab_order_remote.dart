@@ -21,7 +21,7 @@ class LabOrderRemoteDataSource {
       queryParameters: {
         'page': page,
         'limit': limit,
-        if (patientId != null) 'patient_id': patientId,
+        'patient_id': ?patientId,
         if (status != null) 'status': status.name,
       },
     );
@@ -61,10 +61,7 @@ class LabOrderRemoteDataSource {
   }) async {
     final response = await _dio.patch(
       '${ApiEndpoints.labOrders}/$id/status',
-      data: {
-        'status': status.name,
-        if (receivedDate != null) 'received_date': receivedDate,
-      },
+      data: {'status': status.name, 'received_date': ?receivedDate},
     );
     return LabOrderModel.fromJson(response.data);
   }

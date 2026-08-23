@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/l10n/app_localizations.dart';
-import '../../../../core/theme/app_colors.dart';
 import '../controllers/patient_list_notifier.dart';
 
 class AddPatientPage extends ConsumerStatefulWidget {
@@ -36,9 +35,6 @@ class _AddPatientPageState extends ConsumerState<AddPatientPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-
-    // Fallback translations if keys missing
-    final String labelFullName = l10n.personalInfo;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.addPatient)),
@@ -109,7 +105,7 @@ class _AddPatientPageState extends ConsumerState<AddPatientPage> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _gender,
+                      initialValue: _gender,
                       decoration: const InputDecoration(
                         labelText: 'Gender', // TODO: Localize
                         prefixIcon: Icon(Icons.people),

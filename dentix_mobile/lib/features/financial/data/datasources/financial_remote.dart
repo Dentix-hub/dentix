@@ -70,7 +70,7 @@ class FinancialRemoteDataSource {
       queryParameters: {
         'skip': (page - 1) * limit,
         'limit': limit,
-        if (month != null) 'start_date': month,
+        'start_date': ?month,
       },
     );
     final paymentsPayload = _unwrap(paymentsResponse.data);
@@ -122,7 +122,7 @@ class FinancialRemoteDataSource {
         'patient_id': patientId,
         'amount': amount,
         'date': date,
-        if (description != null) 'notes': description,
+        'notes': ?description,
       },
     );
 

@@ -217,7 +217,7 @@ class _PrescriptionsListPageState extends ConsumerState<PrescriptionsListPage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.surface.withOpacity(0.5),
+                  color: AppColors.surface.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -237,9 +237,9 @@ class _PrescriptionsListPageState extends ConsumerState<PrescriptionsListPage> {
 
   Color? _getStatusColor(String? status) {
     return switch (status?.toLowerCase()) {
-      'active' => AppColors.success.withOpacity(0.2),
-      'completed' => AppColors.primary.withOpacity(0.2),
-      'cancelled' => AppColors.error.withOpacity(0.2),
+      'active' => AppColors.success.withValues(alpha: 0.2),
+      'completed' => AppColors.primary.withValues(alpha: 0.2),
+      'cancelled' => AppColors.error.withValues(alpha: 0.2),
       _ => null,
     };
   }

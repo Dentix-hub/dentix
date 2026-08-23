@@ -258,7 +258,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       initial: () => const SizedBox.shrink(),
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (message) => Text('Error loading appointments: $message'),
-      loaded: (appointments, _, __, ___, ____) {
+      loaded: (appointments, _, _, _, _) {
         if (appointments.isEmpty) {
           return Card(
             child: SizedBox(

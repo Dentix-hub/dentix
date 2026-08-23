@@ -301,7 +301,7 @@ class _PatientDetailPageState extends ConsumerState<PatientDetailPage>
                 .read(patientAppointmentsProvider(widget.patient.id).notifier)
                 .loadAppointments(refresh: true),
           ),
-          loaded: (appointments, _, __, ___, ____) {
+          loaded: (appointments, _, _, _, _) {
             if (appointments.isEmpty) {
               return EmptyState(
                 icon: Icons.history,

@@ -3,9 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/l10n/app_localizations.dart';
-import '../../../../core/theme/app_colors.dart';
 import '../controllers/appointment_notifier.dart';
-import '../../domain/entities/appointment_entity.dart';
 
 class AddAppointmentPage extends ConsumerStatefulWidget {
   const AddAppointmentPage({super.key});
@@ -134,7 +132,7 @@ class _AddAppointmentPageState extends ConsumerState<AddAppointmentPage> {
 
               // Procedure Dropdown
               DropdownButtonFormField<String>(
-                value: _procedureType,
+                initialValue: _procedureType,
                 decoration: const InputDecoration(
                   labelText: 'Procedure', // TODO: Add l10n
                   prefixIcon: Icon(Icons.medical_services),
@@ -251,10 +249,7 @@ class _AddAppointmentPageState extends ConsumerState<AddAppointmentPage> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            AppLocalizations.of(context)!.appointmentCreated ??
-                'Appointment Created',
-          ),
+          content: Text(AppLocalizations.of(context)!.appointmentCreated),
         ),
       );
     }

@@ -4,8 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/l10n/app_localizations.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../main.dart';
-import '../../../auth/presentation/controllers/auth_notifier.dart';
-import '../../../appointments/presentation/pages/appointment_calendar_page.dart';
 
 class MorePage extends ConsumerWidget {
   const MorePage({super.key});

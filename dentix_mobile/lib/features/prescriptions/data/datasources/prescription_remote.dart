@@ -18,11 +18,7 @@ class PrescriptionRemoteDataSource {
   }) async {
     final response = await _dio.get(
       ApiEndpoints.prescriptions,
-      queryParameters: {
-        'page': page,
-        'limit': limit,
-        if (patientId != null) 'patient_id': patientId,
-      },
+      queryParameters: {'page': page, 'limit': limit, 'patient_id': ?patientId},
     );
 
     return PrescriptionListResponseModel.fromJson(response.data);

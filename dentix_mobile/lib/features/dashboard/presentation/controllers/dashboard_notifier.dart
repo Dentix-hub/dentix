@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
-import '../../../../core/network/dio_client.dart';
+import '../../../../core/di/providers.dart';
 import '../../data/datasources/dashboard_remote.dart';
 import '../../data/repositories/dashboard_repo_impl.dart';
 import '../../domain/entities/dashboard_entity.dart';

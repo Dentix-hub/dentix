@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/l10n/app_localizations.dart';
+
+import '../di/providers.dart';
+import '../l10n/app_localizations.dart';
 
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/splash_page.dart';
@@ -13,7 +15,6 @@ import '../../features/settings/presentation/pages/more_page.dart';
 import '../../features/financial/presentation/pages/financial_overview_page.dart';
 import '../../features/prescriptions/presentation/pages/prescriptions_list_page.dart';
 import '../../features/lab_orders/presentation/pages/lab_orders_list_page.dart';
-import '../../main.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();

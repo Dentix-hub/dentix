@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/l10n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/di/providers.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../main.dart';
 
 class SplashPage extends ConsumerStatefulWidget {
   const SplashPage({super.key});
