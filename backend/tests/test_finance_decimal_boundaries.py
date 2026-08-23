@@ -65,27 +65,27 @@ def test_compensation_proxy_normalizes_numeric_columns_at_legacy_boundary():
     assert safe.commission_percent / 100.0 == 0.35
 
 
-def test_accounting_facade_preserves_finance_v2_doctor_details_layers():
-    """The Decimal patch must not replace the final Finance V2 override."""
-    # Importing the facade applies the compatibility patch.
-    import backend.routers.accounting_decimal  # noqa: F401
-
-    from backend.services.accounting_service import (
-        AccountingService as FinanceV2AccountingService,
-    )
+def test_accounting_facade_does_not_mutate_shared_legacy_service_class():
+    """The Decimal router adapter must not leak method mutations into services."""
     from backend.services.accounting_service_legacy import (
         AccountingService as LegacyAccountingService,
     )
 
+    original_method = LegacyAccountingService.get_doctor_details_data
+
+    import backend.routers.accounting_decimal  # noqa: F401
+    from backend.routers import accounting_legacy as accounting_legacy_router
+    from backend.services.accounting_service import (
+        AccountingService as FinanceV2AccountingService,
+    )
+
+    assert accounting_legacy_router.AccountingService is DecimalSafeAccountingService
+    assert LegacyAccountingService.get_doctor_details_data is original_method
     assert (
         LegacyAccountingService.get_doctor_details_data
-        is DecimalSafeAccountingService.get_doctor_details_data
-    )
-    assert (
-        FinanceV2AccountingService.get_doctor_details_data
         is not DecimalSafeAccountingService.get_doctor_details_data
     )
-    assert issubclass(FinanceV2AccountingService, LegacyAccountingService)
+    assert issubclass(DecimalSafeAccountingService, FinanceV2AccountingService)
 
 
 class _FakeExecuteResult:
