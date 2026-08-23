@@ -78,12 +78,20 @@ async def test_payment_list_filters_by_file_receipt_and_numeric_search(async_db_
     )
     assert [row.id for row in by_file["data"]] == [target.id]
 
+    # Exact receipt deep links must remain reproducible even when an old page=N
+    # query parameter survives in a copied URL.
     by_receipt = await read_payments(
+        skip=999,
+        limit=20,
         search=None,
+        start_date=None,
+        end_date=None,
         patient_id=None,
         file_number=None,
         payment_id=target.id,
-        **common,
+        doctor_id=None,
+        db=async_db_session,
+        current_user=admin,
     )
     assert [row.id for row in by_receipt["data"]] == [target.id]
 
