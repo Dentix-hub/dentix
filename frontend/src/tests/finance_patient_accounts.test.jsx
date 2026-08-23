@@ -186,7 +186,7 @@ describe('Finance Patient Accounts & Receivables V2', () => {
     });
 
     describe('<PatientStatementDrawer />', () => {
-        it('renders server statement history and triggers record payment callback', async () => {
+        it('renders server statement history in the canonical drawer and triggers record payment callback', async () => {
             financialsApi.getPatientsReport.mockResolvedValue({
                 data: { data: { total: 1, patients: [accountRow] } },
             });
@@ -215,10 +215,9 @@ describe('Finance Patient Accounts & Receivables V2', () => {
             expect(screen.getByText('يوسف محمود')).toBeDefined();
             expect(screen.getByText('01234567890')).toBeDefined();
             expect(screen.getAllByLabelText('1500 EGP').length).toBeGreaterThan(0);
-
-            const panel = screen.getByTestId('patient-statement-panel');
-            expect(panel.className).toContain('bg-white');
-            expect(panel.className).toContain('dark:bg-slate-950');
+            expect(document.querySelector('[data-dentix-overlay="drawer"]')).not.toBeNull();
+            expect(document.querySelector('[data-dentix-overlay="backdrop"]')).not.toBeNull();
+            expect(screen.getByTestId('patient-statement-panel')).toBeDefined();
 
             fireEvent.click(screen.getByText('تسجيل دفعة لهذا المريض'));
             expect(onRecordPayment).toHaveBeenCalledWith(expect.objectContaining({ patient_id: 7 }));
