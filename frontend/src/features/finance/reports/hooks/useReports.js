@@ -70,19 +70,18 @@ export function useReports() {
         setSearchParams(params);
     };
 
-    // 1. Summary Query — exactly the same server source and cache key as Overview.
+    // Shared cache stores the raw authoritative server contract. Consumers may
+    // adapt it for display only after reading, never inside the shared queryFn.
     const summaryQuery = useQuery({
         queryKey: financeKeys.summary({ from, to }),
         queryFn: async () => {
             const res = await getFinanceSummary(from, to);
-            const raw = res.data?.data || res.data || {};
-            return adaptComprehensiveStats(raw);
+            return res.data?.data || res.data || {};
         },
         enabled: reportType === 'summary' && Boolean(from && to),
         staleTime: 60 * 1000,
     });
 
-    // 2. Collections Query
     const collectionsQuery = useQuery({
         queryKey: financeKeys.reports('collections', { from, to, search }),
         queryFn: async () => {
@@ -105,7 +104,6 @@ export function useReports() {
         staleTime: 60 * 1000,
     });
 
-    // 3. Expenses Query
     const expensesQuery = useQuery({
         queryKey: financeKeys.reports('expenses', { from, to }),
         queryFn: async () => {
@@ -129,7 +127,6 @@ export function useReports() {
         staleTime: 60 * 1000,
     });
 
-    // 4. Providers Query
     const providersQuery = useQuery({
         queryKey: financeKeys.reports('providers', { from, to }),
         queryFn: async () => {
@@ -141,8 +138,8 @@ export function useReports() {
         staleTime: 60 * 1000,
     });
 
-    // 5. Procedure cost/margin analysis. This is not the deprecated
-    // /metrics/profitability headline source.
+    // Procedure cost/margin analysis is separate from the deprecated headline
+    // /metrics/profitability source.
     const profitabilityQuery = useQuery({
         queryKey: financeKeys.reports('profitability', {}),
         queryFn: async () => {
@@ -154,8 +151,8 @@ export function useReports() {
         staleTime: 60 * 1000,
     });
 
-    // Export hardening/server export belongs to PR6. Keep current behavior here
-    // while PR3 is limited to truth contracts and cache identity.
+    // Server-side export hardening belongs to PR6; PR3 only changes financial
+    // truth ownership and cache identity.
     const exportToCsv = (filename, headers, rows) => {
         const csvRows = [];
         csvRows.push(headers.join(','));
@@ -196,7 +193,7 @@ export function useReports() {
         from,
         to,
         search,
-        summaryData: summaryQuery.data || adaptComprehensiveStats({}),
+        summaryData: adaptComprehensiveStats(summaryQuery.data || {}),
         collectionsData: collectionsQuery.data || adaptPatientsReport({}),
         expensesData: expensesQuery.data || [],
         providersData: providersQuery.data || [],
