@@ -34,13 +34,13 @@ const DashboardQuickActions = ({ onAddPatient }) => {
         {
             icon: Receipt,
             label: t('dashboard.actions.add_expense'),
-            onClick: () => navigate('/finance/expenses'),
+            onClick: () => navigate('/finance/cash-movements/expenses'),
             colorClass: 'bg-gradient-to-br from-emerald-500 to-emerald-700'
         },
         {
             icon: BarChart3,
             label: t('dashboard.actions.view_analytics'),
-            onClick: () => navigate('/analytics'),
+            onClick: () => navigate('/finance/reports'),
             colorClass: 'bg-gradient-to-br from-amber-500 to-orange-600'
         }
     ];
