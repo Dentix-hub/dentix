@@ -48,8 +48,24 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
-      - name: Verify formatting
-        run: dart format --output=none --set-exit-if-changed .
+      - name: Generate formatting patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          dart format .
+          git diff --binary -- lib test > dart-format.patch
+          if [ -s dart-format.patch ]; then
+            echo "Dart formatting changes are required; patch artifact generated."
+            exit 1
+          fi
+
+      - name: Upload formatting patch
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dart-format-patch
+          path: dentix_mobile/dart-format.patch
+          if-no-files-found: error
 
       - name: Static analysis
         run: flutter analyze --fatal-infos
