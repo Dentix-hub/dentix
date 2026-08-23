@@ -166,9 +166,10 @@ async def read_payments(
         )
         query = query.where(models.Payment.date < utc_end_exclusive)
 
+    effective_skip = 0 if payment_id is not None else skip
     query = (
         query.order_by(models.Payment.date.desc(), models.Payment.id.desc())
-        .offset(skip)
+        .offset(effective_skip)
         .limit(limit)
     )
     result = await db.execute(query)
