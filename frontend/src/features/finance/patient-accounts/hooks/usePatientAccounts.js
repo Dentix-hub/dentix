@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { getPatientsReport, getComprehensiveStats } from '@/api/financials';
+import { getPatientsReport, getFinanceSummary } from '@/api/financials';
 import { createPayment } from '@/api/billing';
 import { financeKeys } from '../../queryKeys';
 import { getPresetDates } from '../../utils/datePresets';
@@ -24,7 +24,6 @@ export function usePatientAccounts(pageSize = 20) {
     const statsFrom = from || defaultStatsRange.from;
     const statsTo = to || defaultStatsRange.to;
 
-    // 1. Fetch Paginated Patient Accounts Report
     const accountsQuery = useQuery({
         queryKey: financeKeys.receivables({ search, from, to, outstandingOnly, skip, limit: pageSize }),
         queryFn: async () => {
@@ -43,12 +42,12 @@ export function usePatientAccounts(pageSize = 20) {
         staleTime: 30 * 1000,
     });
 
-    // 2. Fetch Comprehensive Stats for Clinic-wide Headline Debt Summary.
-    // The endpoint requires a valid date range even though all_time_outstanding is all-time scoped.
+    // Clinic-wide all-time debt comes from the same authoritative summary used
+    // by Overview/Reports. The selected activity period cannot redefine it.
     const statsQuery = useQuery({
-        queryKey: financeKeys.overviewStats({ from: statsFrom, to: statsTo }),
+        queryKey: financeKeys.summary({ from: statsFrom, to: statsTo }),
         queryFn: async () => {
-            const res = await getComprehensiveStats(statsFrom, statsTo);
+            const res = await getFinanceSummary(statsFrom, statsTo);
             return res.data?.data || res.data;
         },
         staleTime: 60 * 1000,
@@ -61,11 +60,10 @@ export function usePatientAccounts(pageSize = 20) {
     const statsData = statsQuery.data;
     const allTimeOutstanding = Number(
         statsData?.income?.all_time_outstanding
-        || statsData?.income?.outstanding
-        || accountsData?.summary?.total_outstanding
-    ) || 0;
+        ?? statsData?.income?.outstanding
+        ?? 0
+    );
 
-    // Update URL Filter Helpers
     const updateSearch = (newSearch) => {
         const params = new URLSearchParams(searchParams);
         if (newSearch) params.set('q', newSearch);
@@ -88,11 +86,12 @@ export function usePatientAccounts(pageSize = 20) {
         setSearchParams(params);
     };
 
-    // Record Payment Mutation
     const createMutation = useMutation({
         mutationFn: (data) => createPayment(data),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: financeKeys.all });
+            queryClient.invalidateQueries({ queryKey: financeKeys.receivablesRoot() });
+            queryClient.invalidateQueries({ queryKey: financeKeys.summaryRoot() });
+            queryClient.invalidateQueries({ queryKey: financeKeys.payments() });
         },
     });
 
