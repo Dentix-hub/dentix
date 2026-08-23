@@ -102,6 +102,16 @@ export function usePayments(pageSize = 20) {
         );
     };
 
+    const setPaymentSelection = (id) => {
+        updateParams(
+            (params) => {
+                if (id) params.set('payment_id', String(id));
+                else params.delete('payment_id');
+            },
+            { resetPage: false },
+        );
+    };
+
     const clearPaymentSelection = () => {
         updateParams(
             (params) => params.delete('payment_id'),
@@ -155,6 +165,7 @@ export function usePayments(pageSize = 20) {
         updateSearch,
         updateDateRange,
         setPage,
+        setPaymentSelection,
         clearPaymentSelection,
         clearIdentifierFilters,
         createPayment: createMutation.mutateAsync,
