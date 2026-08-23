@@ -242,14 +242,16 @@ describe('Finance Reports & Insights', () => {
 
             await waitFor(() => {
                 expect(screen.getByText('مقارنة الفترة')).toBeDefined();
-                expect(screen.getByText('زراعة سن')).toBeDefined();
-                expect(screen.getByText('حشو تجميلي')).toBeDefined();
+                expect(screen.getAllByText('زراعة سن').length).toBeGreaterThan(0);
+                expect(screen.getAllByText('حشو تجميلي').length).toBeGreaterThan(0);
             });
 
             expect(screen.getAllByText('غير متاح').length).toBeGreaterThan(0);
             expect(screen.getByText(/تم حجب الهامش بدل افتراض تكلفة صفرية/)).toBeDefined();
 
-            const unavailableRow = screen.getByText('زراعة سن').closest('tr') || screen.getByText('زراعة سن').closest('article');
+            const implantMatches = screen.getAllByText('زراعة سن');
+            const unavailableItem = implantMatches.find((node) => node.closest('tr')) || implantMatches[0];
+            const unavailableRow = unavailableItem.closest('tr') || unavailableItem.closest('article');
             expect(unavailableRow).not.toBeNull();
             expect(unavailableRow.textContent).toContain('غير متاح');
             expect(unavailableRow.textContent).not.toContain('100%');
