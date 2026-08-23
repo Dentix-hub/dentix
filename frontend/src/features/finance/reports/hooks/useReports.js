@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -18,6 +19,7 @@ import {
 } from '../utils/reportAdapters';
 
 const REPORT_PAGE_SIZE = 200;
+export const REPORT_TYPES = ['summary', 'collections', 'expenses', 'providers', 'profitability'];
 
 async function fetchAllPages(fetchPage, extractPayload) {
     const firstResponse = await fetchPage(0);
@@ -37,7 +39,9 @@ async function fetchAllPages(fetchPage, extractPayload) {
 }
 
 /**
- * Hook for managing Finance V2 Reports workspace (§18 MASTER_SPEC, GEMINI_REPAIR_PLAN R1).
+ * Hook for managing Finance V2 Reports workspace.
+ * PR4 owns URL correctness only; server report pagination/export hardening is
+ * deliberately deferred to PR6.
  */
 export function useReports() {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -45,8 +49,18 @@ export function useReports() {
     const defaultDates = getPresetDates('this_month');
     const from = searchParams.get('from') || defaultDates.from;
     const to = searchParams.get('to') || defaultDates.to;
-    const reportType = searchParams.get('type') || 'summary';
+    const requestedReportType = searchParams.get('type');
+    const reportType = REPORT_TYPES.includes(requestedReportType)
+        ? requestedReportType
+        : 'summary';
     const search = searchParams.get('q') || '';
+
+    useEffect(() => {
+        if (!requestedReportType || REPORT_TYPES.includes(requestedReportType)) return;
+        const params = new URLSearchParams(searchParams);
+        params.set('type', 'summary');
+        setSearchParams(params, { replace: true });
+    }, [requestedReportType, searchParams, setSearchParams]);
 
     const updateDateRange = ({ from: newFrom, to: newTo }) => {
         const params = new URLSearchParams(searchParams);
@@ -54,12 +68,14 @@ export function useReports() {
         else params.delete('from');
         if (newTo) params.set('to', newTo);
         else params.delete('to');
+        params.delete('page');
         setSearchParams(params);
     };
 
     const setReportType = (newType) => {
         const params = new URLSearchParams(searchParams);
-        params.set('type', newType);
+        params.set('type', REPORT_TYPES.includes(newType) ? newType : 'summary');
+        params.delete('page');
         setSearchParams(params);
     };
 
@@ -67,11 +83,10 @@ export function useReports() {
         const params = new URLSearchParams(searchParams);
         if (newSearch) params.set('q', newSearch);
         else params.delete('q');
+        params.delete('page');
         setSearchParams(params);
     };
 
-    // Shared cache stores the raw authoritative server contract. Consumers may
-    // adapt it for display only after reading, never inside the shared queryFn.
     const summaryQuery = useQuery({
         queryKey: financeKeys.summary({ from, to }),
         queryFn: async () => {
@@ -138,8 +153,6 @@ export function useReports() {
         staleTime: 60 * 1000,
     });
 
-    // Procedure cost/margin analysis is separate from the deprecated headline
-    // /metrics/profitability source.
     const profitabilityQuery = useQuery({
         queryKey: financeKeys.reports('profitability', {}),
         queryFn: async () => {
@@ -151,8 +164,6 @@ export function useReports() {
         staleTime: 60 * 1000,
     });
 
-    // Server-side export hardening belongs to PR6; PR3 only changes financial
-    // truth ownership and cache identity.
     const exportToCsv = (filename, headers, rows) => {
         const csvRows = [];
         csvRows.push(headers.join(','));
