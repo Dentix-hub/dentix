@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import logger from '@/utils/logger';
 import { useEffect, Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -38,7 +38,6 @@ const UserProfile = lazy(() => import('./pages/UserProfile'));
 const Terms = lazy(() => import('./pages/Terms'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const NotFound = lazy(() => import('./pages/NotFound'));
-const SmartDashboard = lazy(() => import('@/features/analytics/SmartDashboard'));
 const Inventory = lazy(() => import('./pages/Inventory'));
 // Finance V2 Pages
 const FinanceLayout = lazy(() => import('@/features/finance/FinanceLayout'));
@@ -46,13 +45,14 @@ import FinanceIndexRedirect from '@/features/finance/FinanceIndexRedirect';
 import LegacyFinanceRedirect from '@/features/finance/LegacyFinanceRedirect';
 const OverviewPage = lazy(() => import('@/features/finance/pages/OverviewPage'));
 const PatientAccountsPage = lazy(() => import('@/features/finance/pages/PatientAccountsPage'));
+const CashMovementsLayout = lazy(() => import('@/features/finance/pages/CashMovementsLayout'));
 const PaymentsPage = lazy(() => import('@/features/finance/pages/PaymentsPage'));
 const ExpensesPage = lazy(() => import('@/features/finance/pages/ExpensesPage'));
-const CompensationLayout = lazy(() => import('@/features/finance/pages/CompensationLayout'));
+const ActivityPage = lazy(() => import('@/features/finance/pages/ActivityPage'));
+const TeamLayout = lazy(() => import('@/features/finance/pages/TeamLayout'));
 const DoctorsPage = lazy(() => import('@/features/finance/pages/DoctorsPage'));
 const DoctorDetailPage = lazy(() => import('@/features/finance/pages/DoctorDetailPage'));
 const PayrollPage = lazy(() => import('@/features/finance/pages/PayrollPage'));
-const ActivityPage = lazy(() => import('@/features/finance/pages/ActivityPage'));
 const ReportsPage = lazy(() => import('@/features/finance/pages/ReportsPage'));
 // New Admin Pages
 const AdminOverview = lazy(() => import('./pages/admin/Overview'));
@@ -144,11 +144,11 @@ function AppRoutes() {
                             <Route path="/appointments" element={<Appointments />} />
                             <Route path="/inventory" element={<Inventory />} />
 
-                            {/* Legacy Finance compatibility routes preserve URL context. */}
+                            {/* Legacy top-level Finance links remain compatibility-only. */}
                             <Route path="/billing" element={<LegacyFinanceRedirect to="/finance/overview" />} />
                             <Route path="/billing/*" element={<LegacyFinanceRedirect to="/finance/overview" />} />
-                            <Route path="/expenses" element={<LegacyFinanceRedirect to="/finance/expenses" />} />
-                            <Route path="/expenses/*" element={<LegacyFinanceRedirect to="/finance/expenses" />} />
+                            <Route path="/expenses" element={<LegacyFinanceRedirect to="/finance/cash-movements/expenses" />} />
+                            <Route path="/expenses/*" element={<LegacyFinanceRedirect to="/finance/cash-movements/expenses" />} />
 
                             <Route
                                 path="/finance"
@@ -162,16 +162,32 @@ function AppRoutes() {
                                 <Route path="overview" element={<OverviewPage />} />
                                 <Route path="patient-accounts" element={<PatientAccountsPage />} />
                                 <Route path="patient-accounts/:patientId" element={<PatientAccountsPage />} />
-                                <Route path="payments" element={<PaymentsPage />} />
-                                <Route path="expenses" element={<ExpensesPage />} />
-                                <Route path="compensation" element={<CompensationLayout />}>
-                                    <Route index element={<Navigate to="/finance/compensation/doctors" replace />} />
+
+                                <Route path="cash-movements" element={<CashMovementsLayout />}>
+                                    <Route path="payments" element={<PaymentsPage />} />
+                                    <Route path="expenses" element={<ExpensesPage />} />
+                                    <Route path="activity" element={<ActivityPage />} />
+                                </Route>
+
+                                <Route path="team" element={<TeamLayout />}>
                                     <Route path="doctors" element={<DoctorsPage />} />
                                     <Route path="doctors/:doctorId" element={<DoctorDetailPage />} />
                                     <Route path="payroll" element={<PayrollPage />} />
                                 </Route>
-                                <Route path="activity" element={<ActivityPage />} />
+
                                 <Route path="reports" element={<ReportsPage />} />
+
+                                {/* PR5 compatibility routes: bookmarks normalize without duplicating screens. */}
+                                <Route path="payments" element={<LegacyFinanceRedirect to="/finance/cash-movements/payments" />} />
+                                <Route path="expenses" element={<LegacyFinanceRedirect to="/finance/cash-movements/expenses" />} />
+                                <Route path="activity" element={<LegacyFinanceRedirect to="/finance/cash-movements/activity" />} />
+                                <Route path="compensation" element={<LegacyFinanceRedirect to="/finance/team" />} />
+                                <Route path="compensation/doctors" element={<LegacyFinanceRedirect to="/finance/team/doctors" />} />
+                                <Route
+                                    path="compensation/doctors/:doctorId"
+                                    element={<LegacyFinanceRedirect to={({ doctorId }) => `/finance/team/doctors/${doctorId}`} />}
+                                />
+                                <Route path="compensation/payroll" element={<LegacyFinanceRedirect to="/finance/team/payroll" />} />
                             </Route>
 
                             <Route path="/labs" element={
@@ -181,7 +197,12 @@ function AppRoutes() {
                             } />
                             <Route path="/analytics" element={
                                 <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
-                                    <SmartDashboard />
+                                    <LegacyFinanceRedirect to="/finance/reports" />
+                                </ProtectedRoute>
+                            } />
+                            <Route path="/analytics/*" element={
+                                <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+                                    <LegacyFinanceRedirect to="/finance/reports" />
                                 </ProtectedRoute>
                             } />
                             <Route path="/users" element={
