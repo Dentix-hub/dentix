@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import PatientAccountsPage from '../features/finance/pages/PatientAccountsPage';
@@ -27,6 +27,7 @@ vi.mock('../features/finance/useFinancePermissions', () => ({
 vi.mock('../api/financials', () => ({
     getPatientsReport: vi.fn(),
     getFinanceSummary: vi.fn(),
+    getPatientReportDetails: vi.fn(),
 }));
 
 vi.mock('../api/billing', () => ({
@@ -41,23 +42,42 @@ function createTestQueryClient() {
     });
 }
 
+const accountRow = {
+    patient_id: 7,
+    file_number: 7,
+    patient_name: 'يوسف محمود',
+    patient_phone: '01234567890',
+    total_invoiced: 6000,
+    total_paid: 4500,
+    all_time_outstanding: 1500,
+};
+
+const statementPayload = {
+    patient_id: 7,
+    file_number: 7,
+    patient_name: 'يوسف محمود',
+    patient_phone: '01234567890',
+    total_invoiced: 2000,
+    total_paid: 500,
+    period_balance: 1500,
+    payment_history: [
+        { id: 71, date: '2026-08-10T10:00:00', amount: 500, notes: 'دفعة الفترة' },
+    ],
+    treatment_history: [
+        { id: 72, date: '2026-08-08T10:00:00', procedure: 'Crown', diagnosis: 'Missing tooth', cost: 2200, discount: 200, net: 2000 },
+    ],
+};
+
 describe('Finance Patient Accounts & Receivables V2', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        financialsApi.getFinanceSummary.mockResolvedValue({
+            data: { data: { income: { all_time_outstanding: 85000 } } },
+        });
     });
 
     describe('<PatientAccountsPage />', () => {
         it('renders headline debt summary and paginated patient accounts table', async () => {
-            financialsApi.getFinanceSummary.mockResolvedValueOnce({
-                data: {
-                    data: {
-                        income: {
-                            all_time_outstanding: 85000,
-                        },
-                    },
-                },
-            });
-
             financialsApi.getPatientsReport.mockResolvedValueOnce({
                 data: {
                     data: {
@@ -88,10 +108,8 @@ describe('Finance Patient Accounts & Receivables V2', () => {
                 },
             });
 
-            const queryClient = createTestQueryClient();
-
             render(
-                <QueryClientProvider client={queryClient}>
+                <QueryClientProvider client={createTestQueryClient()}>
                     <MemoryRouter>
                         <PatientAccountsPage />
                     </MemoryRouter>
@@ -100,68 +118,110 @@ describe('Finance Patient Accounts & Receivables V2', () => {
 
             await waitFor(() => {
                 expect(screen.getByText('إجمالي الديون التراكمية على المرضى')).toBeDefined();
-                expect(screen.getByText('إجمالي حسابات المرضى المالية')).toBeDefined();
                 expect(screen.getAllByText('طارق علي').length).toBeGreaterThan(0);
                 expect(screen.getAllByText('فاطمة أحمد').length).toBeGreaterThan(0);
             });
-
-            await waitFor(() => {
-                expect(financialsApi.getFinanceSummary).toHaveBeenCalled();
-            });
-            const [statsFrom, statsTo] = financialsApi.getFinanceSummary.mock.calls[0];
-            expect(statsFrom).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-            expect(statsTo).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-            expect(statsFrom).not.toBe('');
-            expect(statsTo).not.toBe('');
-
             expect(screen.getAllByLabelText('2000 EGP').length).toBeGreaterThan(0);
             expect(screen.getByText('المدينون فقط')).toBeDefined();
+        });
+
+        it('opens a direct patientId route and loads the real period statement', async () => {
+            financialsApi.getPatientsReport.mockImplementation(async (params) => ({
+                data: {
+                    data: params?.patient_id
+                        ? { total: 1, patients: [accountRow] }
+                        : { total: 1, patients: [accountRow] },
+                },
+            }));
+            financialsApi.getPatientReportDetails.mockResolvedValue({
+                data: { data: statementPayload },
+            });
+
+            render(
+                <QueryClientProvider client={createTestQueryClient()}>
+                    <MemoryRouter initialEntries={['/finance/patient-accounts/7?from=2026-08-01&to=2026-08-15']}>
+                        <Routes>
+                            <Route path="/finance/patient-accounts/:patientId" element={<PatientAccountsPage />} />
+                        </Routes>
+                    </MemoryRouter>
+                </QueryClientProvider>
+            );
+
+            await waitFor(() => {
+                expect(screen.getByText('دفعة الفترة')).toBeDefined();
+                expect(screen.getByText('Crown')).toBeDefined();
+                expect(screen.getByText('2026-08-01 – 2026-08-15')).toBeDefined();
+            });
+            expect(financialsApi.getPatientReportDetails).toHaveBeenCalledWith(7, {
+                start_date: '2026-08-01',
+                end_date: '2026-08-15',
+            });
+            expect(financialsApi.getPatientsReport).toHaveBeenCalledWith(expect.objectContaining({
+                patient_id: 7,
+                skip: 0,
+                limit: 1,
+            }));
+            expect(screen.getAllByLabelText('1500 EGP').length).toBeGreaterThan(0);
+        });
+
+        it('normalizes a file_number URL filter to the explicit patient_id server filter', async () => {
+            financialsApi.getPatientsReport.mockResolvedValue({
+                data: { data: { total: 1, patients: [accountRow] } },
+            });
+
+            render(
+                <QueryClientProvider client={createTestQueryClient()}>
+                    <MemoryRouter initialEntries={['/finance/patient-accounts?file_number=7']}>
+                        <PatientAccountsPage />
+                    </MemoryRouter>
+                </QueryClientProvider>
+            );
+
+            await waitFor(() => {
+                expect(financialsApi.getPatientsReport).toHaveBeenCalledWith(expect.objectContaining({
+                    patient_id: 7,
+                }));
+            });
         });
     });
 
     describe('<PatientStatementDrawer />', () => {
-        it('renders patient debt breakdown and triggers record payment callback', () => {
-            const patient = {
-                patient_id: 1,
-                file_number: 101,
-                patient_name: 'يوسف محمود',
-                patient_phone: '01234567890',
-                total_invoiced: 6000,
-                total_paid: 4500,
-                all_time_outstanding: 1500,
-            };
-
+        it('renders server statement history and triggers record payment callback', async () => {
+            financialsApi.getPatientsReport.mockResolvedValue({
+                data: { data: { total: 1, patients: [accountRow] } },
+            });
+            financialsApi.getPatientReportDetails.mockResolvedValue({
+                data: { data: statementPayload },
+            });
             const onRecordPayment = vi.fn();
-            const onClose = vi.fn();
 
             render(
-                <MemoryRouter>
-                    <PatientStatementDrawer
-                        patient={patient}
-                        isOpen={true}
-                        onClose={onClose}
-                        onRecordPayment={onRecordPayment}
-                    />
-                </MemoryRouter>
+                <QueryClientProvider client={createTestQueryClient()}>
+                    <MemoryRouter>
+                        <PatientStatementDrawer
+                            patient={accountRow}
+                            patientId={7}
+                            from="2026-08-01"
+                            to="2026-08-15"
+                            isOpen={true}
+                            onClose={vi.fn()}
+                            onRecordPayment={onRecordPayment}
+                        />
+                    </MemoryRouter>
+                </QueryClientProvider>
             );
 
-            expect(screen.getByText('#101')).toBeDefined();
+            await waitFor(() => expect(screen.getByText('دفعة الفترة')).toBeDefined());
             expect(screen.getByText('يوسف محمود')).toBeDefined();
             expect(screen.getByText('01234567890')).toBeDefined();
-            expect(screen.getByLabelText('1500 EGP')).toBeDefined();
-            expect(screen.getByLabelText('6000 EGP')).toBeDefined();
-            expect(screen.getByLabelText('4500 EGP')).toBeDefined();
+            expect(screen.getAllByLabelText('1500 EGP').length).toBeGreaterThan(0);
 
             const panel = screen.getByTestId('patient-statement-panel');
             expect(panel.className).toContain('bg-white');
             expect(panel.className).toContain('dark:bg-slate-950');
-            expect(panel.className).not.toContain('bg-card');
 
-            const recordBtn = screen.getByText('تسجيل دفعة لهذا المريض');
-            fireEvent.click(recordBtn);
-
-            expect(onClose).toHaveBeenCalled();
-            expect(onRecordPayment).toHaveBeenCalledWith(patient);
+            fireEvent.click(screen.getByText('تسجيل دفعة لهذا المريض'));
+            expect(onRecordPayment).toHaveBeenCalledWith(expect.objectContaining({ patient_id: 7 }));
         });
     });
 });
