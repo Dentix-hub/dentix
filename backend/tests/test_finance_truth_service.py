@@ -17,6 +17,17 @@ async def test_current_patient_debt_keeps_patient_owned_legacy_null_tenant_rows(
     async_db_session,
 ):
     tenant_id = 201
+    other_tenant_id = 202
+    tenant = models.Tenant(
+        id=tenant_id,
+        name="Legacy Debt Clinic",
+        timezone="Africa/Cairo",
+    )
+    other_tenant = models.Tenant(
+        id=other_tenant_id,
+        name="Other Finance Clinic",
+        timezone="Africa/Cairo",
+    )
     patient = models.Patient(
         id=2011,
         name="Legacy debt patient",
@@ -34,11 +45,13 @@ async def test_current_patient_debt_keeps_patient_owned_legacy_null_tenant_rows(
         phone="01020102012",
         medical_history="None",
         notes="Must remain isolated",
-        tenant_id=202,
+        tenant_id=other_tenant_id,
         is_deleted=False,
     )
     async_db_session.add_all(
         [
+            tenant,
+            other_tenant,
             patient,
             other_patient,
             models.Treatment(
@@ -90,7 +103,11 @@ async def test_summary_uses_one_period_contract_and_legacy_patient_ownership(
     async_db_session,
 ):
     tenant_id = 203
-    tenant = models.Tenant(id=tenant_id, name="Finance Truth Clinic", timezone="Africa/Cairo")
+    tenant = models.Tenant(
+        id=tenant_id,
+        name="Finance Truth Clinic",
+        timezone="Africa/Cairo",
+    )
     patient = models.Patient(
         id=2031,
         name="Period patient",
@@ -155,6 +172,11 @@ async def test_compensation_patch_preserves_omitted_fields_and_updates_hire_date
     async_db_session,
 ):
     tenant_id = 204
+    tenant = models.Tenant(
+        id=tenant_id,
+        name="Compensation Truth Clinic",
+        timezone="Africa/Cairo",
+    )
     admin = models.User(
         id=2041,
         username="finance_truth_admin",
@@ -175,7 +197,7 @@ async def test_compensation_patch_preserves_omitted_fields_and_updates_hire_date
         per_appointment_fee=Decimal("75.00"),
         hire_date=date(2026, 1, 1),
     )
-    async_db_session.add_all([admin, employee])
+    async_db_session.add_all([tenant, admin, employee])
     await async_db_session.commit()
 
     result = await CompensationSettingsService(
