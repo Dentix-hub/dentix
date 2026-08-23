@@ -91,7 +91,7 @@ export function usePatientAccounts(pageSize = 20) {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: financeKeys.receivablesRoot() });
             queryClient.invalidateQueries({ queryKey: financeKeys.summaryRoot() });
-            queryClient.invalidateQueries({ queryKey: financeKeys.payments() });
+            queryClient.invalidateQueries({ queryKey: financeKeys.paymentsRoot() });
         },
     });
 
