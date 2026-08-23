@@ -4,17 +4,16 @@ import {
     LayoutDashboard,
     Users,
     CreditCard,
-    Receipt,
     UserCheck,
-    History,
     FileText,
 } from 'lucide-react';
 import { useFinancePermissions } from '../useFinancePermissions';
 
 /**
- * Navigation Bar for Finance V2.
- * Only the shared period contract follows users between Finance domains; local
- * q/page/type/filter state never leaks into another destination.
+ * Canonical Finance V2 navigation.
+ *
+ * PR5 intentionally exposes five destinations only. Operational children live
+ * under Cash Movements and Team, while legacy routes are compatibility-only.
  */
 export default function FinanceNav({ className = '' }) {
     const { t } = useTranslation();
@@ -42,7 +41,7 @@ export default function FinanceNav({ className = '' }) {
         {
             id: 'overview',
             to: '/finance/overview',
-            label: t('finance.nav.overview', 'نظرة عامة'),
+            label: t('finance.nav.overview', 'الملخص'),
             icon: LayoutDashboard,
             visible: canViewOverview,
         },
@@ -54,37 +53,23 @@ export default function FinanceNav({ className = '' }) {
             visible: canViewPatientAccounts,
         },
         {
-            id: 'payments',
-            to: '/finance/payments',
-            label: t('finance.nav.payments', 'المدفوعات'),
+            id: 'cash-movements',
+            to: '/finance/cash-movements',
+            label: t('finance.nav.cash_movements', 'الحركات النقدية'),
             icon: CreditCard,
-            visible: canViewPayments,
+            visible: canViewPayments || canViewExpenses || canViewActivity,
         },
         {
-            id: 'expenses',
-            to: '/finance/expenses',
-            label: t('finance.nav.expenses', 'المصروفات'),
-            icon: Receipt,
-            visible: canViewExpenses,
-        },
-        {
-            id: 'compensation',
-            to: isDoctor ? '/finance/compensation/doctors' : '/finance/compensation',
-            label: t('finance.nav.compensation', 'المستحقات والرواتب'),
+            id: 'team',
+            to: '/finance/team',
+            label: t('finance.nav.team', 'الفريق'),
             icon: UserCheck,
             visible: canViewPayroll || isDoctor,
         },
         {
-            id: 'activity',
-            to: '/finance/activity',
-            label: t('finance.nav.activity', 'سجل المعاملات'),
-            icon: History,
-            visible: canViewActivity,
-        },
-        {
             id: 'reports',
             to: '/finance/reports',
-            label: t('finance.nav.reports', 'التقارير المالية'),
+            label: t('finance.nav.reports_insights', 'التقارير والرؤى'),
             icon: FileText,
             visible: canViewReports,
         },
@@ -102,7 +87,7 @@ export default function FinanceNav({ className = '' }) {
                     const Icon = item.icon;
                     const isActive =
                         location.pathname === item.to ||
-                        (item.to !== '/finance/overview' && location.pathname.startsWith(item.to)) ||
+                        (item.to !== '/finance/overview' && location.pathname.startsWith(`${item.to}/`)) ||
                         (item.to === '/finance/overview' && (location.pathname === '/finance' || location.pathname === '/finance/'));
 
                     return (
