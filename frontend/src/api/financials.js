@@ -98,3 +98,16 @@ export const exportMaterialMarginReport = (params) =>
         params,
         responseType: 'blob',
     });
+
+// Canonical operational-page exports. The server applies the active filters and
+// batches full filtered datasets; the browser never performs fetch-all loops.
+const exportOperationalCsv = (report, params) =>
+    api.get(`/api/v1/financials/reports/${report}/export.csv`, {
+        params,
+        responseType: 'blob',
+    });
+
+export const exportFinanceSummary = (params) => exportOperationalCsv('summary', params);
+export const exportPatientAccounts = (params) => exportOperationalCsv('patient-accounts', params);
+export const exportExpensesReport = (params) => exportOperationalCsv('expenses', params);
+export const exportProvidersReport = (params) => exportOperationalCsv('providers', params);
