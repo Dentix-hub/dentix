@@ -80,7 +80,7 @@ export function usePayroll() {
     const invalidateFinancialTruth = () => {
         queryClient.invalidateQueries({ queryKey: financeKeys.summaryRoot() });
         queryClient.invalidateQueries({ queryKey: financeKeys.compensationRoot() });
-        queryClient.invalidateQueries({ queryKey: financeKeys.activity() });
+        queryClient.invalidateQueries({ queryKey: financeKeys.activityRoot() });
     };
 
     const recordPaymentMutation = useMutation({
