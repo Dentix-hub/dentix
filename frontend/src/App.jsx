@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import logger from '@/utils/logger';
 import { useEffect, Suspense, lazy } from 'react';
 import { useTranslation } from 'react-i18next';
