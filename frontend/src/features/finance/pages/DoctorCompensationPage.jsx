@@ -8,6 +8,7 @@ import {
     ArrowUpRight,
     TrendingUp,
 } from 'lucide-react';
+import { exportProvidersReport } from '@/api/financials';
 import { useDoctorCompensation } from '../compensation/hooks/useDoctorCompensation';
 import { useFinancePermissions } from '../useFinancePermissions';
 import MetricCard from '../components/MetricCard';
@@ -15,15 +16,17 @@ import FilterBar from '../components/FilterBar';
 import DateRangePicker from '../components/DateRangePicker';
 import DataTable from '../components/DataTable';
 import Money from '../components/Money';
+import ExportCsvButton from '../components/ExportCsvButton';
 import DoctorSettingsDrawer from '../compensation/components/DoctorSettingsDrawer';
 
 /**
  * Doctor Compensation V2 Overview Page (§15 MASTER_SPEC).
  * Displays authoritative doctor dues, commission rates, and links to routed doctor detail page.
+ * PR6 owns provider CSV here so the retired duplicate Providers report stays retired.
  */
 export default function DoctorCompensationPage() {
-    const { t } = useTranslation();
-    const { canConfigFinance } = useFinancePermissions();
+    const { t, i18n } = useTranslation();
+    const { canConfigFinance, canExportReports } = useFinancePermissions();
 
     const {
         doctors,
@@ -44,6 +47,12 @@ export default function DoctorCompensationPage() {
 
     const [doctorToConfigure, setDoctorToConfigure] = useState(null);
     const doctorDetailsUrl = (doctorId) => `/finance/team/doctors/${doctorId}?from=${from}&to=${to}`;
+    const exportProviders = () => exportProvidersReport({
+        start_date: from,
+        end_date: to,
+        ...(search.trim() ? { search: search.trim() } : {}),
+        locale: i18n.language === 'ar' ? 'ar' : 'en',
+    });
 
     const columns = [
         {
@@ -239,6 +248,14 @@ export default function DoctorCompensationPage() {
             <div className="space-y-3">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                     <DateRangePicker value={{ from, to }} onChange={updateDateRange} />
+                    {canExportReports && (
+                        <ExportCsvButton
+                            onExport={exportProviders}
+                            filename="finance-providers.csv"
+                            disabled={isLoading || isError || doctors.length === 0}
+                            label={t('finance.reports.export_providers', 'تصدير الأطباء')}
+                        />
+                    )}
                 </div>
                 <FilterBar
                     searchValue={search}
