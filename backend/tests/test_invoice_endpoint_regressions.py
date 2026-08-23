@@ -131,8 +131,8 @@ def test_invoice_rejects_cross_tenant_patient(
     assert response.status_code == 404
 
 
-def test_invoice_requires_financial_read_permission(client, auth_headers, invoice_patient):
-    """Doctors hold CLINICAL_READ but not FINANCIAL_READ; payments must stay protected."""
+def test_invoice_requires_receivable_read_permission(client, auth_headers, invoice_patient):
+    """Doctors hold CLINICAL_READ but not RECEIVABLE_READ; payment data stays protected."""
     response = client.get(
         f"/api/v1/patients/{invoice_patient.id}/invoice", headers=auth_headers
     )

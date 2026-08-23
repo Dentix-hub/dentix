@@ -254,8 +254,9 @@ async def get_patient_payments(
 async def get_patient_invoice(
     patient_id: int,
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
+    current_user: schemas.User = Depends(require_permission(Permission.RECEIVABLE_READ)),
 ):
+    """Printable patient invoice — receivable-scoped per Finance V2 RBAC."""
     await _ensure_patient_visible(db, current_user, patient_id)
     service = InvoiceService(db, current_user.tenant_id)
     invoice = await service.get_patient_invoice(patient_id)
