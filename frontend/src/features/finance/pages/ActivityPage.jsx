@@ -9,14 +9,14 @@ import {
 import { useFinancialActivity } from '../activity/hooks/useFinancialActivity';
 import MetricCard from '../components/MetricCard';
 import FilterBar from '../components/FilterBar';
-import DateRangePicker from '../components/DateRangePicker';
 import DataTable from '../components/DataTable';
 import Money from '../components/Money';
 import ActivityTypeBadge from '../activity/components/ActivityTypeBadge';
 
 /**
  * Financial Activity V2 Page (§17 MASTER_SPEC).
- * Normalized read-only timeline of all clinic financial movements.
+ * The shared Finance header owns the period control; drill-down links preserve
+ * that period and include stable source identifiers when available.
  */
 export default function ActivityPage() {
     const { t } = useTranslation();
@@ -36,7 +36,6 @@ export default function ActivityPage() {
         isLoading,
         isError,
         refetch,
-        updateDateRange,
         updateType,
         updateSearch,
         setPage,
@@ -50,7 +49,6 @@ export default function ActivityPage() {
         { id: 'salary', label: t('finance.activity.type_salary', 'المرتبات'), count: null },
     ];
 
-    // Format Timestamp
     const formatTimestamp = (ts) => {
         if (!ts) return '—';
         try {
@@ -64,7 +62,29 @@ export default function ActivityPage() {
         }
     };
 
-    // Columns for Desktop View
+    const drillDownUrl = (row) => {
+        if (!row?.nav_url) return null;
+        const [pathname, existingSearch = ''] = String(row.nav_url).split('?');
+        const params = new URLSearchParams(existingSearch);
+
+        if (pathname.startsWith('/finance/')) {
+            if (from && !params.has('from')) params.set('from', from);
+            if (to && !params.has('to')) params.set('to', to);
+        }
+
+        if (row.source_type === 'payment') {
+            if (row.patient_id && !params.has('patient_id')) {
+                params.set('patient_id', String(row.patient_id));
+            }
+            if (row.source_id && !params.has('payment_id')) {
+                params.set('payment_id', String(row.source_id));
+            }
+        }
+
+        const query = params.toString();
+        return query ? `${pathname}?${query}` : pathname;
+    };
+
     const columns = [
         {
             id: 'time',
@@ -75,9 +95,9 @@ export default function ActivityPage() {
                 const formatted = formatTimestamp(row.timestamp);
                 return (
                     <div className="space-y-0.5 text-xs font-mono">
-                        <span className="font-bold text-text-primary block">{formatted.date}</span>
+                        <span className="block font-bold text-text-primary">{formatted.date}</span>
                         {formatted.time && (
-                            <span className="text-[11px] text-text-secondary block">{formatted.time}</span>
+                            <span className="block text-[11px] text-text-secondary">{formatted.time}</span>
                         )}
                     </div>
                 );
@@ -89,34 +109,34 @@ export default function ActivityPage() {
             sortable: false,
             width: '150px',
             cell: (row) => (
-                <ActivityTypeBadge
-                    sourceType={row.source_type}
-                    direction={row.direction}
-                />
+                <ActivityTypeBadge sourceType={row.source_type} direction={row.direction} />
             ),
         },
         {
             id: 'title',
             header: t('finance.activity.subject', 'البيان / الطرف'),
             sortable: false,
-            cell: (row) => (
-                <div className="space-y-0.5">
-                    {row.nav_url ? (
-                        <Link
-                            to={row.nav_url}
-                            className="font-bold text-text-primary hover:text-primary transition-colors inline-flex items-center gap-1 group"
-                        >
-                            <span>{row.title}</span>
-                            <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
-                        </Link>
-                    ) : (
-                        <span className="font-bold text-text-primary block">{row.title}</span>
-                    )}
-                    {row.subtitle && (
-                        <span className="text-[11px] text-text-secondary block line-clamp-1">{row.subtitle}</span>
-                    )}
-                </div>
-            ),
+            cell: (row) => {
+                const navUrl = drillDownUrl(row);
+                return (
+                    <div className="space-y-0.5">
+                        {navUrl ? (
+                            <Link
+                                to={navUrl}
+                                className="group inline-flex items-center gap-1 font-bold text-text-primary transition-colors hover:text-primary"
+                            >
+                                <span>{row.title}</span>
+                                <ExternalLink className="h-3 w-3 text-primary opacity-0 transition-opacity group-hover:opacity-100" />
+                            </Link>
+                        ) : (
+                            <span className="block font-bold text-text-primary">{row.title}</span>
+                        )}
+                        {row.subtitle && (
+                            <span className="block line-clamp-1 text-[11px] text-text-secondary">{row.subtitle}</span>
+                        )}
+                    </div>
+                );
+            },
         },
         {
             id: 'amount',
@@ -127,65 +147,53 @@ export default function ActivityPage() {
             cell: (row) => {
                 const isInflow = row.direction === 'inflow';
                 return (
-                    <div className="flex items-center justify-end gap-1 font-mono font-bold text-sm">
+                    <div className="flex items-center justify-end gap-1 font-mono text-sm font-bold">
                         <span className={isInflow ? 'text-emerald-600 dark:text-emerald-400' : 'text-text-primary'}>
                             {isInflow ? '+' : '−'}
                         </span>
-                        <Money
-                            amount={row.amount}
-                            size="sm"
-                            colored={isInflow}
-                        />
+                        <Money amount={row.amount} size="sm" colored={isInflow} />
                     </div>
                 );
             },
         },
     ];
 
-    // Mobile Card View
     const renderMobileCard = (row) => {
         const formatted = formatTimestamp(row.timestamp);
         const isInflow = row.direction === 'inflow';
+        const navUrl = drillDownUrl(row);
 
         return (
-            <div
-                key={row.id}
-                className="p-4 rounded-xl border border-border bg-card space-y-3 shadow-xs"
-            >
+            <div key={row.id} className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-xs">
                 <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1">
-                        <ActivityTypeBadge
-                            sourceType={row.source_type}
-                            direction={row.direction}
-                        />
+                        <ActivityTypeBadge sourceType={row.source_type} direction={row.direction} />
                         <div>
-                            {row.nav_url ? (
+                            {navUrl ? (
                                 <Link
-                                    to={row.nav_url}
-                                    className="text-sm font-bold text-text-primary hover:text-primary inline-flex items-center gap-1"
+                                    to={navUrl}
+                                    className="inline-flex items-center gap-1 text-sm font-bold text-text-primary hover:text-primary"
                                 >
                                     <span>{row.title}</span>
-                                    <ExternalLink className="w-3 h-3 text-text-secondary" />
+                                    <ExternalLink className="h-3 w-3 text-text-secondary" />
                                 </Link>
                             ) : (
-                                <span className="text-sm font-bold text-text-primary block">{row.title}</span>
+                                <span className="block text-sm font-bold text-text-primary">{row.title}</span>
                             )}
                             {row.subtitle && (
-                                <p className="text-[11px] text-text-secondary line-clamp-1">{row.subtitle}</p>
+                                <p className="line-clamp-1 text-[11px] text-text-secondary">{row.subtitle}</p>
                             )}
                         </div>
                     </div>
 
                     <div className="text-end font-mono">
-                        <div className="flex items-center justify-end gap-0.5 font-bold text-sm">
+                        <div className="flex items-center justify-end gap-0.5 text-sm font-bold">
                             <span className={isInflow ? 'text-emerald-600 dark:text-emerald-400' : 'text-text-primary'}>
                                 {isInflow ? '+' : '−'}
                             </span>
                             <Money amount={row.amount} size="sm" colored={isInflow} />
                         </div>
-                        <span className="text-[10px] text-text-secondary block mt-0.5">
-                            {formatted.date}
-                        </span>
+                        <span className="mt-0.5 block text-[10px] text-text-secondary">{formatted.date}</span>
                     </div>
                 </div>
             </div>
@@ -194,8 +202,7 @@ export default function ActivityPage() {
 
     return (
         <div className="space-y-6">
-            {/* Top Headline Metric Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <MetricCard
                     title={t('finance.activity.total_inflow', 'إجمالي التدفقات الواردة')}
                     amount={totalInflow}
@@ -205,7 +212,6 @@ export default function ActivityPage() {
                     colored
                     isLoading={isLoading}
                 />
-
                 <MetricCard
                     title={t('finance.activity.total_outflow', 'إجمالي المدفوعات الصادرة')}
                     amount={totalOutflow}
@@ -214,7 +220,6 @@ export default function ActivityPage() {
                     icon={ArrowUpRight}
                     isLoading={isLoading}
                 />
-
                 <MetricCard
                     title={t('finance.activity.net_flow', 'صافي الحركة المالية')}
                     amount={netFlow}
@@ -226,31 +231,22 @@ export default function ActivityPage() {
                 />
             </div>
 
-            {/* Filter Bar & Time Control */}
             <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                    <DateRangePicker
-                        value={{ from, to }}
-                        onChange={updateDateRange}
-                    />
-
-                    {/* Source Type Filter Pills */}
-                    <div className="flex items-center gap-1 overflow-x-auto pb-1 max-w-full">
-                        {typeFilterOptions.map((opt) => (
-                            <button
-                                key={opt.id}
-                                type="button"
-                                onClick={() => updateType(opt.id)}
-                                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
-                                    type === opt.id
-                                        ? 'bg-primary text-white shadow-xs'
-                                        : 'bg-card border border-border text-text-secondary hover:text-text-primary hover:bg-muted/60'
-                                }`}
-                            >
-                                {opt.label}
-                            </button>
-                        ))}
-                    </div>
+                <div className="flex max-w-full items-center gap-1 overflow-x-auto pb-1">
+                    {typeFilterOptions.map((opt) => (
+                        <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => updateType(opt.id)}
+                            className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
+                                type === opt.id
+                                    ? 'bg-primary text-white shadow-xs'
+                                    : 'border border-border bg-card text-text-secondary hover:bg-muted/60 hover:text-text-primary'
+                            }`}
+                        >
+                            {opt.label}
+                        </button>
+                    ))}
                 </div>
 
                 <FilterBar
@@ -267,7 +263,6 @@ export default function ActivityPage() {
                 />
             </div>
 
-            {/* Data Table */}
             <DataTable
                 columns={columns}
                 data={events}
