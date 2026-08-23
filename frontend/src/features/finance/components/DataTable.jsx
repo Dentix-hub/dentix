@@ -13,6 +13,9 @@ import {
 /**
  * Reusable, accessible Data Table for Finance V2.
  * Supports sorting, pagination, skeleton loading, empty/error states, and mobile card fallback.
+ *
+ * Cell renderers always receive the same signature on desktop and mobile:
+ *   cell(item, { row, value, index, column, isMobile })
  */
 export default function DataTable({
     columns = [], // Array of { id, header, accessor, cell, sortable, align: 'start'|'center'|'end', width }
@@ -60,11 +63,33 @@ export default function DataTable({
         }
     };
 
+    const renderCell = (col, item, index, isMobile) => {
+        const value = col.accessor
+            ? (typeof col.accessor === 'function' ? col.accessor(item) : item[col.accessor])
+            : item[col.id];
+
+        if (!col.cell) return value;
+        if (typeof col.cell !== 'function') return col.cell;
+
+        return col.cell(item, {
+            row: item,
+            value,
+            index,
+            column: col,
+            isMobile,
+        });
+    };
+
     // Loading State
     if (isLoading) {
         return (
-            <div className={`w-full bg-card border border-border rounded-xl overflow-hidden shadow-sm ${className}`}>
-                <div className="p-4 space-y-3">
+            <div
+                className={`w-full bg-card border border-border rounded-xl overflow-hidden shadow-sm ${className}`}
+                role="status"
+                aria-live="polite"
+                aria-label={t('common.loading', 'جاري التحميل')}
+            >
+                <div className="p-4 space-y-3" aria-hidden="true">
                     <div className="h-10 bg-muted/60 rounded-lg animate-pulse"></div>
                     {Array.from({ length: 5 }).map((_, i) => (
                         <div key={i} className="h-14 bg-muted/30 rounded-lg animate-pulse"></div>
@@ -77,7 +102,10 @@ export default function DataTable({
     // Error State
     if (isError) {
         return (
-            <div className={`w-full bg-card border border-rose-200 dark:border-rose-900/50 rounded-xl p-8 text-center space-y-4 shadow-sm ${className}`}>
+            <div
+                className={`w-full bg-card border border-rose-200 dark:border-rose-900/50 rounded-xl p-8 text-center space-y-4 shadow-sm ${className}`}
+                role="alert"
+            >
                 <div className="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 mx-auto flex items-center justify-center">
                     <AlertCircle className="w-6 h-6" aria-hidden="true" />
                 </div>
@@ -106,7 +134,10 @@ export default function DataTable({
     // Empty State
     if (!data || data.length === 0) {
         return (
-            <div className={`w-full bg-card border border-border rounded-xl p-12 text-center space-y-3 shadow-sm ${className}`}>
+            <div
+                className={`w-full bg-card border border-border rounded-xl p-12 text-center space-y-3 shadow-sm ${className}`}
+                role="status"
+            >
                 <div className="w-12 h-12 rounded-full bg-muted text-text-secondary mx-auto flex items-center justify-center">
                     <EmptyIcon className="w-6 h-6" aria-hidden="true" />
                 </div>
@@ -170,23 +201,20 @@ export default function DataTable({
                         </thead>
                         <tbody className="divide-y divide-border/60">
                             {data.map((item, index) => {
-                                const rowKey = item[keyField] || index;
+                                const rowKey = item[keyField] ?? index;
                                 return (
                                     <tr
                                         key={rowKey}
                                         className="hover:bg-muted/30 transition-colors group"
                                     >
-                                        {columns.map((col) => {
-                                            const val = col.accessor ? (typeof col.accessor === 'function' ? col.accessor(item) : item[col.accessor]) : item[col.id];
-                                            return (
-                                                <td
-                                                    key={col.id}
-                                                    className={`px-4 py-3.5 align-middle text-text-primary ${getAlignmentClass(col.align)}`}
-                                                >
-                                                    {col.cell ? (typeof col.cell === 'function' ? col.cell(item, { row: item, value: val, index }) : col.cell) : val}
-                                                </td>
-                                            );
-                                        })}
+                                        {columns.map((col) => (
+                                            <td
+                                                key={col.id}
+                                                className={`px-4 py-3.5 align-middle text-text-primary ${getAlignmentClass(col.align)}`}
+                                            >
+                                                {renderCell(col, item, index, false)}
+                                            </td>
+                                        ))}
                                     </tr>
                                 );
                             })}
@@ -196,30 +224,36 @@ export default function DataTable({
             </div>
 
             {/* Mobile Semantic Card View */}
-            <div className="block md:hidden space-y-2.5">
+            <div className="block md:hidden space-y-2.5" role="list">
                 {data.map((item, index) => {
-                    const rowKey = item[keyField] || index;
+                    const rowKey = item[keyField] ?? index;
                     if (renderMobileCard) {
-                        return <div key={rowKey}>{renderMobileCard(item, index)}</div>;
+                        return (
+                            <div key={rowKey} role="listitem">
+                                {renderMobileCard(item, index)}
+                            </div>
+                        );
                     }
 
-                    // Default Mobile Card
                     return (
                         <div
                             key={rowKey}
+                            role="listitem"
                             className="p-4 rounded-xl border border-border bg-card shadow-sm space-y-2"
                         >
-                            {columns.map((col) => {
-                                const val = col.accessor ? (typeof col.accessor === 'function' ? col.accessor(item) : item[col.accessor]) : item[col.id];
-                                return (
-                                    <div key={col.id} className="flex items-center justify-between text-xs py-1 border-b border-border/40 last:border-0">
-                                        <span className="font-semibold text-text-secondary">{col.header}</span>
-                                        <span className="font-medium text-text-primary">
-                                            {col.cell ? col.cell({ row: item, value: val, index }) : val}
-                                        </span>
-                                    </div>
-                                );
-                            })}
+                            {columns.map((col) => (
+                                <div
+                                    key={col.id}
+                                    className="flex items-center justify-between gap-4 text-xs py-1 border-b border-border/40 last:border-0"
+                                >
+                                    <span className="font-semibold text-text-secondary shrink-0">
+                                        {col.header}
+                                    </span>
+                                    <span className="font-medium text-text-primary min-w-0 text-end" dir="auto">
+                                        {renderCell(col, item, index, true)}
+                                    </span>
+                                </div>
+                            ))}
                         </div>
                     );
                 })}

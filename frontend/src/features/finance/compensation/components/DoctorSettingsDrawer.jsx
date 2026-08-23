@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-    X,
     Settings,
     Percent,
     DollarSign,
@@ -9,6 +8,7 @@ import {
     Save,
     ShieldAlert,
 } from 'lucide-react';
+import DentixDrawer from '@/shared/ui/DentixDrawer';
 import { useFinancePermissions } from '../../useFinancePermissions';
 
 /**
@@ -37,50 +37,25 @@ export default function DoctorSettingsDrawer({
         }
     }, [doctor]);
 
-    if (!isOpen || !doctor) return null;
-
-    if (!canConfigFinance) {
-        return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-                <div className="p-6 bg-card border border-border rounded-2xl max-w-sm text-center space-y-3">
-                    <ShieldAlert className="w-10 h-10 text-destructive mx-auto" />
-                    <h3 className="text-sm font-bold text-text-primary">
-                        {t('common.access_denied', 'غير مصرح بالوصول')}
-                    </h3>
-                    <p className="text-xs text-text-secondary">
-                        {t('finance.compensation.config_permission_required', 'تعديل قواعد أتعاب الأطباء يتطلب صلاحيات إدارة النظام.')}
-                    </p>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="px-4 py-2 text-xs font-bold bg-muted rounded-xl"
-                    >
-                        {t('common.close', 'إغلاق')}
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const handleSubmit = async (event) => {
+        event.preventDefault();
         setFormError('');
 
-        const comm = parseFloat(commissionPercent);
-        if (isNaN(comm) || comm < 0 || comm > 100) {
+        const commission = parseFloat(commissionPercent);
+        if (Number.isNaN(commission) || commission < 0 || commission > 100) {
             setFormError(t('finance.compensation.commission_invalid', 'نسبة العمولة يجب أن تكون بين 0% و 100%'));
             return;
         }
 
         const salary = parseFloat(fixedSalary);
-        if (isNaN(salary) || salary < 0) {
+        if (Number.isNaN(salary) || salary < 0) {
             setFormError(t('finance.compensation.salary_invalid', 'قيمة الراتب الثابت يجب أن تكون أكبر من أو تساوي صفر'));
             return;
         }
 
         try {
             await onSave({
-                commission_percent: comm,
+                commission_percent: commission,
                 fixed_salary: salary,
                 per_appointment_fee: 0,
             });
@@ -90,87 +65,106 @@ export default function DoctorSettingsDrawer({
         }
     };
 
-    return (
-        <div className="fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true">
-            {/* Backdrop */}
-            <div
-                className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity duration-300"
-                onClick={onClose}
-                aria-hidden="true"
-            />
+    const open = Boolean(isOpen && doctor);
 
-            <div className="fixed inset-y-0 end-0 max-w-full flex pl-10 rtl:pl-0 rtl:pr-10">
-                <div className="w-screen max-w-md bg-card border-s border-border shadow-2xl flex flex-col justify-between overflow-y-auto">
-                    {/* Header */}
-                    <div className="p-6 border-b border-border flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
-                                <Settings className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <h3 className="text-base font-bold text-text-primary">
-                                    {t('finance.compensation.settings_title', 'إعدادات أتعاب الطبيب')}
-                                </h3>
-                                <p className="text-xs text-text-secondary">
-                                    {doctor.doctor_name || doctor.username}
-                                </p>
-                            </div>
+    if (!canConfigFinance) {
+        return (
+            <DentixDrawer
+                open={open}
+                onOpenChange={(nextOpen) => {
+                    if (!nextOpen) onClose?.();
+                }}
+                title={t('common.access_denied', 'غير مصرح بالوصول')}
+                size="sm"
+                closeLabel={t('common.close', 'إغلاق')}
+            >
+                <div className="space-y-4 text-center">
+                    <ShieldAlert className="mx-auto h-10 w-10 text-destructive" aria-hidden="true" />
+                    <p className="text-xs text-text-secondary">
+                        {t('finance.compensation.config_permission_required', 'تعديل قواعد أتعاب الأطباء يتطلب صلاحيات إدارة النظام.')}
+                    </p>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="rounded-xl bg-muted px-4 py-2 text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    >
+                        {t('common.close', 'إغلاق')}
+                    </button>
+                </div>
+            </DentixDrawer>
+        );
+    }
+
+    return (
+        <DentixDrawer
+            open={open}
+            onOpenChange={(nextOpen) => {
+                if (!nextOpen) onClose?.();
+            }}
+            title={t('finance.compensation.settings_title', 'إعدادات أتعاب الطبيب')}
+            size="md"
+            closeLabel={t('common.close', 'إغلاق')}
+            closeOnOutside={!isSaving}
+        >
+            {doctor && (
+                <div className="space-y-5">
+                    <div className="flex items-center gap-3 rounded-xl bg-primary/5 p-3">
+                        <div className="rounded-xl bg-primary/10 p-2.5 text-primary">
+                            <Settings className="h-5 w-5" aria-hidden="true" />
                         </div>
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="p-2 rounded-xl text-text-secondary hover:text-text-primary hover:bg-muted/60 transition-colors"
-                            aria-label={t('common.close', 'إغلاق')}
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
+                        <p className="min-w-0 break-words text-xs font-semibold text-text-secondary" dir="auto">
+                            {doctor.doctor_name || doctor.username}
+                        </p>
                     </div>
 
-                    {/* Form Body */}
-                    <form id="doctor-settings-form" onSubmit={handleSubmit} className="p-6 space-y-4 flex-1">
+                    <form id="doctor-settings-form" onSubmit={handleSubmit} className="space-y-4">
                         {formError && (
-                            <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold">
+                            <div className="rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs font-semibold text-destructive" role="alert">
                                 {formError}
                             </div>
                         )}
 
-                        {/* Commission % */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-text-primary flex items-center gap-1.5">
-                                <Percent className="w-3.5 h-3.5 text-primary" />
+                            <label htmlFor="doctor-commission-percent" className="flex items-center gap-1.5 text-xs font-bold text-text-primary">
+                                <Percent className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                                 <span>{t('finance.compensation.commission_rate', 'نسبة العمولة من الصافي (%)')} *</span>
                             </label>
                             <input
+                                id="doctor-commission-percent"
                                 type="number"
                                 required
                                 min="0"
                                 max="100"
                                 step="0.1"
+                                inputMode="decimal"
+                                dir="ltr"
                                 value={commissionPercent}
                                 onChange={(e) => setCommissionPercent(e.target.value)}
                                 placeholder="0.0"
-                                className="w-full px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-xl text-text-primary font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-mono text-text-primary transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm"
                             />
                             <p className="text-[11px] text-text-secondary">
                                 {t('finance.compensation.commission_desc', 'تحتسب من إجمالي المحصل منسوباً للطبيب بعد خصم تكاليف المعمل')}
                             </p>
                         </div>
 
-                        {/* Fixed Salary */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-text-primary flex items-center gap-1.5">
-                                <DollarSign className="w-3.5 h-3.5 text-primary" />
+                            <label htmlFor="doctor-fixed-salary" className="flex items-center gap-1.5 text-xs font-bold text-text-primary">
+                                <DollarSign className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                                 <span>{t('finance.compensation.fixed_salary', 'الراتب الأساسي الثابت (جنيه)')} *</span>
                             </label>
                             <input
+                                id="doctor-fixed-salary"
                                 type="number"
                                 required
                                 min="0"
                                 step="1"
+                                inputMode="decimal"
+                                dir="ltr"
                                 value={fixedSalary}
                                 onChange={(e) => setFixedSalary(e.target.value)}
                                 placeholder="0.00"
-                                className="w-full px-3 py-2 text-xs sm:text-sm bg-background border border-border rounded-xl text-text-primary font-mono focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-mono text-text-primary transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 sm:text-sm"
                             />
                             <p className="text-[11px] text-text-secondary">
                                 {t('finance.compensation.salary_desc', 'مبلغ ثابت يضاف لمستحقات الطبيب شهرياً')}
@@ -178,12 +172,12 @@ export default function DoctorSettingsDrawer({
                         </div>
                     </form>
 
-                    {/* Footer Actions */}
-                    <div className="p-6 border-t border-border bg-muted/10 flex items-center gap-3">
+                    <div className="flex items-center gap-3 border-t border-border pt-4">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 py-2.5 px-4 text-xs font-bold text-text-secondary hover:text-text-primary bg-card border border-border rounded-xl hover:bg-muted/60 transition-colors"
+                            disabled={isSaving}
+                            className="flex-1 rounded-xl border border-border bg-card px-4 py-2.5 text-xs font-bold text-text-secondary transition-colors hover:bg-muted/60 hover:text-text-primary disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         >
                             {t('common.cancel', 'إلغاء')}
                         </button>
@@ -191,23 +185,23 @@ export default function DoctorSettingsDrawer({
                             type="submit"
                             form="doctor-settings-form"
                             disabled={isSaving}
-                            className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 text-xs font-bold text-white bg-primary hover:bg-primary/90 disabled:opacity-50 rounded-xl transition-all shadow-sm"
+                            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-primary/90 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                         >
                             {isSaving ? (
                                 <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                                     <span>{t('common.saving', 'جاري الحفظ...')}</span>
                                 </>
                             ) : (
                                 <>
-                                    <Save className="w-4 h-4" />
+                                    <Save className="h-4 w-4" aria-hidden="true" />
                                     <span>{t('common.save', 'حفظ التعديلات')}</span>
                                 </>
                             )}
                         </button>
                     </div>
                 </div>
-            </div>
-        </div>
+            )}
+        </DentixDrawer>
     );
 }
