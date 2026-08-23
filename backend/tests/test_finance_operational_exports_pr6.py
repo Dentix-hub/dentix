@@ -1,6 +1,6 @@
 """PR6 contracts for canonical operational-page CSV exports."""
 
-from datetime import date
+from datetime import date, datetime, timezone
 
 from backend import models
 from backend.auth import create_access_token, get_password_hash
@@ -125,10 +125,45 @@ def test_patient_account_export_is_tenant_scoped_and_honors_file_filter(
     )
     db_session.add(other_patient)
     db_session.commit()
+    db_session.refresh(other_patient)
+
+    # Patient Accounts intentionally reports finance-active accounts. Give both
+    # patients real activity so this test proves filtering/isolation rather than
+    # relying on an inactive patient being present in a finance report.
+    db_session.add_all(
+        [
+            models.Treatment(
+                patient_id=patient.id,
+                diagnosis="Caries",
+                procedure="PR6 Filling",
+                cost=1000,
+                discount=0,
+                date=datetime(2026, 8, 12, 10, 0, tzinfo=timezone.utc),
+                tenant_id=test_tenant.id,
+                is_deleted=False,
+            ),
+            models.Treatment(
+                patient_id=other_patient.id,
+                diagnosis="Caries",
+                procedure="PR6 Other Filling",
+                cost=9000,
+                discount=0,
+                date=datetime(2026, 8, 12, 10, 0, tzinfo=timezone.utc),
+                tenant_id=other_tenant.id,
+                is_deleted=False,
+            ),
+        ]
+    )
+    db_session.commit()
 
     response = client.get(
         "/api/v1/financials/reports/patient-accounts/export.csv",
-        params={"patient_id": patient.id, "locale": "en"},
+        params={
+            "patient_id": patient.id,
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+            "locale": "en",
+        },
         headers=admin_headers,
     )
 
