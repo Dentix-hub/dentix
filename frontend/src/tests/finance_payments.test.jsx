@@ -9,7 +9,6 @@ import RecordPaymentModal from '../features/finance/payments/components/RecordPa
 import * as billingApi from '../api/billing';
 import * as patientsApi from '../api/patients';
 
-// Mock react-i18next
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
         t: (key, fallback) => (typeof fallback === 'string' ? fallback : key),
@@ -17,7 +16,6 @@ vi.mock('react-i18next', () => ({
     }),
 }));
 
-// Mock permissions hook
 vi.mock('../features/finance/useFinancePermissions', () => ({
     useFinancePermissions: () => ({
         canReadFinance: true,
@@ -28,7 +26,6 @@ vi.mock('../features/finance/useFinancePermissions', () => ({
     }),
 }));
 
-// Mock billing and patients APIs
 vi.mock('../api/billing', () => ({
     getPayments: vi.fn(),
     getAllPayments: vi.fn(),
@@ -48,6 +45,16 @@ function createTestQueryClient() {
     });
 }
 
+const targetPayment = {
+    id: 101,
+    patient_id: 1,
+    patient_name: 'أحمد علي',
+    patient_file_number: 1,
+    amount: 750,
+    date: '2026-08-15T10:30:00',
+    notes: 'دفعة جلسة تنظيف',
+};
+
 describe('Finance Payments V2 Components & Page', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -55,35 +62,25 @@ describe('Finance Payments V2 Components & Page', () => {
 
     describe('<PaymentsPage />', () => {
         it('renders payments list, summary totals, and action buttons', async () => {
-            const mockPayments = [
-                {
-                    id: 101,
-                    patient_id: 1,
-                    patient_name: 'أحمد علي',
-                    patient_file_number: 1001,
-                    amount: 750,
-                    date: '2026-08-15T10:30:00',
-                    notes: 'دفعة جلسة تنظيف',
-                },
-                {
-                    id: 102,
-                    patient_id: 2,
-                    patient_name: 'سارة محمد',
-                    patient_file_number: 1002,
-                    amount: 1200,
-                    date: '2026-08-15T11:00:00',
-                    notes: 'دفعة تركيب تقويم',
-                },
-            ];
-
             billingApi.getPayments.mockResolvedValueOnce({
-                data: { data: mockPayments },
+                data: {
+                    data: [
+                        targetPayment,
+                        {
+                            id: 102,
+                            patient_id: 2,
+                            patient_name: 'سارة محمد',
+                            patient_file_number: 2,
+                            amount: 1200,
+                            date: '2026-08-15T11:00:00',
+                            notes: 'دفعة تركيب تقويم',
+                        },
+                    ],
+                },
             });
 
-            const queryClient = createTestQueryClient();
-
             render(
-                <QueryClientProvider client={queryClient}>
+                <QueryClientProvider client={createTestQueryClient()}>
                     <MemoryRouter>
                         <PaymentsPage />
                     </MemoryRouter>
@@ -102,15 +99,42 @@ describe('Finance Payments V2 Components & Page', () => {
             expect(screen.getAllByLabelText('1200 EGP').length).toBeGreaterThan(0);
         });
 
+        it('honors patient and receipt deep-link filters and opens the exact receipt', async () => {
+            billingApi.getPayments.mockResolvedValue({
+                data: { data: [targetPayment] },
+            });
+
+            render(
+                <QueryClientProvider client={createTestQueryClient()}>
+                    <MemoryRouter initialEntries={['/finance/payments?patient_id=1&payment_id=101&from=2026-08-01&to=2026-08-15']}>
+                        <PaymentsPage />
+                    </MemoryRouter>
+                </QueryClientProvider>
+            );
+
+            await waitFor(() => {
+                expect(billingApi.getPayments).toHaveBeenCalledWith(expect.objectContaining({
+                    patient_id: 1,
+                    payment_id: 101,
+                    start_date: '2026-08-01',
+                    end_date: '2026-08-15',
+                    skip: 0,
+                    limit: 21,
+                }));
+                expect(screen.getAllByText('#101').length).toBeGreaterThan(0);
+            });
+            expect(screen.getByText('patient #1')).toBeDefined();
+            expect(screen.getByText('receipt #101')).toBeDefined();
+            expect(screen.getAllByText('دفعة جلسة تنظيف').length).toBeGreaterThan(0);
+        });
+
         it('renders empty state when no payments are returned', async () => {
             billingApi.getPayments.mockResolvedValueOnce({
                 data: { data: [] },
             });
 
-            const queryClient = createTestQueryClient();
-
             render(
-                <QueryClientProvider client={queryClient}>
+                <QueryClientProvider client={createTestQueryClient()}>
                     <MemoryRouter>
                         <PaymentsPage />
                     </MemoryRouter>
@@ -155,15 +179,9 @@ describe('Finance Payments V2 Components & Page', () => {
             expect(screen.getByLabelText('500 EGP')).toBeDefined();
             expect(screen.getByText('د. طارق')).toBeDefined();
 
-            // Click delete button to open confirm prompt
-            const deleteBtn = screen.getByText('حذف سند التحصيل');
-            fireEvent.click(deleteBtn);
-
+            fireEvent.click(screen.getByText('حذف سند التحصيل'));
             expect(screen.getByText('تأكيد حذف سند التحصيل؟')).toBeDefined();
-
-            // Confirm deletion
-            const confirmBtn = screen.getByText('حذف');
-            fireEvent.click(confirmBtn);
+            fireEvent.click(screen.getByText('حذف'));
 
             await waitFor(() => {
                 expect(onDelete).toHaveBeenCalledWith(45);
@@ -173,49 +191,39 @@ describe('Finance Payments V2 Components & Page', () => {
 
     describe('<RecordPaymentModal />', () => {
         it('validates amount and calls onSubmit with correct payload', async () => {
-            const mockPatients = [
-                { id: 1, name: 'خالد عمر', file_number: 201 },
-                { id: 2, name: 'منى جمال', file_number: 202 },
-            ];
-
             patientsApi.getPatients.mockResolvedValueOnce({
-                data: { data: mockPatients },
+                data: {
+                    data: [
+                        { id: 1, name: 'خالد عمر', file_number: 201 },
+                        { id: 2, name: 'منى جمال', file_number: 202 },
+                    ],
+                },
             });
 
             const onSubmit = vi.fn().mockResolvedValue(true);
-            const onClose = vi.fn();
-            const queryClient = createTestQueryClient();
 
             render(
-                <QueryClientProvider client={queryClient}>
+                <QueryClientProvider client={createTestQueryClient()}>
                     <RecordPaymentModal
                         isOpen={true}
                         initialPatientId={1}
-                        onClose={onClose}
+                        onClose={vi.fn()}
                         onSubmit={onSubmit}
                     />
                 </QueryClientProvider>
             );
 
             expect(screen.getByText('تسجيل دفعة مريض')).toBeDefined();
+            await waitFor(() => expect(screen.getByText('خالد عمر (#201)')).toBeDefined());
 
-            await waitFor(() => {
-                expect(screen.getByText('خالد عمر (#201)')).toBeDefined();
-            });
-
-            // Preserve the patient selected from the account page and enter amount.
             const select = screen.getByRole('combobox');
             expect(select.value).toBe('1');
-
-            const amountInput = screen.getByPlaceholderText('0.00');
-            fireEvent.change(amountInput, { target: { value: '650' } });
-
-            const notesInput = screen.getByPlaceholderText('مثال: دفعة تحت حساب تقويم الأسنان / جلسة حشو...');
-            fireEvent.change(notesInput, { target: { value: 'دفعة نقدية' } });
-
-            // Submit form
-            const submitBtn = screen.getByText('تسجيل السند');
-            fireEvent.click(submitBtn);
+            fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '650' } });
+            fireEvent.change(
+                screen.getByPlaceholderText('مثال: دفعة تحت حساب تقويم الأسنان / جلسة حشو...'),
+                { target: { value: 'دفعة نقدية' } },
+            );
+            fireEvent.click(screen.getByText('تسجيل السند'));
 
             await waitFor(() => {
                 expect(onSubmit).toHaveBeenCalledWith({
