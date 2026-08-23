@@ -211,6 +211,7 @@ class SettingsPage extends ConsumerWidget {
         content: RadioGroup<ThemeMode>(
           groupValue: currentMode,
           onChanged: (value) {
+            if (value == null) return;
             ref.read(themeModeProvider.notifier).setThemeMode(value);
             Navigator.pop(context);
           },
@@ -249,6 +250,7 @@ class SettingsPage extends ConsumerWidget {
         content: RadioGroup<String>(
           groupValue: currentLocale.languageCode,
           onChanged: (value) {
+            if (value == null) return;
             ref.read(localeProvider.notifier).setLocale(value);
             Navigator.pop(context);
           },
