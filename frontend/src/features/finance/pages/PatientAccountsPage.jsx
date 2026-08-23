@@ -7,12 +7,14 @@ import {
     Eye,
     Plus,
 } from 'lucide-react';
+import { exportPatientAccounts } from '@/api/financials';
 import { usePatientAccounts } from '../patient-accounts/hooks/usePatientAccounts';
 import { useFinancePermissions } from '../useFinancePermissions';
 import MetricCard from '../components/MetricCard';
 import FilterBar from '../components/FilterBar';
 import DataTable from '../components/DataTable';
 import Money from '../components/Money';
+import ExportCsvButton from '../components/ExportCsvButton';
 import PatientStatementDrawer from '../patient-accounts/components/PatientStatementDrawer';
 import RecordPaymentModal from '../payments/components/RecordPaymentModal';
 
@@ -22,17 +24,18 @@ import RecordPaymentModal from '../payments/components/RecordPaymentModal';
  * reproduce the same patient account instead of relying on transient React state.
  */
 export default function PatientAccountsPage() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { patientId: routePatientId } = useParams();
     const location = useLocation();
     const navigate = useNavigate();
-    const { canWriteFinance } = useFinancePermissions();
+    const { canWriteFinance, canExportReports } = useFinancePermissions();
 
     const {
         items,
         totalCount,
         allTimeOutstanding,
         search,
+        fileNumber,
         from,
         to,
         outstandingOnly,
@@ -85,6 +88,18 @@ export default function PatientAccountsPage() {
             { pathname: baseRoute, search: location.search },
             { replace: true },
         );
+    };
+
+    const exportAccounts = () => {
+        const params = {
+            outstanding_only: outstandingOnly,
+            locale: i18n.language === 'ar' ? 'ar' : 'en',
+        };
+        if (fileNumber) params.patient_id = fileNumber;
+        else if (search?.trim()) params.search = search.trim();
+        if (from) params.start_date = from;
+        if (to) params.end_date = to;
+        return exportPatientAccounts(params);
     };
 
     const columns = [
@@ -232,30 +247,41 @@ export default function PatientAccountsPage() {
             </div>
 
             <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={() => updateFilter('all')}
-                        className={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${
-                            !outstandingOnly
-                                ? 'bg-primary text-white shadow-sm'
-                                : 'border border-border bg-card text-text-secondary hover:text-text-primary'
-                        }`}
-                    >
-                        {t('finance.receivables.filter_all', 'جميع الحسابات')}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => updateFilter('debtors')}
-                        className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
-                            outstandingOnly
-                                ? 'bg-amber-600 text-white shadow-sm'
-                                : 'border border-border bg-card text-text-secondary hover:text-text-primary'
-                        }`}
-                    >
-                        <AlertTriangle className="h-3.5 w-3.5" />
-                        <span>{t('finance.receivables.filter_debtors', 'المدينون فقط')}</span>
-                    </button>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => updateFilter('all')}
+                            className={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+                                !outstandingOnly
+                                    ? 'bg-primary text-white shadow-sm'
+                                    : 'border border-border bg-card text-text-secondary hover:text-text-primary'
+                            }`}
+                        >
+                            {t('finance.receivables.filter_all', 'جميع الحسابات')}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => updateFilter('debtors')}
+                            className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
+                                outstandingOnly
+                                    ? 'bg-amber-600 text-white shadow-sm'
+                                    : 'border border-border bg-card text-text-secondary hover:text-text-primary'
+                            }`}
+                        >
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            <span>{t('finance.receivables.filter_debtors', 'المدينون فقط')}</span>
+                        </button>
+                    </div>
+
+                    {canExportReports && (
+                        <ExportCsvButton
+                            onExport={exportAccounts}
+                            filename="finance-patient-accounts.csv"
+                            disabled={isLoading || isError || totalCount === 0}
+                            label={t('finance.reports.export_filtered_csv', 'تصدير النتائج المفلترة')}
+                        />
+                    )}
                 </div>
 
                 <FilterBar
