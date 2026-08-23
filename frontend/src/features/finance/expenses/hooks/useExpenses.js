@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { getExpenses, createExpense, deleteExpense } from '@/api/billing';
-import { getComprehensiveStats } from '@/api/financials';
+import { getFinanceSummary } from '@/api/financials';
 import { financeKeys } from '../../queryKeys';
 
 /**
@@ -20,7 +20,6 @@ export function useExpenses(pageSize = 25) {
 
     const skip = (currentPage - 1) * pageSize;
 
-    // 1. Paginated & Filtered Expenses Query
     const expensesQuery = useQuery({
         queryKey: financeKeys.expenses({ search, category, from, to, skip, limit: pageSize }),
         queryFn: async () => {
@@ -41,17 +40,19 @@ export function useExpenses(pageSize = 25) {
             return {
                 items: Array.isArray(data.items) ? data.items : [],
                 total: Number(data.total || 0),
+                source: data.source || 'manual_expense',
+                provenance: data.provenance || null,
             };
         },
         staleTime: 30 * 1000,
     });
 
-    // 2. Stats Query for Manual vs Lab Expenses Breakdown
+    // Summary cards are server-owned. Never sum the current page and present it
+    // as a clinic/period aggregate.
     const statsQuery = useQuery({
-        queryKey: financeKeys.overviewStats({ from, to }),
+        queryKey: financeKeys.summary({ from, to }),
         queryFn: async () => {
-            if (!from || !to) return null;
-            const res = await getComprehensiveStats(from, to);
+            const res = await getFinanceSummary(from, to);
             return res.data?.data || res.data;
         },
         enabled: Boolean(from && to),
@@ -62,15 +63,10 @@ export function useExpenses(pageSize = 25) {
     const totalItems = expensesQuery.data?.total || 0;
     const stats = statsQuery.data;
 
-    const manualExpensesTotal = stats
-        ? Number(stats?.deductions?.expenses || 0)
-        : items.reduce((sum, item) => sum + (Number(item.cost) || 0), 0);
-    const labExpensesTotal = Number(stats?.deductions?.lab_costs || 0);
-    const totalDeductions = stats
-        ? Number(stats?.deductions?.total_deductions || 0)
-        : (manualExpensesTotal + labExpensesTotal);
+    const manualExpensesTotal = Number(stats?.deductions?.expenses ?? 0);
+    const labExpensesTotal = Number(stats?.deductions?.lab_costs ?? 0);
+    const totalDeductions = Number(stats?.deductions?.total_deductions ?? 0);
 
-    // Helpers to update URL parameters
     const updateSearch = (newSearch) => {
         const params = new URLSearchParams(searchParams);
         if (newSearch) params.set('q', newSearch);
@@ -103,23 +99,21 @@ export function useExpenses(pageSize = 25) {
         setSearchParams(params);
     };
 
-    // FIN-EXP-008: Targeted React Query Invalidation
+    const invalidateExpenseTruth = () => {
+        queryClient.invalidateQueries({ queryKey: financeKeys.expensesRoot() });
+        queryClient.invalidateQueries({ queryKey: financeKeys.summaryRoot() });
+        queryClient.invalidateQueries({ queryKey: financeKeys.activityRoot() });
+        queryClient.invalidateQueries({ queryKey: financeKeys.reportsRoot() });
+    };
+
     const createMutation = useMutation({
         mutationFn: (data) => createExpense(data),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: financeKeys.expenses() });
-            queryClient.invalidateQueries({ queryKey: financeKeys.overview() });
-            queryClient.invalidateQueries({ queryKey: financeKeys.activity() });
-        },
+        onSuccess: invalidateExpenseTruth,
     });
 
     const deleteMutation = useMutation({
         mutationFn: (id) => deleteExpense(id),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: financeKeys.expenses() });
-            queryClient.invalidateQueries({ queryKey: financeKeys.overview() });
-            queryClient.invalidateQueries({ queryKey: financeKeys.activity() });
-        },
+        onSuccess: invalidateExpenseTruth,
     });
 
     return {
