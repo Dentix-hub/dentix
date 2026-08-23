@@ -12,8 +12,9 @@ import {
 import { useFinancePermissions } from '../useFinancePermissions';
 
 /**
- * Navigation Bar for Finance V2 (§4 MASTER_SPEC, GEMINI_REPAIR_PLAN R4).
- * Enforces granular RBAC visibility for each financial domain.
+ * Navigation Bar for Finance V2.
+ * Only the shared period contract follows users between Finance domains; local
+ * q/page/type/filter state never leaks into another destination.
  */
 export default function FinanceNav({ className = '' }) {
     const { t } = useTranslation();
@@ -28,6 +29,14 @@ export default function FinanceNav({ className = '' }) {
         canViewReports,
         isDoctor,
     } = useFinancePermissions();
+
+    const currentParams = new URLSearchParams(location.search);
+    const sharedPeriodParams = new URLSearchParams();
+    ['from', 'to', 'preset'].forEach((key) => {
+        const value = currentParams.get(key);
+        if (value) sharedPeriodParams.set(key, value);
+    });
+    const sharedSearch = sharedPeriodParams.toString();
 
     const navItems = [
         {
@@ -99,7 +108,10 @@ export default function FinanceNav({ className = '' }) {
                     return (
                         <NavLink
                             key={item.id}
-                            to={item.to}
+                            to={{
+                                pathname: item.to,
+                                search: sharedSearch ? `?${sharedSearch}` : '',
+                            }}
                             className={`inline-flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all duration-150 select-none sm:gap-2 sm:px-3.5 sm:text-sm ${
                                 isActive
                                     ? 'bg-primary text-white shadow-sm'

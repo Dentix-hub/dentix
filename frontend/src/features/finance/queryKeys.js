@@ -24,6 +24,12 @@ export const financeKeys = {
         patientId,
         filters,
     ],
+    patientStatement: (patientId, filters = {}) => [
+        ...financeKeys.receivablesRoot(),
+        'statement',
+        patientId,
+        filters,
+    ],
 
     // Payments
     paymentsRoot: () => [...financeKeys.all, 'payments'],

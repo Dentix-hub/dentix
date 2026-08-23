@@ -8,8 +8,9 @@ import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import { useFinancePermissions } from './useFinancePermissions';
 
 /**
- * Lightweight routed layout for Finance V2 with strict domain-level RBAC gating (§4 MASTER_SPEC, GEMINI_REPAIR_PLAN R4).
- * Renders persistent header and sub-navigation, delegating content to routed sub-pages.
+ * Routed layout for Finance V2 with domain-level RBAC and exactly one relevant
+ * time control. Some mature screens still own their local period picker; the
+ * shared header yields to those until the PR5 destination restructure.
  */
 export default function FinanceLayout() {
     const { t, i18n } = useTranslation();
@@ -27,6 +28,16 @@ export default function FinanceLayout() {
     } = useFinancePermissions();
 
     const path = location.pathname;
+    const reportType = new URLSearchParams(location.search).get('type');
+    const isPayrollRoute = path.startsWith('/finance/compensation/payroll');
+    const isProcedureMarginReport =
+        path.startsWith('/finance/reports') && reportType === 'profitability';
+    const routeOwnsLocalPeriodPicker =
+        path.startsWith('/finance/expenses') ||
+        path.startsWith('/finance/compensation/doctors');
+    const showDatePicker =
+        !isPayrollRoute && !isProcedureMarginReport && !routeOwnsLocalPeriodPicker;
+
     let isAuthorized = true;
     let fallbackPath = '/finance/overview';
 
@@ -58,7 +69,7 @@ export default function FinanceLayout() {
 
     return (
         <div className="flex min-h-[calc(100vh-4rem)] flex-col bg-background">
-            <FinanceHeader />
+            <FinanceHeader showDatePicker={showDatePicker} />
             <FinanceNav />
             <main className="mx-auto w-full max-w-7xl flex-1 p-3 sm:p-5 lg:p-8">
                 <Suspense

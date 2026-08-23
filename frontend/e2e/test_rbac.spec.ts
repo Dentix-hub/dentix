@@ -2,7 +2,6 @@ import { test, expect } from '@playwright/test';
 import { loginAs, E2E_CREDENTIALS } from './helpers.js';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173';
-
 const users = E2E_CREDENTIALS;
 
 async function loginAsRole(page, role) {
@@ -17,9 +16,11 @@ async function expectAdminRouteDenied(page, route) {
 }
 
 test.describe('RBAC - Role Based Access Control', () => {
-  test('RBAC-01: Doctor cannot access admin billing workspace', async ({ page }) => {
+  test('RBAC-01: Doctor legacy billing link reaches Finance but does not expose overview data', async ({ page }) => {
     await loginAsRole(page, 'doctor');
-    await expectAdminRouteDenied(page, '/billing');
+    await page.goto(`${BASE_URL}/billing`);
+    await expect(page).toHaveURL(/\/finance\/overview/);
+    await expect(page.getByText(/غير مصرح بالوصول إلى هذا القسم|not authorized/i)).toBeVisible({ timeout: 10000 });
   });
 
   test('RBAC-02: Doctor cannot access admin settings', async ({ page }) => {
@@ -27,9 +28,11 @@ test.describe('RBAC - Role Based Access Control', () => {
     await expectAdminRouteDenied(page, '/settings');
   });
 
-  test('RBAC-03: Accountant is denied billing by the current frontend route guard', async ({ page }) => {
+  test('RBAC-03: Accountant legacy billing link redirects to authorized Finance overview', async ({ page }) => {
     await loginAsRole(page, 'accountant');
-    await expectAdminRouteDenied(page, '/billing');
+    await page.goto(`${BASE_URL}/billing`);
+    await expect(page).toHaveURL(/\/finance\/overview/);
+    await expect(page).not.toHaveURL(/\/unauthorized/);
   });
 
   test('RBAC-04: Receptionist can access patients', async ({ page }) => {
@@ -46,13 +49,21 @@ test.describe('RBAC - Role Based Access Control', () => {
     await expect(page.locator('h1').first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('RBAC-06: Admin can access all admin-protected clinic routes', async ({ page }) => {
+  test('RBAC-06: Admin legacy finance links resolve to canonical protected routes', async ({ page }) => {
     await loginAsRole(page, 'admin');
 
-    const routes = ['/billing', '/expenses', '/labs', '/analytics', '/users', '/settings'];
-    for (const route of routes) {
+    const routes = [
+      ['/billing', /\/finance\/overview/],
+      ['/expenses', /\/finance\/expenses/],
+      ['/labs', /\/labs/],
+      ['/analytics', /\/analytics/],
+      ['/users', /\/users/],
+      ['/settings', /\/settings/],
+    ];
+
+    for (const [route, expectedUrl] of routes) {
       await page.goto(`${BASE_URL}${route}`);
-      await expect(page).toHaveURL(new RegExp(route.replace('/', '\\/')));
+      await expect(page).toHaveURL(expectedUrl);
       await expect(page).not.toHaveURL(/\/unauthorized/);
     }
   });

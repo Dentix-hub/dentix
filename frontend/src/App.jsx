@@ -25,7 +25,6 @@ const Appointments = lazy(() => import('./pages/Appointments'));
 const PatientDetails = lazy(() => import('./pages/PatientDetails'));
 const Login = lazy(() => import('./pages/Login'));
 const Settings = lazy(() => import('./pages/Settings'));
-const Expenses = lazy(() => import('./pages/Expenses'));
 const UsersManager = lazy(() => import('./pages/UsersManager'));
 const Labs = lazy(() => import('./pages/Labs'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
@@ -44,6 +43,7 @@ const Inventory = lazy(() => import('./pages/Inventory'));
 // Finance V2 Pages
 const FinanceLayout = lazy(() => import('@/features/finance/FinanceLayout'));
 import FinanceIndexRedirect from '@/features/finance/FinanceIndexRedirect';
+import LegacyFinanceRedirect from '@/features/finance/LegacyFinanceRedirect';
 const OverviewPage = lazy(() => import('@/features/finance/pages/OverviewPage'));
 const PatientAccountsPage = lazy(() => import('@/features/finance/pages/PatientAccountsPage'));
 const PaymentsPage = lazy(() => import('@/features/finance/pages/PaymentsPage'));
@@ -85,12 +85,11 @@ function AppRoutes() {
         }
     }, [location.pathname, isAuthenticated, isBooting]);
 
-    // Sync direction with language
     useEffect(() => {
         document.documentElement.dir = i18n.language === 'ar' ? 'rtl' : 'ltr';
         document.documentElement.lang = i18n.language;
     }, [i18n.language]);
-    // Initialize Theme
+
     useEffect(() => {
         const storedTheme = localStorage.getItem('theme');
         if (storedTheme === 'dark') {
@@ -99,9 +98,11 @@ function AppRoutes() {
             setDarkMode(false);
         }
     }, [setDarkMode]);
+
     if (isBooting) {
         return <LoadingSpinner />;
     }
+
     if (!isAuthenticated) {
         return (
             <>
@@ -122,6 +123,7 @@ function AppRoutes() {
             </>
         );
     }
+
     return (
         <ProceduresProvider>
             <>
@@ -129,10 +131,8 @@ function AppRoutes() {
                 <BackgroundWrapper />
                 <Suspense fallback={<LoadingSpinner />}>
                     <Routes>
-                        {/* Print Routes (No Layout) */}
                         <Route path="/print/invoice/:id" element={<PrintInvoice />} />
                         <Route path="/print/rx/:id" element={<PrintRx />} />
-                        {/* App Routes with Layout */}
                         <Route element={
                             <RootErrorBoundary fallback={<GlobalErrorFallback />}>
                                 <Layout />
@@ -143,11 +143,13 @@ function AppRoutes() {
                             <Route path="/patients/:id" element={<PatientDetails />} />
                             <Route path="/appointments" element={<Appointments />} />
                             <Route path="/inventory" element={<Inventory />} />
-                            {/* Legacy Billing Redirect (FIN-FND-002) */}
-                            <Route path="/billing" element={<Navigate to="/finance/overview" replace />} />
-                            <Route path="/billing/*" element={<Navigate to="/finance/overview" replace />} />
 
-                            {/* Finance V2 Module Route Tree (FIN-FND-001, GEMINI_REPAIR_PLAN R4) */}
+                            {/* Legacy Finance compatibility routes preserve URL context. */}
+                            <Route path="/billing" element={<LegacyFinanceRedirect to="/finance/overview" />} />
+                            <Route path="/billing/*" element={<LegacyFinanceRedirect to="/finance/overview" />} />
+                            <Route path="/expenses" element={<LegacyFinanceRedirect to="/finance/expenses" />} />
+                            <Route path="/expenses/*" element={<LegacyFinanceRedirect to="/finance/expenses" />} />
+
                             <Route
                                 path="/finance"
                                 element={
@@ -171,11 +173,7 @@ function AppRoutes() {
                                 <Route path="activity" element={<ActivityPage />} />
                                 <Route path="reports" element={<ReportsPage />} />
                             </Route>
-                            <Route path="/expenses" element={
-                                <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
-                                    <Expenses />
-                                </ProtectedRoute>
-                            } />
+
                             <Route path="/labs" element={
                                 <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
                                     <Labs />
@@ -206,7 +204,6 @@ function AppRoutes() {
                                     <InsuranceProviders />
                                 </ProtectedRoute>
                             } />
-                            {/* Super Admin Routes */}
                             <Route path="/admin" element={
                                 <ProtectedRoute allowedRoles={['super_admin']}>
                                     <AdminOverview />
@@ -259,6 +256,7 @@ function AppRoutes() {
         </ProceduresProvider>
     );
 }
+
 export default function App() {
     return (
         <RootErrorBoundary>
