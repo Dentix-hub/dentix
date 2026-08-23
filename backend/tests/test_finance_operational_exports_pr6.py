@@ -107,6 +107,8 @@ def test_patient_account_export_is_tenant_scoped_and_honors_file_filter(
         name="PR6 Export Patient",
         phone="01000009601",
         age=30,
+        medical_history="",
+        notes="",
         tenant_id=test_tenant.id,
         is_deleted=False,
     )
@@ -120,6 +122,8 @@ def test_patient_account_export_is_tenant_scoped_and_honors_file_filter(
         name="PR6 Other Patient",
         phone="01000009602",
         age=31,
+        medical_history="",
+        notes="",
         tenant_id=other_tenant.id,
         is_deleted=False,
     )
