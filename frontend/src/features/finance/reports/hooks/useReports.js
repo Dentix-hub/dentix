@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
-    getComprehensiveStats,
+    getFinanceSummary,
     getPatientsReport,
     getDoctorRevenue,
     getAllProceduresFinancials,
@@ -70,11 +70,11 @@ export function useReports() {
         setSearchParams(params);
     };
 
-    // 1. Summary Query
+    // 1. Summary Query — exactly the same server source and cache key as Overview.
     const summaryQuery = useQuery({
-        queryKey: financeKeys.reports('summary', { from, to }),
+        queryKey: financeKeys.summary({ from, to }),
         queryFn: async () => {
-            const res = await getComprehensiveStats(from, to);
+            const res = await getFinanceSummary(from, to);
             const raw = res.data?.data || res.data || {};
             return adaptComprehensiveStats(raw);
         },
@@ -141,7 +141,8 @@ export function useReports() {
         staleTime: 60 * 1000,
     });
 
-    // 5. Profitability Query
+    // 5. Procedure cost/margin analysis. This is not the deprecated
+    // /metrics/profitability headline source.
     const profitabilityQuery = useQuery({
         queryKey: financeKeys.reports('profitability', {}),
         queryFn: async () => {
@@ -153,7 +154,8 @@ export function useReports() {
         staleTime: 60 * 1000,
     });
 
-    // Export CSV Helper with UTF-8 BOM and ObjectURL revocation
+    // Export hardening/server export belongs to PR6. Keep current behavior here
+    // while PR3 is limited to truth contracts and cache identity.
     const exportToCsv = (filename, headers, rows) => {
         const csvRows = [];
         csvRows.push(headers.join(','));
