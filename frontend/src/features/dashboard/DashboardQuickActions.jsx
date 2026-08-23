@@ -34,7 +34,7 @@ const DashboardQuickActions = ({ onAddPatient }) => {
         {
             icon: Receipt,
             label: t('dashboard.actions.add_expense'),
-            onClick: () => navigate('/expenses'),
+            onClick: () => navigate('/finance/expenses'),
             colorClass: 'bg-gradient-to-br from-emerald-500 to-emerald-700'
         },
         {
