@@ -237,7 +237,7 @@ describe('Finance Reports & Insights', () => {
             });
         });
 
-        it('renders server comparison and withholds incomplete material margin instead of showing fake zero/100', async () => {
+        it('renders server comparison and withholds incomplete material margin without faking a 100% margin', async () => {
             renderReports();
 
             await waitFor(() => {
@@ -248,7 +248,14 @@ describe('Finance Reports & Insights', () => {
 
             expect(screen.getAllByText('غير متاح').length).toBeGreaterThan(0);
             expect(screen.getByText(/تم حجب الهامش بدل افتراض تكلفة صفرية/)).toBeDefined();
-            expect(screen.queryByText('100%')).toBeNull();
+
+            const unavailableRow = screen.getByText('زراعة سن').closest('tr') || screen.getByText('زراعة سن').closest('article');
+            expect(unavailableRow).not.toBeNull();
+            expect(unavailableRow.textContent).toContain('غير متاح');
+            expect(unavailableRow.textContent).not.toContain('100%');
+
+            // 100% coverage is valid for a complete row; the actual material margin is 83.3%.
+            expect(screen.getAllByText('100%').length).toBeGreaterThan(0);
             expect(screen.getAllByText('83.3%').length).toBeGreaterThan(0);
         });
 
