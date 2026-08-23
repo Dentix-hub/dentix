@@ -79,3 +79,22 @@ export const getFinanceProfitabilityTrend = (period = '30d', start = null, end =
 
 // Activity Feed (§17 MASTER_SPEC, FIN-ACT-001)
 export const getFinancialActivity = (params) => api.get('/api/v1/accounting/activity', { params });
+
+// PR6 server-backed analytical reports.
+export const getPeriodComparisonReport = (params) =>
+    api.get('/api/v1/accounting/reports/period-comparison', { params });
+
+export const exportPeriodComparisonReport = (params) =>
+    api.get('/api/v1/accounting/reports/period-comparison/export.csv', {
+        params,
+        responseType: 'blob',
+    });
+
+export const getMaterialMarginReport = (params) =>
+    api.get('/api/v1/financials/reports/material-margin', { params });
+
+export const exportMaterialMarginReport = (params) =>
+    api.get('/api/v1/financials/reports/material-margin/export.csv', {
+        params,
+        responseType: 'blob',
+    });
