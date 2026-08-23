@@ -1,8 +1,7 @@
-import { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Loader2 } from 'lucide-react';
+import DentixDialog from '@/shared/ui/DentixDialog';
 import Money from '../../components/Money';
-import useModalFocusManagement from '../../hooks/useModalFocusManagement';
 
 /**
  * Explicit confirmation modal for deleting an expense record.
@@ -16,44 +15,27 @@ export default function DeleteExpenseModal({
     isDeleting = false,
 }) {
     const { t } = useTranslation();
-    const titleId = useId();
-    const descriptionId = useId();
-    const dialogRef = useModalFocusManagement(Boolean(isOpen && expense), onClose);
-
-    if (!isOpen || !expense) return null;
 
     return (
-        <div
-            className="fixed inset-0 z-50 overflow-y-auto"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            aria-describedby={descriptionId}
+        <DentixDialog
+            open={Boolean(isOpen && expense)}
+            onOpenChange={(open) => {
+                if (!open) onClose?.();
+            }}
+            title={t('finance.expenses.delete_title', 'تأكيد حذف المصروف')}
+            size="md"
+            closeLabel={t('common.close', 'إغلاق')}
+            closeOnOutside={!isDeleting}
         >
-            <div
-                className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity duration-300"
-                onClick={onClose}
-                aria-hidden="true"
-            />
-
-            <div className="flex min-h-full items-center justify-center p-4">
-                <div
-                    ref={dialogRef}
-                    tabIndex={-1}
-                    className="relative w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden space-y-4 p-6 outline-none"
-                >
+            {expense && (
+                <div className="space-y-4">
                     <div className="flex items-center gap-3">
                         <div className="p-3 rounded-xl bg-destructive/10 text-destructive">
                             <AlertTriangle className="w-6 h-6" aria-hidden="true" />
                         </div>
-                        <div>
-                            <h3 id={titleId} className="text-base font-bold text-text-primary">
-                                {t('finance.expenses.delete_title', 'تأكيد حذف المصروف')}
-                            </h3>
-                            <p id={descriptionId} className="text-xs text-text-secondary">
-                                {t('finance.expenses.delete_sub', 'إلغاء قيد المصروف من السجلات المالية')}
-                            </p>
-                        </div>
+                        <p className="text-xs text-text-secondary">
+                            {t('finance.expenses.delete_sub', 'إلغاء قيد المصروف من السجلات المالية')}
+                        </p>
                     </div>
 
                     <div className="p-4 rounded-xl border border-destructive/20 bg-destructive/5 space-y-2.5 text-xs">
@@ -79,7 +61,8 @@ export default function DeleteExpenseModal({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 text-xs font-bold text-text-secondary hover:text-text-primary bg-card border border-border rounded-xl hover:bg-muted/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            disabled={isDeleting}
+                            className="px-4 py-2 text-xs font-bold text-text-secondary hover:text-text-primary bg-card border border-border rounded-xl hover:bg-muted/60 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         >
                             {t('common.cancel', 'إلغاء')}
                         </button>
@@ -100,7 +83,7 @@ export default function DeleteExpenseModal({
                         </button>
                     </div>
                 </div>
-            </div>
-        </div>
+            )}
+        </DentixDialog>
     );
 }
