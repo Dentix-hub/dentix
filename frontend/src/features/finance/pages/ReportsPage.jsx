@@ -1,172 +1,170 @@
+import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-    FileSpreadsheet,
-    TrendingUp,
-    DollarSign,
-    Receipt,
+    LayoutDashboard,
+    Users,
+    CreditCard,
     UserCheck,
-    Download,
+    LineChart,
+    ArrowLeft,
+    ArrowRight,
+    ShieldCheck,
 } from 'lucide-react';
-import { useReports } from '../reports/hooks/useReports';
-import FinancialSummaryReportView from '../reports/components/FinancialSummaryReportView';
-import CollectionsReportView from '../reports/components/CollectionsReportView';
-import ExpenseCategoryReportView from '../reports/components/ExpenseCategoryReportView';
-import ProviderReportView from '../reports/components/ProviderReportView';
-import ProcedureProfitabilityReportView from '../reports/components/ProcedureProfitabilityReportView';
+import { useFinancePermissions } from '../useFinancePermissions';
+
+function sharedPeriodSearch(search) {
+    const current = new URLSearchParams(search);
+    const next = new URLSearchParams();
+    ['from', 'to', 'preset'].forEach((key) => {
+        const value = current.get(key);
+        if (value) next.set(key, value);
+    });
+    return next.toString();
+}
 
 /**
- * Finance V2 Reports Workspace.
- * The Finance module header owns the single period control for period reports.
+ * Reports & Insights destination after PR5 information-architecture cleanup.
+ *
+ * Operational copies of Summary, Collections, Expenses and Providers were
+ * intentionally removed here. Those domains now have one live source/view.
+ * Server-backed comparative reports, hardened export and material-margin
+ * coverage metadata are added in PR6; this route must not recreate them in the
+ * browser while those contracts are incomplete.
  */
 export default function ReportsPage() {
-    const { t } = useTranslation();
-
+    const { t, i18n } = useTranslation();
+    const location = useLocation();
+    const isRtl = i18n.language === 'ar';
     const {
-        reportType,
-        summaryData,
-        collectionsData,
-        expensesData,
-        providersData,
-        profitabilityData,
-        isLoading,
-        isError,
-        refetch,
-        setReportType,
-        exportToCsv,
-    } = useReports();
+        canViewOverview,
+        canViewPatientAccounts,
+        canViewPayments,
+        canViewExpenses,
+        canViewActivity,
+        canViewPayroll,
+        isDoctor,
+    } = useFinancePermissions();
 
-    const reportTabs = [
-        { id: 'summary', label: t('finance.reports.tab_summary', 'الملخص المالي العام'), icon: TrendingUp },
-        { id: 'collections', label: t('finance.reports.tab_collections', 'التحصيلات والذمم'), icon: DollarSign },
-        { id: 'expenses', label: t('finance.reports.tab_expenses', 'المصروفات حسب البند'), icon: Receipt },
-        { id: 'providers', label: t('finance.reports.tab_providers', 'أداء الأطباء'), icon: UserCheck },
-        { id: 'profitability', label: t('finance.reports.tab_profitability', 'ربحية الإجراءات'), icon: FileSpreadsheet },
-    ];
+    const periodSearch = sharedPeriodSearch(location.search);
+    const withPeriod = (pathname) => ({
+        pathname,
+        search: periodSearch ? `?${periodSearch}` : '',
+    });
 
-    const handleExport = () => {
-        if (reportType === 'summary') {
-            const headers = ['البند', 'المبلغ (ج.م)'];
-            const rows = [
-                ['إجمالي الإنتاجية', summaryData.invoiced_revenue || 0],
-                ['إجمالي الخصومات', summaryData.total_discounts || 0],
-                ['صافي الإنتاجية', summaryData.net_production || 0],
-                ['المحصل النقدي', summaryData.collected_revenue || 0],
-                ['المصروفات التشغيلية', summaryData.manual_expenses || 0],
-                ['تكاليف المعامل', summaryData.lab_costs || 0],
-                ['مستحقات الأطباء', summaryData.doctor_dues || 0],
-                ['رواتب الموظفين', summaryData.staff_dues || 0],
-                ['إجمالي الاستقطاعات', summaryData.total_deductions || 0],
-                ['صافي الربح التشغيلي', summaryData.net_profit || 0],
-            ];
-            exportToCsv('Financial_Summary', headers, rows);
-        } else if (reportType === 'collections') {
-            const headers = ['المريض', 'رقم الهاتف', 'المحتسب للفترة', 'المحصل للفترة', 'فارق الفترة', 'إجمالي الدين المتراكم'];
-            const rows = (collectionsData.patients || []).map((patient) => [
-                patient.patient_name,
-                patient.patient_phone || '',
-                patient.invoiced_in_period || 0,
-                patient.paid_in_period || 0,
-                patient.period_balance || 0,
-                patient.all_time_outstanding || 0,
-            ]);
-            exportToCsv('Collections_Report', headers, rows);
-        } else if (reportType === 'expenses') {
-            const headers = ['بند المصروف', 'المبلغ', 'التاريخ', 'البيان'];
-            const rows = expensesData.map((expense) => [
-                expense.category || 'عام',
-                expense.amount || 0,
-                expense.date || '',
-                expense.notes || '',
-            ]);
-            exportToCsv('Expenses_Report', headers, rows);
-        } else if (reportType === 'providers') {
-            const headers = [
-                'الطبيب',
-                'عدد الحالات',
-                'الإنتاجية',
-                'المحصل',
-                'تكلفة المعمل',
-                'نسبة العمولة %',
-                'الراتب الثابت الشهري (قاعدة)',
-                'حصة الراتب للفترة',
-                'المستحق النهائي للفترة',
-            ];
-            const rows = providersData.map((doctor) => [
-                doctor.doctor_name,
-                doctor.treatments || 0,
-                doctor.revenue || 0,
-                doctor.collected || 0,
-                doctor.lab_cost || 0,
-                doctor.commission_percent || 0,
-                doctor.fixed_salary || 0,
-                doctor.fixed_salary_period || 0,
-                doctor.total_due || 0,
-            ]);
-            exportToCsv('Providers_Report', headers, rows);
-        } else if (reportType === 'profitability') {
-            const headers = ['الإجراء الطبي', 'سعر الخدمة', 'تكلفة المواد', 'هامش الربح', 'نسبة الهامش %'];
-            const rows = profitabilityData.map((procedure) => [
-                procedure.name || procedure.procedure_name,
-                procedure.price || procedure.base_price || 0,
-                procedure.material_cost || procedure.cost || 0,
-                procedure.profit_margin || 0,
-                procedure.margin_percent || procedure.profit_margin_percent || 0,
-            ]);
-            exportToCsv('Procedure_Profitability_Report', headers, rows);
-        }
-    };
+    const sources = [
+        {
+            id: 'overview',
+            title: t('finance.reports.source_overview', 'الملخص المالي المعتمد'),
+            description: t(
+                'finance.reports.source_overview_desc',
+                'المؤشرات المشتركة والنتيجة النقدية التشغيلية من مصدر الحقيقة المالي نفسه.',
+            ),
+            to: withPeriod('/finance/overview'),
+            icon: LayoutDashboard,
+            visible: canViewOverview,
+        },
+        {
+            id: 'receivables',
+            title: t('finance.reports.source_receivables', 'التحصيلات والذمم'),
+            description: t(
+                'finance.reports.source_receivables_desc',
+                'الذمم التاريخية وكشف حساب المريض من شاشة حسابات المرضى الأصلية.',
+            ),
+            to: withPeriod('/finance/patient-accounts'),
+            icon: Users,
+            visible: canViewPatientAccounts,
+        },
+        {
+            id: 'cash',
+            title: t('finance.reports.source_cash', 'الحركات النقدية'),
+            description: t(
+                'finance.reports.source_cash_desc',
+                'التحصيلات والمصروفات وسجل الحركة الموحد دون نسخة تقرير مكررة.',
+            ),
+            to: withPeriod('/finance/cash-movements'),
+            icon: CreditCard,
+            visible: canViewPayments || canViewExpenses || canViewActivity,
+        },
+        {
+            id: 'team',
+            title: t('finance.reports.source_team', 'الفريق والمستحقات'),
+            description: t(
+                'finance.reports.source_team_desc',
+                'مستحقات الأطباء والرواتب من العقود المعتمدة في شاشة الفريق.',
+            ),
+            to: withPeriod('/finance/team'),
+            icon: UserCheck,
+            visible: canViewPayroll || isDoctor,
+        },
+    ].filter((item) => item.visible);
+
+    const DirectionIcon = isRtl ? ArrowLeft : ArrowRight;
 
     return (
-        <div className="space-y-6">
-            <div className="flex flex-col items-stretch justify-between gap-4 lg:flex-row lg:items-center">
-                <div className="flex max-w-full items-center gap-1.5 overflow-x-auto pb-1">
-                    {reportTabs.map((tab) => {
-                        const Icon = tab.icon;
-                        const isActive = reportType === tab.id;
-                        return (
-                            <button
-                                key={tab.id}
-                                type="button"
-                                onClick={() => setReportType(tab.id)}
-                                className={`inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-xs font-bold transition-all sm:text-sm ${
-                                    isActive
-                                        ? 'bg-primary text-white shadow-sm'
-                                        : 'border border-border bg-card text-text-secondary hover:bg-muted/60 hover:text-text-primary'
-                                }`}
-                            >
-                                <Icon className="h-4 w-4" />
-                                <span>{tab.label}</span>
-                            </button>
-                        );
-                    })}
+        <div className="space-y-6" data-testid="reports-insights-hub">
+            <section className="space-y-2">
+                <div className="flex items-center gap-2 text-primary">
+                    <LineChart className="h-5 w-5" aria-hidden="true" />
+                    <h2 className="text-lg font-bold text-text-primary sm:text-xl">
+                        {t('finance.reports.insights_title', 'التقارير والرؤى')}
+                    </h2>
                 </div>
+                <p className="max-w-3xl text-sm leading-6 text-text-secondary">
+                    {t(
+                        'finance.reports.insights_desc',
+                        'تم توحيد التقارير التشغيلية مع صفحاتها الأصلية حتى لا توجد نسختان من نفس الرقم أو طلبات بيانات مكررة. استخدم المصادر أدناه للتحقيق التشغيلي.',
+                    )}
+                </p>
+            </section>
 
-                <button
-                    type="button"
-                    onClick={handleExport}
-                    className="inline-flex items-center gap-1.5 self-start rounded-xl border border-border bg-card px-3.5 py-2 text-xs font-bold text-text-primary shadow-xs transition-colors hover:bg-muted/60 sm:text-sm lg:self-auto"
-                    title={t('common.export_csv', 'تصدير كملف CSV')}
-                >
-                    <Download className="h-4 w-4 text-primary" />
-                    <span>{t('common.export', 'تصدير')}</span>
-                </button>
-            </div>
+            <section className="grid grid-cols-1 gap-4 md:grid-cols-2" aria-label={t('finance.reports.canonical_sources', 'مصادر البيانات المالية المعتمدة')}>
+                {sources.map((source) => {
+                    const Icon = source.icon;
+                    return (
+                        <Link
+                            key={source.id}
+                            to={source.to}
+                            className="group flex min-h-36 flex-col justify-between rounded-2xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-primary/30 hover:bg-muted/30"
+                        >
+                            <div className="space-y-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                                    <Icon className="h-5 w-5" aria-hidden="true" />
+                                </div>
+                                <div className="space-y-1">
+                                    <h3 className="text-sm font-bold text-text-primary">{source.title}</h3>
+                                    <p className="text-xs leading-5 text-text-secondary">{source.description}</p>
+                                </div>
+                            </div>
+                            <span className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-primary">
+                                {t('finance.reports.open_source', 'فتح المصدر')}
+                                <DirectionIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                            </span>
+                        </Link>
+                    );
+                })}
+            </section>
 
-            {reportType === 'summary' && (
-                <FinancialSummaryReportView data={summaryData} isLoading={isLoading} isError={isError} onRetry={refetch} />
-            )}
-            {reportType === 'collections' && (
-                <CollectionsReportView data={collectionsData} isLoading={isLoading} isError={isError} onRetry={refetch} />
-            )}
-            {reportType === 'expenses' && (
-                <ExpenseCategoryReportView data={expensesData} isLoading={isLoading} isError={isError} onRetry={refetch} />
-            )}
-            {reportType === 'providers' && (
-                <ProviderReportView data={providersData} isLoading={isLoading} isError={isError} onRetry={refetch} />
-            )}
-            {reportType === 'profitability' && (
-                <ProcedureProfitabilityReportView data={profitabilityData} isLoading={isLoading} isError={isError} onRetry={refetch} />
-            )}
+            <section
+                className="rounded-2xl border border-border bg-card p-5"
+                data-testid="advanced-insights-deferred"
+            >
+                <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <div className="space-y-1">
+                        <h3 className="text-sm font-bold text-text-primary">
+                            {t('finance.reports.verified_insights_only', 'الرؤى المتقدمة تظهر فقط بعقد موثوق')}
+                        </h3>
+                        <p className="text-xs leading-5 text-text-secondary">
+                            {t(
+                                'finance.reports.verified_insights_only_desc',
+                                'مقارنة الفترات والاتجاهات والتصدير وهامش المواد ستُبنى من تجميعات الخادم وبيانات coverage/confidence. لا يعرض Dentix هنا تقديرات ناقصة أو أصفارًا مصطنعة أثناء مرحلة الانتقال.',
+                            )}
+                        </p>
+                    </div>
+                </div>
+            </section>
         </div>
     );
 }
