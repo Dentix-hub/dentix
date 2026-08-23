@@ -12,7 +12,8 @@ part of 'prescription_entity.dart';
 T _$identity<T>(T value) => value;
 
 final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
+  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
+);
 
 /// @nodoc
 mixin _$PrescriptionEntity {
@@ -37,21 +38,23 @@ mixin _$PrescriptionEntity {
 /// @nodoc
 abstract class $PrescriptionEntityCopyWith<$Res> {
   factory $PrescriptionEntityCopyWith(
-          PrescriptionEntity value, $Res Function(PrescriptionEntity) then) =
-      _$PrescriptionEntityCopyWithImpl<$Res, PrescriptionEntity>;
+    PrescriptionEntity value,
+    $Res Function(PrescriptionEntity) then,
+  ) = _$PrescriptionEntityCopyWithImpl<$Res, PrescriptionEntity>;
   @useResult
-  $Res call(
-      {int id,
-      int patientId,
-      String? patientName,
-      int dentistId,
-      String? dentistName,
-      String prescriptionDate,
-      List<PrescribedMedicationEntity> medications,
-      String? notes,
-      String? status,
-      String? createdAt,
-      String? updatedAt});
+  $Res call({
+    int id,
+    int patientId,
+    String? patientName,
+    int dentistId,
+    String? dentistName,
+    String prescriptionDate,
+    List<PrescribedMedicationEntity> medications,
+    String? notes,
+    String? status,
+    String? createdAt,
+    String? updatedAt,
+  });
 }
 
 /// @nodoc
@@ -79,84 +82,90 @@ class _$PrescriptionEntityCopyWithImpl<$Res, $Val extends PrescriptionEntity>
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
-    return _then(_value.copyWith(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientId: null == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientName: freezed == patientName
-          ? _value.patientName
-          : patientName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      dentistId: null == dentistId
-          ? _value.dentistId
-          : dentistId // ignore: cast_nullable_to_non_nullable
-              as int,
-      dentistName: freezed == dentistName
-          ? _value.dentistName
-          : dentistName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      prescriptionDate: null == prescriptionDate
-          ? _value.prescriptionDate
-          : prescriptionDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      medications: null == medications
-          ? _value.medications
-          : medications // ignore: cast_nullable_to_non_nullable
-              as List<PrescribedMedicationEntity>,
-      notes: freezed == notes
-          ? _value.notes
-          : notes // ignore: cast_nullable_to_non_nullable
-              as String?,
-      status: freezed == status
-          ? _value.status
-          : status // ignore: cast_nullable_to_non_nullable
-              as String?,
-      createdAt: freezed == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-      updatedAt: freezed == updatedAt
-          ? _value.updatedAt
-          : updatedAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            patientId: null == patientId
+                ? _value.patientId
+                : patientId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            patientName: freezed == patientName
+                ? _value.patientName
+                : patientName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            dentistId: null == dentistId
+                ? _value.dentistId
+                : dentistId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            dentistName: freezed == dentistName
+                ? _value.dentistName
+                : dentistName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            prescriptionDate: null == prescriptionDate
+                ? _value.prescriptionDate
+                : prescriptionDate // ignore: cast_nullable_to_non_nullable
+                      as String,
+            medications: null == medications
+                ? _value.medications
+                : medications // ignore: cast_nullable_to_non_nullable
+                      as List<PrescribedMedicationEntity>,
+            notes: freezed == notes
+                ? _value.notes
+                : notes // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            status: freezed == status
+                ? _value.status
+                : status // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            createdAt: freezed == createdAt
+                ? _value.createdAt
+                : createdAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            updatedAt: freezed == updatedAt
+                ? _value.updatedAt
+                : updatedAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
   }
 }
 
 /// @nodoc
 abstract class _$$PrescriptionEntityImplCopyWith<$Res>
     implements $PrescriptionEntityCopyWith<$Res> {
-  factory _$$PrescriptionEntityImplCopyWith(_$PrescriptionEntityImpl value,
-          $Res Function(_$PrescriptionEntityImpl) then) =
-      __$$PrescriptionEntityImplCopyWithImpl<$Res>;
+  factory _$$PrescriptionEntityImplCopyWith(
+    _$PrescriptionEntityImpl value,
+    $Res Function(_$PrescriptionEntityImpl) then,
+  ) = __$$PrescriptionEntityImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {int id,
-      int patientId,
-      String? patientName,
-      int dentistId,
-      String? dentistName,
-      String prescriptionDate,
-      List<PrescribedMedicationEntity> medications,
-      String? notes,
-      String? status,
-      String? createdAt,
-      String? updatedAt});
+  $Res call({
+    int id,
+    int patientId,
+    String? patientName,
+    int dentistId,
+    String? dentistName,
+    String prescriptionDate,
+    List<PrescribedMedicationEntity> medications,
+    String? notes,
+    String? status,
+    String? createdAt,
+    String? updatedAt,
+  });
 }
 
 /// @nodoc
 class __$$PrescriptionEntityImplCopyWithImpl<$Res>
     extends _$PrescriptionEntityCopyWithImpl<$Res, _$PrescriptionEntityImpl>
     implements _$$PrescriptionEntityImplCopyWith<$Res> {
-  __$$PrescriptionEntityImplCopyWithImpl(_$PrescriptionEntityImpl _value,
-      $Res Function(_$PrescriptionEntityImpl) _then)
-      : super(_value, _then);
+  __$$PrescriptionEntityImplCopyWithImpl(
+    _$PrescriptionEntityImpl _value,
+    $Res Function(_$PrescriptionEntityImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -173,72 +182,74 @@ class __$$PrescriptionEntityImplCopyWithImpl<$Res>
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
-    return _then(_$PrescriptionEntityImpl(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientId: null == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientName: freezed == patientName
-          ? _value.patientName
-          : patientName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      dentistId: null == dentistId
-          ? _value.dentistId
-          : dentistId // ignore: cast_nullable_to_non_nullable
-              as int,
-      dentistName: freezed == dentistName
-          ? _value.dentistName
-          : dentistName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      prescriptionDate: null == prescriptionDate
-          ? _value.prescriptionDate
-          : prescriptionDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      medications: null == medications
-          ? _value._medications
-          : medications // ignore: cast_nullable_to_non_nullable
-              as List<PrescribedMedicationEntity>,
-      notes: freezed == notes
-          ? _value.notes
-          : notes // ignore: cast_nullable_to_non_nullable
-              as String?,
-      status: freezed == status
-          ? _value.status
-          : status // ignore: cast_nullable_to_non_nullable
-              as String?,
-      createdAt: freezed == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-      updatedAt: freezed == updatedAt
-          ? _value.updatedAt
-          : updatedAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ));
+    return _then(
+      _$PrescriptionEntityImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        patientId: null == patientId
+            ? _value.patientId
+            : patientId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        patientName: freezed == patientName
+            ? _value.patientName
+            : patientName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        dentistId: null == dentistId
+            ? _value.dentistId
+            : dentistId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        dentistName: freezed == dentistName
+            ? _value.dentistName
+            : dentistName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        prescriptionDate: null == prescriptionDate
+            ? _value.prescriptionDate
+            : prescriptionDate // ignore: cast_nullable_to_non_nullable
+                  as String,
+        medications: null == medications
+            ? _value._medications
+            : medications // ignore: cast_nullable_to_non_nullable
+                  as List<PrescribedMedicationEntity>,
+        notes: freezed == notes
+            ? _value.notes
+            : notes // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        status: freezed == status
+            ? _value.status
+            : status // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        createdAt: freezed == createdAt
+            ? _value.createdAt
+            : createdAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        updatedAt: freezed == updatedAt
+            ? _value.updatedAt
+            : updatedAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 
 class _$PrescriptionEntityImpl extends _PrescriptionEntity {
-  const _$PrescriptionEntityImpl(
-      {required this.id,
-      required this.patientId,
-      this.patientName,
-      required this.dentistId,
-      this.dentistName,
-      required this.prescriptionDate,
-      required final List<PrescribedMedicationEntity> medications,
-      this.notes,
-      this.status,
-      this.createdAt,
-      this.updatedAt})
-      : _medications = medications,
-        super._();
+  const _$PrescriptionEntityImpl({
+    required this.id,
+    required this.patientId,
+    this.patientName,
+    required this.dentistId,
+    this.dentistName,
+    required this.prescriptionDate,
+    required final List<PrescribedMedicationEntity> medications,
+    this.notes,
+    this.status,
+    this.createdAt,
+    this.updatedAt,
+  }) : _medications = medications,
+       super._();
 
   @override
   final int id;
@@ -290,8 +301,10 @@ class _$PrescriptionEntityImpl extends _PrescriptionEntity {
                 other.dentistName == dentistName) &&
             (identical(other.prescriptionDate, prescriptionDate) ||
                 other.prescriptionDate == prescriptionDate) &&
-            const DeepCollectionEquality()
-                .equals(other._medications, _medications) &&
+            const DeepCollectionEquality().equals(
+              other._medications,
+              _medications,
+            ) &&
             (identical(other.notes, notes) || other.notes == notes) &&
             (identical(other.status, status) || other.status == status) &&
             (identical(other.createdAt, createdAt) ||
@@ -302,40 +315,44 @@ class _$PrescriptionEntityImpl extends _PrescriptionEntity {
 
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      id,
-      patientId,
-      patientName,
-      dentistId,
-      dentistName,
-      prescriptionDate,
-      const DeepCollectionEquality().hash(_medications),
-      notes,
-      status,
-      createdAt,
-      updatedAt);
+    runtimeType,
+    id,
+    patientId,
+    patientName,
+    dentistId,
+    dentistName,
+    prescriptionDate,
+    const DeepCollectionEquality().hash(_medications),
+    notes,
+    status,
+    createdAt,
+    updatedAt,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$PrescriptionEntityImplCopyWith<_$PrescriptionEntityImpl> get copyWith =>
       __$$PrescriptionEntityImplCopyWithImpl<_$PrescriptionEntityImpl>(
-          this, _$identity);
+        this,
+        _$identity,
+      );
 }
 
 abstract class _PrescriptionEntity extends PrescriptionEntity {
-  const factory _PrescriptionEntity(
-      {required final int id,
-      required final int patientId,
-      final String? patientName,
-      required final int dentistId,
-      final String? dentistName,
-      required final String prescriptionDate,
-      required final List<PrescribedMedicationEntity> medications,
-      final String? notes,
-      final String? status,
-      final String? createdAt,
-      final String? updatedAt}) = _$PrescriptionEntityImpl;
+  const factory _PrescriptionEntity({
+    required final int id,
+    required final int patientId,
+    final String? patientName,
+    required final int dentistId,
+    final String? dentistName,
+    required final String prescriptionDate,
+    required final List<PrescribedMedicationEntity> medications,
+    final String? notes,
+    final String? status,
+    final String? createdAt,
+    final String? updatedAt,
+  }) = _$PrescriptionEntityImpl;
   const _PrescriptionEntity._() : super._();
 
   @override
@@ -378,29 +395,36 @@ mixin _$PrescribedMedicationEntity {
 
   @JsonKey(ignore: true)
   $PrescribedMedicationEntityCopyWith<PrescribedMedicationEntity>
-      get copyWith => throw _privateConstructorUsedError;
+  get copyWith => throw _privateConstructorUsedError;
 }
 
 /// @nodoc
 abstract class $PrescribedMedicationEntityCopyWith<$Res> {
-  factory $PrescribedMedicationEntityCopyWith(PrescribedMedicationEntity value,
-          $Res Function(PrescribedMedicationEntity) then) =
-      _$PrescribedMedicationEntityCopyWithImpl<$Res,
-          PrescribedMedicationEntity>;
+  factory $PrescribedMedicationEntityCopyWith(
+    PrescribedMedicationEntity value,
+    $Res Function(PrescribedMedicationEntity) then,
+  ) =
+      _$PrescribedMedicationEntityCopyWithImpl<
+        $Res,
+        PrescribedMedicationEntity
+      >;
   @useResult
-  $Res call(
-      {int id,
-      int medicationId,
-      String? medicationName,
-      String? dosage,
-      String? frequency,
-      String? duration,
-      String? instructions});
+  $Res call({
+    int id,
+    int medicationId,
+    String? medicationName,
+    String? dosage,
+    String? frequency,
+    String? duration,
+    String? instructions,
+  });
 }
 
 /// @nodoc
-class _$PrescribedMedicationEntityCopyWithImpl<$Res,
-        $Val extends PrescribedMedicationEntity>
+class _$PrescribedMedicationEntityCopyWithImpl<
+  $Res,
+  $Val extends PrescribedMedicationEntity
+>
     implements $PrescribedMedicationEntityCopyWith<$Res> {
   _$PrescribedMedicationEntityCopyWithImpl(this._value, this._then);
 
@@ -420,36 +444,39 @@ class _$PrescribedMedicationEntityCopyWithImpl<$Res,
     Object? duration = freezed,
     Object? instructions = freezed,
   }) {
-    return _then(_value.copyWith(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      medicationId: null == medicationId
-          ? _value.medicationId
-          : medicationId // ignore: cast_nullable_to_non_nullable
-              as int,
-      medicationName: freezed == medicationName
-          ? _value.medicationName
-          : medicationName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      dosage: freezed == dosage
-          ? _value.dosage
-          : dosage // ignore: cast_nullable_to_non_nullable
-              as String?,
-      frequency: freezed == frequency
-          ? _value.frequency
-          : frequency // ignore: cast_nullable_to_non_nullable
-              as String?,
-      duration: freezed == duration
-          ? _value.duration
-          : duration // ignore: cast_nullable_to_non_nullable
-              as String?,
-      instructions: freezed == instructions
-          ? _value.instructions
-          : instructions // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            medicationId: null == medicationId
+                ? _value.medicationId
+                : medicationId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            medicationName: freezed == medicationName
+                ? _value.medicationName
+                : medicationName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            dosage: freezed == dosage
+                ? _value.dosage
+                : dosage // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            frequency: freezed == frequency
+                ? _value.frequency
+                : frequency // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            duration: freezed == duration
+                ? _value.duration
+                : duration // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            instructions: freezed == instructions
+                ? _value.instructions
+                : instructions // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
   }
 }
 
@@ -457,30 +484,34 @@ class _$PrescribedMedicationEntityCopyWithImpl<$Res,
 abstract class _$$PrescribedMedicationEntityImplCopyWith<$Res>
     implements $PrescribedMedicationEntityCopyWith<$Res> {
   factory _$$PrescribedMedicationEntityImplCopyWith(
-          _$PrescribedMedicationEntityImpl value,
-          $Res Function(_$PrescribedMedicationEntityImpl) then) =
-      __$$PrescribedMedicationEntityImplCopyWithImpl<$Res>;
+    _$PrescribedMedicationEntityImpl value,
+    $Res Function(_$PrescribedMedicationEntityImpl) then,
+  ) = __$$PrescribedMedicationEntityImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {int id,
-      int medicationId,
-      String? medicationName,
-      String? dosage,
-      String? frequency,
-      String? duration,
-      String? instructions});
+  $Res call({
+    int id,
+    int medicationId,
+    String? medicationName,
+    String? dosage,
+    String? frequency,
+    String? duration,
+    String? instructions,
+  });
 }
 
 /// @nodoc
 class __$$PrescribedMedicationEntityImplCopyWithImpl<$Res>
-    extends _$PrescribedMedicationEntityCopyWithImpl<$Res,
-        _$PrescribedMedicationEntityImpl>
+    extends
+        _$PrescribedMedicationEntityCopyWithImpl<
+          $Res,
+          _$PrescribedMedicationEntityImpl
+        >
     implements _$$PrescribedMedicationEntityImplCopyWith<$Res> {
   __$$PrescribedMedicationEntityImplCopyWithImpl(
-      _$PrescribedMedicationEntityImpl _value,
-      $Res Function(_$PrescribedMedicationEntityImpl) _then)
-      : super(_value, _then);
+    _$PrescribedMedicationEntityImpl _value,
+    $Res Function(_$PrescribedMedicationEntityImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -493,51 +524,53 @@ class __$$PrescribedMedicationEntityImplCopyWithImpl<$Res>
     Object? duration = freezed,
     Object? instructions = freezed,
   }) {
-    return _then(_$PrescribedMedicationEntityImpl(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      medicationId: null == medicationId
-          ? _value.medicationId
-          : medicationId // ignore: cast_nullable_to_non_nullable
-              as int,
-      medicationName: freezed == medicationName
-          ? _value.medicationName
-          : medicationName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      dosage: freezed == dosage
-          ? _value.dosage
-          : dosage // ignore: cast_nullable_to_non_nullable
-              as String?,
-      frequency: freezed == frequency
-          ? _value.frequency
-          : frequency // ignore: cast_nullable_to_non_nullable
-              as String?,
-      duration: freezed == duration
-          ? _value.duration
-          : duration // ignore: cast_nullable_to_non_nullable
-              as String?,
-      instructions: freezed == instructions
-          ? _value.instructions
-          : instructions // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ));
+    return _then(
+      _$PrescribedMedicationEntityImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        medicationId: null == medicationId
+            ? _value.medicationId
+            : medicationId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        medicationName: freezed == medicationName
+            ? _value.medicationName
+            : medicationName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        dosage: freezed == dosage
+            ? _value.dosage
+            : dosage // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        frequency: freezed == frequency
+            ? _value.frequency
+            : frequency // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        duration: freezed == duration
+            ? _value.duration
+            : duration // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        instructions: freezed == instructions
+            ? _value.instructions
+            : instructions // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 
 class _$PrescribedMedicationEntityImpl extends _PrescribedMedicationEntity {
-  const _$PrescribedMedicationEntityImpl(
-      {required this.id,
-      required this.medicationId,
-      this.medicationName,
-      this.dosage,
-      this.frequency,
-      this.duration,
-      this.instructions})
-      : super._();
+  const _$PrescribedMedicationEntityImpl({
+    required this.id,
+    required this.medicationId,
+    this.medicationName,
+    this.dosage,
+    this.frequency,
+    this.duration,
+    this.instructions,
+  }) : super._();
 
   @override
   final int id;
@@ -579,26 +612,37 @@ class _$PrescribedMedicationEntityImpl extends _PrescribedMedicationEntity {
   }
 
   @override
-  int get hashCode => Object.hash(runtimeType, id, medicationId, medicationName,
-      dosage, frequency, duration, instructions);
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    medicationId,
+    medicationName,
+    dosage,
+    frequency,
+    duration,
+    instructions,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$PrescribedMedicationEntityImplCopyWith<_$PrescribedMedicationEntityImpl>
-      get copyWith => __$$PrescribedMedicationEntityImplCopyWithImpl<
-          _$PrescribedMedicationEntityImpl>(this, _$identity);
+  get copyWith =>
+      __$$PrescribedMedicationEntityImplCopyWithImpl<
+        _$PrescribedMedicationEntityImpl
+      >(this, _$identity);
 }
 
 abstract class _PrescribedMedicationEntity extends PrescribedMedicationEntity {
-  const factory _PrescribedMedicationEntity(
-      {required final int id,
-      required final int medicationId,
-      final String? medicationName,
-      final String? dosage,
-      final String? frequency,
-      final String? duration,
-      final String? instructions}) = _$PrescribedMedicationEntityImpl;
+  const factory _PrescribedMedicationEntity({
+    required final int id,
+    required final int medicationId,
+    final String? medicationName,
+    final String? dosage,
+    final String? frequency,
+    final String? duration,
+    final String? instructions,
+  }) = _$PrescribedMedicationEntityImpl;
   const _PrescribedMedicationEntity._() : super._();
 
   @override
@@ -618,7 +662,7 @@ abstract class _PrescribedMedicationEntity extends PrescribedMedicationEntity {
   @override
   @JsonKey(ignore: true)
   _$$PrescribedMedicationEntityImplCopyWith<_$PrescribedMedicationEntityImpl>
-      get copyWith => throw _privateConstructorUsedError;
+  get copyWith => throw _privateConstructorUsedError;
 }
 
 /// @nodoc
@@ -635,20 +679,24 @@ mixin _$PrescriptionListEntity {
 
 /// @nodoc
 abstract class $PrescriptionListEntityCopyWith<$Res> {
-  factory $PrescriptionListEntityCopyWith(PrescriptionListEntity value,
-          $Res Function(PrescriptionListEntity) then) =
-      _$PrescriptionListEntityCopyWithImpl<$Res, PrescriptionListEntity>;
+  factory $PrescriptionListEntityCopyWith(
+    PrescriptionListEntity value,
+    $Res Function(PrescriptionListEntity) then,
+  ) = _$PrescriptionListEntityCopyWithImpl<$Res, PrescriptionListEntity>;
   @useResult
-  $Res call(
-      {List<PrescriptionEntity> items,
-      int currentPage,
-      int totalPages,
-      int totalItems});
+  $Res call({
+    List<PrescriptionEntity> items,
+    int currentPage,
+    int totalPages,
+    int totalItems,
+  });
 }
 
 /// @nodoc
-class _$PrescriptionListEntityCopyWithImpl<$Res,
-        $Val extends PrescriptionListEntity>
+class _$PrescriptionListEntityCopyWithImpl<
+  $Res,
+  $Val extends PrescriptionListEntity
+>
     implements $PrescriptionListEntityCopyWith<$Res> {
   _$PrescriptionListEntityCopyWithImpl(this._value, this._then);
 
@@ -665,24 +713,27 @@ class _$PrescriptionListEntityCopyWithImpl<$Res,
     Object? totalPages = null,
     Object? totalItems = null,
   }) {
-    return _then(_value.copyWith(
-      items: null == items
-          ? _value.items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<PrescriptionEntity>,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalItems: null == totalItems
-          ? _value.totalItems
-          : totalItems // ignore: cast_nullable_to_non_nullable
-              as int,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            items: null == items
+                ? _value.items
+                : items // ignore: cast_nullable_to_non_nullable
+                      as List<PrescriptionEntity>,
+            currentPage: null == currentPage
+                ? _value.currentPage
+                : currentPage // ignore: cast_nullable_to_non_nullable
+                      as int,
+            totalPages: null == totalPages
+                ? _value.totalPages
+                : totalPages // ignore: cast_nullable_to_non_nullable
+                      as int,
+            totalItems: null == totalItems
+                ? _value.totalItems
+                : totalItems // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
   }
 }
 
@@ -690,27 +741,28 @@ class _$PrescriptionListEntityCopyWithImpl<$Res,
 abstract class _$$PrescriptionListEntityImplCopyWith<$Res>
     implements $PrescriptionListEntityCopyWith<$Res> {
   factory _$$PrescriptionListEntityImplCopyWith(
-          _$PrescriptionListEntityImpl value,
-          $Res Function(_$PrescriptionListEntityImpl) then) =
-      __$$PrescriptionListEntityImplCopyWithImpl<$Res>;
+    _$PrescriptionListEntityImpl value,
+    $Res Function(_$PrescriptionListEntityImpl) then,
+  ) = __$$PrescriptionListEntityImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {List<PrescriptionEntity> items,
-      int currentPage,
-      int totalPages,
-      int totalItems});
+  $Res call({
+    List<PrescriptionEntity> items,
+    int currentPage,
+    int totalPages,
+    int totalItems,
+  });
 }
 
 /// @nodoc
 class __$$PrescriptionListEntityImplCopyWithImpl<$Res>
-    extends _$PrescriptionListEntityCopyWithImpl<$Res,
-        _$PrescriptionListEntityImpl>
+    extends
+        _$PrescriptionListEntityCopyWithImpl<$Res, _$PrescriptionListEntityImpl>
     implements _$$PrescriptionListEntityImplCopyWith<$Res> {
   __$$PrescriptionListEntityImplCopyWithImpl(
-      _$PrescriptionListEntityImpl _value,
-      $Res Function(_$PrescriptionListEntityImpl) _then)
-      : super(_value, _then);
+    _$PrescriptionListEntityImpl _value,
+    $Res Function(_$PrescriptionListEntityImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -720,37 +772,39 @@ class __$$PrescriptionListEntityImplCopyWithImpl<$Res>
     Object? totalPages = null,
     Object? totalItems = null,
   }) {
-    return _then(_$PrescriptionListEntityImpl(
-      items: null == items
-          ? _value._items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<PrescriptionEntity>,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalItems: null == totalItems
-          ? _value.totalItems
-          : totalItems // ignore: cast_nullable_to_non_nullable
-              as int,
-    ));
+    return _then(
+      _$PrescriptionListEntityImpl(
+        items: null == items
+            ? _value._items
+            : items // ignore: cast_nullable_to_non_nullable
+                  as List<PrescriptionEntity>,
+        currentPage: null == currentPage
+            ? _value.currentPage
+            : currentPage // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalPages: null == totalPages
+            ? _value.totalPages
+            : totalPages // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalItems: null == totalItems
+            ? _value.totalItems
+            : totalItems // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
   }
 }
 
 /// @nodoc
 
 class _$PrescriptionListEntityImpl extends _PrescriptionListEntity {
-  const _$PrescriptionListEntityImpl(
-      {required final List<PrescriptionEntity> items,
-      required this.currentPage,
-      required this.totalPages,
-      required this.totalItems})
-      : _items = items,
-        super._();
+  const _$PrescriptionListEntityImpl({
+    required final List<PrescriptionEntity> items,
+    required this.currentPage,
+    required this.totalPages,
+    required this.totalItems,
+  }) : _items = items,
+       super._();
 
   final List<PrescriptionEntity> _items;
   @override
@@ -788,26 +842,31 @@ class _$PrescriptionListEntityImpl extends _PrescriptionListEntity {
 
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      const DeepCollectionEquality().hash(_items),
-      currentPage,
-      totalPages,
-      totalItems);
+    runtimeType,
+    const DeepCollectionEquality().hash(_items),
+    currentPage,
+    totalPages,
+    totalItems,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$PrescriptionListEntityImplCopyWith<_$PrescriptionListEntityImpl>
-      get copyWith => __$$PrescriptionListEntityImplCopyWithImpl<
-          _$PrescriptionListEntityImpl>(this, _$identity);
+  get copyWith =>
+      __$$PrescriptionListEntityImplCopyWithImpl<_$PrescriptionListEntityImpl>(
+        this,
+        _$identity,
+      );
 }
 
 abstract class _PrescriptionListEntity extends PrescriptionListEntity {
-  const factory _PrescriptionListEntity(
-      {required final List<PrescriptionEntity> items,
-      required final int currentPage,
-      required final int totalPages,
-      required final int totalItems}) = _$PrescriptionListEntityImpl;
+  const factory _PrescriptionListEntity({
+    required final List<PrescriptionEntity> items,
+    required final int currentPage,
+    required final int totalPages,
+    required final int totalItems,
+  }) = _$PrescriptionListEntityImpl;
   const _PrescriptionListEntity._() : super._();
 
   @override
@@ -821,5 +880,5 @@ abstract class _PrescriptionListEntity extends PrescriptionListEntity {
   @override
   @JsonKey(ignore: true)
   _$$PrescriptionListEntityImplCopyWith<_$PrescriptionListEntityImpl>
-      get copyWith => throw _privateConstructorUsedError;
+  get copyWith => throw _privateConstructorUsedError;
 }

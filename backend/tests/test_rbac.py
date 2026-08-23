@@ -46,13 +46,35 @@ class TestPermissionMatrix:
         assert has_permission("receptionist", Permission.APPOINTMENT_CANCEL)
         assert has_permission("receptionist", Permission.CLINICAL_READ)
 
-    def test_receptionist_can_collect_payments(self):
-        """Receptionists should be able to collect payments."""
-        assert has_permission("receptionist", Permission.FINANCIAL_WRITE)
+    def test_receptionist_can_collect_payments_and_read_receivables(self):
+        """Receptionists can collect cash and inspect patient receivables only."""
+        assert has_permission("receptionist", Permission.PAYMENT_CREATE)
+        assert has_permission("receptionist", Permission.RECEIVABLE_READ)
+        assert not has_permission("receptionist", Permission.FINANCIAL_READ)
+        assert not has_permission("receptionist", Permission.FINANCIAL_WRITE)
+
+    def test_receptionist_cannot_access_sensitive_finance_domains(self):
+        """Clinic-wide financial data must not be reachable by reception."""
+        denied = (
+            Permission.FINANCE_OVERVIEW_READ,
+            Permission.PAYMENT_READ,
+            Permission.PAYMENT_VOID,
+            Permission.EXPENSE_READ,
+            Permission.EXPENSE_MANAGE,
+            Permission.PAYROLL_READ,
+            Permission.PAYROLL_MANAGE,
+            Permission.COMPENSATION_READ,
+            Permission.REPORT_READ,
+            Permission.REPORT_EXPORT,
+        )
+        for permission in denied:
+            assert not has_permission("receptionist", permission), permission.value
 
     def test_nurse_cannot_write_financials(self):
-        """Nurses should NOT have FINANCIAL_WRITE."""
+        """Nurses should NOT have legacy or granular financial write access."""
         assert not has_permission("nurse", Permission.FINANCIAL_WRITE)
+        assert not has_permission("nurse", Permission.PAYMENT_CREATE)
+        assert not has_permission("nurse", Permission.EXPENSE_MANAGE)
 
     def test_nurse_can_read_clinical(self):
         """Nurses can read and write clinical data."""
@@ -63,10 +85,22 @@ class TestPermissionMatrix:
         """Accountants should NOT have CLINICAL_WRITE."""
         assert not has_permission("accountant", Permission.CLINICAL_WRITE)
 
-    def test_accountant_can_manage_financials(self):
-        """Accountants should have FINANCIAL_READ and FINANCIAL_WRITE."""
+    def test_accountant_finance_scope(self):
+        """Accountants can operate finance but cannot mutate payroll by default."""
         assert has_permission("accountant", Permission.FINANCIAL_READ)
         assert has_permission("accountant", Permission.FINANCIAL_WRITE)
+        assert has_permission("accountant", Permission.FINANCE_OVERVIEW_READ)
+        assert has_permission("accountant", Permission.RECEIVABLE_READ)
+        assert has_permission("accountant", Permission.PAYMENT_READ)
+        assert has_permission("accountant", Permission.PAYMENT_CREATE)
+        assert has_permission("accountant", Permission.PAYMENT_VOID)
+        assert has_permission("accountant", Permission.EXPENSE_READ)
+        assert has_permission("accountant", Permission.EXPENSE_MANAGE)
+        assert has_permission("accountant", Permission.PAYROLL_READ)
+        assert not has_permission("accountant", Permission.PAYROLL_MANAGE)
+        assert has_permission("accountant", Permission.COMPENSATION_READ)
+        assert has_permission("accountant", Permission.REPORT_READ)
+        assert has_permission("accountant", Permission.REPORT_EXPORT)
         assert has_permission("accountant", Permission.CLINICAL_READ)
 
     def test_manager_can_read_clinical(self):

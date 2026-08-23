@@ -14,6 +14,8 @@ export default function AuthProvider({ children }) {
     const clearAuth = useAuthStore((state) => state.clearAuth);
 
     const clearLocalSession = useCallback(() => {
+        // Purge any PHI cached for print flows before the session ends.
+        sessionStorage.removeItem('print_rx_data');
         clearAuth();
         useTenantStore.getState().clearTenant();
     }, [clearAuth]);

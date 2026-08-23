@@ -1,0 +1,170 @@
+"""Audited identity-bootstrap lookups for authentication (HIGH-RLS-01).
+
+FORCE RLS on ``users`` correctly hides every row from a session without a
+tenant binding. That is the desired default — but three flows must resolve a
+user row *before* any tenant can be bound:
+
+1. Credential verification at login (no token exists yet).
+2. Refresh-token exchange (the JWT is being re-established).
+3. Super-admin / contextless requests resolving their own identity.
+
+``lookup_user_for_authentication`` performs this narrow lookup inside an
+explicit, short-lived ``bypass_rls()`` scope, RE-BINDS the request session to
+the resolved tenant, then audits the bootstrap lookup. Every later statement
+— including login's writes to ``users`` — therefore runs with a real tenant
+identity under FORCE RLS. It MUST NOT be used for general data access; regular
+per-request reads stay fully tenant-scoped.
+
+Super-admin identities carry no tenant; their bootstrap audit and the few
+bookkeeping writes their login performs use narrow explicit bypass scopes.
+"""
+
+import logging
+from contextlib import asynccontextmanager
+
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .. import models
+from ..utils.audit_logger import log_admin_action
+
+logger = logging.getLogger("smart_clinic.auth")
+
+# Reasons are fixed tokens so audit queries stay predictable.
+REASON_LOGIN = "login_credential_lookup"
+REASON_REFRESH = "refresh_token_exchange"
+REASON_SESSION_RESOLVE = "session_identity_resolution"
+
+SUPER_ADMIN_ROLE = "super_admin"
+
+
+async def lookup_user_for_authentication(
+    db: AsyncSession,
+    username: str,
+    reason: str,
+) -> models.User | None:
+    """Resolve one user row for credential/JWT verification."""
+    if hasattr(db, "bypass_rls"):
+        # Real request path: CustomAsyncRlsSession with explicit bypass scope.
+        async with db.bypass_rls():
+            result = await db.execute(_identity_stmt(username))
+            user = result.scalars().first()
+            # Snapshot primitives while the row is guaranteed loaded. A failed
+            # audit commit requires rollback(), which expires ORM instances.
+            user_id = user.id if user is not None else None
+            tenant_id = user.tenant_id if user is not None else None
+
+        if tenant_id is not None:
+            _bind_tenant(db, tenant_id)
+
+        audit_ok = await _audit_bootstrap(
+            db,
+            user_id=user_id,
+            tenant_id=tenant_id,
+            username=username,
+            reason=reason,
+        )
+
+        # commit()/rollback() ends the transaction and PostgreSQL SET LOCAL
+        # state. Mark the tenant binding dirty again so the next statement
+        # re-emits it for the next transaction.
+        if tenant_id is not None:
+            _bind_tenant(db, tenant_id)
+
+        if not audit_ok and user is not None:
+            # rollback() expires the resolved ORM row. Re-resolve it inside the
+            # correct scope so best-effort audit failure cannot break auth.
+            if tenant_id is None:
+                async with db.bypass_rls():
+                    result = await db.execute(_identity_stmt(username))
+                    user = result.scalars().first()
+            else:
+                result = await db.execute(_identity_stmt(username))
+                user = result.scalars().first()
+    else:
+        # Plain AsyncSession (SQLite test overrides): there is no RLS layer to
+        # bypass; run directly so behavior matches legacy lookups.
+        result = await db.execute(_identity_stmt(username))
+        user = result.scalars().first()
+
+    return user
+
+
+def _bind_tenant(db: AsyncSession, tenant_id: int) -> None:
+    """Bind both SQLAlchemy RLS state and request-local tenant state."""
+    from backend.core.tenancy import set_current_tenant_id
+    from backend.database import rebind_session_tenant
+
+    rebind_session_tenant(db, tenant_id)
+    set_current_tenant_id(tenant_id)
+
+
+def _identity_stmt(username: str):
+    return (
+        select(models.User)
+        .where(models.User.username == username)
+        # Login/refresh touch user.tenant right after resolution; eager
+        # load so no lazy IO happens outside the bootstrap scope.
+        .options(joinedload(models.User.tenant))
+    )
+
+
+async def _audit_bootstrap(
+    db: AsyncSession,
+    *,
+    user_id: int | None,
+    tenant_id: int | None,
+    username: str,
+    reason: str,
+) -> bool:
+    """Persist one bootstrap audit entry without making auth depend on it."""
+
+    async def _write() -> None:
+        log_admin_action(
+            db=db,
+            admin_user=None,
+            action="auth_bootstrap",
+            entity_type="user",
+            entity_id=user_id,
+            tenant_id=tenant_id,
+            details=f"reason={reason} target_username={username} found={user_id is not None}",
+        )
+        await db.commit()
+
+    try:
+        # Tenant users are already bound before this call. Contextless misses
+        # and super-admin identities have no tenant capable of satisfying the
+        # audit_logs policy, so their audit write needs the same narrow,
+        # explicit maintenance scope as the bootstrap identity lookup.
+        if tenant_id is None and hasattr(db, "bypass_rls"):
+            async with db.bypass_rls():
+                await _write()
+        else:
+            await _write()
+        return True
+    except Exception:
+        # Auditing must never break authentication itself, but failures are
+        # security-relevant and must be visible in logs.
+        logger.exception("auth_bootstrap audit write failed")
+        await db.rollback()
+        return False
+
+
+@asynccontextmanager
+async def post_auth_write_scope(db: AsyncSession, user: models.User | None):
+    """Scope for post-authentication writes to the ``users`` row.
+
+    - Staff identity: the session was already re-bound to its tenant by the
+      bootstrap lookup, so writes run normally under FORCE RLS.
+    - Super-admin identity (no tenant exists): the write runs inside an
+      explicit bypass scope — the same audited escape hatch used for
+      maintenance operations — because no tenant can ever satisfy the policy.
+    """
+    if user is not None and getattr(user, "role", "") == SUPER_ADMIN_ROLE:
+        if hasattr(db, "bypass_rls"):
+            async with db.bypass_rls() as scoped:
+                yield scoped
+            return
+        # Plain session (no RLS capability): yield as-is.
+    yield db

@@ -127,3 +127,75 @@ class TestHealthChecks:
         data = response.json()
         assert data["status"] == "ready"
         assert "checks" in data
+
+
+# ============================================
+# LOG SECRET SCRUBBING TESTS (CRITICAL-01)
+# ============================================
+
+
+class TestLogSecretScrubbing:
+    """Session credentials must never survive into log output."""
+
+    FAKE_BEARER = "Bearer eyJhbGciOiJIUzI1NiJ9.fake-payload-signature"
+    FAKE_COOKIE = (
+        "cookie: session=abc123def456; access_token=tok_9f8e7d6c5b4a"
+    )
+    FAKE_TOKEN_PARAM = "token=super-secret-refresh-value"
+
+    def _formatted_outputs(self, message: str):
+        import logging
+
+        from backend.core.logging import DevFormatter, StructuredFormatter
+
+        record = logging.LogRecord(
+            name="test", level=logging.ERROR, pathname=__file__,
+            lineno=1, msg=message, args=None, exc_info=None,
+        )
+        return StructuredFormatter().format(record), DevFormatter().format(record)
+
+    def test_scrub_phi_redacts_bearer_tokens(self):
+        from backend.core.logging import _scrub_phi
+
+        scrubbed = _scrub_phi(f"Authorization: {self.FAKE_BEARER}")
+        assert self.FAKE_BEARER not in scrubbed
+        assert "fake-payload-signature" not in scrubbed
+        assert "TOKEN_REDACTED" in scrubbed
+
+    def test_scrub_phi_redacts_cookies_and_token_params(self):
+        from backend.core.logging import _scrub_phi
+
+        scrubbed = _scrub_phi(f"{self.FAKE_COOKIE} {self.FAKE_TOKEN_PARAM}")
+        assert "abc123def456" not in scrubbed
+        assert "tok_9f8e7d6c5b4a" not in scrubbed
+        assert "super-secret-refresh-value" not in scrubbed
+
+    def test_structured_formatter_never_leaks_credentials(self):
+        structured, dev = self._formatted_outputs(
+            f"405 debug dump Authorization={self.FAKE_BEARER}; "
+            f"{self.FAKE_COOKIE}; refresh_token=rt_1234567890abcdef"
+        )
+        for output in (structured, dev):
+            assert "fake-payload-signature" not in output
+            assert "abc123def456" not in output
+            assert "rt_1234567890abcdef" not in output
+
+    def test_sanitize_headers_redacts_sensitive_names(self):
+        from backend.core.logging import sanitize_headers
+
+        headers = {
+            "Authorization": self.FAKE_BEARER,
+            "Cookie": "session=abc123def456",
+            "Set-Cookie": "refresh_token=xyz789; HttpOnly",
+            "X-Api-Key": "ak_live_deadbeef",
+            "Content-Type": "application/json",
+        }
+        safe = sanitize_headers(headers)
+
+        assert safe["Authorization"] == "[REDACTED]"
+        assert safe["Cookie"] == "[REDACTED]"
+        assert safe["Set-Cookie"] == "[REDACTED]"
+        assert safe["X-Api-Key"] == "[REDACTED]"
+        assert safe["Content-Type"] == "application/json"
+        # Original mapping untouched
+        assert headers["Cookie"] == "session=abc123def456"

@@ -47,3 +47,15 @@ NonNegativeUnitMoney = Annotated[
     Field(ge=0, max_digits=18, decimal_places=6),
     _json_number,
 ]
+
+
+def money_json_default(value):
+    """``json.dumps(default=...)`` handler that renders Decimal as JSON number.
+
+    PostgreSQL ``Numeric`` columns return ``Decimal``; financial snapshots
+    serialized with plain ``json.dumps`` raise ``TypeError``. This keeps the
+    established numeric (float) representation used by existing consumers.
+    """
+    if isinstance(value, Decimal):
+        return float(quantize_money(value))
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")

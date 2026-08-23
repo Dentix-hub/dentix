@@ -1,0 +1,66 @@
+name: Mobile CI (Flutter)
+
+on:
+  push:
+    branches: [ main, staging ]
+    paths:
+      - 'dentix_mobile/**'
+      - '.github/workflows/mobile.yml'
+  pull_request:
+    branches: [ main, staging ]
+    paths:
+      - 'dentix_mobile/**'
+      - '.github/workflows/mobile.yml'
+
+concurrency:
+  group: dentix-mobile-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  flutter-analyze-test:
+    name: Flutter Analyze + Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    defaults:
+      run:
+        working-directory: dentix_mobile
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java for Android builds
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Print Flutter version
+        run: flutter --version
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Verify Dart formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Static analysis
+        run: flutter analyze --fatal-infos
+
+      - name: Run unit and widget tests
+        run: flutter test --reporter expanded
+
+      - name: Build debug APK (smoke)
+        env:
+          DENTIX_API_BASE_URL: https://dentix-dentix-staging.hf.space
+        run: flutter build apk --debug --dart-define=DENTIX_API_BASE_URL=$DENTIX_API_BASE_URL

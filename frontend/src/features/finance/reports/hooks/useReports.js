@@ -1,7 +1,8 @@
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
-    getComprehensiveStats,
+    getFinanceSummary,
     getPatientsReport,
     getDoctorRevenue,
     getAllProceduresFinancials,
@@ -18,6 +19,7 @@ import {
 } from '../utils/reportAdapters';
 
 const REPORT_PAGE_SIZE = 200;
+export const REPORT_TYPES = ['summary', 'collections', 'expenses', 'providers', 'profitability'];
 
 async function fetchAllPages(fetchPage, extractPayload) {
     const firstResponse = await fetchPage(0);
@@ -37,7 +39,9 @@ async function fetchAllPages(fetchPage, extractPayload) {
 }
 
 /**
- * Hook for managing Finance V2 Reports workspace (§18 MASTER_SPEC, GEMINI_REPAIR_PLAN R1).
+ * Hook for managing Finance V2 Reports workspace.
+ * PR4 owns URL correctness only; server report pagination/export hardening is
+ * deliberately deferred to PR6.
  */
 export function useReports() {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -45,8 +49,18 @@ export function useReports() {
     const defaultDates = getPresetDates('this_month');
     const from = searchParams.get('from') || defaultDates.from;
     const to = searchParams.get('to') || defaultDates.to;
-    const reportType = searchParams.get('type') || 'summary';
+    const requestedReportType = searchParams.get('type');
+    const reportType = REPORT_TYPES.includes(requestedReportType)
+        ? requestedReportType
+        : 'summary';
     const search = searchParams.get('q') || '';
+
+    useEffect(() => {
+        if (!requestedReportType || REPORT_TYPES.includes(requestedReportType)) return;
+        const params = new URLSearchParams(searchParams);
+        params.set('type', 'summary');
+        setSearchParams(params, { replace: true });
+    }, [requestedReportType, searchParams, setSearchParams]);
 
     const updateDateRange = ({ from: newFrom, to: newTo }) => {
         const params = new URLSearchParams(searchParams);
@@ -54,12 +68,14 @@ export function useReports() {
         else params.delete('from');
         if (newTo) params.set('to', newTo);
         else params.delete('to');
+        params.delete('page');
         setSearchParams(params);
     };
 
     const setReportType = (newType) => {
         const params = new URLSearchParams(searchParams);
-        params.set('type', newType);
+        params.set('type', REPORT_TYPES.includes(newType) ? newType : 'summary');
+        params.delete('page');
         setSearchParams(params);
     };
 
@@ -67,22 +83,20 @@ export function useReports() {
         const params = new URLSearchParams(searchParams);
         if (newSearch) params.set('q', newSearch);
         else params.delete('q');
+        params.delete('page');
         setSearchParams(params);
     };
 
-    // 1. Summary Query
     const summaryQuery = useQuery({
-        queryKey: financeKeys.reports('summary', { from, to }),
+        queryKey: financeKeys.summary({ from, to }),
         queryFn: async () => {
-            const res = await getComprehensiveStats(from, to);
-            const raw = res.data?.data || res.data || {};
-            return adaptComprehensiveStats(raw);
+            const res = await getFinanceSummary(from, to);
+            return res.data?.data || res.data || {};
         },
         enabled: reportType === 'summary' && Boolean(from && to),
         staleTime: 60 * 1000,
     });
 
-    // 2. Collections Query
     const collectionsQuery = useQuery({
         queryKey: financeKeys.reports('collections', { from, to, search }),
         queryFn: async () => {
@@ -105,7 +119,6 @@ export function useReports() {
         staleTime: 60 * 1000,
     });
 
-    // 3. Expenses Query
     const expensesQuery = useQuery({
         queryKey: financeKeys.reports('expenses', { from, to }),
         queryFn: async () => {
@@ -129,7 +142,6 @@ export function useReports() {
         staleTime: 60 * 1000,
     });
 
-    // 4. Providers Query
     const providersQuery = useQuery({
         queryKey: financeKeys.reports('providers', { from, to }),
         queryFn: async () => {
@@ -141,7 +153,6 @@ export function useReports() {
         staleTime: 60 * 1000,
     });
 
-    // 5. Profitability Query
     const profitabilityQuery = useQuery({
         queryKey: financeKeys.reports('profitability', {}),
         queryFn: async () => {
@@ -153,7 +164,6 @@ export function useReports() {
         staleTime: 60 * 1000,
     });
 
-    // Export CSV Helper with UTF-8 BOM and ObjectURL revocation
     const exportToCsv = (filename, headers, rows) => {
         const csvRows = [];
         csvRows.push(headers.join(','));
@@ -194,7 +204,7 @@ export function useReports() {
         from,
         to,
         search,
-        summaryData: summaryQuery.data || adaptComprehensiveStats({}),
+        summaryData: adaptComprehensiveStats(summaryQuery.data || {}),
         collectionsData: collectionsQuery.data || adaptPatientsReport({}),
         expensesData: expensesQuery.data || [],
         providersData: providersQuery.data || [],

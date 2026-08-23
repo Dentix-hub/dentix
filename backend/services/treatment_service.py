@@ -22,7 +22,7 @@ from backend import models, schemas
 from backend.services.pricing_service import get_pricing_service
 from backend.services.inventory_service import inventory_service
 from backend.utils.audit_logger import log_admin_action
-from backend.core.money import as_decimal
+from backend.core.money import as_decimal, money_json_default
 
 logger = logging.getLogger(__name__)
 
@@ -79,10 +79,12 @@ class TreatmentService:
             snapshot = {
                 "list_id": price_list_id,
                 "list_name": price_list.name if price_list else "Standard",
-                "unit_price": unit_price,
+                "unit_price": as_decimal(unit_price),
                 "date": date.today().isoformat(),
             }
-            price_snapshot = json.dumps(snapshot)
+            # Numeric columns return Decimal under PostgreSQL; plain json.dumps
+            # would raise TypeError (HIGH-01 regression guard).
+            price_snapshot = json.dumps(snapshot, default=money_json_default)
 
         return unit_price, price_snapshot
 

@@ -12,7 +12,8 @@ part of 'lab_order_model.dart';
 T _$identity<T>(T value) => value;
 
 final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
+  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
+);
 
 LabWorkItemModel _$LabWorkItemModelFromJson(Map<String, dynamic> json) {
   return _LabWorkItemModel.fromJson(json);
@@ -36,16 +37,18 @@ mixin _$LabWorkItemModel {
 /// @nodoc
 abstract class $LabWorkItemModelCopyWith<$Res> {
   factory $LabWorkItemModelCopyWith(
-          LabWorkItemModel value, $Res Function(LabWorkItemModel) then) =
-      _$LabWorkItemModelCopyWithImpl<$Res, LabWorkItemModel>;
+    LabWorkItemModel value,
+    $Res Function(LabWorkItemModel) then,
+  ) = _$LabWorkItemModelCopyWithImpl<$Res, LabWorkItemModel>;
   @useResult
-  $Res call(
-      {int id,
-      String workType,
-      String? description,
-      int quantity,
-      String? shade,
-      String? material});
+  $Res call({
+    int id,
+    String workType,
+    String? description,
+    int quantity,
+    String? shade,
+    String? material,
+  });
 }
 
 /// @nodoc
@@ -68,59 +71,65 @@ class _$LabWorkItemModelCopyWithImpl<$Res, $Val extends LabWorkItemModel>
     Object? shade = freezed,
     Object? material = freezed,
   }) {
-    return _then(_value.copyWith(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      workType: null == workType
-          ? _value.workType
-          : workType // ignore: cast_nullable_to_non_nullable
-              as String,
-      description: freezed == description
-          ? _value.description
-          : description // ignore: cast_nullable_to_non_nullable
-              as String?,
-      quantity: null == quantity
-          ? _value.quantity
-          : quantity // ignore: cast_nullable_to_non_nullable
-              as int,
-      shade: freezed == shade
-          ? _value.shade
-          : shade // ignore: cast_nullable_to_non_nullable
-              as String?,
-      material: freezed == material
-          ? _value.material
-          : material // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            workType: null == workType
+                ? _value.workType
+                : workType // ignore: cast_nullable_to_non_nullable
+                      as String,
+            description: freezed == description
+                ? _value.description
+                : description // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            quantity: null == quantity
+                ? _value.quantity
+                : quantity // ignore: cast_nullable_to_non_nullable
+                      as int,
+            shade: freezed == shade
+                ? _value.shade
+                : shade // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            material: freezed == material
+                ? _value.material
+                : material // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
   }
 }
 
 /// @nodoc
 abstract class _$$LabWorkItemModelImplCopyWith<$Res>
     implements $LabWorkItemModelCopyWith<$Res> {
-  factory _$$LabWorkItemModelImplCopyWith(_$LabWorkItemModelImpl value,
-          $Res Function(_$LabWorkItemModelImpl) then) =
-      __$$LabWorkItemModelImplCopyWithImpl<$Res>;
+  factory _$$LabWorkItemModelImplCopyWith(
+    _$LabWorkItemModelImpl value,
+    $Res Function(_$LabWorkItemModelImpl) then,
+  ) = __$$LabWorkItemModelImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {int id,
-      String workType,
-      String? description,
-      int quantity,
-      String? shade,
-      String? material});
+  $Res call({
+    int id,
+    String workType,
+    String? description,
+    int quantity,
+    String? shade,
+    String? material,
+  });
 }
 
 /// @nodoc
 class __$$LabWorkItemModelImplCopyWithImpl<$Res>
     extends _$LabWorkItemModelCopyWithImpl<$Res, _$LabWorkItemModelImpl>
     implements _$$LabWorkItemModelImplCopyWith<$Res> {
-  __$$LabWorkItemModelImplCopyWithImpl(_$LabWorkItemModelImpl _value,
-      $Res Function(_$LabWorkItemModelImpl) _then)
-      : super(_value, _then);
+  __$$LabWorkItemModelImplCopyWithImpl(
+    _$LabWorkItemModelImpl _value,
+    $Res Function(_$LabWorkItemModelImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -132,46 +141,48 @@ class __$$LabWorkItemModelImplCopyWithImpl<$Res>
     Object? shade = freezed,
     Object? material = freezed,
   }) {
-    return _then(_$LabWorkItemModelImpl(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      workType: null == workType
-          ? _value.workType
-          : workType // ignore: cast_nullable_to_non_nullable
-              as String,
-      description: freezed == description
-          ? _value.description
-          : description // ignore: cast_nullable_to_non_nullable
-              as String?,
-      quantity: null == quantity
-          ? _value.quantity
-          : quantity // ignore: cast_nullable_to_non_nullable
-              as int,
-      shade: freezed == shade
-          ? _value.shade
-          : shade // ignore: cast_nullable_to_non_nullable
-              as String?,
-      material: freezed == material
-          ? _value.material
-          : material // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ));
+    return _then(
+      _$LabWorkItemModelImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        workType: null == workType
+            ? _value.workType
+            : workType // ignore: cast_nullable_to_non_nullable
+                  as String,
+        description: freezed == description
+            ? _value.description
+            : description // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        quantity: null == quantity
+            ? _value.quantity
+            : quantity // ignore: cast_nullable_to_non_nullable
+                  as int,
+        shade: freezed == shade
+            ? _value.shade
+            : shade // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        material: freezed == material
+            ? _value.material
+            : material // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 @JsonSerializable()
 class _$LabWorkItemModelImpl extends _LabWorkItemModel {
-  const _$LabWorkItemModelImpl(
-      {required this.id,
-      required this.workType,
-      this.description,
-      required this.quantity,
-      this.shade,
-      this.material})
-      : super._();
+  const _$LabWorkItemModelImpl({
+    required this.id,
+    required this.workType,
+    this.description,
+    required this.quantity,
+    this.shade,
+    this.material,
+  }) : super._();
 
   factory _$LabWorkItemModelImpl.fromJson(Map<String, dynamic> json) =>
       _$$LabWorkItemModelImplFromJson(json);
@@ -214,31 +225,39 @@ class _$LabWorkItemModelImpl extends _LabWorkItemModel {
   @JsonKey(ignore: true)
   @override
   int get hashCode => Object.hash(
-      runtimeType, id, workType, description, quantity, shade, material);
+    runtimeType,
+    id,
+    workType,
+    description,
+    quantity,
+    shade,
+    material,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$LabWorkItemModelImplCopyWith<_$LabWorkItemModelImpl> get copyWith =>
       __$$LabWorkItemModelImplCopyWithImpl<_$LabWorkItemModelImpl>(
-          this, _$identity);
+        this,
+        _$identity,
+      );
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$LabWorkItemModelImplToJson(
-      this,
-    );
+    return _$$LabWorkItemModelImplToJson(this);
   }
 }
 
 abstract class _LabWorkItemModel extends LabWorkItemModel {
-  const factory _LabWorkItemModel(
-      {required final int id,
-      required final String workType,
-      final String? description,
-      required final int quantity,
-      final String? shade,
-      final String? material}) = _$LabWorkItemModelImpl;
+  const factory _LabWorkItemModel({
+    required final int id,
+    required final String workType,
+    final String? description,
+    required final int quantity,
+    final String? shade,
+    final String? material,
+  }) = _$LabWorkItemModelImpl;
   const _LabWorkItemModel._() : super._();
 
   factory _LabWorkItemModel.fromJson(Map<String, dynamic> json) =
@@ -304,25 +323,27 @@ mixin _$LabOrderModel {
 /// @nodoc
 abstract class $LabOrderModelCopyWith<$Res> {
   factory $LabOrderModelCopyWith(
-          LabOrderModel value, $Res Function(LabOrderModel) then) =
-      _$LabOrderModelCopyWithImpl<$Res, LabOrderModel>;
+    LabOrderModel value,
+    $Res Function(LabOrderModel) then,
+  ) = _$LabOrderModelCopyWithImpl<$Res, LabOrderModel>;
   @useResult
-  $Res call(
-      {int id,
-      @JsonKey(name: 'patient_id') int patientId,
-      @JsonKey(name: 'patient_name') String? patientName,
-      @JsonKey(name: 'dentist_id') int dentistId,
-      @JsonKey(name: 'dentist_name') String? dentistName,
-      @JsonKey(name: 'lab_name') String labName,
-      @JsonKey(name: 'order_date') String orderDate,
-      @JsonKey(name: 'due_date') String dueDate,
-      List<LabWorkItemModel> items,
-      String? notes,
-      String status,
-      @JsonKey(name: 'received_date') String? receivedDate,
-      @JsonKey(name: 'total_cost') double? totalCost,
-      @JsonKey(name: 'created_at') String? createdAt,
-      @JsonKey(name: 'updated_at') String? updatedAt});
+  $Res call({
+    int id,
+    @JsonKey(name: 'patient_id') int patientId,
+    @JsonKey(name: 'patient_name') String? patientName,
+    @JsonKey(name: 'dentist_id') int dentistId,
+    @JsonKey(name: 'dentist_name') String? dentistName,
+    @JsonKey(name: 'lab_name') String labName,
+    @JsonKey(name: 'order_date') String orderDate,
+    @JsonKey(name: 'due_date') String dueDate,
+    List<LabWorkItemModel> items,
+    String? notes,
+    String status,
+    @JsonKey(name: 'received_date') String? receivedDate,
+    @JsonKey(name: 'total_cost') double? totalCost,
+    @JsonKey(name: 'created_at') String? createdAt,
+    @JsonKey(name: 'updated_at') String? updatedAt,
+  });
 }
 
 /// @nodoc
@@ -354,68 +375,71 @@ class _$LabOrderModelCopyWithImpl<$Res, $Val extends LabOrderModel>
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
-    return _then(_value.copyWith(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientId: null == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientName: freezed == patientName
-          ? _value.patientName
-          : patientName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      dentistId: null == dentistId
-          ? _value.dentistId
-          : dentistId // ignore: cast_nullable_to_non_nullable
-              as int,
-      dentistName: freezed == dentistName
-          ? _value.dentistName
-          : dentistName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      labName: null == labName
-          ? _value.labName
-          : labName // ignore: cast_nullable_to_non_nullable
-              as String,
-      orderDate: null == orderDate
-          ? _value.orderDate
-          : orderDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      dueDate: null == dueDate
-          ? _value.dueDate
-          : dueDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      items: null == items
-          ? _value.items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<LabWorkItemModel>,
-      notes: freezed == notes
-          ? _value.notes
-          : notes // ignore: cast_nullable_to_non_nullable
-              as String?,
-      status: null == status
-          ? _value.status
-          : status // ignore: cast_nullable_to_non_nullable
-              as String,
-      receivedDate: freezed == receivedDate
-          ? _value.receivedDate
-          : receivedDate // ignore: cast_nullable_to_non_nullable
-              as String?,
-      totalCost: freezed == totalCost
-          ? _value.totalCost
-          : totalCost // ignore: cast_nullable_to_non_nullable
-              as double?,
-      createdAt: freezed == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-      updatedAt: freezed == updatedAt
-          ? _value.updatedAt
-          : updatedAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            patientId: null == patientId
+                ? _value.patientId
+                : patientId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            patientName: freezed == patientName
+                ? _value.patientName
+                : patientName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            dentistId: null == dentistId
+                ? _value.dentistId
+                : dentistId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            dentistName: freezed == dentistName
+                ? _value.dentistName
+                : dentistName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            labName: null == labName
+                ? _value.labName
+                : labName // ignore: cast_nullable_to_non_nullable
+                      as String,
+            orderDate: null == orderDate
+                ? _value.orderDate
+                : orderDate // ignore: cast_nullable_to_non_nullable
+                      as String,
+            dueDate: null == dueDate
+                ? _value.dueDate
+                : dueDate // ignore: cast_nullable_to_non_nullable
+                      as String,
+            items: null == items
+                ? _value.items
+                : items // ignore: cast_nullable_to_non_nullable
+                      as List<LabWorkItemModel>,
+            notes: freezed == notes
+                ? _value.notes
+                : notes // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            status: null == status
+                ? _value.status
+                : status // ignore: cast_nullable_to_non_nullable
+                      as String,
+            receivedDate: freezed == receivedDate
+                ? _value.receivedDate
+                : receivedDate // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            totalCost: freezed == totalCost
+                ? _value.totalCost
+                : totalCost // ignore: cast_nullable_to_non_nullable
+                      as double?,
+            createdAt: freezed == createdAt
+                ? _value.createdAt
+                : createdAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            updatedAt: freezed == updatedAt
+                ? _value.updatedAt
+                : updatedAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
   }
 }
 
@@ -423,26 +447,28 @@ class _$LabOrderModelCopyWithImpl<$Res, $Val extends LabOrderModel>
 abstract class _$$LabOrderModelImplCopyWith<$Res>
     implements $LabOrderModelCopyWith<$Res> {
   factory _$$LabOrderModelImplCopyWith(
-          _$LabOrderModelImpl value, $Res Function(_$LabOrderModelImpl) then) =
-      __$$LabOrderModelImplCopyWithImpl<$Res>;
+    _$LabOrderModelImpl value,
+    $Res Function(_$LabOrderModelImpl) then,
+  ) = __$$LabOrderModelImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {int id,
-      @JsonKey(name: 'patient_id') int patientId,
-      @JsonKey(name: 'patient_name') String? patientName,
-      @JsonKey(name: 'dentist_id') int dentistId,
-      @JsonKey(name: 'dentist_name') String? dentistName,
-      @JsonKey(name: 'lab_name') String labName,
-      @JsonKey(name: 'order_date') String orderDate,
-      @JsonKey(name: 'due_date') String dueDate,
-      List<LabWorkItemModel> items,
-      String? notes,
-      String status,
-      @JsonKey(name: 'received_date') String? receivedDate,
-      @JsonKey(name: 'total_cost') double? totalCost,
-      @JsonKey(name: 'created_at') String? createdAt,
-      @JsonKey(name: 'updated_at') String? updatedAt});
+  $Res call({
+    int id,
+    @JsonKey(name: 'patient_id') int patientId,
+    @JsonKey(name: 'patient_name') String? patientName,
+    @JsonKey(name: 'dentist_id') int dentistId,
+    @JsonKey(name: 'dentist_name') String? dentistName,
+    @JsonKey(name: 'lab_name') String labName,
+    @JsonKey(name: 'order_date') String orderDate,
+    @JsonKey(name: 'due_date') String dueDate,
+    List<LabWorkItemModel> items,
+    String? notes,
+    String status,
+    @JsonKey(name: 'received_date') String? receivedDate,
+    @JsonKey(name: 'total_cost') double? totalCost,
+    @JsonKey(name: 'created_at') String? createdAt,
+    @JsonKey(name: 'updated_at') String? updatedAt,
+  });
 }
 
 /// @nodoc
@@ -450,8 +476,9 @@ class __$$LabOrderModelImplCopyWithImpl<$Res>
     extends _$LabOrderModelCopyWithImpl<$Res, _$LabOrderModelImpl>
     implements _$$LabOrderModelImplCopyWith<$Res> {
   __$$LabOrderModelImplCopyWithImpl(
-      _$LabOrderModelImpl _value, $Res Function(_$LabOrderModelImpl) _then)
-      : super(_value, _then);
+    _$LabOrderModelImpl _value,
+    $Res Function(_$LabOrderModelImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -472,92 +499,94 @@ class __$$LabOrderModelImplCopyWithImpl<$Res>
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
-    return _then(_$LabOrderModelImpl(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientId: null == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientName: freezed == patientName
-          ? _value.patientName
-          : patientName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      dentistId: null == dentistId
-          ? _value.dentistId
-          : dentistId // ignore: cast_nullable_to_non_nullable
-              as int,
-      dentistName: freezed == dentistName
-          ? _value.dentistName
-          : dentistName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      labName: null == labName
-          ? _value.labName
-          : labName // ignore: cast_nullable_to_non_nullable
-              as String,
-      orderDate: null == orderDate
-          ? _value.orderDate
-          : orderDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      dueDate: null == dueDate
-          ? _value.dueDate
-          : dueDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      items: null == items
-          ? _value._items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<LabWorkItemModel>,
-      notes: freezed == notes
-          ? _value.notes
-          : notes // ignore: cast_nullable_to_non_nullable
-              as String?,
-      status: null == status
-          ? _value.status
-          : status // ignore: cast_nullable_to_non_nullable
-              as String,
-      receivedDate: freezed == receivedDate
-          ? _value.receivedDate
-          : receivedDate // ignore: cast_nullable_to_non_nullable
-              as String?,
-      totalCost: freezed == totalCost
-          ? _value.totalCost
-          : totalCost // ignore: cast_nullable_to_non_nullable
-              as double?,
-      createdAt: freezed == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-      updatedAt: freezed == updatedAt
-          ? _value.updatedAt
-          : updatedAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ));
+    return _then(
+      _$LabOrderModelImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        patientId: null == patientId
+            ? _value.patientId
+            : patientId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        patientName: freezed == patientName
+            ? _value.patientName
+            : patientName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        dentistId: null == dentistId
+            ? _value.dentistId
+            : dentistId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        dentistName: freezed == dentistName
+            ? _value.dentistName
+            : dentistName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        labName: null == labName
+            ? _value.labName
+            : labName // ignore: cast_nullable_to_non_nullable
+                  as String,
+        orderDate: null == orderDate
+            ? _value.orderDate
+            : orderDate // ignore: cast_nullable_to_non_nullable
+                  as String,
+        dueDate: null == dueDate
+            ? _value.dueDate
+            : dueDate // ignore: cast_nullable_to_non_nullable
+                  as String,
+        items: null == items
+            ? _value._items
+            : items // ignore: cast_nullable_to_non_nullable
+                  as List<LabWorkItemModel>,
+        notes: freezed == notes
+            ? _value.notes
+            : notes // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        status: null == status
+            ? _value.status
+            : status // ignore: cast_nullable_to_non_nullable
+                  as String,
+        receivedDate: freezed == receivedDate
+            ? _value.receivedDate
+            : receivedDate // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        totalCost: freezed == totalCost
+            ? _value.totalCost
+            : totalCost // ignore: cast_nullable_to_non_nullable
+                  as double?,
+        createdAt: freezed == createdAt
+            ? _value.createdAt
+            : createdAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        updatedAt: freezed == updatedAt
+            ? _value.updatedAt
+            : updatedAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 @JsonSerializable()
 class _$LabOrderModelImpl extends _LabOrderModel {
-  const _$LabOrderModelImpl(
-      {required this.id,
-      @JsonKey(name: 'patient_id') required this.patientId,
-      @JsonKey(name: 'patient_name') this.patientName,
-      @JsonKey(name: 'dentist_id') required this.dentistId,
-      @JsonKey(name: 'dentist_name') this.dentistName,
-      @JsonKey(name: 'lab_name') required this.labName,
-      @JsonKey(name: 'order_date') required this.orderDate,
-      @JsonKey(name: 'due_date') required this.dueDate,
-      required final List<LabWorkItemModel> items,
-      this.notes,
-      required this.status,
-      @JsonKey(name: 'received_date') this.receivedDate,
-      @JsonKey(name: 'total_cost') this.totalCost,
-      @JsonKey(name: 'created_at') this.createdAt,
-      @JsonKey(name: 'updated_at') this.updatedAt})
-      : _items = items,
-        super._();
+  const _$LabOrderModelImpl({
+    required this.id,
+    @JsonKey(name: 'patient_id') required this.patientId,
+    @JsonKey(name: 'patient_name') this.patientName,
+    @JsonKey(name: 'dentist_id') required this.dentistId,
+    @JsonKey(name: 'dentist_name') this.dentistName,
+    @JsonKey(name: 'lab_name') required this.labName,
+    @JsonKey(name: 'order_date') required this.orderDate,
+    @JsonKey(name: 'due_date') required this.dueDate,
+    required final List<LabWorkItemModel> items,
+    this.notes,
+    required this.status,
+    @JsonKey(name: 'received_date') this.receivedDate,
+    @JsonKey(name: 'total_cost') this.totalCost,
+    @JsonKey(name: 'created_at') this.createdAt,
+    @JsonKey(name: 'updated_at') this.updatedAt,
+  }) : _items = items,
+       super._();
 
   factory _$LabOrderModelImpl.fromJson(Map<String, dynamic> json) =>
       _$$LabOrderModelImplFromJson(json);
@@ -649,22 +678,23 @@ class _$LabOrderModelImpl extends _LabOrderModel {
   @JsonKey(ignore: true)
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      id,
-      patientId,
-      patientName,
-      dentistId,
-      dentistName,
-      labName,
-      orderDate,
-      dueDate,
-      const DeepCollectionEquality().hash(_items),
-      notes,
-      status,
-      receivedDate,
-      totalCost,
-      createdAt,
-      updatedAt);
+    runtimeType,
+    id,
+    patientId,
+    patientName,
+    dentistId,
+    dentistName,
+    labName,
+    orderDate,
+    dueDate,
+    const DeepCollectionEquality().hash(_items),
+    notes,
+    status,
+    receivedDate,
+    totalCost,
+    createdAt,
+    updatedAt,
+  );
 
   @JsonKey(ignore: true)
   @override
@@ -674,30 +704,28 @@ class _$LabOrderModelImpl extends _LabOrderModel {
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$LabOrderModelImplToJson(
-      this,
-    );
+    return _$$LabOrderModelImplToJson(this);
   }
 }
 
 abstract class _LabOrderModel extends LabOrderModel {
-  const factory _LabOrderModel(
-          {required final int id,
-          @JsonKey(name: 'patient_id') required final int patientId,
-          @JsonKey(name: 'patient_name') final String? patientName,
-          @JsonKey(name: 'dentist_id') required final int dentistId,
-          @JsonKey(name: 'dentist_name') final String? dentistName,
-          @JsonKey(name: 'lab_name') required final String labName,
-          @JsonKey(name: 'order_date') required final String orderDate,
-          @JsonKey(name: 'due_date') required final String dueDate,
-          required final List<LabWorkItemModel> items,
-          final String? notes,
-          required final String status,
-          @JsonKey(name: 'received_date') final String? receivedDate,
-          @JsonKey(name: 'total_cost') final double? totalCost,
-          @JsonKey(name: 'created_at') final String? createdAt,
-          @JsonKey(name: 'updated_at') final String? updatedAt}) =
-      _$LabOrderModelImpl;
+  const factory _LabOrderModel({
+    required final int id,
+    @JsonKey(name: 'patient_id') required final int patientId,
+    @JsonKey(name: 'patient_name') final String? patientName,
+    @JsonKey(name: 'dentist_id') required final int dentistId,
+    @JsonKey(name: 'dentist_name') final String? dentistName,
+    @JsonKey(name: 'lab_name') required final String labName,
+    @JsonKey(name: 'order_date') required final String orderDate,
+    @JsonKey(name: 'due_date') required final String dueDate,
+    required final List<LabWorkItemModel> items,
+    final String? notes,
+    required final String status,
+    @JsonKey(name: 'received_date') final String? receivedDate,
+    @JsonKey(name: 'total_cost') final double? totalCost,
+    @JsonKey(name: 'created_at') final String? createdAt,
+    @JsonKey(name: 'updated_at') final String? updatedAt,
+  }) = _$LabOrderModelImpl;
   const _LabOrderModel._() : super._();
 
   factory _LabOrderModel.fromJson(Map<String, dynamic> json) =
@@ -751,7 +779,8 @@ abstract class _LabOrderModel extends LabOrderModel {
 }
 
 LabOrderListResponseModel _$LabOrderListResponseModelFromJson(
-    Map<String, dynamic> json) {
+  Map<String, dynamic> json,
+) {
   return _LabOrderListResponseModel.fromJson(json);
 }
 
@@ -773,20 +802,24 @@ mixin _$LabOrderListResponseModel {
 
 /// @nodoc
 abstract class $LabOrderListResponseModelCopyWith<$Res> {
-  factory $LabOrderListResponseModelCopyWith(LabOrderListResponseModel value,
-          $Res Function(LabOrderListResponseModel) then) =
-      _$LabOrderListResponseModelCopyWithImpl<$Res, LabOrderListResponseModel>;
+  factory $LabOrderListResponseModelCopyWith(
+    LabOrderListResponseModel value,
+    $Res Function(LabOrderListResponseModel) then,
+  ) = _$LabOrderListResponseModelCopyWithImpl<$Res, LabOrderListResponseModel>;
   @useResult
-  $Res call(
-      {List<LabOrderModel> items,
-      @JsonKey(name: 'current_page') int currentPage,
-      @JsonKey(name: 'total_pages') int totalPages,
-      @JsonKey(name: 'total_items') int totalItems});
+  $Res call({
+    List<LabOrderModel> items,
+    @JsonKey(name: 'current_page') int currentPage,
+    @JsonKey(name: 'total_pages') int totalPages,
+    @JsonKey(name: 'total_items') int totalItems,
+  });
 }
 
 /// @nodoc
-class _$LabOrderListResponseModelCopyWithImpl<$Res,
-        $Val extends LabOrderListResponseModel>
+class _$LabOrderListResponseModelCopyWithImpl<
+  $Res,
+  $Val extends LabOrderListResponseModel
+>
     implements $LabOrderListResponseModelCopyWith<$Res> {
   _$LabOrderListResponseModelCopyWithImpl(this._value, this._then);
 
@@ -803,24 +836,27 @@ class _$LabOrderListResponseModelCopyWithImpl<$Res,
     Object? totalPages = null,
     Object? totalItems = null,
   }) {
-    return _then(_value.copyWith(
-      items: null == items
-          ? _value.items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<LabOrderModel>,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalItems: null == totalItems
-          ? _value.totalItems
-          : totalItems // ignore: cast_nullable_to_non_nullable
-              as int,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            items: null == items
+                ? _value.items
+                : items // ignore: cast_nullable_to_non_nullable
+                      as List<LabOrderModel>,
+            currentPage: null == currentPage
+                ? _value.currentPage
+                : currentPage // ignore: cast_nullable_to_non_nullable
+                      as int,
+            totalPages: null == totalPages
+                ? _value.totalPages
+                : totalPages // ignore: cast_nullable_to_non_nullable
+                      as int,
+            totalItems: null == totalItems
+                ? _value.totalItems
+                : totalItems // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
   }
 }
 
@@ -828,27 +864,31 @@ class _$LabOrderListResponseModelCopyWithImpl<$Res,
 abstract class _$$LabOrderListResponseModelImplCopyWith<$Res>
     implements $LabOrderListResponseModelCopyWith<$Res> {
   factory _$$LabOrderListResponseModelImplCopyWith(
-          _$LabOrderListResponseModelImpl value,
-          $Res Function(_$LabOrderListResponseModelImpl) then) =
-      __$$LabOrderListResponseModelImplCopyWithImpl<$Res>;
+    _$LabOrderListResponseModelImpl value,
+    $Res Function(_$LabOrderListResponseModelImpl) then,
+  ) = __$$LabOrderListResponseModelImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {List<LabOrderModel> items,
-      @JsonKey(name: 'current_page') int currentPage,
-      @JsonKey(name: 'total_pages') int totalPages,
-      @JsonKey(name: 'total_items') int totalItems});
+  $Res call({
+    List<LabOrderModel> items,
+    @JsonKey(name: 'current_page') int currentPage,
+    @JsonKey(name: 'total_pages') int totalPages,
+    @JsonKey(name: 'total_items') int totalItems,
+  });
 }
 
 /// @nodoc
 class __$$LabOrderListResponseModelImplCopyWithImpl<$Res>
-    extends _$LabOrderListResponseModelCopyWithImpl<$Res,
-        _$LabOrderListResponseModelImpl>
+    extends
+        _$LabOrderListResponseModelCopyWithImpl<
+          $Res,
+          _$LabOrderListResponseModelImpl
+        >
     implements _$$LabOrderListResponseModelImplCopyWith<$Res> {
   __$$LabOrderListResponseModelImplCopyWithImpl(
-      _$LabOrderListResponseModelImpl _value,
-      $Res Function(_$LabOrderListResponseModelImpl) _then)
-      : super(_value, _then);
+    _$LabOrderListResponseModelImpl _value,
+    $Res Function(_$LabOrderListResponseModelImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -858,37 +898,39 @@ class __$$LabOrderListResponseModelImplCopyWithImpl<$Res>
     Object? totalPages = null,
     Object? totalItems = null,
   }) {
-    return _then(_$LabOrderListResponseModelImpl(
-      items: null == items
-          ? _value._items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<LabOrderModel>,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalItems: null == totalItems
-          ? _value.totalItems
-          : totalItems // ignore: cast_nullable_to_non_nullable
-              as int,
-    ));
+    return _then(
+      _$LabOrderListResponseModelImpl(
+        items: null == items
+            ? _value._items
+            : items // ignore: cast_nullable_to_non_nullable
+                  as List<LabOrderModel>,
+        currentPage: null == currentPage
+            ? _value.currentPage
+            : currentPage // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalPages: null == totalPages
+            ? _value.totalPages
+            : totalPages // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalItems: null == totalItems
+            ? _value.totalItems
+            : totalItems // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
   }
 }
 
 /// @nodoc
 @JsonSerializable()
 class _$LabOrderListResponseModelImpl extends _LabOrderListResponseModel {
-  const _$LabOrderListResponseModelImpl(
-      {required final List<LabOrderModel> items,
-      @JsonKey(name: 'current_page') required this.currentPage,
-      @JsonKey(name: 'total_pages') required this.totalPages,
-      @JsonKey(name: 'total_items') required this.totalItems})
-      : _items = items,
-        super._();
+  const _$LabOrderListResponseModelImpl({
+    required final List<LabOrderModel> items,
+    @JsonKey(name: 'current_page') required this.currentPage,
+    @JsonKey(name: 'total_pages') required this.totalPages,
+    @JsonKey(name: 'total_items') required this.totalItems,
+  }) : _items = items,
+       super._();
 
   factory _$LabOrderListResponseModelImpl.fromJson(Map<String, dynamic> json) =>
       _$$LabOrderListResponseModelImplFromJson(json);
@@ -933,34 +975,35 @@ class _$LabOrderListResponseModelImpl extends _LabOrderListResponseModel {
   @JsonKey(ignore: true)
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      const DeepCollectionEquality().hash(_items),
-      currentPage,
-      totalPages,
-      totalItems);
+    runtimeType,
+    const DeepCollectionEquality().hash(_items),
+    currentPage,
+    totalPages,
+    totalItems,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$LabOrderListResponseModelImplCopyWith<_$LabOrderListResponseModelImpl>
-      get copyWith => __$$LabOrderListResponseModelImplCopyWithImpl<
-          _$LabOrderListResponseModelImpl>(this, _$identity);
+  get copyWith =>
+      __$$LabOrderListResponseModelImplCopyWithImpl<
+        _$LabOrderListResponseModelImpl
+      >(this, _$identity);
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$LabOrderListResponseModelImplToJson(
-      this,
-    );
+    return _$$LabOrderListResponseModelImplToJson(this);
   }
 }
 
 abstract class _LabOrderListResponseModel extends LabOrderListResponseModel {
-  const factory _LabOrderListResponseModel(
-          {required final List<LabOrderModel> items,
-          @JsonKey(name: 'current_page') required final int currentPage,
-          @JsonKey(name: 'total_pages') required final int totalPages,
-          @JsonKey(name: 'total_items') required final int totalItems}) =
-      _$LabOrderListResponseModelImpl;
+  const factory _LabOrderListResponseModel({
+    required final List<LabOrderModel> items,
+    @JsonKey(name: 'current_page') required final int currentPage,
+    @JsonKey(name: 'total_pages') required final int totalPages,
+    @JsonKey(name: 'total_items') required final int totalItems,
+  }) = _$LabOrderListResponseModelImpl;
   const _LabOrderListResponseModel._() : super._();
 
   factory _LabOrderListResponseModel.fromJson(Map<String, dynamic> json) =
@@ -980,11 +1023,12 @@ abstract class _LabOrderListResponseModel extends LabOrderListResponseModel {
   @override
   @JsonKey(ignore: true)
   _$$LabOrderListResponseModelImplCopyWith<_$LabOrderListResponseModelImpl>
-      get copyWith => throw _privateConstructorUsedError;
+  get copyWith => throw _privateConstructorUsedError;
 }
 
 CreateLabOrderRequestModel _$CreateLabOrderRequestModelFromJson(
-    Map<String, dynamic> json) {
+  Map<String, dynamic> json,
+) {
   return _CreateLabOrderRequestModel.fromJson(json);
 }
 
@@ -1002,27 +1046,34 @@ mixin _$CreateLabOrderRequestModel {
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
   $CreateLabOrderRequestModelCopyWith<CreateLabOrderRequestModel>
-      get copyWith => throw _privateConstructorUsedError;
+  get copyWith => throw _privateConstructorUsedError;
 }
 
 /// @nodoc
 abstract class $CreateLabOrderRequestModelCopyWith<$Res> {
-  factory $CreateLabOrderRequestModelCopyWith(CreateLabOrderRequestModel value,
-          $Res Function(CreateLabOrderRequestModel) then) =
-      _$CreateLabOrderRequestModelCopyWithImpl<$Res,
-          CreateLabOrderRequestModel>;
+  factory $CreateLabOrderRequestModelCopyWith(
+    CreateLabOrderRequestModel value,
+    $Res Function(CreateLabOrderRequestModel) then,
+  ) =
+      _$CreateLabOrderRequestModelCopyWithImpl<
+        $Res,
+        CreateLabOrderRequestModel
+      >;
   @useResult
-  $Res call(
-      {@JsonKey(name: 'patient_id') int patientId,
-      @JsonKey(name: 'lab_name') String labName,
-      @JsonKey(name: 'due_date') String dueDate,
-      List<Map<String, dynamic>> items,
-      String? notes});
+  $Res call({
+    @JsonKey(name: 'patient_id') int patientId,
+    @JsonKey(name: 'lab_name') String labName,
+    @JsonKey(name: 'due_date') String dueDate,
+    List<Map<String, dynamic>> items,
+    String? notes,
+  });
 }
 
 /// @nodoc
-class _$CreateLabOrderRequestModelCopyWithImpl<$Res,
-        $Val extends CreateLabOrderRequestModel>
+class _$CreateLabOrderRequestModelCopyWithImpl<
+  $Res,
+  $Val extends CreateLabOrderRequestModel
+>
     implements $CreateLabOrderRequestModelCopyWith<$Res> {
   _$CreateLabOrderRequestModelCopyWithImpl(this._value, this._then);
 
@@ -1040,28 +1091,31 @@ class _$CreateLabOrderRequestModelCopyWithImpl<$Res,
     Object? items = null,
     Object? notes = freezed,
   }) {
-    return _then(_value.copyWith(
-      patientId: null == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int,
-      labName: null == labName
-          ? _value.labName
-          : labName // ignore: cast_nullable_to_non_nullable
-              as String,
-      dueDate: null == dueDate
-          ? _value.dueDate
-          : dueDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      items: null == items
-          ? _value.items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<Map<String, dynamic>>,
-      notes: freezed == notes
-          ? _value.notes
-          : notes // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            patientId: null == patientId
+                ? _value.patientId
+                : patientId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            labName: null == labName
+                ? _value.labName
+                : labName // ignore: cast_nullable_to_non_nullable
+                      as String,
+            dueDate: null == dueDate
+                ? _value.dueDate
+                : dueDate // ignore: cast_nullable_to_non_nullable
+                      as String,
+            items: null == items
+                ? _value.items
+                : items // ignore: cast_nullable_to_non_nullable
+                      as List<Map<String, dynamic>>,
+            notes: freezed == notes
+                ? _value.notes
+                : notes // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
   }
 }
 
@@ -1069,28 +1123,32 @@ class _$CreateLabOrderRequestModelCopyWithImpl<$Res,
 abstract class _$$CreateLabOrderRequestModelImplCopyWith<$Res>
     implements $CreateLabOrderRequestModelCopyWith<$Res> {
   factory _$$CreateLabOrderRequestModelImplCopyWith(
-          _$CreateLabOrderRequestModelImpl value,
-          $Res Function(_$CreateLabOrderRequestModelImpl) then) =
-      __$$CreateLabOrderRequestModelImplCopyWithImpl<$Res>;
+    _$CreateLabOrderRequestModelImpl value,
+    $Res Function(_$CreateLabOrderRequestModelImpl) then,
+  ) = __$$CreateLabOrderRequestModelImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {@JsonKey(name: 'patient_id') int patientId,
-      @JsonKey(name: 'lab_name') String labName,
-      @JsonKey(name: 'due_date') String dueDate,
-      List<Map<String, dynamic>> items,
-      String? notes});
+  $Res call({
+    @JsonKey(name: 'patient_id') int patientId,
+    @JsonKey(name: 'lab_name') String labName,
+    @JsonKey(name: 'due_date') String dueDate,
+    List<Map<String, dynamic>> items,
+    String? notes,
+  });
 }
 
 /// @nodoc
 class __$$CreateLabOrderRequestModelImplCopyWithImpl<$Res>
-    extends _$CreateLabOrderRequestModelCopyWithImpl<$Res,
-        _$CreateLabOrderRequestModelImpl>
+    extends
+        _$CreateLabOrderRequestModelCopyWithImpl<
+          $Res,
+          _$CreateLabOrderRequestModelImpl
+        >
     implements _$$CreateLabOrderRequestModelImplCopyWith<$Res> {
   __$$CreateLabOrderRequestModelImplCopyWithImpl(
-      _$CreateLabOrderRequestModelImpl _value,
-      $Res Function(_$CreateLabOrderRequestModelImpl) _then)
-      : super(_value, _then);
+    _$CreateLabOrderRequestModelImpl _value,
+    $Res Function(_$CreateLabOrderRequestModelImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -1101,46 +1159,48 @@ class __$$CreateLabOrderRequestModelImplCopyWithImpl<$Res>
     Object? items = null,
     Object? notes = freezed,
   }) {
-    return _then(_$CreateLabOrderRequestModelImpl(
-      patientId: null == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int,
-      labName: null == labName
-          ? _value.labName
-          : labName // ignore: cast_nullable_to_non_nullable
-              as String,
-      dueDate: null == dueDate
-          ? _value.dueDate
-          : dueDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      items: null == items
-          ? _value._items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<Map<String, dynamic>>,
-      notes: freezed == notes
-          ? _value.notes
-          : notes // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ));
+    return _then(
+      _$CreateLabOrderRequestModelImpl(
+        patientId: null == patientId
+            ? _value.patientId
+            : patientId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        labName: null == labName
+            ? _value.labName
+            : labName // ignore: cast_nullable_to_non_nullable
+                  as String,
+        dueDate: null == dueDate
+            ? _value.dueDate
+            : dueDate // ignore: cast_nullable_to_non_nullable
+                  as String,
+        items: null == items
+            ? _value._items
+            : items // ignore: cast_nullable_to_non_nullable
+                  as List<Map<String, dynamic>>,
+        notes: freezed == notes
+            ? _value.notes
+            : notes // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 @JsonSerializable()
 class _$CreateLabOrderRequestModelImpl extends _CreateLabOrderRequestModel {
-  const _$CreateLabOrderRequestModelImpl(
-      {@JsonKey(name: 'patient_id') required this.patientId,
-      @JsonKey(name: 'lab_name') required this.labName,
-      @JsonKey(name: 'due_date') required this.dueDate,
-      required final List<Map<String, dynamic>> items,
-      this.notes})
-      : _items = items,
-        super._();
+  const _$CreateLabOrderRequestModelImpl({
+    @JsonKey(name: 'patient_id') required this.patientId,
+    @JsonKey(name: 'lab_name') required this.labName,
+    @JsonKey(name: 'due_date') required this.dueDate,
+    required final List<Map<String, dynamic>> items,
+    this.notes,
+  }) : _items = items,
+       super._();
 
   factory _$CreateLabOrderRequestModelImpl.fromJson(
-          Map<String, dynamic> json) =>
-      _$$CreateLabOrderRequestModelImplFromJson(json);
+    Map<String, dynamic> json,
+  ) => _$$CreateLabOrderRequestModelImplFromJson(json);
 
   @override
   @JsonKey(name: 'patient_id')
@@ -1182,31 +1242,38 @@ class _$CreateLabOrderRequestModelImpl extends _CreateLabOrderRequestModel {
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode => Object.hash(runtimeType, patientId, labName, dueDate,
-      const DeepCollectionEquality().hash(_items), notes);
+  int get hashCode => Object.hash(
+    runtimeType,
+    patientId,
+    labName,
+    dueDate,
+    const DeepCollectionEquality().hash(_items),
+    notes,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$CreateLabOrderRequestModelImplCopyWith<_$CreateLabOrderRequestModelImpl>
-      get copyWith => __$$CreateLabOrderRequestModelImplCopyWithImpl<
-          _$CreateLabOrderRequestModelImpl>(this, _$identity);
+  get copyWith =>
+      __$$CreateLabOrderRequestModelImplCopyWithImpl<
+        _$CreateLabOrderRequestModelImpl
+      >(this, _$identity);
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$CreateLabOrderRequestModelImplToJson(
-      this,
-    );
+    return _$$CreateLabOrderRequestModelImplToJson(this);
   }
 }
 
 abstract class _CreateLabOrderRequestModel extends CreateLabOrderRequestModel {
-  const factory _CreateLabOrderRequestModel(
-      {@JsonKey(name: 'patient_id') required final int patientId,
-      @JsonKey(name: 'lab_name') required final String labName,
-      @JsonKey(name: 'due_date') required final String dueDate,
-      required final List<Map<String, dynamic>> items,
-      final String? notes}) = _$CreateLabOrderRequestModelImpl;
+  const factory _CreateLabOrderRequestModel({
+    @JsonKey(name: 'patient_id') required final int patientId,
+    @JsonKey(name: 'lab_name') required final String labName,
+    @JsonKey(name: 'due_date') required final String dueDate,
+    required final List<Map<String, dynamic>> items,
+    final String? notes,
+  }) = _$CreateLabOrderRequestModelImpl;
   const _CreateLabOrderRequestModel._() : super._();
 
   factory _CreateLabOrderRequestModel.fromJson(Map<String, dynamic> json) =
@@ -1228,5 +1295,5 @@ abstract class _CreateLabOrderRequestModel extends CreateLabOrderRequestModel {
   @override
   @JsonKey(ignore: true)
   _$$CreateLabOrderRequestModelImplCopyWith<_$CreateLabOrderRequestModelImpl>
-      get copyWith => throw _privateConstructorUsedError;
+  get copyWith => throw _privateConstructorUsedError;
 }

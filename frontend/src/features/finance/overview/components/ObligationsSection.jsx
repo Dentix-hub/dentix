@@ -44,7 +44,7 @@ export default function ObligationsSection({
             description: t('finance.obligations.doctor_dues_desc', 'عمولات الجلسات المحصلة والرواتب الثابتة للفترة'),
             icon: UserCheck,
             iconBg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-            to: '/finance/compensation/doctors',
+            to: '/finance/team/doctors',
             actionText: t('finance.obligations.view_doctors', 'تفصيل مستحقات الأطباء'),
         },
         {
@@ -54,7 +54,7 @@ export default function ObligationsSection({
             description: t('finance.obligations.staff_dues_desc', 'رواتب وبدلات طاقم التمريض والاستقبال والإدارة'),
             icon: UserMinus,
             iconBg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
-            to: '/finance/compensation/payroll',
+            to: '/finance/team/payroll',
             actionText: t('finance.obligations.view_payroll', 'مسير الرواتب'),
         },
     ];

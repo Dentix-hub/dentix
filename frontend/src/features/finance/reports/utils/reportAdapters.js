@@ -1,8 +1,7 @@
-import { authoritativeNumber } from '../../utils/financialTruth';
-
 /**
- * Explicit response-to-view-model adapters for Finance V2 Reports (§18 MASTER_SPEC, GEMINI_REPAIR_PLAN R1).
- * Translates backend StandardResponse payloads into strongly-typed canonical view models.
+ * Explicit response-to-view-model adapters for Finance V2 Reports.
+ * Financial truth is server-owned: adapters normalize names/types only and do
+ * not recreate profit, deduction, balance, or receivable formulas in React.
  */
 
 export function adaptComprehensiveStats(raw = {}) {
@@ -10,93 +9,59 @@ export function adaptComprehensiveStats(raw = {}) {
     const income = raw?.income || {};
     const deductions = raw?.deductions || {};
 
-    const netProduction = Number(income.net_revenue ?? income.total_revenue ?? 0);
-    const discounts = Number(income.total_discounts || 0);
-    const invoiced = Number(income.gross_revenue ?? (netProduction + discounts));
-    const collected = Number(income.total_collected || 0);
-    const manualExpenses = Number(deductions.expenses || 0);
-    const labCosts = Number(deductions.lab_costs || 0);
-    const doctorDues = Number(deductions.doctor_dues?.total || 0);
-    const staffDues = Number(deductions.staff_dues?.total || 0);
-
-    const totalDeductions = authoritativeNumber(
-        deductions.total_deductions,
-        manualExpenses + labCosts + doctorDues + staffDues,
-    );
-    const netProfit = authoritativeNumber(
-        raw?.net_profit,
-        collected - totalDeductions,
-    );
-    const allTimeOutstanding = authoritativeNumber(
-        income.all_time_outstanding,
-        income.outstanding,
-    );
-    const periodBalance = authoritativeNumber(
-        income.period_balance,
-        invoiced - collected,
-    );
-
     return {
         period: {
             start: period.start || '',
             end: period.end || '',
+            timezone: period.timezone || '',
+            scope: period.scope || 'period',
         },
-        invoiced_revenue: invoiced,
-        total_discounts: discounts,
-        net_production: netProduction,
-        collected_revenue: collected,
-        manual_expenses: manualExpenses,
-        lab_costs: labCosts,
-        doctor_dues: doctorDues,
-        staff_dues: staffDues,
-        total_deductions: totalDeductions,
-        net_profit: netProfit,
-        all_time_outstanding: allTimeOutstanding,
-        period_balance: periodBalance,
-        total_appointments: Number(income.total_appointments || 0),
-        unique_patients: Number(income.unique_patients || 0),
+        definition_version: raw?.definition_version || '',
+        currency: raw?.currency || 'EGP',
+        invoiced_revenue: Number(income.gross_revenue ?? 0),
+        total_discounts: Number(income.total_discounts ?? 0),
+        net_production: Number(income.net_revenue ?? income.total_revenue ?? 0),
+        collected_revenue: Number(income.total_collected ?? 0),
+        manual_expenses: Number(deductions.expenses ?? 0),
+        lab_costs: Number(deductions.lab_costs ?? 0),
+        doctor_dues: Number(deductions.doctor_dues?.total ?? 0),
+        staff_dues: Number(deductions.staff_dues?.total ?? 0),
+        total_deductions: Number(deductions.total_deductions ?? 0),
+        net_profit: Number(raw?.net_operational_result ?? raw?.net_profit ?? 0),
+        all_time_outstanding: Number(
+            income.all_time_outstanding ?? income.outstanding ?? 0,
+        ),
+        period_balance: Number(income.period_balance ?? 0),
+        total_appointments: Number(income.total_appointments ?? 0),
+        unique_patients: Number(income.unique_patients ?? 0),
     };
 }
 
 export function adaptPatientsReport(raw = {}) {
     const patientsList = Array.isArray(raw?.patients) ? raw.patients : [];
-    const totalCount = authoritativeNumber(raw?.total, patientsList.length);
+    const totalCount = Number(raw?.total ?? patientsList.length);
 
-    const patients = patientsList.map((p) => {
-        const invoiced = Number(p.total_invoiced || 0);
-        const paid = Number(p.total_paid || 0);
-        const periodBalance = authoritativeNumber(
-            p.outstanding_balance,
-            invoiced - paid,
-        );
-        const allTimeOutstanding = Number(p.all_time_outstanding || 0);
+    const patients = patientsList.map((p) => ({
+        patient_id: p.patient_id || p.id,
+        file_number: p.file_number || p.patient_id,
+        patient_name: p.patient_name || p.name || '—',
+        patient_phone: p.patient_phone || p.phone || '',
+        invoiced_in_period: Number(p.total_invoiced ?? 0),
+        paid_in_period: Number(p.total_paid ?? 0),
+        period_balance: Number(p.outstanding_balance ?? 0),
+        all_time_outstanding: Number(p.all_time_outstanding ?? 0),
+    }));
 
-        return {
-            patient_id: p.patient_id || p.id,
-            file_number: p.file_number || p.patient_id,
-            patient_name: p.patient_name || p.name || '—',
-            patient_phone: p.patient_phone || p.phone || '',
-            invoiced_in_period: invoiced,
-            paid_in_period: paid,
-            period_balance: periodBalance,
-            all_time_outstanding: allTimeOutstanding,
-        };
-    });
-
-    const calculatedSummary = {
-        total_invoiced: patients.reduce((sum, p) => sum + p.invoiced_in_period, 0),
-        total_paid: patients.reduce((sum, p) => sum + p.paid_in_period, 0),
-        period_balance: patients.reduce((sum, p) => sum + p.period_balance, 0),
-        total_outstanding: patients.reduce((sum, p) => sum + p.all_time_outstanding, 0),
+    // Never derive aggregate cards from the currently loaded page. The server
+    // summary is tenant/query scoped and independent of pagination.
+    const summary = {
+        total_invoiced: Number(raw?.summary?.total_invoiced ?? 0),
+        total_paid: Number(raw?.summary?.total_paid ?? 0),
+        period_balance: Number(raw?.summary?.period_balance ?? 0),
+        total_outstanding: Number(raw?.summary?.total_outstanding ?? 0),
+        total_outstanding_scope:
+            raw?.summary?.total_outstanding_scope || 'all_time_as_of_now',
     };
-    const summary = raw?.summary
-        ? {
-            total_invoiced: Number(raw.summary.total_invoiced || 0),
-            total_paid: Number(raw.summary.total_paid || 0),
-            period_balance: Number(raw.summary.period_balance || 0),
-            total_outstanding: Number(raw.summary.total_outstanding || 0),
-        }
-        : calculatedSummary;
 
     return {
         total: totalCount,
@@ -114,6 +79,7 @@ export function adaptExpensesReport(raw) {
         item_name: e.item_name || '',
         notes: e.notes || e.description || '',
         date: e.date || '',
+        source: e.source || e.provenance || 'manual_expense',
     }));
 }
 
@@ -135,8 +101,6 @@ export function adaptProvidersReport(raw) {
         lab_cost: Number(d.lab_cost || 0),
         commission_percent: Number(d.commission_percent || 0),
         commission_amount: Number(d.commission_amount || 0),
-        // fixed_salary is the configured monthly rule; fixed_salary_period is
-        // the prorated share included in the selected period's total_due.
         fixed_salary: Number(d.fixed_salary || 0),
         fixed_salary_period: Number(
             d.fixed_salary_period !== undefined ? d.fixed_salary_period : d.fixed_salary || 0
@@ -152,20 +116,16 @@ export function adaptProfitabilityReport(raw) {
         ? raw.procedures
         : [];
 
-    return rawProcs.map((p) => {
-        const price = Number(p.price ?? p.base_price ?? 0);
-        const cost = Number(p.material_cost ?? p.cost ?? 0);
-        const margin = authoritativeNumber(p.profit_margin, price - cost);
-        const marginPercent = Number(p.margin_percent ?? p.profit_margin_percent ?? 0);
-
-        return {
-            id: p.id || p.procedure_id,
-            name: p.name || p.procedure_name || '—',
-            category: p.category || 'عام',
-            price,
-            material_cost: cost,
-            profit_margin: margin,
-            margin_percent: marginPercent,
-        };
-    });
+    return rawProcs.map((p) => ({
+        id: p.id || p.procedure_id,
+        name: p.name || p.procedure_name || '—',
+        category: p.category || 'عام',
+        price: Number(p.price ?? p.base_price ?? 0),
+        material_cost: Number(p.material_cost ?? p.cost ?? 0),
+        profit_margin: Number(p.profit_margin ?? 0),
+        margin_percent: Number(p.margin_percent ?? p.profit_margin_percent ?? 0),
+        coverage: p.coverage || p.cost_coverage || null,
+        confidence: p.confidence || null,
+        completeness: p.completeness || null,
+    }));
 }

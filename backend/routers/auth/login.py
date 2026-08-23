@@ -8,6 +8,12 @@ from backend.services.auth_service import AuthService
 from backend.core.permissions import Role
 from backend.core.limiter import limiter
 from .dependencies import get_async_db, get_current_user, oauth2_scheme
+from backend.services.auth_bootstrap import (
+    lookup_user_for_authentication,
+    post_auth_write_scope,
+    REASON_LOGIN,
+    REASON_REFRESH,
+)
 import uuid
 import logging
 import secrets
@@ -114,8 +120,13 @@ async def login_for_access_token(
     """Authenticate user and return JWT token."""
     try:
         # 1. Fetch User safely
+        # HIGH-RLS-01: no tenant context exists before authentication, so the
+        # identity lookup runs through the audited bootstrap path instead of a
+        # contextless (RLS-invisible) SELECT.
         try:
-            user = await crud.get_user(db, form_data.username)
+            user = await lookup_user_for_authentication(
+                db, form_data.username, reason=REASON_LOGIN
+            )
         except Exception as db_err:
             logger.error(f"DB Error fetching user: {db_err}")
             raise HTTPException(status_code=500, detail="Database connection error")
@@ -133,9 +144,10 @@ async def login_for_access_token(
                 )
             else:
                 # Lockout expired, reset it
-                user.account_locked_until = None
-                user.failed_login_attempts = 0
-                await db.commit()
+                async with post_auth_write_scope(db, user) as scoped_db:
+                    user.account_locked_until = None
+                    user.failed_login_attempts = 0
+                    await scoped_db.commit()
 
         # 3. Verify Credentials
         # Use explicit check to distinguish generic errors from bad password
@@ -153,10 +165,11 @@ async def login_for_access_token(
         if not user or not is_valid:
             logger.warning(f"Login failed for: {form_data.username} from IP {_request_client_ip(request)}")
             if user:
-                user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
-                if user.failed_login_attempts >= 5:
-                    user.account_locked_until = (datetime.now(timezone.utc) + timedelta(minutes=15)).replace(tzinfo=None)
-                await db.commit()
+                async with post_auth_write_scope(db, user) as scoped_db:
+                    user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+                    if user.failed_login_attempts >= 5:
+                        user.account_locked_until = (datetime.now(timezone.utc) + timedelta(minutes=15)).replace(tzinfo=None)
+                    await scoped_db.commit()
 
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -227,10 +240,11 @@ async def login_for_access_token(
         session_id = str(uuid.uuid4())
 
         # SINGLE SESSION POLICY: Update user with new session ID
-        user.active_session_id = session_id
-        user.failed_login_attempts = 0
-        user.account_locked_until = None
-        await db.commit()
+        async with post_auth_write_scope(db, user) as scoped_db:
+            user.active_session_id = session_id
+            user.failed_login_attempts = 0
+            user.account_locked_until = None
+            await scoped_db.commit()
 
         access_token = auth.create_access_token(
             data={
@@ -270,7 +284,15 @@ async def login_for_access_token(
             logger.error(f"Session Management Failed: {session_error}")
 
         from fastapi.responses import JSONResponse
+        # Mobile contract (HIGH-07): tokens are ALSO returned in the body so
+        # native clients can use the Bearer flow; the web client keeps using
+        # the httpOnly cookies set below and ignores these fields.
         res = JSONResponse(content={
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "role": user.role,
+            "username": user.username,
             "user": {
                 "id": str(user.id),
                 "name": user.full_name or user.username,
@@ -328,7 +350,7 @@ async def refresh_token(
 
         if not db_session or not db_session.is_active:
             # Check if user has a newer session (Single session policy)
-            user = await crud.get_user(db, username=username)
+            user = await lookup_user_for_authentication(db, username, reason=REASON_REFRESH)
             if user and user.active_session_id != sid:
                 raise HTTPException(
                     status_code=401, detail="Session Mismatch (Logged in elsewhere)"
@@ -337,7 +359,7 @@ async def refresh_token(
             raise HTTPException(status_code=401, detail="Session expired or revoked")
 
         # Check User
-        user = await crud.get_user(db, username=username)
+        user = await lookup_user_for_authentication(db, username, reason=REASON_REFRESH)
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
 
@@ -383,7 +405,14 @@ async def refresh_token(
             logger.error(f"Failed to save rotated session: {e}")
 
         from fastapi.responses import JSONResponse
+        # Mobile contract (HIGH-07): rotated tokens are ALSO returned in the
+        # body for native Bearer clients; the web keeps using cookies.
         res = JSONResponse(content={
+            "access_token": access_token,
+            "refresh_token": new_refresh_token,
+            "token_type": "bearer",
+            "role": user.role,
+            "username": user.username,
             "user": {
                 "id": str(user.id),
                 "name": user.full_name or user.username,

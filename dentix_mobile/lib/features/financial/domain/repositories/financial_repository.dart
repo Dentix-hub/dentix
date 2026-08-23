@@ -6,7 +6,7 @@ import '../entities/financial_transaction_entity.dart';
 /// Repository interface for financial operations
 abstract class FinancialRepository {
   /// Get financial overview with optional month filter
-  /// 
+  ///
   /// [page] - Page number for pagination
   /// [limit] - Items per page
   /// [month] - Optional month filter in format "YYYY-MM"
@@ -17,7 +17,7 @@ abstract class FinancialRepository {
   });
 
   /// Record a new payment/transaction
-  /// 
+  ///
   /// [patientId] - Patient ID
   /// [amount] - Payment amount
   /// [date] - Payment date

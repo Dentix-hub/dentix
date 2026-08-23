@@ -8,6 +8,12 @@ from backend.models.domain_event import DomainEvent
 
 logger = logging.getLogger(__name__)
 
+# A claimed ("processing") event older than this lease is presumed lost to a
+# worker crash and is reclaimed for redelivery. Must comfortably exceed the
+# slowest legitimate handler runtime.
+PROCESSING_LEASE_SECONDS = 900
+
+
 class EventService:
     @staticmethod
     def emit_event(
@@ -36,11 +42,41 @@ class EventService:
         return event
 
     @staticmethod
+    async def recover_stale_processing(db: AsyncSession, lease_seconds: int = None) -> int:
+        """Requeue events stuck in 'processing' (HIGH-10 crash recovery).
+
+        A worker claims an event by committing status='processing' before the
+        handler runs. If it crashes there, the event would otherwise be lost
+        forever. Claimed events stamp ``available_at`` as their lease start;
+        anything past the lease is reset to 'pending' for redelivery.
+        """
+        lease = PROCESSING_LEASE_SECONDS if lease_seconds is None else lease_seconds
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=lease)
+        stmt = (
+            DomainEvent.__table__.update()
+            .where(
+                DomainEvent.status == "processing",
+                DomainEvent.available_at < cutoff,
+            )
+            .values(status="pending")
+        )
+        result = await db.execute(stmt)
+        await db.commit()
+        reclaimed = getattr(result, "rowcount", 0) or 0
+        if reclaimed:
+            logger.warning("Recovered %s stale processing outbox event(s)", reclaimed)
+        return reclaimed
+
+    @staticmethod
     async def get_pending_events(db: AsyncSession, limit: int = 50) -> list[DomainEvent]:
         """
         Fetch pending events that are ready to be processed.
         """
         now = datetime.now(timezone.utc)
+
+        # Reclaim events abandoned by crashed workers before claiming new ones.
+        await EventService.recover_stale_processing(db)
+
         stmt = (
             select(DomainEvent)
             .filter(
@@ -54,9 +90,11 @@ class EventService:
         result = await db.execute(stmt)
         events = result.scalars().all()
 
-        # Mark them as processing
+        # Mark them as processing and stamp the lease start. Recovery treats
+        # available_at on a 'processing' row as its claim timestamp.
         for event in events:
             event.status = "processing"
+            event.available_at = now
 
         await db.commit()
         return events

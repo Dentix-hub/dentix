@@ -7,7 +7,6 @@ import ObligationsSection from '../features/finance/overview/components/Obligati
 import FinancialTrendChart from '../features/finance/overview/components/FinancialTrendChart';
 import RecentActivityPreview from '../features/finance/overview/components/RecentActivityPreview';
 
-// Mock react-i18next
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
         t: (key, fallback) => (typeof fallback === 'string' ? fallback : key),
@@ -34,7 +33,6 @@ describe('Finance Overview V2 Components', () => {
             expect(screen.getByText('التحصيلات النقدية')).toBeDefined();
             expect(screen.getByText('إجمالي الاستقطاعات')).toBeDefined();
             expect(screen.getByText('صافي النتيجة التشغيلية')).toBeDefined();
-
             expect(screen.getByLabelText('120000 EGP')).toBeDefined();
             expect(screen.getByLabelText('95000 EGP')).toBeDefined();
             expect(screen.getByLabelText('40000 EGP')).toBeDefined();
@@ -69,7 +67,7 @@ describe('Finance Overview V2 Components', () => {
     });
 
     describe('<ObligationsSection />', () => {
-        it('renders patient debt, doctor dues, and staff payroll with proper scope badges', () => {
+        it('renders patient debt, doctor dues, and staff payroll with canonical destination links', () => {
             render(
                 <MemoryRouter>
                     <ObligationsSection
@@ -84,15 +82,14 @@ describe('Finance Overview V2 Components', () => {
             expect(screen.getByText('مستحقات المرضى (الديون التراكمية)')).toBeDefined();
             expect(screen.getByText('مستحقات الأطباء غير المسددة')).toBeDefined();
             expect(screen.getByText('التزامات رواتب الموظفين')).toBeDefined();
-
             expect(screen.getByLabelText('65000 EGP')).toBeDefined();
             expect(screen.getByLabelText('18000 EGP')).toBeDefined();
             expect(screen.getByLabelText('12000 EGP')).toBeDefined();
 
             const links = screen.getAllByRole('link');
             expect(links.some((l) => l.getAttribute('href') === '/finance/patient-accounts')).toBe(true);
-            expect(links.some((l) => l.getAttribute('href') === '/finance/compensation/doctors')).toBe(true);
-            expect(links.some((l) => l.getAttribute('href') === '/finance/compensation/payroll')).toBe(true);
+            expect(links.some((l) => l.getAttribute('href') === '/finance/team/doctors')).toBe(true);
+            expect(links.some((l) => l.getAttribute('href') === '/finance/team/payroll')).toBe(true);
         });
 
         it('shows prorated obligation totals as whole EGP in the overview', () => {
@@ -125,7 +122,7 @@ describe('Finance Overview V2 Components', () => {
     });
 
     describe('<RecentActivityPreview />', () => {
-        it('renders recent payments and expenses with drill-down link', () => {
+        it('renders recent payments and expenses with canonical drill-down link', () => {
             const sampleActivities = [
                 {
                     id: 'pay-1',
@@ -135,7 +132,7 @@ describe('Finance Overview V2 Components', () => {
                     subtitle: 'دفعة جلسة حشو',
                     amount: 800,
                     isIncome: true,
-                    to: '/finance/payments',
+                    to: '/finance/cash-movements/payments',
                 },
                 {
                     id: 'exp-1',
@@ -145,7 +142,7 @@ describe('Finance Overview V2 Components', () => {
                     subtitle: 'مصروف تشغيلي',
                     amount: 1500,
                     isIncome: false,
-                    to: '/finance/expenses',
+                    to: '/finance/cash-movements/expenses',
                 },
             ];
 
@@ -159,9 +156,7 @@ describe('Finance Overview V2 Components', () => {
             expect(screen.getByText('فاتورة كهرباء')).toBeDefined();
             expect(screen.getByLabelText('800 EGP')).toBeDefined();
             expect(screen.getByLabelText('1500 EGP')).toBeDefined();
-
-            const viewAllLink = screen.getByText('عرض الكل');
-            expect(viewAllLink.closest('a').getAttribute('href')).toBe('/finance/activity');
+            expect(screen.getByText('عرض الكل').closest('a').getAttribute('href')).toBe('/finance/cash-movements/activity');
         });
 
         it('renders empty message when no activities are present', () => {
@@ -170,7 +165,6 @@ describe('Finance Overview V2 Components', () => {
                     <RecentActivityPreview activities={[]} />
                 </MemoryRouter>
             );
-
             expect(screen.getByText('لا توجد معاملات مسجلة مؤخراً')).toBeDefined();
         });
     });

@@ -8,19 +8,52 @@ export const getAllProceduresFinancials = () => {
     return api.get('/api/v1/financials/procedures/analysis');
 };
 
-// Reports
+// Reports / Finance truth
 export const getDoctorRevenue = (start, end) => api.get('/api/v1/accounting/doctor-revenue', { params: { start_date: start, end_date: end } });
 export const getMyDoctorRevenue = (start, end) => api.get('/api/v1/accounting/doctor-revenue/me', { params: { start_date: start, end_date: end } });
 export const getDoctorDetails = (id, start, end) => api.get(`/api/v1/accounting/doctor-details/${id}`, { params: { start_date: start, end_date: end } });
 export const getMyDoctorDetails = (start, end) => api.get('/api/v1/accounting/doctor-details/me', { params: { start_date: start, end_date: end } });
-export const updateStaffCompensation = (userId, commission, salary, perAppointment = 0) => api.put(`/api/v1/accounting/staff-compensation/${userId}`, null, { params: { commission_percent: commission, fixed_salary: salary, per_appointment_fee: perAppointment } });
-export const updateDoctorCompensation = (doctorId, data) => updateStaffCompensation(doctorId, data.commission_percent, data.fixed_salary, data.per_appointment_fee || 0);
+
+export const patchStaffCompensation = (userId, updates) =>
+    api.patch(`/api/v1/accounting/staff-compensation/${userId}`, updates);
+
+// Compatibility helper for older callers. Undefined fields are omitted rather
+// than being converted to zero.
+export const updateStaffCompensation = (userId, commission, salary, perAppointment) => {
+    const updates = {};
+    if (commission !== undefined) updates.commission_percent = commission;
+    if (salary !== undefined) updates.fixed_salary = salary;
+    if (perAppointment !== undefined) updates.per_appointment_fee = perAppointment;
+    return patchStaffCompensation(userId, updates);
+};
+
+export const updateDoctorCompensation = (doctorId, data) =>
+    patchStaffCompensation(doctorId, {
+        ...(data.commission_percent !== undefined
+            ? { commission_percent: data.commission_percent }
+            : {}),
+        ...(data.fixed_salary !== undefined ? { fixed_salary: data.fixed_salary } : {}),
+        ...(data.per_appointment_fee !== undefined
+            ? { per_appointment_fee: data.per_appointment_fee }
+            : {}),
+        ...(data.hire_date !== undefined ? { hire_date: data.hire_date } : {}),
+    });
+
 export const getStaffRevenue = (start, end) => api.get('/api/v1/accounting/staff-revenue', { params: { start_date: start, end_date: end } });
-export const getComprehensiveStats = (start, end, patientId = null) => {
-    const params = { start_date: start, end_date: end };
+
+export const getFinanceSummary = (start = null, end = null, patientId = null) => {
+    const params = {};
+    if (start && end) {
+        params.start_date = start;
+        params.end_date = end;
+    }
     if (patientId) params.patient_id = patientId;
     return api.get('/api/v1/accounting/comprehensive-stats', { params });
 };
+
+// Compatibility alias while existing consumers migrate to the domain name.
+export const getComprehensiveStats = getFinanceSummary;
+
 export const getPatientsReport = (params) => api.get('/api/v1/accounting/patients-report', { params });
 export const getPatientReportDetails = (patientId, params) => api.get(`/api/v1/accounting/patient-report-details/${patientId}`, { params });
 
@@ -29,9 +62,12 @@ export const getSalariesStatus = (month) => api.get('/api/v1/accounting/salaries
 export const recordSalaryPayment = (userId, month, amount, isPartial = false, daysWorked = null, notes = null) =>
     api.post('/api/v1/accounting/salaries', null, { params: { user_id: userId, month, amount, is_partial: isPartial, days_worked: daysWorked, notes } });
 export const deleteSalaryPayment = (paymentId) => api.delete(`/api/v1/accounting/salaries/${paymentId}`);
-export const updateHireDate = (userId, hireDate) => api.put(`/api/v1/accounting/staff/${userId}/hire-date`, null, { params: { hire_date: hireDate } });
+export const updateHireDate = (userId, hireDate) =>
+    patchStaffCompensation(userId, { hire_date: hireDate });
 
 // Trends — exact selected dates are optional for backwards compatibility.
+// This is a time-series endpoint, not the deprecated headline profitability
+// source. Headline Finance truth comes from getFinanceSummary().
 export const getFinanceProfitabilityTrend = (period = '30d', start = null, end = null) => {
     const params = { period };
     if (start && end) {
@@ -43,3 +79,35 @@ export const getFinanceProfitabilityTrend = (period = '30d', start = null, end =
 
 // Activity Feed (§17 MASTER_SPEC, FIN-ACT-001)
 export const getFinancialActivity = (params) => api.get('/api/v1/accounting/activity', { params });
+
+// PR6 server-backed analytical reports.
+export const getPeriodComparisonReport = (params) =>
+    api.get('/api/v1/accounting/reports/period-comparison', { params });
+
+export const exportPeriodComparisonReport = (params) =>
+    api.get('/api/v1/accounting/reports/period-comparison/export.csv', {
+        params,
+        responseType: 'blob',
+    });
+
+export const getMaterialMarginReport = (params) =>
+    api.get('/api/v1/financials/reports/material-margin', { params });
+
+export const exportMaterialMarginReport = (params) =>
+    api.get('/api/v1/financials/reports/material-margin/export.csv', {
+        params,
+        responseType: 'blob',
+    });
+
+// Canonical operational-page exports. The server applies the active filters and
+// batches full filtered datasets; the browser never performs fetch-all loops.
+const exportOperationalCsv = (report, params) =>
+    api.get(`/api/v1/financials/reports/${report}/export.csv`, {
+        params,
+        responseType: 'blob',
+    });
+
+export const exportFinanceSummary = (params) => exportOperationalCsv('summary', params);
+export const exportPatientAccounts = (params) => exportOperationalCsv('patient-accounts', params);
+export const exportExpensesReport = (params) => exportOperationalCsv('expenses', params);
+export const exportProvidersReport = (params) => exportOperationalCsv('providers', params);

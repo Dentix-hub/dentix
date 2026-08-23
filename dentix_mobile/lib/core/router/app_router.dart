@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/l10n/app_localizations.dart';
+
+import '../di/providers.dart';
+import '../l10n/app_localizations.dart';
 
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/splash_page.dart';
@@ -13,7 +15,6 @@ import '../../features/settings/presentation/pages/more_page.dart';
 import '../../features/financial/presentation/pages/financial_overview_page.dart';
 import '../../features/prescriptions/presentation/pages/prescriptions_list_page.dart';
 import '../../features/lab_orders/presentation/pages/lab_orders_list_page.dart';
-import '../../main.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -27,7 +28,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     initialLocation: '/splash',
     redirect: (context, state) async {
       final isLoggedIn = await authInterceptor.isLoggedIn();
-      final isAuthRoute = state.matchedLocation == '/login' ||
+      final isAuthRoute =
+          state.matchedLocation == '/login' ||
           state.matchedLocation == '/splash';
 
       if (!isLoggedIn && !isAuthRoute) {
@@ -41,14 +43,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/splash',
-        builder: (context, state) => const SplashPage(),
-      ),
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginPage(),
-      ),
+      GoRoute(path: '/splash', builder: (context, state) => const SplashPage()),
+      GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
       GoRoute(
         path: '/financial',
         builder: (context, state) => const FinancialOverviewPage(),
@@ -81,10 +77,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             path: '/appointments',
             builder: (context, state) => const AppointmentCalendarPage(),
           ),
-          GoRoute(
-            path: '/more',
-            builder: (context, state) => const MorePage(),
-          ),
+          GoRoute(path: '/more', builder: (context, state) => const MorePage()),
         ],
       ),
     ],
@@ -94,10 +87,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 class ScaffoldWithNavBar extends StatelessWidget {
   final Widget child;
 
-  const ScaffoldWithNavBar({
-    super.key,
-    required this.child,
-  });
+  const ScaffoldWithNavBar({super.key, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -153,6 +143,6 @@ class ScaffoldWithNavBar extends StatelessWidget {
     if (location.startsWith('/patients')) return 1;
     if (location.startsWith('/appointments')) return 2;
     if (location.startsWith('/more')) return 3;
-    return 0; 
+    return 0;
   }
 }

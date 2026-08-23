@@ -4,8 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/l10n/app_localizations.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../main.dart';
-import '../../../auth/presentation/controllers/auth_notifier.dart';
-import '../../../appointments/presentation/pages/appointment_calendar_page.dart';
 
 class MorePage extends ConsumerWidget {
   const MorePage({super.key});
@@ -15,10 +13,7 @@ class MorePage extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.more),
-        automaticallyImplyLeading: false,
-      ),
+      appBar: AppBar(title: Text(l10n.more), automaticallyImplyLeading: false),
       body: ListView(
         children: [
           _buildMenuItem(
@@ -56,30 +51,30 @@ class MorePage extends ConsumerWidget {
             title: l10n.logout,
             color: AppColors.error,
             onTap: () {
-               // Show confirmation dialog
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text(l10n.logout),
-                    content: Text(l10n.confirmLogout),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text(l10n.cancel),
+              // Show confirmation dialog
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: Text(l10n.logout),
+                  content: Text(l10n.confirmLogout),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(l10n.cancel),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        ref.read(authProvider.notifier).logout();
+                      },
+                      child: Text(
+                        l10n.logout,
+                        style: const TextStyle(color: AppColors.error),
                       ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          ref.read(authProvider.notifier).logout();
-                        },
-                        child: Text(
-                          l10n.logout,
-                          style: const TextStyle(color: AppColors.error),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
+                    ),
+                  ],
+                ),
+              );
             },
           ),
         ],

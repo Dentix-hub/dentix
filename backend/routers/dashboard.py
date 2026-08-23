@@ -112,7 +112,7 @@ async def update_tenant_timezone(
 async def get_finance_stats(
     request: Request,
     db: AsyncSession = Depends(get_async_db),
-    current_user: models.User = Depends(require_permission(Permission.FINANCIAL_READ)),
+    current_user: models.User = Depends(require_permission(Permission.FINANCE_OVERVIEW_READ)),
 ):
     """Get financial statistics for the current tenant business day."""
     context = await get_tenant_time_context(db, current_user.tenant_id)

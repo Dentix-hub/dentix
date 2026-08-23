@@ -171,8 +171,8 @@ describe('Finance Doctor Compensation V2', () => {
 
             await waitFor(() => {
                 expect(screen.getByText('د. سارة عادل')).toBeDefined();
-                expect(screen.getByText('حشو عصب جراحي')).toBeDefined();
-                expect(screen.getByText('محمد خالد')).toBeDefined();
+                expect(screen.getAllByText('حشو عصب جراحي').length).toBeGreaterThan(0);
+                expect(screen.getAllByText('محمد خالد').length).toBeGreaterThan(0);
             });
 
             expect(screen.getAllByLabelText('8600 EGP').length).toBeGreaterThan(0);

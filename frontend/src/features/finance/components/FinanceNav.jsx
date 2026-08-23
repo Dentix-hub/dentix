@@ -4,16 +4,16 @@ import {
     LayoutDashboard,
     Users,
     CreditCard,
-    Receipt,
     UserCheck,
-    History,
     FileText,
 } from 'lucide-react';
 import { useFinancePermissions } from '../useFinancePermissions';
 
 /**
- * Navigation Bar for Finance V2 (§4 MASTER_SPEC, GEMINI_REPAIR_PLAN R4).
- * Enforces granular RBAC visibility for each financial domain.
+ * Canonical Finance V2 navigation.
+ *
+ * PR5 intentionally exposes five destinations only. Operational children live
+ * under Cash Movements and Team, while legacy routes are compatibility-only.
  */
 export default function FinanceNav({ className = '' }) {
     const { t } = useTranslation();
@@ -29,11 +29,19 @@ export default function FinanceNav({ className = '' }) {
         isDoctor,
     } = useFinancePermissions();
 
+    const currentParams = new URLSearchParams(location.search);
+    const sharedPeriodParams = new URLSearchParams();
+    ['from', 'to', 'preset'].forEach((key) => {
+        const value = currentParams.get(key);
+        if (value) sharedPeriodParams.set(key, value);
+    });
+    const sharedSearch = sharedPeriodParams.toString();
+
     const navItems = [
         {
             id: 'overview',
             to: '/finance/overview',
-            label: t('finance.nav.overview', 'نظرة عامة'),
+            label: t('finance.nav.overview', 'الملخص'),
             icon: LayoutDashboard,
             visible: canViewOverview,
         },
@@ -45,37 +53,23 @@ export default function FinanceNav({ className = '' }) {
             visible: canViewPatientAccounts,
         },
         {
-            id: 'payments',
-            to: '/finance/payments',
-            label: t('finance.nav.payments', 'المدفوعات'),
+            id: 'cash-movements',
+            to: '/finance/cash-movements',
+            label: t('finance.nav.cash_movements', 'الحركات النقدية'),
             icon: CreditCard,
-            visible: canViewPayments,
+            visible: canViewPayments || canViewExpenses || canViewActivity,
         },
         {
-            id: 'expenses',
-            to: '/finance/expenses',
-            label: t('finance.nav.expenses', 'المصروفات'),
-            icon: Receipt,
-            visible: canViewExpenses,
-        },
-        {
-            id: 'compensation',
-            to: isDoctor ? '/finance/compensation/doctors' : '/finance/compensation',
-            label: t('finance.nav.compensation', 'المستحقات والرواتب'),
+            id: 'team',
+            to: '/finance/team',
+            label: t('finance.nav.team', 'الفريق'),
             icon: UserCheck,
             visible: canViewPayroll || isDoctor,
         },
         {
-            id: 'activity',
-            to: '/finance/activity',
-            label: t('finance.nav.activity', 'سجل المعاملات'),
-            icon: History,
-            visible: canViewActivity,
-        },
-        {
             id: 'reports',
             to: '/finance/reports',
-            label: t('finance.nav.reports', 'التقارير المالية'),
+            label: t('finance.nav.reports_insights', 'التقارير والرؤى'),
             icon: FileText,
             visible: canViewReports,
         },
@@ -93,13 +87,16 @@ export default function FinanceNav({ className = '' }) {
                     const Icon = item.icon;
                     const isActive =
                         location.pathname === item.to ||
-                        (item.to !== '/finance/overview' && location.pathname.startsWith(item.to)) ||
+                        (item.to !== '/finance/overview' && location.pathname.startsWith(`${item.to}/`)) ||
                         (item.to === '/finance/overview' && (location.pathname === '/finance' || location.pathname === '/finance/'));
 
                     return (
                         <NavLink
                             key={item.id}
-                            to={item.to}
+                            to={{
+                                pathname: item.to,
+                                search: sharedSearch ? `?${sharedSearch}` : '',
+                            }}
                             className={`inline-flex min-h-10 shrink-0 snap-start items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all duration-150 select-none sm:gap-2 sm:px-3.5 sm:text-sm ${
                                 isActive
                                     ? 'bg-primary text-white shadow-sm'

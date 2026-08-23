@@ -12,7 +12,8 @@ part of 'appointment_notifier.dart';
 T _$identity<T>(T value) => value;
 
 final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
+  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
+);
 
 /// @nodoc
 mixin _$AppointmentState {
@@ -20,49 +21,59 @@ mixin _$AppointmentState {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<AppointmentEntity> appointments,
-            int totalPages, int currentPage, bool hasMore, String? selectedDate)
-        loaded,
+    required TResult Function(
+      List<AppointmentEntity> appointments,
+      int totalPages,
+      int currentPage,
+      bool hasMore,
+      String? selectedDate,
+    )
+    loaded,
     required TResult Function(String message) error,
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<AppointmentEntity> appointments, int totalPages,
-            int currentPage, bool hasMore, String? selectedDate)?
-        loaded,
+    TResult? Function(
+      List<AppointmentEntity> appointments,
+      int totalPages,
+      int currentPage,
+      bool hasMore,
+      String? selectedDate,
+    )?
+    loaded,
     TResult? Function(String message)? error,
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<AppointmentEntity> appointments, int totalPages,
-            int currentPage, bool hasMore, String? selectedDate)?
-        loaded,
+    TResult Function(
+      List<AppointmentEntity> appointments,
+      int totalPages,
+      int currentPage,
+      bool hasMore,
+      String? selectedDate,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult map<TResult extends Object?>({
     required TResult Function(_Initial value) initial,
     required TResult Function(_Loading value) loading,
     required TResult Function(_Loaded value) loaded,
     required TResult Function(_Error value) error,
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult? mapOrNull<TResult extends Object?>({
     TResult? Function(_Initial value)? initial,
     TResult? Function(_Loading value)? loading,
     TResult? Function(_Loaded value)? loaded,
     TResult? Function(_Error value)? error,
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult maybeMap<TResult extends Object?>({
     TResult Function(_Initial value)? initial,
@@ -70,15 +81,15 @@ mixin _$AppointmentState {
     TResult Function(_Loaded value)? loaded,
     TResult Function(_Error value)? error,
     required TResult orElse(),
-  }) =>
-      throw _privateConstructorUsedError;
+  }) => throw _privateConstructorUsedError;
 }
 
 /// @nodoc
 abstract class $AppointmentStateCopyWith<$Res> {
   factory $AppointmentStateCopyWith(
-          AppointmentState value, $Res Function(AppointmentState) then) =
-      _$AppointmentStateCopyWithImpl<$Res, AppointmentState>;
+    AppointmentState value,
+    $Res Function(AppointmentState) then,
+  ) = _$AppointmentStateCopyWithImpl<$Res, AppointmentState>;
 }
 
 /// @nodoc
@@ -95,8 +106,9 @@ class _$AppointmentStateCopyWithImpl<$Res, $Val extends AppointmentState>
 /// @nodoc
 abstract class _$$InitialImplCopyWith<$Res> {
   factory _$$InitialImplCopyWith(
-          _$InitialImpl value, $Res Function(_$InitialImpl) then) =
-      __$$InitialImplCopyWithImpl<$Res>;
+    _$InitialImpl value,
+    $Res Function(_$InitialImpl) then,
+  ) = __$$InitialImplCopyWithImpl<$Res>;
 }
 
 /// @nodoc
@@ -104,8 +116,9 @@ class __$$InitialImplCopyWithImpl<$Res>
     extends _$AppointmentStateCopyWithImpl<$Res, _$InitialImpl>
     implements _$$InitialImplCopyWith<$Res> {
   __$$InitialImplCopyWithImpl(
-      _$InitialImpl _value, $Res Function(_$InitialImpl) _then)
-      : super(_value, _then);
+    _$InitialImpl _value,
+    $Res Function(_$InitialImpl) _then,
+  ) : super(_value, _then);
 }
 
 /// @nodoc
@@ -132,9 +145,14 @@ class _$InitialImpl implements _Initial {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<AppointmentEntity> appointments,
-            int totalPages, int currentPage, bool hasMore, String? selectedDate)
-        loaded,
+    required TResult Function(
+      List<AppointmentEntity> appointments,
+      int totalPages,
+      int currentPage,
+      bool hasMore,
+      String? selectedDate,
+    )
+    loaded,
     required TResult Function(String message) error,
   }) {
     return initial();
@@ -145,9 +163,14 @@ class _$InitialImpl implements _Initial {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<AppointmentEntity> appointments, int totalPages,
-            int currentPage, bool hasMore, String? selectedDate)?
-        loaded,
+    TResult? Function(
+      List<AppointmentEntity> appointments,
+      int totalPages,
+      int currentPage,
+      bool hasMore,
+      String? selectedDate,
+    )?
+    loaded,
     TResult? Function(String message)? error,
   }) {
     return initial?.call();
@@ -158,9 +181,14 @@ class _$InitialImpl implements _Initial {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<AppointmentEntity> appointments, int totalPages,
-            int currentPage, bool hasMore, String? selectedDate)?
-        loaded,
+    TResult Function(
+      List<AppointmentEntity> appointments,
+      int totalPages,
+      int currentPage,
+      bool hasMore,
+      String? selectedDate,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -215,8 +243,9 @@ abstract class _Initial implements AppointmentState {
 /// @nodoc
 abstract class _$$LoadingImplCopyWith<$Res> {
   factory _$$LoadingImplCopyWith(
-          _$LoadingImpl value, $Res Function(_$LoadingImpl) then) =
-      __$$LoadingImplCopyWithImpl<$Res>;
+    _$LoadingImpl value,
+    $Res Function(_$LoadingImpl) then,
+  ) = __$$LoadingImplCopyWithImpl<$Res>;
 }
 
 /// @nodoc
@@ -224,8 +253,9 @@ class __$$LoadingImplCopyWithImpl<$Res>
     extends _$AppointmentStateCopyWithImpl<$Res, _$LoadingImpl>
     implements _$$LoadingImplCopyWith<$Res> {
   __$$LoadingImplCopyWithImpl(
-      _$LoadingImpl _value, $Res Function(_$LoadingImpl) _then)
-      : super(_value, _then);
+    _$LoadingImpl _value,
+    $Res Function(_$LoadingImpl) _then,
+  ) : super(_value, _then);
 }
 
 /// @nodoc
@@ -252,9 +282,14 @@ class _$LoadingImpl implements _Loading {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<AppointmentEntity> appointments,
-            int totalPages, int currentPage, bool hasMore, String? selectedDate)
-        loaded,
+    required TResult Function(
+      List<AppointmentEntity> appointments,
+      int totalPages,
+      int currentPage,
+      bool hasMore,
+      String? selectedDate,
+    )
+    loaded,
     required TResult Function(String message) error,
   }) {
     return loading();
@@ -265,9 +300,14 @@ class _$LoadingImpl implements _Loading {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<AppointmentEntity> appointments, int totalPages,
-            int currentPage, bool hasMore, String? selectedDate)?
-        loaded,
+    TResult? Function(
+      List<AppointmentEntity> appointments,
+      int totalPages,
+      int currentPage,
+      bool hasMore,
+      String? selectedDate,
+    )?
+    loaded,
     TResult? Function(String message)? error,
   }) {
     return loading?.call();
@@ -278,9 +318,14 @@ class _$LoadingImpl implements _Loading {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<AppointmentEntity> appointments, int totalPages,
-            int currentPage, bool hasMore, String? selectedDate)?
-        loaded,
+    TResult Function(
+      List<AppointmentEntity> appointments,
+      int totalPages,
+      int currentPage,
+      bool hasMore,
+      String? selectedDate,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
@@ -335,15 +380,17 @@ abstract class _Loading implements AppointmentState {
 /// @nodoc
 abstract class _$$LoadedImplCopyWith<$Res> {
   factory _$$LoadedImplCopyWith(
-          _$LoadedImpl value, $Res Function(_$LoadedImpl) then) =
-      __$$LoadedImplCopyWithImpl<$Res>;
+    _$LoadedImpl value,
+    $Res Function(_$LoadedImpl) then,
+  ) = __$$LoadedImplCopyWithImpl<$Res>;
   @useResult
-  $Res call(
-      {List<AppointmentEntity> appointments,
-      int totalPages,
-      int currentPage,
-      bool hasMore,
-      String? selectedDate});
+  $Res call({
+    List<AppointmentEntity> appointments,
+    int totalPages,
+    int currentPage,
+    bool hasMore,
+    String? selectedDate,
+  });
 }
 
 /// @nodoc
@@ -351,8 +398,9 @@ class __$$LoadedImplCopyWithImpl<$Res>
     extends _$AppointmentStateCopyWithImpl<$Res, _$LoadedImpl>
     implements _$$LoadedImplCopyWith<$Res> {
   __$$LoadedImplCopyWithImpl(
-      _$LoadedImpl _value, $Res Function(_$LoadedImpl) _then)
-      : super(_value, _then);
+    _$LoadedImpl _value,
+    $Res Function(_$LoadedImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -363,41 +411,43 @@ class __$$LoadedImplCopyWithImpl<$Res>
     Object? hasMore = null,
     Object? selectedDate = freezed,
   }) {
-    return _then(_$LoadedImpl(
-      appointments: null == appointments
-          ? _value._appointments
-          : appointments // ignore: cast_nullable_to_non_nullable
-              as List<AppointmentEntity>,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      hasMore: null == hasMore
-          ? _value.hasMore
-          : hasMore // ignore: cast_nullable_to_non_nullable
-              as bool,
-      selectedDate: freezed == selectedDate
-          ? _value.selectedDate
-          : selectedDate // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ));
+    return _then(
+      _$LoadedImpl(
+        appointments: null == appointments
+            ? _value._appointments
+            : appointments // ignore: cast_nullable_to_non_nullable
+                  as List<AppointmentEntity>,
+        totalPages: null == totalPages
+            ? _value.totalPages
+            : totalPages // ignore: cast_nullable_to_non_nullable
+                  as int,
+        currentPage: null == currentPage
+            ? _value.currentPage
+            : currentPage // ignore: cast_nullable_to_non_nullable
+                  as int,
+        hasMore: null == hasMore
+            ? _value.hasMore
+            : hasMore // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        selectedDate: freezed == selectedDate
+            ? _value.selectedDate
+            : selectedDate // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 
 class _$LoadedImpl implements _Loaded {
-  const _$LoadedImpl(
-      {required final List<AppointmentEntity> appointments,
-      required this.totalPages,
-      required this.currentPage,
-      required this.hasMore,
-      this.selectedDate})
-      : _appointments = appointments;
+  const _$LoadedImpl({
+    required final List<AppointmentEntity> appointments,
+    required this.totalPages,
+    required this.currentPage,
+    required this.hasMore,
+    this.selectedDate,
+  }) : _appointments = appointments;
 
   final List<AppointmentEntity> _appointments;
   @override
@@ -426,8 +476,10 @@ class _$LoadedImpl implements _Loaded {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$LoadedImpl &&
-            const DeepCollectionEquality()
-                .equals(other._appointments, _appointments) &&
+            const DeepCollectionEquality().equals(
+              other._appointments,
+              _appointments,
+            ) &&
             (identical(other.totalPages, totalPages) ||
                 other.totalPages == totalPages) &&
             (identical(other.currentPage, currentPage) ||
@@ -439,12 +491,13 @@ class _$LoadedImpl implements _Loaded {
 
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      const DeepCollectionEquality().hash(_appointments),
-      totalPages,
-      currentPage,
-      hasMore,
-      selectedDate);
+    runtimeType,
+    const DeepCollectionEquality().hash(_appointments),
+    totalPages,
+    currentPage,
+    hasMore,
+    selectedDate,
+  );
 
   @JsonKey(ignore: true)
   @override
@@ -457,9 +510,14 @@ class _$LoadedImpl implements _Loaded {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<AppointmentEntity> appointments,
-            int totalPages, int currentPage, bool hasMore, String? selectedDate)
-        loaded,
+    required TResult Function(
+      List<AppointmentEntity> appointments,
+      int totalPages,
+      int currentPage,
+      bool hasMore,
+      String? selectedDate,
+    )
+    loaded,
     required TResult Function(String message) error,
   }) {
     return loaded(appointments, totalPages, currentPage, hasMore, selectedDate);
@@ -470,13 +528,23 @@ class _$LoadedImpl implements _Loaded {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<AppointmentEntity> appointments, int totalPages,
-            int currentPage, bool hasMore, String? selectedDate)?
-        loaded,
+    TResult? Function(
+      List<AppointmentEntity> appointments,
+      int totalPages,
+      int currentPage,
+      bool hasMore,
+      String? selectedDate,
+    )?
+    loaded,
     TResult? Function(String message)? error,
   }) {
     return loaded?.call(
-        appointments, totalPages, currentPage, hasMore, selectedDate);
+      appointments,
+      totalPages,
+      currentPage,
+      hasMore,
+      selectedDate,
+    );
   }
 
   @override
@@ -484,15 +552,25 @@ class _$LoadedImpl implements _Loaded {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<AppointmentEntity> appointments, int totalPages,
-            int currentPage, bool hasMore, String? selectedDate)?
-        loaded,
+    TResult Function(
+      List<AppointmentEntity> appointments,
+      int totalPages,
+      int currentPage,
+      bool hasMore,
+      String? selectedDate,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {
     if (loaded != null) {
       return loaded(
-          appointments, totalPages, currentPage, hasMore, selectedDate);
+        appointments,
+        totalPages,
+        currentPage,
+        hasMore,
+        selectedDate,
+      );
     }
     return orElse();
   }
@@ -536,12 +614,13 @@ class _$LoadedImpl implements _Loaded {
 }
 
 abstract class _Loaded implements AppointmentState {
-  const factory _Loaded(
-      {required final List<AppointmentEntity> appointments,
-      required final int totalPages,
-      required final int currentPage,
-      required final bool hasMore,
-      final String? selectedDate}) = _$LoadedImpl;
+  const factory _Loaded({
+    required final List<AppointmentEntity> appointments,
+    required final int totalPages,
+    required final int currentPage,
+    required final bool hasMore,
+    final String? selectedDate,
+  }) = _$LoadedImpl;
 
   List<AppointmentEntity> get appointments;
   int get totalPages;
@@ -556,8 +635,9 @@ abstract class _Loaded implements AppointmentState {
 /// @nodoc
 abstract class _$$ErrorImplCopyWith<$Res> {
   factory _$$ErrorImplCopyWith(
-          _$ErrorImpl value, $Res Function(_$ErrorImpl) then) =
-      __$$ErrorImplCopyWithImpl<$Res>;
+    _$ErrorImpl value,
+    $Res Function(_$ErrorImpl) then,
+  ) = __$$ErrorImplCopyWithImpl<$Res>;
   @useResult
   $Res call({String message});
 }
@@ -567,20 +647,21 @@ class __$$ErrorImplCopyWithImpl<$Res>
     extends _$AppointmentStateCopyWithImpl<$Res, _$ErrorImpl>
     implements _$$ErrorImplCopyWith<$Res> {
   __$$ErrorImplCopyWithImpl(
-      _$ErrorImpl _value, $Res Function(_$ErrorImpl) _then)
-      : super(_value, _then);
+    _$ErrorImpl _value,
+    $Res Function(_$ErrorImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
-  $Res call({
-    Object? message = null,
-  }) {
-    return _then(_$ErrorImpl(
-      null == message
-          ? _value.message
-          : message // ignore: cast_nullable_to_non_nullable
-              as String,
-    ));
+  $Res call({Object? message = null}) {
+    return _then(
+      _$ErrorImpl(
+        null == message
+            ? _value.message
+            : message // ignore: cast_nullable_to_non_nullable
+                  as String,
+      ),
+    );
   }
 }
 
@@ -619,9 +700,14 @@ class _$ErrorImpl implements _Error {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loading,
-    required TResult Function(List<AppointmentEntity> appointments,
-            int totalPages, int currentPage, bool hasMore, String? selectedDate)
-        loaded,
+    required TResult Function(
+      List<AppointmentEntity> appointments,
+      int totalPages,
+      int currentPage,
+      bool hasMore,
+      String? selectedDate,
+    )
+    loaded,
     required TResult Function(String message) error,
   }) {
     return error(message);
@@ -632,9 +718,14 @@ class _$ErrorImpl implements _Error {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loading,
-    TResult? Function(List<AppointmentEntity> appointments, int totalPages,
-            int currentPage, bool hasMore, String? selectedDate)?
-        loaded,
+    TResult? Function(
+      List<AppointmentEntity> appointments,
+      int totalPages,
+      int currentPage,
+      bool hasMore,
+      String? selectedDate,
+    )?
+    loaded,
     TResult? Function(String message)? error,
   }) {
     return error?.call(message);
@@ -645,9 +736,14 @@ class _$ErrorImpl implements _Error {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loading,
-    TResult Function(List<AppointmentEntity> appointments, int totalPages,
-            int currentPage, bool hasMore, String? selectedDate)?
-        loaded,
+    TResult Function(
+      List<AppointmentEntity> appointments,
+      int totalPages,
+      int currentPage,
+      bool hasMore,
+      String? selectedDate,
+    )?
+    loaded,
     TResult Function(String message)? error,
     required TResult orElse(),
   }) {

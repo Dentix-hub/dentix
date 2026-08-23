@@ -42,12 +42,61 @@ _PHI_PATTERNS = [
     (re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'), '[EMAIL_REDACTED]'),  # Email in messages
 ]
 
+# === SECRET SCRUBBER ===
+# Session credentials and API secrets that must never appear in logs.
+_SECRET_PATTERNS = [
+    # Authorization schemes: Bearer/Basic/Digest tokens in any message
+    (re.compile(r'\b(bearer|basic|digest)\s+[\w\-._~+/=]{6,}', re.IGNORECASE), r'\1 [TOKEN_REDACTED]'),
+    # Cookie / Set-Cookie header content
+    (re.compile(r'(?i)(set-cookie|cookie)\s*[:=]\s*\S[^\s"]*'), '[COOKIE_REDACTED]'),
+    # Token-like query/form params
+    (re.compile(
+        r'(?i)\b(access_token|refresh_token|id_token|session_token|api_key|apikey|secret|'
+        r'password|passwd|pwd|csrf_token|token)'
+        r'(=|:)\s*("[^"]*"|\S+)'
+    ), r'\1\2[REDACTED]'),
+]
 
-def _scrub_phi(message: str) -> str:
-    """Remove potential PHI from log messages."""
-    for pattern, replacement in _PHI_PATTERNS:
+# Header names whose values are credentials/secrets.
+_SENSITIVE_HEADER_NAMES = {
+    "authorization",
+    "proxy-authorization",
+    "cookie",
+    "set-cookie",
+    "x-api-key",
+    "api-key",
+    "x-auth-token",
+    "x-csrf-token",
+}
+
+
+def _scrub_secrets(message: str) -> str:
+    """Remove session credentials/API secrets from a log message."""
+    for pattern, replacement in _SECRET_PATTERNS:
         message = pattern.sub(replacement, message)
     return message
+
+
+def sanitize_headers(headers) -> dict:
+    """Return a copy of a headers mapping with sensitive values redacted.
+
+    Use this instead of logging ``dict(request.headers)`` directly.
+    """
+    safe = {}
+    for key, value in dict(headers or {}).items():
+        name_lower = str(key).lower()
+        if name_lower in _SENSITIVE_HEADER_NAMES or "token" in name_lower or "secret" in name_lower:
+            safe[key] = "[REDACTED]"
+        else:
+            safe[key] = value
+    return safe
+
+
+def _scrub_phi(message: str) -> str:
+    """Remove potential PHI and secrets from log messages."""
+    for pattern, replacement in _PHI_PATTERNS:
+        message = pattern.sub(replacement, message)
+    return _scrub_secrets(message)
 
 
 class StructuredFormatter(logging.Formatter):

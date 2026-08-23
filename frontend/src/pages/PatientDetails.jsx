@@ -268,13 +268,13 @@ export default function PatientDetails() {
                 notes: notes || ''
             };
             const res = await createPrescription(payload);
-            sessionStorage.setItem('print_rx_data', JSON.stringify({ patient, prescription: res.data }));
+            // Print route carries the real prescription id; no PHI in sessionStorage.
             setIsRxModalOpen(false);
-            window.open(`/print/rx/${id}`, '_blank');
+            window.open(`/print/rx/${res.data?.id}`, '_blank');
         } catch (error) {
             toast.error(error.response?.data?.detail || t('patient_details.alerts.rx_fail'));
         }
-    }, [id, patient, t]);
+    }, [id, t]);
 
     useHotkeys('n', (event) => {
         event.preventDefault();

@@ -12,7 +12,8 @@ part of 'treatment_model.dart';
 T _$identity<T>(T value) => value;
 
 final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
+  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
+);
 
 TreatmentModel _$TreatmentModelFromJson(Map<String, dynamic> json) {
   return _TreatmentModel.fromJson(json);
@@ -49,20 +50,22 @@ mixin _$TreatmentModel {
 /// @nodoc
 abstract class $TreatmentModelCopyWith<$Res> {
   factory $TreatmentModelCopyWith(
-          TreatmentModel value, $Res Function(TreatmentModel) then) =
-      _$TreatmentModelCopyWithImpl<$Res, TreatmentModel>;
+    TreatmentModel value,
+    $Res Function(TreatmentModel) then,
+  ) = _$TreatmentModelCopyWithImpl<$Res, TreatmentModel>;
   @useResult
-  $Res call(
-      {int id,
-      @JsonKey(name: 'patient_id') int patientId,
-      @JsonKey(name: 'appointment_id') int? appointmentId,
-      @JsonKey(name: 'procedure_type') String procedureType,
-      @JsonKey(name: 'description') String? description,
-      @JsonKey(name: 'cost') double cost,
-      @JsonKey(name: 'status') String status,
-      @JsonKey(name: 'treatment_date') String treatmentDate,
-      @JsonKey(name: 'created_at') String? createdAt,
-      @JsonKey(name: 'updated_at') String? updatedAt});
+  $Res call({
+    int id,
+    @JsonKey(name: 'patient_id') int patientId,
+    @JsonKey(name: 'appointment_id') int? appointmentId,
+    @JsonKey(name: 'procedure_type') String procedureType,
+    @JsonKey(name: 'description') String? description,
+    @JsonKey(name: 'cost') double cost,
+    @JsonKey(name: 'status') String status,
+    @JsonKey(name: 'treatment_date') String treatmentDate,
+    @JsonKey(name: 'created_at') String? createdAt,
+    @JsonKey(name: 'updated_at') String? updatedAt,
+  });
 }
 
 /// @nodoc
@@ -89,70 +92,75 @@ class _$TreatmentModelCopyWithImpl<$Res, $Val extends TreatmentModel>
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
-    return _then(_value.copyWith(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientId: null == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int,
-      appointmentId: freezed == appointmentId
-          ? _value.appointmentId
-          : appointmentId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      procedureType: null == procedureType
-          ? _value.procedureType
-          : procedureType // ignore: cast_nullable_to_non_nullable
-              as String,
-      description: freezed == description
-          ? _value.description
-          : description // ignore: cast_nullable_to_non_nullable
-              as String?,
-      cost: null == cost
-          ? _value.cost
-          : cost // ignore: cast_nullable_to_non_nullable
-              as double,
-      status: null == status
-          ? _value.status
-          : status // ignore: cast_nullable_to_non_nullable
-              as String,
-      treatmentDate: null == treatmentDate
-          ? _value.treatmentDate
-          : treatmentDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      createdAt: freezed == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-      updatedAt: freezed == updatedAt
-          ? _value.updatedAt
-          : updatedAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            patientId: null == patientId
+                ? _value.patientId
+                : patientId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            appointmentId: freezed == appointmentId
+                ? _value.appointmentId
+                : appointmentId // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            procedureType: null == procedureType
+                ? _value.procedureType
+                : procedureType // ignore: cast_nullable_to_non_nullable
+                      as String,
+            description: freezed == description
+                ? _value.description
+                : description // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            cost: null == cost
+                ? _value.cost
+                : cost // ignore: cast_nullable_to_non_nullable
+                      as double,
+            status: null == status
+                ? _value.status
+                : status // ignore: cast_nullable_to_non_nullable
+                      as String,
+            treatmentDate: null == treatmentDate
+                ? _value.treatmentDate
+                : treatmentDate // ignore: cast_nullable_to_non_nullable
+                      as String,
+            createdAt: freezed == createdAt
+                ? _value.createdAt
+                : createdAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            updatedAt: freezed == updatedAt
+                ? _value.updatedAt
+                : updatedAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
   }
 }
 
 /// @nodoc
 abstract class _$$TreatmentModelImplCopyWith<$Res>
     implements $TreatmentModelCopyWith<$Res> {
-  factory _$$TreatmentModelImplCopyWith(_$TreatmentModelImpl value,
-          $Res Function(_$TreatmentModelImpl) then) =
-      __$$TreatmentModelImplCopyWithImpl<$Res>;
+  factory _$$TreatmentModelImplCopyWith(
+    _$TreatmentModelImpl value,
+    $Res Function(_$TreatmentModelImpl) then,
+  ) = __$$TreatmentModelImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {int id,
-      @JsonKey(name: 'patient_id') int patientId,
-      @JsonKey(name: 'appointment_id') int? appointmentId,
-      @JsonKey(name: 'procedure_type') String procedureType,
-      @JsonKey(name: 'description') String? description,
-      @JsonKey(name: 'cost') double cost,
-      @JsonKey(name: 'status') String status,
-      @JsonKey(name: 'treatment_date') String treatmentDate,
-      @JsonKey(name: 'created_at') String? createdAt,
-      @JsonKey(name: 'updated_at') String? updatedAt});
+  $Res call({
+    int id,
+    @JsonKey(name: 'patient_id') int patientId,
+    @JsonKey(name: 'appointment_id') int? appointmentId,
+    @JsonKey(name: 'procedure_type') String procedureType,
+    @JsonKey(name: 'description') String? description,
+    @JsonKey(name: 'cost') double cost,
+    @JsonKey(name: 'status') String status,
+    @JsonKey(name: 'treatment_date') String treatmentDate,
+    @JsonKey(name: 'created_at') String? createdAt,
+    @JsonKey(name: 'updated_at') String? updatedAt,
+  });
 }
 
 /// @nodoc
@@ -160,8 +168,9 @@ class __$$TreatmentModelImplCopyWithImpl<$Res>
     extends _$TreatmentModelCopyWithImpl<$Res, _$TreatmentModelImpl>
     implements _$$TreatmentModelImplCopyWith<$Res> {
   __$$TreatmentModelImplCopyWithImpl(
-      _$TreatmentModelImpl _value, $Res Function(_$TreatmentModelImpl) _then)
-      : super(_value, _then);
+    _$TreatmentModelImpl _value,
+    $Res Function(_$TreatmentModelImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -177,65 +186,68 @@ class __$$TreatmentModelImplCopyWithImpl<$Res>
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
-    return _then(_$TreatmentModelImpl(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      patientId: null == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int,
-      appointmentId: freezed == appointmentId
-          ? _value.appointmentId
-          : appointmentId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      procedureType: null == procedureType
-          ? _value.procedureType
-          : procedureType // ignore: cast_nullable_to_non_nullable
-              as String,
-      description: freezed == description
-          ? _value.description
-          : description // ignore: cast_nullable_to_non_nullable
-              as String?,
-      cost: null == cost
-          ? _value.cost
-          : cost // ignore: cast_nullable_to_non_nullable
-              as double,
-      status: null == status
-          ? _value.status
-          : status // ignore: cast_nullable_to_non_nullable
-              as String,
-      treatmentDate: null == treatmentDate
-          ? _value.treatmentDate
-          : treatmentDate // ignore: cast_nullable_to_non_nullable
-              as String,
-      createdAt: freezed == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-      updatedAt: freezed == updatedAt
-          ? _value.updatedAt
-          : updatedAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ));
+    return _then(
+      _$TreatmentModelImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        patientId: null == patientId
+            ? _value.patientId
+            : patientId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        appointmentId: freezed == appointmentId
+            ? _value.appointmentId
+            : appointmentId // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        procedureType: null == procedureType
+            ? _value.procedureType
+            : procedureType // ignore: cast_nullable_to_non_nullable
+                  as String,
+        description: freezed == description
+            ? _value.description
+            : description // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        cost: null == cost
+            ? _value.cost
+            : cost // ignore: cast_nullable_to_non_nullable
+                  as double,
+        status: null == status
+            ? _value.status
+            : status // ignore: cast_nullable_to_non_nullable
+                  as String,
+        treatmentDate: null == treatmentDate
+            ? _value.treatmentDate
+            : treatmentDate // ignore: cast_nullable_to_non_nullable
+                  as String,
+        createdAt: freezed == createdAt
+            ? _value.createdAt
+            : createdAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        updatedAt: freezed == updatedAt
+            ? _value.updatedAt
+            : updatedAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 @JsonSerializable()
 class _$TreatmentModelImpl implements _TreatmentModel {
-  const _$TreatmentModelImpl(
-      {required this.id,
-      @JsonKey(name: 'patient_id') required this.patientId,
-      @JsonKey(name: 'appointment_id') this.appointmentId,
-      @JsonKey(name: 'procedure_type') required this.procedureType,
-      @JsonKey(name: 'description') this.description,
-      @JsonKey(name: 'cost') required this.cost,
-      @JsonKey(name: 'status') required this.status,
-      @JsonKey(name: 'treatment_date') required this.treatmentDate,
-      @JsonKey(name: 'created_at') this.createdAt,
-      @JsonKey(name: 'updated_at') this.updatedAt});
+  const _$TreatmentModelImpl({
+    required this.id,
+    @JsonKey(name: 'patient_id') required this.patientId,
+    @JsonKey(name: 'appointment_id') this.appointmentId,
+    @JsonKey(name: 'procedure_type') required this.procedureType,
+    @JsonKey(name: 'description') this.description,
+    @JsonKey(name: 'cost') required this.cost,
+    @JsonKey(name: 'status') required this.status,
+    @JsonKey(name: 'treatment_date') required this.treatmentDate,
+    @JsonKey(name: 'created_at') this.createdAt,
+    @JsonKey(name: 'updated_at') this.updatedAt,
+  });
 
   factory _$TreatmentModelImpl.fromJson(Map<String, dynamic> json) =>
       _$$TreatmentModelImplFromJson(json);
@@ -302,46 +314,47 @@ class _$TreatmentModelImpl implements _TreatmentModel {
   @JsonKey(ignore: true)
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      id,
-      patientId,
-      appointmentId,
-      procedureType,
-      description,
-      cost,
-      status,
-      treatmentDate,
-      createdAt,
-      updatedAt);
+    runtimeType,
+    id,
+    patientId,
+    appointmentId,
+    procedureType,
+    description,
+    cost,
+    status,
+    treatmentDate,
+    createdAt,
+    updatedAt,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$TreatmentModelImplCopyWith<_$TreatmentModelImpl> get copyWith =>
       __$$TreatmentModelImplCopyWithImpl<_$TreatmentModelImpl>(
-          this, _$identity);
+        this,
+        _$identity,
+      );
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$TreatmentModelImplToJson(
-      this,
-    );
+    return _$$TreatmentModelImplToJson(this);
   }
 }
 
 abstract class _TreatmentModel implements TreatmentModel {
-  const factory _TreatmentModel(
-          {required final int id,
-          @JsonKey(name: 'patient_id') required final int patientId,
-          @JsonKey(name: 'appointment_id') final int? appointmentId,
-          @JsonKey(name: 'procedure_type') required final String procedureType,
-          @JsonKey(name: 'description') final String? description,
-          @JsonKey(name: 'cost') required final double cost,
-          @JsonKey(name: 'status') required final String status,
-          @JsonKey(name: 'treatment_date') required final String treatmentDate,
-          @JsonKey(name: 'created_at') final String? createdAt,
-          @JsonKey(name: 'updated_at') final String? updatedAt}) =
-      _$TreatmentModelImpl;
+  const factory _TreatmentModel({
+    required final int id,
+    @JsonKey(name: 'patient_id') required final int patientId,
+    @JsonKey(name: 'appointment_id') final int? appointmentId,
+    @JsonKey(name: 'procedure_type') required final String procedureType,
+    @JsonKey(name: 'description') final String? description,
+    @JsonKey(name: 'cost') required final double cost,
+    @JsonKey(name: 'status') required final String status,
+    @JsonKey(name: 'treatment_date') required final String treatmentDate,
+    @JsonKey(name: 'created_at') final String? createdAt,
+    @JsonKey(name: 'updated_at') final String? updatedAt,
+  }) = _$TreatmentModelImpl;
 
   factory _TreatmentModel.fromJson(Map<String, dynamic> json) =
       _$TreatmentModelImpl.fromJson;
@@ -382,7 +395,8 @@ abstract class _TreatmentModel implements TreatmentModel {
 }
 
 TreatmentListResponse _$TreatmentListResponseFromJson(
-    Map<String, dynamic> json) {
+  Map<String, dynamic> json,
+) {
   return _TreatmentListResponse.fromJson(json);
 }
 
@@ -403,20 +417,24 @@ mixin _$TreatmentListResponse {
 
 /// @nodoc
 abstract class $TreatmentListResponseCopyWith<$Res> {
-  factory $TreatmentListResponseCopyWith(TreatmentListResponse value,
-          $Res Function(TreatmentListResponse) then) =
-      _$TreatmentListResponseCopyWithImpl<$Res, TreatmentListResponse>;
+  factory $TreatmentListResponseCopyWith(
+    TreatmentListResponse value,
+    $Res Function(TreatmentListResponse) then,
+  ) = _$TreatmentListResponseCopyWithImpl<$Res, TreatmentListResponse>;
   @useResult
-  $Res call(
-      {List<TreatmentModel> items,
-      int total,
-      @JsonKey(name: 'page') int currentPage,
-      @JsonKey(name: 'pages') int totalPages});
+  $Res call({
+    List<TreatmentModel> items,
+    int total,
+    @JsonKey(name: 'page') int currentPage,
+    @JsonKey(name: 'pages') int totalPages,
+  });
 }
 
 /// @nodoc
-class _$TreatmentListResponseCopyWithImpl<$Res,
-        $Val extends TreatmentListResponse>
+class _$TreatmentListResponseCopyWithImpl<
+  $Res,
+  $Val extends TreatmentListResponse
+>
     implements $TreatmentListResponseCopyWith<$Res> {
   _$TreatmentListResponseCopyWithImpl(this._value, this._then);
 
@@ -433,24 +451,27 @@ class _$TreatmentListResponseCopyWithImpl<$Res,
     Object? currentPage = null,
     Object? totalPages = null,
   }) {
-    return _then(_value.copyWith(
-      items: null == items
-          ? _value.items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<TreatmentModel>,
-      total: null == total
-          ? _value.total
-          : total // ignore: cast_nullable_to_non_nullable
-              as int,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            items: null == items
+                ? _value.items
+                : items // ignore: cast_nullable_to_non_nullable
+                      as List<TreatmentModel>,
+            total: null == total
+                ? _value.total
+                : total // ignore: cast_nullable_to_non_nullable
+                      as int,
+            currentPage: null == currentPage
+                ? _value.currentPage
+                : currentPage // ignore: cast_nullable_to_non_nullable
+                      as int,
+            totalPages: null == totalPages
+                ? _value.totalPages
+                : totalPages // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
   }
 }
 
@@ -458,26 +479,28 @@ class _$TreatmentListResponseCopyWithImpl<$Res,
 abstract class _$$TreatmentListResponseImplCopyWith<$Res>
     implements $TreatmentListResponseCopyWith<$Res> {
   factory _$$TreatmentListResponseImplCopyWith(
-          _$TreatmentListResponseImpl value,
-          $Res Function(_$TreatmentListResponseImpl) then) =
-      __$$TreatmentListResponseImplCopyWithImpl<$Res>;
+    _$TreatmentListResponseImpl value,
+    $Res Function(_$TreatmentListResponseImpl) then,
+  ) = __$$TreatmentListResponseImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {List<TreatmentModel> items,
-      int total,
-      @JsonKey(name: 'page') int currentPage,
-      @JsonKey(name: 'pages') int totalPages});
+  $Res call({
+    List<TreatmentModel> items,
+    int total,
+    @JsonKey(name: 'page') int currentPage,
+    @JsonKey(name: 'pages') int totalPages,
+  });
 }
 
 /// @nodoc
 class __$$TreatmentListResponseImplCopyWithImpl<$Res>
-    extends _$TreatmentListResponseCopyWithImpl<$Res,
-        _$TreatmentListResponseImpl>
+    extends
+        _$TreatmentListResponseCopyWithImpl<$Res, _$TreatmentListResponseImpl>
     implements _$$TreatmentListResponseImplCopyWith<$Res> {
-  __$$TreatmentListResponseImplCopyWithImpl(_$TreatmentListResponseImpl _value,
-      $Res Function(_$TreatmentListResponseImpl) _then)
-      : super(_value, _then);
+  __$$TreatmentListResponseImplCopyWithImpl(
+    _$TreatmentListResponseImpl _value,
+    $Res Function(_$TreatmentListResponseImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -487,36 +510,38 @@ class __$$TreatmentListResponseImplCopyWithImpl<$Res>
     Object? currentPage = null,
     Object? totalPages = null,
   }) {
-    return _then(_$TreatmentListResponseImpl(
-      items: null == items
-          ? _value._items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<TreatmentModel>,
-      total: null == total
-          ? _value.total
-          : total // ignore: cast_nullable_to_non_nullable
-              as int,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-    ));
+    return _then(
+      _$TreatmentListResponseImpl(
+        items: null == items
+            ? _value._items
+            : items // ignore: cast_nullable_to_non_nullable
+                  as List<TreatmentModel>,
+        total: null == total
+            ? _value.total
+            : total // ignore: cast_nullable_to_non_nullable
+                  as int,
+        currentPage: null == currentPage
+            ? _value.currentPage
+            : currentPage // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalPages: null == totalPages
+            ? _value.totalPages
+            : totalPages // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
   }
 }
 
 /// @nodoc
 @JsonSerializable()
 class _$TreatmentListResponseImpl implements _TreatmentListResponse {
-  const _$TreatmentListResponseImpl(
-      {required final List<TreatmentModel> items,
-      required this.total,
-      @JsonKey(name: 'page') required this.currentPage,
-      @JsonKey(name: 'pages') required this.totalPages})
-      : _items = items;
+  const _$TreatmentListResponseImpl({
+    required final List<TreatmentModel> items,
+    required this.total,
+    @JsonKey(name: 'page') required this.currentPage,
+    @JsonKey(name: 'pages') required this.totalPages,
+  }) : _items = items;
 
   factory _$TreatmentListResponseImpl.fromJson(Map<String, dynamic> json) =>
       _$$TreatmentListResponseImplFromJson(json);
@@ -559,34 +584,36 @@ class _$TreatmentListResponseImpl implements _TreatmentListResponse {
   @JsonKey(ignore: true)
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      const DeepCollectionEquality().hash(_items),
-      total,
-      currentPage,
-      totalPages);
+    runtimeType,
+    const DeepCollectionEquality().hash(_items),
+    total,
+    currentPage,
+    totalPages,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$TreatmentListResponseImplCopyWith<_$TreatmentListResponseImpl>
-      get copyWith => __$$TreatmentListResponseImplCopyWithImpl<
-          _$TreatmentListResponseImpl>(this, _$identity);
+  get copyWith =>
+      __$$TreatmentListResponseImplCopyWithImpl<_$TreatmentListResponseImpl>(
+        this,
+        _$identity,
+      );
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$TreatmentListResponseImplToJson(
-      this,
-    );
+    return _$$TreatmentListResponseImplToJson(this);
   }
 }
 
 abstract class _TreatmentListResponse implements TreatmentListResponse {
-  const factory _TreatmentListResponse(
-          {required final List<TreatmentModel> items,
-          required final int total,
-          @JsonKey(name: 'page') required final int currentPage,
-          @JsonKey(name: 'pages') required final int totalPages}) =
-      _$TreatmentListResponseImpl;
+  const factory _TreatmentListResponse({
+    required final List<TreatmentModel> items,
+    required final int total,
+    @JsonKey(name: 'page') required final int currentPage,
+    @JsonKey(name: 'pages') required final int totalPages,
+  }) = _$TreatmentListResponseImpl;
 
   factory _TreatmentListResponse.fromJson(Map<String, dynamic> json) =
       _$TreatmentListResponseImpl.fromJson;
@@ -604,5 +631,5 @@ abstract class _TreatmentListResponse implements TreatmentListResponse {
   @override
   @JsonKey(ignore: true)
   _$$TreatmentListResponseImplCopyWith<_$TreatmentListResponseImpl>
-      get copyWith => throw _privateConstructorUsedError;
+  get copyWith => throw _privateConstructorUsedError;
 }

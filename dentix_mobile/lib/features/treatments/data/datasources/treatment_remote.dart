@@ -10,7 +10,7 @@ abstract class TreatmentRemoteDataSource {
     required int page,
     required int limit,
   });
-  
+
   Future<TreatmentModel> getTreatmentById(int id);
 }
 
@@ -38,7 +38,9 @@ class TreatmentRemoteDataSourceImpl implements TreatmentRemoteDataSource {
       );
 
       if (response.statusCode == 200) {
-        return TreatmentListResponse.fromJson(response.data as Map<String, dynamic>);
+        return TreatmentListResponse.fromJson(
+          response.data as Map<String, dynamic>,
+        );
       } else {
         throw ServerException(
           message: 'Failed to load treatments',

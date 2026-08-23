@@ -81,19 +81,22 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-200/50">
                             <div>
                                 <label className="text-sm font-bold text-slate-600">{t('backup.auto_backup_label')}</label>
+                                {/* Automatic backups are NOT executed by the backend yet
+                                    (HIGH-12); the control is disabled to avoid a false promise. */}
                                 <select
                                     defaultValue={currentUser?.tenant?.backup_frequency || 'off'}
-                                    onChange={async (e) => {
-                                        await api.updateBackupSchedule(e.target.value);
-                                        setMessage({ type: 'success', text: 'تم تحديث الجدول' });
-                                    }}
-                                    className="w-full mt-2 p-3 bg-white border border-slate-200 rounded-xl"
+                                    disabled
+                                    title="النسخ الاحتياطي التلقائي غير متوفر حالياً"
+                                    className="w-full mt-2 p-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-400 cursor-not-allowed"
                                 >
                                     <option value="off">{t('backup.off')}</option>
                                     <option value="daily">{t('backup.daily')}</option>
                                     <option value="weekly">{t('backup.weekly')}</option>
                                     <option value="monthly">{t('backup.monthly')}</option>
                                 </select>
+                                <p className="text-xs text-slate-500 mt-1">
+                                    النسخ التلقائي غير متوفر بعد — استخدم زر النسخ اليدوي.
+                                </p>
                             </div>
                             <div className="flex items-end">
                                 <button

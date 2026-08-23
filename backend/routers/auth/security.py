@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend import models
+from backend import models, schemas
 from .dependencies import get_async_db, get_current_user
 from backend.services.auth_service import AuthService
 import pyotp
@@ -12,7 +12,9 @@ router = APIRouter()
 
 
 # --- 2FA Setup ---
-@router.post("/auth/2fa/setup")
+# NOTE: no "/auth" segment here — main.py already mounts this router under
+# f"{API_V1_STR}/auth". Duplicating it produced /api/v1/auth/auth/2fa/*.
+@router.post("/2fa/setup")
 async def setup_2fa(
     current_user: models.User = Depends(get_current_user), db: AsyncSession = Depends(get_async_db)
 ):
@@ -37,21 +39,20 @@ async def setup_2fa(
     return {"secret": secret, "qr_code": img_str, "otp_uri": otp_uri}
 
 
-@router.post("/auth/2fa/verify")
+@router.post("/2fa/verify")
 async def verify_2fa_setup(
-    code: str,
-    secret: str,
+    payload: schemas.TwoFactorVerifyRequest,
     current_user: models.User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),
 ):
-    """Confirm 2FA setup with a code."""
-    totp = pyotp.TOTP(secret)
-    if not totp.verify(code):
+    """Confirm 2FA setup with a code (JSON body)."""
+    totp = pyotp.TOTP(payload.secret)
+    if not totp.verify(payload.code):
         raise HTTPException(status_code=400, detail="Invalid Code")
 
     # Enable 2FA
     current_user.is_2fa_enabled = True
-    current_user.otp_secret = secret  # Persist if not already
+    current_user.otp_secret = payload.secret  # Persist if not already
 
     # REVOKE ALL SESSIONS when 2FA is enabled (security best practice)
     revoked_count = await AuthService.revoke_all_user_sessions(db, current_user.id)
@@ -65,7 +66,7 @@ async def verify_2fa_setup(
     return {"message": "2FA Enabled Successfully"}
 
 
-@router.delete("/auth/2fa/disable")
+@router.delete("/2fa/disable")
 async def disable_2fa(
     current_user: models.User = Depends(get_current_user),
     db: AsyncSession = Depends(get_async_db),

@@ -34,9 +34,9 @@ class AppointmentEntity {
     final now = DateTime.now();
     final date = DateTime.tryParse(appointmentDate);
     if (date == null) return false;
-    return date.year == now.year && 
-           date.month == now.month && 
-           date.day == now.day;
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
   }
 
   /// Returns true if the appointment date is in the past

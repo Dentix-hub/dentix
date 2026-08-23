@@ -18,6 +18,7 @@ import json
 import logging
 
 from backend.models import PriceList, PriceListItem, Procedure, Treatment, User
+from backend.core.money import as_decimal, money_json_default
 from backend.core.permissions import Role
 
 logger = logging.getLogger(__name__)
@@ -167,17 +168,19 @@ class PricingService:
             "list_id": price_list_id,
             "list_name": price_list.name if price_list else "كاش",
             "list_type": price_list.type if price_list else "cash",
-            "unit_price": unit_price,
-            "discount": treatment.discount,
+            "unit_price": as_decimal(unit_price),
+            "discount": as_decimal(treatment.discount),
             "snapshot_date": date.today().isoformat(),
         }
-        treatment.price_snapshot = json.dumps(snapshot, ensure_ascii=False)
+        treatment.price_snapshot = json.dumps(
+            snapshot, ensure_ascii=False, default=money_json_default
+        )
 
         # Calculate final cost
         if treatment.discount:
-            treatment.cost = unit_price - treatment.discount
+            treatment.cost = as_decimal(unit_price) - as_decimal(treatment.discount)
         else:
-            treatment.cost = unit_price
+            treatment.cost = as_decimal(unit_price)
 
         return treatment
 

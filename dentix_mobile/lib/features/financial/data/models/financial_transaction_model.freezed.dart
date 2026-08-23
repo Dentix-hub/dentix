@@ -12,10 +12,12 @@ part of 'financial_transaction_model.dart';
 T _$identity<T>(T value) => value;
 
 final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
+  'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models',
+);
 
 FinancialTransactionModel _$FinancialTransactionModelFromJson(
-    Map<String, dynamic> json) {
+  Map<String, dynamic> json,
+) {
   return _FinancialTransactionModel.fromJson(json);
 }
 
@@ -48,28 +50,32 @@ mixin _$FinancialTransactionModel {
 
 /// @nodoc
 abstract class $FinancialTransactionModelCopyWith<$Res> {
-  factory $FinancialTransactionModelCopyWith(FinancialTransactionModel value,
-          $Res Function(FinancialTransactionModel) then) =
-      _$FinancialTransactionModelCopyWithImpl<$Res, FinancialTransactionModel>;
+  factory $FinancialTransactionModelCopyWith(
+    FinancialTransactionModel value,
+    $Res Function(FinancialTransactionModel) then,
+  ) = _$FinancialTransactionModelCopyWithImpl<$Res, FinancialTransactionModel>;
   @useResult
-  $Res call(
-      {int id,
-      String type,
-      double amount,
-      String date,
-      String? description,
-      @JsonKey(name: 'patient_id') int? patientId,
-      @JsonKey(name: 'patient_name') String? patientName,
-      @JsonKey(name: 'appointment_id') int? appointmentId,
-      @JsonKey(name: 'treatment_id') int? treatmentId,
-      String? category,
-      @JsonKey(name: 'created_at') String? createdAt,
-      @JsonKey(name: 'updated_at') String? updatedAt});
+  $Res call({
+    int id,
+    String type,
+    double amount,
+    String date,
+    String? description,
+    @JsonKey(name: 'patient_id') int? patientId,
+    @JsonKey(name: 'patient_name') String? patientName,
+    @JsonKey(name: 'appointment_id') int? appointmentId,
+    @JsonKey(name: 'treatment_id') int? treatmentId,
+    String? category,
+    @JsonKey(name: 'created_at') String? createdAt,
+    @JsonKey(name: 'updated_at') String? updatedAt,
+  });
 }
 
 /// @nodoc
-class _$FinancialTransactionModelCopyWithImpl<$Res,
-        $Val extends FinancialTransactionModel>
+class _$FinancialTransactionModelCopyWithImpl<
+  $Res,
+  $Val extends FinancialTransactionModel
+>
     implements $FinancialTransactionModelCopyWith<$Res> {
   _$FinancialTransactionModelCopyWithImpl(this._value, this._then);
 
@@ -94,56 +100,59 @@ class _$FinancialTransactionModelCopyWithImpl<$Res,
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
-    return _then(_value.copyWith(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      type: null == type
-          ? _value.type
-          : type // ignore: cast_nullable_to_non_nullable
-              as String,
-      amount: null == amount
-          ? _value.amount
-          : amount // ignore: cast_nullable_to_non_nullable
-              as double,
-      date: null == date
-          ? _value.date
-          : date // ignore: cast_nullable_to_non_nullable
-              as String,
-      description: freezed == description
-          ? _value.description
-          : description // ignore: cast_nullable_to_non_nullable
-              as String?,
-      patientId: freezed == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      patientName: freezed == patientName
-          ? _value.patientName
-          : patientName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      appointmentId: freezed == appointmentId
-          ? _value.appointmentId
-          : appointmentId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      treatmentId: freezed == treatmentId
-          ? _value.treatmentId
-          : treatmentId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      category: freezed == category
-          ? _value.category
-          : category // ignore: cast_nullable_to_non_nullable
-              as String?,
-      createdAt: freezed == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-      updatedAt: freezed == updatedAt
-          ? _value.updatedAt
-          : updatedAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            type: null == type
+                ? _value.type
+                : type // ignore: cast_nullable_to_non_nullable
+                      as String,
+            amount: null == amount
+                ? _value.amount
+                : amount // ignore: cast_nullable_to_non_nullable
+                      as double,
+            date: null == date
+                ? _value.date
+                : date // ignore: cast_nullable_to_non_nullable
+                      as String,
+            description: freezed == description
+                ? _value.description
+                : description // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            patientId: freezed == patientId
+                ? _value.patientId
+                : patientId // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            patientName: freezed == patientName
+                ? _value.patientName
+                : patientName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            appointmentId: freezed == appointmentId
+                ? _value.appointmentId
+                : appointmentId // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            treatmentId: freezed == treatmentId
+                ? _value.treatmentId
+                : treatmentId // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            category: freezed == category
+                ? _value.category
+                : category // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            createdAt: freezed == createdAt
+                ? _value.createdAt
+                : createdAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            updatedAt: freezed == updatedAt
+                ? _value.updatedAt
+                : updatedAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+          )
+          as $Val,
+    );
   }
 }
 
@@ -151,35 +160,39 @@ class _$FinancialTransactionModelCopyWithImpl<$Res,
 abstract class _$$FinancialTransactionModelImplCopyWith<$Res>
     implements $FinancialTransactionModelCopyWith<$Res> {
   factory _$$FinancialTransactionModelImplCopyWith(
-          _$FinancialTransactionModelImpl value,
-          $Res Function(_$FinancialTransactionModelImpl) then) =
-      __$$FinancialTransactionModelImplCopyWithImpl<$Res>;
+    _$FinancialTransactionModelImpl value,
+    $Res Function(_$FinancialTransactionModelImpl) then,
+  ) = __$$FinancialTransactionModelImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {int id,
-      String type,
-      double amount,
-      String date,
-      String? description,
-      @JsonKey(name: 'patient_id') int? patientId,
-      @JsonKey(name: 'patient_name') String? patientName,
-      @JsonKey(name: 'appointment_id') int? appointmentId,
-      @JsonKey(name: 'treatment_id') int? treatmentId,
-      String? category,
-      @JsonKey(name: 'created_at') String? createdAt,
-      @JsonKey(name: 'updated_at') String? updatedAt});
+  $Res call({
+    int id,
+    String type,
+    double amount,
+    String date,
+    String? description,
+    @JsonKey(name: 'patient_id') int? patientId,
+    @JsonKey(name: 'patient_name') String? patientName,
+    @JsonKey(name: 'appointment_id') int? appointmentId,
+    @JsonKey(name: 'treatment_id') int? treatmentId,
+    String? category,
+    @JsonKey(name: 'created_at') String? createdAt,
+    @JsonKey(name: 'updated_at') String? updatedAt,
+  });
 }
 
 /// @nodoc
 class __$$FinancialTransactionModelImplCopyWithImpl<$Res>
-    extends _$FinancialTransactionModelCopyWithImpl<$Res,
-        _$FinancialTransactionModelImpl>
+    extends
+        _$FinancialTransactionModelCopyWithImpl<
+          $Res,
+          _$FinancialTransactionModelImpl
+        >
     implements _$$FinancialTransactionModelImplCopyWith<$Res> {
   __$$FinancialTransactionModelImplCopyWithImpl(
-      _$FinancialTransactionModelImpl _value,
-      $Res Function(_$FinancialTransactionModelImpl) _then)
-      : super(_value, _then);
+    _$FinancialTransactionModelImpl _value,
+    $Res Function(_$FinancialTransactionModelImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -197,76 +210,78 @@ class __$$FinancialTransactionModelImplCopyWithImpl<$Res>
     Object? createdAt = freezed,
     Object? updatedAt = freezed,
   }) {
-    return _then(_$FinancialTransactionModelImpl(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as int,
-      type: null == type
-          ? _value.type
-          : type // ignore: cast_nullable_to_non_nullable
-              as String,
-      amount: null == amount
-          ? _value.amount
-          : amount // ignore: cast_nullable_to_non_nullable
-              as double,
-      date: null == date
-          ? _value.date
-          : date // ignore: cast_nullable_to_non_nullable
-              as String,
-      description: freezed == description
-          ? _value.description
-          : description // ignore: cast_nullable_to_non_nullable
-              as String?,
-      patientId: freezed == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      patientName: freezed == patientName
-          ? _value.patientName
-          : patientName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      appointmentId: freezed == appointmentId
-          ? _value.appointmentId
-          : appointmentId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      treatmentId: freezed == treatmentId
-          ? _value.treatmentId
-          : treatmentId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      category: freezed == category
-          ? _value.category
-          : category // ignore: cast_nullable_to_non_nullable
-              as String?,
-      createdAt: freezed == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-      updatedAt: freezed == updatedAt
-          ? _value.updatedAt
-          : updatedAt // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ));
+    return _then(
+      _$FinancialTransactionModelImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        type: null == type
+            ? _value.type
+            : type // ignore: cast_nullable_to_non_nullable
+                  as String,
+        amount: null == amount
+            ? _value.amount
+            : amount // ignore: cast_nullable_to_non_nullable
+                  as double,
+        date: null == date
+            ? _value.date
+            : date // ignore: cast_nullable_to_non_nullable
+                  as String,
+        description: freezed == description
+            ? _value.description
+            : description // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        patientId: freezed == patientId
+            ? _value.patientId
+            : patientId // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        patientName: freezed == patientName
+            ? _value.patientName
+            : patientName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        appointmentId: freezed == appointmentId
+            ? _value.appointmentId
+            : appointmentId // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        treatmentId: freezed == treatmentId
+            ? _value.treatmentId
+            : treatmentId // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        category: freezed == category
+            ? _value.category
+            : category // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        createdAt: freezed == createdAt
+            ? _value.createdAt
+            : createdAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        updatedAt: freezed == updatedAt
+            ? _value.updatedAt
+            : updatedAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 @JsonSerializable()
 class _$FinancialTransactionModelImpl extends _FinancialTransactionModel {
-  const _$FinancialTransactionModelImpl(
-      {required this.id,
-      required this.type,
-      required this.amount,
-      required this.date,
-      this.description,
-      @JsonKey(name: 'patient_id') this.patientId,
-      @JsonKey(name: 'patient_name') this.patientName,
-      @JsonKey(name: 'appointment_id') this.appointmentId,
-      @JsonKey(name: 'treatment_id') this.treatmentId,
-      this.category,
-      @JsonKey(name: 'created_at') this.createdAt,
-      @JsonKey(name: 'updated_at') this.updatedAt})
-      : super._();
+  const _$FinancialTransactionModelImpl({
+    required this.id,
+    required this.type,
+    required this.amount,
+    required this.date,
+    this.description,
+    @JsonKey(name: 'patient_id') this.patientId,
+    @JsonKey(name: 'patient_name') this.patientName,
+    @JsonKey(name: 'appointment_id') this.appointmentId,
+    @JsonKey(name: 'treatment_id') this.treatmentId,
+    this.category,
+    @JsonKey(name: 'created_at') this.createdAt,
+    @JsonKey(name: 'updated_at') this.updatedAt,
+  }) : super._();
 
   factory _$FinancialTransactionModelImpl.fromJson(Map<String, dynamic> json) =>
       _$$FinancialTransactionModelImplFromJson(json);
@@ -337,50 +352,51 @@ class _$FinancialTransactionModelImpl extends _FinancialTransactionModel {
   @JsonKey(ignore: true)
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      id,
-      type,
-      amount,
-      date,
-      description,
-      patientId,
-      patientName,
-      appointmentId,
-      treatmentId,
-      category,
-      createdAt,
-      updatedAt);
+    runtimeType,
+    id,
+    type,
+    amount,
+    date,
+    description,
+    patientId,
+    patientName,
+    appointmentId,
+    treatmentId,
+    category,
+    createdAt,
+    updatedAt,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$FinancialTransactionModelImplCopyWith<_$FinancialTransactionModelImpl>
-      get copyWith => __$$FinancialTransactionModelImplCopyWithImpl<
-          _$FinancialTransactionModelImpl>(this, _$identity);
+  get copyWith =>
+      __$$FinancialTransactionModelImplCopyWithImpl<
+        _$FinancialTransactionModelImpl
+      >(this, _$identity);
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$FinancialTransactionModelImplToJson(
-      this,
-    );
+    return _$$FinancialTransactionModelImplToJson(this);
   }
 }
 
 abstract class _FinancialTransactionModel extends FinancialTransactionModel {
-  const factory _FinancialTransactionModel(
-          {required final int id,
-          required final String type,
-          required final double amount,
-          required final String date,
-          final String? description,
-          @JsonKey(name: 'patient_id') final int? patientId,
-          @JsonKey(name: 'patient_name') final String? patientName,
-          @JsonKey(name: 'appointment_id') final int? appointmentId,
-          @JsonKey(name: 'treatment_id') final int? treatmentId,
-          final String? category,
-          @JsonKey(name: 'created_at') final String? createdAt,
-          @JsonKey(name: 'updated_at') final String? updatedAt}) =
-      _$FinancialTransactionModelImpl;
+  const factory _FinancialTransactionModel({
+    required final int id,
+    required final String type,
+    required final double amount,
+    required final String date,
+    final String? description,
+    @JsonKey(name: 'patient_id') final int? patientId,
+    @JsonKey(name: 'patient_name') final String? patientName,
+    @JsonKey(name: 'appointment_id') final int? appointmentId,
+    @JsonKey(name: 'treatment_id') final int? treatmentId,
+    final String? category,
+    @JsonKey(name: 'created_at') final String? createdAt,
+    @JsonKey(name: 'updated_at') final String? updatedAt,
+  }) = _$FinancialTransactionModelImpl;
   const _FinancialTransactionModel._() : super._();
 
   factory _FinancialTransactionModel.fromJson(Map<String, dynamic> json) =
@@ -419,11 +435,12 @@ abstract class _FinancialTransactionModel extends FinancialTransactionModel {
   @override
   @JsonKey(ignore: true)
   _$$FinancialTransactionModelImplCopyWith<_$FinancialTransactionModelImpl>
-      get copyWith => throw _privateConstructorUsedError;
+  get copyWith => throw _privateConstructorUsedError;
 }
 
 FinancialOverviewResponseModel _$FinancialOverviewResponseModelFromJson(
-    Map<String, dynamic> json) {
+  Map<String, dynamic> json,
+) {
   return _FinancialOverviewResponseModel.fromJson(json);
 }
 
@@ -447,30 +464,36 @@ mixin _$FinancialOverviewResponseModel {
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
   $FinancialOverviewResponseModelCopyWith<FinancialOverviewResponseModel>
-      get copyWith => throw _privateConstructorUsedError;
+  get copyWith => throw _privateConstructorUsedError;
 }
 
 /// @nodoc
 abstract class $FinancialOverviewResponseModelCopyWith<$Res> {
   factory $FinancialOverviewResponseModelCopyWith(
-          FinancialOverviewResponseModel value,
-          $Res Function(FinancialOverviewResponseModel) then) =
-      _$FinancialOverviewResponseModelCopyWithImpl<$Res,
-          FinancialOverviewResponseModel>;
+    FinancialOverviewResponseModel value,
+    $Res Function(FinancialOverviewResponseModel) then,
+  ) =
+      _$FinancialOverviewResponseModelCopyWithImpl<
+        $Res,
+        FinancialOverviewResponseModel
+      >;
   @useResult
-  $Res call(
-      {List<FinancialTransactionModel> items,
-      @JsonKey(name: 'total_revenue') int totalRevenue,
-      @JsonKey(name: 'total_expenses') int totalExpenses,
-      @JsonKey(name: 'net_income') double netIncome,
-      @JsonKey(name: 'current_page') int currentPage,
-      @JsonKey(name: 'total_pages') int totalPages,
-      @JsonKey(name: 'total_items') int totalItems});
+  $Res call({
+    List<FinancialTransactionModel> items,
+    @JsonKey(name: 'total_revenue') int totalRevenue,
+    @JsonKey(name: 'total_expenses') int totalExpenses,
+    @JsonKey(name: 'net_income') double netIncome,
+    @JsonKey(name: 'current_page') int currentPage,
+    @JsonKey(name: 'total_pages') int totalPages,
+    @JsonKey(name: 'total_items') int totalItems,
+  });
 }
 
 /// @nodoc
-class _$FinancialOverviewResponseModelCopyWithImpl<$Res,
-        $Val extends FinancialOverviewResponseModel>
+class _$FinancialOverviewResponseModelCopyWithImpl<
+  $Res,
+  $Val extends FinancialOverviewResponseModel
+>
     implements $FinancialOverviewResponseModelCopyWith<$Res> {
   _$FinancialOverviewResponseModelCopyWithImpl(this._value, this._then);
 
@@ -490,36 +513,39 @@ class _$FinancialOverviewResponseModelCopyWithImpl<$Res,
     Object? totalPages = null,
     Object? totalItems = null,
   }) {
-    return _then(_value.copyWith(
-      items: null == items
-          ? _value.items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<FinancialTransactionModel>,
-      totalRevenue: null == totalRevenue
-          ? _value.totalRevenue
-          : totalRevenue // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalExpenses: null == totalExpenses
-          ? _value.totalExpenses
-          : totalExpenses // ignore: cast_nullable_to_non_nullable
-              as int,
-      netIncome: null == netIncome
-          ? _value.netIncome
-          : netIncome // ignore: cast_nullable_to_non_nullable
-              as double,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalItems: null == totalItems
-          ? _value.totalItems
-          : totalItems // ignore: cast_nullable_to_non_nullable
-              as int,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            items: null == items
+                ? _value.items
+                : items // ignore: cast_nullable_to_non_nullable
+                      as List<FinancialTransactionModel>,
+            totalRevenue: null == totalRevenue
+                ? _value.totalRevenue
+                : totalRevenue // ignore: cast_nullable_to_non_nullable
+                      as int,
+            totalExpenses: null == totalExpenses
+                ? _value.totalExpenses
+                : totalExpenses // ignore: cast_nullable_to_non_nullable
+                      as int,
+            netIncome: null == netIncome
+                ? _value.netIncome
+                : netIncome // ignore: cast_nullable_to_non_nullable
+                      as double,
+            currentPage: null == currentPage
+                ? _value.currentPage
+                : currentPage // ignore: cast_nullable_to_non_nullable
+                      as int,
+            totalPages: null == totalPages
+                ? _value.totalPages
+                : totalPages // ignore: cast_nullable_to_non_nullable
+                      as int,
+            totalItems: null == totalItems
+                ? _value.totalItems
+                : totalItems // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
   }
 }
 
@@ -527,30 +553,34 @@ class _$FinancialOverviewResponseModelCopyWithImpl<$Res,
 abstract class _$$FinancialOverviewResponseModelImplCopyWith<$Res>
     implements $FinancialOverviewResponseModelCopyWith<$Res> {
   factory _$$FinancialOverviewResponseModelImplCopyWith(
-          _$FinancialOverviewResponseModelImpl value,
-          $Res Function(_$FinancialOverviewResponseModelImpl) then) =
-      __$$FinancialOverviewResponseModelImplCopyWithImpl<$Res>;
+    _$FinancialOverviewResponseModelImpl value,
+    $Res Function(_$FinancialOverviewResponseModelImpl) then,
+  ) = __$$FinancialOverviewResponseModelImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {List<FinancialTransactionModel> items,
-      @JsonKey(name: 'total_revenue') int totalRevenue,
-      @JsonKey(name: 'total_expenses') int totalExpenses,
-      @JsonKey(name: 'net_income') double netIncome,
-      @JsonKey(name: 'current_page') int currentPage,
-      @JsonKey(name: 'total_pages') int totalPages,
-      @JsonKey(name: 'total_items') int totalItems});
+  $Res call({
+    List<FinancialTransactionModel> items,
+    @JsonKey(name: 'total_revenue') int totalRevenue,
+    @JsonKey(name: 'total_expenses') int totalExpenses,
+    @JsonKey(name: 'net_income') double netIncome,
+    @JsonKey(name: 'current_page') int currentPage,
+    @JsonKey(name: 'total_pages') int totalPages,
+    @JsonKey(name: 'total_items') int totalItems,
+  });
 }
 
 /// @nodoc
 class __$$FinancialOverviewResponseModelImplCopyWithImpl<$Res>
-    extends _$FinancialOverviewResponseModelCopyWithImpl<$Res,
-        _$FinancialOverviewResponseModelImpl>
+    extends
+        _$FinancialOverviewResponseModelCopyWithImpl<
+          $Res,
+          _$FinancialOverviewResponseModelImpl
+        >
     implements _$$FinancialOverviewResponseModelImplCopyWith<$Res> {
   __$$FinancialOverviewResponseModelImplCopyWithImpl(
-      _$FinancialOverviewResponseModelImpl _value,
-      $Res Function(_$FinancialOverviewResponseModelImpl) _then)
-      : super(_value, _then);
+    _$FinancialOverviewResponseModelImpl _value,
+    $Res Function(_$FinancialOverviewResponseModelImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -563,36 +593,38 @@ class __$$FinancialOverviewResponseModelImplCopyWithImpl<$Res>
     Object? totalPages = null,
     Object? totalItems = null,
   }) {
-    return _then(_$FinancialOverviewResponseModelImpl(
-      items: null == items
-          ? _value._items
-          : items // ignore: cast_nullable_to_non_nullable
-              as List<FinancialTransactionModel>,
-      totalRevenue: null == totalRevenue
-          ? _value.totalRevenue
-          : totalRevenue // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalExpenses: null == totalExpenses
-          ? _value.totalExpenses
-          : totalExpenses // ignore: cast_nullable_to_non_nullable
-              as int,
-      netIncome: null == netIncome
-          ? _value.netIncome
-          : netIncome // ignore: cast_nullable_to_non_nullable
-              as double,
-      currentPage: null == currentPage
-          ? _value.currentPage
-          : currentPage // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPages: null == totalPages
-          ? _value.totalPages
-          : totalPages // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalItems: null == totalItems
-          ? _value.totalItems
-          : totalItems // ignore: cast_nullable_to_non_nullable
-              as int,
-    ));
+    return _then(
+      _$FinancialOverviewResponseModelImpl(
+        items: null == items
+            ? _value._items
+            : items // ignore: cast_nullable_to_non_nullable
+                  as List<FinancialTransactionModel>,
+        totalRevenue: null == totalRevenue
+            ? _value.totalRevenue
+            : totalRevenue // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalExpenses: null == totalExpenses
+            ? _value.totalExpenses
+            : totalExpenses // ignore: cast_nullable_to_non_nullable
+                  as int,
+        netIncome: null == netIncome
+            ? _value.netIncome
+            : netIncome // ignore: cast_nullable_to_non_nullable
+                  as double,
+        currentPage: null == currentPage
+            ? _value.currentPage
+            : currentPage // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalPages: null == totalPages
+            ? _value.totalPages
+            : totalPages // ignore: cast_nullable_to_non_nullable
+                  as int,
+        totalItems: null == totalItems
+            ? _value.totalItems
+            : totalItems // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
   }
 }
 
@@ -600,20 +632,20 @@ class __$$FinancialOverviewResponseModelImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$FinancialOverviewResponseModelImpl
     extends _FinancialOverviewResponseModel {
-  const _$FinancialOverviewResponseModelImpl(
-      {required final List<FinancialTransactionModel> items,
-      @JsonKey(name: 'total_revenue') required this.totalRevenue,
-      @JsonKey(name: 'total_expenses') required this.totalExpenses,
-      @JsonKey(name: 'net_income') required this.netIncome,
-      @JsonKey(name: 'current_page') required this.currentPage,
-      @JsonKey(name: 'total_pages') required this.totalPages,
-      @JsonKey(name: 'total_items') required this.totalItems})
-      : _items = items,
-        super._();
+  const _$FinancialOverviewResponseModelImpl({
+    required final List<FinancialTransactionModel> items,
+    @JsonKey(name: 'total_revenue') required this.totalRevenue,
+    @JsonKey(name: 'total_expenses') required this.totalExpenses,
+    @JsonKey(name: 'net_income') required this.netIncome,
+    @JsonKey(name: 'current_page') required this.currentPage,
+    @JsonKey(name: 'total_pages') required this.totalPages,
+    @JsonKey(name: 'total_items') required this.totalItems,
+  }) : _items = items,
+       super._();
 
   factory _$FinancialOverviewResponseModelImpl.fromJson(
-          Map<String, dynamic> json) =>
-      _$$FinancialOverviewResponseModelImplFromJson(json);
+    Map<String, dynamic> json,
+  ) => _$$FinancialOverviewResponseModelImplFromJson(json);
 
   final List<FinancialTransactionModel> _items;
   @override
@@ -670,42 +702,44 @@ class _$FinancialOverviewResponseModelImpl
   @JsonKey(ignore: true)
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      const DeepCollectionEquality().hash(_items),
-      totalRevenue,
-      totalExpenses,
-      netIncome,
-      currentPage,
-      totalPages,
-      totalItems);
+    runtimeType,
+    const DeepCollectionEquality().hash(_items),
+    totalRevenue,
+    totalExpenses,
+    netIncome,
+    currentPage,
+    totalPages,
+    totalItems,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$FinancialOverviewResponseModelImplCopyWith<
-          _$FinancialOverviewResponseModelImpl>
-      get copyWith => __$$FinancialOverviewResponseModelImplCopyWithImpl<
-          _$FinancialOverviewResponseModelImpl>(this, _$identity);
+    _$FinancialOverviewResponseModelImpl
+  >
+  get copyWith =>
+      __$$FinancialOverviewResponseModelImplCopyWithImpl<
+        _$FinancialOverviewResponseModelImpl
+      >(this, _$identity);
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$FinancialOverviewResponseModelImplToJson(
-      this,
-    );
+    return _$$FinancialOverviewResponseModelImplToJson(this);
   }
 }
 
 abstract class _FinancialOverviewResponseModel
     extends FinancialOverviewResponseModel {
-  const factory _FinancialOverviewResponseModel(
-          {required final List<FinancialTransactionModel> items,
-          @JsonKey(name: 'total_revenue') required final int totalRevenue,
-          @JsonKey(name: 'total_expenses') required final int totalExpenses,
-          @JsonKey(name: 'net_income') required final double netIncome,
-          @JsonKey(name: 'current_page') required final int currentPage,
-          @JsonKey(name: 'total_pages') required final int totalPages,
-          @JsonKey(name: 'total_items') required final int totalItems}) =
-      _$FinancialOverviewResponseModelImpl;
+  const factory _FinancialOverviewResponseModel({
+    required final List<FinancialTransactionModel> items,
+    @JsonKey(name: 'total_revenue') required final int totalRevenue,
+    @JsonKey(name: 'total_expenses') required final int totalExpenses,
+    @JsonKey(name: 'net_income') required final double netIncome,
+    @JsonKey(name: 'current_page') required final int currentPage,
+    @JsonKey(name: 'total_pages') required final int totalPages,
+    @JsonKey(name: 'total_items') required final int totalItems,
+  }) = _$FinancialOverviewResponseModelImpl;
   const _FinancialOverviewResponseModel._() : super._();
 
   factory _FinancialOverviewResponseModel.fromJson(Map<String, dynamic> json) =
@@ -734,12 +768,14 @@ abstract class _FinancialOverviewResponseModel
   @override
   @JsonKey(ignore: true)
   _$$FinancialOverviewResponseModelImplCopyWith<
-          _$FinancialOverviewResponseModelImpl>
-      get copyWith => throw _privateConstructorUsedError;
+    _$FinancialOverviewResponseModelImpl
+  >
+  get copyWith => throw _privateConstructorUsedError;
 }
 
 RecordPaymentRequestModel _$RecordPaymentRequestModelFromJson(
-    Map<String, dynamic> json) {
+  Map<String, dynamic> json,
+) {
   return _RecordPaymentRequestModel.fromJson(json);
 }
 
@@ -763,22 +799,26 @@ mixin _$RecordPaymentRequestModel {
 
 /// @nodoc
 abstract class $RecordPaymentRequestModelCopyWith<$Res> {
-  factory $RecordPaymentRequestModelCopyWith(RecordPaymentRequestModel value,
-          $Res Function(RecordPaymentRequestModel) then) =
-      _$RecordPaymentRequestModelCopyWithImpl<$Res, RecordPaymentRequestModel>;
+  factory $RecordPaymentRequestModelCopyWith(
+    RecordPaymentRequestModel value,
+    $Res Function(RecordPaymentRequestModel) then,
+  ) = _$RecordPaymentRequestModelCopyWithImpl<$Res, RecordPaymentRequestModel>;
   @useResult
-  $Res call(
-      {@JsonKey(name: 'patient_id') int patientId,
-      double amount,
-      String date,
-      String? description,
-      @JsonKey(name: 'appointment_id') int? appointmentId,
-      @JsonKey(name: 'treatment_id') int? treatmentId});
+  $Res call({
+    @JsonKey(name: 'patient_id') int patientId,
+    double amount,
+    String date,
+    String? description,
+    @JsonKey(name: 'appointment_id') int? appointmentId,
+    @JsonKey(name: 'treatment_id') int? treatmentId,
+  });
 }
 
 /// @nodoc
-class _$RecordPaymentRequestModelCopyWithImpl<$Res,
-        $Val extends RecordPaymentRequestModel>
+class _$RecordPaymentRequestModelCopyWithImpl<
+  $Res,
+  $Val extends RecordPaymentRequestModel
+>
     implements $RecordPaymentRequestModelCopyWith<$Res> {
   _$RecordPaymentRequestModelCopyWithImpl(this._value, this._then);
 
@@ -797,32 +837,35 @@ class _$RecordPaymentRequestModelCopyWithImpl<$Res,
     Object? appointmentId = freezed,
     Object? treatmentId = freezed,
   }) {
-    return _then(_value.copyWith(
-      patientId: null == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int,
-      amount: null == amount
-          ? _value.amount
-          : amount // ignore: cast_nullable_to_non_nullable
-              as double,
-      date: null == date
-          ? _value.date
-          : date // ignore: cast_nullable_to_non_nullable
-              as String,
-      description: freezed == description
-          ? _value.description
-          : description // ignore: cast_nullable_to_non_nullable
-              as String?,
-      appointmentId: freezed == appointmentId
-          ? _value.appointmentId
-          : appointmentId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      treatmentId: freezed == treatmentId
-          ? _value.treatmentId
-          : treatmentId // ignore: cast_nullable_to_non_nullable
-              as int?,
-    ) as $Val);
+    return _then(
+      _value.copyWith(
+            patientId: null == patientId
+                ? _value.patientId
+                : patientId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            amount: null == amount
+                ? _value.amount
+                : amount // ignore: cast_nullable_to_non_nullable
+                      as double,
+            date: null == date
+                ? _value.date
+                : date // ignore: cast_nullable_to_non_nullable
+                      as String,
+            description: freezed == description
+                ? _value.description
+                : description // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            appointmentId: freezed == appointmentId
+                ? _value.appointmentId
+                : appointmentId // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            treatmentId: freezed == treatmentId
+                ? _value.treatmentId
+                : treatmentId // ignore: cast_nullable_to_non_nullable
+                      as int?,
+          )
+          as $Val,
+    );
   }
 }
 
@@ -830,29 +873,33 @@ class _$RecordPaymentRequestModelCopyWithImpl<$Res,
 abstract class _$$RecordPaymentRequestModelImplCopyWith<$Res>
     implements $RecordPaymentRequestModelCopyWith<$Res> {
   factory _$$RecordPaymentRequestModelImplCopyWith(
-          _$RecordPaymentRequestModelImpl value,
-          $Res Function(_$RecordPaymentRequestModelImpl) then) =
-      __$$RecordPaymentRequestModelImplCopyWithImpl<$Res>;
+    _$RecordPaymentRequestModelImpl value,
+    $Res Function(_$RecordPaymentRequestModelImpl) then,
+  ) = __$$RecordPaymentRequestModelImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {@JsonKey(name: 'patient_id') int patientId,
-      double amount,
-      String date,
-      String? description,
-      @JsonKey(name: 'appointment_id') int? appointmentId,
-      @JsonKey(name: 'treatment_id') int? treatmentId});
+  $Res call({
+    @JsonKey(name: 'patient_id') int patientId,
+    double amount,
+    String date,
+    String? description,
+    @JsonKey(name: 'appointment_id') int? appointmentId,
+    @JsonKey(name: 'treatment_id') int? treatmentId,
+  });
 }
 
 /// @nodoc
 class __$$RecordPaymentRequestModelImplCopyWithImpl<$Res>
-    extends _$RecordPaymentRequestModelCopyWithImpl<$Res,
-        _$RecordPaymentRequestModelImpl>
+    extends
+        _$RecordPaymentRequestModelCopyWithImpl<
+          $Res,
+          _$RecordPaymentRequestModelImpl
+        >
     implements _$$RecordPaymentRequestModelImplCopyWith<$Res> {
   __$$RecordPaymentRequestModelImplCopyWithImpl(
-      _$RecordPaymentRequestModelImpl _value,
-      $Res Function(_$RecordPaymentRequestModelImpl) _then)
-      : super(_value, _then);
+    _$RecordPaymentRequestModelImpl _value,
+    $Res Function(_$RecordPaymentRequestModelImpl) _then,
+  ) : super(_value, _then);
 
   @pragma('vm:prefer-inline')
   @override
@@ -864,46 +911,48 @@ class __$$RecordPaymentRequestModelImplCopyWithImpl<$Res>
     Object? appointmentId = freezed,
     Object? treatmentId = freezed,
   }) {
-    return _then(_$RecordPaymentRequestModelImpl(
-      patientId: null == patientId
-          ? _value.patientId
-          : patientId // ignore: cast_nullable_to_non_nullable
-              as int,
-      amount: null == amount
-          ? _value.amount
-          : amount // ignore: cast_nullable_to_non_nullable
-              as double,
-      date: null == date
-          ? _value.date
-          : date // ignore: cast_nullable_to_non_nullable
-              as String,
-      description: freezed == description
-          ? _value.description
-          : description // ignore: cast_nullable_to_non_nullable
-              as String?,
-      appointmentId: freezed == appointmentId
-          ? _value.appointmentId
-          : appointmentId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      treatmentId: freezed == treatmentId
-          ? _value.treatmentId
-          : treatmentId // ignore: cast_nullable_to_non_nullable
-              as int?,
-    ));
+    return _then(
+      _$RecordPaymentRequestModelImpl(
+        patientId: null == patientId
+            ? _value.patientId
+            : patientId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        amount: null == amount
+            ? _value.amount
+            : amount // ignore: cast_nullable_to_non_nullable
+                  as double,
+        date: null == date
+            ? _value.date
+            : date // ignore: cast_nullable_to_non_nullable
+                  as String,
+        description: freezed == description
+            ? _value.description
+            : description // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        appointmentId: freezed == appointmentId
+            ? _value.appointmentId
+            : appointmentId // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        treatmentId: freezed == treatmentId
+            ? _value.treatmentId
+            : treatmentId // ignore: cast_nullable_to_non_nullable
+                  as int?,
+      ),
+    );
   }
 }
 
 /// @nodoc
 @JsonSerializable()
 class _$RecordPaymentRequestModelImpl extends _RecordPaymentRequestModel {
-  const _$RecordPaymentRequestModelImpl(
-      {@JsonKey(name: 'patient_id') required this.patientId,
-      required this.amount,
-      required this.date,
-      this.description,
-      @JsonKey(name: 'appointment_id') this.appointmentId,
-      @JsonKey(name: 'treatment_id') this.treatmentId})
-      : super._();
+  const _$RecordPaymentRequestModelImpl({
+    @JsonKey(name: 'patient_id') required this.patientId,
+    required this.amount,
+    required this.date,
+    this.description,
+    @JsonKey(name: 'appointment_id') this.appointmentId,
+    @JsonKey(name: 'treatment_id') this.treatmentId,
+  }) : super._();
 
   factory _$RecordPaymentRequestModelImpl.fromJson(Map<String, dynamic> json) =>
       _$$RecordPaymentRequestModelImplFromJson(json);
@@ -948,33 +997,40 @@ class _$RecordPaymentRequestModelImpl extends _RecordPaymentRequestModel {
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode => Object.hash(runtimeType, patientId, amount, date,
-      description, appointmentId, treatmentId);
+  int get hashCode => Object.hash(
+    runtimeType,
+    patientId,
+    amount,
+    date,
+    description,
+    appointmentId,
+    treatmentId,
+  );
 
   @JsonKey(ignore: true)
   @override
   @pragma('vm:prefer-inline')
   _$$RecordPaymentRequestModelImplCopyWith<_$RecordPaymentRequestModelImpl>
-      get copyWith => __$$RecordPaymentRequestModelImplCopyWithImpl<
-          _$RecordPaymentRequestModelImpl>(this, _$identity);
+  get copyWith =>
+      __$$RecordPaymentRequestModelImplCopyWithImpl<
+        _$RecordPaymentRequestModelImpl
+      >(this, _$identity);
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$RecordPaymentRequestModelImplToJson(
-      this,
-    );
+    return _$$RecordPaymentRequestModelImplToJson(this);
   }
 }
 
 abstract class _RecordPaymentRequestModel extends RecordPaymentRequestModel {
-  const factory _RecordPaymentRequestModel(
-          {@JsonKey(name: 'patient_id') required final int patientId,
-          required final double amount,
-          required final String date,
-          final String? description,
-          @JsonKey(name: 'appointment_id') final int? appointmentId,
-          @JsonKey(name: 'treatment_id') final int? treatmentId}) =
-      _$RecordPaymentRequestModelImpl;
+  const factory _RecordPaymentRequestModel({
+    @JsonKey(name: 'patient_id') required final int patientId,
+    required final double amount,
+    required final String date,
+    final String? description,
+    @JsonKey(name: 'appointment_id') final int? appointmentId,
+    @JsonKey(name: 'treatment_id') final int? treatmentId,
+  }) = _$RecordPaymentRequestModelImpl;
   const _RecordPaymentRequestModel._() : super._();
 
   factory _RecordPaymentRequestModel.fromJson(Map<String, dynamic> json) =
@@ -998,5 +1054,5 @@ abstract class _RecordPaymentRequestModel extends RecordPaymentRequestModel {
   @override
   @JsonKey(ignore: true)
   _$$RecordPaymentRequestModelImplCopyWith<_$RecordPaymentRequestModelImpl>
-      get copyWith => throw _privateConstructorUsedError;
+  get copyWith => throw _privateConstructorUsedError;
 }

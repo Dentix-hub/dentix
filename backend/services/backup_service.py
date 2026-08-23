@@ -145,6 +145,41 @@ async def update_backup_status(status: str, message: str, tenant_id: int = None)
         logger.error(f"Failed to update backup status in DB: {e}")
 
 
+async def disconnect_drive_credentials(db, refresh_token: str, tenant_id: int | None) -> None:
+    """Revoke Google Drive credentials after an auth failure.
+
+    Scope discipline (CRITICAL-03): a per-tenant backup failure clears only
+    that tenant's ``google_refresh_token``. The global super-admin token in
+    SystemSetting is cleared exclusively by a global (tenant_id=None) backup.
+    """
+    if not refresh_token:
+        return
+
+    if tenant_id is not None:
+        res = await db.execute(
+            select(models.Tenant).filter(models.Tenant.id == tenant_id)
+        )
+        tenant = res.scalars().first()
+        if tenant is not None:
+            # Guard against races: if the clinic reconnected with a fresh
+            # token while this backup ran, keep it.
+            if tenant.google_refresh_token == refresh_token:
+                tenant.google_refresh_token = None
+            else:
+                logger.info(
+                    "Tenant %s reconnected Google Drive during failed backup; keeping new token.",
+                    tenant_id,
+                )
+        return
+
+    from sqlalchemy import delete
+    await db.execute(
+        delete(models.SystemSetting).filter(
+            models.SystemSetting.key == GOOGLE_SUPER_ADMIN_TOKEN_KEY
+        )
+    )
+
+
 async def run_backup_task(
     refresh_token: str = None, db_url: str = None, tenant_id: int = None, tenant_name: str = None
 ):
@@ -245,13 +280,7 @@ async def run_backup_task(
                 context = RlsContext(tenant_id=tenant_id)
                 async with BackupSessionLocal(context=context) as db:
                     # Only auto-disconnect if it was a refresh token based auth
-                    if refresh_token:
-                        from sqlalchemy import delete
-                        await db.execute(
-                            delete(models.SystemSetting).filter(
-                                models.SystemSetting.key == GOOGLE_SUPER_ADMIN_TOKEN_KEY
-                            )
-                        )
+                    await disconnect_drive_credentials(db, refresh_token, tenant_id)
                     # Reset status
                     await db.execute(
                         delete(models.SystemSetting).filter(

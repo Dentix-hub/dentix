@@ -35,23 +35,20 @@ final patientRepositoryProvider = Provider((ref) {
 });
 
 final getPatientsUseCaseProvider = Provider((ref) {
-  return GetPatientsUseCase(
-    repository: ref.watch(patientRepositoryProvider),
-  );
+  return GetPatientsUseCase(repository: ref.watch(patientRepositoryProvider));
 });
 
 final createPatientUseCaseProvider = Provider((ref) {
-  return CreatePatientUseCase(
-    repository: ref.watch(patientRepositoryProvider),
-  );
+  return CreatePatientUseCase(repository: ref.watch(patientRepositoryProvider));
 });
 
-final patientListNotifierProvider = StateNotifierProvider<PatientListNotifier, PatientListState>((ref) {
-  return PatientListNotifier(
-    getPatientsUseCase: ref.watch(getPatientsUseCaseProvider),
-    createPatientUseCase: ref.watch(createPatientUseCaseProvider),
-  );
-});
+final patientListNotifierProvider =
+    StateNotifierProvider<PatientListNotifier, PatientListState>((ref) {
+      return PatientListNotifier(
+        getPatientsUseCase: ref.watch(getPatientsUseCaseProvider),
+        createPatientUseCase: ref.watch(createPatientUseCaseProvider),
+      );
+    });
 
 class PatientListNotifier extends StateNotifier<PatientListState> {
   final GetPatientsUseCase _getPatientsUseCase;
@@ -61,9 +58,9 @@ class PatientListNotifier extends StateNotifier<PatientListState> {
   PatientListNotifier({
     required GetPatientsUseCase getPatientsUseCase,
     required CreatePatientUseCase createPatientUseCase,
-  })  : _getPatientsUseCase = getPatientsUseCase,
-        _createPatientUseCase = createPatientUseCase,
-        super(const PatientListState.initial());
+  }) : _getPatientsUseCase = getPatientsUseCase,
+       _createPatientUseCase = createPatientUseCase,
+       super(const PatientListState.initial());
 
   Future<void> loadPatients({String? search, bool refresh = false}) async {
     // Set loading on first load or refresh

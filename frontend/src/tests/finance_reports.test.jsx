@@ -10,9 +10,7 @@ import {
     adaptExpensesReport,
 } from '../features/finance/reports/utils/reportAdapters';
 import * as financialsApi from '../api/financials';
-import * as billingApi from '../api/billing';
 
-// Mock react-i18next
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
         t: (key, fallback) => (typeof fallback === 'string' ? fallback : key),
@@ -20,76 +18,153 @@ vi.mock('react-i18next', () => ({
     }),
 }));
 
-// Mock permissions hook
 vi.mock('../features/finance/useFinancePermissions', () => ({
     useFinancePermissions: () => ({
-        canReadFinance: true,
-        canWriteFinance: true,
-        canConfigFinance: true,
-        isAdmin: true,
-        isAccountant: false,
+        canViewOverview: true,
+        canViewPatientAccounts: true,
+        canViewPayments: true,
+        canViewExpenses: true,
+        canViewActivity: true,
+        canViewPayroll: true,
+        canExportReports: true,
+        isDoctor: false,
     }),
 }));
 
-// Mock financials & billing APIs
 vi.mock('../api/financials', () => ({
-    getComprehensiveStats: vi.fn(),
-    getPatientsReport: vi.fn(),
-    getDoctorRevenue: vi.fn(),
-    getAllProceduresFinancials: vi.fn(),
+    getPeriodComparisonReport: vi.fn(),
+    getMaterialMarginReport: vi.fn(),
+    exportPeriodComparisonReport: vi.fn(),
+    exportMaterialMarginReport: vi.fn(),
 }));
 
-vi.mock('../api/billing', () => ({
-    getExpenses: vi.fn(),
-}));
-
-function createTestQueryClient() {
+function createQueryClient() {
     return new QueryClient({
-        defaultOptions: {
-            queries: { retry: false },
-        },
+        defaultOptions: { queries: { retry: false } },
     });
 }
 
-describe('Finance Reports V2 (Real Backend Contracts)', () => {
+function renderReports(initialEntry = '/finance/reports?from=2026-08-01&to=2026-08-15') {
+    return render(
+        <QueryClientProvider client={createQueryClient()}>
+            <MemoryRouter initialEntries={[initialEntry]}>
+                <ReportsPage />
+            </MemoryRouter>
+        </QueryClientProvider>,
+    );
+}
+
+const comparisonPayload = {
+    definition_version: 'finance-summary-v1',
+    currency: 'EGP',
+    current_period: {
+        start: '2026-08-01',
+        end: '2026-08-15',
+        timezone: 'Africa/Cairo',
+    },
+    comparison_period: {
+        start: '2026-07-17',
+        end: '2026-07-31',
+        timezone: 'Africa/Cairo',
+    },
+    metrics: [
+        {
+            metric: 'collected',
+            current: 95000,
+            comparison: 80000,
+            delta: 15000,
+            delta_percent: 18.75,
+        },
+        {
+            metric: 'net_operational_result',
+            current: 29000,
+            comparison: 25000,
+            delta: 4000,
+            delta_percent: 16,
+        },
+    ],
+};
+
+const materialPayload = {
+    definition_version: 'estimated-material-margin-v2',
+    metric_scope: 'materials_only',
+    warning: 'Incomplete procedures have null margin values',
+    items: [
+        {
+            procedure_id: 1,
+            procedure_name: 'زراعة سن',
+            current_price: 12000,
+            material_cost: null,
+            material_margin: null,
+            margin_percent: null,
+            coverage_percent: 0,
+            confidence: 'unavailable',
+            status: 'unavailable',
+        },
+        {
+            procedure_id: 2,
+            procedure_name: 'حشو تجميلي',
+            current_price: 1500,
+            material_cost: 250,
+            material_margin: 1250,
+            margin_percent: 83.3,
+            coverage_percent: 100,
+            confidence: 'medium',
+            status: 'complete',
+        },
+    ],
+    pagination: { skip: 0, limit: 25, total: 2, returned: 2 },
+    completeness: {
+        complete: 1,
+        partial: 0,
+        unavailable: 1,
+        errors: 0,
+        coverage_percent: 50,
+    },
+};
+
+describe('Finance Reports & Insights', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        financialsApi.getPeriodComparisonReport.mockResolvedValue({ data: comparisonPayload });
+        financialsApi.getMaterialMarginReport.mockResolvedValue({ data: materialPayload });
     });
 
-    describe('reportAdapters - Contract Integrity', () => {
-        it('adapts exact /accounting/comprehensive-stats nested payload correctly', () => {
+    describe('reportAdapters - compatibility integrity', () => {
+        it('adapts exact authoritative summary payload without recreating formulas', () => {
             const rawBackendResponse = {
-                period: { start: '2026-08-01', end: '2026-08-15' },
+                definition_version: 'finance-summary-v1',
+                currency: 'EGP',
+                period: {
+                    start: '2026-08-01',
+                    end: '2026-08-15',
+                    timezone: 'Africa/Cairo',
+                    scope: 'period',
+                },
                 income: {
-                    total_revenue: 120000.0,
-                    gross_revenue: 125000.0,
-                    total_discounts: 5000.0,
-                    net_revenue: 120000.0,
-                    total_collected: 95000.0,
-                    outstanding: 35000.0,
-                    all_time_outstanding: 35000.0,
-                    period_balance: 25000.0,
+                    total_revenue: 120000,
+                    gross_revenue: 125000,
+                    total_discounts: 5000,
+                    net_revenue: 120000,
+                    total_collected: 95000,
+                    outstanding: 35000,
+                    all_time_outstanding: 35000,
+                    period_balance: 25000,
                     total_appointments: 55,
                     unique_patients: 40,
                 },
                 deductions: {
-                    doctor_dues: {
-                        total: 30000.0,
-                        details: [{ id: 1, name: 'د. خالد', total_due: 30000.0 }],
-                    },
-                    staff_dues: {
-                        total: 12000.0,
-                        details: [{ id: 2, username: 'مروة', due: 12000.0 }],
-                    },
-                    lab_costs: 9500.0,
-                    expenses: 14500.0,
-                    total_deductions: 66000.0,
+                    doctor_dues: { total: 30000, details: [] },
+                    staff_dues: { total: 12000, details: [] },
+                    lab_costs: 9500,
+                    expenses: 14500,
+                    total_deductions: 66000,
                 },
-                net_profit: 29000.0,
+                net_operational_result: 29000,
+                net_profit: 29000,
             };
 
             const adapted = adaptComprehensiveStats(rawBackendResponse);
-
             expect(adapted.invoiced_revenue).toBe(125000);
             expect(adapted.total_discounts).toBe(5000);
             expect(adapted.net_production).toBe(120000);
@@ -101,160 +176,123 @@ describe('Finance Reports V2 (Real Backend Contracts)', () => {
             expect(adapted.total_deductions).toBe(66000);
             expect(adapted.net_profit).toBe(29000);
             expect(adapted.all_time_outstanding).toBe(35000);
+            expect(adapted.period.timezone).toBe('Africa/Cairo');
+            expect(adapted.definition_version).toBe('finance-summary-v1');
         });
 
-        it('adapts exact /accounting/patients-report response correctly', () => {
-            const rawBackendResponse = {
-                total: 2,
+        it('does not recreate profit or balance formulas when server fields are absent', () => {
+            const adapted = adaptComprehensiveStats({
+                income: { gross_revenue: 1000, net_revenue: 900, total_collected: 800 },
+                deductions: {
+                    expenses: 100,
+                    lab_costs: 50,
+                    doctor_dues: { total: 100 },
+                    staff_dues: { total: 50 },
+                },
+            });
+            expect(adapted.total_deductions).toBe(0);
+            expect(adapted.net_profit).toBe(0);
+            expect(adapted.period_balance).toBe(0);
+        });
+
+        it('keeps server aggregate scope instead of deriving it from the current patient page', () => {
+            const adapted = adaptPatientsReport({
+                total: 100,
                 summary: {
                     total_invoiced: 25000,
                     total_paid: 21000,
                     period_balance: 4000,
                     total_outstanding: 4500,
+                    total_outstanding_scope: 'all_time_as_of_now',
                 },
-                patients: [
-                    {
-                        patient_id: 10,
-                        file_number: 101,
-                        patient_name: 'أحمد محمود',
-                        patient_phone: '01012345678',
-                        total_invoiced: 8000.0,
-                        total_paid: 6000.0,
-                        outstanding_balance: 2000.0,
-                        all_time_outstanding: 2500.0,
-                    },
-                    {
-                        patient_id: 11,
-                        file_number: 102,
-                        patient_name: 'سارة إبراهيم',
-                        patient_phone: '01098765432',
-                        total_invoiced: 5000.0,
-                        total_paid: 5000.0,
-                        outstanding_balance: 0.0,
-                        all_time_outstanding: 0.0,
-                    },
-                ],
-            };
-
-            const adapted = adaptPatientsReport(rawBackendResponse);
-
-            expect(adapted.total).toBe(2);
+                patients: [{ patient_id: 10, patient_name: 'أحمد محمود', total_invoiced: 8000, total_paid: 6000, all_time_outstanding: 2500 }],
+            });
             expect(adapted.summary.total_invoiced).toBe(25000);
-            expect(adapted.summary.total_paid).toBe(21000);
-            expect(adapted.summary.period_balance).toBe(4000);
             expect(adapted.summary.total_outstanding).toBe(4500);
-            expect(adapted.patients[0].patient_name).toBe('أحمد محمود');
-            expect(adapted.patients[0].invoiced_in_period).toBe(8000);
-            expect(adapted.patients[0].paid_in_period).toBe(6000);
+            expect(adapted.total).toBe(100);
         });
 
-        it('adapts expenses with cost and notes without relying on amount/description', () => {
-            const rawBackendResponse = [
-                {
-                    id: 1,
-                    item_name: 'شراء قفازات',
-                    category: 'مستلزمات طبية',
-                    cost: 450.0,
-                    notes: 'صيدلية النور',
-                    date: '2026-08-10',
-                },
-                {
-                    id: 2,
-                    item_name: 'فاتورة كهرباء',
-                    category: 'مرافق',
-                    cost: 1200.0,
-                    notes: 'شهر يوليو',
-                    date: '2026-08-01',
-                },
-            ];
-
-            const adapted = adaptExpensesReport(rawBackendResponse);
-
-            expect(adapted.length).toBe(2);
+        it('preserves manual expense provenance for compatibility consumers', () => {
+            const adapted = adaptExpensesReport([{ id: 1, item_name: 'شراء قفازات', category: 'مستلزمات طبية', cost: 450, notes: 'صيدلية النور', date: '2026-08-10', source: 'manual_expense' }]);
             expect(adapted[0].amount).toBe(450);
-            expect(adapted[0].notes).toBe('صيدلية النور');
-            expect(adapted[1].amount).toBe(1200);
-            expect(adapted[1].category).toBe('مرافق');
+            expect(adapted[0].source).toBe('manual_expense');
         });
     });
 
-    describe('<ReportsPage /> Rendering & Interaction', () => {
-        it('renders executive financial income statement report with real backend data shape', async () => {
-            financialsApi.getComprehensiveStats.mockResolvedValue({
-                data: {
-                    data: {
-                        period: { start: '2026-08-01', end: '2026-08-15' },
-                        income: {
-                            total_revenue: 100000.0,
-                            total_collected: 80000.0,
-                            outstanding: 20000.0,
-                            all_time_outstanding: 25000.0,
-                            period_balance: 20000.0,
-                            total_appointments: 40,
-                            unique_patients: 30,
-                        },
-                        deductions: {
-                            doctor_dues: { total: 25000.0, details: [] },
-                            staff_dues: { total: 10000.0, details: [] },
-                            lab_costs: 8000.0,
-                            expenses: 12000.0,
-                            total_deductions: 55000.0,
-                        },
-                        net_profit: 25000.0,
-                    },
-                },
-            });
-
-            const queryClient = createTestQueryClient();
-
-            render(
-                <QueryClientProvider client={queryClient}>
-                    <MemoryRouter initialEntries={['/finance/reports?type=summary&from=2026-08-01&to=2026-08-15']}>
-                        <ReportsPage />
-                    </MemoryRouter>
-                </QueryClientProvider>
-            );
+    describe('<ReportsPage /> PR6 server-backed workspace', () => {
+        it('uses active URL period/filter/pagination state in server requests', async () => {
+            renderReports('/finance/reports?from=2026-08-01&to=2026-08-15&q=implant&page=2&sort=price_desc');
 
             await waitFor(() => {
-                expect(screen.getByText('الملخص المالي العام')).toBeDefined();
-                expect(screen.getByText('قائمة الدخل والتدفقات المالية المعتمدة')).toBeDefined();
-                expect(screen.getAllByText(/إجمالي قيمة الخدمات العلاجية/).length).toBeGreaterThan(0);
-                expect(screen.getAllByText(/صافي الدخل التشغيلي للعيادة/).length).toBeGreaterThan(0);
+                expect(financialsApi.getPeriodComparisonReport).toHaveBeenCalledWith({
+                    start_date: '2026-08-01',
+                    end_date: '2026-08-15',
+                });
+                expect(financialsApi.getMaterialMarginReport).toHaveBeenCalledWith({
+                    search: 'implant',
+                    skip: 25,
+                    limit: 25,
+                    sort: 'price_desc',
+                });
             });
         });
 
-        it('fetches every expense page before building the report', async () => {
-            const firstPage = Array.from({ length: 200 }, (_, index) => ({
-                id: index + 1,
-                item_name: `مصروف ${index + 1}`,
-                category: 'تشغيل',
-                cost: 10,
-            }));
-            billingApi.getExpenses
-                .mockResolvedValueOnce({ data: { data: { items: firstPage, total: 201 } } })
-                .mockResolvedValueOnce({
-                    data: {
-                        data: {
-                            items: [{ id: 201, item_name: 'آخر مصروف', category: 'صفحة ثانية', cost: 25 }],
-                            total: 201,
-                        },
-                    },
-                });
+        it('renders server comparison and withholds incomplete material margin without faking a 100% margin', async () => {
+            renderReports();
 
-            render(
-                <QueryClientProvider client={createTestQueryClient()}>
-                    <MemoryRouter initialEntries={['/finance/reports?type=expenses&from=2026-08-01&to=2026-08-15']}>
-                        <ReportsPage />
-                    </MemoryRouter>
-                </QueryClientProvider>
-            );
+            await waitFor(() => {
+                expect(screen.getByText('مقارنة الفترة')).toBeDefined();
+                expect(screen.getAllByText('زراعة سن').length).toBeGreaterThan(0);
+                expect(screen.getAllByText('حشو تجميلي').length).toBeGreaterThan(0);
+            });
 
-            await waitFor(() => expect(screen.getAllByText('صفحة ثانية').length).toBeGreaterThan(0));
-            expect(billingApi.getExpenses).toHaveBeenCalledTimes(2);
-            expect(billingApi.getExpenses).toHaveBeenLastCalledWith(expect.objectContaining({
-                skip: 200,
-                limit: 200,
-            }));
+            expect(screen.getAllByText('غير متاح').length).toBeGreaterThan(0);
+            expect(screen.getByText(/تم حجب الهامش بدل افتراض تكلفة صفرية/)).toBeDefined();
+
+            const implantMatches = screen.getAllByText('زراعة سن');
+            const unavailableItem = implantMatches.find((node) => node.closest('tr')) || implantMatches[0];
+            const unavailableRow = unavailableItem.closest('tr') || unavailableItem.closest('article');
+            expect(unavailableRow).not.toBeNull();
+            expect(unavailableRow.textContent).toContain('غير متاح');
+            expect(unavailableRow.textContent).not.toContain('100%');
+
+            // 100% coverage is valid for a complete row; the actual material margin is 83.3%.
+            expect(screen.getAllByText('100%').length).toBeGreaterThan(0);
+            expect(screen.getAllByText('83.3%').length).toBeGreaterThan(0);
+        });
+
+        it('keeps canonical operational links and preserves only shared period params', async () => {
+            renderReports('/finance/reports?from=2026-08-01&to=2026-08-15&preset=custom&q=drop-me&page=3');
+
+            await waitFor(() => expect(screen.getByText('المصادر التشغيلية الأصلية')).toBeDefined());
+            const overview = screen.getByRole('link', { name: /الملخص المالي المعتمد/ });
+            const cash = screen.getByRole('link', { name: /الحركات النقدية/ });
+            const team = screen.getByRole('link', { name: /الفريق والمستحقات/ });
+
+            for (const link of [overview, cash, team]) {
+                const url = new URL(link.getAttribute('href'), 'https://dentix.test');
+                expect(url.searchParams.get('from')).toBe('2026-08-01');
+                expect(url.searchParams.get('to')).toBe('2026-08-15');
+                expect(url.searchParams.get('preset')).toBe('custom');
+                expect(url.searchParams.has('q')).toBe(false);
+                expect(url.searchParams.has('page')).toBe(false);
+            }
+        });
+
+        it('disables exports when report APIs fail and does not render fallback zero reports', async () => {
+            financialsApi.getPeriodComparisonReport.mockRejectedValueOnce(new Error('comparison failed'));
+            financialsApi.getMaterialMarginReport.mockRejectedValueOnce(new Error('material failed'));
+            renderReports();
+
+            await waitFor(() => {
+                expect(screen.getByText(/تعذر تحميل مقارنة الفترة/)).toBeDefined();
+                expect(screen.getByText(/تعذر تحميل هامش المواد/)).toBeDefined();
+            });
+
+            const exportButtons = screen.getAllByRole('button', { name: /تصدير/ });
+            expect(exportButtons.length).toBe(2);
+            exportButtons.forEach((button) => expect(button.disabled).toBe(true));
+            expect(screen.queryByLabelText('0 EGP')).toBeNull();
         });
     });
 });

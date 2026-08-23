@@ -18,7 +18,7 @@ class _CreatePrescriptionPageState
   final _formKey = GlobalKey<FormState>();
   final _patientIdController = TextEditingController();
   final _notesController = TextEditingController();
-  
+
   final List<Map<String, dynamic>> _medications = [];
   bool _isLoading = false;
 
@@ -52,9 +52,7 @@ class _CreatePrescriptionPageState
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.createPrescription),
-      ),
+      appBar: AppBar(title: Text(l10n.createPrescription)),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -80,7 +78,7 @@ class _CreatePrescriptionPageState
               },
             ),
             const SizedBox(height: 16),
-            
+
             // Medications Section
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -88,8 +86,8 @@ class _CreatePrescriptionPageState
                 Text(
                   l10n.medications,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 TextButton.icon(
                   onPressed: _addMedication,
@@ -99,14 +97,14 @@ class _CreatePrescriptionPageState
               ],
             ),
             const SizedBox(height: 8),
-            
+
             // Medication List
             ..._medications.asMap().entries.map((entry) {
               final index = entry.key;
               final medication = entry.value;
               return _buildMedicationCard(index, medication);
             }),
-            
+
             if (_medications.isEmpty)
               Center(
                 child: Padding(
@@ -117,9 +115,9 @@ class _CreatePrescriptionPageState
                   ),
                 ),
               ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Notes
             TextFormField(
               controller: _notesController,
@@ -132,7 +130,7 @@ class _CreatePrescriptionPageState
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Submit Button
             SizedBox(
               height: 50,

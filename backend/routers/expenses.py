@@ -1,18 +1,41 @@
-"""Expenses Router — tenant-scoped expense tracking."""
+"""Expenses Router — tenant-scoped manual expense tracking."""
 
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .. import schemas, crud
-from backend.database import get_async_db
-from backend.core.permissions import Permission, require_permission
-from backend.core.tenant_context import require_tenant_id
+from .. import crud, schemas
 from ..utils.audit_logger import log_admin_action
+from backend.core.permissions import Permission, require_permission
 from backend.core.response import success_response
+from backend.core.tenant_context import require_tenant_id
+from backend.database import get_async_db
 from backend.services.expense_service import ExpenseService
 
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
+
+
+def _manual_expense_payload(expense) -> dict:
+    """Serialize an Expense with explicit source/provenance metadata.
+
+    Finance Summary treats this table strictly as manual operating expenses;
+    laboratory and payroll costs come from their own authoritative sources.
+    """
+    return {
+        "id": expense.id,
+        "item_name": expense.item_name,
+        "cost": expense.cost,
+        "category": expense.category,
+        "date": expense.date,
+        "notes": expense.notes,
+        "source": "manual_expense",
+        "provenance": {
+            "kind": "manual_expense",
+            "source_table": "expenses",
+            "source_id": expense.id,
+        },
+    }
 
 
 @router.get("")
@@ -27,7 +50,7 @@ async def get_expenses(
     page: Optional[int] = Query(None, ge=1),
     page_size: Optional[int] = Query(None, ge=1),
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
+    current_user: schemas.User = Depends(require_permission(Permission.EXPENSE_READ)),
 ):
     tenant_id = require_tenant_id(current_user)
     effective_skip = skip
@@ -57,19 +80,26 @@ async def get_expenses(
         start_date=start_date,
         end_date=end_date,
     )
-    return success_response({
-        "items": data,
-        "total": total,
-        "skip": effective_skip,
-        "limit": effective_limit,
-    })
+    return success_response(
+        {
+            "items": [_manual_expense_payload(expense) for expense in data],
+            "total": total,
+            "skip": effective_skip,
+            "limit": effective_limit,
+            "source": "manual_expense",
+            "provenance": {
+                "kind": "manual_expense_collection",
+                "source_table": "expenses",
+            },
+        }
+    )
 
 
 @router.post("")
 async def create_expense(
     expense: schemas.ExpenseCreate,
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
+    current_user: schemas.User = Depends(require_permission(Permission.EXPENSE_MANAGE)),
 ):
     tenant_id = require_tenant_id(current_user)
     service = ExpenseService(db, tenant_id)
@@ -87,19 +117,17 @@ async def create_expense(
     )
     await db.commit()
     await db.refresh(result)
-    return success_response(result)
+    return success_response(_manual_expense_payload(result))
 
 
 @router.delete("/{expense_id}")
 async def delete_expense(
     expense_id: int,
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
+    current_user: schemas.User = Depends(require_permission(Permission.EXPENSE_MANAGE)),
 ):
     tenant_id = require_tenant_id(current_user)
 
-    # Resolve ownership before creating the audit unit because the legacy CRUD
-    # commits even when the target does not exist.
     from backend import models
     from sqlalchemy import select
 
@@ -129,7 +157,7 @@ async def delete_expense(
 @router.get("/stats")
 async def get_stats(
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
+    current_user: schemas.User = Depends(require_permission(Permission.EXPENSE_READ)),
 ):
     tenant_id = require_tenant_id(current_user)
     data = await crud.get_financial_stats(db, tenant_id)

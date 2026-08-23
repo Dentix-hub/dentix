@@ -8,7 +8,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy import select, func, or_
 from ..models import inventory as inv_models
 from ..models import clinical as clinical_models
-from ..core.money import as_decimal
+from ..core.money import as_decimal, money_json_default
 
 logger = logging.getLogger(__name__)
 
@@ -263,7 +263,9 @@ class InventoryLearningService:
             tenant_id=session.stock_item.tenant_id,
             session_id=session.id,
             total_consumed=total_consumed,
-            calculation_data=json.dumps(log_data),
+            # Numeric columns yield Decimal values inside log_data; plain
+            # json.dumps would raise TypeError before commit (HIGH-02).
+            calculation_data=json.dumps(log_data, default=money_json_default),
         )
         self.db.add(log_entry)
 

@@ -1,39 +1,60 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { getPatientsReport, getComprehensiveStats } from '@/api/financials';
+import { getPatientsReport, getFinanceSummary } from '@/api/financials';
 import { createPayment } from '@/api/billing';
 import { financeKeys } from '../../queryKeys';
 import { getPresetDates } from '../../utils/datePresets';
 
+const parseFileNumber = (value) => {
+    if (!value) return null;
+    const normalized = String(value).trim().replace(/^#/, '');
+    if (!/^\d{1,9}$/.test(normalized)) return null;
+    const parsed = Number.parseInt(normalized, 10);
+    return parsed > 0 ? parsed : null;
+};
+
 /**
- * Hook for managing Patient Accounts & Receivables data, server search, debtor filtering, and pagination.
+ * Hook for managing Patient Accounts & Receivables data.
+ * Patient.file_number is the stable Patient.id, so short numeric/# searches are
+ * normalized to the explicit patient_id server filter while phone/name searches
+ * retain the legacy text-search contract.
  */
 export function usePatientAccounts(pageSize = 20) {
     const queryClient = useQueryClient();
     const [searchParams, setSearchParams] = useSearchParams();
 
-    const search = searchParams.get('q') || '';
+    const textSearch = searchParams.get('q') || '';
+    const fileNumber = parseFileNumber(searchParams.get('file_number'));
+    const search = fileNumber ? String(fileNumber) : textSearch;
     const from = searchParams.get('from') || '';
     const to = searchParams.get('to') || '';
     const outstandingOnly = searchParams.get('filter') === 'debtors';
-    const pageParam = parseInt(searchParams.get('page') || '1', 10);
-    const currentPage = isNaN(pageParam) || pageParam < 1 ? 1 : pageParam;
+    const pageParam = Number.parseInt(searchParams.get('page') || '1', 10);
+    const currentPage = Number.isNaN(pageParam) || pageParam < 1 ? 1 : pageParam;
 
     const skip = (currentPage - 1) * pageSize;
     const defaultStatsRange = getPresetDates('this_month');
     const statsFrom = from || defaultStatsRange.from;
     const statsTo = to || defaultStatsRange.to;
 
-    // 1. Fetch Paginated Patient Accounts Report
     const accountsQuery = useQuery({
-        queryKey: financeKeys.receivables({ search, from, to, outstandingOnly, skip, limit: pageSize }),
+        queryKey: financeKeys.receivables({
+            search: textSearch,
+            fileNumber,
+            from,
+            to,
+            outstandingOnly,
+            skip,
+            limit: pageSize,
+        }),
         queryFn: async () => {
             const params = {
                 skip,
                 limit: pageSize,
                 outstanding_only: outstandingOnly,
             };
-            if (search.trim()) params.search = search.trim();
+            if (fileNumber) params.patient_id = fileNumber;
+            else if (textSearch.trim()) params.search = textSearch.trim();
             if (from) params.start_date = from;
             if (to) params.end_date = to;
 
@@ -43,12 +64,10 @@ export function usePatientAccounts(pageSize = 20) {
         staleTime: 30 * 1000,
     });
 
-    // 2. Fetch Comprehensive Stats for Clinic-wide Headline Debt Summary.
-    // The endpoint requires a valid date range even though all_time_outstanding is all-time scoped.
     const statsQuery = useQuery({
-        queryKey: financeKeys.overviewStats({ from: statsFrom, to: statsTo }),
+        queryKey: financeKeys.summary({ from: statsFrom, to: statsTo }),
         queryFn: async () => {
-            const res = await getComprehensiveStats(statsFrom, statsTo);
+            const res = await getFinanceSummary(statsFrom, statsTo);
             return res.data?.data || res.data;
         },
         staleTime: 60 * 1000,
@@ -61,16 +80,22 @@ export function usePatientAccounts(pageSize = 20) {
     const statsData = statsQuery.data;
     const allTimeOutstanding = Number(
         statsData?.income?.all_time_outstanding
-        || statsData?.income?.outstanding
-        || accountsData?.summary?.total_outstanding
-    ) || 0;
+        ?? statsData?.income?.outstanding
+        ?? 0
+    );
 
-    // Update URL Filter Helpers
     const updateSearch = (newSearch) => {
         const params = new URLSearchParams(searchParams);
-        if (newSearch) params.set('q', newSearch);
-        else params.delete('q');
-        params.set('page', '1');
+        const normalizedFileNumber = parseFileNumber(newSearch);
+        if (normalizedFileNumber) {
+            params.set('file_number', String(normalizedFileNumber));
+            params.delete('q');
+        } else {
+            params.delete('file_number');
+            if (newSearch) params.set('q', newSearch);
+            else params.delete('q');
+        }
+        params.delete('page');
         setSearchParams(params);
     };
 
@@ -78,21 +103,24 @@ export function usePatientAccounts(pageSize = 20) {
         const params = new URLSearchParams(searchParams);
         if (filterType === 'debtors') params.set('filter', 'debtors');
         else params.delete('filter');
-        params.set('page', '1');
+        params.delete('page');
         setSearchParams(params);
     };
 
     const setPage = (newPage) => {
         const params = new URLSearchParams(searchParams);
-        params.set('page', String(newPage));
+        if (newPage > 1) params.set('page', String(newPage));
+        else params.delete('page');
         setSearchParams(params);
     };
 
-    // Record Payment Mutation
     const createMutation = useMutation({
         mutationFn: (data) => createPayment(data),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: financeKeys.all });
+            queryClient.invalidateQueries({ queryKey: financeKeys.receivablesRoot() });
+            queryClient.invalidateQueries({ queryKey: financeKeys.summaryRoot() });
+            queryClient.invalidateQueries({ queryKey: financeKeys.paymentsRoot() });
+            queryClient.invalidateQueries({ queryKey: financeKeys.activityRoot() });
         },
     });
 
@@ -101,6 +129,7 @@ export function usePatientAccounts(pageSize = 20) {
         totalCount,
         allTimeOutstanding,
         search,
+        fileNumber,
         from,
         to,
         outstandingOnly,

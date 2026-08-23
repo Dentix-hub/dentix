@@ -18,16 +18,17 @@ class RetryInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    if (_shouldRetry(err) && err.requestOptions.extra['retryCount'] != maxRetries) {
+    if (_shouldRetry(err) &&
+        err.requestOptions.extra['retryCount'] != maxRetries) {
       final retryCount = (err.requestOptions.extra['retryCount'] ?? 0) as int;
-      
+
       if (retryCount < maxRetries) {
         debugPrint('Retrying request (${retryCount + 1}/$maxRetries)...');
-        
+
         await Future.delayed(retryDelay * (retryCount + 1));
-        
+
         err.requestOptions.extra['retryCount'] = retryCount + 1;
-        
+
         try {
           final response = await DioClient.dio.fetch(err.requestOptions);
           return handler.resolve(response);
@@ -36,7 +37,7 @@ class RetryInterceptor extends Interceptor {
         }
       }
     }
-    
+
     return handler.next(err);
   }
 

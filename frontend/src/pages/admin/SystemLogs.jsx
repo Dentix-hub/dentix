@@ -25,7 +25,7 @@ export default function SystemLogs() {
         mutationFn: (id) => api.delete(`/api/v1/admin/system/logs/${id}`),
         onSuccess: () => {
             toast.success('تم حذف الخطأ بنجاح');
-            queryClient.invalidateQueries(['system-logs']);
+            queryClient.invalidateQueries({ queryKey: ['system-logs'] });
             setLogToDelete(null);
         },
         onError: () => toast.error('فشل في حذف الخطأ')
@@ -35,7 +35,7 @@ export default function SystemLogs() {
         mutationFn: () => api.delete('/api/v1/admin/system/logs/clear'),
         onSuccess: () => {
             toast.success('تم مسح جميع الأخطاء');
-            queryClient.invalidateQueries(['system-logs']);
+            queryClient.invalidateQueries({ queryKey: ['system-logs'] });
             setIsClearingAll(false);
         },
         onError: () => toast.error('فشل في مسح الأخطاء')

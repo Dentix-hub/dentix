@@ -27,11 +27,8 @@ class AppButton extends StatelessWidget {
       style: ElevatedButton.styleFrom(
         backgroundColor: backgroundColor,
         foregroundColor: foregroundColor,
-        padding: padding ??
-            const EdgeInsets.symmetric(
-              horizontal: 24,
-              vertical: 16,
-            ),
+        padding:
+            padding ?? const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       ),
       child: isLoading
           ? const SizedBox(
@@ -46,10 +43,7 @@ class AppButton extends StatelessWidget {
     );
 
     if (isExpanded) {
-      button = SizedBox(
-        width: double.infinity,
-        child: button,
-      );
+      button = SizedBox(width: double.infinity, child: button);
     }
 
     return button;

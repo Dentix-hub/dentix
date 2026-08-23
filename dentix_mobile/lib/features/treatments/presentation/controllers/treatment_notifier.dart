@@ -39,12 +39,18 @@ final getTreatmentsByPatientIdUseCaseProvider = Provider((ref) {
   );
 });
 
-final treatmentNotifierProvider = StateNotifierProvider.family<TreatmentNotifier, TreatmentState, int>((ref, patientId) {
-  return TreatmentNotifier(
-    getTreatmentsUseCase: ref.watch(getTreatmentsByPatientIdUseCaseProvider),
-    patientId: patientId,
-  );
-});
+final treatmentNotifierProvider =
+    StateNotifierProvider.family<TreatmentNotifier, TreatmentState, int>((
+      ref,
+      patientId,
+    ) {
+      return TreatmentNotifier(
+        getTreatmentsUseCase: ref.watch(
+          getTreatmentsByPatientIdUseCaseProvider,
+        ),
+        patientId: patientId,
+      );
+    });
 
 class TreatmentNotifier extends StateNotifier<TreatmentState> {
   final GetTreatmentsByPatientIdUseCase _getTreatmentsUseCase;
@@ -54,8 +60,8 @@ class TreatmentNotifier extends StateNotifier<TreatmentState> {
   TreatmentNotifier({
     required GetTreatmentsByPatientIdUseCase getTreatmentsUseCase,
     required this.patientId,
-  })  : _getTreatmentsUseCase = getTreatmentsUseCase,
-        super(const TreatmentState.initial());
+  }) : _getTreatmentsUseCase = getTreatmentsUseCase,
+       super(const TreatmentState.initial());
 
   Future<void> loadTreatments({bool refresh = false}) async {
     if (refresh) {
