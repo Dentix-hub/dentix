@@ -43,8 +43,8 @@ export default function DoctorCompensationPage() {
     } = useDoctorCompensation();
 
     const [doctorToConfigure, setDoctorToConfigure] = useState(null);
+    const doctorDetailsUrl = (doctorId) => `/finance/team/doctors/${doctorId}?from=${from}&to=${to}`;
 
-    // Columns Definition for DataTable
     const columns = [
         {
             id: 'doctor_name',
@@ -53,7 +53,7 @@ export default function DoctorCompensationPage() {
             cell: (row) => (
                 <div className="space-y-0.5">
                     <Link
-                        to={`/finance/compensation/doctors/${row.doctor_id}?from=${from}&to=${to}`}
+                        to={doctorDetailsUrl(row.doctor_id)}
                         className="font-bold text-text-primary hover:text-primary transition-colors block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-sm"
                     >
                         {row.doctor_name}
@@ -69,38 +69,21 @@ export default function DoctorCompensationPage() {
             header: t('finance.metrics.invoiced', 'المحتسب'),
             align: 'end',
             sortable: false,
-            cell: (row) => (
-                <Money
-                    amount={row.revenue}
-                    size="sm"
-                />
-            ),
+            cell: (row) => <Money amount={row.revenue} size="sm" />,
         },
         {
             id: 'collected',
             header: t('finance.metrics.collected', 'المحصل'),
             align: 'end',
             sortable: false,
-            cell: (row) => (
-                <Money
-                    amount={row.collected}
-                    size="sm"
-                    colored
-                />
-            ),
+            cell: (row) => <Money amount={row.collected} size="sm" colored />,
         },
         {
             id: 'lab_cost',
             header: t('finance.expenses.lab_total', 'المعامل'),
             align: 'end',
             sortable: false,
-            cell: (row) => (
-                <Money
-                    amount={row.lab_cost}
-                    size="sm"
-                    colored
-                />
-            ),
+            cell: (row) => <Money amount={row.lab_cost} size="sm" colored />,
         },
         {
             id: 'rules',
@@ -125,13 +108,7 @@ export default function DoctorCompensationPage() {
             header: t('finance.compensation.total_due', 'المستحق للفترة'),
             align: 'end',
             sortable: false,
-            cell: (row) => (
-                <Money
-                    amount={row.total_due}
-                    size="sm"
-                    colored
-                />
-            ),
+            cell: (row) => <Money amount={row.total_due} size="sm" colored />,
         },
         {
             id: 'actions',
@@ -156,7 +133,7 @@ export default function DoctorCompensationPage() {
                             </button>
                         )}
                         <Link
-                            to={`/finance/compensation/doctors/${row.doctor_id}?from=${from}&to=${to}`}
+                            to={doctorDetailsUrl(row.doctor_id)}
                             className="p-1.5 rounded-lg text-text-secondary hover:text-primary hover:bg-primary/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                             title={viewDetailsLabel}
                             aria-label={`${viewDetailsLabel}: ${row.doctor_name}`}
@@ -169,16 +146,12 @@ export default function DoctorCompensationPage() {
         },
     ];
 
-    // Mobile Card Render
     const renderMobileCard = (row) => (
-        <div
-            key={row.doctor_id}
-            className="p-4 rounded-xl border border-border bg-card space-y-3 shadow-xs"
-        >
+        <div key={row.doctor_id} className="p-4 rounded-xl border border-border bg-card space-y-3 shadow-xs">
             <div className="flex items-start justify-between">
                 <div className="space-y-0.5">
                     <Link
-                        to={`/finance/compensation/doctors/${row.doctor_id}?from=${from}&to=${to}`}
+                        to={doctorDetailsUrl(row.doctor_id)}
                         className="text-sm font-bold text-text-primary hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-sm"
                     >
                         {row.doctor_name}
@@ -222,7 +195,7 @@ export default function DoctorCompensationPage() {
                     </button>
                 ) : <span />}
                 <Link
-                    to={`/finance/compensation/doctors/${row.doctor_id}?from=${from}&to=${to}`}
+                    to={doctorDetailsUrl(row.doctor_id)}
                     className="text-xs font-bold text-primary hover:underline flex items-center gap-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-sm"
                 >
                     <span>{t('common.details', 'التفاصيل')}</span>
@@ -234,7 +207,6 @@ export default function DoctorCompensationPage() {
 
     return (
         <div className="space-y-6">
-            {/* Top Headline Summary Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <MetricCard
                     title={t('finance.obligations.doctor_dues', 'إجمالي مستحقات الأطباء')}
@@ -245,7 +217,6 @@ export default function DoctorCompensationPage() {
                     colored
                     isLoading={isLoading}
                 />
-
                 <MetricCard
                     title={t('finance.compensation.total_production', 'إنتاجية الأطباء الإجمالية')}
                     amount={totalDoctorRevenue}
@@ -254,7 +225,6 @@ export default function DoctorCompensationPage() {
                     icon={TrendingUp}
                     isLoading={isLoading}
                 />
-
                 <MetricCard
                     title={t('finance.compensation.total_collected', 'المحصل منسوباً للأطباء')}
                     amount={totalDoctorCollected}
@@ -266,15 +236,10 @@ export default function DoctorCompensationPage() {
                 />
             </div>
 
-            {/* Filter Bar & Date Picker */}
             <div className="space-y-3">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                    <DateRangePicker
-                        value={{ from, to }}
-                        onChange={updateDateRange}
-                    />
+                    <DateRangePicker value={{ from, to }} onChange={updateDateRange} />
                 </div>
-
                 <FilterBar
                     searchValue={search}
                     onSearchChange={updateSearch}
@@ -286,7 +251,6 @@ export default function DoctorCompensationPage() {
                 />
             </div>
 
-            {/* Data Table */}
             <DataTable
                 columns={columns}
                 data={doctors}
@@ -298,7 +262,6 @@ export default function DoctorCompensationPage() {
                 emptyMessage={t('finance.compensation.no_doctors', 'لا يوجد أطباء مسجلون في هذه الفترة')}
             />
 
-            {/* Doctor Settings Drawer */}
             <DoctorSettingsDrawer
                 doctor={doctorToConfigure}
                 isOpen={Boolean(doctorToConfigure)}
