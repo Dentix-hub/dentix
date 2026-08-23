@@ -7,7 +7,6 @@ import ActivityPage from '../features/finance/pages/ActivityPage';
 import ActivityTypeBadge from '../features/finance/activity/components/ActivityTypeBadge';
 import * as financialsApi from '../api/financials';
 
-// Mock react-i18next
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
         t: (key, fallback) => (typeof fallback === 'string' ? fallback : key),
@@ -15,7 +14,6 @@ vi.mock('react-i18next', () => ({
     }),
 }));
 
-// Mock permissions hook
 vi.mock('../features/finance/useFinancePermissions', () => ({
     useFinancePermissions: () => ({
         canReadFinance: true,
@@ -26,7 +24,6 @@ vi.mock('../features/finance/useFinancePermissions', () => ({
     }),
 }));
 
-// Mock financials APIs
 vi.mock('../api/financials', () => ({
     getFinancialActivity: vi.fn(),
 }));
@@ -45,7 +42,7 @@ describe('Finance Activity V2', () => {
     });
 
     describe('<ActivityPage />', () => {
-        it('renders financial activity timeline with inflow/outflow metrics and event rows', async () => {
+        it('renders the timeline and creates stable payment drill-down links', async () => {
             financialsApi.getFinancialActivity.mockResolvedValue({
                 data: {
                     data: {
@@ -106,10 +103,8 @@ describe('Finance Activity V2', () => {
                 },
             });
 
-            const queryClient = createTestQueryClient();
-
             render(
-                <QueryClientProvider client={queryClient}>
+                <QueryClientProvider client={createTestQueryClient()}>
                     <MemoryRouter initialEntries={['/finance/activity?from=2026-08-01&to=2026-08-15']}>
                         <ActivityPage />
                     </MemoryRouter>
@@ -122,6 +117,21 @@ describe('Finance Activity V2', () => {
                 expect(screen.getAllByText('أدوات ومستهلكات').length).toBeGreaterThan(0);
                 expect(screen.getAllByText('راتب: مروة علي').length).toBeGreaterThan(0);
             });
+
+            const paymentAnchor = screen.getAllByText('أحمد حسن')[0].closest('a');
+            expect(paymentAnchor).not.toBeNull();
+            const paymentUrl = new URL(paymentAnchor.getAttribute('href'), 'https://dentix.test');
+            expect(paymentUrl.pathname).toBe('/finance/payments');
+            expect(paymentUrl.searchParams.get('patient_id')).toBe('10');
+            expect(paymentUrl.searchParams.get('payment_id')).toBe('1');
+            expect(paymentUrl.searchParams.get('from')).toBe('2026-08-01');
+            expect(paymentUrl.searchParams.get('to')).toBe('2026-08-15');
+
+            const expenseAnchor = screen.getAllByText('أدوات ومستهلكات')[0].closest('a');
+            const expenseUrl = new URL(expenseAnchor.getAttribute('href'), 'https://dentix.test');
+            expect(expenseUrl.pathname).toBe('/finance/expenses');
+            expect(expenseUrl.searchParams.get('from')).toBe('2026-08-01');
+            expect(expenseUrl.searchParams.get('to')).toBe('2026-08-15');
 
             expect(screen.getAllByText('دفعة مريض').length).toBeGreaterThan(0);
             expect(screen.getAllByText('مصروف عيادة').length).toBeGreaterThan(0);
@@ -137,20 +147,14 @@ describe('Finance Activity V2', () => {
             expect(screen.getByText('دفعة مريض')).toBeDefined();
             expect(screen.getByText('(+)')).toBeDefined();
 
-            rerender(
-                <ActivityTypeBadge sourceType="expense" direction="outflow" />
-            );
+            rerender(<ActivityTypeBadge sourceType="expense" direction="outflow" />);
             expect(screen.getByText('مصروف عيادة')).toBeDefined();
             expect(screen.getByText('(−)')).toBeDefined();
 
-            rerender(
-                <ActivityTypeBadge sourceType="lab" direction="outflow" />
-            );
+            rerender(<ActivityTypeBadge sourceType="lab" direction="outflow" />);
             expect(screen.getByText('معمل أسنان')).toBeDefined();
 
-            rerender(
-                <ActivityTypeBadge sourceType="salary" direction="outflow" />
-            );
+            rerender(<ActivityTypeBadge sourceType="salary" direction="outflow" />);
             expect(screen.getByText('راتب موظف')).toBeDefined();
         });
     });
