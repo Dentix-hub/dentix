@@ -21,10 +21,10 @@ export function useDoctorDetails(doctorId) {
     const detailsQuery = useQuery({
         queryKey: financeKeys.doctorDetails(effectiveDoctorId, from, to),
         queryFn: async () => {
-            if (!doctorId) return null;
+            if (!effectiveDoctorId) return null;
             const res = await (isDoctor
                 ? getMyDoctorDetails(from, to)
-                : getDoctorDetails(doctorId, from, to));
+                : getDoctorDetails(effectiveDoctorId, from, to));
             return res.data?.data || res.data || null;
         },
         enabled: Boolean(effectiveDoctorId && from && to),
@@ -41,11 +41,10 @@ export function useDoctorDetails(doctorId) {
     };
 
     const updateMutation = useMutation({
-        mutationFn: (data) => updateDoctorCompensation(doctorId, data),
+        mutationFn: (data) => updateDoctorCompensation(effectiveDoctorId, data),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: financeKeys.doctorDetails(doctorId) });
-            queryClient.invalidateQueries({ queryKey: financeKeys.doctorRevenue() });
-            queryClient.invalidateQueries({ queryKey: financeKeys.overview() });
+            queryClient.invalidateQueries({ queryKey: financeKeys.compensationRoot() });
+            queryClient.invalidateQueries({ queryKey: financeKeys.summaryRoot() });
         },
     });
 
