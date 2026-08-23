@@ -5,6 +5,7 @@ import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import schemas, crud
@@ -57,8 +58,6 @@ async def create_payment(
 ):
     tenant_id = require_tenant_id(current_user)
     service = BillingService(db, tenant_id)
-    # The user recording cash is not necessarily the treating doctor. Preserve an
-    # explicit doctor selection; otherwise resolve the latest active provider.
     doctor_id = payment.doctor_id
     try:
         result = await service.create_payment(payment, doctor_id=doctor_id, commit=False)
@@ -101,26 +100,51 @@ async def read_payments(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     patient_id: Optional[int] = None,
+    file_number: Optional[int] = None,
+    payment_id: Optional[int] = None,
     doctor_id: Optional[int] = None,
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.PAYMENT_READ)),
 ):
+    """List visible payments with reproducible patient/file/receipt filters.
+
+    ``Patient.file_number`` is currently the stable patient primary key, so the
+    explicit file-number filter maps to Patient.id without inventing a second
+    identifier. Numeric free-text search also checks both payment receipt ID and
+    patient file number while retaining the existing name/notes search.
+    """
     from backend import models
 
     tenant_id = require_tenant_id(current_user)
     visibility = get_financial_visibility_service(db, current_user, tenant_id)
     query = visibility.get_visible_payments_query()
 
-    if patient_id:
+    if patient_id is not None:
         query = query.where(models.Payment.patient_id == patient_id)
-    if doctor_id:
+    if file_number is not None:
+        query = query.where(models.Patient.id == file_number)
+    if payment_id is not None:
+        query = query.where(models.Payment.id == payment_id)
+    if doctor_id is not None:
         query = query.where(models.Payment.doctor_id == doctor_id)
+
     if search:
-        search_pattern = f"%{search}%"
-        query = query.where(
-            (models.Patient.name.ilike(search_pattern))
-            | (models.Payment.notes.ilike(search_pattern))
-        )
+        normalized_search = search.strip()
+        text_search = normalized_search.lstrip("#")
+        search_pattern = f"%{normalized_search}%"
+        predicates = [
+            models.Patient.name.ilike(search_pattern),
+            models.Payment.notes.ilike(search_pattern),
+        ]
+        if text_search.isdigit():
+            identifier = int(text_search)
+            predicates.extend(
+                [
+                    models.Payment.id == identifier,
+                    models.Patient.id == identifier,
+                ]
+            )
+        query = query.where(or_(*predicates))
 
     timezone_name = None
     if start_date or end_date:
