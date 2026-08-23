@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
     Users,
@@ -17,10 +18,14 @@ import RecordPaymentModal from '../payments/components/RecordPaymentModal';
 
 /**
  * Patient Accounts & Receivables Page (§11 MASTER_SPEC).
- * Displays server-paginated patient balances, all-time debt aggregation, debtor filtering, and statement drawer.
+ * The patientId route segment owns statement state so refresh/back/deep links
+ * reproduce the same patient account instead of relying on transient React state.
  */
 export default function PatientAccountsPage() {
     const { t } = useTranslation();
+    const { patientId: routePatientId } = useParams();
+    const location = useLocation();
+    const navigate = useNavigate();
     const { canWriteFinance } = useFinancePermissions();
 
     const {
@@ -28,6 +33,8 @@ export default function PatientAccountsPage() {
         totalCount,
         allTimeOutstanding,
         search,
+        from,
+        to,
         outstandingOnly,
         currentPage,
         pageSize,
@@ -45,7 +52,41 @@ export default function PatientAccountsPage() {
     const [recordPaymentForPatient, setRecordPaymentForPatient] = useState(null);
     const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
 
-    // Columns Definition for DataTable
+    const baseRoute = '/finance/patient-accounts';
+    const openStatement = (patient) => {
+        if (!patient?.patient_id) return;
+        setSelectedPatient(patient);
+        navigate(
+            {
+                pathname: `${baseRoute}/${patient.patient_id}`,
+                search: location.search,
+            },
+            { state: { financeStatementFromList: true } },
+        );
+    };
+
+    const closeStatement = () => {
+        setSelectedPatient(null);
+        if (location.state?.financeStatementFromList) {
+            navigate(-1);
+            return;
+        }
+        navigate(
+            { pathname: baseRoute, search: location.search },
+            { replace: true },
+        );
+    };
+
+    const openPaymentFromStatement = (patient) => {
+        setSelectedPatient(null);
+        setRecordPaymentForPatient(patient);
+        setIsRecordModalOpen(true);
+        navigate(
+            { pathname: baseRoute, search: location.search },
+            { replace: true },
+        );
+    };
+
     const columns = [
         {
             id: 'file_number',
@@ -66,13 +107,13 @@ export default function PatientAccountsPage() {
                 <div className="space-y-0.5">
                     <button
                         type="button"
-                        onClick={() => setSelectedPatient(row)}
-                        className="font-bold text-text-primary hover:text-primary transition-colors text-start block"
+                        onClick={() => openStatement(row)}
+                        className="block text-start font-bold text-text-primary transition-colors hover:text-primary"
                     >
                         {row.patient_name}
                     </button>
                     {row.patient_phone && (
-                        <span className="text-[11px] text-text-secondary font-mono" dir="ltr">
+                        <span className="font-mono text-[11px] text-text-secondary" dir="ltr">
                             {row.patient_phone}
                         </span>
                     )}
@@ -84,38 +125,21 @@ export default function PatientAccountsPage() {
             header: t('finance.metrics.invoiced', 'المحتسب'),
             align: 'end',
             sortable: false,
-            cell: (row) => (
-                <Money
-                    amount={row.total_invoiced}
-                    size="sm"
-                />
-            ),
+            cell: (row) => <Money amount={row.total_invoiced} size="sm" />,
         },
         {
             id: 'total_paid',
             header: t('finance.metrics.collected', 'المسدد'),
             align: 'end',
             sortable: false,
-            cell: (row) => (
-                <Money
-                    amount={row.total_paid}
-                    colored
-                    size="sm"
-                />
-            ),
+            cell: (row) => <Money amount={row.total_paid} colored size="sm" />,
         },
         {
             id: 'all_time_outstanding',
             header: t('finance.receivables.total_debt', 'المديونية القائمة'),
             align: 'end',
             sortable: false,
-            cell: (row) => (
-                <Money
-                    amount={row.all_time_outstanding}
-                    colored
-                    size="sm"
-                />
-            ),
+            cell: (row) => <Money amount={row.all_time_outstanding} colored size="sm" />,
         },
         {
             id: 'actions',
@@ -126,11 +150,11 @@ export default function PatientAccountsPage() {
                 <div className="flex items-center justify-end gap-1.5">
                     <button
                         type="button"
-                        onClick={() => setSelectedPatient(row)}
-                        className="p-1.5 rounded-lg text-text-secondary hover:text-primary hover:bg-primary/10 transition-colors"
+                        onClick={() => openStatement(row)}
+                        className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-primary/10 hover:text-primary"
                         title={t('finance.receivables.view_statement', 'عرض كشف الحساب')}
                     >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="h-4 w-4" />
                     </button>
                     {canWriteFinance && row.all_time_outstanding > 0 && (
                         <button
@@ -139,10 +163,10 @@ export default function PatientAccountsPage() {
                                 setRecordPaymentForPatient(row);
                                 setIsRecordModalOpen(true);
                             }}
-                            className="p-1.5 rounded-lg text-text-secondary hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors"
+                            className="rounded-lg p-1.5 text-text-secondary transition-colors hover:bg-emerald-500/10 hover:text-emerald-600"
                             title={t('finance.payments.record_btn', 'تسجيل دفعة')}
                         >
-                            <Plus className="w-4 h-4" />
+                            <Plus className="h-4 w-4" />
                         </button>
                     )}
                 </div>
@@ -150,31 +174,28 @@ export default function PatientAccountsPage() {
         },
     ];
 
-    // Mobile Card Render
     const renderMobileCard = (row) => (
         <div
             key={row.patient_id}
-            onClick={() => setSelectedPatient(row)}
-            className="p-4 rounded-xl border border-border bg-card hover:border-primary/30 transition-all cursor-pointer space-y-3 shadow-xs"
+            onClick={() => openStatement(row)}
+            className="cursor-pointer space-y-3 rounded-xl border border-border bg-card p-4 shadow-xs transition-all hover:border-primary/30"
         >
             <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                    <span className="text-xs font-mono font-bold text-text-secondary">
+                    <span className="font-mono text-xs font-bold text-text-secondary">
                         #{row.file_number || row.patient_id}
                     </span>
-                    <p className="text-sm font-bold text-text-primary">
-                        {row.patient_name}
-                    </p>
+                    <p className="text-sm font-bold text-text-primary">{row.patient_name}</p>
                 </div>
                 <div className="text-end">
-                    <span className="text-[10px] font-semibold text-text-secondary block">
+                    <span className="block text-[10px] font-semibold text-text-secondary">
                         {t('finance.receivables.total_debt', 'المديونية')}
                     </span>
                     <Money amount={row.all_time_outstanding} colored size="sm" />
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/50 text-xs">
+            <div className="grid grid-cols-2 gap-2 border-t border-border/50 pt-2 text-xs">
                 <div>
                     <span className="text-text-secondary">{t('finance.metrics.invoiced', 'المحتسب')}: </span>
                     <Money amount={row.total_invoiced} size="xs" />
@@ -189,8 +210,7 @@ export default function PatientAccountsPage() {
 
     return (
         <div className="space-y-6">
-            {/* Top Headline KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <MetricCard
                     title={t('finance.obligations.patient_debt', 'إجمالي الديون التراكمية على المرضى')}
                     amount={allTimeOutstanding}
@@ -200,7 +220,6 @@ export default function PatientAccountsPage() {
                     colored
                     isLoading={isLoading}
                 />
-
                 <MetricCard
                     title={t('finance.receivables.active_accounts_count', 'إجمالي حسابات المرضى المالية')}
                     amount={totalCount}
@@ -212,16 +231,15 @@ export default function PatientAccountsPage() {
                 />
             </div>
 
-            {/* Filter Tabs & Search */}
             <div className="space-y-3">
                 <div className="flex items-center gap-2">
                     <button
                         type="button"
                         onClick={() => updateFilter('all')}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                        className={`rounded-xl px-4 py-2 text-xs font-bold transition-all ${
                             !outstandingOnly
                                 ? 'bg-primary text-white shadow-sm'
-                                : 'bg-card border border-border text-text-secondary hover:text-text-primary'
+                                : 'border border-border bg-card text-text-secondary hover:text-text-primary'
                         }`}
                     >
                         {t('finance.receivables.filter_all', 'جميع الحسابات')}
@@ -229,13 +247,13 @@ export default function PatientAccountsPage() {
                     <button
                         type="button"
                         onClick={() => updateFilter('debtors')}
-                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                        className={`flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition-all ${
                             outstandingOnly
                                 ? 'bg-amber-600 text-white shadow-sm'
-                                : 'bg-card border border-border text-text-secondary hover:text-text-primary'
+                                : 'border border-border bg-card text-text-secondary hover:text-text-primary'
                         }`}
                     >
-                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <AlertTriangle className="h-3.5 w-3.5" />
                         <span>{t('finance.receivables.filter_debtors', 'المدينون فقط')}</span>
                     </button>
                 </div>
@@ -254,7 +272,6 @@ export default function PatientAccountsPage() {
                 />
             </div>
 
-            {/* Data Table */}
             <DataTable
                 columns={columns}
                 data={items}
@@ -274,18 +291,16 @@ export default function PatientAccountsPage() {
                 onPageChange={setPage}
             />
 
-            {/* Patient Statement Drawer */}
             <PatientStatementDrawer
                 patient={selectedPatient}
-                isOpen={Boolean(selectedPatient)}
-                onClose={() => setSelectedPatient(null)}
-                onRecordPayment={(p) => {
-                    setRecordPaymentForPatient(p);
-                    setIsRecordModalOpen(true);
-                }}
+                patientId={routePatientId}
+                from={from}
+                to={to}
+                isOpen={Boolean(routePatientId)}
+                onClose={closeStatement}
+                onRecordPayment={openPaymentFromStatement}
             />
 
-            {/* Record Payment Modal */}
             <RecordPaymentModal
                 isOpen={isRecordModalOpen}
                 initialPatientId={recordPaymentForPatient?.patient_id || recordPaymentForPatient?.id || ''}
