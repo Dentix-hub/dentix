@@ -16,6 +16,9 @@ concurrency:
   group: dentix-mobile-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   flutter-analyze-test:
     name: Flutter Analyze + Test
@@ -27,8 +30,10 @@ jobs:
         working-directory: dentix_mobile
 
     steps:
-      - name: Checkout code
+      - name: Checkout PR branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
 
       - name: Set up Java for Android builds
         uses: actions/setup-java@v4
@@ -48,24 +53,24 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
-      - name: Generate formatting patch
+      - name: Apply Dart formatting on audit branch
+        if: github.event_name == 'pull_request' && github.head_ref == 'fix/program-wide-defect-audit-20260823'
         shell: bash
         run: |
           set -euo pipefail
-          dart format .
-          git diff --binary -- lib test > dart-format.patch
-          if [ -s dart-format.patch ]; then
-            echo "Dart formatting changes are required; patch artifact generated."
-            exit 1
+          dart format lib test
+          if git diff --quiet -- lib test; then
+            echo "Dart sources already formatted."
+            exit 0
           fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib test
+          git commit -m "style(mobile): apply dart format"
+          git push origin HEAD:${{ github.head_ref }}
 
-      - name: Upload formatting patch
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dart-format-patch
-          path: dentix_mobile/dart-format.patch
-          if-no-files-found: error
+      - name: Verify Dart formatting
+        run: dart format --output=none --set-exit-if-changed lib test
 
       - name: Static analysis
         run: flutter analyze --fatal-infos
