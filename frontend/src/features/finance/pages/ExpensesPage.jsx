@@ -8,6 +8,7 @@ import {
     PieChart,
     Tag,
 } from 'lucide-react';
+import { exportExpensesReport } from '@/api/financials';
 import { useExpenses } from '../expenses/hooks/useExpenses';
 import { useFinancePermissions } from '../useFinancePermissions';
 import MetricCard from '../components/MetricCard';
@@ -15,6 +16,7 @@ import FilterBar from '../components/FilterBar';
 import DateRangePicker from '../components/DateRangePicker';
 import DataTable from '../components/DataTable';
 import Money from '../components/Money';
+import ExportCsvButton from '../components/ExportCsvButton';
 import AddExpenseDrawer from '../expenses/components/AddExpenseDrawer';
 import DeleteExpenseModal from '../expenses/components/DeleteExpenseModal';
 
@@ -23,8 +25,8 @@ import DeleteExpenseModal from '../expenses/components/DeleteExpenseModal';
  * Displays manual operating expenses, distinguishes lab provenance, server search/filtering, and targeted mutations.
  */
 export default function ExpensesPage() {
-    const { t } = useTranslation();
-    const { canWriteFinance } = useFinancePermissions();
+    const { t, i18n } = useTranslation();
+    const { canWriteFinance, canExportReports } = useFinancePermissions();
 
     const {
         items,
@@ -53,7 +55,15 @@ export default function ExpensesPage() {
     const [isAddDrawerOpen, setIsAddDrawerOpen] = useState(false);
     const [expenseToDelete, setExpenseToDelete] = useState(null);
 
-    // Filters Definition
+    const exportExpenses = () => {
+        const params = { locale: i18n.language === 'ar' ? 'ar' : 'en' };
+        if (search?.trim()) params.search = search.trim();
+        if (category?.trim()) params.category = category.trim();
+        if (from) params.start_date = from;
+        if (to) params.end_date = to;
+        return exportExpensesReport(params);
+    };
+
     const filterOptions = [
         {
             id: 'category',
@@ -74,7 +84,6 @@ export default function ExpensesPage() {
         },
     ];
 
-    // Columns Definition for DataTable
     const columns = [
         {
             id: 'item_name',
@@ -133,13 +142,7 @@ export default function ExpensesPage() {
             align: 'end',
             sortable: false,
             width: '130px',
-            cell: (row) => (
-                <Money
-                    amount={row.cost}
-                    size="sm"
-                    colored
-                />
-            ),
+            cell: (row) => <Money amount={row.cost} size="sm" colored />,
         },
         {
             id: 'actions',
@@ -164,17 +167,11 @@ export default function ExpensesPage() {
         },
     ];
 
-    // Mobile Card Render
     const renderMobileCard = (row) => (
-        <div
-            key={row.id}
-            className="p-4 rounded-xl border border-border bg-card space-y-2.5 shadow-xs"
-        >
+        <div key={row.id} className="p-4 rounded-xl border border-border bg-card space-y-2.5 shadow-xs">
             <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 space-y-1">
-                    <p className="break-words text-sm font-bold text-text-primary">
-                        {row.item_name}
-                    </p>
+                    <p className="break-words text-sm font-bold text-text-primary">{row.item_name}</p>
                     <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/5 text-primary">
                             {row.category || 'Other'}
@@ -208,7 +205,6 @@ export default function ExpensesPage() {
 
     return (
         <div className="space-y-4 sm:space-y-6">
-            {/* Top Headline Summary Cards */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
                 <MetricCard
                     title={t('finance.expenses.manual_total', 'المصروفات التشغيلية المباشرة')}
@@ -219,7 +215,6 @@ export default function ExpensesPage() {
                     colored
                     isLoading={isLoading}
                 />
-
                 <MetricCard
                     title={t('finance.expenses.lab_total', 'تكاليف المعامل والتركيبات')}
                     amount={labExpensesTotal}
@@ -228,7 +223,6 @@ export default function ExpensesPage() {
                     icon={FlaskConical}
                     isLoading={isLoading}
                 />
-
                 <MetricCard
                     title={t('finance.metrics.deductions', 'إجمالي الخصومات والالتزامات')}
                     amount={totalDeductions}
@@ -239,21 +233,30 @@ export default function ExpensesPage() {
                 />
             </div>
 
-            {/* Filter Bar & Header Actions */}
             <div className="space-y-3">
                 <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
                     <DateRangePicker className="w-full sm:w-auto" />
 
-                    {canWriteFinance && (
-                        <button
-                            type="button"
-                            onClick={() => setIsAddDrawerOpen(true)}
-                            className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-primary/90 sm:w-auto"
-                        >
-                            <Plus className="w-4 h-4" />
-                            <span>{t('finance.expenses.add_btn', 'تسجيل مصروف')}</span>
-                        </button>
-                    )}
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                        {canExportReports && (
+                            <ExportCsvButton
+                                onExport={exportExpenses}
+                                filename="finance-expenses.csv"
+                                disabled={isLoading || isError || totalItems === 0}
+                                label={t('finance.reports.export_filtered_csv', 'تصدير النتائج المفلترة')}
+                            />
+                        )}
+                        {canWriteFinance && (
+                            <button
+                                type="button"
+                                onClick={() => setIsAddDrawerOpen(true)}
+                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-primary/90 sm:w-auto"
+                            >
+                                <Plus className="w-4 h-4" />
+                                <span>{t('finance.expenses.add_btn', 'تسجيل مصروف')}</span>
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 <FilterBar
@@ -268,7 +271,6 @@ export default function ExpensesPage() {
                 />
             </div>
 
-            {/* Data Table */}
             <DataTable
                 columns={columns}
                 data={items}
@@ -284,7 +286,6 @@ export default function ExpensesPage() {
                 onPageChange={setPage}
             />
 
-            {/* Add Expense Drawer */}
             <AddExpenseDrawer
                 isOpen={isAddDrawerOpen}
                 onClose={() => setIsAddDrawerOpen(false)}
@@ -292,7 +293,6 @@ export default function ExpensesPage() {
                 isSubmitting={isCreating}
             />
 
-            {/* Delete Confirmation Modal */}
             <DeleteExpenseModal
                 expense={expenseToDelete}
                 isOpen={Boolean(expenseToDelete)}
