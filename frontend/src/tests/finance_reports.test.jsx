@@ -12,7 +12,6 @@ import {
 import * as financialsApi from '../api/financials';
 import * as billingApi from '../api/billing';
 
-// Mock react-i18next
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
         t: (key, fallback) => (typeof fallback === 'string' ? fallback : key),
@@ -20,7 +19,6 @@ vi.mock('react-i18next', () => ({
     }),
 }));
 
-// Mock permissions hook
 vi.mock('../features/finance/useFinancePermissions', () => ({
     useFinancePermissions: () => ({
         canReadFinance: true,
@@ -31,9 +29,8 @@ vi.mock('../features/finance/useFinancePermissions', () => ({
     }),
 }));
 
-// Mock financials & billing APIs
 vi.mock('../api/financials', () => ({
-    getComprehensiveStats: vi.fn(),
+    getFinanceSummary: vi.fn(),
     getPatientsReport: vi.fn(),
     getDoctorRevenue: vi.fn(),
     getAllProceduresFinancials: vi.fn(),
@@ -57,9 +54,16 @@ describe('Finance Reports V2 (Real Backend Contracts)', () => {
     });
 
     describe('reportAdapters - Contract Integrity', () => {
-        it('adapts exact /accounting/comprehensive-stats nested payload correctly', () => {
+        it('adapts exact authoritative summary payload without recreating formulas', () => {
             const rawBackendResponse = {
-                period: { start: '2026-08-01', end: '2026-08-15' },
+                definition_version: 'finance-summary-v1',
+                currency: 'EGP',
+                period: {
+                    start: '2026-08-01',
+                    end: '2026-08-15',
+                    timezone: 'Africa/Cairo',
+                    scope: 'period',
+                },
                 income: {
                     total_revenue: 120000.0,
                     gross_revenue: 125000.0,
@@ -85,6 +89,7 @@ describe('Finance Reports V2 (Real Backend Contracts)', () => {
                     expenses: 14500.0,
                     total_deductions: 66000.0,
                 },
+                net_operational_result: 29000.0,
                 net_profit: 29000.0,
             };
 
@@ -101,6 +106,28 @@ describe('Finance Reports V2 (Real Backend Contracts)', () => {
             expect(adapted.total_deductions).toBe(66000);
             expect(adapted.net_profit).toBe(29000);
             expect(adapted.all_time_outstanding).toBe(35000);
+            expect(adapted.period.timezone).toBe('Africa/Cairo');
+            expect(adapted.definition_version).toBe('finance-summary-v1');
+        });
+
+        it('does not recreate profit or balance formulas when server fields are absent', () => {
+            const adapted = adaptComprehensiveStats({
+                income: {
+                    gross_revenue: 1000,
+                    net_revenue: 900,
+                    total_collected: 800,
+                },
+                deductions: {
+                    expenses: 100,
+                    lab_costs: 50,
+                    doctor_dues: { total: 100 },
+                    staff_dues: { total: 50 },
+                },
+            });
+
+            expect(adapted.total_deductions).toBe(0);
+            expect(adapted.net_profit).toBe(0);
+            expect(adapted.period_balance).toBe(0);
         });
 
         it('adapts exact /accounting/patients-report response correctly', () => {
@@ -111,6 +138,7 @@ describe('Finance Reports V2 (Real Backend Contracts)', () => {
                     total_paid: 21000,
                     period_balance: 4000,
                     total_outstanding: 4500,
+                    total_outstanding_scope: 'all_time_as_of_now',
                 },
                 patients: [
                     {
@@ -143,12 +171,33 @@ describe('Finance Reports V2 (Real Backend Contracts)', () => {
             expect(adapted.summary.total_paid).toBe(21000);
             expect(adapted.summary.period_balance).toBe(4000);
             expect(adapted.summary.total_outstanding).toBe(4500);
+            expect(adapted.summary.total_outstanding_scope).toBe('all_time_as_of_now');
             expect(adapted.patients[0].patient_name).toBe('أحمد محمود');
             expect(adapted.patients[0].invoiced_in_period).toBe(8000);
             expect(adapted.patients[0].paid_in_period).toBe(6000);
         });
 
-        it('adapts expenses with cost and notes without relying on amount/description', () => {
+        it('never derives report aggregates from the currently loaded patient page', () => {
+            const adapted = adaptPatientsReport({
+                total: 100,
+                patients: [
+                    {
+                        patient_id: 1,
+                        total_invoiced: 10000,
+                        total_paid: 1000,
+                        outstanding_balance: 9000,
+                        all_time_outstanding: 9000,
+                    },
+                ],
+            });
+
+            expect(adapted.summary.total_invoiced).toBe(0);
+            expect(adapted.summary.total_paid).toBe(0);
+            expect(adapted.summary.period_balance).toBe(0);
+            expect(adapted.summary.total_outstanding).toBe(0);
+        });
+
+        it('adapts expenses with explicit manual provenance', () => {
             const rawBackendResponse = [
                 {
                     id: 1,
@@ -157,6 +206,7 @@ describe('Finance Reports V2 (Real Backend Contracts)', () => {
                     cost: 450.0,
                     notes: 'صيدلية النور',
                     date: '2026-08-10',
+                    source: 'manual_expense',
                 },
                 {
                     id: 2,
@@ -165,6 +215,7 @@ describe('Finance Reports V2 (Real Backend Contracts)', () => {
                     cost: 1200.0,
                     notes: 'شهر يوليو',
                     date: '2026-08-01',
+                    source: 'manual_expense',
                 },
             ];
 
@@ -173,6 +224,7 @@ describe('Finance Reports V2 (Real Backend Contracts)', () => {
             expect(adapted.length).toBe(2);
             expect(adapted[0].amount).toBe(450);
             expect(adapted[0].notes).toBe('صيدلية النور');
+            expect(adapted[0].source).toBe('manual_expense');
             expect(adapted[1].amount).toBe(1200);
             expect(adapted[1].category).toBe('مرافق');
         });
@@ -180,12 +232,16 @@ describe('Finance Reports V2 (Real Backend Contracts)', () => {
 
     describe('<ReportsPage /> Rendering & Interaction', () => {
         it('renders executive financial income statement report with real backend data shape', async () => {
-            financialsApi.getComprehensiveStats.mockResolvedValue({
+            financialsApi.getFinanceSummary.mockResolvedValue({
                 data: {
                     data: {
-                        period: { start: '2026-08-01', end: '2026-08-15' },
+                        definition_version: 'finance-summary-v1',
+                        period: { start: '2026-08-01', end: '2026-08-15', timezone: 'Africa/Cairo' },
                         income: {
+                            gross_revenue: 100000.0,
                             total_revenue: 100000.0,
+                            net_revenue: 100000.0,
+                            total_discounts: 0,
                             total_collected: 80000.0,
                             outstanding: 20000.0,
                             all_time_outstanding: 25000.0,
@@ -200,6 +256,7 @@ describe('Finance Reports V2 (Real Backend Contracts)', () => {
                             expenses: 12000.0,
                             total_deductions: 55000.0,
                         },
+                        net_operational_result: 25000.0,
                         net_profit: 25000.0,
                     },
                 },
