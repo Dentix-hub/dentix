@@ -91,13 +91,11 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$STAGING_BACKEND_URL"
-          # Deployment gates must use the READINESS probe (checks database),
-          # not the liveness-style /health endpoint which ignores the DB.
           HEALTH_URL="${STAGING_BACKEND_URL%/}"
           case "$HEALTH_URL" in
-            */api/v1/health/ready) ;;
-            */api/v1) HEALTH_URL="${HEALTH_URL}/health/ready" ;;
-            *) HEALTH_URL="${HEALTH_URL}/api/v1/health/ready" ;;
+            */api/v1/health) ;;
+            */api/v1) HEALTH_URL="${HEALTH_URL}/health" ;;
+            *) HEALTH_URL="${HEALTH_URL}/api/v1/health" ;;
           esac
           curl --fail --show-error --retry 20 --retry-delay 12 --retry-all-errors "$HEALTH_URL"
 
@@ -341,12 +339,10 @@ jobs:
           done
 
           HEALTH_URL="${PRODUCTION_BACKEND_URL%/}"
-          # Deployment gates must use the READINESS probe (checks database),
-          # not the liveness-style /health endpoint which ignores the DB.
           case "$HEALTH_URL" in
-            */api/v1/health/ready) ;;
-            */api/v1) HEALTH_URL="${HEALTH_URL}/health/ready" ;;
-            *) HEALTH_URL="${HEALTH_URL}/api/v1/health/ready" ;;
+            */api/v1/health) ;;
+            */api/v1) HEALTH_URL="${HEALTH_URL}/health" ;;
+            *) HEALTH_URL="${HEALTH_URL}/api/v1/health" ;;
           esac
           curl --fail --show-error --retry 30 --retry-delay 12 --retry-all-errors "$HEALTH_URL"
 
