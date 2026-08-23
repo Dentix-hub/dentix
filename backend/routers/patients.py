@@ -238,7 +238,7 @@ async def get_patient_treatments(
 async def get_patient_payments(
     patient_id: int,
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
+    current_user: schemas.User = Depends(require_permission(Permission.RECEIVABLE_READ)),
 ):
     await _ensure_patient_visible(db, current_user, patient_id)
     data = await crud.get_payments(db, patient_id, current_user.tenant_id)
