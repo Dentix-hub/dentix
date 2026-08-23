@@ -9,7 +9,6 @@ import DeleteExpenseModal from '../features/finance/expenses/components/DeleteEx
 import * as billingApi from '../api/billing';
 import * as financialsApi from '../api/financials';
 
-// Mock react-i18next
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
         t: (key, fallback) => (typeof fallback === 'string' ? fallback : key),
@@ -17,7 +16,6 @@ vi.mock('react-i18next', () => ({
     }),
 }));
 
-// Mock permissions hook
 vi.mock('../features/finance/useFinancePermissions', () => ({
     useFinancePermissions: () => ({
         canReadFinance: true,
@@ -28,7 +26,6 @@ vi.mock('../features/finance/useFinancePermissions', () => ({
     }),
 }));
 
-// Mock billing & financials APIs
 vi.mock('../api/billing', () => ({
     getExpenses: vi.fn(),
     createExpense: vi.fn(),
@@ -36,7 +33,7 @@ vi.mock('../api/billing', () => ({
 }));
 
 vi.mock('../api/financials', () => ({
-    getComprehensiveStats: vi.fn(),
+    getFinanceSummary: vi.fn(),
 }));
 
 function createTestQueryClient() {
@@ -58,28 +55,31 @@ describe('Finance Expenses V2', () => {
                 data: {
                     data: {
                         total: 30,
+                        source: 'manual_expense',
                         items: [
-                        {
-                            id: 1,
-                            item_name: 'شراء قفازات وكمامات',
-                            cost: 1200,
-                            category: 'Supplies',
-                            date: '2026-08-10',
-                            notes: 'فاتورة رقم 450',
-                        },
-                        {
-                            id: 2,
-                            item_name: 'فاتورة الكهرباء الشهرية',
-                            cost: 850,
-                            category: 'Utilities',
-                            date: '2026-08-12',
-                        },
+                            {
+                                id: 1,
+                                item_name: 'شراء قفازات وكمامات',
+                                cost: 1200,
+                                category: 'Supplies',
+                                date: '2026-08-10',
+                                notes: 'فاتورة رقم 450',
+                                source: 'manual_expense',
+                            },
+                            {
+                                id: 2,
+                                item_name: 'فاتورة الكهرباء الشهرية',
+                                cost: 850,
+                                category: 'Utilities',
+                                date: '2026-08-12',
+                                source: 'manual_expense',
+                            },
                         ],
                     },
                 },
             });
 
-            financialsApi.getComprehensiveStats.mockResolvedValueOnce({
+            financialsApi.getFinanceSummary.mockResolvedValueOnce({
                 data: {
                     data: {
                         deductions: {
@@ -95,7 +95,7 @@ describe('Finance Expenses V2', () => {
 
             render(
                 <QueryClientProvider client={queryClient}>
-                    <MemoryRouter>
+                    <MemoryRouter initialEntries={['/finance/expenses?from=2026-08-01&to=2026-08-31']}>
                         <ExpensesPage />
                     </MemoryRouter>
                 </QueryClientProvider>
@@ -117,7 +117,15 @@ describe('Finance Expenses V2', () => {
                 data: {
                     data: {
                         total: 30,
-                        items: [{ id: 30, item_name: 'مصروف الصفحة الثانية', cost: 50 }],
+                        source: 'manual_expense',
+                        items: [
+                            {
+                                id: 30,
+                                item_name: 'مصروف الصفحة الثانية',
+                                cost: 50,
+                                source: 'manual_expense',
+                            },
+                        ],
                     },
                 },
             });
