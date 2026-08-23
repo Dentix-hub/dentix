@@ -83,4 +83,14 @@ export const financeKeys = {
         reportType,
         filters,
     ],
+    periodComparison: (filters = {}) => [
+        ...financeKeys.reportsRoot(),
+        'period-comparison',
+        filters,
+    ],
+    materialMargin: (filters = {}) => [
+        ...financeKeys.reportsRoot(),
+        'material-margin',
+        filters,
+    ],
 };
