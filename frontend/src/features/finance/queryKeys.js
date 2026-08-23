@@ -26,13 +26,15 @@ export const financeKeys = {
     ],
 
     // Payments
-    payments: (filters = {}) => [...financeKeys.all, 'payments', filters],
-    paymentDetails: (id) => [...financeKeys.all, 'payments', 'detail', id],
+    paymentsRoot: () => [...financeKeys.all, 'payments'],
+    payments: (filters = {}) => [...financeKeys.paymentsRoot(), filters],
+    paymentDetails: (id) => [...financeKeys.paymentsRoot(), 'detail', id],
 
     // Expenses
-    expenses: (filters = {}) => [...financeKeys.all, 'expenses', filters],
-    expenseDetails: (id) => [...financeKeys.all, 'expenses', 'detail', id],
-    expenseCategories: () => [...financeKeys.all, 'expenses', 'categories'],
+    expensesRoot: () => [...financeKeys.all, 'expenses'],
+    expenses: (filters = {}) => [...financeKeys.expensesRoot(), filters],
+    expenseDetails: (id) => [...financeKeys.expensesRoot(), 'detail', id],
+    expenseCategories: () => [...financeKeys.expensesRoot(), 'categories'],
 
     // Doctor Compensation
     compensationRoot: () => [...financeKeys.all, 'compensation'],
@@ -65,12 +67,13 @@ export const financeKeys = {
     ],
 
     // Financial Activity Feed
-    activity: (filters = {}) => [...financeKeys.all, 'activity', filters],
+    activityRoot: () => [...financeKeys.all, 'activity'],
+    activity: (filters = {}) => [...financeKeys.activityRoot(), filters],
 
     // Reports
+    reportsRoot: () => [...financeKeys.all, 'reports'],
     reports: (reportType, filters = {}) => [
-        ...financeKeys.all,
-        'reports',
+        ...financeKeys.reportsRoot(),
         reportType,
         filters,
     ],
