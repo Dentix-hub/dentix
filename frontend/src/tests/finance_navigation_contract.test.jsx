@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
     MemoryRouter,
     Route,
@@ -32,10 +33,34 @@ vi.mock('../features/finance/useFinancePermissions', () => ({
         canViewPayroll: true,
         canViewActivity: true,
         canViewReports: true,
+        canExportReports: true,
         isDoctor: false,
         isAdmin: true,
         isAccountant: false,
     }),
+}));
+
+vi.mock('../api/financials', () => ({
+    getPeriodComparisonReport: vi.fn().mockResolvedValue({
+        data: {
+            definition_version: 'finance-summary-v1',
+            currency: 'EGP',
+            current_period: { start: '2026-08-01', end: '2026-08-15', timezone: 'Africa/Cairo' },
+            comparison_period: { start: '2026-07-17', end: '2026-07-31', timezone: 'Africa/Cairo' },
+            metrics: [],
+        },
+    }),
+    getMaterialMarginReport: vi.fn().mockResolvedValue({
+        data: {
+            definition_version: 'estimated-material-margin-v2',
+            metric_scope: 'materials_only',
+            items: [],
+            pagination: { skip: 0, limit: 25, total: 0, returned: 0 },
+            completeness: { complete: 0, partial: 0, unavailable: 0, errors: 0, coverage_percent: 0 },
+        },
+    }),
+    exportPeriodComparisonReport: vi.fn(),
+    exportMaterialMarginReport: vi.fn(),
 }));
 
 function LocationProbe() {
@@ -44,6 +69,17 @@ function LocationProbe() {
         <output data-testid="location-probe">
             {`${location.pathname}${location.search}${location.hash}`}
         </output>
+    );
+}
+
+function renderReports(entry) {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+        <QueryClientProvider client={queryClient}>
+            <MemoryRouter initialEntries={[entry]}>
+                <ReportsPage />
+            </MemoryRouter>
+        </QueryClientProvider>,
     );
 }
 
@@ -152,12 +188,8 @@ describe('Finance PR5 information-architecture contracts', () => {
         });
     });
 
-    it('Reports & Insights is a non-duplicated hub instead of a second operational report workspace', () => {
-        render(
-            <MemoryRouter initialEntries={['/finance/reports?from=2026-08-01&to=2026-08-15&type=summary']}>
-                <ReportsPage />
-            </MemoryRouter>
-        );
+    it('Reports & Insights keeps one canonical workspace without recreating operational report tabs', async () => {
+        renderReports('/finance/reports?from=2026-08-01&to=2026-08-15&type=summary');
 
         expect(screen.getByTestId('reports-insights-hub')).toBeDefined();
         expect(screen.getByText('التقارير والرؤى')).toBeDefined();
@@ -166,6 +198,9 @@ describe('Finance PR5 information-architecture contracts', () => {
         expect(screen.getByText('الحركات النقدية')).toBeDefined();
         expect(screen.getByText('الفريق والمستحقات')).toBeDefined();
         expect(screen.queryByText('الملخص المالي العام')).toBeNull();
-        expect(screen.queryByText('تصدير')).toBeNull();
+        expect(screen.queryByText('المصروفات حسب البند')).toBeNull();
+        expect(screen.queryByText('أداء الأطباء')).toBeNull();
+
+        await waitFor(() => expect(screen.getByText('مقارنة الفترة')).toBeDefined());
     });
 });
