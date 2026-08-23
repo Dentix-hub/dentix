@@ -8,9 +8,9 @@ import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import { useFinancePermissions } from './useFinancePermissions';
 
 /**
- * Routed layout for Finance V2 with domain-level RBAC and one route-appropriate
- * time control. Payroll owns its month control; procedure margin has no period
- * contract; all other period-aware Finance routes use the shared header picker.
+ * Routed layout for Finance V2 with domain-level RBAC and exactly one relevant
+ * time control. Some mature screens still own their local period picker; the
+ * shared header yields to those until the PR5 destination restructure.
  */
 export default function FinanceLayout() {
     const { t, i18n } = useTranslation();
@@ -32,7 +32,11 @@ export default function FinanceLayout() {
     const isPayrollRoute = path.startsWith('/finance/compensation/payroll');
     const isProcedureMarginReport =
         path.startsWith('/finance/reports') && reportType === 'profitability';
-    const showDatePicker = !isPayrollRoute && !isProcedureMarginReport;
+    const routeOwnsLocalPeriodPicker =
+        path.startsWith('/finance/expenses') ||
+        path.startsWith('/finance/compensation/doctors');
+    const showDatePicker =
+        !isPayrollRoute && !isProcedureMarginReport && !routeOwnsLocalPeriodPicker;
 
     let isAuthorized = true;
     let fallbackPath = '/finance/overview';
