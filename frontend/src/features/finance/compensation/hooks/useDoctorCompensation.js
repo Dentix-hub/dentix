@@ -13,13 +13,11 @@ export function useDoctorCompensation() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { isDoctor, user } = useFinancePermissions();
 
-    // Default to 'this_month' if dates not provided
     const defaultDates = getPresetDates('this_month');
     const from = searchParams.get('from') || defaultDates.from;
     const to = searchParams.get('to') || defaultDates.to;
     const search = searchParams.get('q') || '';
 
-    // 1. Fetch Doctor Revenue List
     const doctorsQuery = useQuery({
         queryKey: financeKeys.doctorRevenue(from, to, isDoctor ? `self-${user?.id}` : 'all'),
         queryFn: async () => {
@@ -32,14 +30,13 @@ export function useDoctorCompensation() {
     });
 
     const doctors = doctorsQuery.data || [];
-
-    // Filter by doctor name search query
     const filteredDoctors = doctors.filter((doc) => {
         if (!search.trim()) return true;
         return (doc.doctor_name || '').toLowerCase().includes(search.trim().toLowerCase());
     });
 
-    // Clinic-wide aggregates
+    // These are display aggregations of server-computed per-provider fields;
+    // no provider entitlement formula is recreated in React.
     const totalDoctorDues = doctors.reduce((sum, doc) => sum + (Number(doc.total_due) || 0), 0);
     const totalDoctorRevenue = doctors.reduce((sum, doc) => sum + (Number(doc.revenue) || 0), 0);
     const totalDoctorCollected = doctors.reduce((sum, doc) => sum + (Number(doc.collected) || 0), 0);
@@ -60,12 +57,11 @@ export function useDoctorCompensation() {
         setSearchParams(params);
     };
 
-    // Update Compensation Rules Mutation
     const updateMutation = useMutation({
         mutationFn: ({ doctorId, data }) => updateDoctorCompensation(doctorId, data),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: financeKeys.doctorRevenue() });
-            queryClient.invalidateQueries({ queryKey: financeKeys.overview() });
+            queryClient.invalidateQueries({ queryKey: financeKeys.compensationRoot() });
+            queryClient.invalidateQueries({ queryKey: financeKeys.summaryRoot() });
         },
     });
 
