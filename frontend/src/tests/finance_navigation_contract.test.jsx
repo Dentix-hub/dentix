@@ -194,9 +194,9 @@ describe('Finance PR5 information-architecture contracts', () => {
         expect(screen.getByTestId('reports-insights-workspace')).toBeDefined();
         expect(screen.getByText('التقارير والرؤى')).toBeDefined();
         expect(screen.getByText('الملخص المالي المعتمد')).toBeDefined();
-        expect(screen.getByText('التحصيلات والذمم')).toBeDefined();
         expect(screen.getByText('الحركات النقدية')).toBeDefined();
         expect(screen.getByText('الفريق والمستحقات')).toBeDefined();
+        expect(screen.queryByText('التحصيلات والذمم')).toBeNull();
         expect(screen.queryByText('الملخص المالي العام')).toBeNull();
         expect(screen.queryByText('المصروفات حسب البند')).toBeNull();
         expect(screen.queryByText('أداء الأطباء')).toBeNull();
