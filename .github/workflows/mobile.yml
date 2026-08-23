@@ -30,10 +30,8 @@ jobs:
         working-directory: dentix_mobile
 
     steps:
-      - name: Checkout PR branch
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
 
       - name: Set up Java for Android builds
         uses: actions/setup-java@v4
@@ -52,25 +50,6 @@ jobs:
 
       - name: Resolve dependencies
         run: flutter pub get
-
-      - name: Export Dart formatter output
-        if: github.event_name == 'pull_request' && github.head_ref == 'fix/program-wide-defect-audit-20260823'
-        shell: bash
-        run: |
-          set -euo pipefail
-          dart format lib test
-          mapfile -t changed < <(git diff --name-only -- lib test)
-          if [ ${#changed[@]} -eq 0 ]; then
-            echo "Dart sources already formatted."
-            exit 0
-          fi
-          printf '%s\n' "${changed[@]}"
-          tar -czf /tmp/dart-formatted.tar.gz "${changed[@]}"
-          echo "DART_FORMATTED_TAR_GZ_BASE64_BEGIN"
-          base64 -w 0 /tmp/dart-formatted.tar.gz
-          echo
-          echo "DART_FORMATTED_TAR_GZ_BASE64_END"
-          exit 1
 
       - name: Verify Dart formatting
         run: dart format --output=none --set-exit-if-changed lib test
