@@ -178,3 +178,10 @@ async def export_material_margin_report_csv(
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+# Canonical operational-page exports live under the same /financials/reports
+# namespace without recreating their financial calculations here.
+from backend.routers.finance_exports import router as operational_exports_router
+
+router.include_router(operational_exports_router)
