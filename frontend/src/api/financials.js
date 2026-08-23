@@ -79,3 +79,35 @@ export const getFinanceProfitabilityTrend = (period = '30d', start = null, end =
 
 // Activity Feed (§17 MASTER_SPEC, FIN-ACT-001)
 export const getFinancialActivity = (params) => api.get('/api/v1/accounting/activity', { params });
+
+// PR6 server-backed analytical reports.
+export const getPeriodComparisonReport = (params) =>
+    api.get('/api/v1/accounting/reports/period-comparison', { params });
+
+export const exportPeriodComparisonReport = (params) =>
+    api.get('/api/v1/accounting/reports/period-comparison/export.csv', {
+        params,
+        responseType: 'blob',
+    });
+
+export const getMaterialMarginReport = (params) =>
+    api.get('/api/v1/financials/reports/material-margin', { params });
+
+export const exportMaterialMarginReport = (params) =>
+    api.get('/api/v1/financials/reports/material-margin/export.csv', {
+        params,
+        responseType: 'blob',
+    });
+
+// Canonical operational-page exports. The server applies the active filters and
+// batches full filtered datasets; the browser never performs fetch-all loops.
+const exportOperationalCsv = (report, params) =>
+    api.get(`/api/v1/financials/reports/${report}/export.csv`, {
+        params,
+        responseType: 'blob',
+    });
+
+export const exportFinanceSummary = (params) => exportOperationalCsv('summary', params);
+export const exportPatientAccounts = (params) => exportOperationalCsv('patient-accounts', params);
+export const exportExpensesReport = (params) => exportOperationalCsv('expenses', params);
+export const exportProvidersReport = (params) => exportOperationalCsv('providers', params);

@@ -1,23 +1,27 @@
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, AlertCircle } from 'lucide-react';
+import { exportFinanceSummary } from '@/api/financials';
 import { useFinanceOverview } from '../overview/hooks/useFinanceOverview';
+import { useFinancePermissions } from '../useFinancePermissions';
 import HeadlineMetrics from '../overview/components/HeadlineMetrics';
 import ObligationsSection from '../overview/components/ObligationsSection';
 import FinancialTrendChart from '../overview/components/FinancialTrendChart';
 import RecentActivityPreview from '../overview/components/RecentActivityPreview';
+import ExportCsvButton from '../components/ExportCsvButton';
 
 /**
  * Finance Overview V2 Page.
- * Implements §10 of MASTER_SPEC:
- * - 4 Headline KPIs (Net Invoiced, Collected, Total Deductions, Net Operational Result)
- * - Obligations & Receivables section (Patient Debt, Doctor Dues, Staff Payroll)
- * - Primary Trend Chart (Collections vs Expenses over time)
- * - Recent Financial Activity preview feed
+ * Headline values remain server-owned; PR6 moves the canonical summary export
+ * here instead of maintaining a duplicate Summary report tab.
  */
 export default function OverviewPage() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const { canExportReports } = useFinancePermissions();
 
     const {
+        from,
+        to,
+        statsQuery,
         netInvoiced,
         collected,
         totalDeductions,
@@ -58,9 +62,25 @@ export default function OverviewPage() {
         );
     }
 
+    const exportSummary = () => exportFinanceSummary({
+        start_date: from,
+        end_date: to,
+        locale: i18n.language === 'ar' ? 'ar' : 'en',
+    });
+
     return (
         <div className="space-y-8">
-            {/* 1. Headline Metrics (4 Core KPIs) */}
+            {canExportReports && (
+                <div className="flex justify-end">
+                    <ExportCsvButton
+                        onExport={exportSummary}
+                        filename="finance-summary.csv"
+                        disabled={isLoading || !statsQuery.isSuccess || !statsQuery.data}
+                        label={t('finance.reports.export_summary', 'تصدير الملخص')}
+                    />
+                </div>
+            )}
+
             <HeadlineMetrics
                 netInvoiced={netInvoiced}
                 collected={collected}
@@ -69,7 +89,6 @@ export default function OverviewPage() {
                 isLoading={isLoading}
             />
 
-            {/* 2. Actionable Obligations & Receivables */}
             <ObligationsSection
                 allTimeOutstanding={allTimeOutstanding}
                 doctorDuesTotal={doctorDuesTotal}
@@ -77,19 +96,12 @@ export default function OverviewPage() {
                 isLoading={isLoading}
             />
 
-            {/* 3. Financial Trends & Recent Activity Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
-                    <FinancialTrendChart
-                        timeline={timeline}
-                        isLoading={isLoading}
-                    />
+                    <FinancialTrendChart timeline={timeline} isLoading={isLoading} />
                 </div>
                 <div className="lg:col-span-1">
-                    <RecentActivityPreview
-                        activities={recentActivity}
-                        isLoading={isLoading}
-                    />
+                    <RecentActivityPreview activities={recentActivity} isLoading={isLoading} />
                 </div>
             </div>
         </div>

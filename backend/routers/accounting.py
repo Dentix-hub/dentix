@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from fastapi import Depends, Query
+from fastapi import Depends, HTTPException, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import schemas
@@ -10,6 +10,7 @@ from backend.core.money import NonNegativeMoney, Percentage
 from backend.core.permissions import Permission, require_permission
 from backend.core.response import StandardResponse, error_response, success_response
 from backend.schemas.finance import CompensationSettingsPatch
+from backend.services.finance_report_service import FinanceReportService, build_csv_document
 from backend.services.finance_summary_service import (
     CompensationSettingsService,
     FinanceSummaryService,
@@ -305,6 +306,131 @@ async def get_comprehensive_stats(
     return success_response(
         data=data,
         message="Comprehensive stats retrieved successfully",
+    )
+
+
+@router.get("/reports/period-comparison", response_model=StandardResponse[dict])
+async def get_period_comparison_report(
+    start_date: str = Query(..., description="Current period start YYYY-MM-DD"),
+    end_date: str = Query(..., description="Current period end YYYY-MM-DD"),
+    compare_start_date: Optional[str] = Query(None, description="Optional comparison start YYYY-MM-DD"),
+    compare_end_date: Optional[str] = Query(None, description="Optional comparison end YYYY-MM-DD"),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(require_permission(Permission.REPORT_READ)),
+):
+    service = FinanceReportService(db, current_user.tenant_id)
+    try:
+        data = await service.get_period_comparison(
+            start_date=start_date,
+            end_date=end_date,
+            compare_start_date=compare_start_date,
+            compare_end_date=compare_end_date,
+        )
+    except ValueError as exc:
+        return error_response(message=str(exc), status_code=400)
+    return success_response(data=data, message="Period comparison retrieved successfully")
+
+
+@router.get("/reports/period-comparison/export.csv")
+async def export_period_comparison_csv(
+    start_date: str = Query(..., description="Current period start YYYY-MM-DD"),
+    end_date: str = Query(..., description="Current period end YYYY-MM-DD"),
+    compare_start_date: Optional[str] = Query(None),
+    compare_end_date: Optional[str] = Query(None),
+    locale: str = Query("en", pattern="^(ar|en)$"),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(require_permission(Permission.REPORT_EXPORT)),
+):
+    service = FinanceReportService(db, current_user.tenant_id)
+    try:
+        data = await service.get_period_comparison(
+            start_date=start_date,
+            end_date=end_date,
+            compare_start_date=compare_start_date,
+            compare_end_date=compare_end_date,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    labels = {
+        "en": {
+            "metric": "Metric",
+            "current": "Current period",
+            "comparison": "Comparison period",
+            "delta": "Change",
+            "delta_percent": "Change %",
+            "definition": "Definition version",
+            "timezone": "Timezone",
+            "current_period": "Current period",
+            "comparison_period": "Comparison period",
+        },
+        "ar": {
+            "metric": "المؤشر",
+            "current": "الفترة الحالية",
+            "comparison": "فترة المقارنة",
+            "delta": "التغير",
+            "delta_percent": "نسبة التغير %",
+            "definition": "إصدار التعريف",
+            "timezone": "المنطقة الزمنية",
+            "current_period": "الفترة الحالية",
+            "comparison_period": "فترة المقارنة",
+        },
+    }[locale]
+    metric_labels = {
+        "en": {
+            "net_invoiced": "Net invoiced",
+            "collected": "Collected",
+            "manual_expenses": "Manual expenses",
+            "lab_costs": "Lab costs",
+            "doctor_dues": "Doctor dues",
+            "staff_dues": "Staff dues",
+            "total_deductions": "Total deductions",
+            "net_operational_result": "Net operational result",
+        },
+        "ar": {
+            "net_invoiced": "صافي المحتسب",
+            "collected": "المحصل",
+            "manual_expenses": "المصروفات اليدوية",
+            "lab_costs": "تكاليف المعامل",
+            "doctor_dues": "مستحقات الأطباء",
+            "staff_dues": "مستحقات الموظفين",
+            "total_deductions": "إجمالي الاستقطاعات",
+            "net_operational_result": "صافي النتيجة التشغيلية",
+        },
+    }[locale]
+
+    rows = [
+        {
+            **metric,
+            "metric": metric_labels.get(metric["metric"], metric["metric"]),
+        }
+        for metric in data.get("metrics", [])
+    ]
+    current_period = data.get("current_period", {})
+    comparison_period = data.get("comparison_period", {})
+    csv_text = build_csv_document(
+        columns=[
+            ("metric", labels["metric"]),
+            ("current", labels["current"]),
+            ("comparison", labels["comparison"]),
+            ("delta", labels["delta"]),
+            ("delta_percent", labels["delta_percent"]),
+        ],
+        rows=rows,
+        metadata={
+            labels["definition"]: data.get("definition_version", ""),
+            labels["timezone"]: current_period.get("timezone", ""),
+            labels["current_period"]: f"{current_period.get('start', '')} → {current_period.get('end', '')}",
+            labels["comparison_period"]: f"{comparison_period.get('start', '')} → {comparison_period.get('end', '')}",
+        },
+    )
+    return Response(
+        content=csv_text.encode("utf-8-sig"),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": "attachment; filename=finance-period-comparison.csv",
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 
