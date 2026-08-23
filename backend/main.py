@@ -294,10 +294,12 @@ async def add_process_time_header(request: Request, call_next):
     response.headers["X-Process-Time"] = f"{process_time:.3f}"
 
     # DIAGNOSTIC: Log 405 Method Not Allowed errors
+    # SECURITY: Never log request headers here - they carry Cookie/Authorization
+    # session credentials that must not reach production logs.
     if response.status_code == 405:
         logger.error(
             f"[API_ROUTING_CONFLICT] 405 Method Not Allowed: {request.method} {request.url.path} "
-            f"| Headers: {dict(request.headers)}"
+            f"| trace_id={getattr(request.state, 'trace_id', '')}"
         )
 
     if process_time > 1.0:

@@ -3,7 +3,7 @@
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime, date
-from backend.core.money import PositiveMoney
+from backend.core.money import Money, NonNegativeMoney, PositiveMoney
 
 
 class PaymentBase(BaseModel):
@@ -97,3 +97,48 @@ class DashboardStats(BaseModel):
     today_expenses: float = 0.0
     business_date: Optional[str] = None
     tenant_timezone: Optional[str] = None
+
+
+# --- Printable Invoice (server-authoritative DTO; clients print, never recompute) ---
+
+class InvoiceLineItem(BaseModel):
+    id: int
+    date: Optional[datetime] = None
+    procedure: Optional[str] = None
+    diagnosis: Optional[str] = None
+    tooth_number: Optional[int] = None
+    status: Optional[str] = None
+    cost: NonNegativeMoney
+    discount: NonNegativeMoney
+    net_amount: NonNegativeMoney
+
+
+class InvoicePayment(BaseModel):
+    id: int
+    date: Optional[datetime] = None
+    amount: PositiveMoney
+    notes: Optional[str] = None
+
+
+class InvoiceTotals(BaseModel):
+    gross_total: NonNegativeMoney
+    discount_total: NonNegativeMoney
+    net_total: NonNegativeMoney
+    paid_total: NonNegativeMoney
+    remaining_total: Money
+
+
+class PatientInvoice(BaseModel):
+    invoice_number: str
+    currency: str
+    clinic_name: str
+    clinic_tagline: Optional[str] = None
+    clinic_address: Optional[str] = None
+    clinic_phone: Optional[str] = None
+    patient_id: int
+    patient_name: str
+    patient_phone: Optional[str] = None
+    data_as_of: Optional[datetime] = None
+    line_items: List[InvoiceLineItem]
+    payments: List[InvoicePayment]
+    totals: InvoiceTotals

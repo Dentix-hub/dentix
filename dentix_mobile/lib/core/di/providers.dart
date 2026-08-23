@@ -53,12 +53,19 @@ final dioProvider = Provider<Dio>((ref) {
     dio.interceptors.add(RetryInterceptor());
   }
   
-  // Configure base URL
-  String baseUrl = 'http://127.0.0.1:8000';
-  if (!kIsWeb && Platform.isAndroid) {
-    baseUrl = 'http://10.0.2.2:8000';
+  // Configure base URL.
+  // HIGH-07: production/staging base URLs must be injected at build time via
+  // --dart-define=DENTIX_API_BASE_URL=https://... Localhost fallbacks exist
+  // only for local development runs against a local backend.
+  const String envBaseUrl = String.fromEnvironment('DENTIX_API_BASE_URL');
+  String baseUrl = envBaseUrl;
+  if (baseUrl.isEmpty) {
+    baseUrl = 'http://127.0.0.1:8000';
+    if (!kIsWeb && Platform.isAndroid) {
+      baseUrl = 'http://10.0.2.2:8000';
+    }
   }
-  
+
   DioClient.configureBaseUrl(baseUrl);
   
   return dio;

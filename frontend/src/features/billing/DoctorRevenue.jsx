@@ -40,8 +40,8 @@ export default function DoctorRevenue() {
     };
 
     const handleDoctorUpdate = (_doctorId, _commission, _salary) => {
-        queryClient.invalidateQueries(['doctor_revenue']);
-        queryClient.invalidateQueries(['billing_dashboard_stats']);
+        queryClient.invalidateQueries({ queryKey: ['doctor_revenue'] });
+        queryClient.invalidateQueries({ queryKey: ['billing_dashboard_stats'] });
     };
 
     return (

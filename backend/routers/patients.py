@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import crud, models, schemas
+from ..services.invoice_service import InvoiceService
 from ..services.patient_service import patient_service
 from ..services.patient_search_service import PatientSearchService
 from ..services.visibility_service import get_visibility_service
@@ -243,6 +244,24 @@ async def get_patient_payments(
     await _ensure_patient_visible(db, current_user, patient_id)
     data = await crud.get_payments(db, patient_id, current_user.tenant_id)
     return success_response(data=data, message="Payments retrieved")
+
+
+@router.get(
+    "/{patient_id}/invoice",
+    response_model=StandardResponse[schemas.PatientInvoice],
+    summary="Authoritative printable invoice (server-computed)",
+)
+async def get_patient_invoice(
+    patient_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(require_permission(Permission.FINANCIAL_READ)),
+):
+    await _ensure_patient_visible(db, current_user, patient_id)
+    service = InvoiceService(db, current_user.tenant_id)
+    invoice = await service.get_patient_invoice(patient_id)
+    if invoice is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return success_response(data=invoice, message="Invoice retrieved successfully")
 
 
 @router.get("/{patient_id}/attachments", response_model=StandardResponse[List[schemas.Attachment]])

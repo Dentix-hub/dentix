@@ -29,6 +29,17 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     throw ServerException(message: 'Unexpected response format', code: 500);
   }
 
+  /// StandardResponse envelopes ({success, data}) unwrap to their payload;
+  /// raw payloads pass through untouched.
+  dynamic _unwrap(dynamic data) {
+    final parsed = _parseResponse(data);
+    if (parsed.containsKey('success') && parsed.containsKey('data')) {
+      final inner = parsed['data'];
+      if (inner is Map<String, dynamic>) return inner;
+    }
+    return parsed;
+  }
+
   @override
   Future<TokenModel> login({
     required String email,
@@ -47,7 +58,17 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
 
       if (response.statusCode == 200) {
-        return TokenModel.fromJson(_parseResponse(response.data));
+        final body = _parseResponse(response.data);
+        // 2FA pending: the backend intentionally withholds a refresh token
+        // until the OTP is verified; TokenModel requires the field, so an
+        // empty placeholder keeps the pending state representable.
+        final is2faPending = body['user_status'] == '2fa_required';
+        return TokenModel.fromJson({
+          ...body,
+          'refresh_token': body['refresh_token'] ?? (is2faPending ? '' : null),
+          'role': body['role'] ?? '',
+          'username': body['username'] ?? email,
+        });
       } else {
         throw ServerException(
           message: response.data?['message'] ?? 'Login failed',
@@ -97,7 +118,8 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       final response = await dio.get(ApiEndpoints.me);
 
       if (response.statusCode == 200) {
-        return UserModel.fromJson(_parseResponse(response.data));
+        // /users/me answers in a StandardResponse envelope.
+        return UserModel.fromJson(_parseResponse(_unwrap(response.data)));
       } else {
         throw ServerException(
           message: response.data?['message'] ?? 'Failed to get user',
@@ -118,12 +140,12 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required String newPassword,
   }) async {
     try {
-      final response = await dio.post(
+      // Canonical contract: PUT /users/me with UserUpdate.password (the web
+      // app uses the same endpoint). currentPassword is kept in the API for
+      // UX confirmation but is not part of the server contract.
+      final response = await dio.put(
         ApiEndpoints.changePassword,
-        data: {
-          'current_password': currentPassword,
-          'new_password': newPassword,
-        },
+        data: {'password': newPassword},
       );
 
       if (response.statusCode != 200) {

@@ -46,8 +46,9 @@ export default function SecuritySettings() {
     };
     const handleVerify2FA = async () => {
         try {
-            await api.post('/api/v1/auth/2fa/verify', null, {
-                params: { code: verificationCode, secret: secret }
+            await api.post('/api/v1/auth/2fa/verify', {
+                code: verificationCode,
+                secret: secret
             });
             alert("تم تفعيل المصادقة الثنائية بنجاح!");
             setShow2FAModal(false);

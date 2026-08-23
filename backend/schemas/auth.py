@@ -22,6 +22,12 @@ class TokenData(BaseModel):
     tenant_id: Optional[int] = None
 
 
+class TwoFactorVerifyRequest(BaseModel):
+    """JSON body contract for confirming 2FA setup."""
+    code: str
+    secret: str
+
+
 class User(BaseModel):
     id: Optional[int] = None
     username: str

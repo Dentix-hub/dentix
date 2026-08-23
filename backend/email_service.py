@@ -47,6 +47,60 @@ APP_URL = os.getenv("APP_URL", "http://localhost:5173")
 SMTP_TIMEOUT = int(os.getenv("SMTP_TIMEOUT", "30"))
 
 
+def _smtp_deliver(msg) -> None:
+    """Shared SMTP delivery handshake (STARTTLS + auth + send)."""
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT) as server:
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.sendmail(SMTP_USER, msg["To"], msg.as_string())
+
+
+def _mask_email(email: str) -> str:
+    masked = (
+        email[:3] + "***" + email[email.index("@") :]
+        if "@" in email
+        else "***"
+    )
+    return masked
+
+
+def send_plain_email(to_email: str, subject: str, text_body: str) -> bool:
+    """
+    Send a simple UTF-8 plain-text email (e.g. support notifications).
+
+    Returns True only when the message was actually handed to the SMTP
+    server; never logs recipient addresses or message content.
+    """
+    if not SMTP_USER or not SMTP_PASSWORD:
+        logger.warning("SMTP not configured; cannot send email.")
+        return False
+
+    msg = MIMEText(text_body, "plain", "utf-8")
+    msg["Subject"] = subject
+    msg["From"] = SMTP_USER
+    msg["To"] = to_email
+    msg["Date"] = formatdate(localtime=True)
+    msg["Message-ID"] = make_msgid(domain=SMTP_HOST.replace("smtp.", ""))
+
+    try:
+        _smtp_deliver(msg)
+        logger.info(
+            "Plain-text email sent successfully to %s", _mask_email(to_email)
+        )
+        return True
+    except smtplib.SMTPAuthenticationError:
+        logger.error("SMTP authentication failed. Check SMTP_USER and SMTP_PASSWORD.")
+        return False
+    except TimeoutError:
+        logger.error("SMTP connection timed out after %s seconds.", SMTP_TIMEOUT)
+        return False
+    except Exception as e:
+        logger.error("Failed to send plain-text email: %s", type(e).__name__)
+        return False
+
+
 def send_password_reset_email(to_email: str, reset_token_or_link: str, username: str, is_firebase_link: bool = False) -> bool:
     """
     Send password reset email with reset link.

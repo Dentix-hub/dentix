@@ -38,6 +38,7 @@ const UserProfile = lazy(() => import('./pages/UserProfile'));
 const Terms = lazy(() => import('./pages/Terms'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const NotFound = lazy(() => import('./pages/NotFound'));
+const Unauthorized = lazy(() => import('./pages/Unauthorized'));
 const Inventory = lazy(() => import('./pages/Inventory'));
 // Finance V2 Pages
 const FinanceLayout = lazy(() => import('@/features/finance/FinanceLayout'));
@@ -139,6 +140,10 @@ function AppRoutes() {
                             </RootErrorBoundary>
                         }>
                             <Route path="/" element={<Dashboard />} />
+                            {/* /dashboard is used by ErrorBoundary, impersonation
+                                exit and TenantsPage; it must resolve to the app home. */}
+                            <Route path="/dashboard" element={<Navigate to="/" replace />} />
+                            <Route path="/unauthorized" element={<Unauthorized />} />
                             <Route path="/patients" element={<Patients />} />
                             <Route path="/patients/:id" element={<PatientDetails />} />
                             <Route path="/appointments" element={<Appointments />} />

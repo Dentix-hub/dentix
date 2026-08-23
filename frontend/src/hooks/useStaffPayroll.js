@@ -75,7 +75,7 @@ export function useStaffPayroll() {
         setSavingStaff(true);
         try {
             await updateStaffCompensation(selectedStaff.id, 0, editStaffSalary, editStaffPerAppointment);
-            queryClient.invalidateQueries(['staff_list']);
+            queryClient.invalidateQueries({ queryKey: ['staff_list'] });
             setStaffModalOpen(false);
             toast.success(t('billing.alerts.save_success'));
         } catch (err) {

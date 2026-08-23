@@ -101,7 +101,7 @@ export default function TreatmentModal({
     const addSessionMutation = useMutation({
         mutationFn: (data) => addTreatmentSession(treatment.id, data),
         onSuccess: () => {
-            queryClient.invalidateQueries(['patient-details', treatment.patient_id]);
+            queryClient.invalidateQueries({ queryKey: ['patient-details', treatment.patient_id] });
             // Also update local state to show the new session without a full refetch if possible
             setTreatment(prev => ({
                 ...prev,

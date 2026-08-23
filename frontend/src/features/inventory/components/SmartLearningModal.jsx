@@ -30,7 +30,7 @@ const SmartLearningModal = ({ isOpen, onClose, material }) => {
     const mutation = useMutation({
         mutationFn: setProcedureWeight,
         onSuccess: () => {
-            queryClient.invalidateQueries(['procedure-weights', material?.id]);
+            queryClient.invalidateQueries({ queryKey: ['procedure-weights', material?.id] });
             setIsAdding(false);
             setEditingId(null);
             setNewProcName('');

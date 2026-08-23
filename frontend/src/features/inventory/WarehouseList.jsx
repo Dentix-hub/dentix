@@ -22,7 +22,7 @@ const WarehouseList = () => {
     const deleteMutation = useMutation({
         mutationFn: deleteWarehouse,
         onSuccess: () => {
-            queryClient.invalidateQueries(['warehouses']);
+            queryClient.invalidateQueries({ queryKey: ['warehouses'] });
             toast.success(t('inventory.warehouses.delete_success'));
         },
         onError: (err) => {
