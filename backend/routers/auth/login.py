@@ -35,10 +35,16 @@ _COOKIE_SAMESITE = "lax"  # Lax is sufficient and safer for UX
 # CSRF token cookie name (non-httpOnly so JS can read it)
 _CSRF_COOKIE_NAME = "csrf_token"
 _CSRF_HEADER_NAME = "X-CSRF-Token"
+# Non-sensitive readable hint used only to decide whether a PWA cold start
+# should contact the auth backend. The httpOnly refresh cookie remains the
+# authoritative credential and cannot be inspected from JavaScript.
+_SESSION_HINT_COOKIE_NAME = "dentix_session_hint"
+
 
 def _generate_csrf_token() -> str:
     """Generate a secure CSRF token."""
     return secrets.token_urlsafe(32)
+
 
 def _set_csrf_cookie(response: Response) -> str:
     """Set CSRF token cookie (readable by JavaScript for double-submit pattern)."""
@@ -54,9 +60,11 @@ def _set_csrf_cookie(response: Response) -> str:
     )
     return token
 
+
 def _get_csrf_token(request: Request) -> str | None:
     """Get CSRF token from cookie."""
     return request.cookies.get(_CSRF_COOKIE_NAME)
+
 
 def _validate_csrf(request: Request, x_csrf_token: str | None = Header(None, alias="X-CSRF-Token")) -> bool:
     """Validate CSRF token using double-submit pattern."""
@@ -73,6 +81,7 @@ def _validate_csrf(request: Request, x_csrf_token: str | None = Header(None, ali
     # Timing-safe comparison
     return secrets.compare_digest(cookie_token, x_csrf_token)
 
+
 def require_csrf(request: Request, x_csrf_token: str | None = Header(None, alias="X-CSRF-Token")) -> None:
     """Dependency that raises 403 if CSRF validation fails."""
     if not _validate_csrf(request, x_csrf_token):
@@ -81,10 +90,11 @@ def require_csrf(request: Request, x_csrf_token: str | None = Header(None, alias
             detail="CSRF token validation failed"
         )
 
+
 def _set_auth_cookies(
     response: Response, access_token: str, refresh_token: str | None = None
 ) -> None:
-    """Set httpOnly cookies for JWT tokens."""
+    """Set httpOnly auth cookies plus a non-sensitive PWA session hint."""
     response.set_cookie(
         key="access_token",
         value=access_token,
@@ -104,6 +114,15 @@ def _set_auth_cookies(
             samesite=_COOKIE_SAMESITE,
             path=f"{API_V1_STR}/auth/refresh",  # restrict to refresh endpoint only
             max_age=7 * 24 * 60 * 60,  # 7 days
+        )
+        response.set_cookie(
+            key=_SESSION_HINT_COOKIE_NAME,
+            value="1",
+            httponly=False,
+            secure=_COOKIE_SECURE,
+            samesite=_COOKIE_SAMESITE,
+            path="/",
+            max_age=7 * 24 * 60 * 60,  # mirrors refresh session lifetime
         )
 
 
@@ -337,17 +356,21 @@ async def refresh_token(
         if username is None or not sid:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-        # Lock the exact refresh-session row while rotating it. This prevents two
-        # simultaneous cold-start requests from consuming the same refresh token.
+        # Authentication bootstrap performs an audited commit and therefore must
+        # happen BEFORE acquiring the refresh-session row lock. Otherwise that
+        # commit would release the lock and re-open the rotation race.
+        user = await lookup_user_for_authentication(db, username, reason=REASON_REFRESH)
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+
+        # Lock the exact refresh-session row only after the bootstrap transaction
+        # has finished. Concurrent refresh attempts for the same token now serialize.
         db_session = await AuthService.get_session_by_token(
             db, effective_refresh_token, for_update=True
         )
         if not db_session or not db_session.is_active:
             raise HTTPException(status_code=401, detail="Session expired or revoked")
-
-        # Check User
-        user = await lookup_user_for_authentication(db, username, reason=REASON_REFRESH)
-        if not user or db_session.user_id != user.id:
+        if db_session.user_id != user.id or db_session.device_info != sid:
             raise HTTPException(status_code=401, detail="Invalid refresh session")
 
         # Generate new Access Token
@@ -492,7 +515,14 @@ async def logout(
         secure=_COOKIE_SECURE,
         samesite=_COOKIE_SAMESITE,
     )
-    # Clear CSRF token cookie
+    # Clear readable session hint and CSRF token cookies.
+    response.delete_cookie(
+        key=_SESSION_HINT_COOKIE_NAME,
+        path="/",
+        httponly=False,
+        secure=_COOKIE_SECURE,
+        samesite=_COOKIE_SAMESITE,
+    )
     response.delete_cookie(
         key=_CSRF_COOKIE_NAME,
         path="/",
