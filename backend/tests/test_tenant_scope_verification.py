@@ -52,6 +52,7 @@ EXPECTED_TENANT_MODELS = {
     "Invoice",
     "TenantFeature",
     "MaterialLearningLog",
+    "PushSubscription",
 }
 
 # Models filtered via parent FK join (no own tenant_id column needed)
