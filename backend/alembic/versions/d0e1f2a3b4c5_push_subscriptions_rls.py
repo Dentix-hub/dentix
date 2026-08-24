@@ -1,7 +1,7 @@
 """add push_subscriptions with RLS
 
-Revision ID: c9d0e1f2a3b4
-Revises: b8c9d0e1f2a3
+Revision ID: d0e1f2a3b4c5
+Revises: c9d0e1f2a3b4
 Create Date: 2026-08-24
 
 Per-installation Web Push subscriptions (PWA master plan §12.2).
@@ -21,8 +21,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision: str = "c9d0e1f2a3b4"
-down_revision: Union[str, Sequence[str], None] = "b8c9d0e1f2a3"
+revision: str = "d0e1f2a3b4c5"
+down_revision: Union[str, Sequence[str], None] = "c9d0e1f2a3b4"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -55,32 +55,17 @@ def upgrade() -> None:
     )
     op.create_index("ix_push_subscriptions_endpoint", "push_subscriptions", ["endpoint"])
     op.create_index("ix_push_subscriptions_session_sid", "push_subscriptions", ["session_sid"])
-    op.create_index(
-        "ix_push_subscriptions_user_active",
-        "push_subscriptions",
-        ["user_id", "revoked_at"],
-    )
-    op.create_index(
-        "ix_push_subscriptions_device_installation_id",
-        "push_subscriptions",
-        ["device_installation_id"],
-    )
+    op.create_index("ix_push_subscriptions_user_active", "push_subscriptions", ["user_id", "revoked_at"])
+    op.create_index("ix_push_subscriptions_device_installation_id", "push_subscriptions", ["device_installation_id"])
 
     if bind.dialect.name != "postgresql":
         return
 
-    tenant_expr = (
-        "tenant_id = NULLIF(current_setting('rls.tenant_id', true), '')::integer"
-    )
-    bypass_expr = (
-        "CAST(NULLIF(current_setting('rls.bypass_rls', true), '') AS BOOLEAN) = true"
-    )
+    tenant_expr = "tenant_id = NULLIF(current_setting('rls.tenant_id', true), '')::integer"
+    bypass_expr = "CAST(NULLIF(current_setting('rls.bypass_rls', true), '') AS BOOLEAN) = true"
     op.execute('ALTER TABLE "push_subscriptions" ENABLE ROW LEVEL SECURITY')
     op.execute('ALTER TABLE "push_subscriptions" FORCE ROW LEVEL SECURITY')
-    op.execute(
-        'DROP POLICY IF EXISTS "push_subscriptions_tenant_policy" '
-        'ON "push_subscriptions"'
-    )
+    op.execute('DROP POLICY IF EXISTS "push_subscriptions_tenant_policy" ON "push_subscriptions"')
     op.execute(
         sa.text(
             f'''CREATE POLICY "push_subscriptions_tenant_policy"
@@ -99,10 +84,7 @@ def downgrade() -> None:
         return
 
     if bind.dialect.name == "postgresql":
-        op.execute(
-            'DROP POLICY IF EXISTS "push_subscriptions_tenant_policy" '
-            'ON "push_subscriptions"'
-        )
+        op.execute('DROP POLICY IF EXISTS "push_subscriptions_tenant_policy" ON "push_subscriptions"')
         op.execute('ALTER TABLE "push_subscriptions" NO FORCE ROW LEVEL SECURITY')
         op.execute('ALTER TABLE "push_subscriptions" DISABLE ROW LEVEL SECURITY')
 
