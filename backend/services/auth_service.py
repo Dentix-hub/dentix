@@ -26,11 +26,11 @@ class AuthService:
         ip_address: str,
         user_agent: str,
         device_info: str = None,
+        *,
+        commit: bool = True,
     ):
-        """Create a new active session for the user (storing Refresh Token hash)."""
+        """Create a new active device session, storing only the refresh-token hash."""
         token_hash = AuthService.generate_token_hash(refresh_token)
-
-        # Check if identical session exists (optional cleanup)
 
         session = models.UserSession(
             user_id=user_id,
@@ -41,24 +41,74 @@ class AuthService:
             expires_at=(datetime.now(timezone.utc) + timedelta(days=7)).replace(tzinfo=None),
         )
         db.add(session)
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
         return session
 
     @staticmethod
-    async def get_session_by_token(db: AsyncSession, refresh_token: str):
-        """Find session by refresh token hash."""
+    async def get_session_by_token(
+        db: AsyncSession,
+        refresh_token: str,
+        *,
+        for_update: bool = False,
+    ):
+        """Find an active session by refresh-token hash."""
         token_hash = AuthService.generate_token_hash(refresh_token)
         now = datetime.now(timezone.utc).replace(tzinfo=None)
-        stmt = (
-            select(models.UserSession)
-            .where(
-                models.UserSession.token_hash == token_hash,
-                models.UserSession.is_active,
-                models.UserSession.expires_at > now,
-            )
+        stmt = select(models.UserSession).where(
+            models.UserSession.token_hash == token_hash,
+            models.UserSession.is_active,
+            models.UserSession.expires_at > now,
+        )
+        if for_update:
+            stmt = stmt.with_for_update()
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
+    @staticmethod
+    async def get_active_session_by_sid(db: AsyncSession, user_id: int, sid: str):
+        """Resolve the active device session referenced by an access-token sid."""
+        if not sid:
+            return None
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        stmt = select(models.UserSession).where(
+            models.UserSession.user_id == user_id,
+            models.UserSession.device_info == sid,
+            models.UserSession.is_active,
+            models.UserSession.expires_at > now,
         )
         result = await db.execute(stmt)
         return result.scalars().first()
+
+    @staticmethod
+    async def revoke_user_session_by_sid(
+        db: AsyncSession,
+        user_id: int,
+        sid: str,
+        *,
+        commit: bool = True,
+    ) -> bool:
+        """Revoke one device session without affecting the user's other devices."""
+        if not sid:
+            return False
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        stmt = select(models.UserSession).where(
+            models.UserSession.user_id == user_id,
+            models.UserSession.device_info == sid,
+            models.UserSession.is_active,
+        )
+        session = (await db.execute(stmt)).scalars().first()
+        if not session:
+            return False
+        session.is_active = False
+        session.expires_at = now
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
+        return True
 
     @staticmethod
     async def revoke_session(db: AsyncSession, session_id: int, user_id: int):
@@ -77,11 +127,6 @@ class AuthService:
         if session:
             session.is_active = False
             session.expires_at = datetime.now(timezone.utc).replace(tzinfo=None)  # Expire immediately
-
-            # If this was the active session, clear it from user record to trigger kickout
-            if session.user and session.device_info == getattr(session.user, "active_session_id", None):
-                session.user.active_session_id = "revoked_" + str(session.id)
-
             await db.commit()
             return True
         return False
@@ -130,7 +175,8 @@ class AuthService:
             session.expires_at = now
             count += 1
 
-        # Also invalidate the active_session_id on the user record to force logout
+        # Keep the legacy marker for administrative/security audit compatibility.
+        # Request authentication is enforced against UserSession rows, not this field.
         if user:
             user.active_session_id = "revoked_all_" + str(user_id)
 
