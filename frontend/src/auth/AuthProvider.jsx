@@ -1,5 +1,12 @@
 import { useCallback, useEffect } from 'react';
-import { login as apiLogin, registerClinic, getSessionSilent, hasSessionCookieHint, api } from '@/api';
+import {
+    login as apiLogin,
+    registerClinic,
+    getSessionSilent,
+    hasSessionCookieHint,
+    clearSessionCookieHint,
+    api,
+} from '@/api';
 import { logout as apiLogout } from '@/utils';
 import { logger } from '@/utils/logger';
 import AuthContext from './useAuth';
@@ -35,37 +42,41 @@ export default function AuthProvider({ children }) {
             const startTime = performance.now();
             logger.log('[AUTH] Starting initialization...');
 
-            // Safety timeout to prevent permanent loading state
-            const safetyTimeout = setTimeout(() => {
-                if (useAuthStore.getState().isAuthLoading) {
-                    logger.warn('[AUTH] Initialization hanging, forcing start...');
-                    setLoading(false);
-                }
-            }, 5000);
-
             try {
-                logger.log('[AUTH] Validating session via cookie...');
-                try {
-                    if (!hasSessionCookieHint()) {
-                        logger.info('[AUTH] No session cookie hint found');
-                        clearLocalSession();
-                        return;
-                    }
-                    const sessionRes = await getSessionSilent();
-                    const userData = sessionRes.data;
-                    await finishAuthentication(userData);
-
-                    logger.log(`[AUTH] Boot successful (${Math.round(performance.now() - startTime)}ms)`);
-                } catch (err) {
-                    logger.info('[AUTH] No active session found (Unauthenticated start)');
-                    // Cookie might be expired/invalid - user will need to login
+                // access_token and refresh_token are httpOnly and therefore cannot
+                // be inspected from JavaScript. A short-lived readable hint mirrors
+                // the refresh lifetime and prevents genuine anonymous starts from
+                // waiting on a sleeping backend. Legacy csrf_token remains accepted
+                // as a migration hint for sessions created before this hotfix.
+                if (!hasSessionCookieHint()) {
+                    logger.info('[AUTH] No server-session hint found');
                     clearLocalSession();
+                    return;
                 }
-            } catch (error) {
-                logger.error('[AUTH] Init error:', error);
+
+                // The backend remains authoritative. If the access cookie expired,
+                // apiClient performs exactly one refresh and retries this request.
+                logger.log('[AUTH] Validating server session...');
+                const sessionRes = await getSessionSilent();
+                const userData = sessionRes.data;
+                await finishAuthentication(userData);
+
+                logger.log(`[AUTH] Boot successful (${Math.round(performance.now() - startTime)}ms)`);
+            } catch (err) {
+                const status = err?.response?.status;
+                if (status === 401) {
+                    // A definitive auth rejection means the readable hint is stale.
+                    // Network/timeout/5xx failures intentionally keep the hint so a
+                    // later PWA start can retry the still-possibly-valid session.
+                    clearSessionCookieHint();
+                }
+                logger.info('[AUTH] No active session found (Unauthenticated start)', err);
                 clearLocalSession();
             } finally {
-                clearTimeout(safetyTimeout);
+                // Do not use a second, independent 5s timer here. Axios already has
+                // bounded request timeouts, and forcing isAuthLoading=false while a
+                // cold-start session/refresh request is still in flight creates a
+                // race where the login screen briefly mounts before recovery finishes.
                 setLoading(false);
             }
         };
@@ -132,6 +143,9 @@ export default function AuthProvider({ children }) {
         } catch (err) {
             logger.error('[AUTH] Logout api failed:', err);
         } finally {
+            // Never let a stale readable hint make the next PWA boot look signed in
+            // after the user explicitly requested logout.
+            clearSessionCookieHint();
             clearLocalSession();
         }
     };

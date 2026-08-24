@@ -64,9 +64,6 @@ def test_logout_revokes_stolen_access_and_refresh_tokens(client, db_session, tes
     assert stolen_refresh.status_code == 401
 
     db_session.expire_all()
-    persisted_user = db_session.query(models.User).filter(models.User.id == user.id).one()
-    assert persisted_user.active_session_id != session_id
-    assert persisted_user.active_session_id.startswith("revoked_all_")
     assert (
         db_session.query(models.UserSession)
         .filter(
@@ -76,6 +73,110 @@ def test_logout_revokes_stolen_access_and_refresh_tokens(client, db_session, tes
         .count()
         == 0
     )
+
+
+def test_second_login_keeps_first_device_session_active(client, db_session, test_tenant):
+    user, password = _create_user(db_session, test_tenant, prefix="multi_device")
+
+    first_login = client.post(
+        "/api/v1/auth/token",
+        data={"username": user.username, "password": password},
+    )
+    assert first_login.status_code == 200, first_login.text
+    first_access = first_login.cookies.get("access_token")
+    first_refresh = first_login.cookies.get("refresh_token")
+    first_sid = first_login.json()["session_id"]
+
+    second_login = client.post(
+        "/api/v1/auth/token",
+        data={"username": user.username, "password": password},
+    )
+    assert second_login.status_code == 200, second_login.text
+    second_access = second_login.cookies.get("access_token")
+    second_refresh = second_login.cookies.get("refresh_token")
+    second_sid = second_login.json()["session_id"]
+
+    assert first_sid != second_sid
+    assert first_access and first_refresh and second_access and second_refresh
+
+    # Logging in on device B must not evict device A.
+    first_device = client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {first_access}"},
+    )
+    assert first_device.status_code == 200, first_device.text
+
+    first_refresh_response = client.post(
+        "/api/v1/auth/refresh",
+        data={"refresh_token": first_refresh},
+    )
+    assert first_refresh_response.status_code == 200, first_refresh_response.text
+    assert first_refresh_response.json()["session_id"] == first_sid
+
+    second_device = client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {second_access}"},
+    )
+    assert second_device.status_code == 200, second_device.text
+
+    db_session.expire_all()
+    assert (
+        db_session.query(models.UserSession)
+        .filter(
+            models.UserSession.user_id == user.id,
+            models.UserSession.is_active.is_(True),
+        )
+        .count()
+        == 2
+    )
+
+
+def test_logout_only_revokes_current_device(client, db_session, test_tenant):
+    user, password = _create_user(db_session, test_tenant, prefix="device_logout")
+
+    first_login = client.post(
+        "/api/v1/auth/token",
+        data={"username": user.username, "password": password},
+    )
+    second_login = client.post(
+        "/api/v1/auth/token",
+        data={"username": user.username, "password": password},
+    )
+    assert first_login.status_code == 200, first_login.text
+    assert second_login.status_code == 200, second_login.text
+
+    first_access = first_login.cookies.get("access_token")
+    first_refresh = first_login.cookies.get("refresh_token")
+    second_access = second_login.cookies.get("access_token")
+    second_refresh = second_login.cookies.get("refresh_token")
+
+    logout = client.post(
+        "/api/v1/auth/logout",
+        headers={"Authorization": f"Bearer {first_access}"},
+    )
+    assert logout.status_code == 200, logout.text
+
+    revoked_access = client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {first_access}"},
+    )
+    assert revoked_access.status_code == 401
+    revoked_refresh = client.post(
+        "/api/v1/auth/refresh",
+        data={"refresh_token": first_refresh},
+    )
+    assert revoked_refresh.status_code == 401
+
+    surviving_access = client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {second_access}"},
+    )
+    assert surviving_access.status_code == 200, surviving_access.text
+    surviving_refresh = client.post(
+        "/api/v1/auth/refresh",
+        data={"refresh_token": second_refresh},
+    )
+    assert surviving_refresh.status_code == 200, surviving_refresh.text
 
 
 def test_expired_access_token_is_rejected(client, test_user):

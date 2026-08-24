@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend import models, schemas, crud, auth
 from backend.database import get_async_db
 from backend.core.permissions import Role
+from backend.services.auth_service import AuthService
 from datetime import datetime, timezone
 
 # OAuth Scheme (for Swagger UI / OpenAPI docs)
@@ -147,14 +148,18 @@ async def get_current_user(
         logger.debug("User not found in DB for authenticated username: %s", token_data.username)
         raise credentials_exception
 
+    # Device-scoped session enforcement. A login on another device must not
+    # invalidate this access token; only revoking this token's own sid (or a
+    # security-wide revoke-all operation) should do that.
     token_sid = payload.get("sid")
-    active_session_val = getattr(user, "active_session_id", None)
-
     if token_sid:
-        if active_session_val is None or token_sid != active_session_val:
+        active_session = await AuthService.get_active_session_by_sid(
+            db, user.id, token_sid
+        )
+        if active_session is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="تم تسجيل الدخول من جهاز آخر أو انتهت صلاحية الجلسة. يرجى إعادة تسجيل الدخول.",
+                detail="Session expired or revoked. Please sign in again.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
