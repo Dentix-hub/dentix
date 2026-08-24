@@ -6,6 +6,9 @@ const ToastProvider = () => {
             position="top-center"
             reverseOrder={false}
             gutter={8}
+            containerStyle={{
+                top: 'max(8px, env(safe-area-inset-top))',
+            }}
             toastOptions={{
                 duration: 4000,
                 className: '!bg-surface !backdrop-blur-xl !shadow-2xl !rounded-2xl !border !border-white/20 !text-text-primary !font-medium',

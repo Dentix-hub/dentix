@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
-import { Database, List, User, Settings as SettingsIcon, CreditCard, CheckCircle, AlertTriangle, Printer, Home } from 'lucide-react';
+import { Database, List, User, Settings as SettingsIcon, CreditCard, CheckCircle, AlertTriangle, Printer, Home, Info } from 'lucide-react';
 import { getMe, getBackupStatus } from '../api';
 import { TabGroup, PageHeader } from '@/shared/ui';
 // Import newly created components
@@ -10,6 +10,9 @@ import SubscriptionSettings from '@/features/settings/SettingsTabs/SubscriptionS
 import ServicesSettings from '@/features/settings/SettingsTabs/ServicesSettings';
 import BackupSettings from '@/features/settings/SettingsTabs/BackupSettings';
 import RxSettings from '@/features/settings/SettingsTabs/RxSettings';
+import PwaDiagnostics from '@/features/settings/SettingsTabs/PwaDiagnostics';
+import PwaInstallSection from '@/features/settings/SettingsTabs/PwaInstallSection';
+import PwaPushSection from '@/features/settings/SettingsTabs/PwaPushSection';
 // Legacy imports removed (PriceLists, InsuranceProviders now inside ServicesSettings)
 export default function Settings() {
     const { t } = useTranslation();
@@ -67,6 +70,7 @@ export default function Settings() {
         { id: 'services', label: t('settings.tabs.services'), icon: List }, // Combined Tab
         { id: 'rx', label: t('settings.tabs.rx'), icon: Printer },
         { id: 'backup', label: t('settings.tabs.backup'), icon: Database },
+        { id: 'pwa', label: t('settings.tabs.pwa'), icon: Info },
     ], [t]);
     return (
         <div className="p-6 max-w-7xl mx-auto space-y-6 animate-in fade-in active">
@@ -101,6 +105,7 @@ export default function Settings() {
                                 {activeTab === 'services' && <List size={32} className="text-primary" />}
                                 {activeTab === 'backup' && <Database size={32} className="text-primary" />}
                                 {activeTab === 'rx' && <Printer size={32} className="text-primary" />}
+                                {activeTab === 'pwa' && <Info size={32} className="text-primary" />}
                             </div>
                         </div>
                     </div>
@@ -116,6 +121,7 @@ export default function Settings() {
                                 {activeTab === 'services' && t('settings.headers.services')}
                                 {activeTab === 'rx' && t('settings.headers.rx')}
                                 {activeTab === 'backup' && t('settings.headers.backup')}
+                                {activeTab === 'pwa' && t('settings.headers.pwa')}
                             </p>
                         </div>
                         {/* TAB CONTENT */}
@@ -149,6 +155,13 @@ export default function Settings() {
                                 loadUserInfo={loadUserInfo}
                             />
                         )}
+                        {activeTab === 'pwa' && (
+                            <>
+                                <PwaInstallSection />
+                                <PwaPushSection />
+                                <PwaDiagnostics />
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
@@ -156,7 +169,7 @@ export default function Settings() {
             </div>
             {/* Toast Message */}
             {message && (
-                <div className={`fixed bottom-8 start-8 p-4 rounded-2xl flex items-center gap-3 shadow-2xl animate-in slide-in-from-bottom-10 z-[100] ${message.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+                <div className={`fixed bottom-[max(2rem,env(safe-area-inset-bottom))] start-8 p-4 rounded-2xl flex items-center gap-3 shadow-2xl animate-in slide-in-from-bottom-10 z-[100] ${message.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
                     {message.type === 'success' ? <CheckCircle size={24} /> : <AlertTriangle size={24} />}
                     <span className="font-bold text-lg">{message.text}</span>
                 </div>

@@ -583,14 +583,59 @@
             "subscription": "Subscription & Clinic",
             "services": "Services & Prices",
             "rx": "Rx Settings",
-            "backup": "Backup"
+            "backup": "Backup",
+            "pwa": "About App"
         },
         "headers": {
             "general": "Profile Management",
             "subscription": "Plan Details & Clinic Info",
             "services": "Treatments, Price Lists, Insurance",
             "rx": "Prescription Print Settings",
-            "backup": "Data Protection & Backup"
+            "backup": "Data Protection & Backup",
+            "pwa": "App version and technical status"
+        },
+        "pwa": {
+            "title": "App Diagnostics",
+            "description": "This information helps support identify stale-build issues. It contains no sensitive data.",
+            "build": "Build label",
+            "commit_sha": "Commit SHA (Git)",
+            "built_at": "Built at",
+            "environment": "Environment",
+            "origin": "Origin",
+            "display_mode": "Display mode",
+            "mode_standalone": "Installed app (Standalone)",
+            "mode_browser": "Browser tab",
+            "service_worker": "Service Worker status",
+            "sw_unsupported": "Unsupported in this browser",
+            "sw_none": "Not registered",
+            "sw_preparing": "Preparing",
+            "sw_active": "Active",
+            "sw_waiting": "Waiting (update available)",
+            "connection": "Connection",
+            "online": "Online",
+            "offline": "Offline",
+            "notification_permission": "Notification permission",
+            "notif_default": "Not asked yet",
+            "notif_granted": "Granted",
+            "notif_denied": "Denied",
+            "notif_unsupported": "Unsupported",
+            "install_title": "Install DENTIX as an app",
+            "install_description": "Install the app for quick access from your home screen",
+            "install_ios_hint": "On iPhone/iPad: use the Safari Share menu, then \"Add to Home Screen\"",
+            "install_action": "Install now",
+            "install_installed": "App installed",
+            "install_installed_hint": "You are using DENTIX as an installed app on this device",
+            "push_title": "Device notifications",
+            "push_description": "Receive appointment and important alerts even when DENTIX is closed.",
+            "push_enable": "Enable device notifications",
+            "push_disable": "Disable notifications on this device",
+            "push_state_subscribed": "Enabled on this device",
+            "push_state_not_subscribed": "Not enabled",
+            "push_state_permission_denied": "Permission blocked in browser settings",
+            "push_state_requires_install": "Requires Home Screen install (iOS)",
+            "push_state_stale": "Needs re-enable",
+            "push_denied_hint": "To enable notifications, allow them for this site in your browser settings and try again.",
+            "push_install_hint": "On iPhone/iPad, add DENTIX to your Home Screen first to enable notifications."
         },
         "general": {
             "username": "Username",
@@ -2090,6 +2135,27 @@
             "description": "Update after saving your current work",
             "confirm": "Update now",
             "later": "Later"
+        },
+        "install": {
+            "title": "Install DENTIX on your device",
+            "description": "Quick access without a browser",
+            "action": "Install",
+            "later": "Later",
+            "ios": {
+                "title": "Add DENTIX to your Home Screen",
+                "step1": "Open the Share menu in Safari",
+                "step2": "Choose \"Add to Home Screen\"",
+                "step3": "Keep \"Open as Web App\" enabled",
+                "step4": "Tap \"Add\"",
+                "action": "Got it"
+            }
         }
+    },
+    "connectivity": {
+        "offline": "No internet connection. Displayed data may be outdated; changes will not be sent until the connection returns.",
+        "degraded": "Unstable connection to the server — saving may be delayed",
+        "recovering": "Restoring connection to the server...",
+        "retry": "Retry",
+        "write_blocked": "No connection — your change was not sent and no data was lost. Retry once the connection returns."
     }
 }

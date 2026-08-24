@@ -1,19 +1,58 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+// Build identity is generated at build time so every deployed bundle can be
+// traced back to the exact source revision. Never hard-code a build ID again.
+function resolveBuildInfo(mode) {
+    let sha = 'unknown';
+    try {
+        sha = execSync('git rev-parse HEAD', { cwd: __dirname, encoding: 'utf8' }).trim();
+    } catch {
+        sha = 'unknown';
+    }
+    const environment = process.env.VITE_ENVIRONMENT || mode || 'development';
+    return {
+        sha,
+        shaShort: sha === 'unknown' ? 'unknown' : sha.slice(0, 7),
+        builtAt: new Date().toISOString(),
+        environment,
+    };
+}
+
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+    define: {
+        __BUILD_INFO__: JSON.stringify(resolveBuildInfo(mode)),
+    },
     plugins: [
         react(),
         VitePWA({
             registerType: 'prompt',
-            includeAssets: ['icons/icon-192.png', 'icons/icon-512.png'],
+            // Custom worker (plan §11): injectManifest gives us push handlers,
+            // allowlisted notification clicks and full cache-policy control
+            // while keeping the same public sw.js URL for existing installs.
+            strategies: 'injectManifest',
+            srcDir: 'src/pwa',
+            filename: 'sw.js',
+            includeAssets: [
+                'icons/icon-192.png',
+                'icons/icon-512.png',
+                'icons/icon-192-maskable.png',
+                'icons/icon-512-maskable.png',
+                'icons/apple-touch-icon-180.png',
+            ],
             manifest: {
+                // Stable application identity bound to the canonical origin.
+                // Installed PWAs, cookie stores, push subscriptions and future
+                // WebAuthn RP configuration are all origin-bound: never change
+                // this without the canonical-origin review (docs/pwa/canonical-origin.md).
+                id: '/',
                 name: 'DENTIX — إدارة العيادة',
                 short_name: 'DENTIX',
                 description: 'نظام إدارة العيادات السنية',
@@ -33,41 +72,42 @@ export default defineConfig({
                         src: 'icons/icon-192.png',
                         sizes: '192x192',
                         type: 'image/png',
-                        purpose: 'any maskable'
+                        purpose: 'any'
                     },
                     {
                         src: 'icons/icon-512.png',
                         sizes: '512x512',
                         type: 'image/png',
-                        purpose: 'any maskable'
+                        purpose: 'any'
+                    },
+                    {
+                        src: 'icons/icon-192-maskable.png',
+                        sizes: '192x192',
+                        type: 'image/png',
+                        purpose: 'maskable'
+                    },
+                    {
+                        src: 'icons/icon-512-maskable.png',
+                        sizes: '512x512',
+                        type: 'image/png',
+                        purpose: 'maskable'
                     }
                 ]
             },
-            workbox: {
-                // Remove stale Workbox precache generations after each successful
-                // deployment so mobile/PWA sessions cannot retain an obsolete app shell.
-                cleanupOutdatedCaches: true,
-
-                // Cache these for offline use
+            injectManifest: {
+                // Measured precache (plan §11.3 / Phase 8): the app shell and
+                // core chunks are precached; heavy lazy-route vendor chunks
+                // (charts, calendar + their locale bundle) load on demand and
+                // are cached at runtime by the service worker. Baseline was
+                // 121 entries / 2.90 MiB. Note: workbox-build ignores inline
+                // negation patterns, so exclusions use globIgnores.
                 globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-                
-                // SPA navigation fallback
-                navigateFallback: '/index.html',
-                navigateFallbackDenylist: [/^\/api/],
-                
-                // Don't cache API calls — always fresh from server
-                runtimeCaching: [
-                    {
-                        urlPattern: /^https?.*\/api\/.*/i,
-                        handler: 'NetworkOnly',  // API = always live, never cached
-                    }
+                globIgnores: [
+                    'assets/vendor-charts-*.js',
+                    'assets/vendor-calendar-*.js',
+                    'assets/es-*.js',
                 ],
-                
-                // Keep the active clinical session on its current version until the
-                // user confirms the update prompt exposed by virtual:pwa-register.
-                skipWaiting: false,
-                clientsClaim: false,
-            }
+            },
         })
     ],
     resolve: {
@@ -133,4 +173,4 @@ export default defineConfig({
         fileParallelism: false,
         isolate: true,
     }
-})
+}))

@@ -1,62 +1,44 @@
-import firebase_admin
-from firebase_admin import credentials, messaging
+"""Compatibility shim over the single Firebase bootstrap (plan §2.9 / §12.1).
+
+Historically two wrappers could both call `firebase_admin.initialize_app`:
+`backend/core/firebase_client.py` and this module. The duplicate default-app
+initialization is now removed: `core.firebase_client` owns the ONLY Firebase
+Admin bootstrap, and this manager delegates to it so existing callers
+(`backend/main.py` startup) keep working unchanged.
+"""
+
 import logging
-import os
-import json
 
 logger = logging.getLogger(__name__)
 
+
 class FirebaseManager:
-    _instance = None
-    _initialized = False
+    """Thin facade over the canonical FirebaseClient singleton."""
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(FirebaseManager, cls).__new__(cls)
-        return cls._instance
+    def __init__(self) -> None:
+        from backend.core.firebase_client import firebase_client
 
-    def initialize(self):
-        """Initialize Firebase Admin SDK."""
-        if self._initialized:
+        self._client = firebase_client
+
+    def initialize(self) -> None:
+        """Initialize the shared Firebase Admin app (idempotent)."""
+        if self._client.is_ready:
             return
-
-        try:
-            # 1. Try to load from environment variable (JSON string)
-            cert_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON") or os.getenv("FIREBASE_SERVICE_ACCOUNT")
-            if cert_json:
-                cert_dict = json.loads(cert_json)
-                cred = credentials.Certificate(cert_dict)
-            else:
-                logger.warning("Firebase credentials not found. Push notifications will be disabled.")
-                return
-
-            firebase_admin.initialize_app(cred)
-            self._initialized = True
+        # FirebaseClient initializes itself lazily on first instantiation;
+        # touching is_ready already ran _initialize(). Log the outcome once.
+        if self._client.is_ready:
             logger.info("Firebase Admin SDK initialized successfully.")
-        except Exception as e:
-            logger.error(f"Failed to initialize Firebase Admin SDK: {e}")
+        else:
+            logger.warning("Firebase credentials not found. Push notifications will be disabled.")
+
+    @property
+    def is_initialized(self) -> bool:
+        return self._client.is_ready
 
     def send_push_notification(self, token: str, title: str, body: str, data: dict = None):
-        """Send a push notification to a specific device token."""
-        if not self._initialized:
-            logger.error("Firebase not initialized. Cannot send notification.")
-            return None
+        """Delegate legacy FCM sends to the canonical client."""
+        return self._client.send_push_notification(token=token, title=title, body=body, data=data)
 
-        try:
-            message = messaging.Message(
-                notification=messaging.Notification(
-                    title=title,
-                    body=body,
-                ),
-                data=data or {},
-                token=token,
-            )
-            response = messaging.send(message)
-            logger.info(f"Successfully sent push notification: {response}")
-            return response
-        except Exception as e:
-            logger.error(f"Failed to send push notification: {e}")
-            return None
 
 # Global instance
 firebase_manager = FirebaseManager()

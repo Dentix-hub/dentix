@@ -481,6 +481,16 @@ async def logout(
     """Revoke the authenticated server session and clear auth cookies."""
     await AuthService.revoke_all_user_sessions(db, current_user.id)
 
+    # Push hygiene (plan §12.3): installations bound to this session identity
+    # stop being delivery-eligible the moment the session ends.
+    try:
+        from backend.services.web_push_service import web_push_service
+        await web_push_service.revoke_for_session(
+            db, current_user.id, current_user.active_session_id or ""
+        )
+    except Exception:  # noqa: BLE001 - logout must never fail on push cleanup
+        logger.warning("Push subscription cleanup during logout failed", exc_info=True)
+
     # Clear access_token cookie
     response.delete_cookie(
         key="access_token",

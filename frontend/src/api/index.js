@@ -18,6 +18,7 @@ export * from './inventory';
 export * from './labs';
 export * from './procedures';
 export * from './notifications';
+export * from './push';
 export * from './support';
 export * from './medications';
 export * from './settings';

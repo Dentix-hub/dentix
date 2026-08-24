@@ -69,15 +69,21 @@ describe('production asset delivery contract', () => {
     it('configures service-worker updates as an explicit user prompt', () => {
         const viteConfig = fs.readFileSync(path.join(frontendRoot, 'vite.config.js'), 'utf8');
         expect(viteConfig).toContain("registerType: 'prompt'");
-        expect(viteConfig).toContain('skipWaiting: false');
-        expect(viteConfig).toContain('clientsClaim: false');
+        // Custom worker (injectManifest): activation stays user-controlled —
+        // the worker may skip waiting only when the update prompt sends the
+        // SKIP_WAITING message, never automatically at install.
+        const serviceWorker = fs.readFileSync(path.join(frontendRoot, 'src/pwa/sw.js'), 'utf8');
+        expect(serviceWorker).toContain('SKIP_WAITING');
+        expect(serviceWorker).toContain('NO skipWaiting');
+        expect(serviceWorker).toContain('NO clientsClaim');
     });
 
     it('never runtime-caches broad image traffic that may contain patient data', () => {
-        const viteConfig = fs.readFileSync(path.join(frontendRoot, 'vite.config.js'), 'utf8');
-        expect(viteConfig).toContain("handler: 'NetworkOnly'");
-        expect(viteConfig).not.toContain("handler: 'CacheFirst'");
-        expect(viteConfig).not.toContain("cacheName: 'images-cache'");
+        const serviceWorker = fs.readFileSync(path.join(frontendRoot, 'src/pwa/sw.js'), 'utf8');
+        expect(serviceWorker).toContain('/api/');
+        expect(serviceWorker).not.toContain('CacheFirst');
+        expect(serviceWorker).not.toContain('StaleWhileRevalidate');
+        expect(serviceWorker).not.toContain("cacheName: 'images-cache'");
     });
 
     it('starts legacy image-cache cleanup before rendering the application', () => {

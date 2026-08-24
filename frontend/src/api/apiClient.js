@@ -3,6 +3,10 @@ import { logger } from '../utils/logger';
 import { useAuthStore } from '../store/auth.store';
 import { queryClient } from '../lib/queryClient';
 import { resolveApiBaseUrl } from './apiOrigin';
+import {
+    CONNECTION_STATES,
+    useConnectivityStore,
+} from '../pwa/connectivity/connectivityStore';
 
 const getApiUrl = () => {
     const hostname = window.location.hostname;
@@ -54,10 +58,45 @@ function getCsrfTokenFromCookie() {
     return null;
 }
 
+// Offline write safety (plan §10.4): while the backend is confirmed
+// unreachable, state-changing requests fail immediately with a clear error
+// instead of hanging or appearing to succeed. Form state is preserved because
+// mutations simply reject; nothing is ever queued for silent replay.
+export const OFFLINE_WRITE_BLOCKED_EVENT = 'dentix:offline-write-blocked';
+
+export function createOfflineWriteError() {
+    const error = new Error('OFFLINE_WRITE_BLOCKED');
+    error.code = 'OFFLINE_WRITE_BLOCKED';
+    error.isOfflineWriteBlock = true;
+    return error;
+}
+
+const OFFLINE_EXEMPT_PATHS = [
+    '/api/v1/auth/token',
+    '/api/v1/auth/refresh',
+    '/api/v1/auth/logout',
+    '/api/v1/auth/login/2fa',
+];
+
 // Request interceptor: Add CSRF token to state-changing requests
 api.interceptors.request.use(config => {
-    // Only add CSRF token for state-changing methods
     const method = (config.method || 'get').toUpperCase();
+
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)
+        && useConnectivityStore.getState().state === CONNECTION_STATES.OFFLINE
+        && !config._allowOffline) {
+        const url = config.url || '';
+        const isExempt = OFFLINE_EXEMPT_PATHS.some(p => url.includes(p));
+        if (!isExempt) {
+            logger.warn('[API] Write blocked while offline:', method, url);
+            // The user-facing toast is shown by the globally mounted
+            // NetworkStatusBanner (keeps i18n out of the api import chain).
+            window.dispatchEvent(new CustomEvent(OFFLINE_WRITE_BLOCKED_EVENT));
+            return Promise.reject(createOfflineWriteError());
+        }
+    }
+
+    // Only add CSRF token for state-changing methods
     if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
         // Skip for auth endpoints (they are exempted on backend)
         const url = config.url || '';
