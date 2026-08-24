@@ -94,11 +94,13 @@ jobs:
                   )
           PY
 
-      - name: Run HTTP BOLA matrix through PostgreSQL FORCE RLS
+      - name: Run HTTP BOLA and upload matrix through PostgreSQL FORCE RLS
         env:
           DATABASE_URL: postgresql://dentix_idor_app:dentix_idor_app_pass@localhost:5432/dentix_idor
         run: >-
-          pytest backend/ci_tests/test_cross_tenant_http_postgres.py
+          pytest
+          backend/ci_tests/test_cross_tenant_http_postgres.py
+          backend/ci_tests/test_upload_postgres_smoke.py
           -v
           --tb=short
           --confcutdir=backend/ci_tests
