@@ -35,6 +35,7 @@ jobs:
        github.ref == 'refs/heads/main' &&
        inputs.target == 'staging') ||
       (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'staging')
     concurrency:
@@ -94,6 +95,16 @@ jobs:
           test -n "$CURRENT_HF_SHA"
           echo "sha=$CURRENT_HF_SHA" >> "$GITHUB_OUTPUT"
 
+      - name: Stamp staging deployment attempt
+        env:
+          REVISION_SHA: ${{ steps.staging-revision.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$REVISION_SHA"
+          printf 'target=staging\ngithub_sha=%s\ngithub_run_id=%s\ngithub_run_attempt=%s\n' \
+            "$REVISION_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
+            > .dentix-hf-deploy-revision
+
       - name: Sync tested revision to Hugging Face staging
         uses: huggingface/hub-sync@v0.1.0
         with:
@@ -117,10 +128,11 @@ jobs:
           test -n "$PREVIOUS_HF_SHA"
 
           # hub-sync finishes when repository contents are updated, before the
-          # replacement Space container is necessarily live. The old healthy
-          # replica can keep serving requests during that rebuild. Wait until
-          # Hugging Face reports a different repo revision whose runtime is
-          # actually RUNNING before health checks or production-like smoke.
+          # replacement Space container is necessarily live. Each deployment
+          # attempt stamps a unique mirrored marker before sync, so a successful
+          # sync must create a new HF revision even for an otherwise no-op retry.
+          # Wait until that new revision is actually RUNNING before health checks
+          # or production-like smoke can touch the Space.
           NEW_HF_SHA=''
           for attempt in $(seq 1 90); do
             SPACE_STATE="$(
@@ -238,6 +250,7 @@ jobs:
        github.ref == 'refs/heads/main' &&
        inputs.target == 'production') ||
       (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main')
     outputs:
@@ -344,6 +357,16 @@ jobs:
           test -n "$CURRENT_HF_SHA"
           echo "sha=$CURRENT_HF_SHA" >> "$GITHUB_OUTPUT"
 
+      - name: Stamp production deployment attempt
+        env:
+          REVISION_SHA: ${{ steps.production-revision.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$REVISION_SHA"
+          printf 'target=production\ngithub_sha=%s\ngithub_run_id=%s\ngithub_run_attempt=%s\n' \
+            "$REVISION_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
+            > .dentix-hf-deploy-revision
+
       - name: Sync tested revision to Hugging Face production
         uses: huggingface/hub-sync@v0.1.0
         with:
@@ -367,9 +390,10 @@ jobs:
           test -n "$PREVIOUS_HF_SHA"
 
           # hub-sync returns after the repository update, while the previous
-          # container can still answer health checks for a short period. Wait
-          # until Hugging Face reports a new revision that is actually RUNNING
-          # so a stale healthy container cannot produce a false-positive CD.
+          # container can still answer health checks for a short period. Each
+          # deployment attempt stamps a unique mirrored marker before sync, so
+          # a successful sync must create a new HF revision. Wait until that
+          # revision is RUNNING so a stale healthy container cannot pass CD.
           NEW_HF_SHA=''
           for attempt in $(seq 1 90); do
             SPACE_STATE="$(
