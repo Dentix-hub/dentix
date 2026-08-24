@@ -35,6 +35,7 @@ jobs:
        github.ref == 'refs/heads/main' &&
        inputs.target == 'staging') ||
       (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'staging')
     concurrency:
@@ -76,6 +77,34 @@ jobs:
             -f description='HF staging deploy and production-like smoke are running' \
             -f target_url="$RUN_URL"
 
+      - name: Capture current Hugging Face staging revision
+        id: hf-staging-before
+        env:
+          HF_STAGING_SPACE: ${{ secrets.HF_STAGING_SPACE }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$HF_STAGING_SPACE"
+          test -n "$HF_TOKEN"
+          CURRENT_HF_SHA="$(
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer ${HF_TOKEN}" \
+              "https://huggingface.co/api/spaces/${HF_STAGING_SPACE}" |
+              jq --raw-output '.sha // empty'
+          )"
+          test -n "$CURRENT_HF_SHA"
+          echo "sha=$CURRENT_HF_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Stamp staging deployment attempt
+        env:
+          REVISION_SHA: ${{ steps.staging-revision.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$REVISION_SHA"
+          printf 'target=staging\ngithub_sha=%s\ngithub_run_id=%s\ngithub_run_attempt=%s\n' \
+            "$REVISION_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
+            > .dentix-hf-deploy-revision
+
       - name: Sync tested revision to Hugging Face staging
         uses: huggingface/hub-sync@v0.1.0
         with:
@@ -85,17 +114,62 @@ jobs:
           repo_type: space
           space_sdk: docker
 
-      - name: Verify staging health
+      - name: Verify staging health on new Hugging Face runtime
         env:
           STAGING_BACKEND_URL: ${{ secrets.STAGING_BACKEND_URL }}
+          HF_STAGING_SPACE: ${{ secrets.HF_STAGING_SPACE }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          PREVIOUS_HF_SHA: ${{ steps.hf-staging-before.outputs.sha }}
         run: |
           set -euo pipefail
           test -n "$STAGING_BACKEND_URL"
+          test -n "$HF_STAGING_SPACE"
+          test -n "$HF_TOKEN"
+          test -n "$PREVIOUS_HF_SHA"
+
+          # hub-sync finishes when repository contents are updated, before the
+          # replacement Space container is necessarily live. Each deployment
+          # attempt stamps a unique mirrored marker before sync, so a successful
+          # sync must create a new HF revision even for an otherwise no-op retry.
+          # Wait until that new revision is actually RUNNING before health checks
+          # or production-like smoke can touch the Space.
+          NEW_HF_SHA=''
+          for attempt in $(seq 1 90); do
+            SPACE_STATE="$(
+              curl --fail --silent --show-error \
+                --header "Authorization: Bearer ${HF_TOKEN}" \
+                "https://huggingface.co/api/spaces/${HF_STAGING_SPACE}"
+            )"
+            NEW_HF_SHA="$(jq --raw-output '.sha // empty' <<< "$SPACE_STATE")"
+            RUNTIME_STAGE="$(
+              jq --raw-output '.runtime.stage // "UNKNOWN"' <<< "$SPACE_STATE"
+            )"
+            if [ -n "$NEW_HF_SHA" ] && \
+               [ "$NEW_HF_SHA" != "$PREVIOUS_HF_SHA" ] && \
+               [ "$RUNTIME_STAGE" = 'RUNNING' ]; then
+              break
+            fi
+            if [ -n "$NEW_HF_SHA" ] && \
+               [ "$NEW_HF_SHA" != "$PREVIOUS_HF_SHA" ] && \
+               [ "$RUNTIME_STAGE" = 'RUNTIME_ERROR' ]; then
+              echo "Hugging Face staging runtime entered RUNTIME_ERROR." >&2
+              jq --raw-output '.runtime.errorMessage // "No runtime error message"' \
+                <<< "$SPACE_STATE" >&2
+              exit 1
+            fi
+            if [ "$attempt" -eq 90 ]; then
+              echo "Timed out waiting for the new Hugging Face staging revision to run." >&2
+              exit 1
+            fi
+            sleep 10
+          done
+
           HEALTH_URL="${STAGING_BACKEND_URL%/}"
           case "$HEALTH_URL" in
-            */api/v1/health) ;;
-            */api/v1) HEALTH_URL="${HEALTH_URL}/health" ;;
-            *) HEALTH_URL="${HEALTH_URL}/api/v1/health" ;;
+            */api/v1/health/ready) ;;
+            */api/v1/health) HEALTH_URL="${HEALTH_URL}/ready" ;;
+            */api/v1) HEALTH_URL="${HEALTH_URL}/health/ready" ;;
+            *) HEALTH_URL="${HEALTH_URL}/api/v1/health/ready" ;;
           esac
           curl --fail --show-error --retry 20 --retry-delay 12 --retry-all-errors "$HEALTH_URL"
 
@@ -107,6 +181,7 @@ jobs:
           set -euo pipefail
           BASE_URL="${STAGING_BACKEND_URL%/}"
           case "$BASE_URL" in
+            */api/v1/health/ready) BASE_URL="${BASE_URL%/api/v1/health/ready}" ;;
             */api/v1/health) BASE_URL="${BASE_URL%/api/v1/health}" ;;
             */api/v1) BASE_URL="${BASE_URL%/api/v1}" ;;
           esac
@@ -175,6 +250,7 @@ jobs:
        github.ref == 'refs/heads/main' &&
        inputs.target == 'production') ||
       (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.head_branch == 'main')
     outputs:
@@ -281,6 +357,16 @@ jobs:
           test -n "$CURRENT_HF_SHA"
           echo "sha=$CURRENT_HF_SHA" >> "$GITHUB_OUTPUT"
 
+      - name: Stamp production deployment attempt
+        env:
+          REVISION_SHA: ${{ steps.production-revision.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$REVISION_SHA"
+          printf 'target=production\ngithub_sha=%s\ngithub_run_id=%s\ngithub_run_attempt=%s\n' \
+            "$REVISION_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
+            > .dentix-hf-deploy-revision
+
       - name: Sync tested revision to Hugging Face production
         uses: huggingface/hub-sync@v0.1.0
         with:
@@ -304,9 +390,10 @@ jobs:
           test -n "$PREVIOUS_HF_SHA"
 
           # hub-sync returns after the repository update, while the previous
-          # container can still answer health checks for a short period. Wait
-          # until Hugging Face reports a new revision that is actually RUNNING
-          # so a stale healthy container cannot produce a false-positive CD.
+          # container can still answer health checks for a short period. Each
+          # deployment attempt stamps a unique mirrored marker before sync, so
+          # a successful sync must create a new HF revision. Wait until that
+          # revision is RUNNING so a stale healthy container cannot pass CD.
           NEW_HF_SHA=''
           for attempt in $(seq 1 90); do
             SPACE_STATE="$(

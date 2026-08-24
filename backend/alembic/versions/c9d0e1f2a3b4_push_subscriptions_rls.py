@@ -8,9 +8,9 @@ Per-installation Web Push subscriptions (PWA master plan §12.2).
 
 - One row per installation; re-subscription revokes the previous row for the
   same endpoint/device instead of overwriting a scalar token column.
-- Long-lived delivery eligibility is bound to the stable session identity
-  (`session_sid` = users.active_session_id), never to the rotating
-  user_sessions.id row.
+- Delivery eligibility is bound to the device-scoped JWT session identity
+  (`session_sid`), which maps to `user_sessions.device_info` and stays stable
+  across refresh-token rotation for that device.
 - Tenant-scoped like every end-user table; PostgreSQL gets the same
   ENABLE + FORCE RLS contract as the rest of the tenant data.
 """
@@ -75,8 +75,6 @@ def upgrade() -> None:
     bypass_expr = (
         "CAST(NULLIF(current_setting('rls.bypass_rls', true), '') AS BOOLEAN) = true"
     )
-    # Rows without a tenant (super-admin installations) are only visible to
-    # their owner paths via the bypass flag; tenant sessions never see them.
     op.execute('ALTER TABLE "push_subscriptions" ENABLE ROW LEVEL SECURITY')
     op.execute('ALTER TABLE "push_subscriptions" FORCE ROW LEVEL SECURITY')
     op.execute(

@@ -34,8 +34,6 @@ export default function NetworkStatusBanner() {
     const state = useConnectivityStore((s) => s.state);
 
     useEffect(() => {
-        // Blocked offline writes announce themselves so the user gets one
-        // clear, reassuring message (nothing was sent, nothing was lost).
         const onBlocked = () => toast.error(t('connectivity.write_blocked'));
         window.addEventListener(OFFLINE_WRITE_BLOCKED_EVENT, onBlocked);
         return () => window.removeEventListener(OFFLINE_WRITE_BLOCKED_EVENT, onBlocked);
@@ -53,7 +51,7 @@ export default function NetworkStatusBanner() {
         <div
             role="status"
             data-testid="network-status-banner"
-            className={`fixed top-[max(0.5rem,env(safe-area-inset-top))] start-4 end-4 md:start-auto md:w-96 z-[60]
+            className={`fixed top-[max(0.5rem,env(safe-area-inset-top))] start-4 end-4 md:start-auto md:w-96 z-system
                         flex items-center gap-3 rounded-xl px-4 py-3 shadow-lg
                         ${BANNER_STYLES[state]}`}
         >

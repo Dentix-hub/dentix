@@ -27,13 +27,12 @@ and delivery is skipped safely — subscriptions still register.
 
 ## Session semantics
 
-- Subscriptions bind to the stable session identity (`users.active_session_id`).
-- Delivery eligibility is re-checked at send time against the user's current
-  active session; stale sessions are skipped, never delivered to.
-- Logout revokes the logging-out session's subscriptions
-  (`revoke_for_session` in the logout router).
-- Permanent endpoint invalidation (HTTP 404/410 from the push service)
-  revokes the subscription automatically.
+- Subscriptions bind to the device-scoped JWT `sid` stored as `session_sid`.
+- That sid maps to `UserSession.device_info` and remains stable across refresh-token rotation for the same device.
+- Multiple active device sessions can receive push notifications concurrently.
+- Delivery eligibility is re-checked at send time against the corresponding active, unexpired `UserSession`; stale subscriptions are revoked and never delivered to.
+- Logging out one device revokes only that device session. Other device sessions remain valid.
+- Permanent endpoint invalidation (HTTP 404/410 from the push service) revokes the subscription automatically.
 
 ## Legacy Firebase
 

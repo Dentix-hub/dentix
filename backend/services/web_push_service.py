@@ -7,9 +7,10 @@ Provider boundary:
             `-- FirebaseNativeProvider   # legacy/native best-effort path
 
 Push is a delivery channel only: the durable notification record remains the
-source of truth. Delivery eligibility follows the single-active-session
-policy: a subscription is deliverable only while its stable `session_sid`
-still matches the user's `active_session_id`.
+source of truth. Delivery eligibility is device-scoped: a subscription is
+deliverable only while its `session_sid` resolves to an active UserSession for
+that user. Multiple active devices can therefore receive notifications without
+revoking or suppressing one another.
 """
 
 import abc
@@ -24,24 +25,22 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import models
+from .auth_service import AuthService
 
 logger = logging.getLogger("smart_clinic")
 
-# Abuse control: a single user does not need unbounded installations.
 MAX_ACTIVE_SUBSCRIPTIONS_PER_USER = 8
 
 
 class DeliveryResult(str, Enum):
     SENT = "sent"
-    INVALID = "invalid"  # permanent endpoint invalidation -> revoke
-    RETRYABLE = "retryable"  # transient failure -> keep subscription
+    INVALID = "invalid"
+    RETRYABLE = "retryable"
     NOT_CONFIGURED = "not_configured"
-    INELIGIBLE = "ineligible"  # stale/revoked session -> never deliver
+    INELIGIBLE = "ineligible"
 
 
 class NotificationDeliveryProvider(abc.ABC):
-    """A push transport behind one narrow interface."""
-
     name: str = "abstract"
 
     @abc.abstractmethod
@@ -56,8 +55,6 @@ class NotificationDeliveryProvider(abc.ABC):
 
 
 class WebPushProvider(NotificationDeliveryProvider):
-    """Canonical PWA path: VAPID-signed standards-based Web Push."""
-
     name = "web_push"
 
     def __init__(self) -> None:
@@ -80,13 +77,11 @@ class WebPushProvider(NotificationDeliveryProvider):
             return DeliveryResult.NOT_CONFIGURED
 
         try:
-            from pywebpush import WebPushException, webpush  # noqa: WPS433 (runtime dep)
+            from pywebpush import webpush
         except ImportError:
             logger.error("pywebpush is not installed; web push delivery disabled.")
             return DeliveryResult.NOT_CONFIGURED
 
-        # Lock-screen payload stays non-sensitive by default (plan §12.7):
-        # callers must only pass generic titles/bodies, never PHI.
         payload = json.dumps({
             "notification": {
                 "title": title,
@@ -124,13 +119,10 @@ class WebPushProvider(NotificationDeliveryProvider):
 
 
 class FirebaseNativeProvider(NotificationDeliveryProvider):
-    """Legacy/native best-effort path behind the same boundary."""
-
     name = "firebase"
 
     def __init__(self) -> None:
-        from ..core.firebase_client import firebase_client  # local import: single bootstrap
-
+        from ..core.firebase_client import firebase_client
         self._client = firebase_client
 
     async def send(
@@ -176,11 +168,6 @@ class WebPushService:
         session_sid: str,
         data,
     ) -> models.PushSubscription:
-        """Register (or replace) the calling installation's subscription.
-
-        Identity fields (user_id / tenant_id / session_sid) always come from
-        the authenticated request context — never from the payload.
-        """
         now = _utcnow()
 
         existing = (
@@ -263,7 +250,6 @@ class WebPushService:
         p256dh: str,
         auth_key: str,
     ) -> Optional[models.PushSubscription]:
-        """Rotate keys for an existing active subscription (pushsubscriptionchange)."""
         subscription = (
             await db.execute(
                 select(models.PushSubscription).where(
@@ -332,7 +318,6 @@ class WebPushService:
 
     @staticmethod
     async def revoke_for_session(db: AsyncSession, user_id: int, session_sid: str) -> int:
-        """Disassociate installations when their session ends or is replaced."""
         now = _utcnow()
         subscriptions = (
             await db.execute(
@@ -357,7 +342,6 @@ class WebPushService:
         body: str,
         data: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, int]:
-        """Fan a generic, PHI-free notification out to eligible installations."""
         user = (
             await db.execute(
                 select(models.User).where(models.User.id == user_id, models.User.is_active == True)  # noqa: E712
@@ -370,10 +354,13 @@ class WebPushService:
         summary = {"sent": 0, "revoked": 0, "skipped": 0}
 
         for subscription in subscriptions:
-            # Single-active-session policy: only the installation bound to the
-            # user's current stable session identity may receive delivery.
-            if subscription.session_sid != user.active_session_id:
-                summary["skipped"] += 1
+            active_session = await AuthService.get_active_session_by_sid(
+                db, user_id, subscription.session_sid
+            )
+            if active_session is None:
+                subscription.revoked_at = _utcnow()
+                subscription.is_active = False
+                summary["revoked"] += 1
                 continue
 
             provider = get_delivery_provider(subscription.provider)
@@ -390,9 +377,7 @@ class WebPushService:
                 summary["skipped"] += 1
 
         await db.commit()
-        logger.info(
-            "Push fanout for user %s: %s", user_id, summary
-        )
+        logger.info("Push fanout for user %s: %s", user_id, summary)
         return summary
 
 

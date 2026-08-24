@@ -1,7 +1,8 @@
-"""Tests for the session-aware push subscription stack (plan §12 / PR-PWA-05)."""
+"""Tests for the device-session-aware push subscription stack (plan §12 / PR-PWA-05)."""
 
+import hashlib
 import uuid
-from types import SimpleNamespace
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import select
@@ -47,6 +48,23 @@ async def _make_user(async_session, username="pushdoc", with_tenant=True):
     return user
 
 
+async def _activate_session(async_session, user, sid):
+    token_hash = hashlib.sha256(f"{sid}-{uuid.uuid4().hex}".encode()).hexdigest()
+    session = models.UserSession(
+        user_id=user.id,
+        token_hash=token_hash,
+        ip_address="127.0.0.1",
+        user_agent="pytest",
+        device_info=sid,
+        expires_at=(datetime.now(timezone.utc) + timedelta(days=7)).replace(tzinfo=None),
+        is_active=True,
+    )
+    async_session.add(session)
+    await async_session.commit()
+    await async_session.refresh(session)
+    return session
+
+
 @pytest.fixture
 async def async_session(async_engine_fixture):
     maker = async_sessionmaker(bind=async_engine_fixture, expire_on_commit=False)
@@ -77,21 +95,19 @@ def scripted_provider(monkeypatch):
 
 
 async def test_second_device_does_not_overwrite_first(async_session):
-    """Multi-install model: two devices coexist (plan §12.2)."""
     user = await _make_user(async_session)
 
     first = await WebPushService.register_subscription(
         async_session, user, "sid-1", _subscription_data("https://push.example/dev-1", "device-1")
     )
     second = await WebPushService.register_subscription(
-        async_session, user, "sid-1", _subscription_data("https://push.example/dev-2", "device-2")
+        async_session, user, "sid-2", _subscription_data("https://push.example/dev-2", "device-2")
     )
 
     active = await WebPushService.list_user_subscriptions(async_session, user.id)
     assert len(active) == 2
     assert {first.endpoint, second.endpoint} == {s.endpoint for s in active}
-    assert first.revoked_at is None
-    assert second.revoked_at is None
+    assert {s.session_sid for s in active} == {"sid-1", "sid-2"}
 
 
 async def test_resubscribing_same_endpoint_replaces_not_duplicates(async_session):
@@ -129,16 +145,13 @@ async def test_rejects_revoking_another_users_subscription(async_session):
         async_session, owner, "sid-owner", _subscription_data()
     )
 
-    revoked = await WebPushService.revoke_subscription(
-        async_session, attacker.id, subscription.id
-    )
+    revoked = await WebPushService.revoke_subscription(async_session, attacker.id, subscription.id)
     assert revoked is False
     still_active = await WebPushService.list_user_subscriptions(async_session, owner.id)
     assert len(still_active) == 1
 
 
-async def test_session_replacement_disassociates_installations(async_session):
-    """Logout/session replacement must deactivate the affected sid (plan §2.11)."""
+async def test_session_revocation_disassociates_only_that_installation(async_session):
     user = await _make_user(async_session)
 
     await WebPushService.register_subscription(
@@ -155,37 +168,35 @@ async def test_session_replacement_disassociates_installations(async_session):
     assert [s.endpoint for s in active] == ["https://push.example/new"]
 
 
-async def test_fanout_skips_stale_session_and_delivers_to_active(async_session, scripted_provider):
+async def test_fanout_delivers_to_all_active_devices_and_revokes_stale(async_session, scripted_provider):
     user = await _make_user(async_session)
-    user.active_session_id = "current-sid"
-    async_session.add(user)
-    await async_session.commit()
+    await _activate_session(async_session, user, "sid-a")
+    await _activate_session(async_session, user, "sid-b")
 
     await WebPushService.register_subscription(
-        async_session, user, "current-sid", _subscription_data("https://push.example/eligible")
+        async_session, user, "sid-a", _subscription_data("https://push.example/a")
     )
-    stale = await WebPushService.register_subscription(
+    await WebPushService.register_subscription(
+        async_session, user, "sid-b", _subscription_data("https://push.example/b")
+    )
+    await WebPushService.register_subscription(
         async_session, user, "stale-sid", _subscription_data("https://push.example/stale")
     )
-    stale.revoked_at = None
-    stale.is_active = True
-    await async_session.commit()
 
     provider = scripted_provider(DeliveryResult.SENT)
     summary = await WebPushService.send_to_user(
         async_session, user.id, "DENTIX", "لديك تحديث جديد في جدول المواعيد"
     )
 
-    assert summary["sent"] == 1
-    assert summary["skipped"] >= 1
-    assert provider.calls == ["https://push.example/eligible"]
+    assert summary == {"sent": 2, "revoked": 1, "skipped": 0}
+    assert set(provider.calls) == {"https://push.example/a", "https://push.example/b"}
+    active = await WebPushService.list_user_subscriptions(async_session, user.id)
+    assert {s.endpoint for s in active} == {"https://push.example/a", "https://push.example/b"}
 
 
 async def test_invalid_endpoint_is_revoked_after_permanent_failure(async_session, scripted_provider):
     user = await _make_user(async_session)
-    user.active_session_id = "sid-1"
-    async_session.add(user)
-    await async_session.commit()
+    await _activate_session(async_session, user, "sid-1")
 
     await WebPushService.register_subscription(
         async_session, user, "sid-1", _subscription_data("https://push.example/gone")
@@ -200,7 +211,7 @@ async def test_invalid_endpoint_is_revoked_after_permanent_failure(async_session
 
 async def test_inactive_user_never_receives_delivery(async_session, scripted_provider):
     user = await _make_user(async_session)
-    user.active_session_id = "sid-1"
+    await _activate_session(async_session, user, "sid-1")
     user.is_active = False
     async_session.add(user)
     await async_session.commit()
@@ -234,10 +245,7 @@ def _auth_token_for(user, sid=None):
 async def _seed_api_user(async_session):
     user = await _make_user(async_session, username="apiuser")
     sid = f"sid-{uuid.uuid4().hex[:12]}"
-    user.active_session_id = sid
-    async_session.add(user)
-    await async_session.commit()
-    await async_session.refresh(user)
+    await _activate_session(async_session, user, sid)
     return user, sid
 
 
@@ -310,8 +318,6 @@ async def test_me_lists_only_active_and_owned(client, async_engine_fixture):
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 200
-        # Active-only listing: the revoked own row must not appear, and the
-        # other user's subscription must never be visible.
         endpoints = [item["endpoint"] for item in response.json()["data"]]
         assert "https://push.example/mine" not in endpoints
         assert "https://push.example/theirs" not in endpoints

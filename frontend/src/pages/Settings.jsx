@@ -169,7 +169,7 @@ export default function Settings() {
             </div>
             {/* Toast Message */}
             {message && (
-                <div className={`fixed bottom-[max(2rem,env(safe-area-inset-bottom))] start-8 p-4 rounded-2xl flex items-center gap-3 shadow-2xl animate-in slide-in-from-bottom-10 z-[100] ${message.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+                <div className={`fixed bottom-[max(2rem,env(safe-area-inset-bottom))] start-8 p-4 rounded-2xl flex items-center gap-3 shadow-2xl animate-in slide-in-from-bottom-10 z-toast ${message.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
                     {message.type === 'success' ? <CheckCircle size={24} /> : <AlertTriangle size={24} />}
                     <span className="font-bold text-lg">{message.text}</span>
                 </div>
@@ -177,4 +177,3 @@ export default function Settings() {
         </div>
     );
 }
-
