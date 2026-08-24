@@ -7,14 +7,13 @@ import { useAuthStore } from '@/store/auth.store';
 import { useTenantStore } from '@/store/tenant.store';
 
 const apiLoginMock = vi.hoisted(() => vi.fn());
-const hasSessionCookieHintMock = vi.hoisted(() => vi.fn(() => false));
+const getSessionSilentMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/api', () => ({
     api: { post: vi.fn() },
     login: apiLoginMock,
     registerClinic: vi.fn(),
-    getSessionSilent: vi.fn(),
-    hasSessionCookieHint: hasSessionCookieHintMock,
+    getSessionSilent: getSessionSilentMock,
 }));
 
 vi.mock('@/utils', () => ({ logout: vi.fn() }));
@@ -40,9 +39,15 @@ function LoginHarness() {
     );
 }
 
+function SessionHarness() {
+    const auth = useAuth();
+    return <div>{auth.isAuthenticated ? 'Session restored' : 'Anonymous'}</div>;
+}
+
 describe('AuthProvider login lifecycle', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        getSessionSilentMock.mockRejectedValue({ response: { status: 401 } });
         useAuthStore.setState({
             user: null,
             isAuthLoading: true,
@@ -51,6 +56,25 @@ describe('AuthProvider login lifecycle', () => {
             tempToken: null,
         });
         useTenantStore.getState().clearTenant();
+    });
+
+    it('always asks the server to restore an httpOnly PWA session on cold start', async () => {
+        const fetchTenant = vi.fn().mockResolvedValue(undefined);
+        useTenantStore.setState({ fetchTenant });
+        getSessionSilentMock.mockResolvedValue({
+            data: { id: 8, name: 'Clinic Admin', role: 'admin', tenant_id: 44 },
+        });
+
+        render(
+            <AuthProvider>
+                <SessionHarness />
+            </AuthProvider>
+        );
+
+        expect(await screen.findByText('Session restored')).toBeInTheDocument();
+        expect(getSessionSilentMock).toHaveBeenCalledTimes(1);
+        expect(fetchTenant).toHaveBeenCalledTimes(1);
+        expect(useAuthStore.getState().user).toMatchObject({ id: 8, tenant_id: 44 });
     });
 
     it('does not mount the authenticated dashboard before tenant hydration finishes', async () => {
