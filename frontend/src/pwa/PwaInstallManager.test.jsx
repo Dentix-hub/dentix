@@ -4,14 +4,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const pwaMocks = vi.hoisted(() => ({
     setNeedRefresh: vi.fn(),
     updateServiceWorker: vi.fn(),
+    registerOptions: null,
 }));
 
 vi.mock('virtual:pwa-register/react', () => ({
-    useRegisterSW: () => ({
-        needRefresh: [false, pwaMocks.setNeedRefresh],
-        offlineReady: [false, vi.fn()],
-        updateServiceWorker: pwaMocks.updateServiceWorker,
-    }),
+    useRegisterSW: (options) => {
+        pwaMocks.registerOptions = options;
+        return ({
+            needRefresh: [false, pwaMocks.setNeedRefresh],
+            offlineReady: [false, vi.fn()],
+            updateServiceWorker: pwaMocks.updateServiceWorker,
+        });
+    },
 }));
 
 vi.mock('react-i18next', () => ({
@@ -49,6 +53,7 @@ describe('PwaInstallManager platform-aware install UX', () => {
         vi.useFakeTimers();
         window.localStorage.clear();
         useInstallStore.getState().resetForTests();
+        pwaMocks.registerOptions = null;
         setUserAgent(originalUserAgent);
     });
 
@@ -130,5 +135,51 @@ describe('PwaInstallManager platform-aware install UX', () => {
         });
         expect(useInstallStore.getState().installed).toBe(true);
         window.matchMedia = previousMatchMedia;
+    });
+
+    it('checks for a service-worker update when a suspended PWA regains focus', () => {
+        const registration = {
+            installing: null,
+            update: vi.fn().mockResolvedValue(undefined),
+        };
+        const { unmount } = render(<PwaInstallManager />);
+
+        act(() => {
+            pwaMocks.registerOptions.onRegisteredSW('/sw.js', registration);
+        });
+        act(() => {
+            window.dispatchEvent(new Event('focus'));
+        });
+
+        expect(registration.update).toHaveBeenCalledTimes(1);
+
+        unmount();
+        act(() => {
+            vi.advanceTimersByTime(60 * 60 * 1000);
+            window.dispatchEvent(new Event('focus'));
+        });
+        expect(registration.update).toHaveBeenCalledTimes(1);
+    });
+
+    it('checks periodically but throttles duplicate lifecycle triggers', () => {
+        const registration = {
+            installing: null,
+            update: vi.fn().mockResolvedValue(undefined),
+        };
+        render(<PwaInstallManager />);
+
+        act(() => {
+            pwaMocks.registerOptions.onRegisteredSW('/sw.js', registration);
+        });
+        act(() => {
+            window.dispatchEvent(new Event('online'));
+            window.dispatchEvent(new Event('focus'));
+        });
+        expect(registration.update).toHaveBeenCalledTimes(1);
+
+        act(() => {
+            vi.advanceTimersByTime(60 * 60 * 1000);
+        });
+        expect(registration.update).toHaveBeenCalledTimes(2);
     });
 });
