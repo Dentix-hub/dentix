@@ -47,6 +47,7 @@ dependencies = [
   "ddtrace>=2.0.0",
   "pgvector>=0.2.0",
   "rls>=0.3.0",
+  "pywebpush>=2.4.0",
 ]
 
 [dependency-groups]

@@ -2,7 +2,7 @@
 Tests for authentication hardening features:
 - Account lockout after 5 failed attempts
 - Refresh token rotation (single-use tokens)
-- Single-session enforcement
+- Multi-device session support
 - 2FA (TOTP) completion flow
 """
 import uuid
@@ -128,10 +128,10 @@ def test_refresh_token_rotation(db_session, client, test_tenant):
     assert fail_resp.status_code == 401, f"Old token should be rejected, got {fail_resp.status_code} — {fail_resp.text[:200]}"
 
 
-def test_single_session_second_login_invalidates_first_token(
+def test_second_login_keeps_first_device_token_active(
     db_session, client, test_tenant
 ):
-    """After logging in again, the previous access token must be rejected."""
+    """A second login for the same account must not revoke the first device session."""
     from backend.auth import get_password_hash
 
     uname = f"session_user_{uuid.uuid4().hex[:8]}"
@@ -172,17 +172,17 @@ def test_single_session_second_login_invalidates_first_token(
     assert token2 is not None
     assert token2 != token1
 
-    stale = client.get(
+    first_device = client.get(
         "/api/v1/users/me",
         headers={"Authorization": f"Bearer {token1}"},
     )
-    assert stale.status_code == 401
+    assert first_device.status_code == 200
 
-    ok = client.get(
+    second_device = client.get(
         "/api/v1/users/me",
         headers={"Authorization": f"Bearer {token2}"},
     )
-    assert ok.status_code == 200
+    assert second_device.status_code == 200
 
 
 def test_2fa_wrong_code_then_correct(db_session, client, test_tenant):

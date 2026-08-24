@@ -216,6 +216,9 @@ frontend/public/*
 frontend/public/icons/*
 !frontend/public/icons/icon-192.png
 !frontend/public/icons/icon-512.png
+!frontend/public/icons/icon-192-maskable.png
+!frontend/public/icons/icon-512-maskable.png
+!frontend/public/icons/apple-touch-icon-180.png
 
 # Storybook build outputs
 .out

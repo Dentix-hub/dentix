@@ -69,6 +69,36 @@ const NotificationBell = () => {
         return undefined;
     }, [fetchNotifications, user]);
 
+    // Push convergence (plan §13.1): the service worker hands foreground
+    // pushes to the app instead of raising a duplicate system notification.
+    useEffect(() => {
+        if (!('serviceWorker' in navigator)) return undefined;
+        let cancelled = false;
+        const onMessage = (event) => {
+            if (cancelled || event.data?.type !== 'PUSH_RECEIVED') return;
+            fetchNotifications();
+        };
+        navigator.serviceWorker.addEventListener('message', onMessage);
+        return () => {
+            cancelled = true;
+            navigator.serviceWorker.removeEventListener('message', onMessage);
+        };
+    }, [fetchNotifications]);
+
+    // Badging API (plan §13.4): progressive enhancement, never required.
+    useEffect(() => {
+        if (typeof navigator === 'undefined') return;
+        try {
+            if (unreadCount > 0 && 'setAppBadge' in navigator) {
+                navigator.setAppBadge(unreadCount).catch(() => {});
+            } else if (unreadCount === 0 && 'clearAppBadge' in navigator) {
+                navigator.clearAppBadge().catch(() => {});
+            }
+        } catch {
+            // Badging is unsupported on this platform; the bell dot is the fallback.
+        }
+    }, [unreadCount]);
+
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (!isCompact && dropdownRef.current && !dropdownRef.current.contains(event.target)) {

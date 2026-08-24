@@ -270,7 +270,7 @@ const Layout = () => {
                     aria-label={t('common.main_navigation', 'Main navigation')}
                     aria-hidden={!isDesktop && !sidebarOpen}
                     className={`
-                        absolute inset-y-0 start-0 z-50 flex min-w-0 flex-col border-e border-border/50 bg-white shadow-2xl shadow-black/5
+                        absolute inset-y-0 start-0 z-50 flex min-w-0 flex-col border-e border-border/50 bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl shadow-black/5
                         transition-[transform,width] duration-300 ease-in-out dark:bg-slate-900 lg:static lg:translate-x-0
                         ${sidebarOpen ? 'translate-x-0' : 'ltr:-translate-x-full rtl:translate-x-full'}
                         ${sidebarWidthClass}
@@ -426,7 +426,7 @@ const Layout = () => {
                 </aside>
 
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background/50">
-                    <header className="sticky top-0 z-30 flex min-h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-surface/95 px-2.5 py-2 shadow-sm backdrop-blur-xl sm:px-4 md:px-6 lg:px-8">
+                    <header className="sticky top-0 z-30 flex min-h-16 shrink-0 items-center gap-2 border-b border-border/60 bg-surface/95 pb-2 shadow-sm backdrop-blur-xl ps-2.5 pe-2.5 pt-[max(0.5rem,env(safe-area-inset-top))] sm:ps-4 sm:pe-4 md:ps-6 md:pe-6 lg:ps-8 lg:pe-8">
                         <div className="flex min-w-0 shrink items-center gap-1.5 lg:hidden sm:gap-2">
                             <button
                                 ref={menuButtonRef}

@@ -388,6 +388,7 @@ from backend.routers import (
     inventory_smart,  # Smart Inventory Suggestions
     financials,  # Smart Costing & Financials
     metrics,  # Metrics & Profitability
+    push,  # PWA Web Push subscriptions (plan §12)
 )
 
 # --- Register Exception Handlers ---
@@ -423,6 +424,7 @@ app.include_router(settings.router, prefix=API_V1_STR)
 app.include_router(procedures.router, prefix=API_V1_STR)
 app.include_router(dashboard.router, prefix=API_V1_STR)
 app.include_router(notifications.router, prefix=API_V1_STR)
+app.include_router(push.router, prefix=API_V1_STR)
 app.include_router(admin_tenants.router, prefix=API_V1_STR)
 app.include_router(admin_subscriptions.router, prefix=API_V1_STR)
 app.include_router(admin_system.router, prefix=API_V1_STR)
