@@ -243,6 +243,18 @@ jobs:
       - name: Build check
         run: cd frontend && npm run build
 
+      - name: PWA artifact baseline
+        working-directory: frontend
+        run: node scripts/pwa-artifact-report.mjs dist
+
+      - name: Upload PWA baseline report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pwa-baseline
+          path: frontend/dist/pwa-baseline.json
+          if-no-files-found: ignore
+
       - name: Run frontend tests
         timeout-minutes: 8
         working-directory: frontend

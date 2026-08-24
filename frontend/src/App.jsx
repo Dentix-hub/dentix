@@ -69,6 +69,8 @@ const InsuranceProviders = lazy(() => import('./pages/admin/InsuranceProviders')
 import { useUIStore } from '@/store/ui.store';
 import ImpersonationBar from '@/components/common/ImpersonationBar';
 import { InstallPrompt } from '@/components/InstallPrompt';
+import NetworkStatusBanner from '@/shared/ui/NetworkStatusBanner';
+import { BUILD_INFO } from '@/config/buildInfo';
 
 function AppRoutes() {
     const { isAuthenticated, isBooting } = useAuth();
@@ -77,7 +79,7 @@ function AppRoutes() {
     const { i18n } = useTranslation();
 
     useEffect(() => {
-        logger.log(`[DENTIX] Build ID: 20260508-1447`);
+        logger.log(`[DENTIX] Build: ${BUILD_INFO.shaShort || 'unknown'} env=${BUILD_INFO.environment || 'unknown'} at=${BUILD_INFO.builtAt || 'n/a'}`);
     }, []);
 
     useEffect(() => {
@@ -109,6 +111,7 @@ function AppRoutes() {
             <>
                 <ImpersonationBar />
                 <BackgroundWrapper />
+                <NetworkStatusBanner />
                 <Suspense fallback={<LoadingSpinner />}>
                     <Routes>
                         <Route path="/" element={<Login isDarkMode={darkMode} toggleDarkMode={toggleDarkMode} />} />
@@ -130,6 +133,7 @@ function AppRoutes() {
             <>
                 <ImpersonationBar />
                 <BackgroundWrapper />
+                <NetworkStatusBanner />
                 <Suspense fallback={<LoadingSpinner />}>
                     <Routes>
                         <Route path="/print/invoice/:id" element={<PrintInvoice />} />

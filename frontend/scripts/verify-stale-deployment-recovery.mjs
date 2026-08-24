@@ -13,13 +13,17 @@ const distA = path.join(tempRoot, 'dist-a');
 const distB = path.join(tempRoot, 'dist-b');
 
 function runBuild(outDir) {
+  // npm is npm.cmd on Windows; spawnSync cannot resolve .cmd shims without it,
+  // and Node >= 20.12 additionally requires shell: true to spawn .cmd files.
+  const isWindows = process.platform === 'win32';
   execFileSync(
-    'npm',
+    isWindows ? 'npm.cmd' : 'npm',
     ['run', 'build', '--', '--outDir', outDir, '--emptyOutDir'],
     {
       cwd: frontendRoot,
       env: process.env,
       stdio: 'inherit',
+      shell: isWindows,
     },
   );
 }

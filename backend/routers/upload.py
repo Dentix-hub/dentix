@@ -28,6 +28,59 @@ cloudinary.config(
 
 router = APIRouter(prefix="/upload", tags=["Uploads"])
 
+_CLOUDINARY_ENV_KEYS = (
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET",
+)
+
+
+def _cloudinary_is_fully_configured() -> bool:
+    """Return true only when every credential required by Cloudinary exists."""
+    return all((os.getenv(key) or "").strip() for key in _CLOUDINARY_ENV_KEYS)
+
+
+def _store_attachment_content(
+    *,
+    file: UploadFile,
+    safe_filename: str,
+    tenant_id: int,
+) -> str:
+    """Persist one validated upload, falling back safely to local storage.
+
+    A partial Cloudinary configuration must never turn an otherwise valid
+    patient upload into a database 500. Likewise, a provider response without
+    a usable ``secure_url`` is treated as a storage failure rather than being
+    persisted as a NULL file path.
+    """
+    try:
+        if not _cloudinary_is_fully_configured():
+            raise RuntimeError("Cloudinary not fully configured")
+
+        file.file.seek(0)
+        upload_result = cloudinary.uploader.upload(
+            file.file,
+            folder=f"smart_clinic_uploads/tenant_{tenant_id}",
+            resource_type="auto",
+            public_id=safe_filename.rsplit(".", 1)[0],
+        )
+        secure_url = (upload_result or {}).get("secure_url")
+        if not secure_url or not str(secure_url).strip():
+            raise RuntimeError("Cloudinary response missing secure_url")
+
+        logger.info("Uploaded patient attachment to configured cloud storage")
+        return str(secure_url)
+    except Exception as exc:
+        logger.warning(
+            "Cloud storage failed/skipped (%s); using tenant-scoped local storage",
+            type(exc).__name__,
+        )
+        return save_file_locally(
+            file=file,
+            safe_filename=safe_filename,
+            tenant_id=tenant_id,
+        )
+
 
 async def _authorize_attachment_file_access(
     db: AsyncSession,
@@ -80,30 +133,11 @@ async def upload_file(
         raise HTTPException(status_code=404, detail="Patient not found")
 
     safe_filename, validated_content_type = validate_file(file)
-    file_path_db = ""
-    try:
-        if os.getenv("CLOUDINARY_CLOUD_NAME"):
-            file.file.seek(0)
-            upload_result = cloudinary.uploader.upload(
-                file.file,
-                folder=f"smart_clinic_uploads/tenant_{current_user.tenant_id}",
-                resource_type="auto",
-                public_id=safe_filename.rsplit(".", 1)[0],
-            )
-            file_path_db = upload_result.get("secure_url")
-            logger.info("Uploaded patient attachment to configured cloud storage")
-        else:
-            raise RuntimeError("Cloudinary not configured")
-    except Exception as exc:
-        logger.warning(
-            "Cloud storage failed/skipped (%s); using tenant-scoped local storage",
-            type(exc).__name__,
-        )
-        file_path_db = save_file_locally(
-            file=file,
-            safe_filename=safe_filename,
-            tenant_id=current_user.tenant_id,
-        )
+    file_path_db = _store_attachment_content(
+        file=file,
+        safe_filename=safe_filename,
+        tenant_id=current_user.tenant_id,
+    )
 
     attachment_create = schemas.AttachmentCreate(
         patient_id=patient_id,

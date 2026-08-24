@@ -25,7 +25,7 @@ module.exports = {
     },
     overrides: [
         {
-            files: ['playwright.config.js', 'e2e/**/*.js'],
+            files: ['vite.config.js', 'scripts/**/*.mjs', 'playwright.config.js', 'e2e/**/*.js'],
             env: { node: true },
         },
         {

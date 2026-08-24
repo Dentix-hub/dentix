@@ -95,6 +95,7 @@ RLS_TABLES = (
     "ai_logs",
     "security_events",
     "domain_events",
+    "push_subscriptions",
 )
 
 
