@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { login as apiLogin, registerClinic, getSessionSilent, hasSessionCookieHint, api } from '@/api';
+import { login as apiLogin, registerClinic, getSessionSilent, api } from '@/api';
 import { logout as apiLogout } from '@/utils';
 import { logger } from '@/utils/logger';
 import AuthContext from './useAuth';
@@ -35,37 +35,32 @@ export default function AuthProvider({ children }) {
             const startTime = performance.now();
             logger.log('[AUTH] Starting initialization...');
 
-            // Safety timeout to prevent permanent loading state
-            const safetyTimeout = setTimeout(() => {
-                if (useAuthStore.getState().isAuthLoading) {
-                    logger.warn('[AUTH] Initialization hanging, forcing start...');
-                    setLoading(false);
-                }
-            }, 5000);
-
             try {
-                logger.log('[AUTH] Validating session via cookie...');
-                try {
-                    if (!hasSessionCookieHint()) {
-                        logger.info('[AUTH] No session cookie hint found');
-                        clearLocalSession();
-                        return;
-                    }
-                    const sessionRes = await getSessionSilent();
-                    const userData = sessionRes.data;
-                    await finishAuthentication(userData);
+                // access_token and refresh_token are httpOnly and therefore cannot
+                // be inspected from JavaScript. The old csrf_token "hint" could be
+                // stale for up to 30 days and could also be absent while a valid
+                // httpOnly refresh session still existed. The backend is the only
+                // authoritative source of truth, so every cold/PWA start performs a
+                // silent session probe. apiClient will refresh an expired access
+                // cookie once and then retry this request.
+                logger.log('[AUTH] Validating server session...');
+                const sessionRes = await getSessionSilent();
+                const userData = sessionRes.data;
+                await finishAuthentication(userData);
 
-                    logger.log(`[AUTH] Boot successful (${Math.round(performance.now() - startTime)}ms)`);
-                } catch (err) {
-                    logger.info('[AUTH] No active session found (Unauthenticated start)');
-                    // Cookie might be expired/invalid - user will need to login
-                    clearLocalSession();
-                }
-            } catch (error) {
-                logger.error('[AUTH] Init error:', error);
+                logger.log(`[AUTH] Boot successful (${Math.round(performance.now() - startTime)}ms)`);
+            } catch (err) {
+                // A real 401 after the interceptor's single refresh attempt means
+                // there is no usable server session. Network/timeout failures also
+                // leave the app unauthenticated instead of creating a reload loop.
+                logger.info('[AUTH] No active session found (Unauthenticated start)', err);
                 clearLocalSession();
             } finally {
-                clearTimeout(safetyTimeout);
+                // Do not use a second, independent 5s timer here. Axios already has
+                // bounded request timeouts, and forcing isAuthLoading=false while a
+                // cold-start session/refresh request is still in flight creates a
+                // race where the login screen briefly mounts and can trigger more
+                // auth work before recovery finishes.
                 setLoading(false);
             }
         };
