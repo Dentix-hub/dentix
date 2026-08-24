@@ -7,6 +7,8 @@ Invariants after the audited-bootstrap fix:
    going through the audited bootstrap.
 2. ``lookup_user_for_authentication`` resolves a seeded user from the same
    contextless session AND writes an audit entry describing the lookup.
+3. The audited bootstrap preserves the legacy normalized login contract:
+   username matching is case-insensitive and email is accepted as an identity.
 """
 
 import pytest
@@ -22,7 +24,8 @@ from backend.services.auth_bootstrap import (
 
 PROBE_TENANT_ID = 993650
 PROBE_USER_ID = 9936501
-PROBE_USERNAME = "pg_rls_bootstrap_probe"
+PROBE_USERNAME = "Pg_Rls_Bootstrap_Probe"
+PROBE_EMAIL = "pg_rls_bootstrap_probe@example.com"
 
 
 async def _seed_probe_fixtures() -> None:
@@ -45,7 +48,7 @@ async def _seed_probe_fixtures() -> None:
                     models.User(
                         id=PROBE_USER_ID,
                         username=PROBE_USERNAME,
-                        email=f"{PROBE_USERNAME}@example.com",
+                        email=PROBE_EMAIL,
                         hashed_password="h",
                         role="admin",
                         tenant_id=PROBE_TENANT_ID,
@@ -104,3 +107,22 @@ async def test_audited_bootstrap_resolves_identity_and_writes_audit():
         latest = audits[0]
         assert PROBE_USERNAME in (latest.details or "")
         assert "found=True" in (latest.details or "")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "identity",
+    [PROBE_USERNAME.lower(), PROBE_USERNAME.upper(), PROBE_EMAIL.upper()],
+)
+async def test_audited_bootstrap_normalizes_login_identity(identity: str):
+    """Case variants and email must resolve without weakening FORCE RLS."""
+    await _seed_probe_fixtures()
+
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+        user = await lookup_user_for_authentication(
+            session, identity, reason=REASON_LOGIN
+        )
+        assert user is not None
+        assert user.id == PROBE_USER_ID
+        assert user.username == PROBE_USERNAME
+        assert user.tenant_id == PROBE_TENANT_ID

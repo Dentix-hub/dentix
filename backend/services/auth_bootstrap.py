@@ -22,11 +22,12 @@ bookkeeping writes their login performs use narrow explicit bypass scopes.
 import logging
 from contextlib import asynccontextmanager
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import models
+from ..crud.auth import normalize_username
 from ..utils.audit_logger import log_admin_action
 
 logger = logging.getLogger("smart_clinic.auth")
@@ -101,9 +102,18 @@ def _bind_tenant(db: AsyncSession, tenant_id: int) -> None:
 
 
 def _identity_stmt(username: str):
+    # Keep the bootstrap path behavior-compatible with the pre-RLS auth lookup:
+    # login identities are trimmed/normalized, username matching is
+    # case-insensitive, and email remains a supported login identifier.
+    clean_identity = normalize_username(username)
     return (
         select(models.User)
-        .where(models.User.username == username)
+        .where(
+            or_(
+                func.lower(models.User.username) == clean_identity,
+                func.lower(models.User.email) == clean_identity,
+            )
+        )
         # Login/refresh touch user.tenant right after resolution; eager
         # load so no lazy IO happens outside the bootstrap scope.
         .options(joinedload(models.User.tenant))
