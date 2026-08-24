@@ -8,12 +8,16 @@ import { useTenantStore } from '@/store/tenant.store';
 
 const apiLoginMock = vi.hoisted(() => vi.fn());
 const getSessionSilentMock = vi.hoisted(() => vi.fn());
+const hasSessionCookieHintMock = vi.hoisted(() => vi.fn());
+const clearSessionCookieHintMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/api', () => ({
     api: { post: vi.fn() },
     login: apiLoginMock,
     registerClinic: vi.fn(),
     getSessionSilent: getSessionSilentMock,
+    hasSessionCookieHint: hasSessionCookieHintMock,
+    clearSessionCookieHint: clearSessionCookieHintMock,
 }));
 
 vi.mock('@/utils', () => ({ logout: vi.fn() }));
@@ -47,6 +51,7 @@ function SessionHarness() {
 describe('AuthProvider login lifecycle', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        hasSessionCookieHintMock.mockReturnValue(false);
         getSessionSilentMock.mockRejectedValue({ response: { status: 401 } });
         useAuthStore.setState({
             user: null,
@@ -58,9 +63,22 @@ describe('AuthProvider login lifecycle', () => {
         useTenantStore.getState().clearTenant();
     });
 
-    it('always asks the server to restore an httpOnly PWA session on cold start', async () => {
+    it('does not wake the auth backend on a genuine anonymous cold start', async () => {
+        render(
+            <AuthProvider>
+                <SessionHarness />
+            </AuthProvider>
+        );
+
+        expect(await screen.findByText('Anonymous')).toBeInTheDocument();
+        expect(getSessionSilentMock).not.toHaveBeenCalled();
+        expect(clearSessionCookieHintMock).not.toHaveBeenCalled();
+    });
+
+    it('restores an httpOnly PWA session when the readable session hint exists', async () => {
         const fetchTenant = vi.fn().mockResolvedValue(undefined);
         useTenantStore.setState({ fetchTenant });
+        hasSessionCookieHintMock.mockReturnValue(true);
         getSessionSilentMock.mockResolvedValue({
             data: { id: 8, name: 'Clinic Admin', role: 'admin', tenant_id: 44 },
         });
@@ -74,7 +92,38 @@ describe('AuthProvider login lifecycle', () => {
         expect(await screen.findByText('Session restored')).toBeInTheDocument();
         expect(getSessionSilentMock).toHaveBeenCalledTimes(1);
         expect(fetchTenant).toHaveBeenCalledTimes(1);
+        expect(clearSessionCookieHintMock).not.toHaveBeenCalled();
         expect(useAuthStore.getState().user).toMatchObject({ id: 8, tenant_id: 44 });
+    });
+
+    it('clears a stale PWA session hint after a definitive 401', async () => {
+        hasSessionCookieHintMock.mockReturnValue(true);
+        getSessionSilentMock.mockRejectedValue({ response: { status: 401 } });
+
+        render(
+            <AuthProvider>
+                <SessionHarness />
+            </AuthProvider>
+        );
+
+        expect(await screen.findByText('Anonymous')).toBeInTheDocument();
+        expect(getSessionSilentMock).toHaveBeenCalledTimes(1);
+        expect(clearSessionCookieHintMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the PWA session hint after a transient network failure', async () => {
+        hasSessionCookieHintMock.mockReturnValue(true);
+        getSessionSilentMock.mockRejectedValue(new Error('network unavailable'));
+
+        render(
+            <AuthProvider>
+                <SessionHarness />
+            </AuthProvider>
+        );
+
+        expect(await screen.findByText('Anonymous')).toBeInTheDocument();
+        expect(getSessionSilentMock).toHaveBeenCalledTimes(1);
+        expect(clearSessionCookieHintMock).not.toHaveBeenCalled();
     });
 
     it('does not mount the authenticated dashboard before tenant hydration finishes', async () => {
