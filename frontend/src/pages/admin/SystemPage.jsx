@@ -223,25 +223,16 @@ export default function SystemPage() {
 
             {activeTab === 'backup' && (
                 <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col items-center text-center gap-4">
-                            <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600">
-                                <Database size={32} />
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-white">تحميل نسخة احتياطية</h3>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm">تحميل نسخة كاملة من قاعدة البيانات الحالية (.db)</p>
-                            <button onClick={handleDownloadBackup} className="mt-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-500/30 transition-all w-full md:w-auto">تحميل الآن</button>
+                    <div className="bg-indigo-50/60 dark:bg-indigo-950/20 p-8 rounded-[2.5rem] border border-indigo-100 dark:border-indigo-900/30 flex flex-col md:flex-row items-center gap-6">
+                        <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/40 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                            <Shield size={32} />
                         </div>
-                        <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col items-center text-center gap-4 border-2 border-dashed border-slate-200 dark:border-slate-700">
-                            <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center text-amber-600">
-                                <Shield size={32} />
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-white">استعادة نسخة احتياطية</h3>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm">رفع ملف نسخة احتياطية لاستبدال البيانات الحالية</p>
-                            <label className={`mt-2 px-6 py-3 ${uploading ? 'bg-slate-400' : 'bg-slate-800 hover:bg-slate-900'} text-white rounded-xl font-bold shadow-lg cursor-pointer transition-all w-full md:w-auto`}>
-                                {uploading ? 'جاري الرفع...' : 'رفع ملف الاستعادة'}
-                                <input type="file" className="hidden" accept=".db" onChange={handleRestoreBackup} disabled={uploading} />
-                            </label>
+                        <div className="space-y-2 text-right">
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-white">سياسة النسخ الاحتياطي للنظام وقاعدة البيانات</h3>
+                            <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
+                                تم تعطيل تحميل واستعادة قواعد البيانات الخام عبر HTTP لضمان أمان البيانات وعزل المستأجرين.
+                                تُدار النسخ الاحتياطية الشاملة واستعادة النظام حصرياً عبر أوامر CLI الآمنة المعزولة على الخادم (<code className="font-mono text-xs bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded">scripts/backup/</code>).
+                            </p>
                         </div>
                     </div>
                     

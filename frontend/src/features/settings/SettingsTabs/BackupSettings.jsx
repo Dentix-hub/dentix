@@ -129,13 +129,13 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                 <div className="grid grid-cols-2 gap-4">
                     <button onClick={handleDownload} className="p-6 border-2 border-slate-200 border-dashed rounded-2xl hover:bg-slate-50 transition flex flex-col items-center gap-3">
                         <Download className="text-slate-500" size={32} />
-                        <span className="font-bold text-slate-600">{t('backup.download_btn')}</span>
+                        <span className="font-bold text-slate-600">{t('backup.download_btn')} (.json)</span>
                     </button>
                     <div className="relative">
-                        <input type="file" accept=".json,.db,.sql" onChange={handleUpload} disabled={restoring} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
+                        <input type="file" accept=".json" onChange={handleUpload} disabled={restoring} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
                         <div className="h-full p-6 border-2 border-amber-200 border-dashed rounded-2xl bg-amber-50/50 flex flex-col items-center justify-center gap-3">
                             {restoring ? <div className="animate-spin h-8 w-8 border-4 border-amber-500 border-t-transparent rounded-full" /> : <Upload className="text-amber-500" size={32} />}
-                            <span className="font-bold text-amber-700">{t('backup.restore_btn')}</span>
+                            <span className="font-bold text-amber-700">{t('backup.restore_btn')} (.json)</span>
                         </div>
                     </div>
                 </div>
