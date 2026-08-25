@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import logger from '@/utils/logger';
 import { api } from '@/api';
-import { toast } from '@/shared/ui';
+import { Modal, toast } from '@/shared/ui';
 import { Building2, X, Key, CalendarPlus } from 'lucide-react';
 import TenantsManager from '@/features/admin/SuperAdmin/TenantsManager';
 import TenantDetailPanel from '@/features/admin/SuperAdmin/TenantDetailPanel';
@@ -225,21 +225,15 @@ export default function TenantsPage() {
 
             {/* Manual Renewal Modal */}
             {renewalModalTenant && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 w-full max-w-lg shadow-2xl space-y-6">
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <h3 className="text-xl font-bold text-slate-800 dark:text-white">تجديد اشتراك يدوي موثق</h3>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm">{renewalModalTenant.name}</p>
-                            </div>
-                            <button
-                                onClick={() => setRenewalModalTenant(null)}
-                                className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full hover:bg-slate-200"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-
+                <Modal
+                    isOpen
+                    onClose={() => setRenewalModalTenant(null)}
+                    title="تجديد اشتراك يدوي موثق"
+                    size="lg"
+                    mobileVariant="dialog"
+                >
+                    <div className="space-y-6" dir="rtl">
+                        <p className="text-slate-500 dark:text-slate-400 text-sm">{renewalModalTenant.name}</p>
                         <form onSubmit={handleManualRenewalSubmit} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-bold text-slate-500 mb-1.5">باقة الاشتراك</label>
@@ -301,7 +295,7 @@ export default function TenantsPage() {
                             </button>
                         </form>
                     </div>
-                </div>
+                </Modal>
             )}
 
             {/* Password Reset Modal */}

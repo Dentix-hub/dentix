@@ -181,7 +181,7 @@ export default function SystemPage() {
 
             {activeTab === 'backup' && (
                 <>
-                    <div className="bg-indigo-50/60 dark:bg-indigo-950/20 p-8 rounded-[2.5rem] border border-indigo-100 dark:border-indigo-900/30 flex flex-col md:flex-row items-center gap-6">
+                    <div className="bg-indigo-50/60 dark:bg-indigo-950/20 p-8 rounded-overlay border border-indigo-100 dark:border-indigo-900/30 flex flex-col md:flex-row items-center gap-6">
                         <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/40 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
                             <Shield size={32} />
                         </div>
