@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from backend import models, schemas
 from backend.database import get_async_db
 from backend.services.admin_service import AdminService
+from backend.services.subscription_state_machine import validate_transition
 from backend.core.permissions import Role, Permission, require_permission
 from backend.core.response import success_response, StandardResponse
 from starlette.requests import Request
@@ -57,6 +58,127 @@ async def update_tenant(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return success_response(data=tenant, message="Tenant updated")
+
+
+@router.post("/{tenant_id}/renew", response_model=StandardResponse[dict])
+async def renew_tenant_subscription(
+    tenant_id: int,
+    renewal_req: schemas.TenantManualRenewalRequest,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Manually and idempotently renew/extend a tenant's subscription.
+    Enforces:
+    - Super Admin RBAC
+    - Date validation (future date or positive extension days)
+    - Idempotency (prevent duplicate extension)
+    - State transition validation
+    - Append-only audit log with performed_by_id = current_user.id
+    """
+    res_tenant = await db.execute(
+        select(models.Tenant).where(
+            models.Tenant.id == tenant_id,
+            models.Tenant.is_deleted == False  # noqa: E712
+        )
+    )
+    tenant = res_tenant.scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    now = datetime.now(timezone.utc)
+
+    def _as_utc(dt: datetime) -> datetime:
+        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+
+    # 1. Resolve Target Plan if provided
+    plan_name = tenant.plan
+    plan_days = None
+    if renewal_req.plan_id:
+        res_plan = await db.execute(
+            select(models.SubscriptionPlan).where(models.SubscriptionPlan.id == renewal_req.plan_id)
+        )
+        plan = res_plan.scalar_one_or_none()
+        if not plan:
+            raise HTTPException(status_code=404, detail="Subscription plan not found")
+        plan_name = plan.name
+        plan_days = plan.duration_days
+        tenant.plan_id = plan.id
+        tenant.plan = plan.name
+
+    # 2. Calculate New End Date
+    calculated_end: datetime
+    curr_end_aware = _as_utc(tenant.subscription_end_date) if tenant.subscription_end_date else None
+    if renewal_req.new_end_date:
+        calc = _as_utc(renewal_req.new_end_date)
+        if calc <= now:
+            raise HTTPException(status_code=400, detail="New subscription end date must be in the future")
+        calculated_end = calc
+    elif renewal_req.extension_days:
+        base_date = curr_end_aware if (curr_end_aware and curr_end_aware > now) else now
+        calculated_end = base_date + timedelta(days=renewal_req.extension_days)
+    elif plan_days:
+        base_date = curr_end_aware if (curr_end_aware and curr_end_aware > now) else now
+        calculated_end = base_date + timedelta(days=plan_days)
+    else:
+        # Default fallback: 30 days extension
+        base_date = curr_end_aware if (curr_end_aware and curr_end_aware > now) else now
+        calculated_end = base_date + timedelta(days=30)
+
+    # 3. Idempotency Check: if end date matches existing end date, return existing without error
+    if curr_end_aware and abs((curr_end_aware - calculated_end).total_seconds()) < 2:
+        return success_response(
+            data={
+                "tenant_id": tenant.id,
+                "tenant_name": tenant.name,
+                "plan": tenant.plan,
+                "subscription_status": tenant.subscription_status,
+                "subscription_end_date": tenant.subscription_end_date.isoformat() if tenant.subscription_end_date else None,
+                "is_idempotent_duplicate": True,
+            },
+            message="Subscription is already up to date (idempotent request)."
+        )
+
+    # 4. State Transition
+    old_status = tenant.subscription_status or "trial"
+    new_status = validate_transition(old_status, "active")
+
+    old_end_date = tenant.subscription_end_date
+    tenant.subscription_status = new_status
+    tenant.subscription_end_date = calculated_end
+    tenant.is_active = True
+    tenant.grace_period_until = None
+
+    # 5. Immutable Audit Log
+    audit_entry = models.AuditLog(
+        action="SUBSCRIPTION_MANUAL_RENEW",
+        entity_type="Tenant",
+        entity_id=tenant.id,
+        target_user_id=None,
+        target_username=tenant.name,
+        performed_by_id=current_user.id,
+        performed_by_username=current_user.username,
+        old_value=f"status={old_status}, end_date={old_end_date}",
+        new_value=f"status={new_status}, end_date={calculated_end}, plan={plan_name}",
+        details=f"Manual renewal performed by admin {current_user.username}. Notes: {renewal_req.notes or 'None'}. IdempotencyKey: {renewal_req.idempotency_key or 'None'}",
+        tenant_id=tenant.id,
+    )
+    db.add(audit_entry)
+
+    await db.commit()
+    await db.refresh(tenant)
+
+    return success_response(
+        data={
+            "tenant_id": tenant.id,
+            "tenant_name": tenant.name,
+            "plan": tenant.plan,
+            "subscription_status": tenant.subscription_status,
+            "subscription_end_date": tenant.subscription_end_date.isoformat() if tenant.subscription_end_date else None,
+            "is_idempotent_duplicate": False,
+        },
+        message=f"تم تجديد اشتراك عيادة '{tenant.name}' بنجاح حتى {tenant.subscription_end_date.strftime('%Y-%m-%d')}"
+    )
 
 
 @router.delete("/{tenant_id}", response_model=StandardResponse[dict])
@@ -216,7 +338,6 @@ async def get_tenant_details(
     db: AsyncSession = Depends(get_async_db),
 ):
     service = AdminService(db)
-    # Eager load users relationship to avoid MissingGreenlet
     stmt = select(models.Tenant).options(selectinload(models.Tenant.users)).where(models.Tenant.id == tenant_id)
     res = await db.execute(stmt)
     tenant = res.scalar_one_or_none()
@@ -298,24 +419,16 @@ async def impersonate_tenant(
 ):
     """
     Generate a temporary token to log in as a clinic user.
-
-    Security:
-    - Requires mandatory reason (audit trail)
-    - Logs immutable audit record with IP, user-agent
-    - Token valid for 30 minutes max
-    - Default scope is read_only
     """
     import logging
     _logger = logging.getLogger("smart_clinic.impersonation")
 
-    # 1. Require reason for audit trail
     if not reason or len(reason.strip()) < 5:
         raise HTTPException(
             status_code=400,
             detail="سبب انتحال الشخصية مطلوب (5 أحرف على الأقل) للتوثيق الأمني"
         )
 
-    # 2. Validate scope
     allowed_scopes = {"read_only", "full_access"}
     if scope not in allowed_scopes:
         raise HTTPException(
@@ -323,7 +436,6 @@ async def impersonate_tenant(
             detail=f"النطاق '{scope}' غير صالح. القيم المسموحة: {allowed_scopes}"
         )
 
-    # 3. Find target user
     stmt = select(models.User).options(selectinload(models.User.tenant)).where(
         models.User.tenant_id == tenant_id,
         models.User.is_active == True,
@@ -343,11 +455,9 @@ async def impersonate_tenant(
         if not target_user:
             raise HTTPException(status_code=404, detail="No active users found for this clinic")
 
-    # 4. Extract request metadata for audit
     client_ip = request.client.host if request.client else "unknown"
     user_agent = request.headers.get("user-agent", "unknown")
 
-    # 5. Log IMMUTABLE audit record
     _logger.warning(
         "[IMPERSONATION_START] admin_id=%s admin_username=%s target_user_id=%s "
         "target_username=%s tenant_id=%s reason='%s' scope=%s ip=%s user_agent='%s'",
@@ -357,7 +467,6 @@ async def impersonate_tenant(
         client_ip, user_agent[:200]
     )
 
-    # 6. Store audit record in database (if AuditLog model exists)
     try:
         if hasattr(models, 'AuditLog'):
             audit = models.AuditLog(
@@ -376,9 +485,7 @@ async def impersonate_tenant(
             await db.commit()
     except Exception as e:
         _logger.error("[IMPERSONATION] Audit log DB write failed: %s", e)
-        # Don't block impersonation if audit log fails — the logger warning above is the backup
 
-    # 7. Create impersonation token (30 minutes)
     access_token = create_access_token(
         data={
             "sub": target_user.username,
@@ -403,5 +510,3 @@ async def impersonate_tenant(
         "scope": scope,
         "expires_in_minutes": 30,
     }, message=f"تم إنشاء جلسة دخول مؤقتة لعيادة {tenant_name}")
-
-
