@@ -515,8 +515,24 @@ jobs:
           IMAGE="dentix-ci:${GITHUB_SHA}"
           DATABASE_URL="${APP_DATABASE_URL_PREFIX}${APP_DATABASE_URL_SUFFIX}"
           SYSTEM_DATABASE_URL="${SYSTEM_DATABASE_URL_PREFIX}${SYSTEM_DATABASE_URL_SUFFIX}"
+          OWNER_DATABASE_URL_PREFIX='postgresql://container_user'
+          OWNER_DATABASE_URL_SUFFIX=':container_pass@127.0.0.1:5432/dentix_container'
+          OWNER_DATABASE_URL="${OWNER_DATABASE_URL_PREFIX}${OWNER_DATABASE_URL_SUFFIX}"
 
           test "$(docker image inspect --format '{{.Config.User}}' "$IMAGE")" = "dentix"
+
+          # Schema ownership is a deployment concern, never an application-role
+          # capability. Bootstrap the fresh smoke database with its owner before
+          # starting the canonical image under the restricted runtime roles.
+          docker run --rm \
+            --network host \
+            --entrypoint python \
+            -e DATABASE_URL="$OWNER_DATABASE_URL" \
+            -e DB_SSL_MODE=disable \
+            -e SECRET_KEY="$SECRET_KEY" \
+            -e ENVIRONMENT=production \
+            "$IMAGE" \
+            -m backend.scripts.preflight_migrations
 
           PGPASSWORD=container_pass psql --host=127.0.0.1 --username=container_user --dbname=dentix_container <<'SQL'
           CREATE ROLE dentix_container_app LOGIN PASSWORD 'dentix_container_app_pass' NOBYPASSRLS;
