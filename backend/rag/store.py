@@ -54,10 +54,11 @@ class RealKnowledgeStore(KnowledgeStoreInterface):
     def add(self, text: str, tenant_id: int, source: str='manual', metadata:
         Dict=None) ->str:
         doc_id = str(uuid.uuid4())
-        meta = {'tenant_id': tenant_id, 'source': source, 'created_at':
-            datetime.now().isoformat()}
-        if metadata:
-            meta.update(metadata)
+        meta = dict(metadata or {})
+        # Tenant identity is a trusted application boundary. Caller-provided
+        # metadata must never be able to move a document between tenants.
+        meta.update({'tenant_id': tenant_id, 'source': source, 'created_at':
+            datetime.now().isoformat()})
         self.collection.add(documents=[text], metadatas=[meta], ids=[doc_id])
         return doc_id
 
