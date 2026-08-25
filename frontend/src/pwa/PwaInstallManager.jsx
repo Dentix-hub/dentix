@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { Share, PlusSquare } from 'lucide-react';
 import { usePwaInstall } from './usePwaInstall';
+import { usePwaUpdateChecks } from './usePwaUpdateChecks';
 
 /**
  * Platform-aware PWA install manager + user-controlled update prompt.
@@ -9,10 +11,16 @@ import { usePwaInstall } from './usePwaInstall';
  */
 export function PwaInstallManager() {
   const { t } = useTranslation();
+  const [serviceWorkerRegistration, setServiceWorkerRegistration] = useState(null);
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
-  } = useRegisterSW();
+  } = useRegisterSW({
+    onRegisteredSW: (_swUrl, registration) => {
+      if (registration) setServiceWorkerRegistration(registration);
+    },
+  });
+  usePwaUpdateChecks(serviceWorkerRegistration);
   const {
     platform,
     canPrompt,
