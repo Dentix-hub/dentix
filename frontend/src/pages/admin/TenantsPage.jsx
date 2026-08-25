@@ -6,7 +6,7 @@ import { Modal, toast } from '@/shared/ui';
 import { Building2, X, Key, CalendarPlus } from 'lucide-react';
 import TenantsManager from '@/features/admin/SuperAdmin/TenantsManager';
 import TenantDetailPanel from '@/features/admin/SuperAdmin/TenantDetailPanel';
-import { getAdminToken, setAdminToken } from '@/utils';
+import { setAdminToken } from '@/utils';
 
 export default function TenantsPage() {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -80,26 +80,43 @@ export default function TenantsPage() {
         fetchData();
     }, []);
 
-    const handleImpersonate = async (tenantId, userId) => {
+    const handleImpersonate = async (tenantId, userId, reason, scope = 'read_only') => {
+        if (!reason || reason.trim().length < 5) {
+            toast.error('سبب الدخول للنظام مطلوب (5 أحرف على الأقل)');
+            return;
+        }
         try {
-            const url = userId
-                ? `/api/v1/admin/tenants/${tenantId}/impersonate?user_id=${userId}`
-                : `/api/v1/admin/tenants/${tenantId}/impersonate`;
-
-            await api.post(url);
-
-            const existingAdminToken = getAdminToken();
-            if (!existingAdminToken) {
-                setAdminToken('impersonating');
+            const params = {
+                reason: reason.trim(),
+                scope: scope || 'read_only',
+            };
+            if (userId) {
+                params.user_id = userId;
             }
 
-            toast.success('جاري الدخول للنظام...');
+            const res = await api.post(`/api/v1/admin/tenants/${tenantId}/impersonate`, null, { params });
+            const payload = res.data || res;
+            const token = payload.access_token;
+            if (!token) {
+                throw new Error('لم يتم استلام رمز الدخول المؤقت من الخادم');
+            }
+
+            setAdminToken(token);
+            if (typeof window !== 'undefined' && window.sessionStorage) {
+                window.sessionStorage.setItem('dentix_impersonation_token', token);
+                window.sessionStorage.setItem('dentix_impersonation_tenant', payload.tenant_name || '');
+                window.sessionStorage.setItem('dentix_impersonation_user', payload.target_user || '');
+                window.sessionStorage.setItem('dentix_impersonation_scope', payload.scope || 'read_only');
+            }
+
+            toast.success(res.message || `تم بدء جلسة الدخول المؤقتة لعيادة ${payload.tenant_name || ''}`);
 
             setTimeout(() => {
                 window.location.href = '/dashboard';
-            }, 1000);
+            }, 500);
         } catch (err) {
-            toast.error('فشل عملية الدخول: ' + (err.response?.data?.detail || err.message));
+            const detail = err.response?.data?.detail || err.message || 'فشل عملية الدخول';
+            toast.error('فشل عملية الدخول: ' + (typeof detail === 'string' ? detail : JSON.stringify(detail)));
         }
     };
 

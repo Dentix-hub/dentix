@@ -8,7 +8,6 @@ import {
     Clock, 
     Activity, 
     Shield, 
-    ExternalLink,
     Mail,
     Globe,
     Phone
@@ -21,6 +20,7 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
     const [data, setData] = useState(null);
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState('');
+    const [reason, setReason] = useState('');
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -35,6 +35,7 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                 setData(detailsRes.data);
                 setUsers(usersRes.data.users || []);
                 setSelectedUser('');
+                setReason('');
             } catch (err) {
                 logger.error(err);
             } finally {
@@ -45,6 +46,13 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
     }, [tenantId]);
 
     if (!tenantId) return null;
+
+    const handleStartImpersonation = () => {
+        if (!reason || reason.trim().length < 5) {
+            return;
+        }
+        onImpersonate(data?.tenant?.id || tenantId, selectedUser, reason.trim(), 'read_only');
+    };
 
     return (
         <div className={`fixed inset-y-0 end-0 w-full max-w-md bg-white dark:bg-slate-900 shadow-2xl z-50 transform transition-transform duration-300 ${tenantId ? 'translate-x-0' : 'translate-x-full'}`}>
@@ -89,7 +97,7 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                                         </p>
                                         <div className="mt-6 flex flex-col gap-3">
                                             <select
-                                                className="w-full bg-white/20 text-white placeholder-white/50 border border-white/20 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-white/50 [&>option]:text-slate-800"
+                                                className="w-full bg-white/20 text-white placeholder-white/50 border border-white/20 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-white/50 [&>option]:text-slate-800 text-sm"
                                                 value={selectedUser}
                                                 onChange={(e) => setSelectedUser(e.target.value)}
                                             >
@@ -100,18 +108,31 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                                                     </option>
                                                 ))}
                                             </select>
-                                            <div className="flex gap-4">
-                                                <button 
-                                                    onClick={() => onImpersonate(data.tenant?.id, selectedUser)}
-                                                    className="flex-1 bg-white/20 hover:bg-white/30 backdrop-blur-md px-4 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
-                                                >
-                                                    <Shield size={16} />
-                                                    دخول للنظام
-                                                </button>
-                                                <button className="p-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-xl transition-all">
-                                                    <ExternalLink size={18} />
-                                                </button>
+
+                                            <div>
+                                                <input
+                                                    type="text"
+                                                    value={reason}
+                                                    onChange={(e) => setReason(e.target.value)}
+                                                    placeholder="سبب الدخول (5 أحرف على الأقل)"
+                                                    className="w-full bg-white/20 text-white placeholder-white/70 border border-white/20 rounded-xl px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-white/50"
+                                                />
+                                                <div className="flex items-center justify-between text-[11px] text-white/80 mt-1 px-1">
+                                                    <span>نطاق الجلسة: قراءة فقط (Read-Only)</span>
+                                                    {reason && reason.trim().length < 5 && (
+                                                        <span className="text-rose-200">الحد الأدنى 5 أحرف</span>
+                                                    )}
+                                                </div>
                                             </div>
+
+                                            <button 
+                                                onClick={handleStartImpersonation}
+                                                disabled={!reason || reason.trim().length < 5}
+                                                className="w-full bg-white/20 hover:bg-white/30 disabled:opacity-40 disabled:cursor-not-allowed backdrop-blur-md px-4 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
+                                            >
+                                                <Shield size={16} />
+                                                دخول مؤقت للنظام
+                                            </button>
                                         </div>
                                     </div>
 

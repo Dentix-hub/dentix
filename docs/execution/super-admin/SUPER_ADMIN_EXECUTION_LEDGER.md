@@ -84,4 +84,35 @@ Manual verification:
 Notes:
 - Activity feed items now route cleanly via client-side routing, deep link directly opens tenant details, and no dead affordances remain.
 
+---
+
+## MS-03 — Impersonation request contract
+Status: PASS
+Commit: 78dfb72b
+Files changed:
+- `backend/routers/admin_tenants.py`
+- `backend/tests/test_admin_impersonation.py`
+- `frontend/src/features/admin/SuperAdmin/TenantDetailPanel.jsx`
+- `frontend/src/features/admin/SuperAdmin/TenantDetailPanel.test.jsx`
+- `frontend/src/pages/admin/TenantsPage.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/TenantDetailPanel.test.jsx src/pages/admin/TenantsPage.test.jsx --run` -> PASS (2 test files, 5 tests passed)
+- `uv run ruff check --config ruff.toml backend` -> PASS (All checks passed)
+- `$env:PYTHONPATH="." ; uv run pytest backend/tests/test_admin_impersonation.py` -> PASS (3 passed in 8.04s)
+
+Manual verification:
+- Added required impersonation reason input with minimum 5 characters requirement to `TenantDetailPanel`.
+- Preserved read-only session scope indicator in the UI.
+- Sent `reason`, `user_id`, and `scope` via query parameters to the backend endpoint.
+- Updated `handleImpersonate` to store the real JWT temporary access token returned from backend instead of literal string marker.
+- Surfaced backend error details (400/404) properly via toast messages.
+- Removed dead ExternalLink button from `TenantDetailPanel`.
+
+Notes:
+- Super Admin impersonation request contract is fully repaired, validated, and tested.
+
+
 
