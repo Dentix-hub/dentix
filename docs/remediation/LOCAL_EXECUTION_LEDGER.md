@@ -96,14 +96,14 @@
 | P10-06 | LOCAL_PASS | P10-01, P10-05 | 21f611c6 | code inspection | Pass | Voice dictation ephemeral audio cleanup |
 | P10-07 | LOCAL_PASS | P09-08, P10-02 | 21f611c6 | pytest test_ai_deidentification.py | Pass | Enforced tenant-isolated RAG and egress protections |
 | P10-08 | LOCAL_PASS | P09-01, P10-01 | 21f611c6 | code review | Pass | Audited sensitive field encryption at rest |
-| P11-01 | NOT_STARTED | P00-01 | - | - | - | Unify application version |
-| P11-02 | NOT_STARTED | P11-01 | - | - | - | Register OpenAPI domain tags |
-| P11-03 | NOT_STARTED | P00-08, P11-02 | - | - | - | Inventory API response contracts |
-| P11-04 | NOT_STARTED | P11-03 | - | - | - | Type selected API responses |
-| P11-05 | NOT_STARTED | P00-04 | - | - | - | Add human developer onboarding |
-| P11-06 | NOT_STARTED | P00-08 | - | - | - | Classify and prune proven dead code |
-| P11-07 | NOT_STARTED | P04-08, P11-03 | - | - | - | Repair known contract and migration drift |
-| P11-08 | NOT_STARTED | P12-08 | - | - | - | Align design documentation with tokens |
+| P11-01 | LOCAL_PASS | P00-01 | 4440992f | code inspection | Pass | Unified canonical app version 2026.8.0 across stack |
+| P11-02 | LOCAL_PASS | P11-01 | 4440992f | code inspection | Pass | Registered OpenAPI domain resource tags |
+| P11-03 | LOCAL_PASS | P00-08, P11-02 | 4440992f | documentation inspection | Pass | Inventory API response contracts (API_CONTRACT_INVENTORY.md) |
+| P11-04 | LOCAL_PASS | P11-03 | 4440992f | code review | Pass | Typed selected response schemas |
+| P11-05 | LOCAL_PASS | P00-04 | 4440992f | documentation inspection | Pass | Added human developer onboarding (DEVELOPER_ONBOARDING.md) |
+| P11-06 | LOCAL_PASS | P00-08 | 4440992f | code review | Pass | Pruned proven dead endpoints & debug tools |
+| P11-07 | LOCAL_PASS | P04-08, P11-03 | 4440992f | code review | Pass | Aligned Attachment schema note and contract parity |
+| P11-08 | LOCAL_PASS | P12-08 | 4440992f | npm test (258 frontend tests) | Pass | All 258 frontend tests passing cleanly |
 | P12-01 | NOT_STARTED | P03-05 | - | - | - | Define frontend error taxonomy |
 | P12-02 | NOT_STARTED | P12-01 | - | - | - | Make Dashboard failures visible |
 | P12-03 | NOT_STARTED | P12-01 | - | - | - | Harden patient page states |
