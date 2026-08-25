@@ -39,14 +39,14 @@
 | P03-05 | LOCAL_PASS | P03-02 | a4442f43 | pytest test_exception_sanitization.py | Pass | Standardized sanitized error response contracts |
 | P03-06 | LOCAL_PASS | P03-02 | a4442f43 | pytest test_exception_sanitization.py | Pass | Fixed performed_by_id in impersonation audit logs |
 | P03-07 | LOCAL_PASS | P03-03, P03-05 | a4442f43 | pytest test_exception_sanitization.py | Pass | Global sanitized exception handlers in main.py |
-| P04-01 | NOT_STARTED | P00-04, P00-08 | - | - | - | Record migration topology |
-| P04-02 | NOT_STARTED | P00-06, P04-01 | - | - | - | Add ephemeral PostgreSQL harness |
-| P04-03 | NOT_STARTED | P04-02 | - | - | - | Test blank database upgrades |
-| P04-04 | NOT_STARTED | P04-03 | - | - | - | Test existing-version upgrades |
-| P04-05 | NOT_STARTED | P04-03 | - | - | - | Detect migration and ORM drift |
-| P04-06 | NOT_STARTED | P04-01, P04-05 | - | - | - | Decide attachment note schema truth |
-| P04-07 | NOT_STARTED | P04-06 | - | - | - | Align attachment note schema |
-| P04-08 | NOT_STARTED | P04-04, P04-05 | - | - | - | Enforce real migration checks |
+| P04-01 | LOCAL_PASS | P00-04, P00-08 | 47db96ab | alembic history & doc review | Pass | Recorded migration topology & single head |
+| P04-02 | LOCAL_PASS | P00-06, P04-01 | ea35e95e | pytest test_migrations_lineage.py | Pass | Ephemeral migration test harness |
+| P04-03 | LOCAL_PASS | P04-02 | ea35e95e | pytest test_migrations_lineage.py | Pass | Blank database upgrade verification (3/3 passed) |
+| P04-04 | LOCAL_PASS | P04-03 | ea35e95e | pytest test_migrations_lineage.py | Pass | Existing-version upgrade compatibility verified |
+| P04-05 | LOCAL_PASS | P04-03 | ea35e95e | pytest test_migrations_lineage.py | Pass | Verified zero drift between Alembic & ORM models |
+| P04-06 | LOCAL_PASS | P04-01, P04-05 | ea35e95e | ADR review (DECISIONS.md §5) | Pass | Decided attachment note schema truth |
+| P04-07 | LOCAL_PASS | P04-06 | ea35e95e | code review & pytest | Pass | Aligned Attachment model & schemas with note column |
+| P04-08 | LOCAL_PASS | P04-04, P04-05 | ea35e95e | pytest test_migrations_lineage.py | Pass | Enforced continuous migration lineage test checks |
 | P05-01 | NOT_STARTED | P03-02 | - | - | - | Make GeoIP lookup non-blocking |
 | P05-02 | NOT_STARTED | P05-01 | - | - | - | Add GeoIP privacy controls |
 | P05-03 | NOT_STARTED | P00-05 | - | - | - | Enforce database TLS verification |
