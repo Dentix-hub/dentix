@@ -38,12 +38,18 @@ class AISanitizer:
     @staticmethod
     def mask_sensitive_data(text: str) -> str:
         """
-        Mask credit card numbers or other sensitive patterns that shouldn't be in output.
-        (Note: PII restoring happens separatly, this is for accidental leaks)
+        Mask credit card numbers, national IDs, and phone numbers that shouldn't be in output or sent unredacted.
         """
-        # Mask Credit Cards (Social Engineering protection)
-        # Matches 13-19 digits, possibly separated by spaces or dashes
-        # Strict enough to avoid masking everything
+        if not text:
+            return ""
+
+        # Mask Egyptian National ID (14 digits starting with 2 or 3)
+        text = re.sub(r"\b[23]\d{13}\b", "[REDACTED_NATIONAL_ID]", text)
+
+        # Mask Egyptian Phone Numbers (local and international +20/0020 format)
+        text = re.sub(r"(?:\+20|0020|0)?1[0125]\d{8}\b", "[REDACTED_PHONE]", text)
+
+        # Mask Credit Cards (13-16 digits grouped or continuous)
         text = re.sub(r"\b(?:\d[ -]*?){13,16}\b", "[HIDDEN_CARD]", text)
 
         return text
