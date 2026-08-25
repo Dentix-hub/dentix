@@ -1,5 +1,12 @@
 # DENTIX Remediation Baseline & Repository Authority
 
+**Capture Timestamp**: 2026-08-25T00:41:00Z  
+**Local Branch**: `local/readiness-remediation-20260825-0338`  
+**Base Commit**: `e507691f` (`fix(pwa): register push_subscriptions in the canonical RLS contract`)  
+**Current Head**: `1d17230e`  
+
+---
+
 ## 1. Repository Authority & Precedence
 In accordance with `PROJECT_TRUTH.md`, `PROJECT_STANDARDS.md`, and `AGENTS.md`, authority is evaluated in this order:
 1. **Executable runtime/configuration** (backend/main.py, routers, models, migrations, docker-compose).
@@ -20,14 +27,24 @@ In accordance with `PROJECT_TRUTH.md`, `PROJECT_STANDARDS.md`, and `AGENTS.md`, 
 
 ## 3. Toolchain Versions
 - **Python**: 3.11.15
-- **uv**: 0.12.5
+- **uv**: 0.12.5 (210d1f678 2026-08-14 x86_64-pc-windows-msvc)
 - **Node**: v22.22.3
 - **npm**: 10.9.8
-- **Docker**: 29.5.3
+- **Docker**: 29.5.3, build d1c06ef
 - **OS**: Windows (PowerShell / cmd)
 
-## 4. Local Execution Baseline
-- **Local Branch**: `local/readiness-remediation-20260825-0338`
-- **Base Commit**: `e507691f` (`fix(pwa): register push_subscriptions in the canonical RLS contract`)
-- **Isolation Method**: Dedicated local branch `local/readiness-remediation-20260825-0338`
-- **Execution Target**: Local developer machine only (`localhost` / `127.0.0.1` / ephemeral Docker PostgreSQL)
+## 4. Initial Test Suite Baselines
+- **Frontend Unit Tests (Vitest)**: 62 test files, 258 tests passed (0 failures)
+- **Backend Unit Tests (Pytest)**: 542 tests collected cleanly under `backend/tests` and `backend/ci_tests`
+
+## 5. Safe Configuration Baseline Flags
+- `SUBSCRIPTION_ENFORCEMENT_MODE=off`
+- `SUBSCRIPTION_WORKER_ENABLED=false`
+- `RATE_LIMIT_MODE=off`
+- `METRICS_EXPOSURE_MODE=off`
+- `ALERT_DISPATCH_ENABLED=false`
+- `ERROR_AGGREGATION_ENABLED=false`
+- `BACKUP_SCHEDULER_ENABLED=false`
+- `EXTERNAL_AI_PHI_MODE=deny`
+- `GEOIP_MODE=off`
+- `RAG_MODE=off`
