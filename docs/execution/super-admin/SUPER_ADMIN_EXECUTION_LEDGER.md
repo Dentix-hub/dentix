@@ -55,3 +55,33 @@ Manual verification:
 Notes:
 - Overview and SystemHealth verified to never produce false 100% or healthy states on request failure or initial loading.
 
+---
+
+## MS-02 — Activity routing and tenant deep links
+Status: PASS
+Commit: 3a2560e6
+Files changed:
+- `backend/routers/admin_stats.py`
+- `frontend/src/features/admin/SuperAdmin/ActivityFeed.jsx`
+- `frontend/src/features/admin/SuperAdmin/ActivityFeed.test.jsx`
+- `frontend/src/pages/admin/TenantsPage.jsx`
+- `frontend/src/pages/admin/TenantsPage.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/ActivityFeed.test.jsx src/pages/admin/TenantsPage.test.jsx --run` -> PASS (2 test files, 5 tests passed)
+- `uv run ruff check --config ruff.toml backend` -> PASS (All checks passed)
+
+Manual verification:
+- Routed system errors in activity feed from `/admin/system` (dead route) to `/admin/system/logs`.
+- Switched ActivityFeed from `window.location.href` to React Router `useNavigate`.
+- Only clickable items with real links show cursor pointer, chevron, and keyboard navigation affordance.
+- Removed dead "View All" button with no destination.
+- Consumed `?id=<tenantId>` search param in `TenantsPage` to automatically open `TenantDetailPanel`.
+- Cleaned query parameters upon closing tenant detail panel.
+
+Notes:
+- Activity feed items now route cleanly via client-side routing, deep link directly opens tenant details, and no dead affordances remain.
+
+

@@ -121,7 +121,7 @@ async def _get_admin_stats_logic(db: AsyncSession):
             "description": e.message[:100] + "..." if len(e.message) > 100 else e.message,
             "timestamp": e.created_at,
             "status": "error",
-            "link": "/admin/system"
+            "link": "/admin/system/logs"
         })
 
     # Sort Activity Feed by timestamp descending

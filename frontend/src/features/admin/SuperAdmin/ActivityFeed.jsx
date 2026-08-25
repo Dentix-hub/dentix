@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
     Clock, 
     PlusCircle, 
@@ -21,6 +22,7 @@ const iconMap = {
 
 const ActivityFeed = memo(function ActivityFeed({ activities = [] }) {
     const { t, i18n } = useTranslation();
+    const navigate = useNavigate();
     const isRtl = i18n.language === 'ar';
 
     if (!activities?.length) {
@@ -43,11 +45,24 @@ const ActivityFeed = memo(function ActivityFeed({ activities = [] }) {
             <div className="divide-y divide-slate-50 dark:divide-slate-800 max-h-[500px] overflow-y-auto custom-scrollbar">
                 {activities.map((activity, idx) => {
                     const Config = iconMap[activity.type] || iconMap.audit;
+                    const hasLink = Boolean(activity.link && typeof activity.link === 'string');
                     return (
                         <div 
                             key={`${activity.type}-${activity.id}-${idx}`}
-                            className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer"
-                            onClick={() => activity.link && (window.location.href = activity.link)}
+                            className={`p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group ${hasLink ? 'cursor-pointer' : ''}`}
+                            onClick={() => {
+                                if (hasLink) {
+                                    navigate(activity.link);
+                                }
+                            }}
+                            role={hasLink ? 'button' : undefined}
+                            tabIndex={hasLink ? 0 : undefined}
+                            onKeyDown={(e) => {
+                                if (hasLink && (e.key === 'Enter' || e.key === ' ')) {
+                                    e.preventDefault();
+                                    navigate(activity.link);
+                                }
+                            }}
                         >
                             <div className="flex gap-4">
                                 <div className={`${Config.bg} dark:bg-opacity-10 p-2.5 rounded-xl self-start`}>
@@ -69,22 +84,19 @@ const ActivityFeed = memo(function ActivityFeed({ activities = [] }) {
                                         {activity.description}
                                     </p>
                                 </div>
-                                <div className="opacity-0 group-hover:opacity-100 transition-opacity self-center">
-                                    {isRtl ? <ChevronLeft size={16} className="text-slate-300" /> : <ChevronRight size={16} className="text-slate-300" />}
-                                </div>
+                                {hasLink && (
+                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity self-center">
+                                        {isRtl ? <ChevronLeft size={16} className="text-slate-300" /> : <ChevronRight size={16} className="text-slate-300" />}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     );
                 })}
-            </div>
-            
-            <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 text-center border-t border-slate-50 dark:border-slate-800">
-                <button className="text-sm font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
-                    {t('super_admin.activity.view_all')}
-                </button>
             </div>
         </div>
     );
 });
 
 export default ActivityFeed;
+

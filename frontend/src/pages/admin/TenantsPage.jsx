@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import logger from '@/utils/logger';
 import { api } from '@/api';
 import { Modal, toast } from '@/shared/ui';
@@ -8,10 +9,39 @@ import TenantDetailPanel from '@/features/admin/SuperAdmin/TenantDetailPanel';
 import { getAdminToken, setAdminToken } from '@/utils';
 
 export default function TenantsPage() {
+    const [searchParams, setSearchParams] = useSearchParams();
     const [tenants, setTenants] = useState([]);
     const [plans, setPlans] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedTenantId, setSelectedTenantId] = useState(null);
+
+    useEffect(() => {
+        const idParam = searchParams.get('id');
+        if (idParam) {
+            const parsedId = parseInt(idParam, 10);
+            if (!isNaN(parsedId)) {
+                setSelectedTenantId(parsedId);
+            }
+        }
+    }, [searchParams]);
+
+    const handleSelectTenant = (id) => {
+        setSelectedTenantId(id);
+        if (id) {
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.set('id', String(id));
+            setSearchParams(nextParams, { replace: true });
+        }
+    };
+
+    const handleCloseTenantDetail = () => {
+        setSelectedTenantId(null);
+        if (searchParams.get('id')) {
+            const nextParams = new URLSearchParams(searchParams);
+            nextParams.delete('id');
+            setSearchParams(nextParams, { replace: true });
+        }
+    };
 
     // Password Reset State
     const [showPasswordResetModal, setShowPasswordResetModal] = useState(null); // {tenantId, tenantName}
@@ -214,12 +244,12 @@ export default function TenantsPage() {
                 handlePermanentDelete={handlePermanentDelete}
                 onResetPassword={handleResetPassword}
                 onManualRenew={handleOpenRenewal}
-                onSelectTenant={(id) => setSelectedTenantId(id)}
+                onSelectTenant={handleSelectTenant}
             />
 
             <TenantDetailPanel
                 tenantId={selectedTenantId}
-                onClose={() => setSelectedTenantId(null)}
+                onClose={handleCloseTenantDetail}
                 onImpersonate={handleImpersonate}
             />
 
