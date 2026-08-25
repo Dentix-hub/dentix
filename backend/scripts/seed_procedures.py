@@ -6,7 +6,7 @@ from sqlalchemy import select
 # Ensure backend structure is visible
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from backend.database import AsyncSessionLocal
+from backend.database import system_session_scope
 from backend.models.clinical import Procedure
 
 PROCEDURES_LIST = [
@@ -48,7 +48,7 @@ PROCEDURES_LIST = [
 
 
 async def seed_procedures():
-    async with AsyncSessionLocal() as db:
+    async with system_session_scope() as db:
         try:
             tenant_id = None  # Global procedures
             added_count = 0

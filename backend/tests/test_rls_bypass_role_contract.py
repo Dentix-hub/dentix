@@ -2,6 +2,9 @@
 
 from pathlib import Path
 
+import pytest
+from sqlalchemy import text
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -69,3 +72,33 @@ def test_postgresql_data_repair_uses_system_engine():
         ROOT / "backend/ci_tests/test_finance_postgres_smoke.py"
     ).read_text(encoding="utf-8")
     assert "async with system_async_engine.begin()" in source
+
+
+@pytest.mark.asyncio
+async def test_rls_session_rebinds_after_transaction_boundaries():
+    from backend.database import AsyncSessionLocal, RlsContext
+
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=7)) as session:
+        await session.execute(text("SELECT 1"))
+        assert session._rls_dirty is False
+
+        await session.commit()
+        assert session._rls_dirty is True
+
+        await session.execute(text("SELECT 1"))
+        assert session._rls_dirty is False
+
+        await session.rollback()
+        assert session._rls_dirty is True
+
+
+def test_global_catalog_maintenance_uses_system_sessions():
+    for relative in (
+        "backend/scripts/fix_procedures_tenant.py",
+        "backend/scripts/seed_procedures.py",
+        "backend/scripts/seed_material_categories.py",
+        "backend/scripts/seed_procedure_material_defaults.py",
+        "backend/scripts/fix_global_procedures.py",
+    ):
+        source = (ROOT / relative).read_text(encoding="utf-8")
+        assert "system_session_scope" in source

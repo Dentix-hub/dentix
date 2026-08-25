@@ -17,13 +17,13 @@ from sqlalchemy import text
 # Ensure backend structure is visible
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from backend.database import async_engine
+from backend.database import system_session_scope
 
 
 async def fix_global_procedures():
     print("Starting Global Procedure Propagation...")
 
-    async with async_engine.connect() as conn:
+    async with system_session_scope() as conn:
         # 1. Get all Global Procedures
         res_procs = await conn.execute(
             text("""

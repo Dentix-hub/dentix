@@ -407,7 +407,20 @@ class CustomAsyncRlsSession(AsyncRlsSession):
         # current tenant or bypass setting first so add()+commit() is safe even
         # when no SELECT/execute occurred earlier in the transaction.
         await self._execute_set_statements()
-        await super().commit()
+        try:
+            await super().commit()
+        finally:
+            # PostgreSQL SET LOCAL state ends with the transaction. The next
+            # statement (for example refresh() immediately after commit) must
+            # bind the tenant again in its new transaction.
+            self._rls_dirty = True
+
+    async def rollback(self):
+        try:
+            await super().rollback()
+        finally:
+            # A rollback also clears every SET LOCAL tenant binding.
+            self._rls_dirty = True
 
 
 # Create session makers
