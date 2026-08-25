@@ -32,13 +32,13 @@
 | P02-04 | LOCAL_PASS | P02-02 | 2ef42983 | pytest test_database_surface_safety.py | Pass | Removed raw SQL restore HTTP surfaces (410 Gone) |
 | P02-05 | LOCAL_PASS | P02-03, P02-04 | a5ab5598 | vitest run | Pass | Restricted backup admin UI to clinic JSON |
 | P02-06 | LOCAL_PASS | P02-03, P02-04 | 5bd6a7b4 | pytest test_database_surface_safety.py | Pass | Route regression tests (3/3 passed, 100% coverage) |
-| P03-01 | NOT_STARTED | P00-08 | - | - | - | Inventory sensitive logging |
-| P03-02 | NOT_STARTED | P03-01 | - | - | - | Add bounded log sanitizer |
-| P03-03 | NOT_STARTED | P03-02 | - | - | - | Sanitize persisted system errors |
-| P03-04 | NOT_STARTED | P03-02 | - | - | - | Remove master code and token logging |
-| P03-05 | NOT_STARTED | P03-02 | - | - | - | Define exception contracts |
-| P03-06 | NOT_STARTED | P03-02 | - | - | - | Correct impersonation audit identity |
-| P03-07 | NOT_STARTED | P03-03, P03-05 | - | - | - | Register sanitized exception handlers |
+| P03-01 | LOCAL_PASS | P00-08 | 66fe0050 | static inspection | Pass | Sensitive logging surface inventory |
+| P03-02 | LOCAL_PASS | P03-01 | 66fe0050 | pytest test_logging_sanitizer.py | Pass | Bounded log sanitizer with PHI redaction (6/6 passed) |
+| P03-03 | LOCAL_PASS | P03-02 | 852121bf | pytest test_exception_sanitization.py | Pass | Sanitized persisted system errors and middleware |
+| P03-04 | LOCAL_PASS | P03-02 | 45fe188e | pytest test_auth_regression.py | Pass | Removed simulation master code & raw token logs |
+| P03-05 | LOCAL_PASS | P03-02 | a4442f43 | pytest test_exception_sanitization.py | Pass | Standardized sanitized error response contracts |
+| P03-06 | LOCAL_PASS | P03-02 | a4442f43 | pytest test_exception_sanitization.py | Pass | Fixed performed_by_id in impersonation audit logs |
+| P03-07 | LOCAL_PASS | P03-03, P03-05 | a4442f43 | pytest test_exception_sanitization.py | Pass | Global sanitized exception handlers in main.py |
 | P04-01 | NOT_STARTED | P00-04, P00-08 | - | - | - | Record migration topology |
 | P04-02 | NOT_STARTED | P00-06, P04-01 | - | - | - | Add ephemeral PostgreSQL harness |
 | P04-03 | NOT_STARTED | P04-02 | - | - | - | Test blank database upgrades |
