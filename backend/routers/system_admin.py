@@ -236,53 +236,9 @@ async def download_backup(
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
     db: AsyncSession = Depends(get_async_db),
 ):
-    if current_user.role != Role.SUPER_ADMIN.value:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    # Implementation of JSON Backup (Fallback for environments without pg_dump)
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"smart_clinic_json_backup_{timestamp}.json"
-
-    async def iter_json(db_session: AsyncSession):
-        yield "{\n"
-
-        # 1. Tenants
-        yield '  "tenants": [\n'
-        res_tenants = await db_session.execute(select(models.Tenant))
-        tenants = list(res_tenants.scalars().all())
-        for i, t in enumerate(tenants):
-            data = {
-                "id": t.id,
-                "name": t.name,
-                "domain": t.domain,
-                "plan_id": t.subscription_plan_id,
-                "is_active": t.is_active,
-            }
-            yield f"    {json.dumps(data)}" + (",\n" if i < len(tenants) - 1 else "\n")
-        yield "  ],\n"
-
-        # 2. Users (Sanitized)
-        yield '  "users": [\n'
-        res_users = await db_session.execute(select(models.User))
-        users = list(res_users.scalars().all())
-        for i, u in enumerate(users):
-            data = {
-                "id": u.id,
-                "username": u.username,
-                "email": u.email,
-                "role": u.role,
-                "tenant_id": u.tenant_id,
-                "is_active": u.is_active,
-            }
-            yield f"    {json.dumps(data)}" + (",\n" if i < len(users) - 1 else "\n")
-        yield "  ]\n"
-
-        yield "}"
-
-    return StreamingResponse(
-        iter_json(db),
-        media_type="application/json",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    raise HTTPException(
+        status_code=410,
+        detail="Cross-tenant raw database export over HTTP has been permanently disabled for security. Use clinic-scoped JSON export.",
     )
 
 

@@ -311,71 +311,11 @@ async def update_backup_schedule(
 async def download_backup(
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Download a full database backup. Restricted to Super Admin."""
-    if current_user.role != Role.SUPER_ADMIN.value:
-        raise HTTPException(
-            status_code=403,
-            detail="Only Super Admin can download full SQL backup. Use /settings/backup/export for tenant JSON backup.",
-        )
-
-    db_url = database.SQLALCHEMY_DATABASE_URL
-
-    if "sqlite" in db_url:
-        db_path = db_url.replace("sqlite:///", "")
-        if not os.path.exists(db_path):
-            if not db_path.startswith("/"):
-                db_path = os.path.join(database.BACKEND_DIR, db_path.replace("./", ""))
-
-        if not os.path.exists(db_path):
-            raise HTTPException(
-                status_code=404, detail="Database file not found on server"
-            )
-
-        return FileResponse(
-            path=db_path,
-            filename="clinic_backup.db",
-            media_type="application/octet-stream",
-        )
-
-    elif "postgres" in db_url:
-        try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"backup_{timestamp}.sql"
-            filepath = create_secure_temp_file(prefix="dentix_download_", suffix=".sql")
-            command, process_env = build_pg_dump_command(db_url, filepath)
-
-            process = await asyncio.create_subprocess_exec(
-                *command,
-                env=process_env,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            try:
-                _, stderr = await asyncio.wait_for(process.communicate(), timeout=60)
-            except TimeoutError:
-                process.kill()
-                await process.communicate()
-                raise RuntimeError("Database backup timed out")
-
-            if process.returncode != 0:
-                logger.error("pg_dump failed: %s", stderr.decode(errors="replace")[:1000])
-                raise RuntimeError("Database backup command failed")
-
-            return FileResponse(
-                path=filepath,
-                filename=filename,
-                media_type="application/sql",
-                background=BackgroundTask(_delete_temp_file, filepath),
-            )
-        except Exception as exc:
-            if "filepath" in locals():
-                _delete_temp_file(filepath)
-            logger.exception("Full database backup download failed")
-            raise HTTPException(
-                status_code=500, detail="Database backup could not be created"
-            ) from exc
-
-    raise HTTPException(status_code=500, detail="Unsupported database type")
+    """Download a full database backup over HTTP is permanently disabled."""
+    raise HTTPException(
+        status_code=410,
+        detail="Raw SQL and full database downloads over HTTP have been permanently disabled for security. Use /api/v1/settings/backup/export for clinic-scoped JSON export or guarded CLI tools.",
+    )
 
 
 @router.post("/backup/upload", response_model=StandardResponse[dict])
