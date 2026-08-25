@@ -52,6 +52,8 @@ def _get_request_identity(request: Request) -> tuple[int | None, int | None]:
     return user_id, _coerce_optional_int(payload.get("tenant_id"))
 
 
+from backend.core.logging_sanitizer import sanitize_text, sanitize_stack_trace
+
 async def _persist_system_error(
     *,
     request: Request,
@@ -61,20 +63,24 @@ async def _persist_system_error(
     tenant_id: int | None,
 ) -> None:
     context = RlsContext(tenant_id=None)
+    sanitized_msg = sanitize_text(error_msg, max_length=4000) or "Unknown error"
+    sanitized_trace = sanitize_stack_trace(stack_trace, max_length=12000)
+    sanitized_path = sanitize_text(str(request.url), max_length=2048)
+
     async with AsyncSessionLocal(context=context) as db:
         async with db.bypass_rls() as db:  # system-level audit write
             db.add(
                 SystemError(
                     level=ErrorLevel.ERROR,
                     source=ErrorSource.BACKEND,
-                    message=error_msg,
-                    stack_trace=stack_trace,
-                    path=str(request.url),
+                    message=sanitized_msg,
+                    stack_trace=sanitized_trace,
+                    path=sanitized_path,
                     method=request.method,
                     user_id=user_id,
                     tenant_id=tenant_id,
                     ip_address=request.client.host if request.client else None,
-                    user_agent=request.headers.get("user-agent"),
+                    user_agent=sanitize_text(request.headers.get("user-agent"), max_length=512),
                 )
             )
             await db.commit()

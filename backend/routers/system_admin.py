@@ -59,6 +59,8 @@ class LogEntry(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+from backend.core.logging_sanitizer import sanitize_text, sanitize_stack_trace
+
 @router.post("/logs", response_model=StandardResponse[dict])
 @limiter.limit("10/minute")
 async def submit_frontend_log(
@@ -73,10 +75,10 @@ async def submit_frontend_log(
         new_log = models.SystemError(
             level=level,
             source="FRONTEND",
-            message=log.message,
-            stack_trace=log.context.stack_trace,
-            path=log.context.path,
-            user_agent=(request.headers.get("user-agent") or "")[:512] or None,
+            message=sanitize_text(log.message, max_length=4000) or "Frontend Log",
+            stack_trace=sanitize_stack_trace(log.context.stack_trace, max_length=12000),
+            path=sanitize_text(log.context.path, max_length=2048),
+            user_agent=sanitize_text(request.headers.get("user-agent"), max_length=512),
             ip_address=request.client.host if request.client else None,
             created_at=datetime.datetime.now(timezone.utc),
         )

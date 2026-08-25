@@ -58,6 +58,8 @@ async def create_appointment(
         patient = await crud.get_patient(db, appointment.patient_id, tenant_id)
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
+from backend.core.logging_sanitizer import sanitize_text, sanitize_stack_trace
+
         data = await crud.create_appointment(db=db, appointment=appointment, tenant_id=tenant_id)
         return success_response(data=data, message="Appointment created successfully")
     except HTTPException:
@@ -67,17 +69,17 @@ async def create_appointment(
         error_log = SystemError(
             level=ErrorLevel.ERROR,
             source=ErrorSource.BACKEND,
-            message=f"Appointment POST Error: {str(e)}",
-            stack_trace=traceback.format_exc(),
-            path=str(request.url.path),
+            message=sanitize_text(f"Appointment POST Error: {str(e)}", max_length=4000) or "Appointment Error",
+            stack_trace=sanitize_stack_trace(traceback.format_exc(), max_length=12000),
+            path=sanitize_text(str(request.url.path), max_length=2048),
             method="POST",
             user_id=user_id,
             tenant_id=tenant_id,
         )
         db.add(error_log)
         await db.commit()
-        logger.error(f"Appointment Creation Failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Appointment Creation Failed: %s", sanitize_text(str(e)))
+        raise HTTPException(status_code=500, detail="Failed to create appointment")
 
 
 @router.get(
@@ -127,17 +129,17 @@ async def read_appointments(
         error_log = SystemError(
             level=ErrorLevel.ERROR,
             source=ErrorSource.BACKEND,
-            message=f"Appointment GET Error: {str(e)}",
-            stack_trace=traceback.format_exc(),
-            path=str(request.url.path),
+            message=sanitize_text(f"Appointment GET Error: {str(e)}", max_length=4000) or "Appointment Error",
+            stack_trace=sanitize_stack_trace(traceback.format_exc(), max_length=12000),
+            path=sanitize_text(str(request.url.path), max_length=2048),
             method="GET",
             user_id=current_user.id,
             tenant_id=current_user.tenant_id
         )
         db.add(error_log)
         await db.commit()
-        logger.error(f"Appointment Fetch Failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Appointment Fetch Failed: %s", sanitize_text(str(e)))
+        raise HTTPException(status_code=500, detail="Failed to fetch appointments")
 
 
 @router.get("/debug-errors")
@@ -170,7 +172,7 @@ async def get_debug_errors(
     "/{appointment_id}",
     response_model=StandardResponse[schemas.Appointment],
     summary="Update appointment",
-    description="Update appointment details like time, notes, or doctor. Requires APPOINTMENT_UPDATE permission.",
+    description="Update appointment details. Requires APPOINTMENT_UPDATE permission.",
 )
 async def update_appointment(
     request: Request,
@@ -191,15 +193,15 @@ async def update_appointment(
         raise
     except Exception as e:
         await db.rollback()
-        logger.error(f"Appointment Update Failed: {str(e)}\n{traceback.format_exc()}")
+        logger.error("Appointment Update Failed: %s", sanitize_text(str(e)))
 
         try:
             error_log = SystemError(
                 level=ErrorLevel.ERROR,
                 source=ErrorSource.BACKEND,
-                message=f"Appointment PUT Error: {str(e)}",
-                stack_trace=traceback.format_exc(),
-                path=str(request.url.path),
+                message=sanitize_text(f"Appointment PUT Error: {str(e)}", max_length=4000) or "Appointment Error",
+                stack_trace=sanitize_stack_trace(traceback.format_exc(), max_length=12000),
+                path=sanitize_text(str(request.url.path), max_length=2048),
                 method="PUT",
                 user_id=current_user.id,
                 tenant_id=current_user.tenant_id
@@ -208,9 +210,9 @@ async def update_appointment(
             await db.commit()
         except Exception as log_e:
             await db.rollback()
-            logger.error(f"Failed to log error to DB: {str(log_e)}")
+            logger.error("Failed to log error to DB: %s", sanitize_text(str(log_e)))
 
-        raise HTTPException(status_code=500, detail=f"Backend Error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update appointment")
 
 
 @router.put(
