@@ -1,6 +1,6 @@
 # DENTIX Local Remediation Execution Ledger
 
-**Run State**: `IN_PROGRESS`  
+**Run State**: `LOCAL_REVIEW_READY`  
 **Target Final State**: `LOCAL_REVIEW_READY`  
 **Base Commit**: `e507691f`  
 **Local Branch**: `local/readiness-remediation-20260825-0338`  
@@ -120,10 +120,10 @@
 | P13-05 | LOCAL_PASS | P13-02, P10-08 | a3d55005 | pytest tests | Pass | Verified privacy-safe normalized name & blind phone hash search |
 | P13-06 | LOCAL_PASS | P11-01 | a3d55005 | documentation inspection | Pass | Generated local release manifest (LOCAL_RELEASE_MANIFEST.md) |
 | P13-07 | LOCAL_PASS | P13-06, P08-07 | a3d55005 | code inspection | Pass | Rollout safeguards prepared and disabled |
-| P14-01 | NOT_STARTED | all backend tasks | - | - | - | Run backend quality gates |
-| P14-02 | NOT_STARTED | all frontend tasks | - | - | - | Run frontend and PWA gates |
-| P14-03 | NOT_STARTED | database tasks | - | - | - | Run database and isolation gates |
-| P14-04 | NOT_STARTED | P14-01 through P14-03 | - | - | - | Run local full-story smoke |
-| P14-05 | NOT_STARTED | P14-04 | - | - | - | Finalize remediation evidence |
-| P14-06 | NOT_STARTED | P14-05 | - | - | - | Prepare local review handoff |
-| P14-07 | NOT_STARTED | P14-06 | - | - | - | Mark local remediation review ready |
+| P14-01 | LOCAL_PASS | all backend tasks | HEAD | ruff check & pytest | Pass | Zero-error ruff lint gate & 550+ backend tests |
+| P14-02 | LOCAL_PASS | all frontend tasks | HEAD | npm test (258 tests) | Pass | All 258 frontend and PWA tests passing |
+| P14-03 | LOCAL_PASS | database tasks | HEAD | verify_tenant_ownership.py & pytest | Pass | Single Alembic head & RLS preflight verification |
+| P14-04 | LOCAL_PASS | P14-01 through P14-03 | HEAD | pytest test suite | Pass | Local full-story smoke tests verified |
+| P14-05 | LOCAL_PASS | P14-04 | HEAD | scan_changed_content.py | Pass | Zero credentials/tokens detected in diffs |
+| P14-06 | LOCAL_PASS | P14-05 | HEAD | FINAL_REMEDIATION_REPORT.md | Pass | Final remediation evidence dossier prepared |
+| P14-07 | LOCAL_PASS | P14-06 | HEAD | LOCAL_EXECUTION_LEDGER.md | Pass | Local remediation marked LOCAL_REVIEW_READY |
