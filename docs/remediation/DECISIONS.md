@@ -26,3 +26,15 @@
 - `MaterialSession`
 - `StockMovement`
 All 5 tables receive explicit `tenant_id` columns, FKs, NOT NULL constraints, and `FORCE ROW LEVEL SECURITY`.
+
+## 4. Database HTTP Surfaces and Deprecation Policy (Phase P02)
+- **Elimination of Raw SQL / Full DB Endpoints**: All HTTP surfaces that stream raw SQL database dumps (`pg_dump`/raw SQLite files) or accept arbitrary raw `.sql` files for database restoration are permanently disabled.
+- **HTTP Contract**:
+  - `GET /api/v1/settings/backup/download` returns `HTTP 410 Gone`.
+  - `POST /api/v1/settings/backup/upload` rejecting `.sql` returns `HTTP 410 Gone`.
+  - `POST /api/v1/system/restore` returns `HTTP 410 Gone`.
+  - `GET /api/v1/system/backup` returns `HTTP 410 Gone`.
+- **Approved Safe Alternatives**:
+  - **Tenant Export/Import**: `GET /api/v1/settings/backup/export` (clinic-scoped JSON) and `POST /api/v1/settings/backup/upload` (accepting `.json` only) remain supported for tenant data portability.
+  - **Guarded CLI Tooling**: Platform-level backups and disaster recovery operations are performed strictly via local, guarded CLI commands with strict target checks (`scripts/backup/`) in Phase P08.
+
