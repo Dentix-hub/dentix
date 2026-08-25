@@ -32,7 +32,7 @@ async def debug_token_validation(token: str, db: AsyncSession = Depends(get_asyn
             "user_id": user.id,
             "tenant_id": user.tenant_id,
         })
-    except Exception as e:
+    except Exception:
         logger.warning("Token validation failed")
         return error_response(message="Token validation failed", data={"valid": False})
 

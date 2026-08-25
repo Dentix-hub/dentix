@@ -13,19 +13,19 @@ PATTERNS = [
     # 1. Bearer / JWT Tokens
     (re.compile(r"Bearer\s+([A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.[A-Za-z0-9-_.+/=]+)", re.IGNORECASE), "Bearer [REDACTED_JWT]"),
     (re.compile(r"\beyJ[A-Za-z0-9-_=]+\.eyJ[A-Za-z0-9-_=]+\.[A-Za-z0-9-_.+/=]+\b"), "[REDACTED_JWT]"),
-    
+
     # 2. Passwords / Secrets in URLs
     (re.compile(r"(://[^:\s@]+):([^@\s/]+)@"), r"\1:[REDACTED_SECRET]@"),
-    
+
     # 3. Password / Secret / Token JSON or query parameters
     (re.compile(r'(["\']?(?:password|passwd|new_password|old_password|otp_secret|secret|access_token|refresh_token|token|api_key|master_code)["\']?\s*[:=]\s*["\'])([^"\'\s&,]+)(["\']?)', re.IGNORECASE), r'\1[REDACTED]\3'),
-    
+
     # 4. Egyptian National ID (14 digits starting with 2 or 3)
     (re.compile(r"\b([23]\d{2})(\d{8})(\d{3})\b"), r"\1********\3"),
-    
+
     # 5. Egyptian Mobile Phone (11 digits starting with 010, 011, 012, 015)
     (re.compile(r"\b(01[0125])\d{4}(\d{4})\b"), r"\1****\2"),
-    
+
     # 6. Private Keys
     (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"), "[REDACTED_PRIVATE_KEY]"),
 ]
