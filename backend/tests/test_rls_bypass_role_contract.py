@@ -16,6 +16,14 @@ def test_current_rls_installers_do_not_grant_guc_bypass():
         assert "current_setting('rls.bypass_rls'" not in source
 
 
+def test_fresh_preflight_replaces_create_all_hook_policies():
+    source = (ROOT / "backend/scripts/preflight_migrations.py").read_text(
+        encoding="utf-8"
+    )
+    assert "_drop_postgresql_table_policies(connection, table)" in source
+    assert '_drop_postgresql_table_policies(connection, "notifications")' in source
+
+
 def test_head_migration_removes_historical_application_bypass():
     source = (
         ROOT

@@ -190,6 +190,28 @@ def _drop_bootstrap_marker(engine) -> None:
         connection.execute(text(f'DROP TABLE IF EXISTS "{BOOTSTRAP_MARKER}"'))
 
 
+def _drop_postgresql_table_policies(connection, table: str) -> None:
+    """Remove create_all hook policies before installing the canonical policy."""
+    policy_names = list(
+        connection.execute(
+            text(
+                """SELECT policyname
+                     FROM pg_policies
+                    WHERE schemaname = current_schema()
+                      AND tablename = :table"""
+            ),
+            {"table": table},
+        ).scalars()
+    )
+    preparer = connection.dialect.identifier_preparer
+    quoted_table = preparer.quote(table)
+    for policy_name in policy_names:
+        quoted_policy = preparer.quote(policy_name)
+        connection.execute(
+            text(f"DROP POLICY IF EXISTS {quoted_policy} ON {quoted_table}")
+        )
+
+
 def _install_postgresql_rls(connection) -> None:
     """Install the same strict RLS contract used by the historical migration."""
     if connection.dialect.name != "postgresql":
@@ -208,7 +230,10 @@ def _install_postgresql_rls(connection) -> None:
     for table in RLS_TABLES:
         connection.execute(text(f'ALTER TABLE "{table}" ENABLE ROW LEVEL SECURITY'))
         connection.execute(text(f'ALTER TABLE "{table}" FORCE ROW LEVEL SECURITY'))
-        connection.execute(text(f'DROP POLICY IF EXISTS "{table}_tenant_policy" ON "{table}"'))
+        # register_rls(Base) creates package policies during metadata.create_all.
+        # A fresh baseline must not retain those legacy GUC-bypass policies
+        # alongside the fail-closed canonical policy.
+        _drop_postgresql_table_policies(connection, table)
         connection.execute(
             text(
                 f'''CREATE POLICY "{table}_tenant_policy" ON "{table}"
@@ -226,9 +251,7 @@ def _install_postgresql_rls(connection) -> None:
     )
     connection.execute(text('ALTER TABLE "notifications" ENABLE ROW LEVEL SECURITY'))
     connection.execute(text('ALTER TABLE "notifications" FORCE ROW LEVEL SECURITY'))
-    connection.execute(
-        text('DROP POLICY IF EXISTS "notifications_tenant_policy" ON "notifications"')
-    )
+    _drop_postgresql_table_policies(connection, "notifications")
     connection.execute(
         text(
             f'''CREATE POLICY "notifications_tenant_policy" ON "notifications"
