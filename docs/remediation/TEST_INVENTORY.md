@@ -1,5 +1,7 @@
 # DENTIX Test Inventory & Baseline Verification
 
+> Final corrective run (2026-08-25): `backend/tests` collected 630 items; 626 passed and 4 were skipped, with 65.13% coverage against the 52% CI gate. The Alembic head is `e3a4b5c6d7e8`. The counts below are the original baseline snapshot.
+
 **Inventory Timestamp**: 2026-08-25T00:41:30Z  
 
 ---
@@ -21,7 +23,7 @@
 
 ## 4. Alembic & Migration Verification
 - **Command**: `cmd /c "set PYTHONPATH=. && uv run alembic -c backend/alembic.ini heads"`
-- **Current Head**: `d0e1f2a3b4c5`
+- **Baseline Head**: `d0e1f2a3b4c5` (final head: `e3a4b5c6d7e8`)
 - **Ephemeral PostgreSQL Suite**: `backend/tests/test_preflight_postgres_contract.py`
 
 ## 5. Security & Isolation Suites

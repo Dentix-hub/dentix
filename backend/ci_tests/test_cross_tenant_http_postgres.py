@@ -194,6 +194,7 @@ async def _seed_cross_tenant_graph() -> None:
                     ),
                     models.Attachment(
                         id=ATTACHMENT_B,
+                        tenant_id=TENANT_B,
                         patient_id=PATIENT_B,
                         file_path=f"tenant_{TENANT_B}/private.txt",
                         filename="private.txt",

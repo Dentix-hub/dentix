@@ -74,48 +74,6 @@ export default function SystemPage() {
         }
     };
 
-    const handleDownloadBackup = async () => {
-        try {
-            setUploading(true);
-            const response = await api.get('/api/v1/admin/system/backup', { responseType: 'blob' });
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            const contentDisposition = response.headers['content-disposition'];
-            let fileName = 'dentix_backup.db';
-            if (contentDisposition) {
-                const fileNameMatch = contentDisposition.match(/filename="?(.+)"?/);
-                if (fileNameMatch && fileNameMatch.length === 2) fileName = fileNameMatch[1];
-            }
-            link.setAttribute('download', fileName);
-            document.body.appendChild(link);
-            link.click();
-            link.parentNode.removeChild(link);
-            window.URL.revokeObjectURL(url);
-        } catch (error) {
-            toast.error("فشل تحميل النسخة الاحتياطية");
-        } finally {
-            setUploading(false);
-        }
-    };
-
-    const handleRestoreBackup = async (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-        if (!window.confirm("تحذير: استعادة النسخة الاحتياطية ستقوم بحذف جميع البيانات الحالية. هل أنت متأكد؟")) return;
-        const formData = new FormData();
-        formData.append('file', file);
-        setUploading(true);
-        try {
-            await api.post('/api/v1/admin/system/restore', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-            toast.success("تم استعادة النسخة الاحتياطية بنجاح");
-        } catch (error) {
-            toast.error("فشلت عملية الاستعادة");
-        } finally {
-            setUploading(false);
-        }
-    };
-
     const handleConnectGoogle = async () => {
         try {
             const res = await api.get('/api/v1/admin/system/backup/google-auth');

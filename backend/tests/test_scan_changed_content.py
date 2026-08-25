@@ -2,7 +2,7 @@
 Tests for scripts/security/scan_changed_content.py
 """
 
-from scripts.security.scan_changed_content import scan_text
+from scripts.security.scan_changed_content import scan_git_diff, scan_text
 
 
 def test_scan_text_clean_content():
@@ -33,3 +33,36 @@ def test_scan_text_detects_canaries_and_redacts():
         assert "super_secret_password" not in str(f)
         assert "29501011234567" not in str(f)
         assert "01012345678" not in str(f)
+
+
+def test_scan_git_diff_checks_only_added_lines_and_redacts_values():
+    secret = "postgresql://admin:unsafe-pass@db.example/dentix"
+    diff = "\n".join([
+        "diff --git a/app.py b/app.py",
+        "--- a/app.py",
+        "+++ b/app.py",
+        "@@ -10,2 +10,2 @@",
+        "-DATABASE_URL = 'postgresql://old:deleted@db.example/old'",
+        f"+DATABASE_URL = '{secret}'",
+        " context = True",
+    ])
+
+    findings = scan_git_diff(diff)
+
+    assert len(findings) == 1
+    assert findings[0]["file"] == "app.py"
+    assert findings[0]["line"] == "10"
+    assert secret not in str(findings)
+
+
+def test_scan_git_diff_ignores_deleted_sensitive_content():
+    diff = "\n".join([
+        "diff --git a/app.py b/app.py",
+        "--- a/app.py",
+        "+++ b/app.py",
+        "@@ -1 +1 @@",
+        "-DATABASE_URL = 'postgresql://admin:deleted@db.example/dentix'",
+        "+DATABASE_URL = os.environ['DATABASE_URL']",
+    ])
+
+    assert scan_git_diff(diff) == []

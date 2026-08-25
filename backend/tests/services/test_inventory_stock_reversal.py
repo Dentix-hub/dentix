@@ -20,8 +20,8 @@ async def test_reverse_stock_by_reference_restores_initial_outstanding_movement(
     db = MagicMock()
     db.execute = AsyncMock()
 
-    original = [SimpleNamespace(stock_item_id=7, change_amount=-2.0)]
-    stock_item = SimpleNamespace(id=7, quantity=8.0)
+    original = [SimpleNamespace(stock_item_id=7, change_amount=-2.0, tenant_id=1)]
+    stock_item = SimpleNamespace(id=7, quantity=8.0, tenant_id=1)
     db.execute.side_effect = [
         _result(all_items=original),
         _result(all_items=[]),
@@ -77,11 +77,11 @@ async def test_reverse_stock_by_reference_reverses_new_usage_after_prior_reversa
     # reverse only the still-outstanding -3 rather than treating the reference
     # as permanently reversed.
     original = [
-        SimpleNamespace(stock_item_id=7, change_amount=-2.0),
-        SimpleNamespace(stock_item_id=7, change_amount=-3.0),
+        SimpleNamespace(stock_item_id=7, change_amount=-2.0, tenant_id=1),
+        SimpleNamespace(stock_item_id=7, change_amount=-3.0, tenant_id=1),
     ]
     prior_reversal = [SimpleNamespace(stock_item_id=7, change_amount=2.0)]
-    stock_item = SimpleNamespace(id=7, quantity=7.0)
+    stock_item = SimpleNamespace(id=7, quantity=7.0, tenant_id=1)
     db.execute.side_effect = [
         _result(all_items=original),
         _result(all_items=prior_reversal),

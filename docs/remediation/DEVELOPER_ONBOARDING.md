@@ -23,7 +23,11 @@
    ```bash
    uv run alembic -c backend/alembic.ini upgrade head
    ```
-4. Start dev server:
+4. For PostgreSQL, configure distinct `DATABASE_URL` (`NOBYPASSRLS`) and
+   `SYSTEM_DATABASE_URL` (`BYPASSRLS`) logins and grant both only the required
+   schema/table/sequence privileges. SQLite unit tests reuse their isolated
+   local database and do not require a second login.
+5. Start dev server:
    ```bash
    uv run uvicorn backend.main:app --reload --port 8000
    ```

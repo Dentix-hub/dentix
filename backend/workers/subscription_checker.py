@@ -2,7 +2,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.database import AsyncSessionLocal
+from backend.database import system_session_scope
 from backend.models.tenant import Tenant
 from sqlalchemy import select, or_
 import traceback
@@ -69,7 +69,7 @@ async def check_expired_subscriptions(db: AsyncSession):
 @flow(name="subscription-checker", log_prints=True)
 async def subscription_checker_flow():
     """Prefect flow to run the subscription checker cycle."""
-    async with AsyncSessionLocal() as db:
+    async with system_session_scope() as db:
         count = await check_expired_subscriptions(db)
         if count > 0:
             logger.info(f"Processed {count} expired tenants during this cycle.")

@@ -5,6 +5,7 @@ Guards local database and HTTP test operations from accidentally targeting live/
 
 import os
 import re
+from pathlib import Path
 from urllib.parse import urlparse
 
 
@@ -56,7 +57,7 @@ def sanitize_target_url(url_str: str) -> str:
             return parsed._replace(netloc=sanitized_netloc).geturl()
         return url_str
     except Exception:
-        return re.sub(r"://([^:]+):([^@]+)@", r"://\1:***@", url_str)
+        return re.sub(r"://([^:]+):([^@]+)@", r"://\1:***@", url_str)  # scan: allow-pattern-definition
 
 
 def validate_database_target(db_url: str, is_destructive: bool = False) -> str:
@@ -67,6 +68,19 @@ def validate_database_target(db_url: str, is_destructive: bool = False) -> str:
     """
     if not db_url:
         raise UnsafeTargetError("Database target URL cannot be empty.")
+
+    sqlite_url = db_url.replace("sqlite+aiosqlite://", "sqlite://")
+    if sqlite_url.startswith("sqlite://"):
+        parsed_sqlite = urlparse(sqlite_url)
+        db_path = (parsed_sqlite.path or "").lower()
+        db_name = Path(db_path).name
+        if not any(re.search(pattern, db_name) for pattern in ALLOWED_DB_NAME_PATTERNS):
+            raise UnsafeTargetError("SQLite path must be explicitly named test/dev/local")
+        if is_destructive and os.getenv("LOCAL_DESTRUCTIVE_TESTS") != "1":
+            raise UnsafeTargetError(
+                "Destructive operations require LOCAL_DESTRUCTIVE_TESTS=1 environment variable."
+            )
+        return sanitize_target_url(db_url)
 
     # Normalize url scheme if asyncpg
     norm_url = db_url.replace("postgresql+asyncpg://", "postgresql://")

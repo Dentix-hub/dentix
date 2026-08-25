@@ -131,6 +131,7 @@ async def test_delete_zero_balance_material_preserves_audit_history(async_db_ses
     )
     movement = StockMovement(
         id=1885,
+        tenant_id=tenant_id,
         stock_item_id=stock_item.id,
         change_amount=-1.0,
         reason="USAGE",

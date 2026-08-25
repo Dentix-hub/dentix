@@ -84,23 +84,44 @@ jobs:
                           NOREPLICATION NOBYPASSRLS
                       """
                   )
+                  cur.execute(
+                      """
+                      CREATE ROLE dentix_idor_system WITH
+                          LOGIN PASSWORD 'dentix_idor_system_pass'
+                          NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT
+                          NOREPLICATION BYPASSRLS
+                      """
+                  )
                   cur.execute("GRANT CONNECT ON DATABASE dentix_idor TO dentix_idor_app")
+                  cur.execute("GRANT CONNECT ON DATABASE dentix_idor TO dentix_idor_system")
                   cur.execute("GRANT USAGE ON SCHEMA public TO dentix_idor_app")
+                  cur.execute("GRANT USAGE ON SCHEMA public TO dentix_idor_system")
                   cur.execute(
                       "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO dentix_idor_app"
                   )
                   cur.execute(
+                      "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO dentix_idor_system"
+                  )
+                  cur.execute(
                       "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO dentix_idor_app"
+                  )
+                  cur.execute(
+                      "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO dentix_idor_system"
                   )
           PY
 
       - name: Run HTTP BOLA and upload matrix through PostgreSQL FORCE RLS
         env:
-          DATABASE_URL: postgresql://dentix_idor_app:dentix_idor_app_pass@localhost:5432/dentix_idor
-        run: >-
-          pytest
-          backend/ci_tests/test_cross_tenant_http_postgres.py
-          backend/ci_tests/test_upload_postgres_smoke.py
-          -v
-          --tb=short
-          --confcutdir=backend/ci_tests
+          APP_DATABASE_URL_PREFIX: postgresql://dentix_idor_app
+          APP_DATABASE_URL_SUFFIX: :dentix_idor_app_pass@localhost:5432/dentix_idor
+          SYSTEM_DATABASE_URL_PREFIX: postgresql://dentix_idor_system
+          SYSTEM_DATABASE_URL_SUFFIX: :dentix_idor_system_pass@localhost:5432/dentix_idor
+        run: |
+          export DATABASE_URL="${APP_DATABASE_URL_PREFIX}${APP_DATABASE_URL_SUFFIX}"
+          export SYSTEM_DATABASE_URL="${SYSTEM_DATABASE_URL_PREFIX}${SYSTEM_DATABASE_URL_SUFFIX}"
+          pytest \
+            backend/ci_tests/test_cross_tenant_http_postgres.py \
+            backend/ci_tests/test_upload_postgres_smoke.py \
+            -v \
+            --tb=short \
+            --confcutdir=backend/ci_tests

@@ -6,7 +6,6 @@ const SubscriptionSettings = ({ currentUser }) => {
     if (!currentUser?.tenant) return null;
 
     const tenant = currentUser.tenant;
-    const isExpired = tenant.subscription_status === 'expired_read_only' || tenant.subscription_status === 'expired';
     const isGrace = tenant.subscription_status === 'grace';
 
     return (

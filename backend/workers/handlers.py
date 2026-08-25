@@ -70,3 +70,12 @@ async def on_treatment_created(event: DomainEvent):
     )
 
 
+@register_handler("system.backup.requested")
+async def on_system_backup_requested(event: DomainEvent):
+    """Run one durable backup request on the isolated system DB session."""
+    from backend.database import system_session_scope
+    from backend.services.backup_scheduler_service import execute_backup_event
+
+    async with system_session_scope() as db:
+        await execute_backup_event(db, event)
+

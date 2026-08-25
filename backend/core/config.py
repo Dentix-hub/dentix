@@ -2,7 +2,7 @@ import os
 from typing import Literal
 
 API_V1_STR = "/api/v1"
-APP_VERSION = "2.0.8"
+APP_VERSION = "2026.8.0"
 
 
 def get_cors_origins():
@@ -82,6 +82,30 @@ def is_backup_scheduler_enabled() -> bool:
     """Control automated backup scheduling. Default False."""
     val = os.getenv("BACKUP_SCHEDULER_ENABLED", "false").lower().strip()
     return val in {"true", "1", "yes"}
+
+
+def _bounded_int_setting(name: str, default: int, minimum: int, maximum: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except ValueError as exc:
+        raise ValueError(f"Invalid {name}; expected an integer") from exc
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}")
+    return value
+
+
+def get_backup_schedule_interval_seconds() -> int:
+    """Interval for the disabled-by-default durable backup scheduler."""
+    return _bounded_int_setting(
+        "BACKUP_SCHEDULER_INTERVAL_SECONDS", 86_400, 60, 2_592_000
+    )
+
+
+def get_backup_missed_run_grace_seconds() -> int:
+    """Delay beyond the normal interval that marks a run as missed."""
+    return _bounded_int_setting(
+        "BACKUP_MISSED_RUN_GRACE_SECONDS", 3_600, 0, 604_800
+    )
 
 
 def get_external_ai_phi_mode() -> Literal["deny", "deidentified", "contracted"]:

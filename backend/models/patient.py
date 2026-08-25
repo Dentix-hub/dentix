@@ -95,7 +95,7 @@ class Attachment(Base):
     ]
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    tenant_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"))
     file_path: Mapped[str] = mapped_column(String)
     filename: Mapped[str] = mapped_column(String)

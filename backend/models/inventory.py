@@ -153,7 +153,7 @@ class MaterialSession(Base):
     ]
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     stock_item_id = Column(
         Integer, ForeignKey("stock_items.id"), nullable=False, index=True
     )
@@ -192,7 +192,7 @@ class StockMovement(Base):
     ]
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     stock_item_id = Column(
         Integer, ForeignKey("stock_items.id"), nullable=False, index=True
     )

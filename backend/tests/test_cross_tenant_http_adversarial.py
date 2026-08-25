@@ -80,6 +80,7 @@ def _create_tenant_b_graph(db_session):
         tenant_id=tenant_b.id,
     )
     attachment_b = models.Attachment(
+        tenant_id=tenant_b.id,
         patient_id=patient_b.id,
         file_path=f"tenant_{tenant_b.id}/private-{suffix}.txt",
         filename=f"private-{suffix}.txt",

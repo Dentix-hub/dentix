@@ -35,7 +35,7 @@ async def test_unknown_event_type_raises_and_marks_failed(async_db_session: Asyn
         await process_event(event)
 
     # 3. process_pending_events should handle the error and mark the event as failed
-    await process_pending_events(async_db_session)
+    await process_pending_events.fn(async_db_session)
     await async_db_session.refresh(event)
 
     assert event.attempts >= 1
@@ -60,7 +60,7 @@ async def test_known_event_processing(async_db_session: AsyncSession):
     await async_db_session.commit()
     await async_db_session.refresh(event)
 
-    await process_pending_events(async_db_session)
+    await process_pending_events.fn(async_db_session)
     await async_db_session.refresh(event)
 
     assert event.status == "completed"

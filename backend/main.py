@@ -21,8 +21,14 @@ from prometheus_fastapi_instrumentator import Instrumentator
 import time
 import uuid
 
-from backend.core.config import get_cors_origins, API_V1_STR, get_allow_origin_regex
-from backend.core.limiter import limiter
+from backend.core.config import (
+    APP_VERSION,
+    API_V1_STR,
+    get_allow_origin_regex,
+    get_cors_origins,
+    get_metrics_exposure_mode,
+)
+from backend.core.limiter import limiter, record_rate_limit_observation
 from backend import models, database
 from backend.core import migrations, seeding
 from backend.cache import get_cache_stats, invalidate_cache
@@ -46,10 +52,15 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifecycle manager for startup and shutdown events."""
     logger.info("[STARTUP] Server Starting...")
-    logger.info("[DEPLOY_VERIFY] DENTIX V2.0.8 IS LIVE")
+    logger.info("[DEPLOY_VERIFY] DENTIX %s IS LIVE", APP_VERSION)
 
     _env = os.getenv("ENVIRONMENT", "development").lower()
     _is_production = _env == "production"
+
+    # Tenant requests and system maintenance must never share a PostgreSQL
+    # login. The application role is NOBYPASSRLS; only the isolated system
+    # connection may carry BYPASSRLS.
+    await database.verify_system_database_role()
 
     # ================================================================
     # PRODUCTION SAFETY: Schema mutation and seeding are BLOCKED
@@ -89,11 +100,9 @@ async def lifespan(app: FastAPI):
             logger.warning("[STARTUP] Startup patches failed", exc_info=True)
 
         try:
-            _ctx = database.RlsContext(tenant_id=None)
-            async with database.AsyncSessionLocal(context=_ctx) as _sess:
-                async with _sess.bypass_rls() as db:
-                    async with db.begin():
-                        await seeding.seed_default_data(db)
+            async with database.system_session_scope() as db:
+                async with db.begin():
+                    await seeding.seed_default_data(db)
             logger.info("Database seeding completed")
         except Exception as e:
             from sqlalchemy.exc import IntegrityError
@@ -186,7 +195,7 @@ async def lifespan(app: FastAPI):
 # Initialize FastAPI app with lifespan
 app = FastAPI(
     title="DENTIX Clinical & Practice Management API",
-    version="2026.8.0",
+    version=APP_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
@@ -540,18 +549,19 @@ async def get_global_settings(db: AsyncSession = Depends(database.get_async_db))
 # --- Observability & Metrics Protection ---
 @app.middleware("http")
 async def metrics_protection_middleware(request: Request, call_next):
+    record_rate_limit_observation(request)
     if request.url.path == "/metrics":
-        env = os.getenv("ENVIRONMENT", "development").lower()
-        if env == "production":
-            metrics_token = os.getenv("METRICS_SCRAPER_TOKEN")
-            auth_header = request.headers.get("Authorization", "")
-            is_local = request.client and request.client.host in ("127.0.0.1", "localhost", "::1")
-            is_authorized_token = bool(metrics_token and auth_header == f"Bearer {metrics_token}")
-            if not is_local and not is_authorized_token:
-                return JSONResponse(
-                    status_code=403,
-                    content={"detail": "Forbidden: Metrics endpoint is restricted to authorized scrapers."}
-                )
+        import secrets
+
+        if get_metrics_exposure_mode() == "off":
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
+        metrics_token = os.getenv("METRICS_SCRAPER_TOKEN", "")
+        auth_header = request.headers.get("Authorization", "")
+        supplied = auth_header.removeprefix("Bearer ") if auth_header.startswith("Bearer ") else ""
+        if not metrics_token:
+            return JSONResponse(status_code=503, content={"detail": "Metrics scraper is not configured"})
+        if not supplied or not secrets.compare_digest(supplied, metrics_token):
+            return JSONResponse(status_code=403, content={"detail": "Forbidden"})
     return await call_next(request)
 
 # Workaround for compatibility issue between FastAPI >=0.110.0 and prometheus-fastapi-instrumentator.
@@ -619,7 +629,7 @@ async def read_root():
 
     return {
         "message": "Welcome to Smart Clinic API (Frontend not found)",
-        "version": "2.0.0",
+        "version": APP_VERSION,
         "docs": "/docs",
     }
 

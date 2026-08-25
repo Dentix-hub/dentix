@@ -24,3 +24,5 @@ When alert notifications are dispatched to external monitoring endpoints (e.g. O
 - Payload contains only aggregate metric names, severity, tenant-count, and timestamps.
 - Webhook requests include `X-Dentix-Signature: sha256=<HMAC_HEX>` signed with `ALERT_WEBHOOK_SECRET`.
 - HTTP timeout is strictly capped at 3.0 seconds.
+
+Dispatch is fail-safe and disabled by default. Enabling it requires `ALERT_DISPATCH_ENABLED=true`, a credential-free HTTPS `ALERT_WEBHOOK_URL`, and an `ALERT_WEBHOOK_SECRET` of at least 32 characters. Delivery failures are sanitized and must never replace the original application response. The current dispatcher is exercised by `backend/tests/test_alert_dispatch_service.py`; endpoint ownership and escalation routing remain operational configuration, not code-level proof.

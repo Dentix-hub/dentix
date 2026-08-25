@@ -14,7 +14,7 @@ from backend.workers.subscription_checker import check_expired_subscriptions
 async def test_subscription_worker_disabled_by_default(monkeypatch):
     monkeypatch.delenv("SUBSCRIPTION_WORKER_ENABLED", raising=False)
     db = AsyncMock()
-    count = await check_expired_subscriptions(db)
+    count = await check_expired_subscriptions.fn(db)
     assert count == 0
     db.execute.assert_not_called()
 
@@ -39,7 +39,7 @@ async def test_subscription_worker_enforce_mode_preserves_is_active(monkeypatch)
     mock_result.scalars.return_value.all.return_value = [tenant]
     db.execute.return_value = mock_result
 
-    count = await check_expired_subscriptions(db)
+    count = await check_expired_subscriptions.fn(db)
     assert count == 1
     assert tenant.subscription_status == "expired"
     assert tenant.is_active is True, "CRITICAL: tenant.is_active must remain True to preserve clinical reads!"
@@ -65,7 +65,7 @@ async def test_subscription_worker_observe_mode_does_not_mutate(monkeypatch):
     mock_result.scalars.return_value.all.return_value = [tenant]
     db.execute.return_value = mock_result
 
-    count = await check_expired_subscriptions(db)
+    count = await check_expired_subscriptions.fn(db)
     assert count == 1
     assert tenant.subscription_status == "active"
     assert tenant.is_active is True

@@ -197,7 +197,9 @@ class ClinicalHandler(BaseHandler):
             return {"error": "missing_text", "message": "النص فارغ"}
 
         try:
-            procedures = self.scribe.analyze_dictation(text)
+            procedures = self.scribe.analyze_dictation(
+                text, tenant_id=self.tenant_id
+            )
 
             # Contextual Patient Match
             patient_info = None

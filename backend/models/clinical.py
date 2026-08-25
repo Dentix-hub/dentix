@@ -76,7 +76,7 @@ class ToothStatus(Base):
     ]
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
     tooth_number = Column(Integer)
     condition = Column(String)
@@ -173,7 +173,7 @@ class Prescription(Base):
     ]
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"))
     medications = Column(Text)
     notes = Column(Text, nullable=True)

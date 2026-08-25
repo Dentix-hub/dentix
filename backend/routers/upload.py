@@ -144,8 +144,9 @@ async def upload_file(
         filename=file.filename,
         file_path=file_path_db,
         file_type=validated_content_type,
+        note=note,
     )
-    return await crud.create_attachment(db, attachment_create)
+    return await crud.create_attachment(db, attachment_create, current_user.tenant_id)
 
 
 @router.get("/file/{file_path:path}")

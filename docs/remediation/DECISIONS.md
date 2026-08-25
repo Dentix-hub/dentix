@@ -9,7 +9,7 @@
 | `METRICS_EXPOSURE_MODE` | `off` | Expose `/metrics` only when explicitly authenticated. |
 | `ALERT_DISPATCH_ENABLED` | `false` | Prevent unauthorized outbound HTTP calls during local testing. |
 | `ERROR_AGGREGATION_ENABLED` | `false` | Local mock verification only; external aggregation held in H-05. |
-| `BACKUP_SCHEDULER_ENABLED` | `false` | Local offline backups executed via guarded CLI scripts. |
+| `BACKUP_SCHEDULER_ENABLED` | `false` | Opt-in durable singleton scheduling; execution uses the guarded offline backup implementation and records background-job outcomes. |
 | `EXTERNAL_AI_PHI_MODE` | `deny` | Fail closed on clinical text/voice processing unless deidentified. |
 | `GEOIP_MODE` | `off` | Non-blocking async resolution; disabled by default to avoid outbound telemetry. |
 | `RAG_MODE` | `off` | Direct tenant isolation required before activation. |

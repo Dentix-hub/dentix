@@ -3,6 +3,7 @@ import os
 import pytest
 from sqlalchemy import select
 import uuid
+import pyotp
 
 # Setup paths
 sys.path.append(os.getcwd())
@@ -60,11 +61,10 @@ async def test_security_phase4(async_db_session):
         # 4. Test 2FA Setup
         print("\n[4] Testing 2FA Logic...")
         secret = AuthService.generate_2fa_secret(test_user)
-        print(f" - Generated Secret: {secret}")
+        valid_code = pyotp.TOTP(secret).now()
 
         # Enable 2FA
-        # Using "123456" as our mock verified code from AuthService
-        await AuthService.enable_2fa(db, test_user, secret, "123456")
+        await AuthService.enable_2fa(db, test_user, secret, valid_code)
 
         if test_user.is_2fa_enabled and test_user.otp_secret == secret:
             print(" - 2FA Enabled: PASS")
@@ -73,7 +73,7 @@ async def test_security_phase4(async_db_session):
             assert False, "2FA enabling failed"
 
         # 5. Verify 2FA Code Check
-        valid = AuthService.verify_2fa_code(secret, "123456")
+        valid = AuthService.verify_2fa_code(secret, valid_code)
         invalid = AuthService.verify_2fa_code(secret, "000000")
 
         if valid and not invalid:
@@ -103,4 +103,3 @@ if __name__ == "__main__":
         async with AsyncSessionLocal() as session:
             await test_security_phase4(session)
     asyncio.run(run_standalone())
-

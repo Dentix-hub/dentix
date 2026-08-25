@@ -31,7 +31,7 @@ async def test_manual_renewal_flow(async_db_session: AsyncSession):
     past = datetime.now(timezone.utc) - timedelta(days=10)
     tenant = Tenant(
         name="Expired Dental Clinic",
-        is_active=True,
+        is_active=False,
         subscription_status="expired",
         subscription_end_date=past,
         grace_period_until=past,
@@ -64,7 +64,7 @@ async def test_manual_renewal_flow(async_db_session: AsyncSession):
         # Verify DB mutation
         await async_db_session.refresh(tenant)
         assert tenant.subscription_status == "active"
-        assert tenant.is_active is True
+        assert tenant.is_active is False
         end_dt = tenant.subscription_end_date.replace(tzinfo=timezone.utc) if tenant.subscription_end_date.tzinfo is None else tenant.subscription_end_date
         assert end_dt > datetime.now(timezone.utc)
 
@@ -78,15 +78,15 @@ async def test_manual_renewal_flow(async_db_session: AsyncSession):
         audit = res_a.scalar_one_or_none()
         assert audit is not None
         assert audit.performed_by_id == admin_user.id
-        assert "conf_2026_receipt_001" in audit.details
+        assert "request record" in audit.details
+        assert "conf_2026_receipt_001" not in audit.details
 
-        # 4. Idempotent repeat: passing the exact calculated new_end_date
-        exact_end = tenant.subscription_end_date.isoformat()
-        repeat_payload = {
-            "new_end_date": exact_end,
-            "notes": "Duplicate click retry."
-        }
-        resp_repeat = await ac.post(f"/api/v1/admin/tenants/{tenant.id}/renew", json=repeat_payload, headers=headers)
+        # 4. Exact retry with the same durable key returns the stored result.
+        resp_repeat = await ac.post(
+            f"/api/v1/admin/tenants/{tenant.id}/renew",
+            json=payload,
+            headers=headers,
+        )
         assert resp_repeat.status_code == 200
         assert resp_repeat.json()["data"]["is_idempotent_duplicate"] is True
 
@@ -113,7 +113,7 @@ async def test_manual_renewal_rejects_past_date(async_db_session: AsyncSession):
         past = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
         resp = await ac.post(
             f"/api/v1/admin/tenants/{tenant.id}/renew",
-            json={"new_end_date": past},
+            json={"new_end_date": past, "idempotency_key": "past-date-001"},
             headers=headers
         )
         assert resp.status_code == 400
@@ -141,7 +141,7 @@ async def test_manual_renewal_requires_super_admin(async_db_session: AsyncSessio
         headers = {"Authorization": f"Bearer {token}"}
         resp = await ac.post(
             f"/api/v1/admin/tenants/{tenant.id}/renew",
-            json={"extension_days": 30},
+            json={"extension_days": 30, "idempotency_key": "unauthorized-001"},
             headers=headers
         )
         assert resp.status_code in {401, 403}

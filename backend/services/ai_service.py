@@ -49,10 +49,10 @@ class AIService:
                     "content": f"{prompt}\n\nIMPORTANT: Respond in Arabic language only.",
                 },
             ]
-            response = self.agent.client.chat.completions.create(
-                model="llama-3.1-8b-instant",
-                messages=messages,
-                temperature=0.3,
+            response = await self.agent._call_llm_safe(
+                "llama-3.1-8b-instant",
+                messages,
+                tenant_id=self.user.tenant_id,
             )
             content = response.choices[0].message.content
             return AIQueryResponse(
@@ -96,7 +96,7 @@ class AIService:
                 return intent_response
 
             ai_result = await self.agent.process(
-                user_input=text,
+                user_input=safe_text,
                 history=context,
                 last_entity=last_patient_name,
                 tenant_id=self.user.tenant_id,

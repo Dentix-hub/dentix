@@ -34,8 +34,8 @@
   - `event.py`: OutboxEvent
 
 ## 3. Database Migrations
-- **Total Migrations**: 35 version files under `backend/alembic/versions/`
-- **Current Head**: `d0e1f2a3b4c5`
+- **Total Migrations**: 38 version files under `backend/alembic/versions/`
+- **Current Head**: `e3a4b5c6d7e8`
 
 ## 4. Background Workers & Lifetime Surfaces
 - **Worker Modules**: 5 modules under `backend/workers/`

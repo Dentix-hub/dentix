@@ -5,8 +5,10 @@ import traceback
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from backend import auth
-from backend.database import AsyncSessionLocal, RlsContext, get_async_pool_status
+from backend.database import get_async_pool_status, system_session_scope
 from backend.models.system import SystemError, ErrorLevel, ErrorSource
+from backend.core.logging import get_trace_id
+from backend.services.alert_dispatch_service import dispatch_operational_alert
 
 logger = logging.getLogger(__name__)
 
@@ -62,28 +64,26 @@ async def _persist_system_error(
     user_id: int | None,
     tenant_id: int | None,
 ) -> None:
-    context = RlsContext(tenant_id=None)
     sanitized_msg = sanitize_text(error_msg, max_length=4000) or "Unknown error"
     sanitized_trace = sanitize_stack_trace(stack_trace, max_length=12000)
     sanitized_path = sanitize_text(str(request.url), max_length=2048)
 
-    async with AsyncSessionLocal(context=context) as db:
-        async with db.bypass_rls() as db:  # system-level audit write
-            db.add(
-                SystemError(
-                    level=ErrorLevel.ERROR,
-                    source=ErrorSource.BACKEND,
-                    message=sanitized_msg,
-                    stack_trace=sanitized_trace,
-                    path=sanitized_path,
-                    method=request.method,
-                    user_id=user_id,
-                    tenant_id=tenant_id,
-                    ip_address=request.client.host if request.client else None,
-                    user_agent=sanitize_text(request.headers.get("user-agent"), max_length=512),
-                )
+    async with system_session_scope() as db:
+        db.add(
+            SystemError(
+                level=ErrorLevel.ERROR,
+                source=ErrorSource.BACKEND,
+                message=sanitized_msg,
+                stack_trace=sanitized_trace,
+                path=sanitized_path,
+                method=request.method,
+                user_id=user_id,
+                tenant_id=tenant_id,
+                ip_address=request.client.host if request.client else None,
+                user_agent=sanitize_text(request.headers.get("user-agent"), max_length=512),
             )
-            await db.commit()
+        )
+        await db.commit()
 
 
 class ErrorLoggingMiddleware(BaseHTTPMiddleware):
@@ -91,8 +91,8 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
         try:
             return await call_next(request)
         except Exception as exc:
-            error_msg = str(exc)
-            stack_trace = traceback.format_exc()
+            error_msg = sanitize_text(str(exc), max_length=4000) or "Unknown error"
+            stack_trace = sanitize_stack_trace(traceback.format_exc(), max_length=12000) or ""
             user_id, tenant_id = _get_request_identity(request)
 
             # stdout remains available even when the database pool is exhausted.
@@ -102,7 +102,6 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
                 request.url.path,
                 error_msg,
                 get_async_pool_status(),
-                exc_info=(type(exc), exc, exc.__traceback__),
                 extra={"user_id": user_id, "tenant_id": tenant_id},
             )
 
@@ -123,12 +122,23 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
                     ERROR_LOG_DB_TIMEOUT_SECONDS,
                     get_async_pool_status(),
                 )
-            except Exception as e:
+            except Exception as persist_exc:
                 logger.critical(
                     "Failed to persist system error: %s; pool=%s",
-                    e,
+                    sanitize_text(str(persist_exc), max_length=1000),
                     get_async_pool_status(),
-                    exc_info=True,
+                )
+
+            try:
+                await dispatch_operational_alert(
+                    event="unhandled_request_error",
+                    severity="error",
+                    trace_id=get_trace_id(),
+                )
+            except Exception as alert_exc:
+                logger.critical(
+                    "Operational alert dispatch failed: %s",
+                    sanitize_text(str(alert_exc), max_length=500),
                 )
 
             raise

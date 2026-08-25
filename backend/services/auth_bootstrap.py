@@ -8,9 +8,9 @@ user row *before* any tenant can be bound:
 2. Refresh-token exchange (the JWT is being re-established).
 3. Super-admin / contextless requests resolving their own identity.
 
-``lookup_user_for_authentication`` performs this narrow lookup inside an
-explicit, short-lived ``bypass_rls()`` scope, RE-BINDS the request session to
-the resolved tenant, then audits the bootstrap lookup. Every later statement
+``lookup_user_for_authentication`` performs this narrow lookup on the isolated
+system database connection, RE-BINDS the request session to the resolved
+tenant, then audits the bootstrap lookup. Every later statement
 — including login's writes to ``users`` — therefore runs with a real tenant
 identity under FORCE RLS. It MUST NOT be used for general data access; regular
 per-request reads stay fully tenant-scoped.
@@ -46,48 +46,32 @@ async def lookup_user_for_authentication(
     reason: str,
 ) -> models.User | None:
     """Resolve one user row for credential/JWT verification."""
-    if hasattr(db, "bypass_rls"):
-        # Real request path: CustomAsyncRlsSession with explicit bypass scope.
-        async with db.bypass_rls():
-            result = await db.execute(_identity_stmt(username))
-            user = result.scalars().first()
-            # Snapshot primitives while the row is guaranteed loaded. A failed
-            # audit commit requires rollback(), which expires ORM instances.
-            user_id = user.id if user is not None else None
-            tenant_id = user.tenant_id if user is not None else None
+    from backend.database import system_session_scope
 
-        if tenant_id is not None:
-            _bind_tenant(db, tenant_id)
+    async with system_session_scope() as system_db:
+        result = await system_db.execute(_identity_stmt(username))
+        system_user = result.scalars().first()
+        user_id = system_user.id if system_user is not None else None
+        tenant_id = system_user.tenant_id if system_user is not None else None
 
-        audit_ok = await _audit_bootstrap(
-            db,
-            user_id=user_id,
-            tenant_id=tenant_id,
-            username=username,
-            reason=reason,
-        )
-
-        # commit()/rollback() ends the transaction and PostgreSQL SET LOCAL
-        # state. Mark the tenant binding dirty again so the next statement
-        # re-emits it for the next transaction.
-        if tenant_id is not None:
-            _bind_tenant(db, tenant_id)
-
-        if not audit_ok and user is not None:
-            # rollback() expires the resolved ORM row. Re-resolve it inside the
-            # correct scope so best-effort audit failure cannot break auth.
-            if tenant_id is None:
-                async with db.bypass_rls():
-                    result = await db.execute(_identity_stmt(username))
-                    user = result.scalars().first()
-            else:
-                result = await db.execute(_identity_stmt(username))
-                user = result.scalars().first()
-    else:
-        # Plain AsyncSession (SQLite test overrides): there is no RLS layer to
-        # bypass; run directly so behavior matches legacy lookups.
+    if tenant_id is not None:
+        _bind_tenant(db, tenant_id)
+        # Re-read through the normal request session so the returned row is
+        # attached to that tenant-scoped transaction for post-auth updates.
         result = await db.execute(_identity_stmt(username))
         user = result.scalars().first()
+    else:
+        # A contextless super-admin row cannot be loaded by the app role. It is
+        # detached after the system lookup and is explicitly attached again
+        # only inside post_auth_write_scope when a bookkeeping write is needed.
+        user = system_user
+
+    await _audit_bootstrap(
+        user_id=user_id,
+        tenant_id=tenant_id,
+        username=username,
+        reason=reason,
+    )
 
     return user
 
@@ -121,7 +105,6 @@ def _identity_stmt(username: str):
 
 
 async def _audit_bootstrap(
-    db: AsyncSession,
     *,
     user_id: int | None,
     tenant_id: int | None,
@@ -130,9 +113,9 @@ async def _audit_bootstrap(
 ) -> bool:
     """Persist one bootstrap audit entry without making auth depend on it."""
 
-    async def _write() -> None:
+    async def _write(target_db: AsyncSession) -> None:
         log_admin_action(
-            db=db,
+            db=target_db,
             admin_user=None,
             action="auth_bootstrap",
             entity_type="user",
@@ -140,24 +123,20 @@ async def _audit_bootstrap(
             tenant_id=tenant_id,
             details=f"reason={reason} target_username={username} found={user_id is not None}",
         )
-        await db.commit()
+        await target_db.commit()
 
     try:
-        # Tenant users are already bound before this call. Contextless misses
-        # and super-admin identities have no tenant capable of satisfying the
-        # audit_logs policy, so their audit write needs the same narrow,
-        # explicit maintenance scope as the bootstrap identity lookup.
-        if tenant_id is None and hasattr(db, "bypass_rls"):
-            async with db.bypass_rls():
-                await _write()
-        else:
-            await _write()
+        from backend.database import system_session_scope
+
+        # Keep audit failure/commit isolated from the request transaction so a
+        # best-effort audit cannot expire or roll back the authenticated row.
+        async with system_session_scope() as system_db:
+            await _write(system_db)
         return True
     except Exception:
         # Auditing must never break authentication itself, but failures are
         # security-relevant and must be visible in logs.
         logger.exception("auth_bootstrap audit write failed")
-        await db.rollback()
         return False
 
 
@@ -172,9 +151,10 @@ async def post_auth_write_scope(db: AsyncSession, user: models.User | None):
       maintenance operations — because no tenant can ever satisfy the policy.
     """
     if user is not None and getattr(user, "role", "") == SUPER_ADMIN_ROLE:
-        if hasattr(db, "bypass_rls"):
-            async with db.bypass_rls() as scoped:
-                yield scoped
-            return
-        # Plain session (no RLS capability): yield as-is.
+        from backend.database import system_session_scope
+
+        async with system_session_scope() as system_db:
+            system_db.add(user)
+            yield system_db
+        return
     yield db

@@ -5,11 +5,12 @@ Scans files or git diffs for potential secrets, unredacted credentials, and proh
 Guarantees that matched sensitive values are NEVER printed to stdout or stored in evidence logs.
 """
 
-import os
+import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 RULES = [
     {
@@ -64,12 +65,17 @@ EXCLUDED_FILES = {
     "uv.lock",
 }
 
+TEST_FIXTURE_DIRS = {"tests", "ci_tests"}
+ALLOW_PATTERN_MARKER = "scan: allow-pattern-definition"
+
 
 def scan_text(content: str, filename: str = "buffer") -> List[Dict[str, str]]:
     """Scan text content line by line and return list of violations with REDACTED matched text."""
     findings = []
     lines = content.splitlines()
     for line_idx, line in enumerate(lines, start=1):
+        if ALLOW_PATTERN_MARKER in line:
+            continue
         for rule in RULES:
             if rule["pattern"].search(line):
                 # Never include matched line content or secret values
@@ -107,12 +113,119 @@ def scan_directory(root_dir: Path) -> List[Dict[str, str]]:
     return all_findings
 
 
+def _is_excluded(relative_path: str) -> bool:
+    path = Path(relative_path)
+    return path.name in EXCLUDED_FILES or bool(set(path.parts).intersection(EXCLUDED_DIRS))
+
+
+def _is_test_fixture(relative_path: str) -> bool:
+    return bool(set(Path(relative_path).parts).intersection(TEST_FIXTURE_DIRS))
+
+
+def scan_git_diff(diff_text: str, *, exclude_test_fixtures: bool = False) -> List[Dict[str, str]]:
+    """Scan only added lines in a zero-context unified git diff."""
+    findings: List[Dict[str, str]] = []
+    current_file: str | None = None
+    added_line = 0
+
+    for line in diff_text.splitlines():
+        if line.startswith("+++ "):
+            candidate = line[4:]
+            current_file = None if candidate == "/dev/null" else candidate.removeprefix("b/")
+            continue
+        if line.startswith("@@ "):
+            match = re.search(r"\+(\d+)(?:,\d+)?", line)
+            added_line = int(match.group(1)) - 1 if match else 0
+            continue
+        if (
+            current_file is None
+            or _is_excluded(current_file)
+            or (exclude_test_fixtures and _is_test_fixture(current_file))
+        ):
+            continue
+        if line.startswith("+") and not line.startswith("+++"):
+            added_line += 1
+            content = line[1:]
+            if ALLOW_PATTERN_MARKER in content:
+                continue
+            for rule in RULES:
+                if rule["pattern"].search(content):
+                    findings.append({
+                        "file": current_file,
+                        "line": str(added_line),
+                        "rule_id": rule["id"],
+                        "rule_desc": rule["desc"],
+                    })
+        elif not line.startswith("-") and not line.startswith("\\"):
+            added_line += 1
+
+    return findings
+
+
+def scan_changed_content(
+    repo_root: Path,
+    base_ref: str,
+    *,
+    exclude_test_fixtures: bool = False,
+) -> List[Dict[str, str]]:
+    """Scan committed/uncommitted additions since base_ref plus untracked files."""
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/@{}^~:+-]*", base_ref):
+        raise ValueError("base ref contains unsupported characters")
+
+    diff = subprocess.run(
+        ["git", "diff", "--no-ext-diff", "--unified=0", "--no-color", base_ref, "--"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    findings = scan_git_diff(diff.stdout, exclude_test_fixtures=exclude_test_fixtures)
+
+    untracked = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard", "-z"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+    )
+    for raw_path in untracked.stdout.split(b"\0"):
+        if not raw_path:
+            continue
+        relative_path = raw_path.decode("utf-8", errors="replace")
+        if _is_excluded(relative_path) or (exclude_test_fixtures and _is_test_fixture(relative_path)):
+            continue
+        content = (repo_root / relative_path).read_text(encoding="utf-8", errors="ignore")
+        findings.extend(scan_text(content, relative_path))
+    return findings
+
+
 def main() -> int:
-    target_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
-    if target_path.is_file():
-        findings = scan_file(target_path)
-    else:
-        findings = scan_directory(target_path)
+    parser = argparse.ArgumentParser(description="Scan files or added git content without printing matches.")
+    parser.add_argument("target", nargs="?", default=".")
+    parser.add_argument("--base-ref", help="Scan only content added since this git revision.")
+    parser.add_argument(
+        "--exclude-test-fixtures",
+        action="store_true",
+        help="Exclude tests/ci_tests containing synthetic secret and PHI canaries.",
+    )
+    args = parser.parse_args()
+
+    target_path = Path(args.target).resolve()
+    try:
+        if args.base_ref:
+            findings = scan_changed_content(
+                target_path,
+                args.base_ref,
+                exclude_test_fixtures=args.exclude_test_fixtures,
+            )
+        elif target_path.is_file():
+            findings = scan_file(target_path)
+        else:
+            findings = scan_directory(target_path)
+    except (OSError, subprocess.CalledProcessError, ValueError) as exc:
+        print(f"[ERROR] Scanner could not complete: {type(exc).__name__}")
+        return 2
 
     if not findings:
         print("[OK] Safe scan passed. No secrets or prohibited PHI patterns detected.")

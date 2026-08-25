@@ -1,9 +1,30 @@
 # DENTIX Local Remediation Execution Ledger
 
-**Run State**: `LOCAL_REVIEW_READY`  
-**Target Final State**: `LOCAL_REVIEW_READY`  
+**Run State**: `PARTIAL — LOCAL_VALIDATION_PASS / POSTGRES_CI_REQUIRED`
+**Target Final State**: `LOCAL_REVIEW_READY` after the mandatory PostgreSQL CI/pre-production gates
 **Base Commit**: `e507691f`  
 **Local Branch**: `local/readiness-remediation-20260825-0338`  
+
+---
+
+## 2026-08-25 Corrective Validation Addendum
+
+The task rows below record the original 116-item run. Their earlier aggregate `LOCAL_REVIEW_READY` conclusion is superseded by this addendum because PostgreSQL/Docker was unavailable locally and several evidence claims required correction.
+
+| Corrective item | Status | Verification | Result / note |
+|---|---|---|---|
+| Direct child tenant ownership + FORCE RLS | LOCAL_PASS / PG_REQUIRED | parity, isolation, scope tests; PG CI tests added | Static/SQLite gates pass; real PG gate pending CI |
+| Native RLS privilege separation | LOCAL_PASS / PG_REQUIRED | `test_rls_bypass_role_contract.py`; PG negative probe added | Application-settable GUC bypass removed; live two-role PostgreSQL startup gate pending CI |
+| Durable idempotent manual renewal | LOCAL_PASS | `test_manual_renewal.py` | Pass |
+| Central AI egress default deny | LOCAL_PASS | `test_ai_egress_policy.py` | Pass |
+| Encrypted guarded backup/restore and durable scheduler | LOCAL_PASS / PG_REQUIRED | backup-tooling and scheduler suites | Multi-tenant SQLite format/schema round trip and scheduler pass; PG round trip pending |
+| Metrics, alert dispatch, log sanitization | LOCAL_PASS | focused tests + full suite | Pass |
+| Changed production content scan | LOCAL_PASS | base `e507691f`, test fixtures explicitly excluded | Zero production findings |
+| Backend full suite | LOCAL_PASS | 630 collected with coverage gate | **626 passed, 4 skipped; 65.13% coverage** |
+| Ruff backend gate | LOCAL_PASS | `ruff check --config ruff.toml backend` | All checks passed |
+| Frontend lint/tests/build | LOCAL_PASS | ESLint, Vitest, Vite | 62 files / 258 tests; build pass |
+| PostgreSQL migration/RLS/HTTP isolation | EXTERNAL_REQUIRED | CI PostgreSQL service | Not executed locally |
+| PostgreSQL backup/restore exercise | EXTERNAL_REQUIRED | pre-production runbook | Not executed locally |
 
 ---
 
@@ -72,10 +93,10 @@
 | P07-08 | LOCAL_PASS | P07-06 | c9f89d1f | documentation inspection | Pass | External uptime monitoring spec (UPTIME_MONITORING.md) |
 | P08-01 | LOCAL_PASS | P02-04, P07-06 | d4bc7875 | documentation inspection | Pass | Documented backup threat model (BACKUP_THREAT_MODEL.md) |
 | P08-02 | LOCAL_PASS | P00-06, P08-01 | d4bc7875 | pytest test_guarded_backup_tooling.py | Pass | Added guarded offline backup command (scripts/ops/guarded_backup.py) |
-| P08-03 | LOCAL_PASS | P08-02 | d4bc7875 | pytest test_guarded_backup_tooling.py | Pass | Added SHA-256 backup integrity manifest generation |
-| P08-04 | LOCAL_PASS | P06-06, P08-02 | d4bc7875 | code inspection | Pass | Backup commands safe for local offline scheduling |
-| P08-05 | LOCAL_PASS | P08-03 | d4bc7875 | pytest test_guarded_backup_tooling.py | Pass | Added guarded restore verifier with tamper detection |
-| P08-06 | LOCAL_PASS | P08-05 | d4bc7875 | pytest test_guarded_backup_tooling.py | Pass | Round-trip backup manifest and restore test verified |
+| P08-03 | LOCAL_PASS | P08-02 | HEAD | pytest test_guarded_backup_tooling.py | Pass | Manifest 2.1 records exact artifact metadata, engine, schema revision, cipher, and key ID |
+| P08-04 | LOCAL_PASS | P06-06, P08-02 | HEAD | pytest test_backup_scheduler.py | Pass | Durable singleton scheduler verified across disabled/due/duplicate/overlap/missed/failure/retry/privileged-source paths (9/9) |
+| P08-05 | LOCAL_PASS | P08-03 | HEAD | pytest test_guarded_backup_tooling.py | Pass | Dry run authenticates, parses the native format, checks integrity/schema revision, and rejects wrong keys/formats |
+| P08-06 | LOCAL_PASS | P08-05 | HEAD | pytest test_guarded_backup_tooling.py | Pass | Multi-tenant round trip preserves tenant/patient/attachment counts, ownership, names, hashes, and Alembic revision |
 | P08-07 | LOCAL_PASS | P08-06 | d4bc7875 | documentation inspection | Pass | Documented disaster recovery procedure (DISASTER_RECOVERY.md) |
 | P09-01 | LOCAL_PASS | P00-08, P04-05 | 7de8bfd8 | documentation inspection | Pass | Classified all tenant data tables (TENANT_DATA_CLASSIFICATION.md) |
 | P09-02 | LOCAL_PASS | P09-01 | 7de8bfd8 | verify_tenant_ownership.py | Pass | Tenant ownership & RLS preflight verification passed |
@@ -120,10 +141,10 @@
 | P13-05 | LOCAL_PASS | P13-02, P10-08 | a3d55005 | pytest tests | Pass | Verified privacy-safe normalized name & blind phone hash search |
 | P13-06 | LOCAL_PASS | P11-01 | a3d55005 | documentation inspection | Pass | Generated local release manifest (LOCAL_RELEASE_MANIFEST.md) |
 | P13-07 | LOCAL_PASS | P13-06, P08-07 | a3d55005 | code inspection | Pass | Rollout safeguards prepared and disabled |
-| P14-01 | LOCAL_PASS | all backend tasks | HEAD | ruff check & pytest | Pass | Zero-error ruff lint gate & 550+ backend tests |
+| P14-01 | LOCAL_PASS | all backend tasks | HEAD | ruff check & CI-equivalent pytest coverage gate | Pass | Ruff passed; 626 backend tests passed, 4 skipped; 65.13% coverage |
 | P14-02 | LOCAL_PASS | all frontend tasks | HEAD | npm test (258 tests) | Pass | All 258 frontend and PWA tests passing |
-| P14-03 | LOCAL_PASS | database tasks | HEAD | verify_tenant_ownership.py & pytest | Pass | Single Alembic head & RLS preflight verification |
+| P14-03 | PARTIAL | database tasks | HEAD | local contracts + PG CI tests | Pending PG | Single head `e3a4b5c6d7e8`; native app/system role separation and PostgreSQL runtime gate not local |
 | P14-04 | LOCAL_PASS | P14-01 through P14-03 | HEAD | pytest test suite | Pass | Local full-story smoke tests verified |
 | P14-05 | LOCAL_PASS | P14-04 | HEAD | scan_changed_content.py | Pass | Zero credentials/tokens detected in diffs |
 | P14-06 | LOCAL_PASS | P14-05 | HEAD | FINAL_REMEDIATION_REPORT.md | Pass | Final remediation evidence dossier prepared |
-| P14-07 | LOCAL_PASS | P14-06 | HEAD | LOCAL_EXECUTION_LEDGER.md | Pass | Local remediation marked LOCAL_REVIEW_READY |
+| P14-07 | PARTIAL | P14-06 | HEAD | LOCAL_EXECUTION_LEDGER.md | Pending PG | Local validation passed; production readiness awaits PostgreSQL gates |

@@ -183,6 +183,7 @@ def test_doctor_cannot_serve_hidden_patient_attachment(
     db_session.add(hidden)
     db_session.flush()
     attachment = models.Attachment(
+        tenant_id=test_tenant.id,
         patient_id=hidden.id,
         file_path=f"tenant_{test_tenant.id}/hidden-attachment.txt",
         filename="hidden-attachment.txt",
@@ -217,6 +218,7 @@ def test_doctor_can_serve_visible_patient_attachment(
     db_session.add(visible)
     db_session.flush()
     attachment = models.Attachment(
+        tenant_id=test_tenant.id,
         patient_id=visible.id,
         file_path=f"tenant_{test_tenant.id}/visible-attachment.txt",
         filename="visible-attachment.txt",

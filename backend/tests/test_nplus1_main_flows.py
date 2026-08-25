@@ -157,6 +157,7 @@ def test_appointments_with_patient_nplus1(db_session, query_counter):
     for i in range(4):
         db_session.add(models.Appointment(
             patient_id=patients_data[i % 2].id,
+            tenant_id=t.id,
             date_time=datetime(2026, 4, 14),
             status="Scheduled",
         ))

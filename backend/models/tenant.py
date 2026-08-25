@@ -17,7 +17,9 @@ from .base import (
     UniqueConstraint,
 )
 from sqlalchemy import CheckConstraint
+from sqlalchemy import column
 from backend.core.security import EncryptedString
+from rls.schemas import Command, ConditionArg, Permissive
 
 
 class SubscriptionPlan(Base):
@@ -106,6 +108,42 @@ class SubscriptionCheckout(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     provider_payment_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+
+
+class SubscriptionRenewalRequest(Base):
+    """Durable idempotency record for one privileged manual renewal request."""
+
+    __tablename__ = "subscription_renewal_requests"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "idempotency_key",
+            name="uq_subscription_renewal_tenant_key",
+        ),
+    )
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda tenant_id: column("tenant_id") == tenant_id,
+        )
+    ]
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tenant_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tenants.id"), nullable=False, index=True
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(100), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    response_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_by_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,

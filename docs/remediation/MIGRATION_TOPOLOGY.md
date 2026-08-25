@@ -3,9 +3,9 @@
 ## 1. Executive Summary
 This document records the exact Alembic migration graph, revision tree, branch points, merge points, and current head revision for the DENTIX database schema.
 
-- **Current Head**: `d0e1f2a3b4c5` (add push_subscriptions with RLS)
+- **Current Head**: `e3a4b5c6d7e8` (remove application-controlled RLS bypass)
 - **Base Revision**: `ceb1e9e1108c` (add_system_errors_table)
-- **Total Revisions**: 35 migration scripts
+- **Total Revisions**: 38 migration scripts
 - **Merge Points**:
   - `b7c8d9e0f1a2` (Merges 4 branches: `6ce58b4d24ba`, `74e590e3094c`, `e0eb7ca469b9`, `e146e0d57b66`)
   - `f7a8b9c0d1e2` (Merges 2 branches: `a4b5c6d7e8f9`, `e4f5a6b7c8d9`)
@@ -16,7 +16,10 @@ This document records the exact Alembic migration graph, revision tree, branch p
 
 | Revision ID | Down Revision(s) | Type | Description |
 |---|---|---|---|
-| `d0e1f2a3b4c5` | `c9d0e1f2a3b4` | **HEAD** | Add `push_subscriptions` table with RLS |
+| `e3a4b5c6d7e8` | `e2f3a4b5c6d7` | **HEAD**, irreversible | Remove application-controlled `rls.bypass_rls` policy clauses; privileged paths use a separate native `BYPASSRLS` role |
+| `e2f3a4b5c6d7` | `e1f2a3b4c5d6` | Standard | Add durable tenant-scoped manual-renewal idempotency records with FORCE RLS |
+| `e1f2a3b4c5d6` | `d0e1f2a3b4c5` | Standard, irreversible | Backfill/enforce child `tenant_id`, parent consistency triggers, and FORCE RLS |
+| `d0e1f2a3b4c5` | `c9d0e1f2a3b4` | Standard | Add `push_subscriptions` table with RLS |
 | `c9d0e1f2a3b4` | `b8c9d0e1f2a3` | Standard | Repair legacy attachments schema (`notes` vs `note`) |
 | `b8c9d0e1f2a3` | `a7b8c9d0e1f2` | Standard | Enforce RLS on `subscription_checkouts` |
 | `a7b8c9d0e1f2` | `f6a7b8c9d0e1` | Standard | Encrypt persisted Google OAuth refresh tokens |
@@ -58,3 +61,5 @@ This document records the exact Alembic migration graph, revision tree, branch p
 1. `alembic.ini` configuration must point to `backend/alembic` script location.
 2. All migrations must be idempotent and support both PostgreSQL and SQLite dialect branching.
 3. No migration script should hardcode cross-tenant queries without filtering by `tenant_id`.
+4. Revision `e1f2a3b4c5d6` deliberately refuses downgrade because removing tenant ownership/RLS would restore a known exposure; rollback requires a verified pre-upgrade backup.
+5. Revision `e3a4b5c6d7e8` deliberately refuses downgrade because application-settable session state must never grant cross-tenant access. PostgreSQL deployments require distinct `DATABASE_URL` (`NOBYPASSRLS`) and `SYSTEM_DATABASE_URL` (native `BYPASSRLS`) roles.

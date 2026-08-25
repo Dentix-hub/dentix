@@ -1,19 +1,16 @@
-# DENTIX Performance Baseline & Guardrails
+# DENTIX Performance Budgets and Verification Status
 
-## 1. Response Time Budgets (p95)
+## Proposed p95 budgets
 
-| Endpoint Type | p95 Target | Measured Local | Status |
-|---|---|---|---|
-| **Health Probes** (`/health`, `/api/v1/ping`) | < 50ms | ~5ms | **PASS** |
-| **Authentication** (`/api/v1/auth/login`) | < 250ms | ~120ms | **PASS** |
-| **Patient List & Search** (`/api/v1/patients`) | < 200ms | ~35ms | **PASS** |
-| **Clinical Treatment Chart** (`/api/v1/treatments/patient/{id}`) | < 200ms | ~40ms | **PASS** |
-| **Financial Summary** (`/api/v1/accounting/summary`) | < 300ms | ~65ms | **PASS** |
-| **Metrics Scraping** (`/metrics`) | < 100ms | ~15ms | **PASS** |
+| Endpoint class | p95 budget | Evidence status |
+|---|---:|---|
+| health probes | 50 ms | not load-tested in this local run |
+| authentication | 250 ms | not load-tested in this local run |
+| patient list/search | 200 ms | query-count regression tests only |
+| clinical history | 200 ms | query-count regression tests only |
+| financial summary | 300 ms | correctness tests only |
+| protected metrics | 100 ms | functional access tests only |
 
----
+The earlier document listed measured latency values without a retained benchmark artifact; those values are withdrawn. Local N+1/query-count tests pass, but they do not establish production latency or throughput.
 
-## 2. Query Optimization Rules
-- All tenant queries MUST include `tenant_id = :tenant_id` allowing index partition scans.
-- `with_for_update(skip_locked=True)` utilized for outbox event polling.
-- Zero N+1 query loops on patient treatment joins (eager loading with `selectinload` / `joinedload`).
+Before release, run a guarded load test against an explicitly approved non-production target with production-like PostgreSQL data. Record workload, concurrency, dataset size, p50/p95/p99, error rate, database saturation, and `EXPLAIN (ANALYZE, BUFFERS)` for slow queries. Do not claim these budgets as met until that artifact exists.

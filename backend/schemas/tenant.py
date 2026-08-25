@@ -104,7 +104,7 @@ class TenantManualRenewalRequest(BaseModel):
     plan_id: Optional[int] = None
     extension_days: Optional[int] = Field(default=None, gt=0, le=3650)
     new_end_date: Optional[datetime] = None
-    idempotency_key: Optional[str] = Field(default=None, max_length=100)
+    idempotency_key: str = Field(min_length=8, max_length=100)
     notes: Optional[str] = Field(default=None, max_length=500)
 
 
