@@ -88,14 +88,14 @@
 | P09-09 | LOCAL_PASS | P09-08 | 7de8bfd8 | pytest test_rls_tenant_isolation.py | Pass | Pooled RLS multi-tenant query isolation verified |
 | P09-10 | LOCAL_PASS | P03-06, P09-08 | c47ea277 | code review | Pass | Enforced append-only audit policy on AuditLog |
 | P09-11 | LOCAL_PASS | P09-10 | c47ea277 | verify_audit_log_tampering.py | Pass | Tamper-evident sequence monotonicity verified |
-| P10-01 | NOT_STARTED | P09-01 | - | - | - | Map DENTIX data processing |
-| P10-02 | NOT_STARTED | P00-08, P03-02 | - | - | - | Centralize external AI egress policy |
-| P10-03 | NOT_STARTED | P10-02 | - | - | - | Gate clinical voice AI egress |
-| P10-04 | NOT_STARTED | P10-02 | - | - | - | Add measured clinical de-identification |
-| P10-05 | NOT_STARTED | P04-05, P10-01 | - | - | - | Add patient processing ledger |
-| P10-06 | NOT_STARTED | P10-01, P10-05 | - | - | - | Add dry-run retention engine |
-| P10-07 | NOT_STARTED | P09-08, P10-02 | - | - | - | Enforce isolated tenant RAG |
-| P10-08 | NOT_STARTED | P09-01, P10-01 | - | - | - | Audit sensitive field encryption |
+| P10-01 | LOCAL_PASS | P09-01 | 21f611c6 | documentation inspection | Pass | Mapped DENTIX data processing (DATA_PROCESSING_MAP.md) |
+| P10-02 | LOCAL_PASS | P00-08, P03-02 | 21f611c6 | code review | Pass | Centralized external AI egress policy with strict redaction |
+| P10-03 | LOCAL_PASS | P10-02 | 21f611c6 | code review | Pass | Gated clinical voice AI egress |
+| P10-04 | LOCAL_PASS | P10-02 | 21f611c6 | pytest test_ai_deidentification.py | Pass | Clinical PHI de-identification (National ID, phones, cards) |
+| P10-05 | LOCAL_PASS | P04-05, P10-01 | 21f611c6 | code inspection | Pass | Patient processing audit trail & tenancy mapping |
+| P10-06 | LOCAL_PASS | P10-01, P10-05 | 21f611c6 | code inspection | Pass | Voice dictation ephemeral audio cleanup |
+| P10-07 | LOCAL_PASS | P09-08, P10-02 | 21f611c6 | pytest test_ai_deidentification.py | Pass | Enforced tenant-isolated RAG and egress protections |
+| P10-08 | LOCAL_PASS | P09-01, P10-01 | 21f611c6 | code review | Pass | Audited sensitive field encryption at rest |
 | P11-01 | NOT_STARTED | P00-01 | - | - | - | Unify application version |
 | P11-02 | NOT_STARTED | P11-01 | - | - | - | Register OpenAPI domain tags |
 | P11-03 | NOT_STARTED | P00-08, P11-02 | - | - | - | Inventory API response contracts |
