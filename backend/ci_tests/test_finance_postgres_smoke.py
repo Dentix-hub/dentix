@@ -15,7 +15,12 @@ from sqlalchemy import select
 
 from backend import models, schemas
 from backend.alembic.versions import f2a4c6e8b0d1_backfill_finance_event_tenant_ids as tenant_backfill
-from backend.database import AsyncSessionLocal, RlsContext, async_engine
+from backend.database import (
+    AsyncSessionLocal,
+    RlsContext,
+    async_engine,
+    system_async_engine,
+)
 from backend.services.accounting_service import AccountingService
 from backend.services.billing_service import BillingService
 
@@ -318,7 +323,8 @@ async def test_legacy_tenant_backfill_migration_executes_under_postgresql_rls():
         with Operations.context(migration_context):
             tenant_backfill.upgrade()
 
-    async with async_engine.begin() as connection:
+    assert system_async_engine is not None
+    async with system_async_engine.begin() as connection:
         await connection.run_sync(_run_upgrade)
 
     # The repaired row must become visible to its tenant and remain hidden from

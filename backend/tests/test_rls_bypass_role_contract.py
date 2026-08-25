@@ -62,3 +62,10 @@ def test_ci_disposes_both_postgresql_async_pools():
     source = (ROOT / "backend/ci_tests/conftest.py").read_text(encoding="utf-8")
     assert "await async_engine.dispose()" in source
     assert "await system_async_engine.dispose()" in source
+
+
+def test_postgresql_data_repair_uses_system_engine():
+    source = (
+        ROOT / "backend/ci_tests/test_finance_postgres_smoke.py"
+    ).read_text(encoding="utf-8")
+    assert "async with system_async_engine.begin()" in source
