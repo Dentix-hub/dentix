@@ -47,14 +47,14 @@
 | P04-06 | LOCAL_PASS | P04-01, P04-05 | ea35e95e | ADR review (DECISIONS.md §5) | Pass | Decided attachment note schema truth |
 | P04-07 | LOCAL_PASS | P04-06 | ea35e95e | code review & pytest | Pass | Aligned Attachment model & schemas with note column |
 | P04-08 | LOCAL_PASS | P04-04, P04-05 | ea35e95e | pytest test_migrations_lineage.py | Pass | Enforced continuous migration lineage test checks |
-| P05-01 | NOT_STARTED | P03-02 | - | - | - | Make GeoIP lookup non-blocking |
-| P05-02 | NOT_STARTED | P05-01 | - | - | - | Add GeoIP privacy controls |
-| P05-03 | NOT_STARTED | P00-05 | - | - | - | Enforce database TLS verification |
-| P05-04 | NOT_STARTED | P00-08 | - | - | - | Bound API pagination |
-| P05-05 | NOT_STARTED | P00-05 | - | - | - | Establish Ruff baseline |
-| P05-06 | NOT_STARTED | P05-05 | - | - | - | Gate Python lint locally |
-| P05-07 | NOT_STARTED | P03-05 | - | - | - | Wire configurable rate limiting |
-| P05-08 | NOT_STARTED | P05-07 | - | - | - | Secure rate-limit client identity |
+| P05-01 | LOCAL_PASS | P03-02 | 432e2262 | pytest test_client_ip_and_limiter.py | Pass | Non-blocking GeoIP lookup implementation |
+| P05-02 | LOCAL_PASS | P05-01 | 432e2262 | pytest test_client_ip_and_limiter.py | Pass | GeoIP privacy controls (disabled by default) |
+| P05-03 | LOCAL_PASS | P00-05 | 432e2262 | configuration inspection | Pass | Enforced DB TLS verification & PgBouncer sslmode |
+| P05-04 | LOCAL_PASS | P00-08 | 432e2262 | pytest tests | Pass | Bounded pagination limits across query endpoints |
+| P05-05 | LOCAL_PASS | P00-05 | 432e2262 | ruff.toml & pyproject.toml | Pass | Established Ruff baseline |
+| P05-06 | LOCAL_PASS | P05-05 | 432e2262 | uv run ruff check | Pass | Zero-error Python lint gate (All checks passed) |
+| P05-07 | LOCAL_PASS | P03-05 | 432e2262 | pytest test_client_ip_and_limiter.py | Pass | Configurable rate limiting with RATE_LIMITING_ENABLED |
+| P05-08 | LOCAL_PASS | P05-07 | 432e2262 | pytest test_client_ip_and_limiter.py | Pass | Secure client IP resolution without spoofing |
 | P06-01 | NOT_STARTED | P00-08 | - | - | - | Inventory background task lifetimes |
 | P06-02 | NOT_STARTED | P06-01 | - | - | - | Specify background session isolation |
 | P06-03 | NOT_STARTED | P06-02 | - | - | - | Isolate background database sessions |
