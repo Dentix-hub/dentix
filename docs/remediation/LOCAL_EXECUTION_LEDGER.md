@@ -13,12 +13,12 @@
 |---|---|---|---|---|---|---|
 | P00-01 | LOCAL_PASS | none | 1e89c8a0 | read-only inspection | Pass | BASELINE.md created with repo authority |
 | P00-02 | LOCAL_PASS | P00-01 | 1e89c8a0 | git status inspection | Pass | Isolated local branch created |
-| P00-03 | IN_PROGRESS | P00-02 | pending | file verification | Pending | Initializing ledger and section 9 artifacts |
-| P00-04 | NOT_STARTED | P00-03 | - | - | - | Capture local baseline |
-| P00-05 | NOT_STARTED | P00-04 | - | - | - | Record test inventory |
-| P00-06 | NOT_STARTED | P00-05 | - | - | - | Guard local destructive tests |
-| P00-07 | NOT_STARTED | P00-05 | - | - | - | Add safe change-content scanner |
-| P00-08 | NOT_STARTED | P00-04 | - | - | - | Inventory remediation surfaces |
+| P00-03 | LOCAL_PASS | P00-02 | 1d17230e | file verification | Pass | Initialized ledger and section 9 artifacts |
+| P00-04 | LOCAL_PASS | P00-03 | 91a61786 | read-only inspection | Pass | Captured local baseline in BASELINE.md |
+| P00-05 | LOCAL_PASS | P00-04 | 076871ac | test collection | Pass | Recorded test inventory (542 backend, 258 frontend) |
+| P00-06 | LOCAL_PASS | P00-05 | ddeaad4e | pytest test_target_guard.py | Pass | Guarded local destructive tests (7/7 passed) |
+| P00-07 | LOCAL_PASS | P00-05 | 5bbbf1c0 | pytest test_scan_changed_content.py | Pass | Safe change-content scanner (2/2 passed) |
+| P00-08 | LOCAL_PASS | P00-04 | 1ac30193 | static inspection script | Pass | Recorded measured surface denominators |
 | P01-01 | NOT_STARTED | P00-05 | - | - | - | Reproduce subscription default lockout |
 | P01-02 | NOT_STARTED | P01-01 | - | - | - | Add safe subscription modes |
 | P01-03 | NOT_STARTED | P01-02 | - | - | - | Prevent automatic tenant deactivation |
