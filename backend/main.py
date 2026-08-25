@@ -185,8 +185,8 @@ async def lifespan(app: FastAPI):
 
 # Initialize FastAPI app with lifespan
 app = FastAPI(
-    title="Smart Clinic API",
-    version="2.0.8",
+    title="DENTIX Clinical & Practice Management API",
+    version="2026.8.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
