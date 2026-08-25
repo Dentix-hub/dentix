@@ -85,8 +85,15 @@ async def start_subscription_checker_loop(interval_hours: int = 12):
     while True:
         try:
             await subscription_checker_flow()
+        except asyncio.CancelledError:
+            logger.info("Subscription checker received cancellation signal. Stopping.")
+            break
         except Exception as e:
             logger.error(f"Subscription checker flow failed: {e}\n{traceback.format_exc()}")
 
-        # Sleep for the configured interval (convert hours to seconds)
-        await asyncio.sleep(interval_hours * 3600)
+        try:
+            # Sleep for the configured interval (convert hours to seconds)
+            await asyncio.sleep(interval_hours * 3600)
+        except asyncio.CancelledError:
+            logger.info("Subscription checker sleep cancelled. Exiting cleanly.")
+            break

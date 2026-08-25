@@ -23,8 +23,8 @@ async def process_event(event: DomainEvent):
     """Process a single event using its registered handler."""
     handler = _handlers.get(event.event_type)
     if not handler:
-        logger.warning(f"No handler registered for event type: {event.event_type}. Ignoring.")
-        return
+        logger.error("No handler registered for event type: %s (event_id=%s)", event.event_type, event.id)
+        raise ValueError(f"No handler registered for event type: {event.event_type}")
 
     try:
         await handler(event)
@@ -65,6 +65,13 @@ async def poll_outbox(poll_interval: int = 5):
     while True:
         try:
             await event_processor_flow()
+        except asyncio.CancelledError:
+            logger.info("Outbox polling task received cancellation signal. Stopping.")
+            break
         except Exception as e:
             logger.error(f"Outbox polling flow failed: {e}")
-        await asyncio.sleep(poll_interval)
+        try:
+            await asyncio.sleep(poll_interval)
+        except asyncio.CancelledError:
+            logger.info("Outbox sleep cancelled. Exiting cleanly.")
+            break
