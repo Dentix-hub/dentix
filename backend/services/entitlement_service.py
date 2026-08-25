@@ -81,9 +81,7 @@ class EntitlementService:
                     else SubscriptionState.GRACE.value
                 )
 
-        # Invariant: Clinical-history read is ALWAYS permitted
-        can_read_clinical = True
-
+        # Invariant: Clinical-history read is ALWAYS permitted (enforced in EntitlementEvaluation)
         # In 'off' mode: allow all writes
         if mode == "off":
             return EntitlementEvaluation(

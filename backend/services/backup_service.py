@@ -7,7 +7,7 @@ import asyncio
 import tempfile
 import re
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.engine import make_url
 
 from ..google_drive_client import GoogleDriveClient

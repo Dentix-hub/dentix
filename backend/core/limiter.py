@@ -1,7 +1,14 @@
+import os
 from slowapi import Limiter
-from slowapi.util import get_remote_address
+from backend.core.client_ip import get_real_client_ip
+
+# Determine if rate limiting is enabled
+_enabled_str = os.getenv("RATE_LIMITING_ENABLED", "true").lower()
+RATE_LIMITING_ENABLED = _enabled_str in ("true", "1", "yes")
 
 # Global limiter instance
-# Use remote address (IP) as default key
-# Default global limit: 100 requests per minute (reduced for stress protection)
-limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
+limiter = Limiter(
+    key_func=get_real_client_ip,
+    default_limits=["100/minute"],
+    enabled=RATE_LIMITING_ENABLED,
+)

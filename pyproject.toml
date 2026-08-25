@@ -64,3 +64,16 @@ dev = [
 package = false
 required-version = "==0.12.5"
 exclude-dependencies = ["ecdsa"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+  "E501",  # Line length
+  "E711",  # Comparison to None (SQLAlchemy filter IS NULL)
+  "E712",  # Comparison to True/False (SQLAlchemy filter boolean columns)
+  "E402",  # Module level import not at top of file
+]

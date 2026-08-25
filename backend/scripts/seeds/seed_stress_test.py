@@ -25,7 +25,7 @@ from backend import models, auth
 if sys.stdout.encoding != "utf-8":
     try:
         sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
-    except:
+    except Exception:
         pass
 
 # Constants

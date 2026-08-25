@@ -10,14 +10,6 @@ from backend.main import app
 
 
 def test_metrics_endpoint():
-    client = TestClient(app)
-
-    # We trigger the startup event manually if TestClient doesn't automatically
-    # But TestClient manages context usually.
-    # Note: Instrumentator().expose(app) adds the route immediately usually,
-    # but inside startup_event it happens on startup.
-    # TestClient calls startup handlers inside a context manager.
-
     with TestClient(app) as client:
         response = client.get("/metrics")
         print(f"Status Code: {response.status_code}")
