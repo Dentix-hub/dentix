@@ -26,12 +26,12 @@
 | P01-05 | LOCAL_PASS | P01-04 | 952f3f7f | pytest test_entitlement_service.py | Pass | Centralized entitlements & clinical read invariant (4/4 passed) |
 | P01-06 | LOCAL_PASS | P01-04, P03-06 | a474cf74 | pytest test_manual_renewal.py | Pass | Hardened audited idempotent manual renewal (3/3 passed) |
 | P01-07 | LOCAL_PASS | P01-05 | e2cb29ca | vitest run | Pass | Aligned subscription UI with manual renewal (258/258 passed) |
-| P02-01 | NOT_STARTED | P00-08 | - | - | - | Inventory database HTTP surfaces |
-| P02-02 | NOT_STARTED | P02-01 | - | - | - | Specify disabled SQL contracts |
-| P02-03 | NOT_STARTED | P02-02 | - | - | - | Disable full SQL download |
-| P02-04 | NOT_STARTED | P02-02 | - | - | - | Remove SQL restore HTTP surface |
-| P02-05 | NOT_STARTED | P02-03, P02-04 | - | - | - | Restrict backup administration UI |
-| P02-06 | NOT_STARTED | P02-03, P02-04 | - | - | - | Prevent SQL route regression |
+| P02-01 | LOCAL_PASS | P00-08 | 226eb3d1 | static router inventory | Pass | Inventoried all database backup/restore routes |
+| P02-02 | LOCAL_PASS | P02-01 | 34fec97c | documentation inspection | Pass | Formalized ADR Section 4 for 410 Gone & safe JSON |
+| P02-03 | LOCAL_PASS | P02-02 | 70783697 | pytest test_database_surface_safety.py | Pass | Disabled full SQL download (410 Gone) |
+| P02-04 | LOCAL_PASS | P02-02 | 2ef42983 | pytest test_database_surface_safety.py | Pass | Removed raw SQL restore HTTP surfaces (410 Gone) |
+| P02-05 | LOCAL_PASS | P02-03, P02-04 | a5ab5598 | vitest run | Pass | Restricted backup admin UI to clinic JSON |
+| P02-06 | LOCAL_PASS | P02-03, P02-04 | 5bd6a7b4 | pytest test_database_surface_safety.py | Pass | Route regression tests (3/3 passed, 100% coverage) |
 | P03-01 | NOT_STARTED | P00-08 | - | - | - | Inventory sensitive logging |
 | P03-02 | NOT_STARTED | P03-01 | - | - | - | Add bounded log sanitizer |
 | P03-03 | NOT_STARTED | P03-02 | - | - | - | Sanitize persisted system errors |
