@@ -55,13 +55,13 @@
 | P05-06 | LOCAL_PASS | P05-05 | 432e2262 | uv run ruff check | Pass | Zero-error Python lint gate (All checks passed) |
 | P05-07 | LOCAL_PASS | P03-05 | 432e2262 | pytest test_client_ip_and_limiter.py | Pass | Configurable rate limiting with RATE_LIMITING_ENABLED |
 | P05-08 | LOCAL_PASS | P05-07 | 432e2262 | pytest test_client_ip_and_limiter.py | Pass | Secure client IP resolution without spoofing |
-| P06-01 | NOT_STARTED | P00-08 | - | - | - | Inventory background task lifetimes |
-| P06-02 | NOT_STARTED | P06-01 | - | - | - | Specify background session isolation |
-| P06-03 | NOT_STARTED | P06-02 | - | - | - | Isolate background database sessions |
-| P06-04 | NOT_STARTED | P04-02 | - | - | - | Test outbox with enforced RLS |
-| P06-05 | NOT_STARTED | P06-04 | - | - | - | Enforce outbox tenant context |
-| P06-06 | NOT_STARTED | P06-05 | - | - | - | Fail unknown outbox events visibly |
-| P06-07 | NOT_STARTED | P06-03, P06-06 | - | - | - | Harden worker lifecycle |
+| P06-01 | LOCAL_PASS | P00-08 | 1838d4c4 | code inspection | Pass | Background task lifetime & outbox inventory |
+| P06-02 | LOCAL_PASS | P06-01 | 1838d4c4 | documentation inspection | Pass | Isolated session rules per task invocation |
+| P06-03 | LOCAL_PASS | P06-02 | 1838d4c4 | code review | Pass | Isolated async session contexts across workers |
+| P06-04 | LOCAL_PASS | P04-02 | 1838d4c4 | pytest test_workers_and_outbox.py | Pass | Outbox operations verified |
+| P06-05 | LOCAL_PASS | P06-04 | 1838d4c4 | pytest test_workers_and_outbox.py | Pass | Enforced tenant context per event execution |
+| P06-06 | LOCAL_PASS | P06-05 | 1838d4c4 | pytest test_workers_and_outbox.py | Pass | Raised ValueError and marked failed on unknown events |
+| P06-07 | LOCAL_PASS | P06-03, P06-06 | 1838d4c4 | pytest test_workers_and_outbox.py | Pass | Hardened worker cancellation & graceful shutdown |
 | P07-01 | NOT_STARTED | P03-05 | - | - | - | Protect metrics endpoint |
 | P07-02 | NOT_STARTED | P07-01 | - | - | - | Wire bounded request metrics |
 | P07-03 | NOT_STARTED | P03-02 | - | - | - | Define safe alert events |
