@@ -244,14 +244,12 @@ async def download_backup(
 
 @router.post("/restore")
 async def restore_backup(
-    file: UploadFile = File(...), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+    file: UploadFile = File(...),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    if current_user.role != Role.SUPER_ADMIN.value:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
     raise HTTPException(
-        status_code=501,
-        detail="File-based restore not supported in production (Postgres Only)",
+        status_code=410,
+        detail="Raw database restore over HTTP has been permanently disabled for security. Use clinic-scoped JSON restore or guarded CLI tools.",
     )
 
 

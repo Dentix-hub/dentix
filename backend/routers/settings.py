@@ -324,9 +324,14 @@ async def upload_backup(
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Restore tenant JSON backups or Super Admin SQL backups."""
-    db_url = database.SQLALCHEMY_DATABASE_URL
+    """Restore tenant JSON backups. Raw SQL restore over HTTP is disabled."""
     filename = file.filename.lower() if file.filename else ""
+
+    if filename.endswith(".sql"):
+        raise HTTPException(
+            status_code=410,
+            detail="Raw SQL restore over HTTP is permanently disabled for security. Only tenant-scoped JSON restores are permitted over HTTP.",
+        )
 
     if filename.endswith(".json"):
         if not current_user.tenant:
@@ -350,72 +355,9 @@ async def upload_backup(
             message="Tenant data restored successfully",
         )
 
-    if filename.endswith(".sql"):
-        if current_user.role != Role.SUPER_ADMIN.value:
-            raise HTTPException(
-                status_code=403,
-                detail="Only Super Admin can restore SQL backups. Use JSON backup for tenant restore.",
-            )
-
-        if "postgres" in db_url:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".sql") as tmp:
-                content = await file.read()
-                tmp.write(content)
-                tmp_path = tmp.name
-
-            try:
-                command, process_env = build_psql_command(db_url, tmp_path)
-                process = await asyncio.create_subprocess_exec(
-                    *command,
-                    env=process_env,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                try:
-                    _, stderr = await asyncio.wait_for(process.communicate(), timeout=300)
-                except TimeoutError:
-                    process.kill()
-                    await process.communicate()
-                    raise HTTPException(status_code=504, detail="Database restore timed out")
-
-                if process.returncode != 0:
-                    logger.error(
-                        "psql restore failed: %s",
-                        stderr.decode(errors="replace")[:1000],
-                    )
-                    raise HTTPException(
-                        status_code=500, detail="Database restore failed"
-                    )
-
-                return success_response(message="Database restored successfully from SQL backup.")
-            finally:
-                if os.path.exists(tmp_path):
-                    os.remove(tmp_path)
-
-        elif "sqlite" in db_url:
-            db_path = db_url.replace("sqlite:///", "")
-            temp_path = f"{db_path}.restore"
-            content = await file.read()
-            with open(temp_path, "wb") as buffer:
-                buffer.write(content)
-
-            try:
-                backup_path = f"{db_path}.bak"
-                if os.path.exists(backup_path):
-                    os.remove(backup_path)
-
-                shutil.copy(db_path, backup_path)
-                shutil.move(temp_path, db_path)
-
-                return success_response(
-                    message="Backup restored successfully. Please restart server if needed."
-                )
-            except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Restore failed: {str(e)}")
-
     raise HTTPException(
         status_code=400,
-        detail="Unsupported file format. Use .json for tenant restore or .sql for full system restore.",
+        detail="Unsupported file format. Only .json tenant backup files are permitted.",
     )
 
 
