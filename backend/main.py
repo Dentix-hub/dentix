@@ -537,10 +537,24 @@ async def get_global_settings(db: AsyncSession = Depends(database.get_async_db))
     })
 
 
-# --- Observability ---
+# --- Observability & Metrics Protection ---
+@app.middleware("http")
+async def metrics_protection_middleware(request: Request, call_next):
+    if request.url.path == "/metrics":
+        env = os.getenv("ENVIRONMENT", "development").lower()
+        if env == "production":
+            metrics_token = os.getenv("METRICS_SCRAPER_TOKEN")
+            auth_header = request.headers.get("Authorization", "")
+            is_local = request.client and request.client.host in ("127.0.0.1", "localhost", "::1")
+            is_authorized_token = bool(metrics_token and auth_header == f"Bearer {metrics_token}")
+            if not is_local and not is_authorized_token:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Forbidden: Metrics endpoint is restricted to authorized scrapers."}
+                )
+    return await call_next(request)
+
 # Workaround for compatibility issue between FastAPI >=0.110.0 and prometheus-fastapi-instrumentator.
-# Newer FastAPI versions include nested APIRouter instances as _IncludedRouter in app.routes,
-# which lack the 'path' attribute expected by the instrumentator.
 for route in app.routes:
     if not hasattr(route, "path"):
         route.path = ""
