@@ -21,7 +21,11 @@ async def create_prescription(
     current_user: schemas.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     await ensure_patient_visible(db, current_user, prescription.patient_id)
-    result = await crud.create_prescription(db=db, prescription=prescription)
+    result = await crud.create_prescription(
+        db=db,
+        prescription=prescription,
+        tenant_id=current_user.tenant_id,
+    )
     log_admin_action(
         db=db,
         admin_user=current_user,

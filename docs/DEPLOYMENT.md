@@ -8,7 +8,15 @@ Do not copy secret values, current branch SHAs, external Space identifiers, plat
 
 ## Required application configuration
 
-`backend/database.py` requires `DATABASE_URL`. Other required/optional application keys are owned by current environment/config definitions and should be read from the repository's env examples/config code rather than a manually maintained table here.
+`backend/database.py` requires `DATABASE_URL`. PostgreSQL deployments also require
+`SYSTEM_DATABASE_URL` with a physically separate login. The application login
+must be `NOBYPASSRLS`; the system login must have native `BYPASSRLS`. Startup
+fails closed if either attribute is wrong or both URLs resolve to the same role.
+The system credential is reserved for authentication bootstrap, audited
+super-admin work, and system workers; it must never be exposed to tenant SQL.
+Other application keys are owned by current environment/config definitions and
+should be read from the repository's env examples/config code rather than a
+manually maintained table here.
 
 Never commit real secrets.
 

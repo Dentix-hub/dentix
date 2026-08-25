@@ -1,4 +1,4 @@
-import { Edit3, Clock, Trash2, Key } from 'lucide-react';
+import { Edit3, Clock, Trash2, Key, CalendarPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const TenantsManager = ({ 
@@ -10,6 +10,7 @@ const TenantsManager = ({
     handleRestoreTenant, 
     handlePermanentDelete, 
     onResetPassword,
+    onManualRenew,
     onSelectTenant
 }) => {
     const { t, i18n } = useTranslation();
@@ -102,6 +103,13 @@ const TenantsManager = ({
                                                     title={t('super_admin.tenants.details')}
                                                 >
                                                     <Edit3 size={16} />
+                                                </button>
+                                                <button
+                                                    onClick={() => onManualRenew && onManualRenew(tenant)}
+                                                    className="inline-flex items-center gap-2 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl text-xs font-bold transition-all"
+                                                    title="تجديد يدوي للاشتراك"
+                                                >
+                                                    <CalendarPlus size={16} />
                                                 </button>
                                                 <button
                                                     onClick={() => {

@@ -5,3 +5,4 @@ aeab9b37eebe90859e436fcea169bc4fc75c9765:.agent/skills/api-design/SKILL.md:gener
 036d87ebc88653cebfa28b1c4f2c5b9c35b19b4b:SECURITY_REMEDIATION_GUIDE.md:generic-api-key:68
 1a32b895cd5514df5e02134feb75719df2907c56:backend/tests/unit/test_core.py:generic-api-key:142
 1a32b895cd5514df5e02134feb75719df2907c56:backend/tests/unit/test_core.py:generic-api-key:176
+66fe0050d780953d15c2a3e936e38a09dfe61d2d:backend/tests/test_logging_sanitizer.py:jwt:16

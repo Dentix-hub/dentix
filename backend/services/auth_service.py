@@ -190,20 +190,18 @@ class AuthService:
 
     @staticmethod
     def generate_2fa_secret(user: models.User):
-        """Generate a random secret for 2FA setup (Simulation of TOTP secret)."""
-        # In production: import pyotp; return pyotp.random_base32()
-        chars = string.ascii_letters + string.digits
-        return "".join(random.choice(chars) for _ in range(16))
+        """Generate a random base32 secret for 2FA setup."""
+        import pyotp
+        return pyotp.random_base32()
 
     @staticmethod
-    def verify_2fa_code(secret: str, code: str):
-        """Verify the code against the secret."""
-        # In production: totp = pyotp.TOTP(secret); return totp.verify(code)
-        # For now, we simulate success if code is '123456' for testing
-        # OR if we want real simulation, we'd need to store a temp code.
-        # Let's assume for this MVP we accept '123456' as master code for verified flow
-        # OR better: Assume the user enters a specific simulation code.
-        return code == "123456"
+    def verify_2fa_code(secret: str, code: str) -> bool:
+        """Verify the TOTP code against the secret."""
+        if not secret or not code:
+            return False
+        import pyotp
+        totp = pyotp.TOTP(secret)
+        return bool(totp.verify(code))
 
     @staticmethod
     async def enable_2fa(db: AsyncSession, user: models.User, secret: str, code: str):

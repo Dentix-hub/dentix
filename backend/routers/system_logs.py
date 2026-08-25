@@ -12,6 +12,8 @@ from backend.core.limiter import limiter
 router = APIRouter()
 
 
+from backend.core.logging_sanitizer import sanitize_text, sanitize_stack_trace
+
 # --- Public Endpoint for Frontend Errors ---
 @router.post("", response_model=StandardResponse[schemas.SystemError])
 @limiter.limit("10/minute")
@@ -21,17 +23,20 @@ async def log_frontend_error(
     """
     Log an error from the frontend app.
     Does NOT require authentication to prevent losing errors during login failures.
-    We capture IP/UserAgent from request.
+    We capture IP/UserAgent from request and sanitize all content.
     """
-    # Extract data to avoid duplicate key issues if schema already has keys
     error_data = error.model_dump()
+    error_data["message"] = sanitize_text(error_data.get("message"), max_length=4000) or "Frontend Error"
+    error_data["stack_trace"] = sanitize_stack_trace(error_data.get("stack_trace"), max_length=12000)
+    error_data["path"] = sanitize_text(error_data.get("path"), max_length=2048)
+
     error_data.update(
         {
             "source": "FRONTEND",
             "user_id": None,
             "tenant_id": None,
             "ip_address": request.client.host if request.client else None,
-            "user_agent": (request.headers.get("user-agent") or "")[:512] or None,
+            "user_agent": sanitize_text(request.headers.get("user-agent"), max_length=512),
         }
     )
 

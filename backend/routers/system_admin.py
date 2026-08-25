@@ -59,6 +59,8 @@ class LogEntry(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+from backend.core.logging_sanitizer import sanitize_text, sanitize_stack_trace
+
 @router.post("/logs", response_model=StandardResponse[dict])
 @limiter.limit("10/minute")
 async def submit_frontend_log(
@@ -73,10 +75,10 @@ async def submit_frontend_log(
         new_log = models.SystemError(
             level=level,
             source="FRONTEND",
-            message=log.message,
-            stack_trace=log.context.stack_trace,
-            path=log.context.path,
-            user_agent=(request.headers.get("user-agent") or "")[:512] or None,
+            message=sanitize_text(log.message, max_length=4000) or "Frontend Log",
+            stack_trace=sanitize_stack_trace(log.context.stack_trace, max_length=12000),
+            path=sanitize_text(log.context.path, max_length=2048),
+            user_agent=sanitize_text(request.headers.get("user-agent"), max_length=512),
             ip_address=request.client.host if request.client else None,
             created_at=datetime.datetime.now(timezone.utc),
         )
@@ -236,66 +238,20 @@ async def download_backup(
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
     db: AsyncSession = Depends(get_async_db),
 ):
-    if current_user.role != Role.SUPER_ADMIN.value:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    # Implementation of JSON Backup (Fallback for environments without pg_dump)
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"smart_clinic_json_backup_{timestamp}.json"
-
-    async def iter_json(db_session: AsyncSession):
-        yield "{\n"
-
-        # 1. Tenants
-        yield '  "tenants": [\n'
-        res_tenants = await db_session.execute(select(models.Tenant))
-        tenants = list(res_tenants.scalars().all())
-        for i, t in enumerate(tenants):
-            data = {
-                "id": t.id,
-                "name": t.name,
-                "domain": t.domain,
-                "plan_id": t.subscription_plan_id,
-                "is_active": t.is_active,
-            }
-            yield f"    {json.dumps(data)}" + (",\n" if i < len(tenants) - 1 else "\n")
-        yield "  ],\n"
-
-        # 2. Users (Sanitized)
-        yield '  "users": [\n'
-        res_users = await db_session.execute(select(models.User))
-        users = list(res_users.scalars().all())
-        for i, u in enumerate(users):
-            data = {
-                "id": u.id,
-                "username": u.username,
-                "email": u.email,
-                "role": u.role,
-                "tenant_id": u.tenant_id,
-                "is_active": u.is_active,
-            }
-            yield f"    {json.dumps(data)}" + (",\n" if i < len(users) - 1 else "\n")
-        yield "  ]\n"
-
-        yield "}"
-
-    return StreamingResponse(
-        iter_json(db),
-        media_type="application/json",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    raise HTTPException(
+        status_code=410,
+        detail="Cross-tenant raw database export over HTTP has been permanently disabled for security. Use clinic-scoped JSON export.",
     )
 
 
 @router.post("/restore")
 async def restore_backup(
-    file: UploadFile = File(...), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))
+    file: UploadFile = File(...),
+    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    if current_user.role != Role.SUPER_ADMIN.value:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
     raise HTTPException(
-        status_code=501,
-        detail="File-based restore not supported in production (Postgres Only)",
+        status_code=410,
+        detail="Raw database restore over HTTP has been permanently disabled for security. Use clinic-scoped JSON restore or guarded CLI tools.",
     )
 
 

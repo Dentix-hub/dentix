@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from backend.database import AsyncSessionLocal
+from backend.database import system_session_scope
 from backend.models.inventory import MaterialCategory
 
 MATERIAL_CATEGORIES = [
@@ -42,7 +42,7 @@ MATERIAL_CATEGORIES = [
 
 
 async def seed_material_categories():
-    async with AsyncSessionLocal() as db:
+    async with system_session_scope() as db:
         try:
             added_count = 0
             existing_count = 0

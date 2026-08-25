@@ -16,6 +16,7 @@ from .router import SmartModelRouter
 from ...rag.store import knowledge_store
 from .circuit_breaker import ai_circuit_breaker
 from backend.ai.privacy.scrubber import scrubber
+from backend.services.ai_egress_policy import prepare_ai_messages
 
 # Logger Setup
 logger = logging.getLogger(__name__)
@@ -44,15 +45,18 @@ class AIAgent:
 
         self.model = "llama-3.1-8b-instant"
 
-    async def _call_llm_safe(self, model: str, messages: List[Dict]) -> Any:
+    async def _call_llm_safe(
+        self, model: str, messages: List[Dict], *, tenant_id: int | None = None
+    ) -> Any:
         # Wrapper for circuit breaker
         if self.mock_mode:
             logger.info("MOCK MODE: Returning simulated AI response.")
             return self._generate_mock_response(messages)
 
+        provider_messages = prepare_ai_messages(messages, tenant_id=tenant_id)
         return await self.client.chat.completions.create(
             model=model,
-            messages=messages,
+            messages=provider_messages,
             temperature=0,
             response_format={"type": "json_object"},
         )
@@ -162,7 +166,9 @@ class AIAgent:
 
         # 5. Call LLM with Retry & Circuit Breaker
         try:
-            response = await self._call_llm_safe(model_name, messages)
+            response = await self._call_llm_safe(
+                model_name, messages, tenant_id=tenant_id
+            )
             ai_circuit_breaker.record_success()
 
             content = response.choices[0].message.content

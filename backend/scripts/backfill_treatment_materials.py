@@ -18,11 +18,11 @@ def backfill():
         # Find all treatments
         treatments = db.query(clinical_models.Treatment).order_by(clinical_models.Treatment.date.asc()).all()
         print(f"Found {len(treatments)} treatments to analyze.")
-        
+
         backfilled_count = 0
         non_divisible_count = 0
         divisible_count = 0
-        
+
         for t in treatments:
             # Check if this treatment already has TreatmentMaterialUsage records
             existing_usage_count = db.query(inv_models.TreatmentMaterialUsage).filter(
@@ -31,18 +31,18 @@ def backfill():
             if existing_usage_count > 0:
                 # Already backfilled or saved
                 continue
-                
+
             # Find stock movements for this treatment
             # USAGE movements matching TREATMENT:id or TREATMENT_MATERIALS:id
             movements = db.query(inv_models.StockMovement).filter(
                 inv_models.StockMovement.reference_id.in_([f"TREATMENT:{t.id}", f"TREATMENT_MATERIALS:{t.id}"])
             ).all()
-            
+
             if not movements:
                 continue
-                
+
             print(f"Processing Treatment #{t.id} ({t.procedure or 'No Procedure'}) on {t.date} with {len(movements)} movements.")
-            
+
             # Reconstruct TreatmentMaterialUsage from stock movements
             for move in movements:
                 # Find stock item and batch
@@ -55,13 +55,13 @@ def backfill():
                 mat = db.query(inv_models.Material).get(batch.material_id)
                 if not mat:
                     continue
-                
+
                 # Check if it's NON_DIVISIBLE
                 if mat.type == "NON_DIVISIBLE":
                     quantity_used = abs(move.change_amount)
                     cost_per_unit = batch.cost_per_unit or mat.standard_price or 0.0
                     cost_calculated = quantity_used * cost_per_unit
-                    
+
                     usage = inv_models.TreatmentMaterialUsage(
                         treatment_id=t.id,
                         material_id=mat.id,
@@ -85,7 +85,7 @@ def backfill():
                     ).filter(
                         (inv_models.MaterialSession.closed_at.is_(None)) | (inv_models.MaterialSession.closed_at >= t.date)
                     )
-                    
+
                     # Try to filter by doctor if doctor_id is present
                     if t.doctor_id:
                         session_doc = session.filter(inv_models.MaterialSession.doctor_id == t.doctor_id).first()
@@ -95,9 +95,9 @@ def backfill():
                             session = session.first()
                     else:
                         session = session.first()
-                        
+
                     session_id = session.id if session else None
-                    
+
                     usage = inv_models.TreatmentMaterialUsage(
                         treatment_id=t.id,
                         material_id=mat.id,
@@ -111,21 +111,21 @@ def backfill():
                     )
                     db.add(usage)
                     divisible_count += 1
-            
+
             backfilled_count += 1
-            
+
         db.commit()
         print(f"Successfully backfilled {backfilled_count} treatments ({non_divisible_count} non-divisible, {divisible_count} divisible usage records created).")
-        
+
         # Now trigger re-learning for all closed sessions to allocate divisible material quantities/costs
         closed_sessions = db.query(inv_models.MaterialSession).filter(
             inv_models.MaterialSession.status == "CLOSED",
             inv_models.MaterialSession.total_amount_consumed.isnot(None)
         ).all()
-        
+
         print(f"Re-triggering learning algorithms for {len(closed_sessions)} closed sessions...")
         learning_service = InventoryLearningService(db)
-        
+
         for sess in closed_sessions:
             try:
                 # We can reset status to ACTIVE temporarily or just pass to close_session
@@ -133,7 +133,7 @@ def backfill():
                 # So we temporarily set it to ACTIVE to re-run learning
                 sess.status = "ACTIVE"
                 db.commit()
-                
+
                 learning_service.close_session(
                     session_id=sess.id,
                     total_consumed=sess.total_amount_consumed,
@@ -143,7 +143,7 @@ def backfill():
             except Exception as e:
                 print(f"Error re-learning session #{sess.id}: {e}")
                 db.rollback()
-                
+
     finally:
         db.close()
 

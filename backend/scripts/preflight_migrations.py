@@ -65,6 +65,9 @@ BOOTSTRAP_MARKER = "_dentix_fresh_bootstrap"
 RLS_TABLES = (
     "users",
     "patients",
+    "tooth_status",
+    "prescriptions",
+    "attachments",
     "saved_medications",
     "appointments",
     "treatments",
@@ -78,12 +81,15 @@ RLS_TABLES = (
     "lab_payments",
     "subscription_payments",
     "subscription_checkouts",
+    "subscription_renewal_requests",
     "insurance_providers",
     "price_lists",
     "warehouses",
     "materials",
     "batches",
     "stock_items",
+    "material_sessions",
+    "stock_movements",
     "procedure_material_weights",
     "material_learning_logs",
     "treatment_material_usages",
@@ -96,6 +102,15 @@ RLS_TABLES = (
     "security_events",
     "domain_events",
     "push_subscriptions",
+)
+
+CHILD_TENANT_RELATIONSHIPS = (
+    ("tooth_status", "patient_id", "patients", False),
+    ("prescriptions", "patient_id", "patients", False),
+    ("attachments", "patient_id", "patients", False),
+    ("material_sessions", "stock_item_id", "stock_items", False),
+    ("stock_movements", "stock_item_id", "stock_items", False),
+    ("material_sessions", "patient_id", "patients", True),
 )
 
 
@@ -175,6 +190,28 @@ def _drop_bootstrap_marker(engine) -> None:
         connection.execute(text(f'DROP TABLE IF EXISTS "{BOOTSTRAP_MARKER}"'))
 
 
+def _drop_postgresql_table_policies(connection, table: str) -> None:
+    """Remove create_all hook policies before installing the canonical policy."""
+    policy_names = list(
+        connection.execute(
+            text(
+                """SELECT policyname
+                     FROM pg_policies
+                    WHERE schemaname = current_schema()
+                      AND tablename = :table"""
+            ),
+            {"table": table},
+        ).scalars()
+    )
+    preparer = connection.dialect.identifier_preparer
+    quoted_table = preparer.quote(table)
+    for policy_name in policy_names:
+        quoted_policy = preparer.quote(policy_name)
+        connection.execute(
+            text(f"DROP POLICY IF EXISTS {quoted_policy} ON {quoted_table}")
+        )
+
+
 def _install_postgresql_rls(connection) -> None:
     """Install the same strict RLS contract used by the historical migration."""
     if connection.dialect.name != "postgresql":
@@ -190,20 +227,19 @@ def _install_postgresql_rls(connection) -> None:
     tenant_expr = (
         "tenant_id = NULLIF(current_setting('rls.tenant_id', true), '')::integer"
     )
-    bypass_expr = (
-        "CAST(NULLIF(current_setting('rls.bypass_rls', true), '') AS BOOLEAN) = true"
-    )
-
     for table in RLS_TABLES:
         connection.execute(text(f'ALTER TABLE "{table}" ENABLE ROW LEVEL SECURITY'))
         connection.execute(text(f'ALTER TABLE "{table}" FORCE ROW LEVEL SECURITY'))
-        connection.execute(text(f'DROP POLICY IF EXISTS "{table}_tenant_policy" ON "{table}"'))
+        # register_rls(Base) creates package policies during metadata.create_all.
+        # A fresh baseline must not retain those legacy GUC-bypass policies
+        # alongside the fail-closed canonical policy.
+        _drop_postgresql_table_policies(connection, table)
         connection.execute(
             text(
                 f'''CREATE POLICY "{table}_tenant_policy" ON "{table}"
                     FOR ALL
-                    USING (({tenant_expr}) OR {bypass_expr})
-                    WITH CHECK (({tenant_expr}) OR {bypass_expr})'''
+                    USING ({tenant_expr})
+                    WITH CHECK ({tenant_expr})'''
             )
         )
 
@@ -215,17 +251,55 @@ def _install_postgresql_rls(connection) -> None:
     )
     connection.execute(text('ALTER TABLE "notifications" ENABLE ROW LEVEL SECURITY'))
     connection.execute(text('ALTER TABLE "notifications" FORCE ROW LEVEL SECURITY'))
-    connection.execute(
-        text('DROP POLICY IF EXISTS "notifications_tenant_policy" ON "notifications"')
-    )
+    _drop_postgresql_table_policies(connection, "notifications")
     connection.execute(
         text(
             f'''CREATE POLICY "notifications_tenant_policy" ON "notifications"
                 FOR ALL
-                USING (({notif_expr}) OR {bypass_expr})
-                WITH CHECK (({notif_expr}) OR {bypass_expr})'''
+                USING ({notif_expr})
+                WITH CHECK ({notif_expr})'''
         )
     )
+
+    connection.execute(
+        text(
+            """
+            CREATE OR REPLACE FUNCTION dentix_assert_parent_tenant()
+            RETURNS trigger LANGUAGE plpgsql AS $$
+            DECLARE
+                child_parent_id integer;
+                parent_tenant_id integer;
+                allow_null boolean := COALESCE(TG_ARGV[2], 'false')::boolean;
+            BEGIN
+                child_parent_id := NULLIF(to_jsonb(NEW) ->> TG_ARGV[1], '')::integer;
+                IF child_parent_id IS NULL AND allow_null THEN RETURN NEW; END IF;
+                IF child_parent_id IS NULL THEN
+                    RAISE EXCEPTION 'Missing required parent on %', TG_TABLE_NAME;
+                END IF;
+                EXECUTE format('SELECT tenant_id FROM %I WHERE id = $1', TG_ARGV[0])
+                   INTO parent_tenant_id USING child_parent_id;
+                IF parent_tenant_id IS NULL OR NEW.tenant_id IS DISTINCT FROM parent_tenant_id THEN
+                    RAISE EXCEPTION 'Tenant mismatch on %', TG_TABLE_NAME;
+                END IF;
+                RETURN NEW;
+            END;
+            $$
+            """
+        )
+    )
+    for table, child_key, parent, allow_null in CHILD_TENANT_RELATIONSHIPS:
+        suffix = "patient_tenant" if table == "material_sessions" and child_key == "patient_id" else "parent_tenant"
+        trigger = f"trg_{table}_{suffix}"
+        connection.execute(text(f'DROP TRIGGER IF EXISTS "{trigger}" ON "{table}"'))
+        connection.execute(
+            text(
+                f'''CREATE TRIGGER "{trigger}"
+                    BEFORE INSERT OR UPDATE OF tenant_id, "{child_key}" ON "{table}"
+                    FOR EACH ROW EXECUTE FUNCTION dentix_assert_parent_tenant(
+                        '{parent}', '{child_key}', '{str(allow_null).lower()}'
+                    )'''
+            )
+        )
 
 
 def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
@@ -357,7 +431,16 @@ def _verify_postgresql_rls(engine, tables: Iterable[str]) -> list[str]:
                                SELECT 1 FROM pg_policies p
                                WHERE p.schemaname = current_schema()
                                  AND p.tablename = :table
-                           ) AS has_policy
+                           ) AS has_policy,
+                           NOT EXISTS (
+                               SELECT 1 FROM pg_policies p
+                               WHERE p.schemaname = current_schema()
+                                 AND p.tablename = :table
+                                 AND (
+                                     COALESCE(p.qual, '') LIKE '%rls.bypass_rls%'
+                                     OR COALESCE(p.with_check, '') LIKE '%rls.bypass_rls%'
+                                 )
+                           ) AS no_application_bypass
                     FROM pg_class c
                     JOIN pg_namespace n ON n.oid = c.relnamespace
                     WHERE n.nspname = current_schema()
@@ -368,11 +451,32 @@ def _verify_postgresql_rls(engine, tables: Iterable[str]) -> list[str]:
             ).first()
             if not row:
                 failures.append(f"{table}:missing")
-            elif not (bool(row[0]) and bool(row[1]) and bool(row[2])):
+            elif not (bool(row[0]) and bool(row[1]) and bool(row[2]) and bool(row[3])):
                 failures.append(
-                    f"{table}:enabled={bool(row[0])},forced={bool(row[1])},policy={bool(row[2])}"
+                    f"{table}:enabled={bool(row[0])},forced={bool(row[1])},"
+                    f"policy={bool(row[2])},no_application_bypass={bool(row[3])}"
                 )
     return failures
+
+
+def _verify_postgresql_child_tenant_triggers(engine) -> list[str]:
+    if engine.name != "postgresql":
+        return []
+    expected = {
+        f"trg_{table}_{'patient_tenant' if table == 'material_sessions' and key == 'patient_id' else 'parent_tenant'}"
+        for table, key, _, _ in CHILD_TENANT_RELATIONSHIPS
+    }
+    with engine.connect() as connection:
+        present = set(
+            connection.execute(
+                text(
+                    """SELECT tgname FROM pg_trigger
+                       WHERE NOT tgisinternal AND tgname = ANY(:names)"""
+                ),
+                {"names": list(expected)},
+            ).scalars()
+        )
+    return sorted(expected - present)
 
 
 def run_migration_health_check():
@@ -399,6 +503,12 @@ def run_migration_health_check():
         ("lab_orders", "tenant_id"),
         ("salary_payments", "tenant_id"),
         ("subscription_payments", "tenant_id"),
+        ("tooth_status", "tenant_id"),
+        ("prescriptions", "tenant_id"),
+        ("attachments", "tenant_id"),
+        ("material_sessions", "tenant_id"),
+        ("stock_movements", "tenant_id"),
+        ("subscription_renewal_requests", "tenant_id"),
     ]
 
     missing: list[str] = []
@@ -423,11 +533,40 @@ def run_migration_health_check():
             logger.error("[PREFLIGHT] CRITICAL: Missing schema components: %s", missing)
             return False
 
+        required_nonnull = {
+            "tooth_status",
+            "prescriptions",
+            "attachments",
+            "material_sessions",
+            "stock_movements",
+            "subscription_renewal_requests",
+        }
+        nullable = [
+            table
+            for table in required_nonnull
+            if next(
+                column
+                for column in inspector.get_columns(table)
+                if column["name"] == "tenant_id"
+            ).get("nullable", True)
+        ]
+        if nullable:
+            logger.error("[PREFLIGHT] CRITICAL: nullable tenant ownership: %s", nullable)
+            return False
+
         rls_failures = _verify_postgresql_rls(
             engine, tuple(RLS_TABLES) + ("notifications",)
         )
         if rls_failures:
             logger.error("[PREFLIGHT] CRITICAL: RLS invariant failures: %s", rls_failures)
+            return False
+
+        trigger_failures = _verify_postgresql_child_tenant_triggers(engine)
+        if trigger_failures:
+            logger.error(
+                "[PREFLIGHT] CRITICAL: child tenant triggers missing: %s",
+                trigger_failures,
+            )
             return False
 
         logger.info("[PREFLIGHT] All critical schema and RLS checks passed.")

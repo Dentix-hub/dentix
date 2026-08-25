@@ -482,6 +482,7 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
 
     for pres_data in data.get("prescriptions", []):
         pres_data.pop("id", None)
+        pres_data["tenant_id"] = tenant_id
         pres_data["patient_id"] = id_maps["patients"].get(pres_data.get("patient_id"))
         pres_data["date"] = parse_datetime(pres_data.get("date"))
         if pres_data["patient_id"]:
@@ -490,6 +491,7 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
 
     for ts_data in data.get("tooth_statuses", []):
         ts_data.pop("id", None)
+        ts_data["tenant_id"] = tenant_id
         ts_data["patient_id"] = id_maps["patients"].get(ts_data.get("patient_id"))
         if ts_data["patient_id"]:
             db.add(models.ToothStatus(**ts_data))
@@ -497,6 +499,7 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
 
     for att_data in data.get("attachments", []):
         att_data.pop("id", None)
+        att_data["tenant_id"] = tenant_id
         att_data["patient_id"] = id_maps["patients"].get(att_data.get("patient_id"))
         att_data["created_at"] = parse_datetime(att_data.get("created_at"))
         if att_data["patient_id"]:

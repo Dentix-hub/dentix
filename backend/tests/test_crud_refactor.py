@@ -14,7 +14,7 @@ async def cleanup_db(async_db_session, async_engine_fixture):
     # Ensure tables are created
     async with async_engine_fixture.begin() as conn:
         await conn.run_sync(models.Base.metadata.create_all)
-        
+
     # Clean up tables
     await async_db_session.execute(delete(models.ToothStatus))
     await async_db_session.execute(delete(models.Attachment))
@@ -27,7 +27,7 @@ async def cleanup_db(async_db_session, async_engine_fixture):
 @pytest.mark.asyncio
 async def test_patient_lifecycle(async_db_session):
     tenant_id = 1
-    
+
     # Mock Schema/Payload
     class MockPatientCreate:
         name = "Test Patient CRUD"
@@ -77,7 +77,7 @@ async def test_basic_crud_imports_and_execution():
 @pytest.mark.asyncio
 async def test_procedure_crud(async_db_session):
     tenant_id = 1
-    
+
     # Manual DB insertion to test READ
     proc = models.Procedure(name="Cleaning", price=100.0, tenant_id=tenant_id)
     async_db_session.add(proc)

@@ -129,6 +129,7 @@ class TestLaboratoryCRUD:
             "backend.services.lab_service.models.Laboratory", return_value=mock_lab
         ):
             result = await lab_service.create_laboratory(data)
+            assert result is not None
 
         mock_db.add.assert_called()
         mock_db.commit.assert_called()
@@ -189,10 +190,10 @@ class TestLabOrderLifecycle:
 
         mock_result_patient = MagicMock()
         mock_result_patient.scalars.return_value.first.return_value = mock_patient
-        
+
         mock_result_lab = MagicMock()
         mock_result_lab.scalars.return_value.first.return_value = mock_lab
-        
+
         mock_db.execute.side_effect = [
             mock_result_patient,
             mock_result_lab,
@@ -200,8 +201,9 @@ class TestLabOrderLifecycle:
 
         with patch(
             "backend.services.lab_service.models.LabOrder", return_value=mock_order
-        ), patch.object(lab_service, "_create_linked_treatment", new_callable=AsyncMock) as mock_create_treatment:
+        ), patch.object(lab_service, "_create_linked_treatment", new_callable=AsyncMock):
             result = await lab_service.create_lab_order(data, doctor_id=1)
+            assert result is not None
 
         mock_db.add.assert_called()
         mock_db.commit.assert_called()
@@ -275,6 +277,7 @@ class TestLabPayments:
             "backend.services.lab_service.models.LabPayment", return_value=mock_payment
         ):
             result = await lab_service.create_lab_payment(1, payment_data)
+            assert result is not None
 
         mock_db.add.assert_called()
         mock_db.commit.assert_called()
@@ -318,10 +321,10 @@ class TestLabStats:
         """Should return stats for specific lab."""
         mock_result_lab = MagicMock()
         mock_result_lab.scalars.return_value.first.return_value = sample_laboratory
-        
+
         mock_result_stats = MagicMock()
         mock_result_stats.scalar.return_value = 0
-        
+
         mock_db.execute.side_effect = [
             mock_result_lab,
             mock_result_stats,

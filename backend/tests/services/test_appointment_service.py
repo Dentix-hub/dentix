@@ -99,7 +99,7 @@ class TestAppointmentCreation:
         # Existing appointment found
         existing = MagicMock(spec=models.Appointment)
         existing.id = 99
-        
+
         mock_result = MagicMock()
         mock_result.scalars.return_value.first.return_value = existing
         mock_db.execute.return_value = mock_result

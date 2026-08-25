@@ -6,6 +6,7 @@ from backend import models, crud, schemas
 from backend import auth as auth_utils
 from backend.core.limiter import limiter
 from backend.core.response import success_response, StandardResponse
+from backend.services.auth_bootstrap import clinic_registration_scope
 from .dependencies import get_async_db, validate_password
 import logging
 
@@ -46,98 +47,111 @@ async def register_clinic(
         logger.warning(f"Registration failed: Password strength fail for user {admin_username}: {e.detail}")
         raise e
 
-    # Start Transaction (all DB operations inside try/except for OperationalError)
-    try:
-        # Check if username exists globally (username only, NOT email)
-        stmt = select(models.User).where(func.lower(models.User.username) == admin_username)
-        result = await db.execute(stmt)
-        existing_username = result.scalars().first()
-        if existing_username:
-            logger.warning(f"Registration failed: Username taken: {admin_username}")
-            raise HTTPException(status_code=400, detail="Username already taken")
+    # Registration begins before a tenant identity exists. PostgreSQL therefore
+    # uses the isolated system role for this one atomic bootstrap transaction.
+    async with clinic_registration_scope(db) as registration_db:
+        try:
+            # Check if username exists globally (username only, NOT email)
+            stmt = select(models.User).where(
+                func.lower(models.User.username) == admin_username
+            )
+            result = await registration_db.execute(stmt)
+            existing_username = result.scalars().first()
+            if existing_username:
+                logger.warning(
+                    f"Registration failed: Username taken: {admin_username}"
+                )
+                raise HTTPException(status_code=400, detail="Username already taken")
 
-        # Check if email exists globally
-        existing_email = await crud.get_user_by_email(db, admin_email)
-        if existing_email:
-            logger.warning(f"Registration failed: Email already registered: {admin_email}")
-            raise HTTPException(status_code=400, detail="Email already registered")
+            # Check if email exists globally
+            existing_email = await crud.get_user_by_email(registration_db, admin_email)
+            if existing_email:
+                logger.warning(
+                    f"Registration failed: Email already registered: {admin_email}"
+                )
+                raise HTTPException(status_code=400, detail="Email already registered")
 
-        # 1. Create Tenant
-        import uuid
+            # Get Default Plan (Basic)
+            stmt_plan = select(models.SubscriptionPlan).where(
+                models.SubscriptionPlan.is_default
+            )
+            result_plan = await registration_db.execute(stmt_plan)
+            default_plan = result_plan.scalars().first()
+            # Fallback if no default plan
+            if not default_plan:
+                stmt_plan_fallback = select(models.SubscriptionPlan)
+                result_plan_fallback = await registration_db.execute(
+                    stmt_plan_fallback
+                )
+                default_plan = result_plan_fallback.scalars().first()
 
-        # 1. Create Tenant (domain_slug removed as it was unused)
-        # Get Default Plan (Basic)
-        stmt_plan = select(models.SubscriptionPlan).where(models.SubscriptionPlan.is_default)
-        result_plan = await db.execute(stmt_plan)
-        default_plan = result_plan.scalars().first()
-        # Fallback if no default plan
-        if not default_plan:
-            stmt_plan_fallback = select(models.SubscriptionPlan)
-            result_plan_fallback = await db.execute(stmt_plan_fallback)
-            default_plan = result_plan_fallback.scalars().first()
+            plan_id = default_plan.id if default_plan else None
 
-        plan_id = default_plan.id if default_plan else None
+            new_tenant = models.Tenant(
+                name=clinic_name,
+                is_active=True,
+                plan_id=plan_id,
+                contact_phone=contact_phone,
+            )
+            registration_db.add(new_tenant)
+            await registration_db.flush()  # Get ID
 
-        new_tenant = models.Tenant(
-            name=clinic_name,
-            is_active=True,
-            plan_id=plan_id,
-            contact_phone=contact_phone,
-        )
-        db.add(new_tenant)
-        await db.flush()  # Get ID
+            # Create the clinic's first admin user in the same transaction.
+            hashed_password = auth_utils.get_password_hash(admin_password)
+            new_user = models.User(
+                username=admin_username,
+                email=admin_email,
+                hashed_password=hashed_password,
+                role="admin",
+                tenant_id=new_tenant.id,
+                is_active=True,
+            )
+            registration_db.add(new_user)
+            await registration_db.commit()
+            await registration_db.refresh(new_user)
 
-        # 2. Create Admin User
-        hashed_password = auth_utils.get_password_hash(admin_password)
-        new_user = models.User(
-            username=admin_username,
-            email=admin_email,
-            hashed_password=hashed_password,
-            role="admin",  # First user is Admin
-            tenant_id=new_tenant.id,
-            is_active=True,
-        )
-        db.add(new_user)
-        await db.commit()
-        await db.refresh(new_user)
+            # Generate Token for immediate login
+            access_token = auth_utils.create_access_token(
+                data={
+                    "sub": new_user.username,
+                    "role": new_user.role,
+                    "tenant_id": new_tenant.id,
+                }
+            )
 
-        # Generate Token for immediate login
-        access_token = auth_utils.create_access_token(
-            data={
-                "sub": new_user.username,
-                "role": new_user.role,
-                "tenant_id": new_tenant.id,
-            }
-        )
+            return success_response(
+                data={
+                    "access_token": access_token,
+                    "token_type": "bearer",
+                    "username": new_user.username,
+                    "role": new_user.role,
+                },
+                message="Clinic registered successfully",
+            )
 
-        return success_response(
-            data={
-                "access_token": access_token,
-                "token_type": "bearer",
-                "username": new_user.username,
-                "role": new_user.role,
-            },
-            message="Clinic registered successfully"
-        )
-
-    except HTTPException:
-        await db.rollback()
-        raise
-    except IntegrityError as e:
-        await db.rollback()
-        logger.warning("Registration conflict: %s", type(e).__name__)
-        raise HTTPException(
-            status_code=409,
-            detail="Username or email already registered",
-        ) from e
-    except OperationalError as e:
-        await db.rollback()
-        logger.error(f"Registration DB error: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=503,
-            detail="Database temporarily unavailable. Please try again in a moment.",
-        )
-    except Exception as e:
-        await db.rollback()
-        logger.error("Registration error: %s", type(e).__name__, exc_info=True)
-        raise HTTPException(status_code=500, detail="Clinic registration failed") from e
+        except HTTPException:
+            await registration_db.rollback()
+            raise
+        except IntegrityError as e:
+            await registration_db.rollback()
+            logger.warning("Registration conflict: %s", type(e).__name__)
+            raise HTTPException(
+                status_code=409,
+                detail="Username or email already registered",
+            ) from e
+        except OperationalError as e:
+            await registration_db.rollback()
+            logger.error(f"Registration DB error: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Database temporarily unavailable. "
+                    "Please try again in a moment."
+                ),
+            )
+        except Exception as e:
+            await registration_db.rollback()
+            logger.error("Registration error: %s", type(e).__name__, exc_info=True)
+            raise HTTPException(
+                status_code=500, detail="Clinic registration failed"
+            ) from e

@@ -31,7 +31,10 @@ config = context.config
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Preflight owns its deployment-safety logger. Alembic's default
+    # ``disable_existing_loggers=True`` silences the exact health-check reason
+    # after a fresh baseline is stamped, making CI failures non-diagnostic.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # Set database URL from environment variable
 db_url = os.getenv("DATABASE_URL")

@@ -1,0 +1,25 @@
+security:
+  ignore-unpinned-requirements: false
+  ignore-cvss-severity-below: 0
+  ignore-cvss-unknown-severity: false
+  ignore-vulnerabilities:
+    SFTY-20260612-19125:
+      reason: >-
+        ChromaDB is used only through an in-process PersistentClient with a
+        fixed, application-owned embedding model. DENTIX does not expose the
+        vulnerable Chroma server endpoint or accept model repositories from
+        users. No fixed stable ChromaDB release exists yet (latest is 1.5.9).
+      expires: '2026-09-30'
+    SFTY-20260612-61402:
+      reason: >-
+        DENTIX does not run Chroma's server authentication or authorization
+        providers. Tenant filters are applied by the application to the local
+        embedded collection. No fixed stable ChromaDB release exists yet.
+      expires: '2026-09-30'
+    SFTY-20260612-21661:
+      reason: >-
+        DENTIX does not configure or expose SimpleRBACAuthorizationProvider;
+        it uses only an embedded PersistentClient behind application RBAC and
+        tenant filtering. No fixed stable ChromaDB release exists yet.
+      expires: '2026-09-30'
+  continue-on-vulnerability-error: false

@@ -6,7 +6,7 @@ from sqlalchemy import select
 # Ensure backend structure is visible
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from backend.database import AsyncSessionLocal
+from backend.database import system_session_scope
 from backend.models.clinical import Procedure
 
 
@@ -24,7 +24,7 @@ async def fix_procedures_tenant():
         )
         return
 
-    async with AsyncSessionLocal() as db:
+    async with system_session_scope() as db:
         try:
             # Fetch all procedures with tenant_id=1
             stmt = select(Procedure).filter(Procedure.tenant_id == 1)

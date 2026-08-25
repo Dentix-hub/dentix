@@ -1,6 +1,6 @@
 [project]
 name = "dentix"
-version = "0.0.0"
+version = "2026.8.0"
 description = "Dentix backend runtime dependency manifest"
 requires-python = ">=3.11,<3.12"
 dependencies = [
@@ -55,6 +55,7 @@ dev = [
   "pytest>=8.0.0",
   "pytest-asyncio>=0.23.0",
   "pytest-cov>=4.1.0",
+  "ruff==0.15.17",
   "bandit>=1.8.0",
   "safety>=3.6.0",
   "setuptools>=83.0.0",
@@ -64,3 +65,16 @@ dev = [
 package = false
 required-version = "==0.12.5"
 exclude-dependencies = ["ecdsa"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+  "E501",  # Line length
+  "E711",  # Comparison to None (SQLAlchemy filter IS NULL)
+  "E712",  # Comparison to True/False (SQLAlchemy filter boolean columns)
+  "E402",  # Module level import not at top of file
+]

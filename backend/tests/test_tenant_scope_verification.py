@@ -53,23 +53,29 @@ EXPECTED_TENANT_MODELS = {
     "TenantFeature",
     "MaterialLearningLog",
     "PushSubscription",
+    "Appointment",
+    "Prescription",
+    "ToothStatus",
+    "Attachment",
+    "StockMovement",
+    "MaterialSession",
+    "TreatmentMaterialUsage",
+    "TreatmentSession",
+    "DomainEvent",
+    "SubscriptionPayment",
+    "SubscriptionCheckout",
+    "SubscriptionRenewalRequest",
 }
 
 # Models filtered via parent FK join (no own tenant_id column needed)
 PARENT_FILTERED_MODELS = {
-    "Appointment",       # filtered via patient_id → Patient.tenant_id
-    "Prescription",      # filtered via patient_id → Patient.tenant_id
-    "ToothStatus",       # filtered via patient_id → Patient.tenant_id
     "PriceListItem",     # filtered via price_list_id → PriceList.tenant_id
-    "StockMovement",     # filtered via material_id → Material.tenant_id
-    "MaterialSession",   # filtered via material_id → Material.tenant_id
 }
 
 # Models that intentionally do NOT have tenant_id (system-level)
 SYSTEM_MODELS = {
     "Tenant",
     "SubscriptionPlan",
-    "SubscriptionPayment",
     "FeatureFlag",
     "DailySystemStats",
 }
@@ -117,7 +123,7 @@ class TestTenantScopeRegistration:
         )
 
     def test_tenant_scope_coverage_percentage(self):
-        """At least 80% of all models with tenant_id should be in our expected list."""
+        """Every model with tenant_id must be in the authoritative audit list."""
         models_with_tenant = set()
         for mapper in Base.registry.mappers:
             cls_name = mapper.class_.__name__
@@ -127,7 +133,7 @@ class TestTenantScopeRegistration:
         covered = models_with_tenant & EXPECTED_TENANT_MODELS
         coverage = len(covered) / len(models_with_tenant) * 100 if models_with_tenant else 0
 
-        assert coverage >= 80, (
+        assert coverage == 100, (
             f"Tenant scope coverage is only {coverage:.0f}%. "
             f"Uncovered models: {models_with_tenant - EXPECTED_TENANT_MODELS}"
         )

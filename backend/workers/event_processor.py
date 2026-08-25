@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from typing import Callable, Dict, Awaitable
-from backend.database import AsyncSessionLocal
+from backend.database import system_session_scope
 from backend.services.event_service import event_service
 from backend.models.domain_event import DomainEvent
 import traceback
@@ -23,8 +23,8 @@ async def process_event(event: DomainEvent):
     """Process a single event using its registered handler."""
     handler = _handlers.get(event.event_type)
     if not handler:
-        logger.warning(f"No handler registered for event type: {event.event_type}. Ignoring.")
-        return
+        logger.error("No handler registered for event type: %s (event_id=%s)", event.event_type, event.id)
+        raise ValueError(f"No handler registered for event type: {event.event_type}")
 
     try:
         await handler(event)
@@ -53,7 +53,10 @@ async def process_pending_events(session: AsyncSession):
 @flow(name="outbox-event-processor", log_prints=True)
 async def event_processor_flow():
     """Prefect flow to run the outbox event processing cycle."""
-    async with AsyncSessionLocal() as session:
+    from backend.services.backup_scheduler_service import schedule_due_backup
+
+    async with system_session_scope() as session:
+        await schedule_due_backup(session)
         await process_pending_events(session)
 
 async def poll_outbox(poll_interval: int = 5):
@@ -65,6 +68,13 @@ async def poll_outbox(poll_interval: int = 5):
     while True:
         try:
             await event_processor_flow()
+        except asyncio.CancelledError:
+            logger.info("Outbox polling task received cancellation signal. Stopping.")
+            break
         except Exception as e:
             logger.error(f"Outbox polling flow failed: {e}")
-        await asyncio.sleep(poll_interval)
+        try:
+            await asyncio.sleep(poll_interval)
+        except asyncio.CancelledError:
+            logger.info("Outbox sleep cancelled. Exiting cleanly.")
+            break

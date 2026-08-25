@@ -25,8 +25,9 @@ def rx_patient(db_session, test_tenant, test_user):
 
 
 @pytest.fixture
-def rx_prescription(db_session, rx_patient):
+def rx_prescription(db_session, rx_patient, test_tenant):
     prescription = models.Prescription(
+        tenant_id=test_tenant.id,
         patient_id=rx_patient.id,
         medications=json.dumps([{"name": "Amoxicillin", "dose": "500mg"}]),
         notes="مرتين يومياً",
@@ -76,6 +77,7 @@ def test_prescription_print_blocks_cross_tenant_access(
     db_session.refresh(foreign_patient)
 
     foreign_rx = models.Prescription(
+        tenant_id=other_tenant.id,
         patient_id=foreign_patient.id,
         medications=json.dumps([{"name": "Secret Med", "dose": "1mg"}]),
         notes="private",
