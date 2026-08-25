@@ -19,13 +19,13 @@
 | P00-06 | LOCAL_PASS | P00-05 | ddeaad4e | pytest test_target_guard.py | Pass | Guarded local destructive tests (7/7 passed) |
 | P00-07 | LOCAL_PASS | P00-05 | 5bbbf1c0 | pytest test_scan_changed_content.py | Pass | Safe change-content scanner (2/2 passed) |
 | P00-08 | LOCAL_PASS | P00-04 | 1ac30193 | static inspection script | Pass | Recorded measured surface denominators |
-| P01-01 | NOT_STARTED | P00-05 | - | - | - | Reproduce subscription default lockout |
-| P01-02 | NOT_STARTED | P01-01 | - | - | - | Add safe subscription modes |
-| P01-03 | NOT_STARTED | P01-02 | - | - | - | Prevent automatic tenant deactivation |
-| P01-04 | NOT_STARTED | P01-02 | - | - | - | Centralize subscription transitions |
-| P01-05 | NOT_STARTED | P01-04 | - | - | - | Centralize subscription entitlements |
-| P01-06 | NOT_STARTED | P01-04, P03-06 | - | - | - | Harden audited manual renewal |
-| P01-07 | NOT_STARTED | P01-05 | - | - | - | Align subscription UI with manual renewal |
+| P01-01 | LOCAL_PASS | P00-05 | df9133c0 | pytest test_subscription_lockout_regression.py | Pass | Reproduced default lockout behavior |
+| P01-02 | LOCAL_PASS | P01-01 | 78b6998c | pytest test_safe_config_modes.py | Pass | Added safe subscription config modes (3/3 passed) |
+| P01-03 | LOCAL_PASS | P01-02 | 2d88abfb | pytest test_subscription_lockout_regression.py | Pass | Prevented worker auto tenant deactivation |
+| P01-04 | LOCAL_PASS | P01-02 | 627ee425 | pytest test_subscription_state_machine.py | Pass | Centralized subscription state machine (21/21 passed) |
+| P01-05 | LOCAL_PASS | P01-04 | 952f3f7f | pytest test_entitlement_service.py | Pass | Centralized entitlements & clinical read invariant (4/4 passed) |
+| P01-06 | LOCAL_PASS | P01-04, P03-06 | a474cf74 | pytest test_manual_renewal.py | Pass | Hardened audited idempotent manual renewal (3/3 passed) |
+| P01-07 | LOCAL_PASS | P01-05 | e2cb29ca | vitest run | Pass | Aligned subscription UI with manual renewal (258/258 passed) |
 | P02-01 | NOT_STARTED | P00-08 | - | - | - | Inventory database HTTP surfaces |
 | P02-02 | NOT_STARTED | P02-01 | - | - | - | Specify disabled SQL contracts |
 | P02-03 | NOT_STARTED | P02-02 | - | - | - | Disable full SQL download |
