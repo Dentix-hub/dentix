@@ -1,6 +1,7 @@
 """Static fail-closed contract for application/system PostgreSQL role separation."""
 
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from sqlalchemy import text
@@ -90,6 +91,13 @@ async def test_rls_session_rebinds_after_transaction_boundaries():
 
         await session.rollback()
         assert session._rls_dirty is True
+
+        # SQLAlchemy's AsyncSession.refresh() bypasses execute(), so the custom
+        # session must bind tenant context itself before delegating.
+        session.sync_session.refresh = Mock()
+        await session.refresh(object())
+        assert session._rls_dirty is False
+        session.sync_session.refresh.assert_called_once()
 
 
 def test_global_catalog_maintenance_uses_system_sessions():

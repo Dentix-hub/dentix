@@ -402,6 +402,17 @@ class CustomAsyncRlsSession(AsyncRlsSession):
         await self._execute_set_statements()
         await super().flush(objects=objects)
 
+    async def refresh(self, instance, attribute_names=None, with_for_update=None):
+        # AsyncRlsSession covers execute()/scalar(), but SQLAlchemy refresh()
+        # delegates straight to the synchronous session and therefore bypasses
+        # those hooks. Prime SET LOCAL explicitly before the refresh query.
+        await self._execute_set_statements()
+        await super().refresh(
+            instance,
+            attribute_names=attribute_names,
+            with_for_update=with_for_update,
+        )
+
     async def commit(self):
         # commit() performs an internal flush. Prime the connection with the
         # current tenant or bypass setting first so add()+commit() is safe even
