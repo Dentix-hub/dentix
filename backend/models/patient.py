@@ -2,6 +2,7 @@ from .base import (
     Base,
     Integer,
     String,
+    Text,
     DateTime,
     Date,
     ForeignKey,
@@ -90,6 +91,7 @@ class Attachment(Base):
     file_path: Mapped[str] = mapped_column(String)
     filename: Mapped[str] = mapped_column(String)
     file_type: Mapped[str] = mapped_column(String)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )

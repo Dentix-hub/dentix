@@ -37,4 +37,6 @@ All 5 tables receive explicit `tenant_id` columns, FKs, NOT NULL constraints, an
 - **Approved Safe Alternatives**:
   - **Tenant Export/Import**: `GET /api/v1/settings/backup/export` (clinic-scoped JSON) and `POST /api/v1/settings/backup/upload` (accepting `.json` only) remain supported for tenant data portability.
   - **Guarded CLI Tooling**: Platform-level backups and disaster recovery operations are performed strictly via local, guarded CLI commands with strict target checks (`scripts/backup/`) in Phase P08.
-
+## 5. Attachment Note Schema Truth and Alignment (Phase P04)
+- **Problem**: Historical Alembic revision `c9d0e1f2a3b4_repair_legacy_attachments_schema.py` ensures the `attachments` table contains a nullable `note` column, but `Attachment` in `backend/models/patient.py` and schemas in `backend/schemas/patient.py` lacked the `note` attribute.
+- **Decision**: Formally align the SQLAlchemy ORM model and Pydantic schemas to include `note: Optional[str] = None` / `sa.Text, nullable=True`. This eliminates ORM-migration drift and provides consistent metadata support for clinical attachments across all tenants.
