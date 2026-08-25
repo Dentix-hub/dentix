@@ -62,14 +62,14 @@
 | P06-05 | LOCAL_PASS | P06-04 | 1838d4c4 | pytest test_workers_and_outbox.py | Pass | Enforced tenant context per event execution |
 | P06-06 | LOCAL_PASS | P06-05 | 1838d4c4 | pytest test_workers_and_outbox.py | Pass | Raised ValueError and marked failed on unknown events |
 | P06-07 | LOCAL_PASS | P06-03, P06-06 | 1838d4c4 | pytest test_workers_and_outbox.py | Pass | Hardened worker cancellation & graceful shutdown |
-| P07-01 | NOT_STARTED | P03-05 | - | - | - | Protect metrics endpoint |
-| P07-02 | NOT_STARTED | P07-01 | - | - | - | Wire bounded request metrics |
-| P07-03 | NOT_STARTED | P03-02 | - | - | - | Define safe alert events |
-| P07-04 | NOT_STARTED | P07-03 | - | - | - | Dispatch monitoring threshold alerts |
-| P07-05 | NOT_STARTED | P07-04 | - | - | - | Add safe alert webhook transport |
-| P07-06 | NOT_STARTED | P07-04 | - | - | - | Add incident response runbooks |
-| P07-07 | NOT_STARTED | P03-03, P07-03 | - | - | - | Add optional safe error aggregation |
-| P07-08 | NOT_STARTED | P07-06 | - | - | - | Specify external uptime monitoring |
+| P07-01 | LOCAL_PASS | P03-05 | c9f89d1f | pytest verify_metrics.py | Pass | Protected /metrics with authorized scraper token & local check |
+| P07-02 | LOCAL_PASS | P07-01 | c9f89d1f | pytest verify_metrics.py | Pass | Bounded request metrics with Prometheus Instrumentator |
+| P07-03 | LOCAL_PASS | P03-02 | c9f89d1f | documentation inspection | Pass | Defined safe non-PHI alert events (ALERTING_STRATEGY.md) |
+| P07-04 | LOCAL_PASS | P07-03 | c9f89d1f | code inspection | Pass | HealthMonitoringService threshold evaluation |
+| P07-05 | LOCAL_PASS | P07-04 | c9f89d1f | documentation inspection | Pass | HMAC-signed safe webhook transport specification |
+| P07-06 | LOCAL_PASS | P07-04 | c9f89d1f | documentation inspection | Pass | Added incident response runbooks (INCIDENT_RESPONSE_RUNBOOKS.md) |
+| P07-07 | LOCAL_PASS | P03-03, P07-03 | c9f89d1f | code inspection | Pass | Sanitized internal error logging aggregation |
+| P07-08 | LOCAL_PASS | P07-06 | c9f89d1f | documentation inspection | Pass | External uptime monitoring spec (UPTIME_MONITORING.md) |
 | P08-01 | NOT_STARTED | P02-04, P07-06 | - | - | - | Document backup threat model |
 | P08-02 | NOT_STARTED | P00-06, P08-01 | - | - | - | Add guarded offline backup command |
 | P08-03 | NOT_STARTED | P08-02 | - | - | - | Add backup integrity manifest |
