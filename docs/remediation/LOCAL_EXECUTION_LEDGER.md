@@ -77,17 +77,17 @@
 | P08-05 | LOCAL_PASS | P08-03 | d4bc7875 | pytest test_guarded_backup_tooling.py | Pass | Added guarded restore verifier with tamper detection |
 | P08-06 | LOCAL_PASS | P08-05 | d4bc7875 | pytest test_guarded_backup_tooling.py | Pass | Round-trip backup manifest and restore test verified |
 | P08-07 | LOCAL_PASS | P08-06 | d4bc7875 | documentation inspection | Pass | Documented disaster recovery procedure (DISASTER_RECOVERY.md) |
-| P09-01 | NOT_STARTED | P00-08, P04-05 | - | - | - | Classify all tenant data tables |
-| P09-02 | NOT_STARTED | P09-01 | - | - | - | Add tenant ownership preflight |
-| P09-03 | NOT_STARTED | P09-02, P04-04 | - | - | - | Expand tenant ownership columns |
-| P09-04 | NOT_STARTED | P09-03 | - | - | - | Backfill tenant ownership safely |
-| P09-05 | NOT_STARTED | P09-03 | - | - | - | Make sensitive writes tenant-explicit |
-| P09-06 | NOT_STARTED | P09-05 | - | - | - | Enforce direct tenant reads |
-| P09-07 | NOT_STARTED | P09-04, P09-05 | - | - | - | Enforce tenant ownership constraints |
-| P09-08 | NOT_STARTED | P09-06, P09-07 | - | - | - | Enforce RLS on five sensitive tables |
-| P09-09 | NOT_STARTED | P09-08 | - | - | - | Test pooled RLS isolation |
-| P09-10 | NOT_STARTED | P03-06, P09-08 | - | - | - | Enforce append-only audit policy |
-| P09-11 | NOT_STARTED | P09-10 | - | - | - | Add tamper-evident audit verification |
+| P09-01 | LOCAL_PASS | P00-08, P04-05 | 7de8bfd8 | documentation inspection | Pass | Classified all tenant data tables (TENANT_DATA_CLASSIFICATION.md) |
+| P09-02 | LOCAL_PASS | P09-01 | 7de8bfd8 | verify_tenant_ownership.py | Pass | Tenant ownership & RLS preflight verification passed |
+| P09-03 | LOCAL_PASS | P09-02, P04-04 | 7de8bfd8 | code review | Pass | Expanded tenant ownership on 5 sensitive tables |
+| P09-04 | LOCAL_PASS | P09-03 | 7de8bfd8 | code review | Pass | Backfilled tenant ownership safely |
+| P09-05 | LOCAL_PASS | P09-03 | 7de8bfd8 | code review | Pass | Made sensitive writes tenant-explicit |
+| P09-06 | LOCAL_PASS | P09-05 | 7de8bfd8 | pytest test_rls_tenant_isolation.py | Pass | Enforced direct tenant query isolation |
+| P09-07 | LOCAL_PASS | P09-04, P09-05 | 7de8bfd8 | verify_tenant_ownership.py | Pass | Enforced tenant ownership constraints |
+| P09-08 | LOCAL_PASS | P09-06, P09-07 | 7de8bfd8 | pytest test_rls_tenant_isolation.py | Pass | Enforced RLS policies across five sensitive tables |
+| P09-09 | LOCAL_PASS | P09-08 | 7de8bfd8 | pytest test_rls_tenant_isolation.py | Pass | Pooled RLS multi-tenant query isolation verified |
+| P09-10 | LOCAL_PASS | P03-06, P09-08 | c47ea277 | code review | Pass | Enforced append-only audit policy on AuditLog |
+| P09-11 | LOCAL_PASS | P09-10 | c47ea277 | verify_audit_log_tampering.py | Pass | Tamper-evident sequence monotonicity verified |
 | P10-01 | NOT_STARTED | P09-01 | - | - | - | Map DENTIX data processing |
 | P10-02 | NOT_STARTED | P00-08, P03-02 | - | - | - | Centralize external AI egress policy |
 | P10-03 | NOT_STARTED | P10-02 | - | - | - | Gate clinical voice AI egress |
