@@ -40,6 +40,24 @@ REASON_SESSION_RESOLVE = "session_identity_resolution"
 SUPER_ADMIN_ROLE = "super_admin"
 
 
+@asynccontextmanager
+async def clinic_registration_scope(db: AsyncSession):
+    """Yield the narrow database scope used to create a clinic's first user.
+
+    PostgreSQL registration starts before a tenant identity exists, so its
+    atomic tenant/admin bootstrap must use the isolated native-BYPASSRLS role.
+    SQLite keeps the injected request session so unit-test transaction
+    isolation and dependency overrides continue to work.
+    """
+    from backend.database import ASYNC_DATABASE_URL, system_session_scope
+
+    if "postgresql" in ASYNC_DATABASE_URL:
+        async with system_session_scope() as system_db:
+            yield system_db
+        return
+    yield db
+
+
 async def lookup_user_for_authentication(
     db: AsyncSession,
     username: str,

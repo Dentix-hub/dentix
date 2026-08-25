@@ -6,7 +6,7 @@ import psycopg2
 import pytest
 import pytest_asyncio
 
-from backend.database import async_engine
+from backend.database import async_engine, system_async_engine
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -129,6 +129,8 @@ def subscription_payment_rls_contract():
 
 @pytest_asyncio.fixture(autouse=True)
 async def isolate_async_engine_pool_between_tests():
-    """Avoid reusing asyncpg connections across pytest event loops."""
+    """Avoid reusing app/system asyncpg connections across pytest event loops."""
     yield
     await async_engine.dispose()
+    if system_async_engine is not None:
+        await system_async_engine.dispose()

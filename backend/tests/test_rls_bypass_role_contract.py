@@ -42,3 +42,23 @@ def test_runtime_uses_separate_native_bypassrls_connection():
     assert "current_database()" in source
     assert "rolsuper" in source
     assert "set_config('rls.bypass_rls'" not in source
+
+
+def test_clinic_registration_uses_narrow_system_scope():
+    bootstrap_source = (
+        ROOT / "backend/services/auth_bootstrap.py"
+    ).read_text(encoding="utf-8")
+    register_source = (
+        ROOT / "backend/routers/auth/register.py"
+    ).read_text(encoding="utf-8")
+
+    assert "async def clinic_registration_scope" in bootstrap_source
+    assert 'if "postgresql" in ASYNC_DATABASE_URL' in bootstrap_source
+    assert "async with system_session_scope()" in bootstrap_source
+    assert "async with clinic_registration_scope(db)" in register_source
+
+
+def test_ci_disposes_both_postgresql_async_pools():
+    source = (ROOT / "backend/ci_tests/conftest.py").read_text(encoding="utf-8")
+    assert "await async_engine.dispose()" in source
+    assert "await system_async_engine.dispose()" in source
