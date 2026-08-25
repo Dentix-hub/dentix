@@ -18,10 +18,10 @@ async def test_security_service(async_db_session):
     # 1. Test Block IP
     test_ip = "192.168.1.99"
     await SecurityService.block_ip(async_db_session, test_ip, "Test Block", "admin", minutes=1)
-    
+
     blocked = await SecurityService.check_ip_blocked(async_db_session, test_ip)
     assert blocked is not None
-    
+
     await SecurityService.unblock_ip(async_db_session, test_ip)
     blocked = await SecurityService.check_ip_blocked(async_db_session, test_ip)
     assert blocked is None
@@ -34,8 +34,8 @@ async def test_security_service(async_db_session):
         await async_db_session.commit()
 
     temp_user = User(
-        username="security_test_user", 
-        email="sectest@example.com", 
+        username="security_test_user",
+        email="sectest@example.com",
         hashed_password="pw"
     )
     async_db_session.add(temp_user)

@@ -10,7 +10,8 @@ import os
 import logging
 import re
 import time
-from sqlalchemy import create_engine
+from contextlib import asynccontextmanager
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
 from dotenv import load_dotenv
@@ -100,25 +101,62 @@ SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.strip().strip("'").strip('"')
 if ":6543" in SQLALCHEMY_DATABASE_URL and "?" not in SQLALCHEMY_DATABASE_URL:
     SQLALCHEMY_DATABASE_URL += "?sslmode=require"
 
-# Async URL configuration
-ASYNC_DATABASE_URL = SQLALCHEMY_DATABASE_URL
+def _prepare_async_database_url(database_url: str) -> tuple[str, dict]:
+    """Normalize one sync URL for SQLAlchemy async without leaking credentials."""
+    normalized = database_url.strip().strip("'").strip('"')
+    if normalized.startswith("postgres://"):
+        normalized = normalized.replace("postgres://", "postgresql://", 1)
 
-# Extract ssl mode BEFORE URL conversion
-_ssl_match = re.search(r'sslmode=(\w+)', ASYNC_DATABASE_URL)
-_ssl_mode = _ssl_match.group(1) if _ssl_match else None
-
-# Strip sslmode from DSN entirely — asyncpg uses connect_args not URL params
-if _ssl_mode:
-    ASYNC_DATABASE_URL = re.sub(r'[?&]sslmode=\w+', '', ASYNC_DATABASE_URL)
-    ASYNC_DATABASE_URL = re.sub(r'\?$', '', ASYNC_DATABASE_URL)
-
-if ASYNC_DATABASE_URL.startswith("postgresql"):
-    ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace(
-        "postgresql://", "postgresql+asyncpg://", 1
+    ssl_match = re.search(r"sslmode=(\w+)", normalized)
+    ssl_mode = ssl_match.group(1) if ssl_match else (
+        os.getenv("DB_SSL_MODE", "require")
+        if normalized.startswith("postgresql")
+        else None
     )
-elif ASYNC_DATABASE_URL.startswith("sqlite"):
-    ASYNC_DATABASE_URL = ASYNC_DATABASE_URL.replace(
-        "sqlite://", "sqlite+aiosqlite://", 1
+    if ssl_mode:
+        normalized = re.sub(r"[?&]sslmode=\w+", "", normalized)
+        normalized = re.sub(r"\?$", "", normalized)
+
+    async_connect_args: dict = {}
+    if normalized.startswith("postgresql"):
+        normalized = normalized.replace("postgresql://", "postgresql+asyncpg://", 1)
+        async_connect_args["statement_cache_size"] = 0
+        if ssl_mode in ("require", "prefer", "allow"):
+            import ssl
+
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            async_connect_args["ssl"] = context
+        elif ssl_mode == "disable":
+            async_connect_args["ssl"] = False
+        elif ssl_mode in ("verify-ca", "verify-full"):
+            async_connect_args["ssl"] = True
+    elif normalized.startswith("sqlite"):
+        normalized = normalized.replace("sqlite://", "sqlite+aiosqlite://", 1)
+        async_connect_args["check_same_thread"] = False
+    return normalized, async_connect_args
+
+
+ASYNC_DATABASE_URL, connect_args_async = _prepare_async_database_url(
+    SQLALCHEMY_DATABASE_URL
+)
+
+# Privileged cross-tenant work MUST use a physically separate PostgreSQL login
+# carrying BYPASSRLS. The ordinary application URL is never a fallback on
+# PostgreSQL because any SQL injection on that connection could otherwise turn
+# an application-controlled GUC into a cross-tenant escape hatch.
+_configured_system_database_url = os.getenv("SYSTEM_DATABASE_URL", "").strip()
+if "sqlite" in SQLALCHEMY_DATABASE_URL:
+    _configured_system_database_url = (
+        _configured_system_database_url or SQLALCHEMY_DATABASE_URL
+    )
+
+SYSTEM_ASYNC_DATABASE_URL: str | None = None
+system_connect_args_async: dict = {}
+if _configured_system_database_url:
+    SYSTEM_ASYNC_DATABASE_URL, system_connect_args_async = _prepare_async_database_url(
+        _configured_system_database_url
     )
 
 # Create engines
@@ -198,24 +236,6 @@ def rebind_session_tenant(session: AsyncSession, tenant_id: int | None) -> bool:
     return True
 
 
-# Configure extra connection arguments for asyncpg/sqlite
-connect_args_async = {}
-if "postgresql" in ASYNC_DATABASE_URL:
-    connect_args_async["statement_cache_size"] = 0
-    # asyncpg expects ssl=True/False (bool), or an ssl.SSLContext object
-    if _ssl_mode in ("require", "prefer", "allow"):
-        import ssl
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        connect_args_async["ssl"] = ctx
-    elif _ssl_mode == "disable":
-        connect_args_async["ssl"] = False
-    elif _ssl_mode in ("verify-ca", "verify-full"):
-        connect_args_async["ssl"] = True
-elif "sqlite" in ASYNC_DATABASE_URL:
-    connect_args_async["check_same_thread"] = False
-
 async_engine = create_async_engine(
     ASYNC_DATABASE_URL,
     pool_pre_ping=_pre_ping,
@@ -223,6 +243,24 @@ async_engine = create_async_engine(
     connect_args=connect_args_async,
     **async_pool_args,
 )
+
+system_async_engine = None
+if SYSTEM_ASYNC_DATABASE_URL:
+    system_pool_args = {}
+    if "sqlite" not in SYSTEM_ASYNC_DATABASE_URL:
+        system_pool_args = {
+            "pool_size": _get_int_setting("SYSTEM_DB_POOL_SIZE", 2, minimum=1),
+            "max_overflow": _get_int_setting("SYSTEM_DB_POOL_MAX_OVERFLOW", 0),
+            "pool_recycle": _get_int_setting("DB_POOL_RECYCLE", 1800, minimum=1),
+            "pool_timeout": _get_float_setting("DB_POOL_TIMEOUT", 20.0, minimum=0.1),
+        }
+    system_async_engine = create_async_engine(
+        SYSTEM_ASYNC_DATABASE_URL,
+        pool_pre_ping=":6543" not in SYSTEM_ASYNC_DATABASE_URL,
+        echo=False,
+        connect_args=system_connect_args_async,
+        **system_pool_args,
+    )
 
 
 def get_async_pool_status() -> dict[str, int | float | None]:
@@ -327,7 +365,28 @@ def before_cursor_execute(conn, cursor, statement, parameters, context, executem
     return statement, _normalize_db_bind_value(parameters)
 
 
+if system_async_engine is not None:
+    event.listen(
+        system_async_engine.sync_engine,
+        "before_cursor_execute",
+        before_cursor_execute,
+        retval=True,
+    )
+
+
 class CustomAsyncRlsSession(AsyncRlsSession):
+    @asynccontextmanager
+    async def bypass_rls(self):
+        """Compatibility shim backed by the isolated native BYPASSRLS role.
+
+        The old implementation toggled an application-controlled PostgreSQL
+        GUC on the ordinary connection. Keeping the method name avoids a broad
+        call-site break while ensuring the yielded session is physically
+        separate and cannot be reached through tenant-request SQL injection.
+        """
+        async with system_session_scope() as session:
+            yield session
+
     async def _execute_set_statements(self):
         bind = self.bind
         if bind and bind.dialect.name != "postgresql":
@@ -343,12 +402,36 @@ class CustomAsyncRlsSession(AsyncRlsSession):
         await self._execute_set_statements()
         await super().flush(objects=objects)
 
+    async def refresh(self, instance, attribute_names=None, with_for_update=None):
+        # AsyncRlsSession covers execute()/scalar(), but SQLAlchemy refresh()
+        # delegates straight to the synchronous session and therefore bypasses
+        # those hooks. Prime SET LOCAL explicitly before the refresh query.
+        await self._execute_set_statements()
+        await super().refresh(
+            instance,
+            attribute_names=attribute_names,
+            with_for_update=with_for_update,
+        )
+
     async def commit(self):
         # commit() performs an internal flush. Prime the connection with the
         # current tenant or bypass setting first so add()+commit() is safe even
         # when no SELECT/execute occurred earlier in the transaction.
         await self._execute_set_statements()
-        await super().commit()
+        try:
+            await super().commit()
+        finally:
+            # PostgreSQL SET LOCAL state ends with the transaction. The next
+            # statement (for example refresh() immediately after commit) must
+            # bind the tenant again in its new transaction.
+            self._rls_dirty = True
+
+    async def rollback(self):
+        try:
+            await super().rollback()
+        finally:
+            # A rollback also clears every SET LOCAL tenant binding.
+            self._rls_dirty = True
 
 
 # Create session makers
@@ -357,6 +440,17 @@ AsyncSessionLocal = async_sessionmaker(
     class_=CustomAsyncRlsSession,
     expire_on_commit=False,
     autoflush=False,
+)
+
+SystemAsyncSessionLocal = (
+    async_sessionmaker(
+        bind=system_async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+    )
+    if system_async_engine is not None
+    else None
 )
 
 # Base for models
@@ -368,13 +462,65 @@ if "postgresql" in ASYNC_DATABASE_URL:
 async def get_async_db():
     """Dependency for asynchronous database sessions."""
     tenant_id = get_current_tenant_id()
+    if is_super_admin_bypass():
+        async with system_session_scope() as session:
+            yield session
+        return
+
     context = RlsContext(tenant_id=tenant_id)
     async with AsyncSessionLocal(context=context) as session:
-        if is_super_admin_bypass():
-            async with session.bypass_rls() as bypassed_session:
-                yield bypassed_session
-        else:
-            yield session
+        yield session
+
+
+@asynccontextmanager
+async def system_session_scope():
+    """Yield the isolated BYPASSRLS session used only for system operations."""
+    if SystemAsyncSessionLocal is None:
+        raise RuntimeError(
+            "SYSTEM_DATABASE_URL is required for PostgreSQL system operations"
+        )
+    async with SystemAsyncSessionLocal() as session:
+        yield session
+
+
+async def verify_system_database_role() -> None:
+    """Fail closed unless application/system PostgreSQL roles are isolated."""
+    if "postgresql" not in ASYNC_DATABASE_URL:
+        return
+    if system_async_engine is None:
+        raise RuntimeError(
+            "SYSTEM_DATABASE_URL must use a separate PostgreSQL BYPASSRLS role"
+        )
+
+    role_query = text(
+        "SELECT current_user, current_database() AS database_name, rolsuper, rolbypassrls "
+        "FROM pg_roles WHERE rolname = current_user"
+    )
+    async with async_engine.connect() as connection:
+        app_role = (await connection.execute(role_query)).one()
+    if bool(app_role.rolsuper) or bool(app_role.rolbypassrls):
+        raise RuntimeError(
+            f"DATABASE_URL role '{app_role.current_user}' must be non-superuser NOBYPASSRLS"
+        )
+
+    async with system_async_engine.connect() as connection:
+        system_role = (
+            await connection.execute(
+                role_query
+            )
+        ).one()
+    if bool(system_role.rolsuper) or not bool(system_role.rolbypassrls):
+        raise RuntimeError(
+            f"SYSTEM_DATABASE_URL role '{system_role.current_user}' must be non-superuser BYPASSRLS"
+        )
+    if app_role.current_user == system_role.current_user:
+        raise RuntimeError(
+            "DATABASE_URL and SYSTEM_DATABASE_URL must use distinct PostgreSQL roles"
+        )
+    if app_role.database_name != system_role.database_name:
+        raise RuntimeError(
+            "DATABASE_URL and SYSTEM_DATABASE_URL must target the same PostgreSQL database"
+        )
 
 
 # Real synchronous engine for synchronous startup/maintenance code.

@@ -7,6 +7,10 @@ from datetime import datetime, timedelta, timezone
 from backend import models, schemas
 from backend.database import get_async_db
 from backend.services.admin_service import AdminService
+from backend.services.subscription_renewal_service import (
+    SubscriptionRenewalError,
+    renew_subscription,
+)
 from backend.core.permissions import Role, Permission, require_permission
 from backend.core.response import success_response, StandardResponse
 from starlette.requests import Request
@@ -57,6 +61,25 @@ async def update_tenant(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return success_response(data=tenant, message="Tenant updated")
+
+
+@router.post("/{tenant_id}/renew", response_model=StandardResponse[dict])
+async def renew_tenant_subscription(
+    tenant_id: int,
+    renewal_req: schemas.TenantManualRenewalRequest,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    try:
+        result = await renew_subscription(
+            db,
+            tenant_id=tenant_id,
+            request=renewal_req,
+            admin=current_user,
+        )
+    except SubscriptionRenewalError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    return success_response(data=result, message="تم تجديد الاشتراك بنجاح")
 
 
 @router.delete("/{tenant_id}", response_model=StandardResponse[dict])
@@ -216,7 +239,6 @@ async def get_tenant_details(
     db: AsyncSession = Depends(get_async_db),
 ):
     service = AdminService(db)
-    # Eager load users relationship to avoid MissingGreenlet
     stmt = select(models.Tenant).options(selectinload(models.Tenant.users)).where(models.Tenant.id == tenant_id)
     res = await db.execute(stmt)
     tenant = res.scalar_one_or_none()
@@ -298,24 +320,16 @@ async def impersonate_tenant(
 ):
     """
     Generate a temporary token to log in as a clinic user.
-
-    Security:
-    - Requires mandatory reason (audit trail)
-    - Logs immutable audit record with IP, user-agent
-    - Token valid for 30 minutes max
-    - Default scope is read_only
     """
     import logging
     _logger = logging.getLogger("smart_clinic.impersonation")
 
-    # 1. Require reason for audit trail
     if not reason or len(reason.strip()) < 5:
         raise HTTPException(
             status_code=400,
             detail="سبب انتحال الشخصية مطلوب (5 أحرف على الأقل) للتوثيق الأمني"
         )
 
-    # 2. Validate scope
     allowed_scopes = {"read_only", "full_access"}
     if scope not in allowed_scopes:
         raise HTTPException(
@@ -323,7 +337,6 @@ async def impersonate_tenant(
             detail=f"النطاق '{scope}' غير صالح. القيم المسموحة: {allowed_scopes}"
         )
 
-    # 3. Find target user
     stmt = select(models.User).options(selectinload(models.User.tenant)).where(
         models.User.tenant_id == tenant_id,
         models.User.is_active == True,
@@ -343,11 +356,9 @@ async def impersonate_tenant(
         if not target_user:
             raise HTTPException(status_code=404, detail="No active users found for this clinic")
 
-    # 4. Extract request metadata for audit
     client_ip = request.client.host if request.client else "unknown"
     user_agent = request.headers.get("user-agent", "unknown")
 
-    # 5. Log IMMUTABLE audit record
     _logger.warning(
         "[IMPERSONATION_START] admin_id=%s admin_username=%s target_user_id=%s "
         "target_username=%s tenant_id=%s reason='%s' scope=%s ip=%s user_agent='%s'",
@@ -357,11 +368,13 @@ async def impersonate_tenant(
         client_ip, user_agent[:200]
     )
 
-    # 6. Store audit record in database (if AuditLog model exists)
     try:
         if hasattr(models, 'AuditLog'):
             audit = models.AuditLog(
-                user_id=current_user.id,
+                performed_by_id=current_user.id,
+                performed_by_username=current_user.username,
+                target_user_id=target_user.id,
+                target_username=target_user.username,
                 action="IMPERSONATION_START",
                 entity_type="User",
                 entity_id=target_user.id,
@@ -376,9 +389,7 @@ async def impersonate_tenant(
             await db.commit()
     except Exception as e:
         _logger.error("[IMPERSONATION] Audit log DB write failed: %s", e)
-        # Don't block impersonation if audit log fails — the logger warning above is the backup
 
-    # 7. Create impersonation token (30 minutes)
     access_token = create_access_token(
         data={
             "sub": target_user.username,
@@ -403,5 +414,3 @@ async def impersonate_tenant(
         "scope": scope,
         "expires_in_minutes": 30,
     }, message=f"تم إنشاء جلسة دخول مؤقتة لعيادة {tenant_name}")
-
-

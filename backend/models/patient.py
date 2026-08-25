@@ -2,6 +2,7 @@ from .base import (
     Base,
     Integer,
     String,
+    Text,
     DateTime,
     Date,
     ForeignKey,
@@ -85,11 +86,21 @@ class Patient(Base):
 class Attachment(Base):
     __tablename__ = "attachments"
 
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     patient_id: Mapped[int] = mapped_column(Integer, ForeignKey("patients.id"))
     file_path: Mapped[str] = mapped_column(String)
     filename: Mapped[str] = mapped_column(String)
     file_type: Mapped[str] = mapped_column(String)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )

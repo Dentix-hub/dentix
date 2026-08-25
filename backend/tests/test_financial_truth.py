@@ -682,6 +682,7 @@ async def test_payroll_multi_installment_and_guards(async_db_session):
 
     service_a = AccountingService(db, tenant_id=tenant_a)
     service_b = AccountingService(db, tenant_id=tenant_b)
+    assert service_b.tenant_id == tenant_b
 
     month = "2026-08"
 
@@ -715,6 +716,7 @@ async def test_payroll_multi_installment_and_guards(async_db_session):
     res_p1 = await service_a.process_salary_payment(213, admin, month, 2000.0, True, 30, "Advance payment")
     assert res_p1.get("success") is True
     p1_id = res_p1["payment_id"]
+    assert p1_id is not None
 
     # Verify state after first installment
     status_p1 = await service_a.get_salary_status_for_month(month)

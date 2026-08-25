@@ -29,10 +29,10 @@ async def test_service_fixes(async_db_session):
     doctor = (await async_db_session.execute(doctor_stmt)).scalars().first()
     if not doctor:
         doctor = models.User(
-            username="test_svc_doc", 
+            username="test_svc_doc",
             email="test_svc_doc@example.com",
-            role="doctor", 
-            tenant_id=tenant_id, 
+            role="doctor",
+            tenant_id=tenant_id,
             hashed_password="pw"
         )
         async_db_session.add(doctor)
@@ -44,9 +44,9 @@ async def test_service_fixes(async_db_session):
     p = (await async_db_session.execute(patient_stmt)).scalar_one_or_none()
     if not p:
         p = models.Patient(
-            tenant_id=tenant_id, 
-            name="ServiceTest Patient", 
-            phone="0123456789", 
+            tenant_id=tenant_id,
+            name="ServiceTest Patient",
+            phone="0123456789",
             age=30,
             medical_history="",
             notes=""

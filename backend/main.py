@@ -21,8 +21,14 @@ from prometheus_fastapi_instrumentator import Instrumentator
 import time
 import uuid
 
-from backend.core.config import get_cors_origins, API_V1_STR, get_allow_origin_regex
-from backend.core.limiter import limiter
+from backend.core.config import (
+    APP_VERSION,
+    API_V1_STR,
+    get_allow_origin_regex,
+    get_cors_origins,
+    get_metrics_exposure_mode,
+)
+from backend.core.limiter import limiter, record_rate_limit_observation
 from backend import models, database
 from backend.core import migrations, seeding
 from backend.cache import get_cache_stats, invalidate_cache
@@ -46,10 +52,15 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifecycle manager for startup and shutdown events."""
     logger.info("[STARTUP] Server Starting...")
-    logger.info("[DEPLOY_VERIFY] DENTIX V2.0.8 IS LIVE")
+    logger.info("[DEPLOY_VERIFY] DENTIX %s IS LIVE", APP_VERSION)
 
     _env = os.getenv("ENVIRONMENT", "development").lower()
     _is_production = _env == "production"
+
+    # Tenant requests and system maintenance must never share a PostgreSQL
+    # login. The application role is NOBYPASSRLS; only the isolated system
+    # connection may carry BYPASSRLS.
+    await database.verify_system_database_role()
 
     # ================================================================
     # PRODUCTION SAFETY: Schema mutation and seeding are BLOCKED
@@ -89,11 +100,9 @@ async def lifespan(app: FastAPI):
             logger.warning("[STARTUP] Startup patches failed", exc_info=True)
 
         try:
-            _ctx = database.RlsContext(tenant_id=None)
-            async with database.AsyncSessionLocal(context=_ctx) as _sess:
-                async with _sess.bypass_rls() as db:
-                    async with db.begin():
-                        await seeding.seed_default_data(db)
+            async with database.system_session_scope() as db:
+                async with db.begin():
+                    await seeding.seed_default_data(db)
             logger.info("Database seeding completed")
         except Exception as e:
             from sqlalchemy.exc import IntegrityError
@@ -185,8 +194,8 @@ async def lifespan(app: FastAPI):
 
 # Initialize FastAPI app with lifespan
 app = FastAPI(
-    title="Smart Clinic API",
-    version="2.0.8",
+    title="DENTIX Clinical & Practice Management API",
+    version=APP_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
@@ -199,6 +208,52 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 # 2. Rate Limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from backend.core.logging_sanitizer import sanitize_text, sanitize_dict
+from backend.core.logging import get_trace_id
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    detail = exc.detail
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": detail,
+            "success": False,
+            "message": detail if isinstance(detail, str) else "Request error",
+            "trace_id": get_trace_id(),
+        },
+        headers=getattr(exc, "headers", None),
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    sanitized_errors = [sanitize_dict(err) if isinstance(err, dict) else sanitize_text(str(err)) for err in exc.errors()]
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": sanitized_errors,
+            "success": False,
+            "message": "Validation error",
+            "trace_id": get_trace_id(),
+        },
+    )
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error("Unhandled server exception: %s", sanitize_text(str(exc)), exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "An internal server error occurred.",
+            "success": False,
+            "message": "An internal server error occurred.",
+            "error_code": "INTERNAL_SERVER_ERROR",
+            "trace_id": get_trace_id(),
+        },
+    )
 
 # 3. Security Headers
 app.add_middleware(SecurityHeadersMiddleware)
@@ -491,10 +546,25 @@ async def get_global_settings(db: AsyncSession = Depends(database.get_async_db))
     })
 
 
-# --- Observability ---
+# --- Observability & Metrics Protection ---
+@app.middleware("http")
+async def metrics_protection_middleware(request: Request, call_next):
+    record_rate_limit_observation(request)
+    if request.url.path == "/metrics":
+        import secrets
+
+        if get_metrics_exposure_mode() == "off":
+            return JSONResponse(status_code=404, content={"detail": "Not Found"})
+        metrics_token = os.getenv("METRICS_SCRAPER_TOKEN", "")
+        auth_header = request.headers.get("Authorization", "")
+        supplied = auth_header.removeprefix("Bearer ") if auth_header.startswith("Bearer ") else ""
+        if not metrics_token:
+            return JSONResponse(status_code=503, content={"detail": "Metrics scraper is not configured"})
+        if not supplied or not secrets.compare_digest(supplied, metrics_token):
+            return JSONResponse(status_code=403, content={"detail": "Forbidden"})
+    return await call_next(request)
+
 # Workaround for compatibility issue between FastAPI >=0.110.0 and prometheus-fastapi-instrumentator.
-# Newer FastAPI versions include nested APIRouter instances as _IncludedRouter in app.routes,
-# which lack the 'path' attribute expected by the instrumentator.
 for route in app.routes:
     if not hasattr(route, "path"):
         route.path = ""
@@ -559,7 +629,7 @@ async def read_root():
 
     return {
         "message": "Welcome to Smart Clinic API (Frontend not found)",
-        "version": "2.0.0",
+        "version": APP_VERSION,
         "docs": "/docs",
     }
 

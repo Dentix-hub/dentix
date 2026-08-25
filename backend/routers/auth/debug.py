@@ -17,7 +17,7 @@ router = APIRouter()
 async def debug_token_validation(token: str, db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
     """Debug endpoint to validate a token manually and see the error."""
     try:
-        logger.info(f"DEBUG: Validating token: {token}")
+        logger.info("DEBUG: Validating token signature and claims")
         payload = auth.jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
         username = payload.get("sub")
 
@@ -32,8 +32,8 @@ async def debug_token_validation(token: str, db: AsyncSession = Depends(get_asyn
             "user_id": user.id,
             "tenant_id": user.tenant_id,
         })
-    except Exception as e:
-        logger.error(f"Token validation failed: {str(e)}")
+    except Exception:
+        logger.warning("Token validation failed")
         return error_response(message="Token validation failed", data={"valid": False})
 
 
@@ -110,62 +110,15 @@ async def debug_manual_db(current_user: models.User = Depends(require_permission
         return error_response(message="DB inspection failed", data={"status": "error"})
 
 
+from fastapi import HTTPException
+
 @router.get("/debug/fix-schema")
 @router.get("/auth/debug/fix-schema")
 async def fix_staging_schema(
-    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Force run schema fixes for staging (GET for easy browser access)."""
-
-    results = []
-    try:
-        # 1. Fix Appointments doctor_id and price_list_id
-        try:
-            await db.execute(
-                text(
-                    "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS doctor_id INTEGER REFERENCES users(id);"
-                )
-            )
-            results.append("Added doctor_id to appointments")
-        except Exception as e:
-            results.append(f"appointments doctor_id fix failed: {e}")
-
-        try:
-            await db.execute(
-                text(
-                    "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS price_list_id INTEGER REFERENCES price_lists(id);"
-                )
-            )
-            results.append("Added price_list_id to appointments")
-        except Exception as e:
-            results.append(f"appointments price_list_id fix failed: {e}")
-
-        # 2. Fix Patients columns
-        try:
-            await db.execute(
-                text(
-                    "ALTER TABLE patients ADD COLUMN IF NOT EXISTS assigned_doctor_id INTEGER REFERENCES users(id);"
-                )
-            )
-            results.append("Added assigned_doctor_id to patients")
-        except Exception as e:
-            results.append(f"patients assigned_doctor_id fix failed: {e}")
-
-        try:
-            await db.execute(
-                text(
-                    "ALTER TABLE patients ADD COLUMN IF NOT EXISTS default_price_list_id INTEGER REFERENCES price_lists(id);"
-                )
-            )
-            results.append("Added default_price_list_id to patients")
-        except Exception as e:
-            results.append(f"patients default_price_list_id fix failed: {e}")
-
-        await db.commit()
-    except Exception as e:
-        await db.rollback()
-        logger.error(f"Staging schema fix failed: {str(e)}", exc_info=True)
-        return error_response(message="Staging schema fix failed", data={"status": "error"})
-
-    return success_response(data={"status": "ok", "results": results})
+    """Disabled for security. Database schema changes must be applied via Alembic migrations."""
+    raise HTTPException(
+        status_code=410,
+        detail="Dynamic schema fix over HTTP has been permanently disabled. Use Alembic migrations.",
+    )

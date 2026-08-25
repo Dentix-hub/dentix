@@ -150,9 +150,7 @@ async def seed_default_data(db) -> None:
 async def create_first_admin():
     """Ensure default admin exists for first-time setup."""
     try:
-        _ctx = database.RlsContext(tenant_id=None)
-        async with database.AsyncSessionLocal(context=_ctx) as _sess:
-            async with _sess.bypass_rls() as db:
+        async with database.system_session_scope() as db:
                 super_email = os.getenv('SUPER_ADMIN_EMAIL')
                 super_pass = os.getenv('SUPER_ADMIN_PASSWORD')
                 if not super_email or not super_pass:
@@ -185,9 +183,7 @@ async def seed_subscription_plans():
     Idempotent and safe: checks if table exists and plans are missing.
     """
     try:
-        _ctx = database.RlsContext(tenant_id=None)
-        async with database.AsyncSessionLocal(context=_ctx) as _sess:
-            async with _sess.bypass_rls() as db:
+        async with database.system_session_scope() as db:
                 res = await db.execute(select(models.SubscriptionPlan))
                 if not res.scalars().first():
                     logger.info('[SEED] No subscription plans found. Seeding defaults...')
@@ -244,9 +240,7 @@ async def manual_seed_database_logic():
     """Logic for manual seed endpoint."""
     try:
         from backend.scripts.seeds import seed
-        _ctx = database.RlsContext(tenant_id=None)
-        async with database.AsyncSessionLocal(context=_ctx) as _sess:
-            async with _sess.bypass_rls() as db:
+        async with database.system_session_scope() as db:
                 # Note: seed.seed_data should be async or wrap it.
                 # If seed.seed_data is sync, run it via run_sync.
                 if hasattr(seed, "seed_data_async"):

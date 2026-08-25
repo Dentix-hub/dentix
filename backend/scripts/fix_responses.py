@@ -62,8 +62,8 @@ def process_file(filepath):
         # simple placement after the first batch of from/import
         lines_new = content_new.split('\n')
         insert_idx = 0
-        for i, l in enumerate(lines_new):
-            if l.startswith("from fastapi "):
+        for i, line_item in enumerate(lines_new):
+            if line_item.startswith("from fastapi "):
                 insert_idx = i + 1
                 break
         lines_new.insert(insert_idx, import_stmt)

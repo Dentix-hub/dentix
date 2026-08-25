@@ -67,7 +67,16 @@ class Appointment(Base):
 class ToothStatus(Base):
     __tablename__ = "tooth_status"
 
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
     tooth_number = Column(Integer)
     condition = Column(String)
@@ -155,7 +164,16 @@ class TreatmentSession(Base):
 class Prescription(Base):
     __tablename__ = "prescriptions"
 
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"))
     medications = Column(Text)
     notes = Column(Text, nullable=True)

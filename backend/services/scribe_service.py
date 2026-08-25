@@ -3,6 +3,7 @@ import os
 import json
 from typing import Dict, Any, List
 from groq import Groq
+from backend.services.ai_egress_policy import prepare_ai_messages
 
 logger = logging.getLogger(__name__)
 
@@ -38,17 +39,23 @@ RULES:
         self.api_key = os.environ.get("GROQ_API_KEY")
         self.client = Groq(api_key=self.api_key) if self.api_key else None
 
-    def analyze_dictation(self, text: str) -> List[Dict[str, Any]]:
+    def analyze_dictation(
+        self, text: str, *, tenant_id: int | None = None
+    ) -> List[Dict[str, Any]]:
         """Parse text into structured dental procedures."""
         if not self.client:
             raise ValueError("Groq API Key not configured")
 
         try:
-            completion = self.client.chat.completions.create(
-                messages=[
+            messages = prepare_ai_messages(
+                [
                     {"role": "system", "content": self.SYSTEM_PROMPT},
                     {"role": "user", "content": text},
                 ],
+                tenant_id=tenant_id,
+            )
+            completion = self.client.chat.completions.create(
+                messages=messages,
                 model="llama3-70b-8192",
                 temperature=0,
                 response_format={"type": "json_object"},

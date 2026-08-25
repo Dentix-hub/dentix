@@ -79,7 +79,7 @@ async def test_ai_analytics_get_stats(async_db_session, async_engine_fixture):
     tool_uses = [t for t in stats["tool_usage"] if t["name"] == "get_patient_file"]
     assert len(tool_uses) > 0
     assert tool_uses[0]["value"] >= 2
-    
+
     # Find top user
     user_stats = [u for u in stats["top_users"] if u["name"] == "test_ai_user"]
     assert len(user_stats) > 0

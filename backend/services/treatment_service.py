@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from sqlalchemy import or_, select, delete
 
+from fastapi import HTTPException
 from backend import models, schemas
 from backend.services.pricing_service import get_pricing_service
 from backend.services.inventory_service import inventory_service

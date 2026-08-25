@@ -6,7 +6,7 @@ import psycopg2
 import pytest
 import pytest_asyncio
 
-from backend.database import async_engine
+from backend.database import async_engine, system_async_engine
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -23,13 +23,12 @@ def subscription_payment_rls_contract():
     payment_a = 993651
     payment_b = 993661
 
-    with psycopg2.connect(database_url) as connection:
-        with connection.cursor() as cursor:
-            # The CI role is NOBYPASSRLS. Use the application's explicit
-            # maintenance GUC only while seeding deterministic parent rows.
-            cursor.execute(
-                "SELECT set_config('rls.bypass_rls', 'true', true)"
-            )
+    system_database_url = os.getenv("SYSTEM_DATABASE_URL", "")
+    if not system_database_url:
+        raise RuntimeError("SYSTEM_DATABASE_URL is required for PostgreSQL CI seeds")
+
+    with psycopg2.connect(system_database_url) as setup_connection:
+        with setup_connection.cursor() as cursor:
             cursor.execute(
                 """
                 INSERT INTO tenants (
@@ -70,8 +69,9 @@ def subscription_payment_rls_contract():
                 """,
                 (payment_a, tenant_a, plan_id, payment_b, tenant_b, plan_id),
             )
-        connection.commit()
+        setup_connection.commit()
 
+    with psycopg2.connect(database_url) as connection:
         with connection.cursor() as cursor:
             cursor.execute(
                 "SELECT set_config('rls.bypass_rls', 'false', false)"
@@ -129,6 +129,8 @@ def subscription_payment_rls_contract():
 
 @pytest_asyncio.fixture(autouse=True)
 async def isolate_async_engine_pool_between_tests():
-    """Avoid reusing asyncpg connections across pytest event loops."""
+    """Avoid reusing app/system asyncpg connections across pytest event loops."""
     yield
     await async_engine.dispose()
+    if system_async_engine is not None:
+        await system_async_engine.dispose()

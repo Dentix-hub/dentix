@@ -269,8 +269,12 @@ def test_register_clinic_preserves_duplicate_username_error(client, test_user):
     assert response.json()["detail"] == "Username already taken"
 
 
-def test_2fa_endpoint_rate_limit(client):
+def test_2fa_endpoint_rate_limit(client, monkeypatch):
     """Verify that the 2FA endpoint is rate-limited to 5/minute."""
+    from backend.core.limiter import limiter
+
+    monkeypatch.setattr(limiter, "enabled", True)
+    limiter.reset()
     for i in range(6):
         resp = client.post(
             "/api/v1/auth/login/2fa",
@@ -281,3 +285,4 @@ def test_2fa_endpoint_rate_limit(client):
             assert resp.status_code == 429, f"Request {i+1} did not trigger 429: {resp.status_code}"
         else:
             assert resp.status_code == 401, f"Request {i+1} expected 401, got {resp.status_code}"
+    limiter.reset()

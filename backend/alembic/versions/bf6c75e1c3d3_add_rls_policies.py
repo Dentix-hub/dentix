@@ -62,10 +62,10 @@ def upgrade() -> None:
     for table in TABLES_WITH_RLS:
         op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;")
         op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;")
-        
+
         expr = "tenant_id = NULLIF(current_setting('rls.tenant_id', true), '')::integer"
         bypass = "CAST(NULLIF(current_setting('rls.bypass_rls', true), '') AS BOOLEAN) = true"
-        
+
         op.execute(f"""
             CREATE POLICY {table}_tenant_policy ON {table}
             FOR ALL

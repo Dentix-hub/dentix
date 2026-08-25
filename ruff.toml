@@ -1,31 +1,12 @@
-# Global Ruff Configuration for Dentix
-# Focused on production-ready code in backend/
-
-# Exclude non-production directories
-extend-exclude = [
-    "tests",
-    "scripts",
-    "frontend",
-    "dentix_mobile",
-    "alembic",
-    "htmlcov",
-    "static",
-    "uploads",
-    "data",
-    "fix_prints_and_tracebacks.py",
-    "fix_prints_ast.py",
-    "fix_prints_regex.py",
-    "wrap_response.py",
-    ".hf-deploy-staging-v2",
-    "ruflo-sandbox",
-]
+line-length = 120
+target-version = "py311"
 
 [lint]
-# Enable standard rules
-select = ["E", "F", "W", "I"]
-# Ignore pragmatic lints
-ignore = ["E402", "E501", "I001", "F401", "E711", "E712"]
-
-[format]
-quote-style = "double"
-indent-style = "space"
+select = ["E", "F", "W"]
+ignore = [
+  "E501",  # Line length
+  "E711",  # Comparison to None (SQLAlchemy IS NULL)
+  "E712",  # Comparison to True/False (SQLAlchemy boolean queries)
+  "E402",  # Module level import not at top of file
+  "F401",  # Unused imports in __init__.py / re-exports
+]

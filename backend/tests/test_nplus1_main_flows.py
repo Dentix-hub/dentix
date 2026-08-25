@@ -78,7 +78,6 @@ def test_patients_with_treatments_nplus1(db_session, query_counter):
     Test that fetching patients with their treatments
     uses joinedload or selectinload to prevent N+1.
     """
-    from sqlalchemy.orm import joinedload
 
     # 1. Setup: 1 Tenant, 3 Patients, each with 2 treatments
     t = models.Tenant(name="N+1 Treatments Test", plan="trial")
@@ -132,7 +131,6 @@ def test_appointments_with_patient_nplus1(db_session, query_counter):
     Test that fetching appointments with patient info
     doesn't trigger N+1 queries.
     """
-    from sqlalchemy.orm import joinedload
 
     # 1. Setup: 1 Tenant, 2 Patients, 4 appointments
     t = models.Tenant(name="N+1 Appointments Test", plan="trial")
@@ -159,6 +157,7 @@ def test_appointments_with_patient_nplus1(db_session, query_counter):
     for i in range(4):
         db_session.add(models.Appointment(
             patient_id=patients_data[i % 2].id,
+            tenant_id=t.id,
             date_time=datetime(2026, 4, 14),
             status="Scheduled",
         ))

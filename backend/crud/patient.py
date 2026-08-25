@@ -107,9 +107,11 @@ async def delete_patient_permanently(db: AsyncSession, patient_id: int, tenant_i
 
 
 async def get_tooth_status(db: AsyncSession, patient_id: int, tenant_id: int):
+    _validate_tenant(tenant_id)
     result = await db.execute(
         select(models.ToothStatus).join(models.Patient).where(
             models.ToothStatus.patient_id == patient_id,
+            models.ToothStatus.tenant_id == tenant_id,
             models.Patient.tenant_id == tenant_id,
         )
     )
@@ -117,10 +119,12 @@ async def get_tooth_status(db: AsyncSession, patient_id: int, tenant_id: int):
 
 
 async def update_tooth_status(db: AsyncSession, status: schemas.ToothStatusCreate, tenant_id: int):
+    _validate_tenant(tenant_id)
     result = await db.execute(
         select(models.ToothStatus).join(models.Patient).where(
             models.ToothStatus.patient_id == status.patient_id,
             models.ToothStatus.tooth_number == status.tooth_number,
+            models.ToothStatus.tenant_id == tenant_id,
             models.Patient.tenant_id == tenant_id,
         )
     )
@@ -129,15 +133,18 @@ async def update_tooth_status(db: AsyncSession, status: schemas.ToothStatusCreat
         db_status.condition = status.condition
         db_status.notes = status.notes
     else:
-        db_status = models.ToothStatus(**status.dict())
+        db_status = models.ToothStatus(**status.dict(), tenant_id=tenant_id)
         db.add(db_status)
     await db.commit()
     await db.refresh(db_status)
     return db_status
 
 
-async def create_attachment(db: AsyncSession, attachment: schemas.AttachmentCreate):
-    db_attachment = models.Attachment(**attachment.dict())
+async def create_attachment(
+    db: AsyncSession, attachment: schemas.AttachmentCreate, tenant_id: int
+):
+    _validate_tenant(tenant_id)
+    db_attachment = models.Attachment(**attachment.dict(), tenant_id=tenant_id)
     db.add(db_attachment)
     await db.commit()
     await db.refresh(db_attachment)
@@ -149,6 +156,7 @@ async def get_attachment(db: AsyncSession, attachment_id: int, tenant_id: int):
     result = await db.execute(
         select(models.Attachment).join(models.Patient).where(
             models.Attachment.id == attachment_id,
+            models.Attachment.tenant_id == tenant_id,
             models.Patient.tenant_id == tenant_id,
             models.Patient.is_deleted == False,
         )
@@ -157,9 +165,11 @@ async def get_attachment(db: AsyncSession, attachment_id: int, tenant_id: int):
 
 
 async def get_patient_attachments(db: AsyncSession, patient_id: int, tenant_id: int):
+    _validate_tenant(tenant_id)
     result = await db.execute(
         select(models.Attachment).join(models.Patient).where(
             models.Attachment.patient_id == patient_id,
+            models.Attachment.tenant_id == tenant_id,
             models.Patient.tenant_id == tenant_id,
         )
     )
@@ -174,8 +184,11 @@ async def delete_attachment(db: AsyncSession, attachment_id: int, tenant_id: int
     return attachment
 
 
-async def create_prescription(db: AsyncSession, prescription: schemas.PrescriptionCreate):
-    db_prescription = models.Prescription(**prescription.dict())
+async def create_prescription(
+    db: AsyncSession, prescription: schemas.PrescriptionCreate, tenant_id: int
+):
+    _validate_tenant(tenant_id)
+    db_prescription = models.Prescription(**prescription.dict(), tenant_id=tenant_id)
     db.add(db_prescription)
     await db.commit()
     await db.refresh(db_prescription)
@@ -183,9 +196,11 @@ async def create_prescription(db: AsyncSession, prescription: schemas.Prescripti
 
 
 async def get_prescriptions(db: AsyncSession, patient_id: int, tenant_id: int):
+    _validate_tenant(tenant_id)
     result = await db.execute(
         select(models.Prescription).join(models.Patient).where(
             models.Prescription.patient_id == patient_id,
+            models.Prescription.tenant_id == tenant_id,
             models.Patient.tenant_id == tenant_id,
         ).order_by(models.Prescription.date.desc())
     )
@@ -193,9 +208,11 @@ async def get_prescriptions(db: AsyncSession, patient_id: int, tenant_id: int):
 
 
 async def delete_prescription(db: AsyncSession, prescription_id: int, tenant_id: int):
+    _validate_tenant(tenant_id)
     result = await db.execute(
         select(models.Prescription).join(models.Patient).where(
             models.Prescription.id == prescription_id,
+            models.Prescription.tenant_id == tenant_id,
             models.Patient.tenant_id == tenant_id,
         )
     )

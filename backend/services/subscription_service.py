@@ -341,21 +341,15 @@ class SubscriptionService:
         SubscriptionService._verify_provider_signature(raw_payload, timestamp, signature)
 
         # Provider callbacks have no authenticated tenant session. Elevate only
-        # after signature/replay verification, and keep the bypass scoped to the
-        # server-owned checkout transaction.
-        if hasattr(db, "bypass_rls"):
-            async with db.bypass_rls() as system_db:
-                return await SubscriptionService._handle_verified_provider_webhook(
-                    system_db, event
-                )
+        # after signature/replay verification and use the physically isolated
+        # PostgreSQL BYPASSRLS connection; the ordinary app role cannot promote
+        # itself by setting a custom GUC.
+        from backend.database import system_session_scope
 
-        # Plain AsyncSession is used by the SQLite unit-test harness. Never
-        # allow this fallback on PostgreSQL, where FORCE RLS requires the
-        # explicit audited session context above.
-        bind = db.get_bind()
-        if bind.dialect.name == "postgresql":
-            raise RuntimeError("Webhook processing requires an RLS-aware session")
-        return await SubscriptionService._handle_verified_provider_webhook(db, event)
+        async with system_session_scope() as system_db:
+            return await SubscriptionService._handle_verified_provider_webhook(
+                system_db, event
+            )
 
     @staticmethod
     async def _handle_verified_provider_webhook(

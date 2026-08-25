@@ -5,7 +5,7 @@ from sqlalchemy import select, or_
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from backend.database import AsyncSessionLocal
+from backend.database import system_session_scope
 from backend.models.inventory import MaterialCategory, ProcedureMaterialWeight
 from backend.models.clinical import Procedure
 
@@ -218,7 +218,7 @@ PROCEDURE_MATERIAL_DEFAULTS = {
 
 
 async def seed_procedure_material_defaults():
-    async with AsyncSessionLocal() as db:
+    async with system_session_scope() as db:
         try:
             # Build category lookup: name_en → id
             res_cats = await db.execute(select(MaterialCategory))

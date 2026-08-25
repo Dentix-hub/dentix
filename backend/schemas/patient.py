@@ -97,6 +97,7 @@ class AttachmentBase(BaseModel):
     patient_id: int
     filename: str
     file_type: str
+    note: Optional[str] = None
 
 
 class AttachmentCreate(AttachmentBase):

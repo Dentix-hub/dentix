@@ -67,7 +67,7 @@ def test_data(db_session):
         warehouse_id=1,  # Mock ID
         tenant_id=tenant.id,
     )
-    
+
     warehouse = models.Warehouse(name=f"Main Storage {uid}", tenant_id=tenant.id)
     db.add(warehouse)
     db.commit()

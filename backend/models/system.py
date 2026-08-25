@@ -37,7 +37,7 @@ class AuditLog(Base):
     __rls_policies__ = [
         Permissive(
             condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
-            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            cmd=[Command.select, Command.insert],
             custom_expr=lambda x: column("tenant_id") == x,
         )
     ]

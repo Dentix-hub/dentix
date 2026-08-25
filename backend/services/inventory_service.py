@@ -290,6 +290,7 @@ class InventoryService:
 
             # Record Movement for each item
             move = StockMovement(
+                tenant_id=tenant_id,
                 stock_item_id=stock_item.id,
                 change_amount=1,  # 1 package received
                 reason="PURCHASE",
@@ -442,6 +443,7 @@ class InventoryService:
 
             # Record Movement
             move = StockMovement(
+                tenant_id=stock_item.tenant_id,
                 stock_item_id=stock_item.id,
                 change_amount=-ratio,
                 reason="SESSION_OPEN",
@@ -457,6 +459,7 @@ class InventoryService:
 
         # Create Session
         session = MaterialSession(
+            tenant_id=stock_item.tenant_id,
             stock_item_id=stock_item_id,
             opened_at=datetime.now(timezone.utc),
             status="ACTIVE",
@@ -678,6 +681,7 @@ class InventoryService:
 
             # Log Movement
             move = StockMovement(
+                tenant_id=si.tenant_id,
                 stock_item_id=si.id,
                 change_amount=-consume_amount,
                 reason="USAGE",
@@ -753,7 +757,13 @@ class InventoryService:
             if abs(outstanding_change) <= epsilon:
                 continue
 
+            stmt_si = select(StockItem).where(StockItem.id == stock_item_id)
+            stock_item = (await db.execute(stmt_si)).scalars().first()
+            if not stock_item:
+                raise ValueError("Stock item for reversal no longer exists")
+
             reverse_move = StockMovement(
+                tenant_id=stock_item.tenant_id,
                 stock_item_id=stock_item_id,
                 change_amount=-outstanding_change,
                 reason="REVERSAL",
@@ -766,10 +776,7 @@ class InventoryService:
             # reversals already balance to zero this branch is intentionally not
             # reached, making repeated calls a no-op until new source movement is
             # recorded under the same reference.
-            stmt_si = select(StockItem).where(StockItem.id == stock_item_id)
-            stock_item = (await db.execute(stmt_si)).scalars().first()
-            if stock_item:
-                stock_item.quantity -= outstanding_change
+            stock_item.quantity -= outstanding_change
 
             reversals.append(reverse_move)
 
@@ -970,12 +977,14 @@ class InventoryService:
 
         # 5. Movements
         move_out = StockMovement(
+            tenant_id=tenant_id,
             stock_item_id=source_item.id,
             change_amount=-quantity,
             reason="TRANSFER_OUT",
             performed_by=user_id,
         )
         move_in = StockMovement(
+            tenant_id=tenant_id,
             stock_item_id=target_item.id,
             change_amount=quantity,
             reason="TRANSFER_IN",

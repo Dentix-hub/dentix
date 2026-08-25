@@ -144,7 +144,16 @@ class MaterialSession(Base):
 
     __tablename__ = "material_sessions"
 
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     stock_item_id = Column(
         Integer, ForeignKey("stock_items.id"), nullable=False, index=True
     )
@@ -174,7 +183,16 @@ class MaterialSession(Base):
 class StockMovement(Base):
     __tablename__ = "stock_movements"
 
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
     stock_item_id = Column(
         Integer, ForeignKey("stock_items.id"), nullable=False, index=True
     )

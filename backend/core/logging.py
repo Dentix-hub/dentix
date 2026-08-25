@@ -16,6 +16,11 @@ import os
 import uuid
 from contextvars import ContextVar
 from datetime import datetime, timezone
+from backend.core.logging_sanitizer import (
+    BoundedSanitizingFilter,
+    sanitize_stack_trace,
+    sanitize_text,
+)
 
 
 # === TRACE ID CONTEXT ===
@@ -96,7 +101,7 @@ def _scrub_phi(message: str) -> str:
     """Remove potential PHI and secrets from log messages."""
     for pattern, replacement in _PHI_PATTERNS:
         message = pattern.sub(replacement, message)
-    return _scrub_secrets(message)
+    return sanitize_text(_scrub_secrets(message)) or ""
 
 
 class StructuredFormatter(logging.Formatter):
@@ -139,7 +144,9 @@ class StructuredFormatter(logging.Formatter):
 
         # Add exception info
         if record.exc_info and record.exc_info[0] is not None:
-            log_data["exception"] = self.formatException(record.exc_info)
+            log_data["exception"] = sanitize_stack_trace(
+                self.formatException(record.exc_info)
+            )
 
         return json.dumps(log_data, ensure_ascii=False, default=str)
 
@@ -185,7 +192,9 @@ class DevFormatter(logging.Formatter):
         result = f"{color}[{timestamp}] {record.levelname:8}{self.RESET}{ctx} {record.name}: {msg}"
 
         if record.exc_info and record.exc_info[0] is not None:
-            result += "\n" + self.formatException(record.exc_info)
+            result += "\n" + (
+                sanitize_stack_trace(self.formatException(record.exc_info)) or ""
+            )
 
         return result
 
@@ -208,6 +217,7 @@ def setup_logging():
     # Add stdout handler with appropriate formatter
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(log_level)
+    handler.addFilter(BoundedSanitizingFilter())
 
     if is_production:
         handler.setFormatter(StructuredFormatter())
