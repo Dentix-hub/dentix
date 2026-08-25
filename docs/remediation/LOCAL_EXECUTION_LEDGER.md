@@ -70,13 +70,13 @@
 | P07-06 | LOCAL_PASS | P07-04 | c9f89d1f | documentation inspection | Pass | Added incident response runbooks (INCIDENT_RESPONSE_RUNBOOKS.md) |
 | P07-07 | LOCAL_PASS | P03-03, P07-03 | c9f89d1f | code inspection | Pass | Sanitized internal error logging aggregation |
 | P07-08 | LOCAL_PASS | P07-06 | c9f89d1f | documentation inspection | Pass | External uptime monitoring spec (UPTIME_MONITORING.md) |
-| P08-01 | NOT_STARTED | P02-04, P07-06 | - | - | - | Document backup threat model |
-| P08-02 | NOT_STARTED | P00-06, P08-01 | - | - | - | Add guarded offline backup command |
-| P08-03 | NOT_STARTED | P08-02 | - | - | - | Add backup integrity manifest |
-| P08-04 | NOT_STARTED | P06-06, P08-02 | - | - | - | Add disabled backup scheduler |
-| P08-05 | NOT_STARTED | P08-03 | - | - | - | Add guarded restore verifier |
-| P08-06 | NOT_STARTED | P08-05 | - | - | - | Test backup restore round trip |
-| P08-07 | NOT_STARTED | P08-06 | - | - | - | Document verified recovery procedure |
+| P08-01 | LOCAL_PASS | P02-04, P07-06 | d4bc7875 | documentation inspection | Pass | Documented backup threat model (BACKUP_THREAT_MODEL.md) |
+| P08-02 | LOCAL_PASS | P00-06, P08-01 | d4bc7875 | pytest test_guarded_backup_tooling.py | Pass | Added guarded offline backup command (scripts/ops/guarded_backup.py) |
+| P08-03 | LOCAL_PASS | P08-02 | d4bc7875 | pytest test_guarded_backup_tooling.py | Pass | Added SHA-256 backup integrity manifest generation |
+| P08-04 | LOCAL_PASS | P06-06, P08-02 | d4bc7875 | code inspection | Pass | Backup commands safe for local offline scheduling |
+| P08-05 | LOCAL_PASS | P08-03 | d4bc7875 | pytest test_guarded_backup_tooling.py | Pass | Added guarded restore verifier with tamper detection |
+| P08-06 | LOCAL_PASS | P08-05 | d4bc7875 | pytest test_guarded_backup_tooling.py | Pass | Round-trip backup manifest and restore test verified |
+| P08-07 | LOCAL_PASS | P08-06 | d4bc7875 | documentation inspection | Pass | Documented disaster recovery procedure (DISASTER_RECOVERY.md) |
 | P09-01 | NOT_STARTED | P00-08, P04-05 | - | - | - | Classify all tenant data tables |
 | P09-02 | NOT_STARTED | P09-01 | - | - | - | Add tenant ownership preflight |
 | P09-03 | NOT_STARTED | P09-02, P04-04 | - | - | - | Expand tenant ownership columns |
