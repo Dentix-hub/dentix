@@ -113,13 +113,13 @@
 | P12-07 | LOCAL_PASS | P12-03 | 9e77a0eb | code review | Pass | Piloted typed clinical forms |
 | P12-08 | LOCAL_PASS | P12-02 through P12-07 | 9e77a0eb | vitest run | Pass | Verified frontend compatibility with backend APIs |
 | P12-09 | LOCAL_PASS | P12-03, P12-04, P01-05 | 9e77a0eb | documentation inspection | Pass | Added safe onboarding and demo flow (DEMO_AND_ONBOARDING.md) |
-| P13-01 | NOT_STARTED | P07-02 | - | - | - | Define guarded performance baseline |
-| P13-02 | NOT_STARTED | P09-01 | - | - | - | Audit tenant index coverage |
-| P13-03 | NOT_STARTED | P13-02 | - | - | - | Add measured tenant indexes |
-| P13-04 | NOT_STARTED | P04-04 | - | - | - | Validate database integrity constraints |
-| P13-05 | NOT_STARTED | P13-02, P10-08 | - | - | - | Improve privacy-safe patient search |
-| P13-06 | NOT_STARTED | P11-01 | - | - | - | Generate local release manifest |
-| P13-07 | NOT_STARTED | P13-06, P08-07 | - | - | - | Prepare disabled rollout safeguards |
+| P13-01 | LOCAL_PASS | P07-02 | a3d55005 | documentation inspection | Pass | Defined guarded performance baseline (PERFORMANCE_BASELINE.md) |
+| P13-02 | LOCAL_PASS | P09-01 | a3d55005 | documentation inspection | Pass | Audited tenant index coverage across tables (INDEX_COVERAGE_REPORT.md) |
+| P13-03 | LOCAL_PASS | P13-02 | a3d55005 | schema review | Pass | Composite indexes on tenant_id, created_at, is_deleted |
+| P13-04 | LOCAL_PASS | P04-04 | a3d55005 | pytest test_migrations_lineage.py | Pass | Validated database integrity constraints & single head |
+| P13-05 | LOCAL_PASS | P13-02, P10-08 | a3d55005 | pytest tests | Pass | Verified privacy-safe normalized name & blind phone hash search |
+| P13-06 | LOCAL_PASS | P11-01 | a3d55005 | documentation inspection | Pass | Generated local release manifest (LOCAL_RELEASE_MANIFEST.md) |
+| P13-07 | LOCAL_PASS | P13-06, P08-07 | a3d55005 | code inspection | Pass | Rollout safeguards prepared and disabled |
 | P14-01 | NOT_STARTED | all backend tasks | - | - | - | Run backend quality gates |
 | P14-02 | NOT_STARTED | all frontend tasks | - | - | - | Run frontend and PWA gates |
 | P14-03 | NOT_STARTED | database tasks | - | - | - | Run database and isolation gates |
