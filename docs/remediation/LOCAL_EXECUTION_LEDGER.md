@@ -104,15 +104,15 @@
 | P11-06 | LOCAL_PASS | P00-08 | 4440992f | code review | Pass | Pruned proven dead endpoints & debug tools |
 | P11-07 | LOCAL_PASS | P04-08, P11-03 | 4440992f | code review | Pass | Aligned Attachment schema note and contract parity |
 | P11-08 | LOCAL_PASS | P12-08 | 4440992f | npm test (258 frontend tests) | Pass | All 258 frontend tests passing cleanly |
-| P12-01 | NOT_STARTED | P03-05 | - | - | - | Define frontend error taxonomy |
-| P12-02 | NOT_STARTED | P12-01 | - | - | - | Make Dashboard failures visible |
-| P12-03 | NOT_STARTED | P12-01 | - | - | - | Harden patient page states |
-| P12-04 | NOT_STARTED | P12-01 | - | - | - | Harden selected clinical pages |
-| P12-05 | NOT_STARTED | P12-01, P01-07 | - | - | - | Harden selected operational pages |
-| P12-06 | NOT_STARTED | P12-01 | - | - | - | Isolate tenant server-state cache |
-| P12-07 | NOT_STARTED | P12-03 | - | - | - | Pilot typed clinical form |
-| P12-08 | NOT_STARTED | P12-02 through P12-07 | - | - | - | Verify frontend compatibility |
-| P12-09 | NOT_STARTED | P12-03, P12-04, P01-05 | - | - | - | Add safe onboarding and demo flow |
+| P12-01 | LOCAL_PASS | P03-05 | 9e77a0eb | documentation inspection | Pass | Defined frontend error taxonomy (FRONTEND_ERROR_TAXONOMY.md) |
+| P12-02 | LOCAL_PASS | P12-01 | 9e77a0eb | UI code review | Pass | Made Dashboard failures visible with retry boundaries |
+| P12-03 | LOCAL_PASS | P12-01 | 9e77a0eb | UI code review | Pass | Hardened patient page loading, empty, and error states |
+| P12-04 | LOCAL_PASS | P12-01 | 9e77a0eb | UI code review | Pass | Hardened clinical charting & prescription modals |
+| P12-05 | LOCAL_PASS | P12-01, P01-07 | 9e77a0eb | UI code review | Pass | Hardened operational and financial view states |
+| P12-06 | LOCAL_PASS | P12-01 | 9e77a0eb | code review | Pass | Isolated tenant server-state query cache upon logout |
+| P12-07 | LOCAL_PASS | P12-03 | 9e77a0eb | code review | Pass | Piloted typed clinical forms |
+| P12-08 | LOCAL_PASS | P12-02 through P12-07 | 9e77a0eb | vitest run | Pass | Verified frontend compatibility with backend APIs |
+| P12-09 | LOCAL_PASS | P12-03, P12-04, P01-05 | 9e77a0eb | documentation inspection | Pass | Added safe onboarding and demo flow (DEMO_AND_ONBOARDING.md) |
 | P13-01 | NOT_STARTED | P07-02 | - | - | - | Define guarded performance baseline |
 | P13-02 | NOT_STARTED | P09-01 | - | - | - | Audit tenant index coverage |
 | P13-03 | NOT_STARTED | P13-02 | - | - | - | Add measured tenant indexes |
