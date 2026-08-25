@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
 import { api } from '@/api';
-import { Activity, Server, Clock, CheckCircle } from 'lucide-react';
+import { Activity, Server, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@/shared/ui';
 
@@ -9,26 +9,39 @@ export default function SystemHealth() {
     const { t, i18n } = useTranslation();
     const isRtl = i18n.language === 'ar';
     const [jobs, setJobs] = useState([]);
-    const [health, setHealth] = useState({ score: 100, alerts: [] });
-    const [loading, setLoading] = useState(true);
+    const [health, setHealth] = useState({ score: null, alerts: [] });
+    const [healthLoading, setHealthLoading] = useState(true);
+    const [jobsLoading, setJobsLoading] = useState(true);
+    const [healthError, setHealthError] = useState(null);
+    const [jobsError, setJobsError] = useState(null);
     const [runningTest, setRunningTest] = useState(false);
 
     const fetchJobs = useCallback(async () => {
         try {
             const res = await api.get('/api/v1/admin/security/jobs');
             setJobs(Array.isArray(res.data) ? res.data : []);
-            setLoading(false);
+            setJobsError(null);
         } catch (error) {
             logger.error("Failed to fetch jobs", error);
+            setJobsError(error);
+            setJobs([]);
+        } finally {
+            setJobsLoading(false);
         }
     }, []);
 
     const fetchHealth = useCallback(async () => {
         try {
             const res = await api.get('/api/v1/admin/health/alerts');
-            setHealth(res.data);
+            const score = typeof res.data?.score === 'number' ? res.data.score : (res.data?.score !== undefined ? Number(res.data.score) : 0);
+            setHealth({ score, alerts: Array.isArray(res.data?.alerts) ? res.data.alerts : [] });
+            setHealthError(null);
         } catch (error) {
             logger.error("Failed to fetch health", error);
+            setHealthError(error);
+            setHealth({ score: null, alerts: [] });
+        } finally {
+            setHealthLoading(false);
         }
     }, []);
 
@@ -47,13 +60,17 @@ export default function SystemHealth() {
         setRunningTest(true);
         try {
             const res = await api.post('/api/v1/admin/health/check');
-            setHealth(res.data.health);
-            if (res.data.notification_sent) {
+            const score = typeof res.data?.health?.score === 'number' ? res.data.health.score : 0;
+            setHealth({ score, alerts: Array.isArray(res.data?.health?.alerts) ? res.data.health.alerts : [] });
+            setHealthError(null);
+            if (res.data?.notification_sent) {
                 toast.success(t('super_admin.health.check_success_alerts'));
             } else {
                 toast.success(t('super_admin.health.check_success_stable'));
             }
             fetchJobs();
+        } catch (err) {
+            toast.error(t('common.error', 'حدث خطأ أثناء فحص النظام'));
         } finally {
             setRunningTest(false);
         }
@@ -63,8 +80,8 @@ export default function SystemHealth() {
         setRunningTest(true);
         try {
             const res = await api.post('/api/v1/admin/business/check');
-            const { expiring_alerts, churn_alerts } = res.data;
-            toast.success(t('super_admin.health.business_check_success', { expiring: expiring_alerts, churn: churn_alerts }));
+            const { expiring_alerts, churn_alerts } = res.data || {};
+            toast.success(t('super_admin.health.business_check_success', { expiring: expiring_alerts || 0, churn: churn_alerts || 0 }));
         } catch (error) {
             toast.error(t('super_admin.health.business_check_error'));
         } finally {
@@ -72,10 +89,12 @@ export default function SystemHealth() {
         }
     };
 
+    const totalJobs = jobs.length;
+    const successJobs = jobs.filter(j => j.status === 'success').length;
     const stats = {
-        successRate: jobs.length > 0 ? ((jobs.filter(j => j.status === 'success').length / jobs.length) * 100).toFixed(1) : '100',
-        lastBackup: jobs.find(j => j.job_name.toLowerCase().includes('backup'))?.started_at || null,
-        avgLatency: jobs.length > 0 ? (jobs.reduce((acc, j) => acc + j.duration_seconds, 0) / jobs.length).toFixed(2) : '0.00'
+        successRate: totalJobs > 0 ? ((successJobs / totalJobs) * 100).toFixed(1) : (jobsLoading ? '...' : (jobsError ? '—' : '0.0')),
+        lastBackup: jobs.find(j => (j.job_name || '').toLowerCase().includes('backup'))?.started_at || null,
+        avgLatency: totalJobs > 0 ? (jobs.reduce((acc, j) => acc + (Number(j.duration_seconds) || 0), 0) / totalJobs).toFixed(2) : '0.00'
     };
 
     return (
@@ -130,15 +149,18 @@ export default function SystemHealth() {
                             strokeWidth="12"
                             fill="transparent"
                             strokeDasharray={364.4}
-                            strokeDashoffset={364.4 - (364.4 * health.score) / 100}
+                            strokeDashoffset={health.score !== null ? 364.4 - (364.4 * health.score) / 100 : 364.4}
                             strokeLinecap="round"
                             className={`transition-all duration-1000 ${
+                                health.score === null ? 'text-slate-300 dark:text-slate-700' :
                                 health.score > 80 ? 'text-emerald-500' : health.score > 60 ? 'text-amber-500' : 'text-red-500'
                             }`}
                         />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-3xl font-black text-slate-800 dark:text-white">{health.score}%</span>
+                        <span className="text-3xl font-black text-slate-800 dark:text-white">
+                            {healthLoading ? '...' : (health.score !== null ? `${health.score}%` : '—')}
+                        </span>
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('super_admin.health.health_score')}</span>
                     </div>
                 </div>
@@ -150,7 +172,14 @@ export default function SystemHealth() {
                     </div>
                     
                     <div className={`flex flex-wrap gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-                        {health.alerts.length > 0 ? (
+                        {healthLoading ? (
+                            <div className="text-slate-400 text-sm animate-pulse">{t('common.loading')}</div>
+                        ) : healthError ? (
+                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-red-100 text-red-700 ${isRtl ? 'flex-row-reverse' : ''}`}>
+                                <AlertCircle size={14} />
+                                {t('super_admin.health.fetch_error', 'تعذر تحميل بيانات فحص النظام')}
+                            </div>
+                        ) : health.alerts && health.alerts.length > 0 ? (
                             health.alerts.map((alert, idx) => (
                                 <div key={idx} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${
                                     alert.severity === 'critical' ? 'bg-red-100 text-red-700' : 
@@ -177,7 +206,7 @@ export default function SystemHealth() {
                     </div>
                     <div className={isRtl ? 'text-right' : 'text-left'}>
                         <p className="text-sm text-slate-500 font-bold">{t('super_admin.health.success_rate')}</p>
-                        <p className="text-2xl font-bold text-slate-800 dark:text-white" dir="ltr">{stats.successRate}%</p>
+                        <p className="text-2xl font-bold text-slate-800 dark:text-white" dir="ltr">{stats.successRate}{stats.successRate !== '...' && stats.successRate !== '—' ? '%' : ''}</p>
                     </div>
                 </div>
                 <div className={`bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 flex items-center gap-4 hover:shadow-md transition-shadow ${isRtl ? 'flex-row-reverse' : ''}`}>
@@ -225,27 +254,30 @@ export default function SystemHealth() {
                                         job.status === 'running' ? 'bg-blue-100 text-blue-700' :
                                             'bg-red-100 text-red-700'
                                         }`}>
-                                        {job.status.toUpperCase()}
+                                        {(job.status || '').toUpperCase()}
                                     </span>
                                 </td>
                                 <td className="p-4 text-slate-500 font-mono text-sm" dir="ltr">
-                                    {job.duration_seconds.toFixed(2)}s
+                                    {typeof job.duration_seconds === 'number' ? job.duration_seconds.toFixed(2) : Number(job.duration_seconds || 0).toFixed(2)}s
                                 </td>
                                 <td className="p-4 text-slate-500 text-sm" dir="ltr">
-                                    {new Date(job.started_at).toLocaleString(isRtl ? 'ar-EG' : 'en-US')}
+                                    {job.started_at ? new Date(job.started_at).toLocaleString(isRtl ? 'ar-EG' : 'en-US') : '—'}
                                 </td>
                                 <td className="p-4 text-slate-500 text-sm">
-                                    {job.triggered_by}
+                                    {job.triggered_by || '—'}
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
-                {jobs.length === 0 && !loading && (
+                {jobsError ? (
+                    <div className="p-8 text-center text-red-500">{t('super_admin.health.jobs_error', 'تعذر تحميل سجل المهام')}</div>
+                ) : jobs.length === 0 && !jobsLoading ? (
                     <div className="p-8 text-center text-slate-500">{t('super_admin.health.no_records')}</div>
-                )}
+                ) : null}
             </div>
         </div>
     );
 }
+
 

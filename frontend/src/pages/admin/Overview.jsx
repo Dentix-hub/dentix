@@ -1,30 +1,38 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import logger from '@/utils/logger';
 import { api } from '@/api';
 import DashboardStats from '@/features/admin/SuperAdmin/DashboardStats';
 import SystemHealth from '@/features/admin/SuperAdmin/SystemHealth';
 import ActivityFeed from '@/features/admin/SuperAdmin/ActivityFeed';
 import AdminCharts from '@/features/admin/SuperAdmin/AdminCharts';
-import { ShieldCheck, Zap } from 'lucide-react';
+import { ShieldCheck, Activity, AlertCircle, RefreshCw } from 'lucide-react';
 import { SkeletonStatCard } from '@/shared/ui/Skeleton';
+import { useTranslation } from 'react-i18next';
 
 export default function Overview() {
+    const { t } = useTranslation();
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    const fetchStats = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await api.get('/api/v1/admin/stats');
+            setStats(res.data);
+        } catch (err) {
+            logger.error('Failed to fetch admin stats', err);
+            setError(err);
+            setStats(null);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                const res = await api.get('/api/v1/admin/stats');
-                setStats(res.data);
-            } catch (err) {
-                logger.error(err);
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchStats();
-    }, []);
+    }, [fetchStats]);
 
     if (loading) {
         return (
@@ -55,16 +63,41 @@ export default function Overview() {
                         <ShieldCheck size={32} />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white">مركز القيادة</h1>
-                        <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">إدارة وتحليلات النظام المركزية</p>
+                        <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white">
+                            {t('super_admin.overview.title', 'مركز القيادة')}
+                        </h1>
+                        <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">
+                            {t('super_admin.overview.subtitle', 'إدارة وتحليلات النظام المركزية')}
+                        </p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 px-4 py-2 rounded-2xl border border-indigo-100 dark:border-indigo-900/30">
-                    <Zap size={18} fill="currentColor" />
-                    <span className="font-bold text-sm">النظام يعمل بكفاءة عالية</span>
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-2xl border border-slate-200 dark:border-slate-700">
+                    <Activity size={18} className="text-indigo-500" />
+                    <span className="font-bold text-sm">
+                        {t('super_admin.overview.platform_admin', 'لوحة الإدارة المركزية')}
+                    </span>
                 </div>
             </div>
+
+            {/* Error Banner when stats request fails */}
+            {error && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4 rounded-2xl flex items-center justify-between">
+                    <div className="flex items-center gap-3 text-red-700 dark:text-red-300">
+                        <AlertCircle size={20} />
+                        <span className="font-medium">
+                            {t('super_admin.overview.stats_error', 'تعذر تحميل إحصائيات مركز القيادة')}
+                        </span>
+                    </div>
+                    <button
+                        onClick={fetchStats}
+                        className="flex items-center gap-1.5 px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl transition"
+                    >
+                        <RefreshCw size={14} />
+                        {t('common.retry', 'إعادة المحاولة')}
+                    </button>
+                </div>
+            )}
 
             {/* Main Stats KPIs */}
             {stats && <DashboardStats stats={stats} />}
@@ -95,4 +128,5 @@ export default function Overview() {
         </div>
     );
 }
+
 

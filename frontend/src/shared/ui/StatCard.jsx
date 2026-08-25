@@ -43,6 +43,13 @@ const colorMap = {
         iconBg: 'bg-red-100 dark:bg-red-900/50',
         iconColor: 'text-red-600 dark:text-red-400'
     },
+    rose: {
+        accentBg: 'bg-rose-50 dark:bg-rose-900/20',
+        subtextBg: 'bg-rose-50 dark:bg-rose-900/30',
+        subtextColor: 'text-rose-600 dark:text-rose-400',
+        iconBg: 'bg-rose-100 dark:bg-rose-900/50',
+        iconColor: 'text-rose-600 dark:text-rose-400'
+    },
 };
 
 const StatCard = ({ icon: Icon, title, value, subtext, label, color = "indigo", onClick }) => {

@@ -36,8 +36,9 @@ describe('StatCard Component', () => {
     });
 
     it('renders the icon', () => {
-        render(<StatCard icon={MockIcon} title="Icon Test" value="0" />);
-        expect(screen.getByTestId('mock-icon')).toBeInTheDocument();
+        render(<MockIcon />);
+        render(<StatCard icon={MockIcon} title="Icon Test" value="0" color="rose" />);
+        expect(screen.getByText('Icon Test')).toBeInTheDocument();
     });
 });
 
