@@ -470,7 +470,10 @@ async def impersonate_tenant(
     try:
         if hasattr(models, 'AuditLog'):
             audit = models.AuditLog(
-                user_id=current_user.id,
+                performed_by_id=current_user.id,
+                performed_by_username=current_user.username,
+                target_user_id=target_user.id,
+                target_username=target_user.username,
                 action="IMPERSONATION_START",
                 entity_type="User",
                 entity_id=target_user.id,

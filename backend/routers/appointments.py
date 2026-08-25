@@ -22,6 +22,7 @@ from backend.core.response import success_response, StandardResponse
 from ..utils.audit_logger import log_admin_action
 import traceback
 from backend.models.system import SystemError, ErrorLevel, ErrorSource
+from backend.core.logging_sanitizer import sanitize_text, sanitize_stack_trace
 
 logger = logging.getLogger("smart_clinic")
 
@@ -31,17 +32,17 @@ router = APIRouter(prefix="/appointments", tags=["Appointments"])
 @router.post(
     "",
     response_model=StandardResponse[schemas.Appointment],
+    status_code=201,
     summary="Create appointment",
-    description="Schedule a new appointment for a patient. Validates patient existence.",
+    description="Create a new appointment. Rejects patients outside the tenant scope. Doctors can only create for their own schedule.",
 )
-@limiter.limit("15/minute")
 async def create_appointment(
     request: Request,
     appointment: schemas.AppointmentCreate,
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.APPOINTMENT_CREATE)),
 ):
-    user_id   = current_user.id
+    """Create a new appointment with tenant isolation enforcement."""
     tenant_id = current_user.tenant_id
 
     # REGRESSION (2026-06-18): Guard at the router boundary too. Belt-and-suspenders:
@@ -58,7 +59,6 @@ async def create_appointment(
         patient = await crud.get_patient(db, appointment.patient_id, tenant_id)
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
-from backend.core.logging_sanitizer import sanitize_text, sanitize_stack_trace
 
         data = await crud.create_appointment(db=db, appointment=appointment, tenant_id=tenant_id)
         return success_response(data=data, message="Appointment created successfully")
@@ -73,7 +73,7 @@ from backend.core.logging_sanitizer import sanitize_text, sanitize_stack_trace
             stack_trace=sanitize_stack_trace(traceback.format_exc(), max_length=12000),
             path=sanitize_text(str(request.url.path), max_length=2048),
             method="POST",
-            user_id=user_id,
+            user_id=current_user.id,
             tenant_id=tenant_id,
         )
         db.add(error_log)

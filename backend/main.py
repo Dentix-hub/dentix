@@ -200,6 +200,52 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from backend.core.logging_sanitizer import sanitize_text, sanitize_dict
+from backend.core.logging import get_trace_id
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    detail = exc.detail
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": detail,
+            "success": False,
+            "message": detail if isinstance(detail, str) else "Request error",
+            "trace_id": get_trace_id(),
+        },
+        headers=getattr(exc, "headers", None),
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    sanitized_errors = [sanitize_dict(err) if isinstance(err, dict) else sanitize_text(str(err)) for err in exc.errors()]
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": sanitized_errors,
+            "success": False,
+            "message": "Validation error",
+            "trace_id": get_trace_id(),
+        },
+    )
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error("Unhandled server exception: %s", sanitize_text(str(exc)), exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "An internal server error occurred.",
+            "success": False,
+            "message": "An internal server error occurred.",
+            "error_code": "INTERNAL_SERVER_ERROR",
+            "trace_id": get_trace_id(),
+        },
+    )
+
 # 3. Security Headers
 app.add_middleware(SecurityHeadersMiddleware)
 
