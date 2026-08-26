@@ -400,7 +400,8 @@ Notes:
 
 ## MS-15 — Support inbox
 Status: PASS
-Commit: Pending
+Commit: cefa575a
+
 Files changed:
 - `frontend/src/features/admin/SuperAdmin/SupportInbox.jsx`
 - `frontend/src/features/admin/SuperAdmin/SupportInbox.test.jsx`
@@ -421,6 +422,34 @@ Manual verification:
 
 Notes:
 - Support inbox provides seamless viewing, accessible modals, and immediate read state synchronization.
+
+## MS-16 — Targeted notification invariant
+Status: PASS
+Commit: Pending
+Files changed:
+- `backend/routers/notifications.py`
+- `backend/tests/test_admin_notifications_invariant.py`
+- `frontend/src/features/admin/SuperAdmin/NotificationsManager.jsx`
+- `frontend/src/features/admin/SuperAdmin/NotificationsManager.test.jsx`
+- `frontend/src/pages/admin/CommunicationsPage.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `uv run ruff check --config ruff.toml backend/routers/notifications.py backend/tests/test_admin_notifications_invariant.py` -> PASS (All checks passed)
+- `$env:PYTHONPATH = "c:\Users\es\DENTIX"; uv run pytest backend/tests/test_admin_notifications_invariant.py` -> PASS (1 passed, 100% coverage on test)
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/NotificationsManager.test.jsx --run` -> PASS (1 test file, 5 tests passed)
+
+Manual verification:
+- Backend enforces that non-global targeted notifications must have a valid, existing `tenant_id` (returns 422 if missing, 404 if nonexistent).
+- Backend normalizes `tenant_id` to `None` when `is_global` is `True`.
+- Frontend automatically normalizes `tenant_id` to `null` when switching to "All Clinics", and defaults to an available tenant when switching to "Specific Clinic".
+- Added double-send protection (`isSending` state and disabled submit button during transmission).
+- Replaced notification delete prompt with shared accessible `ConfirmDialog` primitive.
+- Surfaced backend error validation details directly in toast alerts.
+
+Notes:
+- No ownerless or dangling targeted notification can be created across frontend or backend.
 
 ---
 
