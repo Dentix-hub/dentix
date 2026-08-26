@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload
 from typing import List
 from datetime import datetime, timedelta, timezone
 from backend import models, schemas
-from backend.database import get_async_db
+from backend.database import get_async_db, system_session_scope
 from backend.services.admin_service import AdminService
 from backend.services.subscription_renewal_service import (
     SubscriptionRenewalError,
