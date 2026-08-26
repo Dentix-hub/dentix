@@ -634,7 +634,8 @@ Notes:
 
 ## MS-24 — Sessions
 Status: PASS
-Commit: Pending
+Commit: 147c89b2
+
 Files changed:
 - `frontend/src/features/admin/SuperAdmin/SessionManager.jsx`
 - `frontend/src/features/admin/SuperAdmin/SessionManager.test.jsx`
@@ -653,6 +654,28 @@ Manual verification:
 
 Notes:
 - Global active session oversight and termination are deterministic, safe, and resilient against sparse telemetry.
+
+## MS-25 — System logs
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/pages/admin/SystemLogs.jsx`
+- `frontend/src/pages/admin/SystemLogs.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/pages/admin/SystemLogs.test.jsx --run` -> PASS (1 test file, 3 tests passed)
+
+Manual verification:
+- Separated empty logs state from explicit fetch error state with dedicated retry trigger.
+- Added try/catch and fallback for clipboard copy operations.
+- Explicitly revoked CSV blob object URL via `window.URL.revokeObjectURL(url)` following download.
+- Prevented orphaned pagination index after deleting the final item on page > 0.
+- Ensured header actions wrap cleanly on small screens and use localized date/time.
+
+Notes:
+- System logs viewing, pagination, clipboard copying, and CSV exporting are fully hardened and leak-free.
 
 ---
 
