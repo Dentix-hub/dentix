@@ -657,7 +657,8 @@ Notes:
 
 ## MS-25 — System logs
 Status: PASS
-Commit: Pending
+Commit: 42bf12f4
+
 Files changed:
 - `frontend/src/pages/admin/SystemLogs.jsx`
 - `frontend/src/pages/admin/SystemLogs.test.jsx`
@@ -676,6 +677,28 @@ Manual verification:
 
 Notes:
 - System logs viewing, pagination, clipboard copying, and CSV exporting are fully hardened and leak-free.
+
+## MS-26 — AI backend accuracy
+Status: PASS
+Commit: Pending
+Files changed:
+- `backend/ai/analytics/service.py`
+- `backend/tests/test_ai_admin_analytics_accuracy.py`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `uv run ruff check --config ruff.toml backend/ai/analytics/service.py backend/tests/test_ai_admin_analytics_accuracy.py` -> PASS (All checks passed)
+- `$env:PYTHONPATH = "c:\Users\es\DENTIX"; uv run pytest backend/tests/test_ai_admin_analytics_accuracy.py` -> PASS (2 passed, 100% coverage on test)
+
+Manual verification:
+- Fixed success rate calculation on 0 requests: returns `None` (no-data) rather than misleading `100%`.
+- Aligned usage trends query bounds to strictly respect the selected `period` (today, week, month) rather than hardcoded 30 days.
+- Corrected logs tool filter to target real SQL column `models.AIUsageLog.tool` instead of invalid property reference.
+- Added validation for period parameter with explicit 400 error on invalid inputs.
+- Prioritized recorded authoritative cost sum when available with blended model estimation fallback.
+
+Notes:
+- AI usage analytics backend endpoints are accurate, compliant, and truthful.
 
 ---
 
