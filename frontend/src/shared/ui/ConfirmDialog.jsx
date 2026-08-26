@@ -8,6 +8,7 @@ import Button from './Button';
 export default function ConfirmDialog({
     isOpen,
     onClose,
+    onCancel,
     onConfirm,
     title = 'تأكيد',
     message = 'هل أنت متأكد؟',
@@ -16,22 +17,23 @@ export default function ConfirmDialog({
     variant = 'danger',
     isLoading = false,
 }) {
+    const handleClose = onClose || onCancel || (() => {});
     const confirmVariant = variant === 'danger' ? 'danger' : 'primary';
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={title} maxWidth="max-w-sm">
+        <Modal isOpen={isOpen} onClose={handleClose} title={title} maxWidth="max-w-sm">
             <div className="space-y-5">
                 <p className="text-type-body text-text-secondary">{message}</p>
                 <div className="flex justify-end gap-3">
-                    <Button variant="ghost" onClick={onClose} disabled={isLoading}>
+                    <Button variant="ghost" onClick={handleClose} disabled={isLoading}>
                         {cancelText}
                     </Button>
                     <Button
                         variant={confirmVariant}
                         isLoading={isLoading}
                         onClick={() => {
-                            onConfirm();
-                            onClose();
+                            onConfirm?.();
+                            handleClose();
                         }}
                     >
                         {confirmText}

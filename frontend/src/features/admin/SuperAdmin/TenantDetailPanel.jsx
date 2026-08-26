@@ -93,7 +93,7 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                                         <h3 className="text-2xl font-bold mb-1">{data.tenant?.name || 'بدون اسم'}</h3>
                                         <p className="text-indigo-100 flex items-center gap-2 text-sm">
                                             <Globe size={14} />
-                                            {data.tenant?.domain || 'portal'}.dentix.com
+                                            <span>{data.tenant?.domain ? `${data.tenant.domain}.dentix.com` : `عيادة #${data.tenant?.id || tenantId}`}</span>
                                         </p>
                                         <div className="mt-6 flex flex-col gap-3">
                                             <select

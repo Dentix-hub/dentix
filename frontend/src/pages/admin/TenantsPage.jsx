@@ -1,19 +1,31 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import logger from '@/utils/logger';
 import { api } from '@/api';
-import { Modal, toast } from '@/shared/ui';
-import { Building2, X, Key, CalendarPlus } from 'lucide-react';
+import { Modal, toast, ConfirmDialog } from '@/shared/ui';
+import { Building2, Key, CalendarPlus } from 'lucide-react';
 import TenantsManager from '@/features/admin/SuperAdmin/TenantsManager';
 import TenantDetailPanel from '@/features/admin/SuperAdmin/TenantDetailPanel';
 import { setAdminToken } from '@/utils';
+import { useTranslation } from 'react-i18next';
 
 export default function TenantsPage() {
+    const { t } = useTranslation();
     const [searchParams, setSearchParams] = useSearchParams();
     const [tenants, setTenants] = useState([]);
     const [plans, setPlans] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedTenantId, setSelectedTenantId] = useState(null);
+
+    // Confirmation dialog state
+    const [confirmState, setConfirmState] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        confirmText: '',
+        variant: 'primary',
+        onConfirm: () => {},
+    });
 
     useEffect(() => {
         const idParam = searchParams.get('id');
@@ -54,11 +66,10 @@ export default function TenantsPage() {
         plan_id: '',
         extension_days: 30,
         notes: '',
-        idempotency_key: '',
     });
     const [renewing, setRenewing] = useState(false);
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             const [tRes, pRes] = await Promise.all([
@@ -74,15 +85,15 @@ export default function TenantsPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [fetchData]);
 
     const handleImpersonate = async (tenantId, userId, reason, scope = 'read_only') => {
         if (!reason || reason.trim().length < 5) {
-            toast.error('سبب الدخول للنظام مطلوب (5 أحرف على الأقل)');
+            toast.error(t('super_admin.impersonate.reason_required', 'سبب الدخول للنظام مطلوب (5 أحرف على الأقل)'));
             return;
         }
         try {
@@ -121,13 +132,29 @@ export default function TenantsPage() {
     };
 
     const handlePlanChange = (e, tenantId) => {
-        const newPlanId = parseInt(e.target.value);
+        const newPlanId = parseInt(e.target.value, 10);
         if (!newPlanId) return;
-        if (window.confirm('هل أنت متأكد من تغيير الخطة؟ سيتم احتساب المدة الجديدة بدءاً من اليوم.')) {
-            api.post(`/api/v1/admin/tenants/${tenantId}/assign-plan?plan_id=${newPlanId}`)
-                .then(() => fetchData())
-                .catch(() => toast.error('فشل تغيير الخطة'));
-        }
+
+        setConfirmState({
+            isOpen: true,
+            title: t('super_admin.tenants.change_plan_title', 'تغيير باقة الاشتراك'),
+            message: t('super_admin.tenants.change_plan_msg', 'هل أنت متأكد من تغيير الخطة؟ سيتم احتساب المدة الجديدة بدءاً من اليوم.'),
+            confirmText: t('common.confirm', 'تأكيد'),
+            variant: 'primary',
+            onConfirm: async () => {
+                try {
+                    await api.post(`/api/v1/admin/tenants/${tenantId}/assign-plan`, null, {
+                        params: { plan_id: newPlanId }
+                    });
+                    toast.success(t('super_admin.tenants.plan_changed_success', 'تم تغيير الباقة بنجاح'));
+                    fetchData();
+                } catch {
+                    toast.error(t('super_admin.tenants.plan_change_failed', 'فشل تغيير الخطة'));
+                } finally {
+                    setConfirmState(prev => ({ ...prev, isOpen: false }));
+                }
+            }
+        });
     };
 
     const handleOpenRenewal = (tenant) => {
@@ -136,7 +163,6 @@ export default function TenantsPage() {
             plan_id: tenant.plan_id || '',
             extension_days: 30,
             notes: '',
-            idempotency_key: `manual_renew_${tenant.id}_${Date.now()}`,
         });
     };
 
@@ -145,11 +171,12 @@ export default function TenantsPage() {
         if (!renewalModalTenant) return;
         setRenewing(true);
         try {
+            const generatedIdempotencyKey = `manual_renew_${renewalModalTenant.id}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
             const payload = {
-                plan_id: renewalForm.plan_id ? parseInt(renewalForm.plan_id) : undefined,
-                extension_days: parseInt(renewalForm.extension_days) || 30,
+                plan_id: renewalForm.plan_id ? parseInt(renewalForm.plan_id, 10) : undefined,
+                extension_days: parseInt(renewalForm.extension_days, 10) || 30,
                 notes: renewalForm.notes?.trim() || undefined,
-                idempotency_key: renewalForm.idempotency_key?.trim() || undefined,
+                idempotency_key: generatedIdempotencyKey,
             };
             const res = await api.post(`/api/v1/admin/tenants/${renewalModalTenant.id}/renew`, payload);
             toast.success(res.message || 'تم تجديد الاشتراك يدوياً بنجاح');
@@ -183,18 +210,29 @@ export default function TenantsPage() {
         if (passwordResetForm.new_password.length < 6) {
             return toast.error('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
         }
-        if (!window.confirm('هل أنت متأكد من إعادة تعيين كلمة المرور؟')) return;
-        try {
-            await api.post(`/api/v1/admin/system/users/${passwordResetForm.user_id}/reset-password`, {
-                new_password: passwordResetForm.new_password
-            });
-            setShowPasswordResetModal(null);
-            setPasswordResetForm({ user_id: '', new_password: '' });
-            toast.success('تم إعادة تعيين كلمة المرور بنجاح');
-        } catch (err) {
-            logger.error(err);
-            toast.error('فشل إعادة تعيين كلمة المرور');
-        }
+
+        setConfirmState({
+            isOpen: true,
+            title: t('super_admin.tenants.reset_pw_title', 'إعادة تعيين كلمة المرور'),
+            message: t('super_admin.tenants.reset_pw_msg', 'هل أنت متأكد من إعادة تعيين كلمة المرور لهذا الحساب؟'),
+            confirmText: t('common.confirm', 'تأكيد'),
+            variant: 'warning',
+            onConfirm: async () => {
+                try {
+                    await api.post(`/api/v1/admin/system/users/${passwordResetForm.user_id}/reset-password`, {
+                        new_password: passwordResetForm.new_password
+                    });
+                    setShowPasswordResetModal(null);
+                    setPasswordResetForm({ user_id: '', new_password: '' });
+                    toast.success('تم إعادة تعيين كلمة المرور بنجاح');
+                } catch (err) {
+                    logger.error(err);
+                    toast.error('فشل إعادة تعيين كلمة المرور');
+                } finally {
+                    setConfirmState(prev => ({ ...prev, isOpen: false }));
+                }
+            }
+        });
     };
 
     const getDaysRemaining = (endDate) => {
@@ -203,51 +241,81 @@ export default function TenantsPage() {
         return days;
     };
 
-    const handleArchiveTenant = async (tenantId) => {
-        if (!window.confirm("هل أنت متأكد من حذف هذه العيادة؟ (يمكنك استعادتها لاحقاً)")) return;
-        try {
-            await api.delete(`/api/v1/admin/tenants/${tenantId}`);
-            fetchData();
-            toast.success("تم الحذف بنجاح");
-        } catch (error) {
-            toast.error("فشلت عملية الحذف");
-        }
+    const handleArchiveTenant = (tenantId) => {
+        setConfirmState({
+            isOpen: true,
+            title: t('super_admin.tenants.archive_title', 'أرشفة العيادة'),
+            message: t('super_admin.tenants.archive_msg', 'هل أنت متأكد من أرشفة هذه العيادة؟ يمكنك استعادتها وتفعيلها لاحقاً.'),
+            confirmText: t('super_admin.tenants.archive_btn', 'أرشفة'),
+            variant: 'warning',
+            onConfirm: async () => {
+                try {
+                    await api.delete(`/api/v1/admin/tenants/${tenantId}`);
+                    fetchData();
+                    toast.success(t('super_admin.tenants.archive_success', 'تمت أرشفة العيادة بنجاح'));
+                } catch {
+                    toast.error(t('super_admin.tenants.archive_fail', 'فشلت عملية أرشفة العيادة'));
+                } finally {
+                    setConfirmState(prev => ({ ...prev, isOpen: false }));
+                }
+            }
+        });
     };
 
-    const handleRestoreTenant = async (tenantId) => {
-        if (!window.confirm("هل أنت متأكد من استعادة هذه العيادة؟")) return;
-        try {
-            await api.post(`/api/v1/admin/tenants/${tenantId}/restore`);
-            fetchData();
-            toast.success("تمت الاستعادة بنجاح");
-        } catch (error) {
-            toast.error("فشلت عملية الاستعادة");
-        }
+    const handleRestoreTenant = (tenantId) => {
+        setConfirmState({
+            isOpen: true,
+            title: t('super_admin.tenants.restore_title', 'استعادة العيادة'),
+            message: t('super_admin.tenants.restore_msg', 'هل أنت متأكد من استعادة هذه العيادة وتفعيل الوصول إليها؟'),
+            confirmText: t('super_admin.tenants.restore_btn', 'استعادة'),
+            variant: 'primary',
+            onConfirm: async () => {
+                try {
+                    await api.post(`/api/v1/admin/tenants/${tenantId}/restore`);
+                    fetchData();
+                    toast.success(t('super_admin.tenants.restore_success', 'تمت استعادة العيادة بنجاح'));
+                } catch {
+                    toast.error(t('super_admin.tenants.restore_fail', 'فشلت عملية الاستعادة'));
+                } finally {
+                    setConfirmState(prev => ({ ...prev, isOpen: false }));
+                }
+            }
+        });
     };
 
-    const handlePermanentDelete = async (tenantId) => {
-        if (!window.confirm("تحذير: هذا الإجراء سيقوم بحذف العيادة وجميع بياناتها (المرضى، المواعيد، المستخدمين) بشكل نهائي ولا يمكن التراجع عنه!\n\nهل أنت متأكد تماماً؟")) return;
-        try {
-            await api.delete(`/api/v1/admin/tenants/${tenantId}/permanent`);
-            fetchData();
-            toast.success("تم الحذف النهائي بنجاح");
-        } catch (error) {
-            logger.error(error);
-            toast.error("فشلت عملية الحذف النهائي");
-        }
+    const handlePermanentDelete = (tenantId) => {
+        setConfirmState({
+            isOpen: true,
+            title: t('super_admin.tenants.permanent_title', 'حذف نهائي مدمر للعيادة'),
+            message: t('super_admin.tenants.permanent_msg', 'تحذير شديد: هذا الإجراء سيقوم بحذف العيادة وجميع بياناتها (المرضى، المواعيد، المستخدمين، السجلات) بشكل نهائي ودائم ولا يمكن التراجع عنه مطلقاً! هل أنت متأكد تماماً؟'),
+            confirmText: t('super_admin.tenants.permanent_btn', 'حذف نهائي دائم'),
+            variant: 'danger',
+            onConfirm: async () => {
+                try {
+                    await api.delete(`/api/v1/admin/tenants/${tenantId}/permanent`);
+                    fetchData();
+                    toast.success(t('super_admin.tenants.permanent_success', 'تم الحذف النهائي بنجاح'));
+                } catch (error) {
+                    logger.error(error);
+                    toast.error(t('super_admin.tenants.permanent_fail', 'فشلت عملية الحذف النهائي'));
+                } finally {
+                    setConfirmState(prev => ({ ...prev, isOpen: false }));
+                }
+            }
+        });
     };
 
-    if (loading) return <div className="p-8 text-center text-slate-500">جاري تحميل العيادات...</div>;
+    if (loading) return <div className="p-8 text-center text-slate-500 font-bold">{t('common.loading', 'جاري تحميل العيادات...')}</div>;
 
     return (
-        <div className="space-y-6 animate-fade-in-up">
+        <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
-                <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl text-indigo-600 dark:text-indigo-400">
+                <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl text-indigo-600 dark:text-indigo-400 shrink-0">
                     <Building2 size={32} />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white">إدارة العيادات</h1>
-                    <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">التحكم في العيادات والتجديد الإداري اليدوي</p>
+                    <h1 className="text-2xl font-extrabold text-slate-800 dark:text-white">{t('sidebar.clinics', 'إدارة العيادات')}</h1>
+                    <p className="text-slate-500 dark:text-slate-400 font-medium mt-1 text-sm">{t('super_admin.tenants.subtitle', 'التحكم في العيادات والتجديد الإداري اليدوي')}</p>
                 </div>
             </div>
 
@@ -275,31 +343,31 @@ export default function TenantsPage() {
                 <Modal
                     isOpen
                     onClose={() => setRenewalModalTenant(null)}
-                    title="تجديد اشتراك يدوي موثق"
+                    title={t('super_admin.tenants.manual_renewal_title', 'تجديد اشتراك يدوي موثق')}
                     size="lg"
                     mobileVariant="dialog"
                 >
-                    <div className="space-y-6" dir="rtl">
-                        <p className="text-slate-500 dark:text-slate-400 text-sm">{renewalModalTenant.name}</p>
+                    <div className="space-y-6">
+                        <p className="text-slate-500 dark:text-slate-400 text-sm font-bold">{renewalModalTenant.name}</p>
                         <form onSubmit={handleManualRenewalSubmit} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-bold text-slate-500 mb-1.5">باقة الاشتراك</label>
+                                <label className="block text-sm font-bold text-slate-500 mb-1.5">{t('super_admin.tenants.plan_label', 'باقة الاشتراك')}</label>
                                 <select
                                     value={renewalForm.plan_id}
                                     onChange={(e) => setRenewalForm({ ...renewalForm, plan_id: e.target.value })}
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none font-bold"
                                 >
-                                    <option value="">الباقة الحالية ({renewalModalTenant.plan || 'بدون تغيير'})</option>
+                                    <option value="">{t('super_admin.tenants.current_plan', 'الباقة الحالية')} ({renewalModalTenant.plan || 'بدون تغيير'})</option>
                                     {(plans || []).map(p => (
                                         <option key={p.id} value={p.id}>
-                                            {p.display_name_ar || p.name} ({p.duration_days} يوم)
+                                            {p.display_name_ar || p.name} ({p.duration_days} {t('common.days', 'يوم')})
                                         </option>
                                     ))}
                                 </select>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-bold text-slate-500 mb-1.5">أيام التمديد الإضافية</label>
+                                <label className="block text-sm font-bold text-slate-500 mb-1.5">{t('super_admin.tenants.extension_days', 'أيام التمديد الإضافية')}</label>
                                 <input
                                     type="number"
                                     min="1"
@@ -312,33 +380,23 @@ export default function TenantsPage() {
                             </div>
 
                             <div>
-                                <label className="block text-sm font-bold text-slate-500 mb-1.5">ملاحظات التجديد / سبب التمديد</label>
+                                <label className="block text-sm font-bold text-slate-500 mb-1.5">{t('super_admin.tenants.renewal_notes', 'ملاحظات التجديد / سبب التمديد')}</label>
                                 <textarea
                                     rows={2}
                                     value={renewalForm.notes}
                                     onChange={(e) => setRenewalForm({ ...renewalForm, notes: e.target.value })}
-                                    placeholder="مثال: تم سداد الاشتراك نقداً أو بموجب إيصال بنكي رقم ..."
+                                    placeholder={t('super_admin.tenants.notes_placeholder', 'مثال: تم سداد الاشتراك نقداً أو بموجب إيصال بنكي رقم ...')}
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-bold text-slate-500 mb-1.5">مفتاح عدم التكرار (Idempotency Key)</label>
-                                <input
-                                    type="text"
-                                    value={renewalForm.idempotency_key}
-                                    onChange={(e) => setRenewalForm({ ...renewalForm, idempotency_key: e.target.value })}
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none text-xs font-mono"
                                 />
                             </div>
 
                             <button
                                 type="submit"
                                 disabled={renewing}
-                                className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 text-lg transition-all"
+                                className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 text-lg transition-all cursor-pointer"
                             >
                                 <CalendarPlus size={20} />
-                                {renewing ? 'جاري توثيق التجديد...' : 'تأكيد وتوثيق التجديد'}
+                                {renewing ? t('super_admin.tenants.documenting', 'جاري توثيق التجديد...') : t('super_admin.tenants.confirm_renewal', 'تأكيد وتوثيق التجديد')}
                             </button>
                         </form>
                     </div>
@@ -347,60 +405,66 @@ export default function TenantsPage() {
 
             {/* Password Reset Modal */}
             {showPasswordResetModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 w-full max-w-lg shadow-2xl space-y-6">
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <h3 className="text-xl font-bold text-slate-800 dark:text-white">إعادة تعيين كلمة المرور</h3>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm">{showPasswordResetModal.tenantName}</p>
-                            </div>
-                            <button
-                                onClick={() => setShowPasswordResetModal(null)}
-                                className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full hover:bg-slate-200"
+                <Modal
+                    isOpen
+                    onClose={() => setShowPasswordResetModal(null)}
+                    title={t('super_admin.tenants.reset_pw_modal_title', 'إعادة تعيين كلمة المرور')}
+                    size="md"
+                    mobileVariant="dialog"
+                >
+                    <div className="space-y-4">
+                        <p className="text-slate-500 dark:text-slate-400 text-sm font-bold">{showPasswordResetModal.tenantName}</p>
+                        <div>
+                            <label className="block text-sm font-bold text-slate-500 mb-1.5">{t('super_admin.tenants.select_user', 'المستخدم')}</label>
+                            <select
+                                value={passwordResetForm.user_id}
+                                onChange={(e) => setPasswordResetForm({ ...passwordResetForm, user_id: e.target.value })}
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-amber-500 outline-none font-bold"
                             >
-                                <X size={20} />
-                            </button>
+                                <option value="">{t('super_admin.tenants.choose_user', 'اختر المستخدم')}</option>
+                                {tenantUsers.map(u => (
+                                    <option key={u.id} value={u.id}>
+                                        {u.username || u.email || 'Unknown User'} ({u.email}) - {u.role}
+                                        {!u.is_active && ' [معطل]'}
+                                        {u.account_locked_until && ' [مقفل]'}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-slate-500 mb-1.5">المستخدم</label>
-                                <select
-                                    value={passwordResetForm.user_id}
-                                    onChange={(e) => setPasswordResetForm({ ...passwordResetForm, user_id: e.target.value })}
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-amber-500 outline-none font-bold"
-                                >
-                                    <option value="">اختر المستخدم</option>
-                                    {tenantUsers.map(u => (
-                                        <option key={u.id} value={u.id}>
-                                            {u.username || u.email || 'Unknown User'} ({u.email}) - {u.role}
-                                            {!u.is_active && ' [معطل]'}
-                                            {u.account_locked_until && ' [مقفل]'}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-slate-500 mb-1.5">كلمة المرور الجديدة</label>
-                                <input
-                                    type="text"
-                                    value={passwordResetForm.new_password}
-                                    onChange={(e) => setPasswordResetForm({ ...passwordResetForm, new_password: e.target.value })}
-                                    placeholder="أدخل كلمة المرور الجديدة (6 أحرف على الأقل)"
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-amber-500 outline-none font-bold"
-                                />
-                                <p className="text-xs text-slate-500 mt-2">💡 سيتم إلغاء قفل الحساب وتفعيله تلقائياً</p>
-                            </div>
-                            <button
-                                onClick={handleSubmitPasswordReset}
-                                className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 text-lg hover:scale-[1.02] transition-all"
-                            >
-                                <Key size={20} />
-                                إعادة تعيين كلمة المرور
-                            </button>
+                        <div>
+                            <label className="block text-sm font-bold text-slate-500 mb-1.5">{t('super_admin.tenants.new_pw', 'كلمة المرور الجديدة')}</label>
+                            <input
+                                type="text"
+                                value={passwordResetForm.new_password}
+                                onChange={(e) => setPasswordResetForm({ ...passwordResetForm, new_password: e.target.value })}
+                                placeholder={t('super_admin.tenants.pw_placeholder', 'أدخل كلمة المرور الجديدة (6 أحرف على الأقل)')}
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-amber-500 outline-none font-bold"
+                            />
+                            <p className="text-xs text-slate-500 mt-2">💡 {t('super_admin.tenants.pw_hint', 'سيتم إلغاء قفل الحساب وتفعيله تلقائياً')}</p>
                         </div>
+                        <button
+                            type="button"
+                            onClick={handleSubmitPasswordReset}
+                            className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 text-lg transition-all cursor-pointer"
+                        >
+                            <Key size={20} />
+                            {t('super_admin.tenants.reset_pw_action', 'إعادة تعيين كلمة المرور')}
+                        </button>
                     </div>
-                </div>
+                </Modal>
             )}
+
+            {/* Shared Confirmation Dialog */}
+            <ConfirmDialog
+                isOpen={confirmState.isOpen}
+                title={confirmState.title}
+                message={confirmState.message}
+                confirmText={confirmState.confirmText}
+                variant={confirmState.variant}
+                onConfirm={confirmState.onConfirm}
+                onClose={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+                onCancel={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
+            />
         </div>
     );
 }

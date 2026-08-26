@@ -744,7 +744,8 @@ Manual verification:
 
 ## MS-29 — Overview information architecture
 Status: PASS
-Commit: Pending
+Commit: f563da27
+
 Files changed:
 - `frontend/src/pages/admin/Overview.jsx`
 - `frontend/src/pages/admin/Overview.test.jsx`
@@ -761,10 +762,37 @@ Manual verification:
 - Removed artificial lift/rotation from non-interactive static KPI cards (`StatCard.jsx`).
 - No extraneous or unbacked widgets added; strictly organized real platform data.
 
+## MS-30 — Tenant and user UI consistency
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/pages/admin/TenantsPage.jsx`
+- `frontend/src/features/admin/SuperAdmin/TenantsManager.jsx`
+- `frontend/src/features/admin/SuperAdmin/TenantDetailPanel.jsx`
+- `frontend/src/pages/admin/UsersPage.jsx`
+- `frontend/src/features/admin/SuperAdmin/UsersManager.jsx`
+- `frontend/src/shared/ui/ConfirmDialog.jsx`
+- `frontend/src/pages/admin/TenantsUsersConsistency.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/pages/admin/TenantsUsersConsistency.test.jsx --run` -> PASS (1 test file, 3 tests passed)
+
+Manual verification:
+- Soft delete actions labeled with reversible archive terminology ("أرشفة العيادة") across modals and buttons.
+- Permanent delete retains explicit destructive warning confirmation dialog.
+- Manual subscription renewal automatically generates and attaches unique idempotency key behind the scenes without raw UI noise.
+- Replaced browser `window.confirm` with shared `ConfirmDialog` across Tenants and Users management views.
+- Domain rendering reflects real configured domain (`domain.dentix.com`) or fallback `—` without hardcoding fake defaults.
+- User searching structured using Axios query parameters (`{ params: { search_query: ... } }`).
+- Role badges localized for all canonical roles (`super_admin`, `admin`, `doctor`, `receptionist`, `accountant`).
+
 Notes:
-- Overview command center is balanced, truthful, responsive, and free of speculative placeholders.
+- Tenant and user operations are consistent, resilient, accessible, and leak-free.
 
 ---
+
 
 
 
