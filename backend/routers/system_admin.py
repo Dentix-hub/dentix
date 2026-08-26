@@ -514,6 +514,8 @@ async def export_audit_logs(
     user_id: int = None,
     action: str = None,
     entity_type: str = None,
+    start_date: datetime.datetime = None,
+    end_date: datetime.datetime = None,
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
@@ -524,7 +526,9 @@ async def export_audit_logs(
         "tenant_id": tenant_id,
         "user_id": user_id,
         "action": action,
-        "entity_type": entity_type
+        "entity_type": entity_type,
+        "start_date": start_date,
+        "end_date": end_date,
     }
     logs_data = await SecurityService.get_audit_logs(db, skip=0, limit=10000, filters=filters)
     logs = logs_data["logs"]
@@ -539,7 +543,7 @@ async def export_audit_logs(
             log["action"],
             f"{log['entity_type']} #{log['entity_id']}",
             log["performed_by_username"],
-            log["tenant_id"],
+            log["tenant_id"] if log["tenant_id"] is not None else "Global",
             log["created_at"].isoformat() if log["created_at"] else "",
             log["details"]
         ])
@@ -551,3 +555,4 @@ async def export_audit_logs(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+

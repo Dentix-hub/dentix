@@ -1,9 +1,8 @@
-
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import logger from '@/utils/logger';
-import { User, Activity, Search, RotateCcw, Download, ChevronRight, ChevronLeft, Eye, X } from 'lucide-react';
+import { User, Activity, Search, RotateCcw, Download, ChevronRight, ChevronLeft, Eye, X, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { DateTimePicker } from '@/shared/ui';
+import { DateTimePicker, toast } from '@/shared/ui';
 import { api } from '@/api';
 
 const AuditLogViewer = ({ tenants = [] }) => {
@@ -11,6 +10,7 @@ const AuditLogViewer = ({ tenants = [] }) => {
     const isRtl = i18n.language === 'ar';
     const [data, setData] = useState({ logs: [], total: 0, pages: 0, current_page: 1 });
     const [loading, setLoading] = useState(false);
+    const [fetchError, setFetchError] = useState(null);
     const [filters, setFilters] = useState({
         tenant_id: '',
         user_id: '',
@@ -25,12 +25,35 @@ const AuditLogViewer = ({ tenants = [] }) => {
     const filtersRef = useRef(filters);
     filtersRef.current = filters;
 
+    // Tenant ID to name lookup map
+    const tenantMap = useMemo(() => {
+        const map = new Map();
+        (tenants || []).forEach(tenant => {
+            if (tenant && tenant.id != null) {
+                const label = tenant.name || tenant.clinic_name || `Tenant #${tenant.id}`;
+                map.set(Number(tenant.id), label);
+                map.set(String(tenant.id), label);
+            }
+        });
+        return map;
+    }, [tenants]);
+
+    const getTenantLabel = useCallback((tenantId) => {
+        if (tenantId == null || tenantId === '') {
+            return t('super_admin.audit.system_global') || 'System Global';
+        }
+        return tenantMap.get(tenantId) || tenantMap.get(Number(tenantId)) || `Tenant #${tenantId}`;
+    }, [tenantMap, t]);
+
     const fetchLogs = useCallback(async (requestedFilters = filtersRef.current) => {
         try {
             setLoading(true);
+            setFetchError(null);
             const params = new URLSearchParams();
             Object.entries(requestedFilters).forEach(([key, val]) => {
-                if (val) params.append(key, val);
+                if (val !== undefined && val !== null && val !== '') {
+                    params.append(key, val);
+                }
             });
             const res = await api.get(`/api/v1/admin/system/audit-logs?${params.toString()}`);
             const responseData = res.data.data || res.data;
@@ -42,6 +65,7 @@ const AuditLogViewer = ({ tenants = [] }) => {
             });
         } catch (err) {
             logger.error('Fetch logs error:', err);
+            setFetchError(err.response?.data?.detail || err.message || 'Failed to fetch audit logs');
         } finally {
             setLoading(false);
         }
@@ -60,15 +84,19 @@ const AuditLogViewer = ({ tenants = [] }) => {
             const res = await api.get(`/api/v1/admin/system/audit-logs/export?${params.toString()}`, {
                 responseType: 'blob'
             });
-            const url = window.URL.createObjectURL(new Blob([res.data]));
+            const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
+            const url = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
             link.setAttribute('download', `audit_logs_${new Date().toISOString().split('T')[0]}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+            toast.success(t('super_admin.audit.export_success') || 'تم تصدير سجل التدقيق بنجاح');
         } catch (err) {
-            alert(t('super_admin.audit.export_error'));
+            logger.error('Export logs error:', err);
+            toast.error(t('super_admin.audit.export_error') || 'فشل في تصدير السجل');
         }
     };
 
@@ -138,7 +166,7 @@ const AuditLogViewer = ({ tenants = [] }) => {
                             dir={isRtl ? 'rtl' : 'ltr'}
                         >
                             <option value="">{t('super_admin.audit.all_tenants')}</option>
-                            {tenants.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            {tenants.map(tn => <option key={tn.id} value={tn.id}>{tn.name || tn.clinic_name}</option>)}
                         </select>
                     </div>
                     <div>
@@ -173,7 +201,7 @@ const AuditLogViewer = ({ tenants = [] }) => {
                             />
                         </div>
                         <button
-                            onClick={fetchLogs}
+                            onClick={() => fetchLogs()}
                             className="p-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-lg shadow-indigo-500/20 transition-all active:scale-90"
                             title={t('super_admin.audit.search')}
                         >
@@ -211,7 +239,22 @@ const AuditLogViewer = ({ tenants = [] }) => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {data.logs.map(log => (
+                            {fetchError ? (
+                                <tr>
+                                    <td colSpan="6" className="p-16 text-center">
+                                        <div className="flex flex-col items-center justify-center gap-3">
+                                            <AlertCircle size={48} className="text-rose-500" />
+                                            <p className="text-slate-700 dark:text-slate-200 font-black text-base">{fetchError}</p>
+                                            <button
+                                                onClick={() => fetchLogs()}
+                                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all"
+                                            >
+                                                {t('common.retry') || 'إعادة المحاولة'}
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : data.logs.map(log => (
                                 <tr key={log.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group">
                                     <td className="p-6 text-sm font-bold text-slate-500" dir="ltr">
                                         {new Date(log.created_at).toLocaleString(isRtl ? 'ar-EG' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })}
@@ -229,7 +272,7 @@ const AuditLogViewer = ({ tenants = [] }) => {
                                     </td>
                                     <td className="p-6">
                                         <span className="text-xs font-bold bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-full text-slate-600 dark:text-slate-400">
-                                            {log.tenant_name || 'System Global'}
+                                            {getTenantLabel(log.tenant_id)}
                                         </span>
                                     </td>
                                     <td className="p-6">
@@ -245,13 +288,14 @@ const AuditLogViewer = ({ tenants = [] }) => {
                                         <button 
                                             onClick={() => setSelectedLog(log)}
                                             className="p-3 bg-slate-50 dark:bg-slate-800 hover:bg-indigo-600 hover:text-white text-slate-500 rounded-2xl transition-all active:scale-90"
+                                            aria-label={t('super_admin.audit.view_details') || 'عرض التفاصيل'}
                                         >
                                             <Eye size={18} />
                                         </button>
                                     </td>
                                 </tr>
                             ))}
-                            {data.logs.length === 0 && !loading && (
+                            {data.logs.length === 0 && !loading && !fetchError && (
                                 <tr>
                                     <td colSpan="6" className="p-20 text-center">
                                         <Activity size={60} className="mx-auto text-slate-200 mb-4" />
@@ -331,6 +375,10 @@ const AuditLogViewer = ({ tenants = [] }) => {
                                             <span className="font-black">{selectedLog.performed_by_username}</span>
                                         </div>
                                         <div className={`flex justify-between ${isRtl ? 'flex-row-reverse' : ''}`}>
+                                            <span className="font-bold text-slate-500">{t('super_admin.audit.all_tenants')}:</span>
+                                            <span className="font-black">{getTenantLabel(selectedLog.tenant_id)}</span>
+                                        </div>
+                                        <div className={`flex justify-between ${isRtl ? 'flex-row-reverse' : ''}`}>
                                             <span className="font-bold text-slate-500">{t('super_admin.audit.ip')}:</span>
                                             <span className="font-mono text-slate-600" dir="ltr">{selectedLog.ip_address}</span>
                                         </div>
@@ -373,4 +421,3 @@ const AuditLogViewer = ({ tenants = [] }) => {
 };
 
 export default AuditLogViewer;
-

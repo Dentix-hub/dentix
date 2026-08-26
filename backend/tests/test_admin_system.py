@@ -65,3 +65,15 @@ def test_audit_logs_requires_super_admin(client, admin_headers):
     """Test that audit logs endpoint rejects non-super-admin."""
     response = client.get("/api/v1/admin/audit-logs", headers=admin_headers)
     assert response.status_code == 403
+
+
+def test_export_audit_logs_with_date_filter(client, super_admin_headers):
+    """Test exporting audit logs to CSV with date filtering."""
+    response = client.get(
+        "/api/v1/admin/system/audit-logs/export?start_date=2026-01-01T00:00:00&end_date=2026-12-31T23:59:59",
+        headers=super_admin_headers,
+    )
+    assert response.status_code == 200
+    assert response.headers.get("content-type") == "text/csv; charset=utf-8"
+    assert "ID,Action,Entity,Performed By,Tenant,Date,Details" in response.text
+
