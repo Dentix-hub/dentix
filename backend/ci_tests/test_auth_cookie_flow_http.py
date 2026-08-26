@@ -32,6 +32,9 @@ TENANT_ID = 993700
 USER_ID = 9937001
 USERNAME = "Pg_Cookie_Flow_Admin"
 PASSWORD = "cookie-flow-pass-123"
+SUPER_ADMIN_ID = 9937002
+SUPER_ADMIN_USERNAME = "Pg_Super_Admin_Login"
+SUPER_ADMIN_PASSWORD = "super-admin-flow-pass-123"
 
 
 async def _seed() -> None:
@@ -42,10 +45,10 @@ async def _seed() -> None:
     async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
         async with session.bypass_rls() as db:
             existing = (
-                await db.execute(
-                    select(models.User).where(models.User.id == USER_ID)
-                )
-            ).scalars().first()
+                (await db.execute(select(models.User).where(models.User.id == USER_ID)))
+                .scalars()
+                .first()
+            )
             if existing is not None:
                 return
             db.add_all(
@@ -65,6 +68,38 @@ async def _seed() -> None:
                         is_active=True,
                     ),
                 ]
+            )
+            await db.commit()
+
+
+async def _seed_super_admin() -> None:
+    from backend import models
+    from backend.auth import get_password_hash
+    from backend.database import AsyncSessionLocal, RlsContext
+
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+        async with session.bypass_rls() as db:
+            existing = (
+                (
+                    await db.execute(
+                        select(models.User).where(models.User.id == SUPER_ADMIN_ID)
+                    )
+                )
+                .scalars()
+                .first()
+            )
+            if existing is not None:
+                return
+            db.add(
+                models.User(
+                    id=SUPER_ADMIN_ID,
+                    username=SUPER_ADMIN_USERNAME,
+                    email=f"{SUPER_ADMIN_USERNAME.lower()}@example.com",
+                    hashed_password=get_password_hash(SUPER_ADMIN_PASSWORD),
+                    role="super_admin",
+                    tenant_id=None,
+                    is_active=True,
+                )
             )
             await db.commit()
 
@@ -135,4 +170,32 @@ async def test_login_cookie_session_refresh_under_nobypassrls():
         assert client_a.cookies.get("dentix_session_hint") == "1"
 
         session_b_after_a_refresh = await client_b.get("/api/v1/auth/session")
-        assert session_b_after_a_refresh.status_code == 200, session_b_after_a_refresh.text
+        assert session_b_after_a_refresh.status_code == 200, (
+            session_b_after_a_refresh.text
+        )
+
+
+@pytest.mark.asyncio
+async def test_super_admin_login_transfers_bootstrap_row_to_system_write_scope():
+    """A contextless super-admin row must not be attached to two sessions."""
+    import httpx
+
+    from backend.main import app
+
+    await _seed_super_admin()
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        login_res = await client.post(
+            "/api/v1/auth/token",
+            data={
+                "username": SUPER_ADMIN_USERNAME,
+                "password": SUPER_ADMIN_PASSWORD,
+            },
+        )
+
+        assert login_res.status_code == 200, login_res.text
+        body = login_res.json()
+        assert body["role"] == "super_admin"
+        assert body["user"]["tenant_id"] is None
+        assert body["session_id"]
