@@ -113,8 +113,8 @@ async def update_super_admin_profile(
     return success_response(data=schemas.User.model_validate(user), message="تم تحديث الملف الشخصي بنجاح")
 
 
-from backend.core.logging_sanitizer import sanitize_text, sanitize_stack_trace
 
+from backend.core.logging_sanitizer import sanitize_text, sanitize_stack_trace
 
 @router.post("/logs", response_model=StandardResponse[dict])
 @limiter.limit("10/minute")
@@ -220,11 +220,13 @@ async def export_system_logs(
     output = io.StringIO()
     writer = csv.writer(output)
 
+    # Header
     writer.writerow([
         "ID", "Level", "Source", "Message", "Path", "Method",
         "User ID", "Tenant ID", "IP Address", "User Agent", "Created At", "Stack Trace"
     ])
 
+    # Data
     for log in logs:
         writer.writerow([
             log.id,
