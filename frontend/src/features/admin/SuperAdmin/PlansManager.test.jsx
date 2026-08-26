@@ -1,31 +1,44 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import PlansManager from './PlansManager';
 import { parseFeatures, serializeFeatures } from './planFeatureUtils';
-
+import { createSubscriptionPlan, deleteSubscriptionPlan } from '@/api';
+import { toast } from '@/shared/ui';
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
-        t: (key) => key,
+        t: (key, options) => {
+            if (options?.name) return `${key} ${options.name}`;
+            return key;
+        },
         i18n: { language: 'ar' },
     }),
 }));
 
 vi.mock('@/api', () => ({
     createSubscriptionPlan: vi.fn(),
+    deleteSubscriptionPlan: vi.fn(),
     api: {
         delete: vi.fn(),
     },
 }));
 
-vi.mock('@/shared/ui', () => ({
-    toast: {
-        success: vi.fn(),
-        error: vi.fn(),
-    },
-}));
+vi.mock('@/shared/ui', async () => {
+    const actual = await vi.importActual('@/shared/ui');
+    return {
+        ...actual,
+        toast: {
+            success: vi.fn(),
+            error: vi.fn(),
+        },
+    };
+});
 
-describe('PlansManager features serialization & parser', () => {
+describe('PlansManager MS-14 (features, creation, validation, AI limits, and deletion)', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
     it('parses JSON array format correctly', () => {
         const raw = JSON.stringify(['ai_insights', 'multi_branch', 'custom_addon']);
         const parsed = parseFeatures(raw);
@@ -98,5 +111,115 @@ describe('PlansManager features serialization & parser', () => {
 
         // Feature checklist should be visible in edit mode
         expect(screen.getByText('إدارة الفروع المتعددة')).toBeInTheDocument();
+    });
+
+    it('validates required fields on plan creation', async () => {
+        render(
+            <PlansManager
+                plans={[]}
+                editingPlan={null}
+                setEditingPlan={vi.fn()}
+                editedPlanData={{}}
+                setEditedPlanData={vi.fn()}
+                handleSavePlan={vi.fn()}
+            />
+        );
+
+        // Open create card
+        fireEvent.click(screen.getByText('super_admin.plans.add_plan'));
+
+        // Submit without filling fields
+        fireEvent.click(screen.getByText('super_admin.plans.create_button'));
+
+        expect(toast.error).toHaveBeenCalledWith('super_admin.plans.error_missing_code');
+        expect(createSubscriptionPlan).not.toHaveBeenCalled();
+    });
+
+    it('submits valid plan creation with sanitized numbers and AI fields', async () => {
+        createSubscriptionPlan.mockResolvedValueOnce({ data: { success: true } });
+        const onRefresh = vi.fn();
+
+        render(
+            <PlansManager
+                plans={[]}
+                editingPlan={null}
+                setEditingPlan={vi.fn()}
+                editedPlanData={{}}
+                setEditedPlanData={vi.fn()}
+                handleSavePlan={vi.fn()}
+                onRefresh={onRefresh}
+            />
+        );
+
+        fireEvent.click(screen.getByText('super_admin.plans.add_plan'));
+
+        const codeInput = screen.getByLabelText('super_admin.plans.plan_id_label');
+        const nameInput = screen.getByLabelText('super_admin.plans.plan_name_label');
+        const priceInput = screen.getByLabelText((content) => content.includes('super_admin.plans.price_label'));
+        const durationInput = screen.getByLabelText('super_admin.plans.duration_label');
+
+        fireEvent.change(codeInput, { target: { value: 'enterprise_plan' } });
+        fireEvent.change(nameInput, { target: { value: 'باقة الشركات' } });
+        fireEvent.change(priceInput, { target: { value: '5000' } });
+        fireEvent.change(durationInput, { target: { value: '365' } });
+
+        fireEvent.click(screen.getByText('super_admin.plans.create_button'));
+
+        await waitFor(() => {
+            expect(createSubscriptionPlan).toHaveBeenCalledWith(expect.objectContaining({
+                name: 'enterprise_plan',
+                display_name_ar: 'باقة الشركات',
+                price: 5000,
+                duration_days: 365,
+                is_ai_enabled: false,
+                is_default: false,
+            }));
+            expect(toast.success).toHaveBeenCalledWith('super_admin.plans.create_success');
+            expect(onRefresh).toHaveBeenCalled();
+        });
+    });
+
+    it('confirms plan deletion using ConfirmDialog and invokes deleteSubscriptionPlan', async () => {
+        deleteSubscriptionPlan.mockResolvedValueOnce({ data: { success: true } });
+        const onRefresh = vi.fn();
+        const mockPlans = [
+            {
+                id: 42,
+                name: 'basic_plan',
+                display_name_ar: 'الخطة البسيطة',
+                price: 50,
+                duration_days: 30,
+                features: '[]',
+            },
+        ];
+
+        render(
+            <PlansManager
+                plans={mockPlans}
+                editingPlan={null}
+                setEditingPlan={vi.fn()}
+                editedPlanData={{}}
+                setEditedPlanData={vi.fn()}
+                handleSavePlan={vi.fn()}
+                onRefresh={onRefresh}
+            />
+        );
+
+        // Click delete button
+        const deleteBtn = screen.getByLabelText('super_admin.plans.delete_plan');
+        fireEvent.click(deleteBtn);
+
+        // Confirm dialog should be open
+        expect(screen.getByText('super_admin.plans.delete_title')).toBeInTheDocument();
+
+        // Confirm
+        const confirmBtn = screen.getByRole('button', { name: 'common.delete' });
+        fireEvent.click(confirmBtn);
+
+        await waitFor(() => {
+            expect(deleteSubscriptionPlan).toHaveBeenCalledWith(42);
+            expect(toast.success).toHaveBeenCalledWith('super_admin.plans.delete_success');
+            expect(onRefresh).toHaveBeenCalled();
+        });
     });
 });

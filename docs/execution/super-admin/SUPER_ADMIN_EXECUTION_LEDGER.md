@@ -352,7 +352,8 @@ Notes:
 
 ## MS-13 — Manual payment flow
 Status: PASS
-Commit: Pending
+Commit: af2763c2
+
 Files changed:
 - `frontend/src/pages/admin/FinancePage.jsx`
 - `frontend/src/pages/admin/FinancePage.test.jsx`
@@ -372,6 +373,29 @@ Manual verification:
 
 Notes:
 - Manual subscription payment flow is robust, prevents duplicate submits, and uses canonical shared dialogs.
+
+## MS-14 — Plan management
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/features/admin/SuperAdmin/PlansManager.jsx`
+- `frontend/src/features/admin/SuperAdmin/PlansManager.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/PlansManager.test.jsx --run` -> PASS (1 test file, 7 tests passed)
+
+Manual verification:
+- Replaced browser `window.confirm` with shared accessible `ConfirmDialog` primitive for plan deletion.
+- Added numeric payload sanitizers (`sanitizeNumber`, `sanitizeNullableInt`) preventing NaN values in price, duration, max_users, max_patients, and AI limits.
+- Added strict field validation for plan code, arabic name, positive duration, and non-negative price before dispatching API calls.
+- Replaced direct `api.delete` with canonical `deleteSubscriptionPlan` SDK function.
+- Preserved `is_default`, `is_ai_enabled`, `ai_daily_limit`, and synchronized feature checklists across both create and edit flows.
+- Surfaced backend error messages and detail strings in toast notifications.
+
+Notes:
+- Plan management is resilient, validates inputs, and uses canonical dialogs and API methods.
 
 ---
 
