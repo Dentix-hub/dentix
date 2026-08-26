@@ -81,7 +81,7 @@ export default function SystemPage() {
             }
             window.history.replaceState({}, document.title, window.location.pathname);
         }
-    }, []);
+    }, [t]);
 
     const handleProfileSubmit = (event) => {
         event.preventDefault();
