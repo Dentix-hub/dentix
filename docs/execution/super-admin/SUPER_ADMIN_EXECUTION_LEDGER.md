@@ -700,7 +700,8 @@ Manual verification:
 
 ## MS-27 — AI frontend truthfulness
 Status: PASS
-Commit: Pending
+Commit: 2f4ef893
+
 Files changed:
 - `frontend/src/features/admin/SuperAdmin/AIAdminDashboard.jsx`
 - `frontend/src/features/admin/SuperAdmin/AIAdminDashboard.test.jsx`
@@ -718,10 +719,33 @@ Manual verification:
 - Dark-mode styles applied to chart tooltip backgrounds, grid strokes, and borders.
 - Reduced nonfunctional hover translate motion in favor of subtle transitions.
 
+## MS-28 — Super Admin shell
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/layouts/Layout.jsx`
+- `frontend/src/features/admin/SuperAdmin/SuperAdminCommandPalette.jsx`
+- `frontend/src/features/admin/SuperAdmin/SuperAdminCommandPalette.test.jsx`
+- `frontend/src/locales/ar/translation.json`
+- `frontend/src/locales/en/translation.json`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/SuperAdminCommandPalette.test.jsx --run` -> PASS (1 test file, 3 tests passed)
+
+Manual verification:
+- Primary header search for Super Admin routes to dedicated platform Command Palette instead of clinic patient search.
+- Clinic user roles retain patient `GlobalSearch` unchanged.
+- Removed duplicate and misleading sidebar labels (disambiguated Clinics, Support Inbox, and System Settings).
+- Full Arabic/English internationalization and RTL layout alignment in Command Palette.
+- Preserved Ctrl/Cmd+K shortcuts for rapid platform navigation.
+
 Notes:
-- AI Admin dashboard displays strictly verified metrics without mock data or phantom buttons.
+- Super Admin shell now operates fully within platform context without mixing clinic patient semantics.
 
 ---
+
 
 
 

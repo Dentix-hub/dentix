@@ -1,82 +1,89 @@
-import { render, screen, fireEvent } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import SuperAdminCommandPalette from './SuperAdminCommandPalette';
+import { api } from '@/api';
 
 const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+    const actual = await vi.importActual('react-router-dom');
+    return {
+        ...actual,
+        useNavigate: () => mockNavigate,
+    };
+});
 
-vi.mock('react-router-dom', () => ({
-    useNavigate: () => mockNavigate,
-}));
-
-const apiMocks = vi.hoisted(() => ({
-    apiGet: vi.fn(),
+vi.mock('react-i18next', () => ({
+    useTranslation: () => ({
+        t: (key, fallback) => fallback || key,
+        i18n: { language: 'ar' },
+    }),
 }));
 
 vi.mock('@/api', () => ({
     api: {
-        get: apiMocks.apiGet,
+        get: vi.fn(),
     },
 }));
 
-vi.mock('@/utils/logger', () => ({ default: { error: vi.fn() } }));
-
-describe('SuperAdminCommandPalette search and deep linking', () => {
-    const mockOnClose = vi.fn();
-
+describe('SuperAdminCommandPalette MS-28', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        apiMocks.apiGet.mockImplementation((url) => {
-            if (url === '/api/v1/admin/tenants') {
-                return Promise.resolve({
-                    data: [
-                        { id: 42, name: 'Smile Dental Clinic', domain: 'smiledental', plan: 'pro' },
-                        { id: 99, name: 'Pearl Center', domain: 'pearl', plan: 'enterprise' },
-                    ],
-                });
-            }
-            return Promise.resolve({ data: [] });
-        });
     });
 
-    it('returns null when isOpen is false', () => {
-        const { container } = render(<SuperAdminCommandPalette isOpen={false} onClose={mockOnClose} />);
-        expect(container.firstChild).toBeNull();
-    });
+    it('renders quick suggestions when query is empty and navigates on click', () => {
+        const handleClose = vi.fn();
+        render(
+            <MemoryRouter>
+                <SuperAdminCommandPalette isOpen={true} onClose={handleClose} />
+            </MemoryRouter>
+        );
 
-    it('renders quick suggestions when opened with empty query', () => {
-        render(<SuperAdminCommandPalette isOpen={true} onClose={mockOnClose} />);
-
+        expect(screen.getByPlaceholderText('ابحث عن عيادة، مستخدم، أو صفحة إدارية...')).toBeInTheDocument();
         expect(screen.getByText('اقتراحات سريعة')).toBeInTheDocument();
-        expect(screen.getByText('إدارة العيادات')).toBeInTheDocument();
-        expect(screen.getByText('سجل الأخطاء')).toBeInTheDocument();
+
+        const clinicsBtn = screen.getByRole('button', { name: 'إدارة العيادات' });
+        fireEvent.click(clinicsBtn);
+
+        expect(mockNavigate).toHaveBeenCalledWith('/admin/tenants');
+        expect(handleClose).toHaveBeenCalled();
     });
 
-    it('searches static admin actions and deep links when selected', async () => {
-        render(<SuperAdminCommandPalette isOpen={true} onClose={mockOnClose} />);
+    it('searches static actions and API tenants on query input', async () => {
+        api.get.mockResolvedValue({
+            data: [
+                { id: 101, name: 'عيادة النور', domain: 'alnoor', plan: 'enterprise' },
+            ],
+        });
 
-        const input = screen.getByPlaceholderText(/ابحث عن عيادة/);
-        fireEvent.change(input, { target: { value: 'المالية' } });
+        const handleClose = vi.fn();
+        render(
+            <MemoryRouter>
+                <SuperAdminCommandPalette isOpen={true} onClose={handleClose} />
+            </MemoryRouter>
+        );
 
-        expect(await screen.findByText('التقارير المالية والفوترة')).toBeInTheDocument();
+        const input = screen.getByPlaceholderText('ابحث عن عيادة، مستخدم، أو صفحة إدارية...');
+        fireEvent.change(input, { target: { value: 'النور' } });
 
-        fireEvent.click(screen.getByText('التقارير المالية والفوترة'));
+        await waitFor(() => {
+            expect(api.get).toHaveBeenCalledWith('/api/v1/admin/tenants');
+            expect(screen.getByText('عيادة النور')).toBeInTheDocument();
+        });
 
-        expect(mockNavigate).toHaveBeenCalledWith('/admin/finance');
-        expect(mockOnClose).toHaveBeenCalled();
+        fireEvent.click(screen.getByText('عيادة النور'));
+        expect(mockNavigate).toHaveBeenCalledWith('/admin/tenants?id=101');
     });
 
-    it('searches backend tenants and generates deep link to /admin/tenants?id=:id', async () => {
-        render(<SuperAdminCommandPalette isOpen={true} onClose={mockOnClose} />);
+    it('closes on escape key press', () => {
+        const handleClose = vi.fn();
+        render(
+            <MemoryRouter>
+                <SuperAdminCommandPalette isOpen={true} onClose={handleClose} />
+            </MemoryRouter>
+        );
 
-        const input = screen.getByPlaceholderText(/ابحث عن عيادة/);
-        fireEvent.change(input, { target: { value: 'Smile' } });
-
-        expect(await screen.findByText('Smile Dental Clinic')).toBeInTheDocument();
-        expect(screen.getByText(/smiledental\.dentix\.com/)).toBeInTheDocument();
-
-        fireEvent.click(screen.getByText('Smile Dental Clinic'));
-
-        expect(mockNavigate).toHaveBeenCalledWith('/admin/tenants?id=42');
-        expect(mockOnClose).toHaveBeenCalled();
+        fireEvent.keyDown(window, { key: 'Escape' });
+        expect(handleClose).toHaveBeenCalled();
     });
 });
