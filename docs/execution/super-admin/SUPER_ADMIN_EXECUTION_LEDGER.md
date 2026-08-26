@@ -483,7 +483,8 @@ Notes:
 
 ## MS-18 — Profile update alignment
 Status: PASS
-Commit: Pending
+Commit: 5534fea1
+
 Files changed:
 - `backend/routers/system_admin.py`
 - `backend/tests/test_super_admin_profile.py`
@@ -508,6 +509,29 @@ Manual verification:
 
 Notes:
 - Super Admin profile management conforms to standard password policy, secure error propagation, and reactive auth state synchronization.
+
+## MS-19 — 2FA hardening
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/features/admin/SuperAdmin/TwoFactorSetup.jsx`
+- `frontend/src/features/admin/SuperAdmin/TwoFactorSetup.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/TwoFactorSetup.test.jsx --run` -> PASS (1 test file, 5 tests passed)
+
+Manual verification:
+- Replaced browser `window.confirm` with shared accessible `ConfirmDialog` primitive for disabling 2FA.
+- Reset setup state (`setupData`, secret, QR code, verification code) on cancel to prevent stale credentials from leaking or persisting.
+- Added strict null guards for `setupData`, `secret`, and `qr_code`.
+- Implemented robust clipboard copy with try-catch and informative toasts.
+- Standardized Arabic strings with full i18n support and RTL alignment.
+- Protected all submission flows against duplicate dispatch and enforced 6-digit code validation.
+
+Notes:
+- 2FA setup, validation, cancellation, and disable flows are deterministic, safe, and fully tested.
 
 ---
 
