@@ -48,18 +48,32 @@ async def get_admin_dashboard_stats(
 
 @cached(key_prefix="admin_dashboard_stats", expire=300)
 async def _get_admin_stats_logic(db: AsyncSession):
-    stmt = select(func.count(models.Tenant.id))
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    # Total non-archived tenants
+    stmt = select(func.count(models.Tenant.id)).where(models.Tenant.is_deleted == False)  # noqa: E712
     total_tenants = (await db.execute(stmt)).scalar() or 0
 
-    stmt = select(func.count(models.Tenant.id)).where(models.Tenant.is_active == True)  # noqa: E712
+    # Operational active tenants: active, not deleted, and subscription not expired
+    stmt = select(func.count(models.Tenant.id)).where(
+        models.Tenant.is_deleted == False,  # noqa: E712
+        models.Tenant.is_active == True,  # noqa: E712
+        (models.Tenant.subscription_end_date.is_(None)) | (models.Tenant.subscription_end_date >= now)
+    )
     active_tenants = (await db.execute(stmt)).scalar() or 0
 
-    stmt = select(func.count(models.Tenant.id)).where(models.Tenant.subscription_end_date < datetime.now(timezone.utc))
+    # Expired tenants: not deleted, but subscription end date is in the past
+    stmt = select(func.count(models.Tenant.id)).where(
+        models.Tenant.is_deleted == False,  # noqa: E712
+        models.Tenant.subscription_end_date.is_not(None),
+        models.Tenant.subscription_end_date < now
+    )
     expired_tenants = (await db.execute(stmt)).scalar() or 0
 
     # Total revenue from all payments
     stmt = select(func.sum(models.SubscriptionPayment.amount))
     total_revenue = (await db.execute(stmt)).scalar() or 0
+
 
     # Monthly revenue calculation (Last 12 months)
     monthly_revenue = {}

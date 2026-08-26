@@ -31,7 +31,8 @@ const ActiveSubscriptions = ({ tenants, plans, getDaysRemaining }) => {
                         {(Array.isArray(tenants) && tenants.length > 0) ? tenants.map((tenant) => {
                             const daysLeft = safeGetDaysRemaining(tenant.subscription_end_date);
                             const plan = Array.isArray(plans) ? plans.find(p => p.id === tenant.plan_id) : null;
-                            const isActive = tenant.is_active && (daysLeft === null || daysLeft > 0);
+                            const isDeleted = Boolean(tenant.is_deleted);
+                            const isActive = !isDeleted && tenant.is_active && (daysLeft === null || daysLeft >= 0);
                             const tenantName = tenant.name || tenant.clinic_name || 'Clinic';
                             const planName = plan ? (isRtl ? plan.display_name_ar : plan.display_name_en || plan.name) : (t('super_admin.plans.trial') || 'تجريبية');
                             const priceFormatted = plan?.price != null ? Number(plan.price).toLocaleString(isRtl ? 'ar-EG' : 'en-US') : '0';
@@ -75,12 +76,13 @@ const ActiveSubscriptions = ({ tenants, plans, getDaysRemaining }) => {
                                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                                             : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'}`}>
                                             {isActive ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
-                                            {isActive ? (t('common.active') || 'نشط') : (t('common.expired') || 'منتهي')}
+                                            {isDeleted ? (t('super_admin.tenants.archived') || 'مؤرشف') : (isActive ? (t('common.active') || 'نشط') : (t('common.expired') || 'منتهي'))}
                                         </span>
                                     </td>
                                 </tr>
                             );
                         }) : (
+
                             <tr>
                                 <td colSpan="6" className="p-10 text-center text-slate-500">
                                     {t('super_admin.tenants.no_tenants') || 'لا توجد اشتراكات نشطة'}

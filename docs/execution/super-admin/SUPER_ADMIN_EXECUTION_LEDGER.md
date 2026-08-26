@@ -269,6 +269,32 @@ Manual verification:
 Notes:
 - Finance dashboard and tables are fully responsive, localized, and resilient against missing/null runtime fields.
 
+## MS-10 — Subscription status semantics
+Status: PASS
+Commit: Pending
+Files changed:
+- `backend/routers/admin_stats.py`
+- `backend/tests/test_admin_stats_semantics.py`
+- `frontend/src/features/admin/SuperAdmin/TenantsManager.jsx`
+- `frontend/src/features/admin/SuperAdmin/ActiveSubscriptions.jsx`
+- `frontend/src/features/admin/SuperAdmin/SubscriptionSemantics.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/SubscriptionSemantics.test.jsx --run` -> PASS (1 test file, 3 tests passed)
+- `uv run ruff check --config ruff.toml backend/routers/admin_stats.py backend/tests/test_admin_stats_semantics.py` -> PASS (All checks passed)
+- `$env:PYTHONPATH="c:\Users\es\DENTIX"; uv run pytest backend/tests/test_admin_stats_semantics.py` -> PASS (1 passed)
+
+Manual verification:
+- Operational active defined strictly as `is_deleted == False AND is_active == True AND (subscription_end_date IS NULL OR subscription_end_date >= now)`.
+- Expired defined strictly as `is_deleted == False AND subscription_end_date < now`.
+- Archived/deleted tenants (`is_deleted == True`) excluded from operational counts across dashboard KPIs, tenant tables, and subscriptions.
+- Documented chosen definition in backend and frontend unit tests.
+
+Notes:
+- Subscription status counts and labels are now 100% unified and consistent across Super Admin.
+
 ---
 
 

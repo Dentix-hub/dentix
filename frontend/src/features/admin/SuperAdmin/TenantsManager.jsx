@@ -69,15 +69,16 @@ const TenantsManager = ({
                                         )}
                                     </td>
                                     <td className="p-6 text-center">
-                                        <span className={`px-4 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${tenant.is_active && (!daysLeft || daysLeft > 0)
+                                        <span className={`px-4 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 ${!isDeleted && tenant.is_active && (daysLeft === null || daysLeft >= 0)
                                             ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
                                             : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
                                             }`}>
-                                            <span className={`w-2 h-2 rounded-full ${tenant.is_active && (!daysLeft || daysLeft > 0) ? 'bg-emerald-500' : 'bg-rose-500'
+                                            <span className={`w-2 h-2 rounded-full ${!isDeleted && tenant.is_active && (daysLeft === null || daysLeft >= 0) ? 'bg-emerald-500' : 'bg-rose-500'
                                                 }`} />
-                                            {tenant.is_active && (!daysLeft || daysLeft > 0) ? t('super_admin.tenants.active') : t('super_admin.tenants.inactive')}
+                                            {isDeleted ? (t('super_admin.tenants.archived') || 'مؤرشف') : (!tenant.is_active || (daysLeft !== null && daysLeft < 0) ? (t('super_admin.tenants.inactive') || 'غير نشط') : (t('super_admin.tenants.active') || 'نشط'))}
                                         </span>
                                     </td>
+
                                     <td className="p-6">
                                         <div className="flex justify-center">
                                             {daysLeft !== null ? (
