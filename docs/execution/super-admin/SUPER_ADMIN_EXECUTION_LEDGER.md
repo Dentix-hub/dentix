@@ -764,7 +764,8 @@ Manual verification:
 
 ## MS-30 — Tenant and user UI consistency
 Status: PASS
-Commit: Pending
+Commit: 03af0e38
+
 Files changed:
 - `frontend/src/pages/admin/TenantsPage.jsx`
 - `frontend/src/features/admin/SuperAdmin/TenantsManager.jsx`
@@ -788,10 +789,30 @@ Manual verification:
 - User searching structured using Axios query parameters (`{ params: { search_query: ... } }`).
 - Role badges localized for all canonical roles (`super_admin`, `admin`, `doctor`, `receptionist`, `accountant`).
 
+## MS-31 — Shared admin feedback primitives
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/pages/admin/PriceLists.jsx`
+- `frontend/src/pages/admin/InsuranceProviders.jsx`
+- `frontend/src/shared/ui/ConfirmDialog.jsx`
+- `frontend/src/shared/ui/ConfirmDialogFeedback.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/shared/ui/ConfirmDialogFeedback.test.jsx --run` -> PASS (1 test file, 3 tests passed)
+
+Manual verification:
+- Verified complete absence of browser-native `alert()` and `confirm()` calls across all in-scope Super Admin pages and feature panels.
+- Replaced deactivation confirms in `PriceLists.jsx` and `InsuranceProviders.jsx` with shared accessible `ConfirmDialog`.
+- Dialog supports cancellation, escape handling, focus management, and danger styling for destructive workflows.
+
 Notes:
-- Tenant and user operations are consistent, resilient, accessible, and leak-free.
+- Super Admin feedback primitives are unified, accessible, and testable.
 
 ---
+
 
 
 
