@@ -33,6 +33,7 @@ vi.mock('@/utils/logger', () => ({ default: { error: vi.fn() } }));
 vi.mock('@/shared/ui', () => ({
     toast: { success: vi.fn(), error: vi.fn() },
     Modal: ({ children, isOpen }) => (isOpen ? <div data-testid="modal">{children}</div> : null),
+    ConfirmDialog: ({ children, isOpen }) => (isOpen ? <div data-testid="confirm-dialog">{children}</div> : null),
 }));
 
 vi.mock('@/features/admin/SuperAdmin/TenantsManager', () => ({
