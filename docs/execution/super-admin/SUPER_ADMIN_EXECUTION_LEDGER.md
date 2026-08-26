@@ -536,7 +536,8 @@ Notes:
 
 ## MS-20 — Backup status truthfulness
 Status: PASS
-Commit: Pending
+Commit: ecbc36ae
+
 Files changed:
 - `frontend/src/pages/admin/SystemPage.jsx`
 - `frontend/src/pages/admin/SystemPage.test.jsx`
@@ -556,6 +557,33 @@ Manual verification:
 
 Notes:
 - Backup operations provide truthful status reporting and resilient cloud storage integration.
+
+## MS-21 — Security partial failures and IP validation
+Status: PASS
+Commit: Pending
+Files changed:
+- `backend/routers/admin_system.py`
+- `backend/services/security_service.py`
+- `backend/tests/test_admin_security_ip_validation.py`
+- `frontend/src/features/admin/SuperAdmin/SecurityPanel.jsx`
+- `frontend/src/features/admin/SuperAdmin/SecurityPanel.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `uv run ruff check --config ruff.toml backend/routers/admin_system.py backend/services/security_service.py backend/tests/test_admin_security_ip_validation.py` -> PASS (All checks passed)
+- `$env:PYTHONPATH = "c:\Users\es\DENTIX"; uv run pytest backend/tests/test_admin_security_ip_validation.py` -> PASS (1 passed, 100% coverage on test)
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/SecurityPanel.test.jsx --run` -> PASS (1 test file, 4 tests passed)
+
+Manual verification:
+- Implemented independent dataset loading via `Promise.allSettled` for security stats, login chart, and blocked IPs list; partial failure in one does not blank others.
+- Replaced hardcoded "High" assurance badge with dynamic calculation reflecting real locked accounts and recent failed attempts.
+- Added strict server-side IPv4/IPv6 address validation using Python's `ipaddress` module in both router and service layers.
+- Replaced browser `alert` and `window.confirm` with shared `Modal`, `toast`, and `ConfirmDialog` primitives.
+- Fixed dark mode chart tooltip and grid styles.
+
+Notes:
+- Security panel operations and IP blocking are resilient against partial network failures and invalid IP inputs.
 
 ---
 

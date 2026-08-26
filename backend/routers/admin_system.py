@@ -335,13 +335,20 @@ async def block_ip(
     current_user: models.User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_async_db),
 ):
+    import ipaddress
     from backend.services.security_service import SecurityService
     ip = block_data.get("ip_address")
     reason = block_data.get("reason", "Administrative block")
-    if not ip:
+    if not ip or not ip.strip():
         raise HTTPException(status_code=400, detail="IP address required")
-    await SecurityService.block_ip(db, ip, reason, current_user.username)
-    return success_response({"message": f"IP {ip} blocked successfully"})
+    clean_ip = ip.strip()
+    try:
+        ipaddress.ip_address(clean_ip)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="عنوان IP غير صالح (Invalid IP address)")
+
+    await SecurityService.block_ip(db, clean_ip, reason, current_user.username)
+    return success_response({"message": f"IP {clean_ip} blocked successfully"})
 
 
 @router.delete("/security/ip-block/{ip_address}")
