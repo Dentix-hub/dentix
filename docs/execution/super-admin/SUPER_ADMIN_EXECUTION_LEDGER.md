@@ -425,7 +425,8 @@ Notes:
 
 ## MS-16 — Targeted notification invariant
 Status: PASS
-Commit: Pending
+Commit: 8196ef25
+
 Files changed:
 - `backend/routers/notifications.py`
 - `backend/tests/test_admin_notifications_invariant.py`
@@ -450,6 +451,34 @@ Manual verification:
 
 Notes:
 - No ownerless or dangling targeted notification can be created across frontend or backend.
+
+## MS-17 — Settings and global announcement
+Status: PASS
+Commit: Pending
+Files changed:
+- `backend/main.py`
+- `frontend/src/features/admin/SuperAdmin/SettingsManager.jsx`
+- `frontend/src/features/admin/SuperAdmin/SettingsManager.test.jsx`
+- `frontend/src/shared/ui/GlobalBanner.jsx`
+- `frontend/src/pages/Support.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `uv run ruff check --config ruff.toml backend/main.py` -> PASS (All checks passed)
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/SettingsManager.test.jsx --run` -> PASS (1 test file, 5 tests passed)
+
+Manual verification:
+- Removed stale `(قريباً)` text from Global Announcement settings card since global announcements are fully live in `GlobalBanner`.
+- Replaced browser `alert` with canonical toast notifications (`toast.success`, `toast.error`).
+- Replaced browser confirmation with shared accessible `ConfirmDialog` primitive for maintenance mode toggle.
+- Added state rollback on API failures in `SettingsManager`.
+- Verified global announcement pipeline: Super Admin updates `global_announcement` -> `/api/v1/global-settings` -> `GlobalBanner` banner display.
+- Replaced obsolete Smart Dental contact fallbacks in `backend/main.py` and `frontend/src/pages/Support.jsx` with canonical `support@dentix.com`.
+- Removed uncalculated static "Available now" claim box from `Support.jsx`.
+
+Notes:
+- Settings are truthful, resilient, and synchronized with live frontend banners and support contact endpoints.
 
 ---
 
