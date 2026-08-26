@@ -585,7 +585,8 @@ Manual verification:
 
 ## MS-22 — Shared health query
 Status: PASS
-Commit: Pending
+Commit: c69631f7
+
 Files changed:
 - `frontend/src/features/admin/SuperAdmin/hooks/useSystemHealth.js`
 - `frontend/src/features/admin/SuperAdmin/SystemHealth.jsx`
@@ -606,6 +607,29 @@ Manual verification:
 
 Notes:
 - Health scoring and telemetry presentations are unified, performant, and purged-CSS safe.
+
+## MS-23 — Background jobs
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/features/admin/SuperAdmin/SystemHealth.jsx`
+- `frontend/src/features/admin/SuperAdmin/SystemHealth.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/SystemHealth.test.jsx --run` -> PASS (1 test file, 4 tests passed)
+
+Manual verification:
+- Implemented horizontal overflow wrapper (`overflow-x-auto min-w-full`) ensuring table usability across mobile and desktop.
+- Added strict null safety for job name, duration, triggered_by, and timestamp fields.
+- Localized job execution statuses (success, running, pending, failed) with appropriate badge colors and icons.
+- Separated empty jobs list state from network/database failure state with dedicated retry button.
+- Fixed success rate calculation to display `—` when 0 jobs exist rather than a misleading 100% or 0%.
+- Styled system check as primary action and business check as secondary action.
+
+Notes:
+- Background jobs telemetry is resilient against empty states, backend timeouts, and null metadata.
 
 ---
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
 import { api } from '@/api';
-import { Activity, Server, Clock, CheckCircle, AlertCircle, AlertTriangle } from 'lucide-react';
+import { Activity, Server, Clock, CheckCircle, AlertTriangle, Play, RefreshCw, XCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@/shared/ui';
 import { useSystemHealth, useInvalidateSystemHealth, HEALTH_STATUS_CLASS_MAP } from './hooks/useSystemHealth';
@@ -12,20 +12,22 @@ export default function SystemHealth() {
     const [jobs, setJobs] = useState([]);
     const [jobsLoading, setJobsLoading] = useState(true);
     const [jobsError, setJobsError] = useState(null);
-    const [runningTest, setRunningTest] = useState(false);
+    const [runningHealthCheck, setRunningHealthCheck] = useState(false);
+    const [runningBusinessCheck, setRunningBusinessCheck] = useState(false);
 
     // Shared Health Query Hook
     const { data: health, isLoading: healthLoading, error: healthError } = useSystemHealth();
     const invalidateHealth = useInvalidateSystemHealth();
 
     const fetchJobs = useCallback(async () => {
+        setJobsLoading(true);
         try {
             const res = await api.get('/api/v1/admin/security/jobs');
             setJobs(Array.isArray(res.data) ? res.data : []);
             setJobsError(null);
         } catch (error) {
             logger.error("Failed to fetch jobs", error);
-            setJobsError(error);
+            setJobsError(error.message || 'فشل تحميل سجل المهام');
             setJobs([]);
         } finally {
             setJobsLoading(false);
@@ -39,7 +41,7 @@ export default function SystemHealth() {
     }, [fetchJobs]);
 
     const runHealthCheck = async () => {
-        setRunningTest(true);
+        setRunningHealthCheck(true);
         try {
             const res = await api.post('/api/v1/admin/health/check');
             invalidateHealth();
@@ -48,40 +50,72 @@ export default function SystemHealth() {
             } else {
                 toast.success(t('super_admin.health.check_success_stable') || 'النظام مستقر تماماً');
             }
-            fetchJobs();
+            await fetchJobs();
         } catch (err) {
             toast.error(t('common.error') || 'حدث خطأ أثناء فحص النظام');
         } finally {
-            setRunningTest(false);
+            setRunningHealthCheck(false);
         }
     };
 
     const runBusinessCheck = async () => {
-        setRunningTest(true);
+        setRunningBusinessCheck(true);
         try {
             const res = await api.post('/api/v1/admin/business/check');
             const { expiring_alerts, churn_alerts } = res.data || {};
             invalidateHealth();
             toast.success(t('super_admin.health.business_check_success', { expiring: expiring_alerts || 0, churn: churn_alerts || 0 }) || `تم فحص الأعمال: ${expiring_alerts || 0} منتهي، ${churn_alerts || 0} ركود`);
-            fetchJobs();
+            await fetchJobs();
         } catch (error) {
             toast.error(t('super_admin.health.business_check_error') || 'فشل فحص الأعمال');
         } finally {
-            setRunningTest(false);
+            setRunningBusinessCheck(false);
         }
     };
 
     const totalJobs = jobs.length;
     const successJobs = jobs.filter(j => j.status === 'success').length;
     const stats = {
-        successRate: totalJobs > 0 ? ((successJobs / totalJobs) * 100).toFixed(1) : (jobsLoading ? '...' : (jobsError ? '—' : '0.0')),
+        // When zero jobs exist, rate is "—" rather than a fake 100% or 0%
+        successRate: totalJobs > 0 ? `${((successJobs / totalJobs) * 100).toFixed(1)}%` : (jobsLoading ? '...' : '—'),
         lastBackup: jobs.find(j => (j.job_name || '').toLowerCase().includes('backup'))?.started_at || null,
-        avgLatency: totalJobs > 0 ? (jobs.reduce((acc, j) => acc + (Number(j.duration_seconds) || 0), 0) / totalJobs).toFixed(2) : '0.00'
+        avgLatency: totalJobs > 0 ? `${(jobs.reduce((acc, j) => acc + (Number(j.duration_seconds) || 0), 0) / totalJobs).toFixed(2)}s` : '—'
     };
 
     const healthScore = health?.score !== null && health?.score !== undefined ? health.score : 0;
     const statusKey = healthError ? 'unknown' : (health?.status || (healthScore >= 90 ? 'healthy' : (healthScore >= 70 ? 'warning' : 'critical')));
     const classes = HEALTH_STATUS_CLASS_MAP[statusKey] || HEALTH_STATUS_CLASS_MAP.unknown;
+
+    const getJobStatusBadge = (status) => {
+        const normalized = (status || '').toLowerCase();
+        switch (normalized) {
+            case 'success':
+                return {
+                    label: t('super_admin.health.status_success') || 'ناجح',
+                    className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+                    icon: CheckCircle
+                };
+            case 'running':
+                return {
+                    label: t('super_admin.health.status_running') || 'قيد التشغيل',
+                    className: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400',
+                    icon: Play
+                };
+            case 'pending':
+                return {
+                    label: t('super_admin.health.status_pending') || 'قيد الانتظار',
+                    className: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400',
+                    icon: Clock
+                };
+            case 'failed':
+            default:
+                return {
+                    label: t('super_admin.health.status_failed') || 'فاشل',
+                    className: 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400',
+                    icon: XCircle
+                };
+        }
+    };
 
     return (
         <div className="space-y-6 animate-fade-in-up" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -90,24 +124,26 @@ export default function SystemHealth() {
                     <Activity className="text-blue-500" />
                     {t('super_admin.health.background_jobs') || 'المهام الخلفية وصحة النظام'}
                 </h3>
-                <div className="flex gap-2 w-full md:w-auto">
+                <div className="flex gap-3 w-full md:w-auto">
+                    {/* Secondary Action: Business Check */}
                     <button
                         type="button"
                         onClick={runBusinessCheck}
-                        disabled={runningTest}
-                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-lg font-bold text-sm disabled:opacity-50 transition-all active:scale-95"
+                        disabled={runningBusinessCheck || runningHealthCheck}
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-sm disabled:opacity-50 transition-all active:scale-95 cursor-pointer shadow-sm"
                     >
-                        <Activity size={16} className={runningTest ? 'animate-pulse' : ''} />
-                        {runningTest ? (t('super_admin.health.checking') || 'جاري الفحص...') : (t('super_admin.health.run_business_check') || 'فحص الأعمال')}
+                        <RefreshCw size={15} className={runningBusinessCheck ? 'animate-spin' : ''} />
+                        {runningBusinessCheck ? (t('super_admin.health.checking') || 'جاري الفحص...') : (t('super_admin.health.run_business_check') || 'فحص الأعمال')}
                     </button>
+                    {/* Primary Action: Run System Health Check */}
                     <button
                         type="button"
                         onClick={runHealthCheck}
-                        disabled={runningTest}
-                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg font-bold text-sm disabled:opacity-50 transition-all active:scale-95"
+                        disabled={runningHealthCheck || runningBusinessCheck}
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg shadow-emerald-600/20 font-bold text-sm disabled:opacity-50 transition-all active:scale-95 cursor-pointer"
                     >
-                        <Activity size={16} className={runningTest ? 'animate-pulse' : ''} />
-                        {runningTest ? (t('super_admin.health.checking') || 'جاري الفحص...') : (t('super_admin.health.run_system_check') || 'فحص شامل للنظام')}
+                        <Activity size={16} className={runningHealthCheck ? 'animate-pulse' : ''} />
+                        {runningHealthCheck ? (t('super_admin.health.checking') || 'جاري الفحص...') : (t('super_admin.health.run_system_check') || 'فحص شامل للنظام')}
                     </button>
                 </div>
             </div>
@@ -177,7 +213,7 @@ export default function SystemHealth() {
                         ) : (
                             health.alerts.slice(0, 3).map((alert, idx) => (
                                 <div key={idx} className="flex items-center gap-2 text-rose-600 dark:text-rose-400 text-sm font-medium">
-                                    <AlertCircle size={16} />
+                                    <AlertTriangle size={16} />
                                     <span>{typeof alert === 'string' ? alert : (alert?.message || alert?.title || 'System Alert')}</span>
                                 </div>
                             ))
@@ -189,11 +225,11 @@ export default function SystemHealth() {
                 <div className="flex md:flex-col justify-between w-full md:w-auto gap-4 border-t md:border-t-0 md:border-s border-slate-100 dark:border-slate-800 pt-4 md:pt-0 md:ps-8">
                     <div>
                         <span className="text-xs text-slate-400 font-bold block">{t('super_admin.health.job_success_rate') || 'نسبة نجاح المهام'}</span>
-                        <span className="text-xl font-black text-slate-800 dark:text-white">{stats.successRate}%</span>
+                        <span className="text-xl font-black text-slate-800 dark:text-white">{stats.successRate}</span>
                     </div>
                     <div>
                         <span className="text-xs text-slate-400 font-bold block">{t('super_admin.health.avg_latency') || 'متوسط زمن التنفيذ'}</span>
-                        <span className="text-xl font-black text-slate-800 dark:text-white">{stats.avgLatency}s</span>
+                        <span className="text-xl font-black text-slate-800 dark:text-white">{stats.avgLatency}</span>
                     </div>
                 </div>
             </div>
@@ -209,46 +245,80 @@ export default function SystemHealth() {
                         type="button"
                         onClick={fetchJobs}
                         disabled={jobsLoading}
-                        className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
                     >
                         <Clock size={12} />
                         {jobsLoading ? (t('common.loading') || 'جاري التحديث...') : (t('common.refresh') || 'تحديث')}
                     </button>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto min-w-full">
                     <table className="w-full text-start">
                         <thead>
                             <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-400 text-xs uppercase tracking-wider text-start">
                                 <th className="p-4 font-black text-start">{t('super_admin.health.job_name') || 'اسم المهمة'}</th>
                                 <th className="p-4 font-black text-start">{t('super_admin.health.job_status') || 'الحالة'}</th>
                                 <th className="p-4 font-black text-start">{t('super_admin.health.job_duration') || 'المدة'}</th>
+                                <th className="p-4 font-black text-start">{t('super_admin.health.job_triggered_by') || 'المُشغّل'}</th>
                                 <th className="p-4 font-black text-start">{t('super_admin.health.job_started_at') || 'وقت البدء'}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {jobs.length === 0 ? (
+                            {jobsLoading && jobs.length === 0 ? (
                                 <tr>
-                                    <td colSpan={4} className="p-8 text-center text-slate-400 font-bold">
-                                        {jobsLoading ? (t('super_admin.health.loading_jobs') || 'جاري تحميل المهام...') : (t('super_admin.health.no_jobs') || 'لا توجد مهام مسجلة')}
+                                    <td colSpan={5} className="p-8 text-center text-slate-400 font-bold">
+                                        {t('super_admin.health.loading_jobs') || 'جاري تحميل المهام...'}
+                                    </td>
+                                </tr>
+                            ) : jobsError ? (
+                                <tr>
+                                    <td colSpan={5} className="p-8 text-center text-rose-500 font-bold">
+                                        <div className="flex flex-col items-center justify-center gap-2">
+                                            <span>{jobsError}</span>
+                                            <button
+                                                type="button"
+                                                onClick={fetchJobs}
+                                                className="px-4 py-1.5 bg-rose-100 hover:bg-rose-200 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 rounded-lg text-xs font-bold transition-all"
+                                            >
+                                                {t('common.retry') || 'إعادة المحاولة'}
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ) : jobs.length === 0 ? (
+                                <tr>
+                                    <td colSpan={5} className="p-8 text-center text-slate-400 font-bold">
+                                        {t('super_admin.health.no_jobs') || 'لا توجد مهام مسجلة'}
                                     </td>
                                 </tr>
                             ) : (
-                                jobs.map(job => (
-                                    <tr key={job.id || `${job.job_name}-${job.started_at}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 text-sm">
-                                        <td className="p-4 font-mono font-bold text-slate-800 dark:text-slate-200 text-start">{job.job_name}</td>
-                                        <td className="p-4 text-start">
-                                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${job.status === 'success' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400'}`}>
-                                                {job.status === 'success' ? <CheckCircle size={12} /> : <AlertTriangle size={12} />}
-                                                {job.status}
-                                            </span>
-                                        </td>
-                                        <td className="p-4 text-slate-500 font-mono text-start">{(Number(job.duration_seconds) || 0).toFixed(2)}s</td>
-                                        <td className="p-4 text-slate-400 text-xs text-start">
-                                            {job.started_at ? new Date(job.started_at).toLocaleString(i18n.language) : '—'}
-                                        </td>
-                                    </tr>
-                                ))
+                                jobs.map((job, idx) => {
+                                    const badge = getJobStatusBadge(job.status);
+                                    const BadgeIcon = badge.icon;
+                                    const durationSec = job.duration_seconds !== null && job.duration_seconds !== undefined
+                                        ? `${Number(job.duration_seconds).toFixed(2)}s`
+                                        : '—';
+                                    return (
+                                        <tr key={job.id || idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 text-sm">
+                                            <td className="p-4 font-mono font-bold text-slate-800 dark:text-slate-200 text-start">
+                                                {job.job_name || t('super_admin.health.unnamed_job') || 'مهمة بدون اسم'}
+                                            </td>
+                                            <td className="p-4 text-start">
+                                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${badge.className}`}>
+                                                    <BadgeIcon size={12} />
+                                                    {badge.label}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-slate-500 font-mono text-start">{durationSec}</td>
+                                            <td className="p-4 text-slate-600 dark:text-slate-400 text-xs text-start font-medium">
+                                                {job.triggered_by || 'system'}
+                                            </td>
+                                            <td className="p-4 text-slate-400 text-xs text-start">
+                                                {job.started_at ? new Date(job.started_at).toLocaleString(i18n.language) : '—'}
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>

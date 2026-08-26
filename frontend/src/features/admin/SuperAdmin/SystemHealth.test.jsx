@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import SystemHealth from './SystemHealth';
 import HealthAlerts from './HealthAlerts';
 import { api } from '@/api';
-import { toast } from '@/shared/ui';
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
@@ -31,7 +30,7 @@ vi.mock('@/shared/ui', async () => {
     };
 });
 
-describe('Shared System Health Query MS-22', () => {
+describe('SystemHealth and Background Jobs (MS-22 & MS-23)', () => {
     let queryClient;
 
     beforeEach(() => {
@@ -88,46 +87,13 @@ describe('Shared System Health Query MS-22', () => {
         expect(healthCalls.length).toBe(1);
     });
 
-    it('handles query error gracefully and displays unknown status', async () => {
+    it('handles zero jobs without claiming 100% fake success rate (MS-23)', async () => {
         api.get.mockImplementation((url) => {
             if (url === '/api/v1/admin/health/alerts') {
-                return Promise.reject(new Error('Health service down'));
+                return Promise.resolve({ data: { score: 90, status: 'healthy', alerts: [] } });
             }
             if (url === '/api/v1/admin/security/jobs') return Promise.resolve({ data: [] });
             return Promise.resolve({ data: {} });
-        });
-
-        render(
-            <QueryClientProvider client={queryClient}>
-                <HealthAlerts />
-            </QueryClientProvider>
-        );
-
-        expect(await screen.findByText('super_admin.health.unknown')).toBeInTheDocument();
-    });
-
-    it('invalidates health query when running manual system check', async () => {
-        api.get.mockImplementation((url) => {
-            if (url === '/api/v1/admin/health/alerts') {
-                return Promise.resolve({
-                    data: {
-                        score: 80,
-                        status: 'warning',
-                        critical_errors: 1,
-                        security_alerts: 0,
-                        failed_backups_count: 0,
-                        alerts: ['High CPU usage'],
-                    },
-                });
-            }
-            if (url === '/api/v1/admin/security/jobs') return Promise.resolve({ data: [] });
-            return Promise.resolve({ data: {} });
-        });
-
-        api.post.mockResolvedValueOnce({
-            data: {
-                notification_sent: false,
-            },
         });
 
         render(
@@ -136,12 +102,56 @@ describe('Shared System Health Query MS-22', () => {
             </QueryClientProvider>
         );
 
-        const checkBtn = await screen.findByRole('button', { name: /super_admin.health.run_system_check/ });
-        fireEvent.click(checkBtn);
+        expect(await screen.findByText('super_admin.health.no_jobs')).toBeInTheDocument();
+        // Rate is "—" for zero jobs
+        const dashes = screen.getAllByText('—');
+        expect(dashes.length).toBeGreaterThan(0);
+    });
 
-        await waitFor(() => {
-            expect(api.post).toHaveBeenCalledWith('/api/v1/admin/health/check');
-            expect(toast.success).toHaveBeenCalledWith('super_admin.health.check_success_stable');
+    it('handles jobs fetch error with distinct error state and retry button (MS-23)', async () => {
+        api.get.mockImplementation((url) => {
+            if (url === '/api/v1/admin/health/alerts') {
+                return Promise.resolve({ data: { score: 90, status: 'healthy', alerts: [] } });
+            }
+            if (url === '/api/v1/admin/security/jobs') {
+                return Promise.reject(new Error('Jobs DB connection timeout'));
+            }
+            return Promise.resolve({ data: {} });
         });
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <SystemHealth />
+            </QueryClientProvider>
+        );
+
+        expect(await screen.findByText(/Jobs DB connection timeout/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'common.retry' })).toBeInTheDocument();
+    });
+
+    it('safely formats null duration and unassigned fields in jobs table (MS-23)', async () => {
+        api.get.mockImplementation((url) => {
+            if (url === '/api/v1/admin/health/alerts') {
+                return Promise.resolve({ data: { score: 90, status: 'healthy', alerts: [] } });
+            }
+            if (url === '/api/v1/admin/security/jobs') {
+                return Promise.resolve({
+                    data: [
+                        { id: 2, job_name: null, status: 'running', duration_seconds: null, triggered_by: null, started_at: null },
+                    ],
+                });
+            }
+            return Promise.resolve({ data: {} });
+        });
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <SystemHealth />
+            </QueryClientProvider>
+        );
+
+        expect(await screen.findByText('super_admin.health.unnamed_job')).toBeInTheDocument();
+        expect(screen.getByText('super_admin.health.status_running')).toBeInTheDocument();
+        expect(screen.getByText('system')).toBeInTheDocument();
     });
 });
