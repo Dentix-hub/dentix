@@ -86,6 +86,7 @@ Notes:
 
 ---
 
+
 ## MS-03 — Impersonation request contract
 Status: PASS
 Commit: 78dfb72b
@@ -189,6 +190,87 @@ Manual verification:
 
 Notes:
 - Super Admin command palette now executes real navigation commands and deep links directly into tenant records without dead routes.
+
+---
+
+## MS-07 — Plan feature checklist synchronization
+Status: PASS
+Commit: 846f96ea
+Files changed:
+- `frontend/src/features/admin/SuperAdmin/PlansManager.jsx`
+- `frontend/src/features/admin/SuperAdmin/PlansManager.test.jsx`
+- `frontend/src/features/admin/SuperAdmin/planFeatureUtils.js`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/PlansManager.test.jsx --run` -> PASS (1 test file, 4 tests passed)
+- `$env:PYTHONPATH="c:\Users\es\DENTIX"; uv run pytest backend/tests/ -k "subscription or plan"` -> PASS (44 passed)
+
+Manual verification:
+- Synchronized recognized feature checklist (`ai_insights`, `multi_branch`, `export_reports`, `patient_portal`, `telehealth`, `custom_branding`).
+- Implemented robust JSON array/dict parsing and serialization preserving unknown or custom features.
+- Replaced native alerts with shared UI toast notifications.
+- Created unit tests verifying feature parsing, custom tag preservation, and plan card rendering.
+
+Notes:
+- Plan features checklist matches backend schema and ensures custom feature keys are never dropped.
+
+---
+
+## MS-08 — Audit filter/export/tenant labels
+Status: PASS
+Commit: c6ddb868
+Files changed:
+- `backend/routers/system_admin.py`
+- `backend/tests/test_admin_system.py`
+- `frontend/src/features/admin/SuperAdmin/AuditLogViewer.jsx`
+- `frontend/src/features/admin/SuperAdmin/AuditLogViewer.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/AuditLogViewer.test.jsx --run` -> PASS (1 test file, 3 tests passed)
+- `uv run ruff check --config ruff.toml backend/routers/system_admin.py` -> PASS (All checks passed)
+- `$env:PYTHONPATH="c:\Users\es\DENTIX"; uv run pytest backend/tests/test_admin_system.py` -> PASS (8 passed)
+
+Manual verification:
+- Updated `export_audit_logs` endpoint in `backend/routers/system_admin.py` to accept and apply `start_date` and `end_date` date-range filters to exported CSV.
+- Mapped `tenant_id` to actual tenant names via `tenants` prop (`tenantMap` / `getTenantLabel`), preventing tenant events from being mislabeled as "System Global".
+- Separated network/fetch failure state from empty audit results with a clear error message and retry button.
+- Revoked CSV export Object URL with `window.URL.revokeObjectURL(url)`.
+
+Notes:
+- CSV export strictly matches visible filters, and tenant events display correct tenant labels.
+
+---
+
+## MS-09 — Finance runtime and mobile safety
+Status: PASS
+Commit: 0815d80a
+Files changed:
+- `frontend/src/features/admin/SuperAdmin/FinanceReports.jsx`
+- `frontend/src/features/admin/SuperAdmin/PaymentsManager.jsx`
+- `frontend/src/features/admin/SuperAdmin/ActiveSubscriptions.jsx`
+- `frontend/src/features/admin/SuperAdmin/FinanceRuntime.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/FinanceRuntime.test.jsx --run` -> PASS (1 test file, 3 tests passed)
+
+Manual verification:
+- Imported `ShieldCheck` directly in `FinanceReports.jsx` to eliminate reference errors.
+- Added zero-overdue state display in `FinanceReports.jsx`.
+- Wrapped Payments table and ActiveSubscriptions table in `overflow-x-auto` to prevent layout breaking on 320/360px viewports.
+- Added null-safe amount, date, and tenant name rendering across finance components.
+- Added i18n support and responsive RTL/LTR direction in `ActiveSubscriptions.jsx`.
+
+Notes:
+- Finance dashboard and tables are fully responsive, localized, and resilient against missing/null runtime fields.
+
+---
+
 
 
 
