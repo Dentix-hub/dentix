@@ -298,7 +298,8 @@ Notes:
 
 ## MS-11 — Dashboard 12-month analytics
 Status: PASS
-Commit: Pending
+Commit: f548e938
+
 Files changed:
 - `backend/routers/admin_stats.py`
 - `backend/tests/test_admin_charts_12m.py`
@@ -322,6 +323,31 @@ Manual verification:
 
 Notes:
 - 12-month window is strictly bounded, chronologically continuous, and free of redundant legends.
+
+## MS-12 — Finance forecast semantics
+Status: PASS
+Commit: Pending
+Files changed:
+- `backend/routers/admin_stats.py`
+- `backend/tests/test_admin_finance_forecast.py`
+- `frontend/src/features/admin/SuperAdmin/FinanceReports.jsx`
+- `frontend/src/features/admin/SuperAdmin/FinanceReportsForecast.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/FinanceReportsForecast.test.jsx --run` -> PASS (1 test file, 1 test passed)
+- `uv run ruff check --config ruff.toml backend/routers/admin_stats.py backend/tests/test_admin_finance_forecast.py` -> PASS (All checks passed)
+- `$env:PYTHONPATH="c:\Users\es\DENTIX"; uv run pytest backend/tests/test_admin_finance_forecast.py` -> PASS (1 passed)
+
+Manual verification:
+- Excluded non-active, expired, and soft-deleted tenants from revenue forecast per normalized semantics (`is_deleted == False AND is_active == True AND (subscription_end_date IS NULL OR subscription_end_date >= now)`).
+- Aligned overdue list semantics to include only non-deleted expired clinics.
+- Replaced PG-specific `date_trunc` with portable Python datetime aggregation for growth trends.
+- Added null and invalid date safety in `FinanceReports.jsx` for churn risks and overdue clinics.
+
+Notes:
+- Revenue forecast reflects strictly active subscriptions only, and finance reports are fully resilient against missing/invalid dates.
 
 ---
 

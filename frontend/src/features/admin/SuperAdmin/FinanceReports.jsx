@@ -232,7 +232,9 @@ export default function FinanceReports() {
                                 </div>
                                 <div className={isRtl ? 'text-left' : 'text-right'}>
                                     <div className="text-sm font-black text-red-600">{t('super_admin.finance.overdue_clinics')} {clinic.days_overdue != null ? clinic.days_overdue : 0} {t('common.days')}</div>
-                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{t('super_admin.plans.expiry')}: {clinic.expiry_date ? new Date(clinic.expiry_date).toLocaleDateString(isRtl ? 'ar-EG' : 'en-US') : '-'}</div>
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                        {t('super_admin.plans.expiry')}: {clinic.expiry_date && !isNaN(new Date(clinic.expiry_date).getTime()) ? new Date(clinic.expiry_date).toLocaleDateString(isRtl ? 'ar-EG' : 'en-US') : '-'}
+                                    </div>
                                 </div>
                             </div>
                         )) : (
@@ -271,11 +273,12 @@ export default function FinanceReports() {
                             <div className={`flex items-center justify-between text-xs pt-4 border-t border-slate-100 dark:border-slate-800 ${isRtl ? 'flex-row-reverse' : ''}`}>
                                 <span className="text-slate-400 font-bold">{t('super_admin.ai.logs.time')}:</span>
                                 <span className="text-slate-700 dark:text-slate-300 font-black">
-                                    {clinic.last_active ? new Date(clinic.last_active).toLocaleDateString(isRtl ? 'ar-EG' : 'en-US') : (t('common.no_results') || '-')}
+                                    {clinic.last_active && !isNaN(new Date(clinic.last_active).getTime()) ? new Date(clinic.last_active).toLocaleDateString(isRtl ? 'ar-EG' : 'en-US') : (t('common.no_results') || '-')}
                                 </span>
                             </div>
                         </div>
                     )) : (
+
                         <div className="col-span-full h-32 flex flex-col items-center justify-center text-slate-400 italic">
                             <p>{t('super_admin.finance.no_churn') || 'لا توجد عيادات معرضة للتوقف'}</p>
                         </div>

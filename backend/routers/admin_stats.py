@@ -203,9 +203,9 @@ async def get_financial_reports(
     Get detailed financial reports for admin.
     1. Revenue by plan.
     2. Overdue clinics.
-    3. Revenue forecast.
+    3. Revenue forecast (active unexpired subscriptions only).
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     # 1. Revenue by Plan
     stmt = (
@@ -216,12 +216,15 @@ async def get_financial_reports(
     revenue_by_plan = (await db.execute(stmt)).all()
     revenue_plan_data = [{"name": r[0], "value": float(r[1] or 0)} for r in revenue_by_plan]
 
-    # 2. Overdue Clinics (Expired but not paid for renewal)
+    # 2. Overdue Clinics (Expired and non-deleted)
     stmt = (
         select(models.Tenant)
         .options(selectinload(models.Tenant.subscription_plan))
-        .where(models.Tenant.subscription_end_date < now)
-        .where(models.Tenant.is_active == True)  # noqa: E712
+        .where(
+            models.Tenant.is_deleted == False,  # noqa: E712
+            models.Tenant.subscription_end_date.is_not(None),
+            models.Tenant.subscription_end_date < now
+        )
         .order_by(models.Tenant.subscription_end_date.asc())
         .limit(50)
     )
@@ -231,36 +234,41 @@ async def get_financial_reports(
             "id": t.id,
             "name": t.name,
             "expiry_date": t.subscription_end_date,
-            "days_overdue": (now - t.subscription_end_date.replace(tzinfo=timezone.utc) if t.subscription_end_date.tzinfo is None else now - t.subscription_end_date).days,
+            "days_overdue": max(0, (now - (t.subscription_end_date.replace(tzinfo=None) if t.subscription_end_date else now)).days),
             "plan_name": t.subscription_plan.display_name_ar if t.subscription_plan else "بدون خطة"
         }
         for t in overdue_clinics_raw
     ]
 
-    # 3. Revenue Forecast (Estimated monthly revenue from active subscriptions)
-    # Simple logic: sum of (active tenant's plan price)
+    # 3. Revenue Forecast (Estimated monthly revenue from active unexpired non-deleted subscriptions)
     stmt = (
         select(func.sum(models.SubscriptionPlan.price))
         .join(models.Tenant, models.Tenant.plan_id == models.SubscriptionPlan.id)
-        .where(models.Tenant.is_active == True)  # noqa: E712
+        .where(
+            models.Tenant.is_deleted == False,  # noqa: E712
+            models.Tenant.is_active == True,  # noqa: E712
+            (models.Tenant.subscription_end_date.is_(None)) | (models.Tenant.subscription_end_date >= now)
+        )
     )
-    forecast_data = (await db.execute(stmt)).scalar() or 0
+    forecast_data = float((await db.execute(stmt)).scalar() or 0.0)
 
     # 4. Growth Trends (Monthly Revenue last 6 months)
     six_months_ago = now - timedelta(days=180)
     stmt = (
-        select(
-            func.date_trunc('month', models.SubscriptionPayment.payment_date).label('month'),
-            func.sum(models.SubscriptionPayment.amount)
-        )
+        select(models.SubscriptionPayment)
         .where(models.SubscriptionPayment.payment_date >= six_months_ago)
-        .group_by('month')
-        .order_by('month')
+        .order_by(models.SubscriptionPayment.payment_date.asc())
     )
-    monthly_trends = (await db.execute(stmt)).all()
-    trends = [{"month": r[0].strftime("%Y-%m"), "revenue": float(r[1] or 0)} for r in monthly_trends]
+    six_months_payments = (await db.execute(stmt)).scalars().all()
+    monthly_trends = {}
+    for p in six_months_payments:
+        if p.payment_date:
+            m_key = p.payment_date.strftime("%Y-%m")
+            monthly_trends[m_key] = monthly_trends.get(m_key, 0.0) + float(p.amount or 0)
+    trends = [{"month": k, "revenue": v} for k, v in sorted(monthly_trends.items())]
 
-    # 5. Churn Risks (Clinics with no activity in last 30 days)
+
+    # 5. Churn Risks (Active non-deleted clinics with no activity in last 30 days)
     thirty_days_ago = now - timedelta(days=30)
     # Using UserSession to check activity
     active_tenant_ids_stmt = (
@@ -275,11 +283,15 @@ async def get_financial_reports(
     stmt = (
         select(models.Tenant)
         .options(selectinload(models.Tenant.subscription_plan))
-        .where(models.Tenant.is_active == True)  # noqa: E712
-        .where(~models.Tenant.id.in_(active_ids))
+        .where(
+            models.Tenant.is_deleted == False,  # noqa: E712
+            models.Tenant.is_active == True,  # noqa: E712
+            ~models.Tenant.id.in_(active_ids)
+        )
         .limit(20)
     )
     churn_risks_raw = (await db.execute(stmt)).scalars().all()
+
     churn_risks = []
     for t in churn_risks_raw:
         last_active_stmt = (
