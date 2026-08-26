@@ -2189,5 +2189,23 @@
             "light": "الوضع الفاتح",
             "dark": "الوضع الداكن"
         }
+    },
+    "roles": {
+        "super_admin": "مدير النظام العام",
+        "admin": "مدير عيادة",
+        "doctor": "طبيب",
+        "receptionist": "موظف استقبال",
+        "accountant": "محاسب",
+        "nurse": "ممرض"
+    },
+    "status": {
+        "active": "نشط",
+        "inactive": "غير نشط",
+        "expired": "منتهي",
+        "archived": "مؤرشف",
+        "success": "ناجح",
+        "failed": "فاشل",
+        "pending": "قيد الانتظار",
+        "running": "قيد التشغيل"
     }
 }

@@ -791,7 +791,8 @@ Manual verification:
 
 ## MS-31 — Shared admin feedback primitives
 Status: PASS
-Commit: Pending
+Commit: 1961e1c6
+
 Files changed:
 - `frontend/src/pages/admin/PriceLists.jsx`
 - `frontend/src/pages/admin/InsuranceProviders.jsx`
@@ -808,10 +809,31 @@ Manual verification:
 - Replaced deactivation confirms in `PriceLists.jsx` and `InsuranceProviders.jsx` with shared accessible `ConfirmDialog`.
 - Dialog supports cancellation, escape handling, focus management, and danger styling for destructive workflows.
 
+## MS-32 — Formatting and i18n
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/utils/formatters.js`
+- `frontend/src/utils/formatters.test.js`
+- `frontend/src/locales/ar/translation.json`
+- `frontend/src/locales/en/translation.json`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/utils/formatters.test.js --run` -> PASS (1 test file, 5 tests passed)
+
+Manual verification:
+- Standardized UI formatters for currency (EGP/USD), numbers, percentages, dates, duration days, roles, and statuses.
+- Canonical role definitions mapped and localized in both Arabic and English (`roles` namespace).
+- System execution statuses mapped and localized in both Arabic and English (`status` namespace).
+- Graceful null/undefined handling preventing NaN/null artifacts across UI presentation boundaries.
+
 Notes:
-- Super Admin feedback primitives are unified, accessible, and testable.
+- Super Admin localization and formatting boundaries are unified and consistent across Arabic and English locales.
 
 ---
+
 
 
 

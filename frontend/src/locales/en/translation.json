@@ -2177,5 +2177,23 @@
             "light": "Light Mode",
             "dark": "Dark Mode"
         }
+    },
+    "roles": {
+        "super_admin": "Super Administrator",
+        "admin": "Clinic Administrator",
+        "doctor": "Doctor",
+        "receptionist": "Receptionist",
+        "accountant": "Accountant",
+        "nurse": "Nurse"
+    },
+    "status": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "expired": "Expired",
+        "archived": "Archived",
+        "success": "Success",
+        "failed": "Failed",
+        "pending": "Pending",
+        "running": "Running"
     }
 }
