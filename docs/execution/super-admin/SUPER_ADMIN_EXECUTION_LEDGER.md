@@ -512,7 +512,8 @@ Notes:
 
 ## MS-19 — 2FA hardening
 Status: PASS
-Commit: Pending
+Commit: de0543ca
+
 Files changed:
 - `frontend/src/features/admin/SuperAdmin/TwoFactorSetup.jsx`
 - `frontend/src/features/admin/SuperAdmin/TwoFactorSetup.test.jsx`
@@ -532,6 +533,29 @@ Manual verification:
 
 Notes:
 - 2FA setup, validation, cancellation, and disable flows are deterministic, safe, and fully tested.
+
+## MS-20 — Backup status truthfulness
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/pages/admin/SystemPage.jsx`
+- `frontend/src/pages/admin/SystemPage.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/pages/admin/SystemPage.test.jsx --run` -> PASS (1 test file, 4 tests passed)
+
+Manual verification:
+- Consumed and displayed truthful `last_backup` status (success, failed, processing), date, and detailed status messages.
+- Handled 202 Accepted status on Google Drive upload trigger properly, communicating background initiation ("تم بدء عملية النسخ الاحتياطي في الخلفية") without falsely claiming immediate completion.
+- Replaced browser prompts with `ConfirmDialog` for triggering uploads and disconnecting accounts.
+- Added disconnect flow calling `DELETE /api/v1/admin/system/backup/google-auth`.
+- Cleaned OAuth query parameters (`backup_status`, `error`) from the browser URL history upon page load.
+- Preserved security boundary: raw HTTP exports/restores remain disabled in favor of server CLI scripts.
+
+Notes:
+- Backup operations provide truthful status reporting and resilient cloud storage integration.
 
 ---
 

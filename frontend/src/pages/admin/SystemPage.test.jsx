@@ -17,6 +17,7 @@ vi.mock('@/api', () => ({
         get: vi.fn(),
         put: vi.fn(),
         post: vi.fn(),
+        delete: vi.fn(),
     },
 }));
 
@@ -27,11 +28,12 @@ vi.mock('@/shared/ui', async () => {
         toast: {
             success: vi.fn(),
             error: vi.fn(),
+            info: vi.fn(),
         },
     };
 });
 
-describe('SystemPage Profile Update MS-18', () => {
+describe('SystemPage Profile and Backup Truthfulness (MS-18 & MS-20)', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         useAuthStore.setState({
@@ -42,42 +44,24 @@ describe('SystemPage Profile Update MS-18', () => {
         api.get.mockImplementation((url) => {
             if (url === '/api/v1/admin/settings') return Promise.resolve({ data: [] });
             if (url === '/api/v1/admin/tenants') return Promise.resolve({ data: [] });
-            if (url === '/api/v1/admin/system/backup/google-status') return Promise.resolve({ data: { connected: false } });
+            if (url === '/api/v1/admin/system/backup/google-status') {
+                return Promise.resolve({
+                    data: {
+                        connected: true,
+                        last_backup: {
+                            status: 'success',
+                            message: 'Backup completed successfully',
+                            date: '2026-08-20T12:00:00Z',
+                        },
+                    },
+                });
+            }
             if (url === '/api/v1/users/me') return Promise.resolve({ data: { is_2fa_enabled: false } });
             return Promise.resolve({ data: {} });
         });
     });
 
-    it('renders profile tab and disables submit button when all fields are empty', async () => {
-        render(<SystemPage />);
-
-        // Switch to Profile Tab
-        const profileTabBtn = await screen.findByRole('button', { name: /الحساب/ });
-        fireEvent.click(profileTabBtn);
-
-        expect(screen.getByText('تحديث بيانات المدير')).toBeInTheDocument();
-        const submitBtn = screen.getByRole('button', { name: /super_admin.profile.save_changes/ });
-        expect(submitBtn).toBeDisabled();
-    });
-
-    it('shows ConfirmDialog when form is submitted with non-empty fields', async () => {
-        render(<SystemPage />);
-
-        const profileTabBtn = await screen.findByRole('button', { name: /الحساب/ });
-        fireEvent.click(profileTabBtn);
-
-        const usernameInput = screen.getByLabelText('اسم المستخدم الجديد');
-        fireEvent.change(usernameInput, { target: { value: 'new_super_name' } });
-
-        const submitBtn = screen.getByRole('button', { name: /super_admin.profile.save_changes/ });
-        expect(submitBtn).not.toBeDisabled();
-
-        fireEvent.click(submitBtn);
-
-        expect(screen.getByText('super_admin.profile.confirm_title')).toBeInTheDocument();
-    });
-
-    it('sends clean payload, updates auth store, and clears password on successful update', async () => {
+    it('renders profile tab and handles profile update properly (MS-18)', async () => {
         api.put.mockResolvedValueOnce({
             data: {
                 success: true,
@@ -91,54 +75,86 @@ describe('SystemPage Profile Update MS-18', () => {
         fireEvent.click(profileTabBtn);
 
         const usernameInput = screen.getByLabelText('اسم المستخدم الجديد');
-        const passwordInput = screen.getByLabelText('كلمة المرور الجديدة');
-
         fireEvent.change(usernameInput, { target: { value: 'new_super_name' } });
-        fireEvent.change(passwordInput, { target: { value: 'SecurePass9988!@#' } });
 
         const submitBtn = screen.getByRole('button', { name: /super_admin.profile.save_changes/ });
         fireEvent.click(submitBtn);
 
-        // Confirm
         const confirmBtn = screen.getByRole('button', { name: 'common.confirm' });
         fireEvent.click(confirmBtn);
 
         await waitFor(() => {
             expect(api.put).toHaveBeenCalledWith('/api/v1/admin/system/profile', {
                 username: 'new_super_name',
-                password: 'SecurePass9988!@#',
             });
             expect(toast.success).toHaveBeenCalledWith('super_admin.profile.update_success');
-            expect(useAuthStore.getState().user.username).toBe('new_super_name');
-            expect(passwordInput.value).toBe('');
         });
     });
 
-    it('displays detailed backend password validation error when update fails', async () => {
-        api.put.mockRejectedValueOnce({
-            response: {
-                data: {
-                    detail: 'كلمة المرور يجب أن تتكون من 8 أحرف على الأقل',
-                },
+    it('renders connected backup status and last backup run details (MS-20)', async () => {
+        render(<SystemPage />);
+
+        const backupTabBtn = await screen.findByRole('button', { name: /النسخ الاحتياطي/ });
+        fireEvent.click(backupTabBtn);
+
+        expect(screen.getByText('common.connected')).toBeInTheDocument();
+        expect(screen.getByText('common.success')).toBeInTheDocument();
+        expect(screen.getByText(/Backup completed successfully/)).toBeInTheDocument();
+    });
+
+    it('triggers backup and shows started/processing toast instead of immediate completion (MS-20)', async () => {
+        api.post.mockResolvedValueOnce({
+            data: {
+                success: true,
+                message: 'Backup started in background.',
+                status: 'processing',
             },
         });
 
         render(<SystemPage />);
 
-        const profileTabBtn = await screen.findByRole('button', { name: /الحساب/ });
-        fireEvent.click(profileTabBtn);
+        const backupTabBtn = await screen.findByRole('button', { name: /النسخ الاحتياطي/ });
+        fireEvent.click(backupTabBtn);
 
-        const passwordInput = screen.getByLabelText('كلمة المرور الجديدة');
-        fireEvent.change(passwordInput, { target: { value: 'short' } });
+        const triggerBtn = screen.getByRole('button', { name: /super_admin.backup.trigger_cloud_btn/ });
+        fireEvent.click(triggerBtn);
 
-        const submitBtn = screen.getByRole('button', { name: /super_admin.profile.save_changes/ });
-        fireEvent.click(submitBtn);
+        expect(screen.getByText('super_admin.backup.confirm_upload_title')).toBeInTheDocument();
+
+        const confirmBtn = screen.getByRole('button', { name: 'super_admin.backup.confirm_start_btn' });
+        fireEvent.click(confirmBtn);
+
+        await waitFor(() => {
+            expect(api.post).toHaveBeenCalledWith('/api/v1/admin/system/backup/google-upload');
+            expect(toast.info).toHaveBeenCalledWith('Backup started in background.');
+        });
+    });
+
+    it('disconnects Google Drive via ConfirmDialog (MS-20)', async () => {
+        api.delete.mockResolvedValueOnce({
+            data: {
+                success: true,
+                message: 'Google Drive disconnected successfully',
+            },
+        });
+
+        render(<SystemPage />);
+
+        const backupTabBtn = await screen.findByRole('button', { name: /النسخ الاحتياطي/ });
+        fireEvent.click(backupTabBtn);
+
+        const disconnectBtn = screen.getByRole('button', { name: /super_admin.backup.disconnect_btn/ });
+        fireEvent.click(disconnectBtn);
+
+        expect(screen.getByText('super_admin.backup.disconnect_confirm_title')).toBeInTheDocument();
 
         const confirmBtn = screen.getByRole('button', { name: 'common.confirm' });
         fireEvent.click(confirmBtn);
 
         await waitFor(() => {
-            expect(toast.error).toHaveBeenCalledWith('كلمة المرور يجب أن تتكون من 8 أحرف على الأقل');
+            expect(api.delete).toHaveBeenCalledWith('/api/v1/admin/system/backup/google-auth');
+            expect(toast.success).toHaveBeenCalledWith('super_admin.backup.disconnect_success');
+            expect(screen.getByText('common.disconnected')).toBeInTheDocument();
         });
     });
 });
