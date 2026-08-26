@@ -610,7 +610,8 @@ Notes:
 
 ## MS-23 — Background jobs
 Status: PASS
-Commit: Pending
+Commit: c78dbbfb
+
 Files changed:
 - `frontend/src/features/admin/SuperAdmin/SystemHealth.jsx`
 - `frontend/src/features/admin/SuperAdmin/SystemHealth.test.jsx`
@@ -630,6 +631,28 @@ Manual verification:
 
 Notes:
 - Background jobs telemetry is resilient against empty states, backend timeouts, and null metadata.
+
+## MS-24 — Sessions
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/features/admin/SuperAdmin/SessionManager.jsx`
+- `frontend/src/features/admin/SuperAdmin/SessionManager.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/SessionManager.test.jsx --run` -> PASS (1 test file, 3 tests passed)
+
+Manual verification:
+- Implemented robust null-safe search filtering across username, tenant, IP address, and geographic location without crashing on missing data.
+- Replaced browser `window.confirm` with shared `ConfirmDialog` primitive for terminating active sessions.
+- Added duplicate termination protection and disabled buttons during in-flight operations.
+- Added visible background refresh state on the refresh button with spinning icon.
+- Full RTL and i18n support with localized date and time formats.
+
+Notes:
+- Global active session oversight and termination are deterministic, safe, and resilient against sparse telemetry.
 
 ---
 
