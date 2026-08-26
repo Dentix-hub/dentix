@@ -48,13 +48,14 @@ export default function CommunicationsPage() {
         fetchData();
     }, []);
     const handleDeleteMessage = async (id) => {
-        if (!window.confirm('هل أنت متأكد من حذف هذه الرسالة؟')) return;
         try {
             await deleteSupportMessage(id);
             setMessages(prev => prev.filter(m => m.id !== id));
             toast.success('تم حذف الرسالة بنجاح');
         } catch (err) {
-            toast.error('فشل حذف الرسالة');
+            const errorMsg = err.response?.data?.detail || err.message || 'فشل حذف الرسالة';
+            toast.error(errorMsg);
+            throw err;
         }
     };
     const handleSendNotification = async () => {

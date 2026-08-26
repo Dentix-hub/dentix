@@ -376,7 +376,8 @@ Notes:
 
 ## MS-14 — Plan management
 Status: PASS
-Commit: Pending
+Commit: 3a992e5d
+
 Files changed:
 - `frontend/src/features/admin/SuperAdmin/PlansManager.jsx`
 - `frontend/src/features/admin/SuperAdmin/PlansManager.test.jsx`
@@ -396,6 +397,30 @@ Manual verification:
 
 Notes:
 - Plan management is resilient, validates inputs, and uses canonical dialogs and API methods.
+
+## MS-15 — Support inbox
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/features/admin/SuperAdmin/SupportInbox.jsx`
+- `frontend/src/features/admin/SuperAdmin/SupportInbox.test.jsx`
+- `frontend/src/pages/admin/CommunicationsPage.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/SupportInbox.test.jsx --run` -> PASS (1 test file, 5 tests passed)
+
+Manual verification:
+- Standardized `setMessages` prop across `SupportInbox.jsx` and `CommunicationsPage.jsx`.
+- Replaced browser `alert` with shared accessible `Modal` for reviewing support message sender, clinic, date, priority, and full body.
+- Replaced browser `confirm` with shared accessible `ConfirmDialog` primitive for deleting messages.
+- Synchronized read status immediately upon viewing unread messages, reflecting immediate unread counter decrements.
+- Added graceful error handling and data refreshing on status update failures.
+- Preserved existing stats cards (total messages, unread messages, high priority messages).
+
+Notes:
+- Support inbox provides seamless viewing, accessible modals, and immediate read state synchronization.
 
 ---
 
