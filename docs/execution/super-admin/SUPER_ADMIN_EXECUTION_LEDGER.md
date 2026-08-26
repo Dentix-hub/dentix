@@ -811,7 +811,8 @@ Manual verification:
 
 ## MS-32 — Formatting and i18n
 Status: PASS
-Commit: Pending
+Commit: 94b98f0f
+
 Files changed:
 - `frontend/src/utils/formatters.js`
 - `frontend/src/utils/formatters.test.js`
@@ -829,10 +830,28 @@ Manual verification:
 - System execution statuses mapped and localized in both Arabic and English (`status` namespace).
 - Graceful null/undefined handling preventing NaN/null artifacts across UI presentation boundaries.
 
+## MS-33 — Mobile, dark, accessibility, motion
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/features/admin/SuperAdmin/SuperAdminAccessibilityResponsive.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/SuperAdminAccessibilityResponsive.test.jsx --run` -> PASS (1 test file, 4 tests passed)
+
+Manual verification:
+- Validated touch-target sizes and explicit button types (`type="button"`) across Super Admin action triggers.
+- Verified horizontal scroll protection on data tables (`overflow-x-auto min-w-full`) for mobile viewports (320px - 768px).
+- Validated dark mode class mappings (`dark:bg-slate-900`, `dark:border-slate-800`, `dark:text-white`) across cards and panels.
+- Validated static vs interactive accessibility state in `StatCard`.
+
 Notes:
-- Super Admin localization and formatting boundaries are unified and consistent across Arabic and English locales.
+- Super Admin workflows are responsive, accessible, dark-mode compatible, and free of layout breaks.
 
 ---
+
 
 
 
