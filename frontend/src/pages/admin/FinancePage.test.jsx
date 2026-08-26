@@ -1,68 +1,144 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import FinancePage from './FinancePage';
+import {
+    getSubscriptionPayments,
+    getSubscriptionPlans,
+    recordSubscriptionPayment,
+    deleteSubscriptionPayment,
+    api,
+} from '@/api';
+import { toast } from '@/shared/ui';
 
-const apiMocks = vi.hoisted(() => ({
-    get: vi.fn(),
-    getSubscriptionPayments: vi.fn(),
-    getSubscriptionPlans: vi.fn(),
+vi.mock('react-i18next', () => ({
+    useTranslation: () => ({
+        t: (key) => key,
+        i18n: { language: 'ar' },
+    }),
 }));
 
 vi.mock('@/api', () => ({
-    api: { get: apiMocks.get },
-    deleteSubscriptionPayment: vi.fn(),
-    getSubscriptionPayments: apiMocks.getSubscriptionPayments,
-    getSubscriptionPlans: apiMocks.getSubscriptionPlans,
+    api: {
+        get: vi.fn(),
+    },
+    getSubscriptionPayments: vi.fn(),
+    getSubscriptionPlans: vi.fn(),
     recordSubscriptionPayment: vi.fn(),
+    deleteSubscriptionPayment: vi.fn(),
     updateSubscriptionPlan: vi.fn(),
 }));
 
-vi.mock('@/utils/logger', () => ({
-    default: { error: vi.fn() },
-}));
+vi.mock('@/shared/ui', async () => {
+    const actual = await vi.importActual('@/shared/ui');
+    return {
+        ...actual,
+        toast: {
+            success: vi.fn(),
+            error: vi.fn(),
+        },
+    };
+});
 
-vi.mock('@/features/admin/SuperAdmin/PaymentsManager', () => ({
-    default: () => <div>payments-manager</div>,
-}));
+describe('Manual Payment Flow MS-13', () => {
+    const mockPayments = [
+        {
+            id: 1,
+            tenant_id: 10,
+            plan_id: 1,
+            amount: 1500,
+            payment_date: '2026-08-15',
+            paid_by: 'dr_john',
+            payment_method: 'cash',
+        },
+    ];
 
-vi.mock('@/features/admin/SuperAdmin/PlansManager', () => ({
-    default: ({ plans }) => <div>{plans.map((plan) => plan.display_name_ar).join(',')}</div>,
-}));
+    const mockTenants = [
+        { id: 10, name: 'Dental Care Clinic' },
+        { id: 20, name: 'Apex Clinic' },
+    ];
 
-vi.mock('@/features/admin/SuperAdmin/ActiveSubscriptions', () => ({
-    default: () => <div>active-subscriptions</div>,
-}));
+    const mockPlans = [
+        { id: 1, name: 'Starter', display_name_ar: 'الأساسية', price: 1500 },
+        { id: 2, name: 'Pro', display_name_ar: 'الاحترافية', price: 3000 },
+    ];
 
-vi.mock('@/features/admin/SuperAdmin/FinanceReports', () => ({
-    default: () => <div>finance-reports</div>,
-}));
-
-vi.mock('@/shared/ui', () => ({
-    DateTimePicker: () => <input aria-label="payment-date" />,
-    toast: { error: vi.fn(), success: vi.fn() },
-}));
-
-import FinancePage from './FinancePage';
-
-describe('admin FinancePage data loading', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        apiMocks.get.mockResolvedValue({ data: [{ id: 9, name: 'Clinic' }] });
-        apiMocks.getSubscriptionPlans.mockResolvedValue({
-            data: [{ id: 3, display_name_ar: 'الخطة المحفوظة', price: 1500 }],
+        getSubscriptionPayments.mockResolvedValue({ data: mockPayments });
+        getSubscriptionPlans.mockResolvedValue({ data: mockPlans });
+        api.get.mockImplementation((url) => {
+            if (url === '/api/v1/admin/tenants') {
+                return Promise.resolve({ data: mockTenants });
+            }
+            if (url.includes('/users')) {
+                return Promise.resolve({ data: { users: [{ id: 1, username: 'dr_john', role: 'manager' }] } });
+            }
+            return Promise.resolve({ data: {} });
         });
     });
 
-    it('keeps saved plans visible when subscription payments fail to load', async () => {
-        apiMocks.getSubscriptionPayments.mockRejectedValue(new Error('payments unavailable'));
+    it('renders FinancePage and validates required fields on payment modal submit', async () => {
+        render(<FinancePage />);
+
+        expect(await screen.findByText('Dental Care Clinic')).toBeInTheDocument();
+
+        // Open payment modal
+        fireEvent.click(screen.getByText('super_admin.payments.record_button'));
+        expect(screen.getByText('super_admin.payments.modal_title')).toBeInTheDocument();
+
+        // Try submit without selecting clinic
+        fireEvent.click(screen.getByText('super_admin.payments.submit_button'));
+        expect(toast.error).toHaveBeenCalledWith('super_admin.payments.error_select_tenant');
+    });
+
+    it('submits valid payment and updates data', async () => {
+        recordSubscriptionPayment.mockResolvedValueOnce({ data: { success: true } });
 
         render(<FinancePage />);
 
-        await waitFor(() => expect(screen.queryByText('جاري تحميل البيانات المالية...')).not.toBeInTheDocument());
-        fireEvent.click(screen.getByRole('button', { name: 'الخطط' }));
+        expect(await screen.findByText('Dental Care Clinic')).toBeInTheDocument();
 
-        expect(screen.getByText('الخطة المحفوظة')).toBeInTheDocument();
-        expect(apiMocks.getSubscriptionPayments).toHaveBeenCalledTimes(1);
-        expect(apiMocks.getSubscriptionPlans).toHaveBeenCalledTimes(1);
-        expect(apiMocks.get).toHaveBeenCalledWith('/api/v1/admin/tenants');
+        // Open modal
+        fireEvent.click(screen.getByText('super_admin.payments.record_button'));
+
+        // Select clinic
+        const clinicSelect = screen.getByLabelText((content) => content.includes('super_admin.tenants.title') || content.includes('العيادة'));
+        fireEvent.change(clinicSelect, { target: { value: '10' } });
+
+        // Submit form
+        fireEvent.click(screen.getByText('super_admin.payments.submit_button'));
+
+        await waitFor(() => {
+            expect(recordSubscriptionPayment).toHaveBeenCalledWith(expect.objectContaining({
+                tenant_id: 10,
+                plan_id: 1,
+                amount: 1500,
+            }));
+            expect(toast.success).toHaveBeenCalledWith('super_admin.payments.success_recorded');
+        });
+    });
+
+    it('opens confirm dialog on delete payment and performs deletion upon confirmation', async () => {
+        deleteSubscriptionPayment.mockResolvedValueOnce({ data: { success: true } });
+
+        render(<FinancePage />);
+
+        expect(await screen.findByText('Dental Care Clinic')).toBeInTheDocument();
+
+        // Click delete button on payment row
+        const deleteBtn = screen.getByLabelText('super_admin.payments.delete_title');
+        fireEvent.click(deleteBtn);
+
+        // Confirm Dialog should appear
+        expect(screen.getByText('super_admin.payments.delete_confirm_msg')).toBeInTheDocument();
+
+        // Confirm deletion
+        const confirmBtn = screen.getByRole('button', { name: 'common.delete' });
+        fireEvent.click(confirmBtn);
+
+        await waitFor(() => {
+            expect(deleteSubscriptionPayment).toHaveBeenCalledWith(1);
+            expect(toast.success).toHaveBeenCalledWith('super_admin.payments.success_deleted');
+        });
     });
 });

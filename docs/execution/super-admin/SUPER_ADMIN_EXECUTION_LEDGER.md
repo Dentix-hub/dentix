@@ -326,7 +326,8 @@ Notes:
 
 ## MS-12 — Finance forecast semantics
 Status: PASS
-Commit: Pending
+Commit: a752f6b3
+
 Files changed:
 - `backend/routers/admin_stats.py`
 - `backend/tests/test_admin_finance_forecast.py`
@@ -348,6 +349,29 @@ Manual verification:
 
 Notes:
 - Revenue forecast reflects strictly active subscriptions only, and finance reports are fully resilient against missing/invalid dates.
+
+## MS-13 — Manual payment flow
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/pages/admin/FinancePage.jsx`
+- `frontend/src/pages/admin/FinancePage.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/pages/admin/FinancePage.test.jsx --run` -> PASS (1 test file, 3 tests passed)
+
+Manual verification:
+- Migrated manual payment modal to shared accessible `Modal` primitive with responsive dialog/bottom sheet behavior.
+- Added strict client-side validation for tenant ID, plan ID, finite positive amount (`isFinite(amount) && amount > 0`), and valid payment date.
+- Added double-submission protection and loading states on submit button.
+- Automatically cleared payer (`paid_by`) field when tenant selection changes.
+- Preserved user input in form on backend failure and displayed backend error message details.
+- Replaced `window.confirm` with shared `ConfirmDialog` primitive for deleting subscription payments.
+
+Notes:
+- Manual subscription payment flow is robust, prevents duplicate submits, and uses canonical shared dialogs.
 
 ---
 
