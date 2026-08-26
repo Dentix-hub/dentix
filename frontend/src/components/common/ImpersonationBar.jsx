@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Shield, LogOut } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { getImpersonationToken, clearImpersonationSession } from '@/utils';
 
 export default function ImpersonationBar() {
+    const { t } = useTranslation();
     const [token, setToken] = useState(() => getImpersonationToken());
     const [tenantName, setTenantName] = useState('');
     const [targetUser, setTargetUser] = useState('');
@@ -44,23 +46,27 @@ export default function ImpersonationBar() {
     const isReadOnly = scope === 'read_only';
 
     return (
-        <div className="bg-amber-500 text-white py-2 px-6 flex justify-between items-center z-[100] sticky top-0 shadow-lg border-b border-amber-600 animate-slide-down">
-            <div className="flex items-center gap-3">
-                <Shield size={18} className="animate-pulse" />
-                <span className="font-bold text-sm">
-                    وضع المحاكاة ({isReadOnly ? 'قراءة فقط' : 'وصول كامل'}):{' '}
-                    {tenantName ? `عيادة ${tenantName}` : 'المستأجر'}
-                    {targetUser ? ` (${targetUser})` : ''}
+        <div className="bg-amber-500 text-white py-2 px-4 sm:px-6 flex flex-wrap gap-2 justify-between items-center z-system sticky top-0 shadow-lg border-b border-amber-600 motion-reduce:transition-none">
+            <div className="flex items-center gap-3 min-w-0">
+                <Shield size={18} aria-hidden="true" />
+                <span className="font-bold text-sm truncate">
+                    {t('super_admin.impersonation.banner', {
+                        scope: isReadOnly
+                            ? t('super_admin.impersonation.read_only')
+                            : t('super_admin.impersonation.full_access'),
+                        tenant: tenantName || t('super_admin.impersonation.tenant_fallback'),
+                        user: targetUser ? ` (${targetUser})` : '',
+                    })}
                 </span>
             </div>
             <button
+                type="button"
                 onClick={handleReturn}
-                className="bg-white/20 hover:bg-white/30 backdrop-blur-md px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all active:scale-95"
+                className="bg-white/20 hover:bg-white/30 backdrop-blur-md px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 transition-all active:scale-95 motion-reduce:transform-none"
             >
-                <LogOut size={14} />
-                العودة للوحة الإشراف
+                <LogOut size={14} aria-hidden="true" />
+                {t('super_admin.impersonation.return')}
             </button>
         </div>
     );
 }
-

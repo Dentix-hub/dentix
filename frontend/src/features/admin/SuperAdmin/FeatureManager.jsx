@@ -1,9 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import logger from '@/utils/logger';
 import { api } from '@/api';
-import { ToggleLeft, ToggleRight, Settings, Plus, X } from 'lucide-react';
+import { ToggleLeft, ToggleRight, Settings, Plus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { toast } from '@/shared/ui';
+import { Modal, toast } from '@/shared/ui';
+
+const EMPTY_FEATURE_FORM = {
+    key: '',
+    description: '',
+    is_global_enabled: false,
+    rollout_percentage: 0,
+};
 
 export default function FeatureManager({ tenants = [], onToggleGlobal }) {
     const { t, i18n } = useTranslation();
@@ -11,9 +18,7 @@ export default function FeatureManager({ tenants = [], onToggleGlobal }) {
     const [flags, setFlags] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-
-    // Form State
-    const [form, setForm] = useState({ key: '', description: '', is_global_enabled: false, rollout_percentage: 100 });
+    const [form, setForm] = useState(EMPTY_FEATURE_FORM);
     const [overrideTenants, setOverrideTenants] = useState({});
 
     useEffect(() => {
@@ -33,73 +38,91 @@ export default function FeatureManager({ tenants = [], onToggleGlobal }) {
         }
     };
 
+    const closeCreateModal = () => {
+        setShowModal(false);
+        setForm(EMPTY_FEATURE_FORM);
+    };
+
     const handleCreateFlag = async () => {
-        if (!form.key) return toast.error(t('super_admin.features.key_required') || 'مفتاح الميزة مطلوب');
-        const rollout = Number(form.rollout_percentage);
-        if (isNaN(rollout) || rollout < 0 || rollout > 100) {
-            return toast.error('نسبة الطرح يجب أن تكون بين 0 و 100');
+        if (!form.key.trim()) {
+            toast.error(t('super_admin.features.key_required'));
+            return;
         }
+
+        const rollout = Number(form.rollout_percentage);
+        if (!Number.isFinite(rollout) || rollout < 0 || rollout > 100) {
+            toast.error(t('super_admin.features.rollout_invalid'));
+            return;
+        }
+
         try {
             await api.post('/api/v1/admin/features', {
                 ...form,
+                key: form.key.trim(),
+                description: form.description.trim(),
                 rollout_percentage: rollout,
             });
-            setShowModal(false);
-            setForm({ key: '', description: '', is_global_enabled: false, rollout_percentage: 100 });
+            closeCreateModal();
             await fetchFlags();
-            toast.success(t('super_admin.features.create_success') || 'تم إنشاء الميزة بنجاح');
+            toast.success(t('super_admin.features.create_success'));
         } catch (error) {
             const detail = error.response?.data?.detail || error.message;
-            toast.error(t('super_admin.features.create_fail') || `فشل إنشاء الميزة: ${detail}`);
+            toast.error(`${t('super_admin.features.create_fail')}${detail ? `: ${detail}` : ''}`);
         }
     };
 
     const handleToggleGlobal = async (key, currentStatus) => {
         const nextStatus = !currentStatus;
 
-        // Optimistic update
-        setFlags(prev =>
-            prev.map(f => (f.key === key ? { ...f, is_global_enabled: nextStatus } : f))
+        setFlags((prev) =>
+            prev.map((flag) => (flag.key === key ? { ...flag, is_global_enabled: nextStatus } : flag)),
         );
 
-        if (onToggleGlobal) {
-            onToggleGlobal(key, nextStatus);
-        }
+        onToggleGlobal?.(key, nextStatus);
 
         try {
             await api.put(`/api/v1/admin/features/${key}`, { is_global_enabled: nextStatus });
-            toast.success(nextStatus ? 'تم تفعيل الميزة العامة' : 'تم تعطيل الميزة العامة');
-        } catch (err) {
-            // Rollback optimistic state
-            setFlags(prev =>
-                prev.map(f => (f.key === key ? { ...f, is_global_enabled: currentStatus } : f))
+            toast.success(
+                t(
+                    nextStatus
+                        ? 'super_admin.features.global_enable_success'
+                        : 'super_admin.features.global_disable_success',
+                ),
             );
-            const detail = err.response?.data?.detail || err.message || 'فشل تحديث حالة الميزة';
-            toast.error('فشل تحديث حالة الميزة: ' + (typeof detail === 'string' ? detail : JSON.stringify(detail)));
+        } catch (error) {
+            setFlags((prev) =>
+                prev.map((flag) => (flag.key === key ? { ...flag, is_global_enabled: currentStatus } : flag)),
+            );
+            const detail = error.response?.data?.detail || error.message;
+            toast.error(`${t('super_admin.features.global_update_fail')}${detail ? `: ${detail}` : ''}`);
         }
     };
 
     const handleOverride = async (key, tenantId, enabled) => {
         if (!tenantId) {
-            return toast.error(t('super_admin.features.select_clinic') || 'يرجى اختيار العيادة أولاً');
+            toast.error(t('super_admin.features.select_clinic'));
+            return;
         }
+
         try {
             await api.post('/api/v1/admin/features/override', {
                 tenant_id: Number(tenantId),
                 feature_key: key,
-                is_enabled: enabled
+                is_enabled: enabled,
             });
-            toast.success(t('super_admin.features.override_success') || 'تم تطبيق تخصيص المستأجر بنجاح');
-        } catch (err) {
-            toast.error(t('super_admin.features.override_fail') || 'فشل تطبيق التخصيص');
+            toast.success(t('super_admin.features.override_success'));
+        } catch {
+            toast.error(t('super_admin.features.override_fail'));
         }
     };
 
-    if (loading) return <div className="p-8 text-center text-slate-500">{t('super_admin.features.loading')}</div>;
+    if (loading) {
+        return <div className="p-8 text-center text-slate-500">{t('super_admin.features.loading')}</div>;
+    }
 
     return (
         <div className="space-y-6" dir={isRtl ? 'rtl' : 'ltr'}>
-            <div className={`flex flex-col md:flex-row justify-between items-start md:items-center bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 gap-4`}>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 gap-4">
                 <div className={isRtl ? 'text-right' : 'text-left'}>
                     <h3 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                         <Settings className="text-indigo-500" />
@@ -108,6 +131,7 @@ export default function FeatureManager({ tenants = [], onToggleGlobal }) {
                     <p className="text-slate-500 mt-1">{t('super_admin.features.subtitle')}</p>
                 </div>
                 <button
+                    type="button"
                     onClick={() => setShowModal(true)}
                     className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20"
                 >
@@ -117,8 +141,11 @@ export default function FeatureManager({ tenants = [], onToggleGlobal }) {
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-                {flags.map(flag => (
-                    <div key={flag.id} className={`bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
+                {flags.map((flag) => (
+                    <div
+                        key={flag.id}
+                        className="bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+                    >
                         <div className="flex items-center gap-4">
                             <div className={`p-3 rounded-2xl ${flag.is_global_enabled ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
                                 <Settings size={24} />
@@ -128,7 +155,7 @@ export default function FeatureManager({ tenants = [], onToggleGlobal }) {
                                 <p className="text-slate-500 text-sm">{flag.description}</p>
                                 <div className={`flex items-center gap-2 mt-2 ${isRtl ? 'flex-row-reverse' : 'flex-row'}`}>
                                     <span className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg text-slate-500 font-bold">
-                                        Rollout: {flag.rollout_percentage}%
+                                        {t('super_admin.features.rollout_label', { percentage: flag.rollout_percentage })}
                                     </span>
                                 </div>
                             </div>
@@ -139,11 +166,11 @@ export default function FeatureManager({ tenants = [], onToggleGlobal }) {
                                 <select
                                     className="w-full md:w-40 text-sm p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
                                     value={overrideTenants[flag.key] || ''}
-                                    onChange={(e) => setOverrideTenants(prev => ({ ...prev, [flag.key]: e.target.value }))}
+                                    onChange={(event) => setOverrideTenants((prev) => ({ ...prev, [flag.key]: event.target.value }))}
                                 >
                                     <option value="">{t('super_admin.features.select_clinic')}</option>
-                                    {(tenants || []).map(t => (
-                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                    {tenants.map((tenant) => (
+                                        <option key={tenant.id} value={tenant.id}>{tenant.name}</option>
                                     ))}
                                 </select>
                                 <button
@@ -151,96 +178,106 @@ export default function FeatureManager({ tenants = [], onToggleGlobal }) {
                                     onClick={() => handleOverride(flag.key, overrideTenants[flag.key], true)}
                                     className="px-2.5 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
                                 >
-                                    تفعيل
+                                    {t('super_admin.features.enable')}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => handleOverride(flag.key, overrideTenants[flag.key], false)}
                                     className="px-2.5 py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors"
                                 >
-                                    تعطيل
+                                    {t('super_admin.features.disable')}
                                 </button>
                             </div>
 
                             <button
+                                type="button"
                                 onClick={() => handleToggleGlobal(flag.key, flag.is_global_enabled)}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all ${flag.is_global_enabled
                                     ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
                                     : 'bg-slate-200 text-slate-500'}`}
                             >
                                 {flag.is_global_enabled ? <ToggleRight /> : <ToggleLeft />}
-                                {flag.is_global_enabled ? t('super_admin.features.global_enabled') : t('super_admin.features.disabled')}
+                                {flag.is_global_enabled
+                                    ? t('super_admin.features.global_enabled')
+                                    : t('super_admin.features.disabled')}
                             </button>
                         </div>
                     </div>
                 ))}
             </div>
 
-            {/* Create Modal */}
-            {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in" dir={isRtl ? 'rtl' : 'ltr'}>
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 w-full max-w-md shadow-2xl space-y-6">
-                        <div className="flex justify-between items-center">
-                            <h3 className="text-xl font-bold text-slate-800 dark:text-white">{t('super_admin.features.add_title')}</h3>
-                            <button onClick={() => setShowModal(false)}><X className="text-slate-500" /></button>
-                        </div>
-
-                        <div className="space-y-4">
-                            <div className={isRtl ? 'text-right' : 'text-left'}>
-                                <label className="block text-sm font-bold text-slate-500 mb-1.5">Feature Key (Unique)</label>
-                                <input
-                                    type="text"
-                                    dir="ltr"
-                                    placeholder="new_ai_feature"
-                                    value={form.key}
-                                    onChange={(e) => setForm({ ...form, key: e.target.value })}
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none font-mono"
-                                />
-                            </div>
-                            <div className={isRtl ? 'text-right' : 'text-left'}>
-                                <label className="block text-sm font-bold text-slate-500 mb-1.5">{t('super_admin.features.description')}</label>
-                                <input
-                                    type="text"
-                                    value={form.description}
-                                    onChange={(e) => setForm({ ...form, description: e.target.value })}
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none"
-                                />
-                            </div>
-                            <div className={isRtl ? 'text-right' : 'text-left'}>
-                                <label className="block text-sm font-bold text-slate-500 mb-1.5">Rollout Percentage (0 - 100%)</label>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    max="100"
-                                    value={form.rollout_percentage}
-                                    onChange={(e) => setForm({ ...form, rollout_percentage: Math.max(0, Math.min(100, Number(e.target.value))) })}
-                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none"
-                                />
-                            </div>
-                            <div className={`flex items-center gap-3 ${isRtl ? 'flex-row-reverse' : ''}`}>
-                                <label className={`flex items-center gap-2 cursor-pointer ${isRtl ? 'flex-row-reverse' : ''}`}>
-                                    <input
-                                        type="checkbox"
-                                        checked={form.is_global_enabled}
-                                        onChange={(e) => setForm({ ...form, is_global_enabled: e.target.checked })}
-                                        className="w-5 h-5 accent-indigo-500"
-                                    />
-                                    <span className="font-bold text-slate-700 dark:text-slate-300">{t('super_admin.features.global_enable')}</span>
-                                </label>
-                            </div>
-
-                            <button
-                                onClick={handleCreateFlag}
-                                className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg"
-                            >
-                                {t('super_admin.features.save_btn')}
-                            </button>
-                        </div>
+            <Modal
+                isOpen={showModal}
+                onClose={closeCreateModal}
+                title={t('super_admin.features.add_title')}
+                maxWidth="max-w-md"
+                closeLabel={t('super_admin.features.close_create')}
+            >
+                <div className="space-y-4" dir={isRtl ? 'rtl' : 'ltr'}>
+                    <div className={isRtl ? 'text-right' : 'text-left'}>
+                        <label htmlFor="feature-key" className="block text-sm font-bold text-slate-500 mb-1.5">
+                            {t('super_admin.features.feature_key_label')}
+                        </label>
+                        <input
+                            id="feature-key"
+                            type="text"
+                            dir="ltr"
+                            placeholder="new_ai_feature"
+                            value={form.key}
+                            onChange={(event) => setForm({ ...form, key: event.target.value })}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none font-mono"
+                        />
                     </div>
+                    <div className={isRtl ? 'text-right' : 'text-left'}>
+                        <label htmlFor="feature-description" className="block text-sm font-bold text-slate-500 mb-1.5">
+                            {t('super_admin.features.description')}
+                        </label>
+                        <input
+                            id="feature-description"
+                            type="text"
+                            value={form.description}
+                            onChange={(event) => setForm({ ...form, description: event.target.value })}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none"
+                        />
+                    </div>
+                    <div className={isRtl ? 'text-right' : 'text-left'}>
+                        <label htmlFor="feature-rollout" className="block text-sm font-bold text-slate-500 mb-1.5">
+                            {t('super_admin.features.rollout_percentage_label')}
+                        </label>
+                        <input
+                            id="feature-rollout"
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={form.rollout_percentage}
+                            onChange={(event) => setForm({
+                                ...form,
+                                rollout_percentage: Math.max(0, Math.min(100, Number(event.target.value))),
+                            })}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none"
+                        />
+                    </div>
+                    <label className={`flex items-center gap-2 cursor-pointer ${isRtl ? 'flex-row-reverse justify-end' : ''}`}>
+                        <input
+                            type="checkbox"
+                            checked={form.is_global_enabled}
+                            onChange={(event) => setForm({ ...form, is_global_enabled: event.target.checked })}
+                            className="w-5 h-5 accent-indigo-500"
+                        />
+                        <span className="font-bold text-slate-700 dark:text-slate-300">
+                            {t('super_admin.features.global_enable')}
+                        </span>
+                    </label>
+
+                    <button
+                        type="button"
+                        onClick={handleCreateFlag}
+                        className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg"
+                    >
+                        {t('super_admin.features.save_btn')}
+                    </button>
                 </div>
-            )}
+            </Modal>
         </div>
     );
 }
-
-

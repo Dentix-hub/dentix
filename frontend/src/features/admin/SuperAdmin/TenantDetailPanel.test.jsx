@@ -13,6 +13,31 @@ vi.mock('@/api', () => ({
 }));
 
 vi.mock('@/utils/logger', () => ({ default: { error: vi.fn() } }));
+vi.mock('@/shared/ui', () => ({
+    DentixDrawer: ({ open, title, children }) => (
+        open ? <div role="dialog" aria-label={title}>{children}</div> : null
+    ),
+}));
+vi.mock('react-i18next', () => ({
+    useTranslation: () => ({
+        t: (key, options) => {
+            const fallbacks = {
+                'super_admin.tenant_detail.title': 'تفاصيل العيادة',
+                'super_admin.tenant_detail.subtitle': 'إدارة بيانات وموارد المستأجر',
+                'super_admin.tenant_detail.reason_placeholder': 'سبب الدخول (5 أحرف على الأقل)',
+                'super_admin.tenant_detail.readonly_scope': 'نطاق الجلسة: قراءة فقط (Read-Only)',
+                'super_admin.tenant_detail.min_reason': 'الحد الأدنى 5 أحرف',
+                'super_admin.tenant_detail.start_impersonation': 'دخول مؤقت للنظام',
+                'super_admin.tenant_detail.unnamed': 'بدون اسم',
+                'super_admin.tenant_detail.unavailable': 'غير متوفر',
+                'super_admin.tenant_detail.no_activity': 'لا يوجد',
+            };
+            if (key === 'super_admin.tenant_detail.clinic_number') return `عيادة #${options?.id}`;
+            return fallbacks[key] || key;
+        },
+        i18n: { language: 'ar' },
+    }),
+}));
 
 describe('TenantDetailPanel impersonation contract and UI safety', () => {
     const mockOnImpersonate = vi.fn();
@@ -42,16 +67,17 @@ describe('TenantDetailPanel impersonation contract and UI safety', () => {
         });
     });
 
-    it('disables impersonation button when reason is less than 5 characters', async () => {
+    it('uses the canonical shared drawer and disables impersonation for a short reason', async () => {
         render(<TenantDetailPanel tenantId={10} onClose={mockOnClose} onImpersonate={mockOnImpersonate} />);
 
         expect(await screen.findByText('Dental Plus')).toBeInTheDocument();
+        expect(screen.getByRole('dialog', { name: 'تفاصيل العيادة' })).toBeInTheDocument();
 
-        const button = screen.getByText('دخول مؤقت للنظام').closest('button');
+        const button = screen.getByRole('button', { name: 'دخول مؤقت للنظام' });
         expect(button).toBeDisabled();
 
-        const input = screen.getByPlaceholderText(/سبب الدخول/);
-        fireEvent.change(input, { target: { value: 'help' } }); // 4 chars
+        const input = screen.getByLabelText('سبب الدخول (5 أحرف على الأقل)');
+        fireEvent.change(input, { target: { value: 'help' } });
 
         expect(button).toBeDisabled();
         expect(screen.getByText('الحد الأدنى 5 أحرف')).toBeInTheDocument();
@@ -62,10 +88,10 @@ describe('TenantDetailPanel impersonation contract and UI safety', () => {
 
         expect(await screen.findByText('Dental Plus')).toBeInTheDocument();
 
-        const input = screen.getByPlaceholderText(/سبب الدخول/);
+        const input = screen.getByLabelText('سبب الدخول (5 أحرف على الأقل)');
         fireEvent.change(input, { target: { value: 'استكشاف مشكلة في المواعيد' } });
 
-        const button = screen.getByText('دخول مؤقت للنظام').closest('button');
+        const button = screen.getByRole('button', { name: 'دخول مؤقت للنظام' });
         expect(button).not.toBeDisabled();
 
         fireEvent.click(button);
@@ -74,11 +100,11 @@ describe('TenantDetailPanel impersonation contract and UI safety', () => {
             10,
             '',
             'استكشاف مشكلة في المواعيد',
-            'read_only'
+            'read_only',
         );
     });
 
-    it('does not render dead ExternalLink icon/button', async () => {
+    it('does not render dead ExternalLink affordances', async () => {
         render(<TenantDetailPanel tenantId={10} onClose={mockOnClose} onImpersonate={mockOnImpersonate} />);
 
         await screen.findByText('Dental Plus');

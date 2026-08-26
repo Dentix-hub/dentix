@@ -19,6 +19,9 @@ vi.mock('@/api', () => ({
 vi.mock('@/utils/logger', () => ({ default: { error: vi.fn() } }));
 vi.mock('@/shared/ui', () => ({
     toast: { success: vi.fn(), error: vi.fn() },
+    Modal: ({ isOpen, title, children }) => (
+        isOpen ? <div role="dialog" aria-label={title}>{children}</div> : null
+    ),
 }));
 
 vi.mock('react-i18next', () => ({
@@ -63,7 +66,6 @@ describe('FeatureManager flag wiring and optimistic updates', () => {
 
         fireEvent.click(toggleButton);
 
-        // Optimistically changes to enabled
         expect(screen.getByText('super_admin.features.global_enabled')).toBeInTheDocument();
 
         await waitFor(() => {
@@ -85,6 +87,32 @@ describe('FeatureManager flag wiring and optimistic updates', () => {
 
         await waitFor(() => {
             expect(screen.getByText('super_admin.features.disabled')).toBeInTheDocument();
+        });
+    });
+
+    it('creates a feature with backend-aligned zero rollout by default', async () => {
+        apiMocks.apiPost.mockResolvedValue({ data: {} });
+
+        render(<FeatureManager tenants={[]} />);
+        await screen.findByText('ai_diagnosis_assistant');
+
+        fireEvent.click(screen.getByRole('button', { name: 'super_admin.features.new_feature' }));
+        expect(screen.getByRole('dialog', { name: 'super_admin.features.add_title' })).toBeInTheDocument();
+
+        fireEvent.change(screen.getByLabelText('super_admin.features.feature_key_label'), {
+            target: { value: 'new_feature' },
+        });
+
+        expect(screen.getByLabelText('super_admin.features.rollout_percentage_label')).toHaveValue(0);
+        fireEvent.click(screen.getByRole('button', { name: 'super_admin.features.save_btn' }));
+
+        await waitFor(() => {
+            expect(apiMocks.apiPost).toHaveBeenCalledWith('/api/v1/admin/features', {
+                key: 'new_feature',
+                description: '',
+                is_global_enabled: false,
+                rollout_percentage: 0,
+            });
         });
     });
 });

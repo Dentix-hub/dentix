@@ -33,7 +33,7 @@ vi.mock('@/shared/ui', async () => {
     };
 });
 
-describe('SystemPage Profile and Backup Truthfulness (MS-18 & MS-20)', () => {
+describe('SystemPage Profile and Backup Truthfulness (MS-18, MS-20, MS-32)', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         useAuthStore.setState({
@@ -61,7 +61,7 @@ describe('SystemPage Profile and Backup Truthfulness (MS-18 & MS-20)', () => {
         });
     });
 
-    it('renders profile tab and handles profile update properly (MS-18)', async () => {
+    it('renders localized system navigation and handles profile update properly', async () => {
         api.put.mockResolvedValueOnce({
             data: {
                 success: true,
@@ -71,17 +71,15 @@ describe('SystemPage Profile and Backup Truthfulness (MS-18 & MS-20)', () => {
 
         render(<SystemPage />);
 
-        const profileTabBtn = await screen.findByRole('button', { name: /الحساب/ });
+        expect(await screen.findByText('super_admin.system.title')).toBeInTheDocument();
+        const profileTabBtn = screen.getByRole('button', { name: 'super_admin.system.tabs.profile' });
         fireEvent.click(profileTabBtn);
 
-        const usernameInput = screen.getByLabelText('اسم المستخدم الجديد');
+        const usernameInput = screen.getByLabelText('super_admin.profile.username_label');
         fireEvent.change(usernameInput, { target: { value: 'new_super_name' } });
 
-        const submitBtn = screen.getByRole('button', { name: /super_admin.profile.save_changes/ });
-        fireEvent.click(submitBtn);
-
-        const confirmBtn = screen.getByRole('button', { name: 'common.confirm' });
-        fireEvent.click(confirmBtn);
+        fireEvent.click(screen.getByRole('button', { name: 'super_admin.profile.save_changes' }));
+        fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }));
 
         await waitFor(() => {
             expect(api.put).toHaveBeenCalledWith('/api/v1/admin/system/profile', {
@@ -91,18 +89,17 @@ describe('SystemPage Profile and Backup Truthfulness (MS-18 & MS-20)', () => {
         });
     });
 
-    it('renders connected backup status and last backup run details (MS-20)', async () => {
+    it('renders connected backup status and last backup run details', async () => {
         render(<SystemPage />);
 
-        const backupTabBtn = await screen.findByRole('button', { name: /النسخ الاحتياطي/ });
-        fireEvent.click(backupTabBtn);
+        fireEvent.click(await screen.findByRole('button', { name: 'super_admin.system.tabs.backup' }));
 
-        expect(screen.getByText('common.connected')).toBeInTheDocument();
-        expect(screen.getByText('common.success')).toBeInTheDocument();
+        expect(screen.getByText('super_admin.backup.connected')).toBeInTheDocument();
+        expect(screen.getByText('super_admin.backup.status_success')).toBeInTheDocument();
         expect(screen.getByText(/Backup completed successfully/)).toBeInTheDocument();
     });
 
-    it('triggers backup and shows started/processing toast instead of immediate completion (MS-20)', async () => {
+    it('triggers backup and shows started/processing toast instead of immediate completion', async () => {
         api.post.mockResolvedValueOnce({
             data: {
                 success: true,
@@ -112,17 +109,11 @@ describe('SystemPage Profile and Backup Truthfulness (MS-18 & MS-20)', () => {
         });
 
         render(<SystemPage />);
-
-        const backupTabBtn = await screen.findByRole('button', { name: /النسخ الاحتياطي/ });
-        fireEvent.click(backupTabBtn);
-
-        const triggerBtn = screen.getByRole('button', { name: /super_admin.backup.trigger_cloud_btn/ });
-        fireEvent.click(triggerBtn);
+        fireEvent.click(await screen.findByRole('button', { name: 'super_admin.system.tabs.backup' }));
+        fireEvent.click(screen.getByRole('button', { name: 'super_admin.backup.trigger_cloud_btn' }));
 
         expect(screen.getByText('super_admin.backup.confirm_upload_title')).toBeInTheDocument();
-
-        const confirmBtn = screen.getByRole('button', { name: 'super_admin.backup.confirm_start_btn' });
-        fireEvent.click(confirmBtn);
+        fireEvent.click(screen.getByRole('button', { name: 'super_admin.backup.confirm_start_btn' }));
 
         await waitFor(() => {
             expect(api.post).toHaveBeenCalledWith('/api/v1/admin/system/backup/google-upload');
@@ -130,7 +121,7 @@ describe('SystemPage Profile and Backup Truthfulness (MS-18 & MS-20)', () => {
         });
     });
 
-    it('disconnects Google Drive via ConfirmDialog (MS-20)', async () => {
+    it('disconnects Google Drive via ConfirmDialog', async () => {
         api.delete.mockResolvedValueOnce({
             data: {
                 success: true,
@@ -139,22 +130,16 @@ describe('SystemPage Profile and Backup Truthfulness (MS-18 & MS-20)', () => {
         });
 
         render(<SystemPage />);
-
-        const backupTabBtn = await screen.findByRole('button', { name: /النسخ الاحتياطي/ });
-        fireEvent.click(backupTabBtn);
-
-        const disconnectBtn = screen.getByRole('button', { name: /super_admin.backup.disconnect_btn/ });
-        fireEvent.click(disconnectBtn);
+        fireEvent.click(await screen.findByRole('button', { name: 'super_admin.system.tabs.backup' }));
+        fireEvent.click(screen.getByRole('button', { name: 'super_admin.backup.disconnect_btn' }));
 
         expect(screen.getByText('super_admin.backup.disconnect_confirm_title')).toBeInTheDocument();
-
-        const confirmBtn = screen.getByRole('button', { name: 'common.confirm' });
-        fireEvent.click(confirmBtn);
+        fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }));
 
         await waitFor(() => {
             expect(api.delete).toHaveBeenCalledWith('/api/v1/admin/system/backup/google-auth');
             expect(toast.success).toHaveBeenCalledWith('super_admin.backup.disconnect_success');
-            expect(screen.getByText('common.disconnected')).toBeInTheDocument();
+            expect(screen.getByText('super_admin.backup.disconnected')).toBeInTheDocument();
         });
     });
 });

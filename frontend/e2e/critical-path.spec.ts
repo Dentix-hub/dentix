@@ -5,23 +5,26 @@ const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173';
 const API_URL = process.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 const TEST_USER = E2E_CREDENTIALS.admin.username;
 const TEST_PASS = E2E_CREDENTIALS.admin.password;
+const SUPER_ADMIN_USER = process.env.E2E_SUPER_ADMIN_USERNAME || 'admin';
+const SUPER_ADMIN_PASS = process.env.E2E_SUPER_ADMIN_PASSWORD || 'admin123';
 
 function egyptInternationalPhone(localPhone: string) {
   return localPhone.startsWith('0') ? `+20${localPhone.slice(1)}` : localPhone;
 }
 
+async function loginWithUi(page, username: string, password: string) {
+  await page.goto(`${BASE_URL}/`);
+  await page.locator('input[type="text"]').fill(username);
+  await page.locator('input[type="password"]').fill(password);
+  await page.locator('button[type="submit"]').click();
+  await expect(page.locator('nav').first()).toBeVisible({ timeout: 15000 });
+}
+
 test.describe('Dentix Critical Path', () => {
   test('authenticated patient workspace + clinical + finance core routes work', async ({ page }) => {
-    // 1. Authenticate through the real browser UI.
-    await page.goto(`${BASE_URL}/`);
-    await page.locator('input[type="text"]').fill(TEST_USER);
-    await page.locator('input[type="password"]').fill(TEST_PASS);
-    await page.locator('button[type="submit"]').click();
-    await expect(page.locator('nav').first()).toBeVisible({ timeout: 15000 });
+    await loginWithUi(page, TEST_USER, TEST_PASS);
     await expect(page).toHaveURL(`${BASE_URL}/`);
 
-    // 2. Create a deterministic patient fixture through the authenticated browser
-    // context. Mirror the application's CSRF contract rather than bypassing it.
     const csrfCookie = (await page.context().cookies()).find(cookie => cookie.name === 'csrf_token');
     expect(csrfCookie?.value).toBeTruthy();
 
@@ -47,7 +50,6 @@ test.describe('Dentix Critical Path', () => {
     const patient = createBody?.data ?? createBody;
     expect(patient?.id).toBeTruthy();
 
-    // 3. Patient Workspace V2 is a semantic directory, not a card-only client filter.
     await page.goto(`${BASE_URL}/patients`);
     await expect(page.locator('table')).toBeVisible({ timeout: 10000 });
 
@@ -56,25 +58,20 @@ test.describe('Dentix Critical Path', () => {
     });
     await expect(searchBox).toBeVisible();
 
-    // Arabic normalization: stored "أحمد" must be discoverable as "احمد".
     await searchBox.fill(`احمد E2E ${suffix}`);
     await expect(page.getByText(patientName, { exact: true }).first()).toBeVisible({ timeout: 10000 });
 
-    // File number search is exact and server-backed.
     await searchBox.fill(`#${patient.id}`);
     await expect(page.getByText(patientName, { exact: true }).first()).toBeVisible({ timeout: 10000 });
 
-    // Egyptian local and international phone forms resolve to the same record.
     await searchBox.fill(egyptInternationalPhone(patientPhone));
     const patientNameEl = page.getByText(patientName, { exact: true }).first();
     await expect(patientNameEl).toBeVisible({ timeout: 10000 });
 
-    // 4. Patient details remains reachable through a real semantic link.
     await patientNameEl.click();
     await expect(page).toHaveURL(`${BASE_URL}/patients/${patient.id}`, { timeout: 10000 });
     await expect(page.getByText(patientName, { exact: true }).first()).toBeVisible({ timeout: 10000 });
 
-    // 5. Distinguish a true search miss from an empty clinic.
     await page.goto(`${BASE_URL}/patients`);
     const directorySearch = page.getByRole('searchbox', {
       name: /Search patients|البحث في المرضى/i,
@@ -82,8 +79,6 @@ test.describe('Dentix Critical Path', () => {
     await directorySearch.fill(`no-patient-${Date.now()}`);
     await expect(page.getByText(/No matching patient|لا يوجد مريض مطابق/i)).toBeVisible({ timeout: 10000 });
 
-    // 6. Archive uses the normal patient-directory action and removes the record
-    // from the active workspace without a hard delete.
     await directorySearch.fill(`#${patient.id}`);
     await expect(page.getByText(patientName, { exact: true }).first()).toBeVisible({ timeout: 10000 });
     page.once('dialog', async (dialog) => {
@@ -93,11 +88,71 @@ test.describe('Dentix Critical Path', () => {
     await page.getByRole('button', { name: /Archive patient|أرشفة المريض/i }).first().click();
     await expect(page.getByText(patientName, { exact: true })).toHaveCount(0, { timeout: 10000 });
 
-    // 7. Finance is part of the production recovery gate. Verify the clinic admin
-    // can enter the protected Finance/Billing route without a 404.
     await page.goto(`${BASE_URL}/billing`);
     await expect(page).toHaveURL(`${BASE_URL}/billing`);
     await expect(page.locator('nav').first()).toBeVisible({ timeout: 10000 });
     await expect(page.getByText(/404|page not found|الصفحة غير موجودة/i)).toHaveCount(0);
+  });
+
+  test('super admin impersonation is read-only and returns to the original admin session', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem('i18nextLng', 'ar');
+    });
+
+    await loginWithUi(page, SUPER_ADMIN_USER, SUPER_ADMIN_PASS);
+    await page.goto(`${BASE_URL}/admin/tenants`);
+    await expect(page).toHaveURL(`${BASE_URL}/admin/tenants`);
+
+    const tenantRow = page.locator('tbody tr').filter({ hasText: 'Dentix E2E Clinic' }).first();
+    await expect(tenantRow).toBeVisible({ timeout: 10000 });
+    await tenantRow.getByRole('button').first().click();
+
+    const reasonInput = page.getByLabel(/سبب الدخول|Reason for access/i);
+    await expect(reasonInput).toBeVisible({ timeout: 10000 });
+    await reasonInput.fill('E2E read-only support verification');
+
+    const startButton = page.getByRole('button', { name: /دخول مؤقت للنظام|Start temporary access/i });
+    await expect(startButton).toBeEnabled();
+    await startButton.click();
+
+    await expect.poll(
+      () => page.evaluate(() => window.sessionStorage.getItem('dentix_impersonation_token')),
+      { timeout: 10000 },
+    ).not.toBeNull();
+
+    const impersonationToken = await page.evaluate(
+      () => window.sessionStorage.getItem('dentix_impersonation_token'),
+    );
+    expect(impersonationToken).toBeTruthy();
+
+    await expect(page.getByRole('button', { name: /العودة للوحة الإشراف|Return to Super Admin/i })).toBeVisible({ timeout: 10000 });
+
+    const readResponse = await page.request.get(`${API_URL}/patients?limit=1`, {
+      headers: { Authorization: `Bearer ${impersonationToken}` },
+    });
+    expect(readResponse.ok(), await readResponse.text()).toBeTruthy();
+
+    const blockedWrite = await page.request.post(`${API_URL}/patients`, {
+      headers: { Authorization: `Bearer ${impersonationToken}` },
+      data: {
+        name: `Blocked Impersonation ${Date.now()}`,
+        age: 30,
+        phone: `011${String(Date.now()).slice(-8)}`,
+        address: 'Must not be created',
+        medical_history: '',
+        assigned_doctor_id: null,
+      },
+    });
+    expect(blockedWrite.status()).toBe(403);
+    expect(await blockedWrite.text()).toContain('Read-only impersonation cannot modify clinic data');
+
+    await page.getByRole('button', { name: /العودة للوحة الإشراف|Return to Super Admin/i }).click();
+    await expect(page).toHaveURL(`${BASE_URL}/admin/tenants`, { timeout: 10000 });
+    await expect.poll(
+      () => page.evaluate(() => window.sessionStorage.getItem('dentix_impersonation_token')),
+      { timeout: 5000 },
+    ).toBeNull();
+
+    await expect(page.locator('tbody tr').filter({ hasText: 'Dentix E2E Clinic' }).first()).toBeVisible({ timeout: 10000 });
   });
 });
