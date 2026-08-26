@@ -850,7 +850,8 @@ Manual verification:
 
 ## MS-34 — Request efficiency
 Status: PASS
-Commit: Pending
+Commit: 3d78c9c5
+
 Files changed:
 - `frontend/src/lib/queryClient.js`
 - `frontend/src/lib/queryClientEfficiency.test.js`
@@ -865,10 +866,29 @@ Manual verification:
 - Configured 30s stale time and background deduping to eliminate duplicate query waterfall calls.
 - Targeted invalidation ensures mutating a single tenant or user does not trigger sweeping full-app refetches.
 
+## MS-35 — Frontend regression suite
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/features/admin/SuperAdmin/SuperAdminFrontendRegression.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/SuperAdminFrontendRegression.test.jsx --run` -> PASS (1 test file, 5 tests passed)
+
+Manual verification:
+- AI Analytics: Dash fallback `—` verified on 0-request periods; query params properly bound to period switcher.
+- Session Management: Terminating active session calls `DELETE /api/v1/admin/security/sessions/:id` guarded by shared `ConfirmDialog`.
+- Security Panel: IP blocking input validated and handled gracefully with partial failure tolerance across concurrent stats/charts/blocked queries.
+- System Logs: CSV export triggers download and safely revokes temporary blob object URLs without memory leaks.
+- Audit Log Viewer: Multi-parameter log fetching, pagination, and action badge rendering verified without out-of-bounds errors.
+
 Notes:
-- Super Admin data fetching is clean, deduplicated, targeted, and performant.
+- All high-risk frontend regressions identified during triple check are locked under automated tests.
 
 ---
+
 
 
 
