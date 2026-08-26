@@ -166,6 +166,31 @@ Manual verification:
 Notes:
 - Feature flag toggle and override controls are fully wired to the backend API without no-op switches.
 
+---
+
+## MS-06 — Command palette wiring and safety
+Status: PASS
+Commit: 80f4acef
+Files changed:
+- `frontend/src/features/admin/SuperAdmin/SuperAdminCommandPalette.jsx`
+- `frontend/src/features/admin/SuperAdmin/SuperAdminCommandPalette.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/SuperAdminCommandPalette.test.jsx --run` -> PASS (1 test file, 4 tests passed)
+
+Manual verification:
+- Routed action commands to real active Super Admin paths (`/admin`, `/admin/tenants`, `/admin/users`, `/admin/finance`, `/admin/messages`, `/ai/stats`, `/admin/system/logs`, `/admin/settings`).
+- Integrated tenant search using `/api/v1/admin/tenants` with fuzzy/filter matching on name, domain, email, and phone.
+- Enabled deep linking directly from search results to `/admin/tenants?id=:id`.
+- Replaced 404-prone `/api/v1/admin/system/search` with robust client-side + tenant-endpoint search.
+- Hardened keyboard controls and event listeners with cleanup on unmount.
+
+Notes:
+- Super Admin command palette now executes real navigation commands and deep links directly into tenant records without dead routes.
+
+
 
 
 

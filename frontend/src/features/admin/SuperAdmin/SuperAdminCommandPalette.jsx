@@ -1,10 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
-import { Search, Building2, Users, CreditCard, Terminal, Cpu, ArrowRight, User, Command } from 'lucide-react';
+import { Search, Building2, Users, CreditCard, Terminal, Cpu, ArrowRight, User, Command, Settings as SettingsIcon, Mail, Shield } from 'lucide-react';
 import { api } from '@/api';
 import { useNavigate } from 'react-router-dom';
 
-export default function CommandPalette({ isOpen, onClose }) {
+const STATIC_ADMIN_ACTIONS = [
+    { type: 'page', id: 'overview', title: 'لوحة التحكم الرئيسية', subtitle: 'نظرة عامة ومؤشرات النظام', url: '/admin', icon: 'Shield' },
+    { type: 'page', id: 'tenants', title: 'إدارة العيادات والمستأجرين', subtitle: 'الاشتراكات والعيادات النشطة', url: '/admin/tenants', icon: 'Building2' },
+    { type: 'page', id: 'users', title: 'إدارة المستخدمين', subtitle: 'حسابات المستخدمين والمشرفين', url: '/admin/users', icon: 'Users' },
+    { type: 'page', id: 'finance', title: 'التقارير المالية والفوترة', subtitle: 'الإيرادات والمدفوعات', url: '/admin/finance', icon: 'CreditCard' },
+    { type: 'page', id: 'messages', title: 'رسائل الدعم والتواصل', subtitle: 'صندوق رسائل العيادات والدعم', url: '/admin/messages', icon: 'Mail' },
+    { type: 'page', id: 'ai', title: 'تحليلات الذكاء الاصطناعي', subtitle: 'استهلاك وتكاليف نماذج AI', url: '/ai/stats', icon: 'Cpu' },
+    { type: 'page', id: 'logs', title: 'سجل أخطاء النظام', subtitle: 'مراقبة أخطاء الخادم والتشخيص', url: '/admin/system/logs', icon: 'Terminal' },
+    { type: 'page', id: 'settings', title: 'إعدادات النظام العامة', subtitle: 'تكوين الخادم والميزات والأمان', url: '/admin/settings', icon: 'Settings' },
+];
+
+export default function SuperAdminCommandPalette({ isOpen, onClose }) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -12,37 +23,77 @@ export default function CommandPalette({ isOpen, onClose }) {
     const navigate = useNavigate();
 
     const handleSelect = useCallback((item) => {
+        if (!item || !item.url) return;
         navigate(item.url);
         onClose();
         setQuery('');
     }, [navigate, onClose]);
 
     const handleSearch = useCallback(async (q) => {
-        if (q.length < 2) {
+        const trimmed = q.trim().toLowerCase();
+        if (trimmed.length < 2) {
             setResults([]);
             return;
         }
+
         setLoading(true);
         try {
-            const res = await api.get(`/api/v1/admin/system/search?q=${q}`);
-            setResults(res.data || []);
+            // 1. Search matching static system actions
+            const matchedActions = STATIC_ADMIN_ACTIONS.filter(action =>
+                action.title.toLowerCase().includes(trimmed) ||
+                action.subtitle.toLowerCase().includes(trimmed) ||
+                action.url.toLowerCase().includes(trimmed)
+            );
+
+            // 2. Search matching tenants from backend API
+            let matchedTenants = [];
+            try {
+                const res = await api.get('/api/v1/admin/tenants');
+                const tenantsList = Array.isArray(res.data) ? res.data : (Array.isArray(res) ? res : []);
+                matchedTenants = tenantsList
+                    .filter(t => 
+                        (t.name && t.name.toLowerCase().includes(trimmed)) ||
+                        (t.domain && t.domain.toLowerCase().includes(trimmed)) ||
+                        (t.admin_email && t.admin_email.toLowerCase().includes(trimmed)) ||
+                        (t.contact_phone && t.contact_phone.includes(trimmed))
+                    )
+                    .map(t => ({
+                        type: 'tenant',
+                        id: `tenant-${t.id}`,
+                        title: t.name || `عيادة #${t.id}`,
+                        subtitle: `${t.domain ? t.domain + '.dentix.com' : 'portal.dentix.com'} • خطة ${t.plan || 'تجريبية'}`,
+                        url: `/admin/tenants?id=${t.id}`,
+                        icon: 'Building2',
+                    }));
+            } catch (err) {
+                logger.error('Failed to search tenants in CommandPalette:', err);
+            }
+
+            setResults([...matchedActions, ...matchedTenants]);
             setSelectedIndex(0);
         } catch (err) {
-            logger.error('Search failed:', err);
+            logger.error('CommandPalette search error:', err);
+            setResults([]);
         } finally {
             setLoading(false);
         }
     }, []);
 
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen) {
+            setQuery('');
+            setResults([]);
+            return;
+        }
         const timer = setTimeout(() => {
             handleSearch(query);
-        }, 300);
+        }, 200);
         return () => clearTimeout(timer);
     }, [query, handleSearch, isOpen]);
 
     useEffect(() => {
+        if (!isOpen) return;
+
         const handleKeyDown = (e) => {
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
@@ -51,21 +102,35 @@ export default function CommandPalette({ isOpen, onClose }) {
                 e.preventDefault();
                 setSelectedIndex(prev => (prev - 1 + (results.length || 1)) % (results.length || 1));
             } else if (e.key === 'Enter') {
+                e.preventDefault();
                 if (results[selectedIndex]) {
                     handleSelect(results[selectedIndex]);
                 }
             } else if (e.key === 'Escape') {
+                e.preventDefault();
                 onClose();
             }
         };
 
-        if (isOpen) {
-            window.addEventListener('keydown', handleKeyDown);
-        }
+        window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [handleSelect, isOpen, onClose, results, selectedIndex]);
 
     if (!isOpen) return null;
+
+    const renderIcon = (iconName) => {
+        switch (iconName) {
+            case 'Building2': return <Building2 size={20} />;
+            case 'Users': return <Users size={20} />;
+            case 'CreditCard': return <CreditCard size={20} />;
+            case 'Terminal': return <Terminal size={20} />;
+            case 'Cpu': return <Cpu size={20} />;
+            case 'Mail': return <Mail size={20} />;
+            case 'Settings': return <SettingsIcon size={20} />;
+            case 'Shield': return <Shield size={20} />;
+            default: return <User size={20} />;
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-[200] flex items-start justify-center pt-[15vh] px-4">
@@ -112,12 +177,7 @@ export default function CommandPalette({ isOpen, onClose }) {
                                         <div className={`p-3 rounded-xl ${
                                             selectedIndex === index ? 'bg-indigo-100 dark:bg-indigo-800/50' : 'bg-slate-100 dark:bg-slate-800'
                                         }`}>
-                                            {item.icon === 'Building2' && <Building2 size={20} />}
-                                            {item.icon === 'User' && <User size={20} />}
-                                            {item.icon === 'Users' && <Users size={20} />}
-                                            {item.icon === 'CreditCard' && <CreditCard size={20} />}
-                                            {item.icon === 'Terminal' && <Terminal size={20} />}
-                                            {item.icon === 'Cpu' && <Cpu size={20} />}
+                                            {renderIcon(item.icon)}
                                         </div>
                                         <div>
                                             <div className="font-bold text-lg">{item.title}</div>
@@ -130,21 +190,23 @@ export default function CommandPalette({ isOpen, onClose }) {
                         </div>
                     )}
 
-                    {!loading && query.length >= 2 && results.length === 0 && (
+                    {!loading && query.trim().length >= 2 && results.length === 0 && (
                         <div className="p-12 text-center text-slate-400 italic">
                             لم يتم العثور على نتائج لـ &quot;{query}&quot;
                         </div>
                     )}
 
-                    {!loading && query.length < 2 && (
+                    {!loading && query.trim().length < 2 && (
                         <div className="p-8">
                             <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 text-right">اقتراحات سريعة</div>
                             <div className="grid grid-cols-2 gap-3" dir="rtl">
                                 {[
-                                    { title: 'العيادات النشطة', url: '/admin/tenants?status=active', icon: <Building2 size={18} /> },
+                                    { title: 'إدارة العيادات', url: '/admin/tenants', icon: <Building2 size={18} /> },
                                     { title: 'سجل الأخطاء', url: '/admin/system/logs', icon: <Terminal size={18} /> },
-                                    { title: 'الإيرادات', url: '/admin/finance', icon: <CreditCard size={18} /> },
+                                    { title: 'التقارير المالية', url: '/admin/finance', icon: <CreditCard size={18} /> },
                                     { title: 'تحليلات AI', url: '/ai/stats', icon: <Cpu size={18} /> },
+                                    { title: 'إدارة المستخدمين', url: '/admin/users', icon: <Users size={18} /> },
+                                    { title: 'إعدادات النظام', url: '/admin/settings', icon: <SettingsIcon size={18} /> },
                                 ].map(rec => (
                                     <button 
                                         key={rec.url}
@@ -173,3 +235,4 @@ export default function CommandPalette({ isOpen, onClose }) {
         </div>
     );
 }
+
