@@ -72,6 +72,7 @@ describe('SystemPage Profile and Backup Truthfulness (MS-18, MS-20, MS-32)', () 
         render(<SystemPage />);
 
         expect(await screen.findByText('super_admin.system.title')).toBeInTheDocument();
+        expect(api.get).toHaveBeenCalledTimes(4);
         const profileTabBtn = screen.getByRole('button', { name: 'super_admin.system.tabs.profile' });
         fireEvent.click(profileTabBtn);
 

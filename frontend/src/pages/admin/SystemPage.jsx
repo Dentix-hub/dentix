@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import logger from '@/utils/logger';
 import { api } from '@/api';
 import SettingsManager from '@/features/admin/SuperAdmin/SettingsManager';
@@ -42,7 +42,7 @@ export default function SystemPage() {
     const [googleConnected, setGoogleConnected] = useState(false);
     const [lastBackupInfo, setLastBackupInfo] = useState({ status: null, message: null, date: null });
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             const [settingsRes, tenantsRes, googleRes, userRes] = await Promise.all([
@@ -65,11 +65,13 @@ export default function SystemPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchData();
+    }, [fetchData]);
 
+    useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const status = params.get('backup_status');
         if (status) {
