@@ -3,8 +3,9 @@ import logger from '@/utils/logger';
 import { api } from '@/api';
 import { ToggleLeft, ToggleRight, Settings, Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { toast } from '@/shared/ui';
 
-export default function FeatureManager({ tenants }) {
+export default function FeatureManager({ tenants = [], onToggleGlobal }) {
     const { t, i18n } = useTranslation();
     const isRtl = i18n.language === 'ar';
     const [flags, setFlags] = useState([]);
@@ -21,34 +22,52 @@ export default function FeatureManager({ tenants }) {
     const fetchFlags = async () => {
         try {
             setLoading(true);
-            const res = await api.get('/api/v1/admin/features/');
-            setFlags(res.data);
+            const res = await api.get('/api/v1/admin/features');
+            setFlags(Array.isArray(res.data) ? res.data : (Array.isArray(res) ? res : []));
         } catch (error) {
             logger.error(error);
+            setFlags([]);
         } finally {
             setLoading(false);
         }
     };
 
     const handleCreateFlag = async () => {
-        if (!form.key) return alert(t('super_admin.features.key_required'));
+        if (!form.key) return toast.error(t('super_admin.features.key_required') || 'مفتاح الميزة مطلوب');
         try {
-            await api.post('/api/v1/admin/features/', form);
+            await api.post('/api/v1/admin/features', form);
             setShowModal(false);
             setForm({ key: '', description: '', is_global_enabled: false, rollout_percentage: 100 });
-            fetchFlags();
-            alert(t('super_admin.features.create_success'));
+            await fetchFlags();
+            toast.success(t('super_admin.features.create_success') || 'تم إنشاء الميزة بنجاح');
         } catch (error) {
-            alert(t('super_admin.features.create_fail'));
+            const detail = error.response?.data?.detail || error.message;
+            toast.error(t('super_admin.features.create_fail') || `فشل إنشاء الميزة: ${detail}`);
         }
     };
 
     const handleToggleGlobal = async (key, currentStatus) => {
+        const nextStatus = !currentStatus;
+
+        // Optimistic update
+        setFlags(prev =>
+            prev.map(f => (f.key === key ? { ...f, is_global_enabled: nextStatus } : f))
+        );
+
+        if (onToggleGlobal) {
+            onToggleGlobal(key, nextStatus);
+        }
+
         try {
-            await api.put(`/api/v1/admin/features/${key}`, { is_global_enabled: !currentStatus });
-            fetchFlags();
+            await api.put(`/api/v1/admin/features/${key}`, { is_global_enabled: nextStatus });
+            toast.success(nextStatus ? 'تم تفعيل الميزة العامة' : 'تم تعطيل الميزة العامة');
         } catch (err) {
-            alert("غير مدعوم حالياً (API Update Missing)");
+            // Rollback optimistic state
+            setFlags(prev =>
+                prev.map(f => (f.key === key ? { ...f, is_global_enabled: currentStatus } : f))
+            );
+            const detail = err.response?.data?.detail || err.message || 'فشل تحديث حالة الميزة';
+            toast.error('فشل تحديث حالة الميزة: ' + (typeof detail === 'string' ? detail : JSON.stringify(detail)));
         }
     };
 
@@ -59,9 +78,9 @@ export default function FeatureManager({ tenants }) {
                 feature_key: key,
                 is_enabled: enabled
             });
-            alert(t('super_admin.features.override_success'));
+            toast.success(t('super_admin.features.override_success') || 'تم تطبيق تخصيص المستأجر');
         } catch (err) {
-            alert(t('super_admin.features.override_fail'));
+            toast.error(t('super_admin.features.override_fail') || 'فشل تطبيق التخصيص');
         }
     };
 

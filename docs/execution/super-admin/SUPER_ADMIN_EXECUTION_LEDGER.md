@@ -141,6 +141,32 @@ Manual verification:
 Notes:
 - Super Admin impersonation session lifecycle (acquire -> simulate -> return) is completely functional and secure without affecting the admin session cookie.
 
+---
+
+## MS-05 — Feature flag wiring
+Status: PASS
+Commit: a852abe6
+Files changed:
+- `frontend/src/features/admin/SuperAdmin/FeatureManager.jsx`
+- `frontend/src/features/admin/SuperAdmin/FeatureManager.test.jsx`
+- `frontend/src/pages/admin/SystemPage.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/FeatureManager.test.jsx --run` -> PASS (1 test file, 3 tests passed)
+
+Manual verification:
+- Replaced missing/broken toggle handler in `FeatureManager.jsx` with real PUT `/api/v1/admin/features/:key` request.
+- Added optimistic UI updates for instant toggle responsiveness.
+- Added automatic rollback on network/server error.
+- Replaced browser `alert` calls with shared UI `toast` notifications.
+- Passed `tenants` prop from `SystemPage` to `FeatureManager`.
+
+Notes:
+- Feature flag toggle and override controls are fully wired to the backend API without no-op switches.
+
+
 
 
 

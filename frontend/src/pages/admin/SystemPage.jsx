@@ -133,7 +133,7 @@ export default function SystemPage() {
             </div>
 
             {activeTab === 'settings' && <SettingsManager settings={settings} fetchData={fetchData} />}
-            {activeTab === 'features' && <FeatureManager />}
+            {activeTab === 'features' && <FeatureManager tenants={tenants} />}
             
             {activeTab === 'profile' && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
