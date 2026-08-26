@@ -680,7 +680,8 @@ Notes:
 
 ## MS-26 — AI backend accuracy
 Status: PASS
-Commit: Pending
+Commit: 9c2cb383
+
 Files changed:
 - `backend/ai/analytics/service.py`
 - `backend/tests/test_ai_admin_analytics_accuracy.py`
@@ -697,10 +698,31 @@ Manual verification:
 - Added validation for period parameter with explicit 400 error on invalid inputs.
 - Prioritized recorded authoritative cost sum when available with blended model estimation fallback.
 
+## MS-27 — AI frontend truthfulness
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/features/admin/SuperAdmin/AIAdminDashboard.jsx`
+- `frontend/src/features/admin/SuperAdmin/AIAdminDashboard.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/AIAdminDashboard.test.jsx --run` -> PASS (1 test file, 3 tests passed)
+
+Manual verification:
+- Removed hardcoded "Active Models" card in favor of 3 authentic metrics (Total Requests, Success Rate, Estimated Cost).
+- Removed dead "View All" buttons on top users and logs panels.
+- Displayed `—` for success rate when zero activity is recorded.
+- Wired period switcher (Today, Week, Month) to refreshed API parameters.
+- Dark-mode styles applied to chart tooltip backgrounds, grid strokes, and borders.
+- Reduced nonfunctional hover translate motion in favor of subtle transitions.
+
 Notes:
-- AI usage analytics backend endpoints are accurate, compliant, and truthful.
+- AI Admin dashboard displays strictly verified metrics without mock data or phantom buttons.
 
 ---
+
 
 
 
