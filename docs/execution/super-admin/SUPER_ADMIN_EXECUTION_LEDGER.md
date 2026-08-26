@@ -721,7 +721,8 @@ Manual verification:
 
 ## MS-28 — Super Admin shell
 Status: PASS
-Commit: Pending
+Commit: 1d6c3a32
+
 Files changed:
 - `frontend/src/layouts/Layout.jsx`
 - `frontend/src/features/admin/SuperAdmin/SuperAdminCommandPalette.jsx`
@@ -741,10 +742,30 @@ Manual verification:
 - Full Arabic/English internationalization and RTL layout alignment in Command Palette.
 - Preserved Ctrl/Cmd+K shortcuts for rapid platform navigation.
 
+## MS-29 — Overview information architecture
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/pages/admin/Overview.jsx`
+- `frontend/src/pages/admin/Overview.test.jsx`
+- `frontend/src/shared/ui/StatCard.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/pages/admin/Overview.test.jsx --run` -> PASS (1 test file, 2 tests passed)
+
+Manual verification:
+- Structured page hierarchy: Compact Header -> 4 KPIs -> Analytics & Activity Grid (balanced columns) -> System Health & Background Jobs.
+- Removed speculative "AI coming-soon" teaser card.
+- Removed artificial lift/rotation from non-interactive static KPI cards (`StatCard.jsx`).
+- No extraneous or unbacked widgets added; strictly organized real platform data.
+
 Notes:
-- Super Admin shell now operates fully within platform context without mixing clinic patient semantics.
+- Overview command center is balanced, truthful, responsive, and free of speculative placeholders.
 
 ---
+
 
 
 

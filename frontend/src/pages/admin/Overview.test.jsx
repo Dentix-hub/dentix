@@ -35,27 +35,31 @@ vi.mock('@/features/admin/SuperAdmin/AdminCharts', () => ({
     default: () => <div data-testid="admin-charts">Admin Charts</div>,
 }));
 
-describe('Overview truth-state and resilient loading', () => {
+describe('Overview information architecture MS-29', () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
 
-    it('renders stats and components on successful fetch', async () => {
+    it('renders stats and components on successful fetch without coming-soon AI teasers', async () => {
         apiMocks.apiGet.mockResolvedValue({
             data: {
                 total_tenants: 15,
                 active_tenants: 12,
                 expired_tenants: 3,
                 total_revenue: 50000,
-                activity_feed: [],
+                activity_feed: [{ id: 1, title: 'New clinic registered' }],
             },
         });
 
         render(<Overview />);
 
         expect(await screen.findByTestId('dashboard-stats')).toHaveTextContent('15 tenants');
-        expect(screen.getByTestId('system-health')).toBeInTheDocument();
         expect(screen.getByTestId('admin-charts')).toBeInTheDocument();
+        expect(screen.getByTestId('activity-feed')).toBeInTheDocument();
+        expect(screen.getByTestId('system-health')).toBeInTheDocument();
+
+        // Verify no AI teaser or coming-soon mock
+        expect(screen.queryByText('تحديثات AI القادمة')).not.toBeInTheDocument();
         expect(screen.queryByText('تعذر تحميل إحصائيات مركز القيادة')).not.toBeInTheDocument();
     });
 
