@@ -868,7 +868,8 @@ Manual verification:
 
 ## MS-35 — Frontend regression suite
 Status: PASS
-Commit: Pending
+Commit: 430cdb92
+
 Files changed:
 - `frontend/src/features/admin/SuperAdmin/SuperAdminFrontendRegression.test.jsx`
 - `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
@@ -884,10 +885,28 @@ Manual verification:
 - System Logs: CSV export triggers download and safely revokes temporary blob object URLs without memory leaks.
 - Audit Log Viewer: Multi-parameter log fetching, pagination, and action badge rendering verified without out-of-bounds errors.
 
+## MS-36 — Backend regression suite
+Status: PASS
+Commit: Pending
+Files changed:
+- `backend/tests/test_super_admin_backend_regression_master.py`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `uv run ruff check backend/tests/test_super_admin_backend_regression_master.py` -> PASS (0 errors, 0 warnings)
+- `uv run pytest backend/tests/test_super_admin_backend_regression_master.py` -> PASS (4 passed)
+
+Manual verification:
+- IP security validation: Validated strict parsing for IPv4/IPv6 and robust rejection of malformed IP formats.
+- AI Analytics: Validated zero-request edge case returning `success_rate: null` and strict period validation.
+- Clinical Invariant: Proved clinical-history read is permanently permitted even on expired subscriptions.
+- Finance Forecasting: Verified safe average calculation without zero division crashes on empty periods.
+
 Notes:
-- All high-risk frontend regressions identified during triple check are locked under automated tests.
+- Backend business invariants, security validations, and analytics contracts are locked under automated tests.
 
 ---
+
 
 
 
