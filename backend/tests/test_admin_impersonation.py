@@ -2,6 +2,8 @@
 Unit tests for Super Admin impersonation request contract (MS-03).
 """
 
+from contextlib import asynccontextmanager
+
 import pytest
 from fastapi import HTTPException
 from unittest.mock import AsyncMock, MagicMock
@@ -55,7 +57,7 @@ async def test_impersonate_tenant_short_reason_raises_400():
 
 
 @pytest.mark.asyncio
-async def test_impersonate_tenant_valid_reason_returns_token():
+async def test_impersonate_tenant_valid_reason_returns_token(monkeypatch):
     request = MagicMock()
     request.client.host = "127.0.0.1"
     request.headers.get.return_value = "pytest"
@@ -65,11 +67,21 @@ async def test_impersonate_tenant_valid_reason_returns_token():
     target_user = User(id=5, username="doctor_john", role="doctor", tenant_id=10, tenant=tenant)
 
     db = AsyncMock()
-    db.add = MagicMock()
+    system_db = AsyncMock()
+    system_db.add = MagicMock()
     mock_result = MagicMock()
     mock_result.scalars.return_value.first.return_value = target_user
     mock_result.scalar_one_or_none.return_value = target_user
-    db.execute.return_value = mock_result
+    system_db.execute.return_value = mock_result
+
+    @asynccontextmanager
+    async def fake_system_session_scope():
+        yield system_db
+
+    monkeypatch.setattr(
+        "backend.routers.admin_tenants.system_session_scope",
+        fake_system_session_scope,
+    )
 
     response = await impersonate_tenant(
         tenant_id=10,
@@ -95,3 +107,5 @@ async def test_impersonate_tenant_valid_reason_returns_token():
     assert payload.get("impersonation_scope") == "read_only"
     assert payload.get("tenant_id") == 10
     assert payload.get("sub") == "doctor_john"
+    db.execute.assert_not_awaited()
+    system_db.execute.assert_awaited_once()
