@@ -560,7 +560,8 @@ Notes:
 
 ## MS-21 — Security partial failures and IP validation
 Status: PASS
-Commit: Pending
+Commit: 0b7505b2
+
 Files changed:
 - `backend/routers/admin_system.py`
 - `backend/services/security_service.py`
@@ -582,10 +583,32 @@ Manual verification:
 - Replaced browser `alert` and `window.confirm` with shared `Modal`, `toast`, and `ConfirmDialog` primitives.
 - Fixed dark mode chart tooltip and grid styles.
 
+## MS-22 — Shared health query
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/features/admin/SuperAdmin/hooks/useSystemHealth.js`
+- `frontend/src/features/admin/SuperAdmin/SystemHealth.jsx`
+- `frontend/src/features/admin/SuperAdmin/HealthAlerts.jsx`
+- `frontend/src/features/admin/SuperAdmin/SystemHealth.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/SystemHealth.test.jsx --run` -> PASS (1 test file, 3 tests passed)
+
+Manual verification:
+- Created canonical React Query hook `useSystemHealth` with query key `['admin', 'health', 'alerts']`, 30s background-paused polling, and 15s stale time.
+- Unified data presentation in `HealthAlerts` and `SystemHealth` to consume single cached health payload, preventing divergent health readings.
+- Replaced dynamic Tailwind class generation with explicit static `HEALTH_STATUS_CLASS_MAP`.
+- Connected manual system and business check triggers to query cache invalidation via `useInvalidateSystemHealth()`.
+- Verified graceful failure handling (defaults to `unknown` without crashing).
+
 Notes:
-- Security panel operations and IP blocking are resilient against partial network failures and invalid IP inputs.
+- Health scoring and telemetry presentations are unified, performant, and purged-CSS safe.
 
 ---
+
 
 
 

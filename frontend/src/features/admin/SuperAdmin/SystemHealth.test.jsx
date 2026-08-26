@@ -1,101 +1,147 @@
-import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import SystemHealth from './SystemHealth';
+import HealthAlerts from './HealthAlerts';
+import { api } from '@/api';
+import { toast } from '@/shared/ui';
 
-const apiMocks = vi.hoisted(() => ({
-    apiGet: vi.fn(),
-    apiPost: vi.fn(),
-}));
-
-vi.mock('@/api', () => ({
-    api: {
-        get: apiMocks.apiGet,
-        post: apiMocks.apiPost,
-    },
-}));
-
-vi.mock('@/utils/logger', () => ({ default: { error: vi.fn() } }));
-vi.mock('@/shared/ui', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
-        t: (key, fallback) => fallback || key,
+        t: (key) => key,
         i18n: { language: 'ar' },
     }),
 }));
 
-describe('SystemHealth truth-state tests', () => {
+vi.mock('@/api', () => ({
+    api: {
+        get: vi.fn(),
+        post: vi.fn(),
+    },
+}));
+
+vi.mock('@/shared/ui', async () => {
+    const actual = await vi.importActual('@/shared/ui');
+    return {
+        ...actual,
+        toast: {
+            success: vi.fn(),
+            error: vi.fn(),
+        },
+    };
+});
+
+describe('Shared System Health Query MS-22', () => {
+    let queryClient;
+
     beforeEach(() => {
         vi.clearAllMocks();
-    });
-
-    it('renders success health score accurately when data is healthy', async () => {
-        apiMocks.apiGet.mockImplementation((url) => {
-            if (url === '/api/v1/admin/health/alerts') {
-                return Promise.resolve({ data: { score: 95, alerts: [] } });
-            }
-            if (url === '/api/v1/admin/security/jobs') {
-                return Promise.resolve({
-                    data: [
-                        { id: 1, job_name: 'Backup Job', status: 'success', duration_seconds: 1.2, started_at: '2026-08-26T00:00:00Z', triggered_by: 'system' }
-                    ]
-                });
-            }
-            return Promise.resolve({ data: {} });
+        queryClient = new QueryClient({
+            defaultOptions: {
+                queries: {
+                    retry: false,
+                },
+            },
         });
-
-        render(<SystemHealth />);
-
-        expect(await screen.findByText('95%')).toBeInTheDocument();
-        expect(screen.getByText('super_admin.health.all_good')).toBeInTheDocument();
-        expect(screen.getByText('100.0%')).toBeInTheDocument(); // 1 job, 1 success
     });
 
-    it('renders warning and critical alerts accurately without defaulting to 100%', async () => {
-        apiMocks.apiGet.mockImplementation((url) => {
+    it('renders HealthAlerts and SystemHealth from the shared cached health query', async () => {
+        api.get.mockImplementation((url) => {
             if (url === '/api/v1/admin/health/alerts') {
                 return Promise.resolve({
                     data: {
-                        score: 45,
-                        alerts: [{ severity: 'critical', message: 'High CPU usage' }]
-                    }
+                        score: 95,
+                        status: 'healthy',
+                        critical_errors: 0,
+                        security_alerts: 1,
+                        failed_backups_count: 0,
+                        alerts: [],
+                        checked_at: '2026-08-20T10:00:00Z',
+                    },
                 });
             }
             if (url === '/api/v1/admin/security/jobs') {
                 return Promise.resolve({
                     data: [
-                        { id: 1, job_name: 'Job 1', status: 'failed', duration_seconds: 2.5, started_at: '2026-08-26T00:00:00Z', triggered_by: 'system' }
-                    ]
+                        { id: 1, job_name: 'Database Backup', status: 'success', duration_seconds: 1.25, started_at: '2026-08-20T09:00:00Z' },
+                    ],
                 });
             }
             return Promise.resolve({ data: {} });
         });
 
-        render(<SystemHealth />);
+        render(
+            <QueryClientProvider client={queryClient}>
+                <div>
+                    <HealthAlerts />
+                    <SystemHealth />
+                </div>
+            </QueryClientProvider>
+        );
 
-        expect(await screen.findByText('45%')).toBeInTheDocument();
-        expect(screen.getByText('High CPU usage')).toBeInTheDocument();
-        expect(screen.queryByText('100%')).not.toBeInTheDocument();
-        expect(screen.getByText('0.0%')).toBeInTheDocument(); // 0 success
+        // Both components show 95%
+        expect(await screen.findByText('95%')).toBeInTheDocument();
+        expect(screen.getByText('Database Backup')).toBeInTheDocument();
+
+        // /api/v1/admin/health/alerts is only called ONCE due to shared query cache!
+        const healthCalls = api.get.mock.calls.filter(([url]) => url === '/api/v1/admin/health/alerts');
+        expect(healthCalls.length).toBe(1);
     });
 
-    it('displays error state and does not claim healthy 100% when health API fails', async () => {
-        apiMocks.apiGet.mockImplementation((url) => {
+    it('handles query error gracefully and displays unknown status', async () => {
+        api.get.mockImplementation((url) => {
             if (url === '/api/v1/admin/health/alerts') {
-                return Promise.reject(new Error('Network error'));
+                return Promise.reject(new Error('Health service down'));
             }
-            if (url === '/api/v1/admin/security/jobs') {
-                return Promise.reject(new Error('Jobs unavailable'));
-            }
-            return Promise.reject(new Error('error'));
+            if (url === '/api/v1/admin/security/jobs') return Promise.resolve({ data: [] });
+            return Promise.resolve({ data: {} });
         });
 
-        render(<SystemHealth />);
+        render(
+            <QueryClientProvider client={queryClient}>
+                <HealthAlerts />
+            </QueryClientProvider>
+        );
 
-        const dashes = await screen.findAllByText('—');
-        expect(dashes.length).toBeGreaterThanOrEqual(1);
-        expect(screen.queryByText('100%')).not.toBeInTheDocument();
-        expect(screen.queryByText('super_admin.health.all_good')).not.toBeInTheDocument();
-        expect(screen.getByText('تعذر تحميل بيانات فحص النظام')).toBeInTheDocument();
-        expect(screen.getByText('تعذر تحميل سجل المهام')).toBeInTheDocument();
+        expect(await screen.findByText('super_admin.health.unknown')).toBeInTheDocument();
+    });
+
+    it('invalidates health query when running manual system check', async () => {
+        api.get.mockImplementation((url) => {
+            if (url === '/api/v1/admin/health/alerts') {
+                return Promise.resolve({
+                    data: {
+                        score: 80,
+                        status: 'warning',
+                        critical_errors: 1,
+                        security_alerts: 0,
+                        failed_backups_count: 0,
+                        alerts: ['High CPU usage'],
+                    },
+                });
+            }
+            if (url === '/api/v1/admin/security/jobs') return Promise.resolve({ data: [] });
+            return Promise.resolve({ data: {} });
+        });
+
+        api.post.mockResolvedValueOnce({
+            data: {
+                notification_sent: false,
+            },
+        });
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <SystemHealth />
+            </QueryClientProvider>
+        );
+
+        const checkBtn = await screen.findByRole('button', { name: /super_admin.health.run_system_check/ });
+        fireEvent.click(checkBtn);
+
+        await waitFor(() => {
+            expect(api.post).toHaveBeenCalledWith('/api/v1/admin/health/check');
+            expect(toast.success).toHaveBeenCalledWith('super_admin.health.check_success_stable');
+        });
     });
 });

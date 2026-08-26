@@ -1,20 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
 import { api } from '@/api';
-import { Activity, Server, Clock, CheckCircle, AlertCircle } from 'lucide-react';
+import { Activity, Server, Clock, CheckCircle, AlertCircle, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from '@/shared/ui';
+import { useSystemHealth, useInvalidateSystemHealth, HEALTH_STATUS_CLASS_MAP } from './hooks/useSystemHealth';
 
 export default function SystemHealth() {
     const { t, i18n } = useTranslation();
     const isRtl = i18n.language === 'ar';
     const [jobs, setJobs] = useState([]);
-    const [health, setHealth] = useState({ score: null, alerts: [] });
-    const [healthLoading, setHealthLoading] = useState(true);
     const [jobsLoading, setJobsLoading] = useState(true);
-    const [healthError, setHealthError] = useState(null);
     const [jobsError, setJobsError] = useState(null);
     const [runningTest, setRunningTest] = useState(false);
+
+    // Shared Health Query Hook
+    const { data: health, isLoading: healthLoading, error: healthError } = useSystemHealth();
+    const invalidateHealth = useInvalidateSystemHealth();
 
     const fetchJobs = useCallback(async () => {
         try {
@@ -30,47 +32,25 @@ export default function SystemHealth() {
         }
     }, []);
 
-    const fetchHealth = useCallback(async () => {
-        try {
-            const res = await api.get('/api/v1/admin/health/alerts');
-            const score = typeof res.data?.score === 'number' ? res.data.score : (res.data?.score !== undefined ? Number(res.data.score) : 0);
-            setHealth({ score, alerts: Array.isArray(res.data?.alerts) ? res.data.alerts : [] });
-            setHealthError(null);
-        } catch (error) {
-            logger.error("Failed to fetch health", error);
-            setHealthError(error);
-            setHealth({ score: null, alerts: [] });
-        } finally {
-            setHealthLoading(false);
-        }
-    }, []);
-
-    const fetchData = useCallback(() => {
-        fetchJobs();
-        fetchHealth();
-    }, [fetchHealth, fetchJobs]);
-
     useEffect(() => {
-        fetchData();
-        const interval = setInterval(fetchData, 10000);
+        fetchJobs();
+        const interval = setInterval(fetchJobs, 30000);
         return () => clearInterval(interval);
-    }, [fetchData]);
+    }, [fetchJobs]);
 
     const runHealthCheck = async () => {
         setRunningTest(true);
         try {
             const res = await api.post('/api/v1/admin/health/check');
-            const score = typeof res.data?.health?.score === 'number' ? res.data.health.score : 0;
-            setHealth({ score, alerts: Array.isArray(res.data?.health?.alerts) ? res.data.health.alerts : [] });
-            setHealthError(null);
+            invalidateHealth();
             if (res.data?.notification_sent) {
-                toast.success(t('super_admin.health.check_success_alerts'));
+                toast.success(t('super_admin.health.check_success_alerts') || 'تم الفحص وتم إرسال تنبيهات');
             } else {
-                toast.success(t('super_admin.health.check_success_stable'));
+                toast.success(t('super_admin.health.check_success_stable') || 'النظام مستقر تماماً');
             }
             fetchJobs();
         } catch (err) {
-            toast.error(t('common.error', 'حدث خطأ أثناء فحص النظام'));
+            toast.error(t('common.error') || 'حدث خطأ أثناء فحص النظام');
         } finally {
             setRunningTest(false);
         }
@@ -81,9 +61,11 @@ export default function SystemHealth() {
         try {
             const res = await api.post('/api/v1/admin/business/check');
             const { expiring_alerts, churn_alerts } = res.data || {};
-            toast.success(t('super_admin.health.business_check_success', { expiring: expiring_alerts || 0, churn: churn_alerts || 0 }));
+            invalidateHealth();
+            toast.success(t('super_admin.health.business_check_success', { expiring: expiring_alerts || 0, churn: churn_alerts || 0 }) || `تم فحص الأعمال: ${expiring_alerts || 0} منتهي، ${churn_alerts || 0} ركود`);
+            fetchJobs();
         } catch (error) {
-            toast.error(t('super_admin.health.business_check_error'));
+            toast.error(t('super_admin.health.business_check_error') || 'فشل فحص الأعمال');
         } finally {
             setRunningTest(false);
         }
@@ -97,29 +79,35 @@ export default function SystemHealth() {
         avgLatency: totalJobs > 0 ? (jobs.reduce((acc, j) => acc + (Number(j.duration_seconds) || 0), 0) / totalJobs).toFixed(2) : '0.00'
     };
 
+    const healthScore = health?.score !== null && health?.score !== undefined ? health.score : 0;
+    const statusKey = healthError ? 'unknown' : (health?.status || (healthScore >= 90 ? 'healthy' : (healthScore >= 70 ? 'warning' : 'critical')));
+    const classes = HEALTH_STATUS_CLASS_MAP[statusKey] || HEALTH_STATUS_CLASS_MAP.unknown;
+
     return (
-        <div className="space-y-6 animate-fade-in-up">
+        <div className="space-y-6 animate-fade-in-up" dir={isRtl ? 'rtl' : 'ltr'}>
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <h3 className={`text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                     <Activity className="text-blue-500" />
-                    {t('super_admin.health.background_jobs')}
+                    {t('super_admin.health.background_jobs') || 'المهام الخلفية وصحة النظام'}
                 </h3>
                 <div className="flex gap-2 w-full md:w-auto">
                     <button
+                        type="button"
                         onClick={runBusinessCheck}
                         disabled={runningTest}
-                        className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-lg font-bold text-sm disabled:opacity-50 transition-all active:scale-95 ${isRtl ? 'flex-row-reverse' : ''}`}
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl shadow-lg font-bold text-sm disabled:opacity-50 transition-all active:scale-95"
                     >
                         <Activity size={16} className={runningTest ? 'animate-pulse' : ''} />
-                        {runningTest ? t('super_admin.health.checking') : t('super_admin.health.run_business_check')}
+                        {runningTest ? (t('super_admin.health.checking') || 'جاري الفحص...') : (t('super_admin.health.run_business_check') || 'فحص الأعمال')}
                     </button>
                     <button
+                        type="button"
                         onClick={runHealthCheck}
                         disabled={runningTest}
-                        className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg font-bold text-sm disabled:opacity-50 transition-all active:scale-95 ${isRtl ? 'flex-row-reverse' : ''}`}
+                        className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg font-bold text-sm disabled:opacity-50 transition-all active:scale-95"
                     >
                         <Activity size={16} className={runningTest ? 'animate-pulse' : ''} />
-                        {runningTest ? t('super_admin.health.checking') : t('super_admin.health.run_system_check')}
+                        {runningTest ? (t('super_admin.health.checking') || 'جاري الفحص...') : (t('super_admin.health.run_system_check') || 'فحص شامل للنظام')}
                     </button>
                 </div>
             </div>
@@ -138,8 +126,8 @@ export default function SystemHealth() {
                             r="58"
                             stroke="currentColor"
                             strokeWidth="12"
-                            fill="transparent"
                             className="text-slate-100 dark:text-slate-800"
+                            fill="transparent"
                         />
                         <circle
                             cx="64"
@@ -147,137 +135,125 @@ export default function SystemHealth() {
                             r="58"
                             stroke="currentColor"
                             strokeWidth="12"
-                            fill="transparent"
                             strokeDasharray={364.4}
-                            strokeDashoffset={health.score !== null ? 364.4 - (364.4 * health.score) / 100 : 364.4}
+                            strokeDashoffset={364.4 - (364.4 * (healthScore || 0)) / 100}
                             strokeLinecap="round"
-                            className={`transition-all duration-1000 ${
-                                health.score === null ? 'text-slate-300 dark:text-slate-700' :
-                                health.score > 80 ? 'text-emerald-500' : health.score > 60 ? 'text-amber-500' : 'text-red-500'
-                            }`}
+                            className={classes.text}
+                            fill="transparent"
                         />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-3xl font-black text-slate-800 dark:text-white">
-                            {healthLoading ? '...' : (health.score !== null ? `${health.score}%` : '—')}
+                        <span className="text-3xl font-black text-slate-800 dark:text-white tabular-nums">
+                            {healthLoading ? '...' : (healthError ? '—' : `${healthScore}%`)}
                         </span>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('super_admin.health.health_score')}</span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase">
+                            {t('super_admin.health.health_score') || 'الصحة'}
+                        </span>
                     </div>
                 </div>
 
-                <div className={`flex-grow space-y-4 ${isRtl ? 'text-right' : 'text-left'}`}>
+                <div className="flex-1 space-y-4 text-start">
                     <div>
-                        <h4 className="text-lg font-bold text-slate-800 dark:text-white mb-1">{t('super_admin.health.analysis_title')}</h4>
-                        <p className="text-sm text-slate-500">{t('super_admin.health.analysis_desc')}</p>
+                        <div className="flex items-center gap-2">
+                            <h4 className="text-lg font-bold text-slate-800 dark:text-white">
+                                {t('super_admin.health.overall_status') || 'الحالة العامة للنظام'}
+                            </h4>
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${classes.bgLight} ${classes.text}`}>
+                                {healthError ? (t('super_admin.health.unknown') || 'غير محدد') : (statusKey === 'healthy' ? (t('super_admin.health.stable') || 'مستقر') : (statusKey === 'warning' ? (t('super_admin.health.warning') || 'تحذير') : (t('super_admin.health.critical') || 'حرج')))}
+                            </span>
+                        </div>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+                            {t('super_admin.health.overview_desc') || 'تحليل دائم لأداء المهام وقاعدة البيانات والأمان'}
+                        </p>
                     </div>
-                    
-                    <div className={`flex flex-wrap gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-                        {healthLoading ? (
-                            <div className="text-slate-400 text-sm animate-pulse">{t('common.loading')}</div>
-                        ) : healthError ? (
-                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-red-100 text-red-700 ${isRtl ? 'flex-row-reverse' : ''}`}>
-                                <AlertCircle size={14} />
-                                {t('super_admin.health.fetch_error', 'تعذر تحميل بيانات فحص النظام')}
+
+                    {/* Alerts Summary list */}
+                    <div className="space-y-2">
+                        {(!health?.alerts || health.alerts.length === 0) ? (
+                            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-medium">
+                                <CheckCircle size={16} />
+                                <span>{t('super_admin.health.no_active_alerts') || 'لا توجد تنبيهات حرجة نشطة'}</span>
                             </div>
-                        ) : health.alerts && health.alerts.length > 0 ? (
-                            health.alerts.map((alert, idx) => (
-                                <div key={idx} className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${
-                                    alert.severity === 'critical' ? 'bg-red-100 text-red-700' : 
-                                    alert.severity === 'high' ? 'bg-orange-100 text-orange-700' : 'bg-amber-100 text-amber-700'
-                                } ${isRtl ? 'flex-row-reverse' : ''}`}>
-                                    <div className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-                                    {alert.message}
+                        ) : (
+                            health.alerts.slice(0, 3).map((alert, idx) => (
+                                <div key={idx} className="flex items-center gap-2 text-rose-600 dark:text-rose-400 text-sm font-medium">
+                                    <AlertCircle size={16} />
+                                    <span>{typeof alert === 'string' ? alert : (alert?.message || alert?.title || 'System Alert')}</span>
                                 </div>
                             ))
-                        ) : (
-                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 ${isRtl ? 'flex-row-reverse' : ''}`}>
-                                <CheckCircle size={14} />
-                                {t('super_admin.health.all_good')}
-                            </div>
                         )}
                     </div>
                 </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className={`bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 flex items-center gap-4 hover:shadow-md transition-shadow ${isRtl ? 'flex-row-reverse' : ''}`}>
-                    <div className="p-4 bg-emerald-100 text-emerald-600 rounded-xl">
-                        <CheckCircle size={32} />
+                {/* Micro Stats */}
+                <div className="flex md:flex-col justify-between w-full md:w-auto gap-4 border-t md:border-t-0 md:border-s border-slate-100 dark:border-slate-800 pt-4 md:pt-0 md:ps-8">
+                    <div>
+                        <span className="text-xs text-slate-400 font-bold block">{t('super_admin.health.job_success_rate') || 'نسبة نجاح المهام'}</span>
+                        <span className="text-xl font-black text-slate-800 dark:text-white">{stats.successRate}%</span>
                     </div>
-                    <div className={isRtl ? 'text-right' : 'text-left'}>
-                        <p className="text-sm text-slate-500 font-bold">{t('super_admin.health.success_rate')}</p>
-                        <p className="text-2xl font-bold text-slate-800 dark:text-white" dir="ltr">{stats.successRate}{stats.successRate !== '...' && stats.successRate !== '—' ? '%' : ''}</p>
-                    </div>
-                </div>
-                <div className={`bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 flex items-center gap-4 hover:shadow-md transition-shadow ${isRtl ? 'flex-row-reverse' : ''}`}>
-                    <div className="p-4 bg-blue-100 text-blue-600 rounded-xl">
-                        <Server size={32} />
-                    </div>
-                    <div className={isRtl ? 'text-right' : 'text-left'}>
-                        <p className="text-sm text-slate-500 font-bold">{t('super_admin.health.last_backup')}</p>
-                        <p className="text-2xl font-bold text-slate-800 dark:text-white" dir="ltr">
-                            {stats.lastBackup ? new Date(stats.lastBackup).toLocaleDateString(isRtl ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' }) : t('common.no_results')}
-                        </p>
-                    </div>
-                </div>
-                <div className={`bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 flex items-center gap-4 hover:shadow-md transition-shadow ${isRtl ? 'flex-row-reverse' : ''}`}>
-                    <div className="p-4 bg-teal-100 text-teal-600 rounded-xl">
-                        <Clock size={32} />
-                    </div>
-                    <div className={isRtl ? 'text-right' : 'text-left'}>
-                        <p className="text-sm text-slate-500 font-bold">{t('super_admin.health.avg_latency')}</p>
-                        <p className="text-2xl font-bold text-slate-800 dark:text-white" dir="ltr">{stats.avgLatency}s</p>
+                    <div>
+                        <span className="text-xs text-slate-400 font-bold block">{t('super_admin.health.avg_latency') || 'متوسط زمن التنفيذ'}</span>
+                        <span className="text-xl font-black text-slate-800 dark:text-white">{stats.avgLatency}s</span>
                     </div>
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden">
-                <table className="w-full" dir={isRtl ? 'rtl' : 'ltr'}>
-                    <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 font-bold text-sm">
-                        <tr className={isRtl ? 'text-right' : 'text-left'}>
-                            <th className="p-4">{t('super_admin.health.job_name')}</th>
-                            <th className="p-4">{t('super_admin.health.status')}</th>
-                            <th className="p-4">{t('super_admin.health.duration')}</th>
-                            <th className="p-4">{t('super_admin.health.started_at')}</th>
-                            <th className="p-4">{t('super_admin.health.triggered_by')}</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {jobs.map(job => (
-                            <tr key={job.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                <td className={`p-4 font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-                                    <div className={`w-2 h-2 rounded-full ${job.status === 'success' ? 'bg-emerald-500' : job.status === 'running' ? 'bg-blue-500 animate-pulse' : 'bg-red-500'}`}></div>
-                                    {job.job_name}
-                                </td>
-                                <td className="p-4">
-                                    <span className={`px-2 py-1 rounded text-xs font-bold ${job.status === 'success' ? 'bg-emerald-100 text-emerald-700' :
-                                        job.status === 'running' ? 'bg-blue-100 text-blue-700' :
-                                            'bg-red-100 text-red-700'
-                                        }`}>
-                                        {(job.status || '').toUpperCase()}
-                                    </span>
-                                </td>
-                                <td className="p-4 text-slate-500 font-mono text-sm" dir="ltr">
-                                    {typeof job.duration_seconds === 'number' ? job.duration_seconds.toFixed(2) : Number(job.duration_seconds || 0).toFixed(2)}s
-                                </td>
-                                <td className="p-4 text-slate-500 text-sm" dir="ltr">
-                                    {job.started_at ? new Date(job.started_at).toLocaleString(isRtl ? 'ar-EG' : 'en-US') : '—'}
-                                </td>
-                                <td className="p-4 text-slate-500 text-sm">
-                                    {job.triggered_by || '—'}
-                                </td>
+            {/* Jobs Telemetry Table */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <Server size={20} className="text-slate-400" />
+                        <h4 className="font-bold text-slate-800 dark:text-white">{t('super_admin.health.recent_jobs') || 'سجل المهام الأخيرة'}</h4>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={fetchJobs}
+                        disabled={jobsLoading}
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                    >
+                        <Clock size={12} />
+                        {jobsLoading ? (t('common.loading') || 'جاري التحديث...') : (t('common.refresh') || 'تحديث')}
+                    </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="w-full text-start">
+                        <thead>
+                            <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-400 text-xs uppercase tracking-wider text-start">
+                                <th className="p-4 font-black text-start">{t('super_admin.health.job_name') || 'اسم المهمة'}</th>
+                                <th className="p-4 font-black text-start">{t('super_admin.health.job_status') || 'الحالة'}</th>
+                                <th className="p-4 font-black text-start">{t('super_admin.health.job_duration') || 'المدة'}</th>
+                                <th className="p-4 font-black text-start">{t('super_admin.health.job_started_at') || 'وقت البدء'}</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-                {jobsError ? (
-                    <div className="p-8 text-center text-red-500">{t('super_admin.health.jobs_error', 'تعذر تحميل سجل المهام')}</div>
-                ) : jobs.length === 0 && !jobsLoading ? (
-                    <div className="p-8 text-center text-slate-500">{t('super_admin.health.no_records')}</div>
-                ) : null}
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {jobs.length === 0 ? (
+                                <tr>
+                                    <td colSpan={4} className="p-8 text-center text-slate-400 font-bold">
+                                        {jobsLoading ? (t('super_admin.health.loading_jobs') || 'جاري تحميل المهام...') : (t('super_admin.health.no_jobs') || 'لا توجد مهام مسجلة')}
+                                    </td>
+                                </tr>
+                            ) : (
+                                jobs.map(job => (
+                                    <tr key={job.id || `${job.job_name}-${job.started_at}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 text-sm">
+                                        <td className="p-4 font-mono font-bold text-slate-800 dark:text-slate-200 text-start">{job.job_name}</td>
+                                        <td className="p-4 text-start">
+                                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${job.status === 'success' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400'}`}>
+                                                {job.status === 'success' ? <CheckCircle size={12} /> : <AlertTriangle size={12} />}
+                                                {job.status}
+                                            </span>
+                                        </td>
+                                        <td className="p-4 text-slate-500 font-mono text-start">{(Number(job.duration_seconds) || 0).toFixed(2)}s</td>
+                                        <td className="p-4 text-slate-400 text-xs text-start">
+                                            {job.started_at ? new Date(job.started_at).toLocaleString(i18n.language) : '—'}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );
 }
-
-
