@@ -9,7 +9,7 @@ export default function HealthAlerts() {
     const invalidateHealth = useInvalidateSystemHealth();
 
     if (loading && !health) return (
-        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 animate-pulse" dir={isRtl ? 'rtl' : 'ltr'}>
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-100 dark:border-slate-800 animate-pulse" dir={isRtl ? 'rtl' : 'ltr'}>
             <div className="h-8 w-48 bg-slate-100 dark:bg-slate-800 rounded-lg mb-6"></div>
             <div className="space-y-4">
                 <div className="h-16 bg-slate-50 dark:bg-slate-800/50 rounded-2xl"></div>
@@ -32,7 +32,7 @@ export default function HealthAlerts() {
     const classes = HEALTH_STATUS_CLASS_MAP[config.key] || HEALTH_STATUS_CLASS_MAP.unknown;
 
     return (
-        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden relative group" dir={isRtl ? 'rtl' : 'ltr'}>
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden relative group" dir={isRtl ? 'rtl' : 'ltr'}>
             {/* Background Glow with static classes */}
             <div className={`absolute -top-24 ${isRtl ? '-start-24' : '-end-24'} w-64 h-64 blur-[100px] rounded-full transition-all duration-700 ${classes.glow}`}></div>
             

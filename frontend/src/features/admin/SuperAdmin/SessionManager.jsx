@@ -144,7 +144,7 @@ export default function SessionManager() {
             {/* Session Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredSessions.map((session) => (
-                    <div key={session.id} className="bg-white dark:bg-slate-900 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 p-6 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between">
+                    <div key={session.id} className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-6 shadow-sm hover:shadow-md transition-all group flex flex-col justify-between">
                         <div>
                             <div className="flex justify-between items-start mb-6">
                                 <div className="flex items-center gap-4">

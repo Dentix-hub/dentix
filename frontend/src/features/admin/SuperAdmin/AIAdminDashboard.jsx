@@ -67,7 +67,7 @@ export default function AIAdminDashboard() {
     return (
         <div className="space-y-8 animate-in fade-in duration-500" dir={isRtl ? 'rtl' : 'ltr'}>
             {/* Header */}
-            <div className="relative p-8 rounded-[2.5rem] bg-indigo-600 overflow-hidden shadow-xl shadow-indigo-500/20">
+            <div className="relative p-8 rounded-3xl bg-indigo-600 overflow-hidden shadow-xl shadow-indigo-500/20">
                 <div className="absolute top-0 end-0 w-96 h-96 bg-indigo-400 rounded-full blur-[100px] opacity-20 -me-20 -mt-20 pointer-events-none" />
                 <div className="absolute bottom-0 start-0 w-64 h-64 bg-indigo-900 rounded-full blur-[80px] opacity-30 -ms-20 -mb-20 pointer-events-none" />
                 
@@ -112,7 +112,7 @@ export default function AIAdminDashboard() {
 
             {/* Truthful Top Metrics Grid (3 authentic metrics) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="p-6 rounded-[2rem] bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm transition-colors">
+                <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm transition-colors">
                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 bg-blue-50 text-blue-500 dark:bg-blue-500/10 ${isRtl ? 'me-auto' : 'ms-auto'}`}>
                         <Activity size={28} />
                     </div>
@@ -124,7 +124,7 @@ export default function AIAdminDashboard() {
                     </div>
                 </div>
 
-                <div className="p-6 rounded-[2rem] bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm transition-colors">
+                <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm transition-colors">
                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 bg-emerald-50 text-emerald-500 dark:bg-emerald-500/10 ${isRtl ? 'me-auto' : 'ms-auto'}`}>
                         <ShieldCheck size={28} />
                     </div>
@@ -136,7 +136,7 @@ export default function AIAdminDashboard() {
                     </div>
                 </div>
 
-                <div className="p-6 rounded-[2rem] bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm transition-colors">
+                <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm transition-colors">
                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 bg-amber-50 text-amber-500 dark:bg-amber-500/10 ${isRtl ? 'me-auto' : 'ms-auto'}`}>
                         <DollarSign size={28} />
                     </div>
@@ -242,7 +242,7 @@ export default function AIAdminDashboard() {
             {/* Bottom Grid: Top Users & Recent Logs */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Top Engaged Users */}
-                <div className="lg:col-span-1 p-8 rounded-[2.5rem] bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+                <div className="lg:col-span-1 p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between">
                     <div>
                         <div className="flex items-center gap-3 mb-6">
                             <Users className="text-emerald-500" size={24} />
@@ -273,7 +273,7 @@ export default function AIAdminDashboard() {
                 </div>
 
                 {/* Recent Activity Log */}
-                <div className="lg:col-span-2 p-8 rounded-[2.5rem] bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="lg:col-span-2 p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
                     <div className="flex items-center gap-3 mb-6">
                         <Terminal className="text-indigo-500" size={24} />
                         <h3 className="text-xl font-black text-slate-800 dark:text-white">{t('super_admin.ai.logs.title') || 'سجل العمليات الأخير'}</h3>
@@ -342,13 +342,13 @@ export default function AIAdminDashboard() {
 function LoadingPulse() {
     return (
         <div className="space-y-8 animate-pulse">
-            <div className="h-64 rounded-[2.5rem] bg-slate-200 dark:bg-slate-800" />
+            <div className="h-64 rounded-3xl bg-slate-200 dark:bg-slate-800" />
             <div className="grid grid-cols-3 gap-6">
-                {[1, 2, 3].map(i => <div key={i} className="h-32 rounded-[2rem] bg-slate-200 dark:bg-slate-800" />)}
+                {[1, 2, 3].map(i => <div key={i} className="h-32 rounded-2xl bg-slate-200 dark:bg-slate-800" />)}
             </div>
             <div className="grid grid-cols-2 gap-8">
-                <div className="h-80 rounded-[2.5rem] bg-slate-200 dark:bg-slate-800" />
-                <div className="h-80 rounded-[2.5rem] bg-slate-200 dark:bg-slate-800" />
+                <div className="h-80 rounded-3xl bg-slate-200 dark:bg-slate-800" />
+                <div className="h-80 rounded-3xl bg-slate-200 dark:bg-slate-800" />
             </div>
         </div>
     );

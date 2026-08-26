@@ -248,7 +248,7 @@ export default function FinanceReports() {
             </div>
 
             {/* Churn Risk Section */}
-            <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm">
+            <div className="bg-white dark:bg-slate-900 p-8 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
                 <div className={`flex justify-between items-center mb-8 ${isRtl ? 'flex-row-reverse' : ''}`} dir={isRtl ? 'rtl' : 'ltr'}>
                     <div className={`flex items-center gap-3 ${isRtl ? 'flex-row-reverse' : ''}`}>
                         <Users className="text-amber-500" size={24} />
@@ -261,7 +261,7 @@ export default function FinanceReports() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {churnRisks.length > 0 ? churnRisks.map((clinic, idx) => (
-                        <div key={clinic.id || idx} className="p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 hover:border-amber-200 dark:hover:border-amber-900/50 transition-all group">
+                        <div key={clinic.id || idx} className="p-6 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 hover:border-amber-200 dark:hover:border-amber-900/50 transition-all group">
                             <div className={`flex items-start justify-between mb-4 ${isRtl ? 'flex-row-reverse' : ''}`}>
                                 <div className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm">
                                     <Users size={24} className="text-amber-500" />

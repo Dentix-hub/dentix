@@ -136,8 +136,8 @@ export default function SuperAdminCommandPalette({ isOpen, onClose }) {
     };
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-start justify-center pt-[15vh] px-4" dir={isRtl ? 'rtl' : 'ltr'}>
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm animate-fade-in" onClick={onClose} />
+        <div className="fixed inset-x-0 inset-y-0 z-50 flex items-start justify-center pt-[15vh] px-4" dir={isRtl ? 'rtl' : 'ltr'}>
+            <div className="fixed inset-x-0 inset-y-0 bg-slate-900/60 backdrop-blur-sm animate-fade-in" onClick={onClose} />
             
             <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-scale-in">
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-4">
