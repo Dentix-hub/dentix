@@ -45,25 +45,51 @@ export function removeToken() {
 }
 
 // ADMIN IMPERSONATION TOKEN (sessionStorage - temporary, admin-only)
-// Used to store original admin token when impersonating a tenant user
-export function getAdminToken() {
-    return sessionStorage.getItem('admin_token');
+// Used to store temporary impersonation JWT when viewing a tenant clinic
+export const IMPERSONATION_TOKEN_KEY = 'dentix_impersonation_token';
+
+export function getImpersonationToken() {
+    if (typeof window === 'undefined' || !window.sessionStorage) return null;
+    return sessionStorage.getItem(IMPERSONATION_TOKEN_KEY) || sessionStorage.getItem('admin_token');
 }
 
-export function setAdminToken(token) {
+export function setImpersonationToken(token, meta = {}) {
+    if (typeof window === 'undefined' || !window.sessionStorage) return;
     if (token) {
+        sessionStorage.setItem(IMPERSONATION_TOKEN_KEY, token);
         sessionStorage.setItem('admin_token', token);
+        if (meta.tenantName) sessionStorage.setItem('dentix_impersonation_tenant', meta.tenantName);
+        if (meta.targetUser) sessionStorage.setItem('dentix_impersonation_user', meta.targetUser);
+        if (meta.scope) sessionStorage.setItem('dentix_impersonation_scope', meta.scope);
     } else {
-        sessionStorage.removeItem('admin_token');
+        clearImpersonationSession();
     }
 }
 
-export function removeAdminToken() {
+export function clearImpersonationSession() {
+    if (typeof window === 'undefined' || !window.sessionStorage) return;
+    sessionStorage.removeItem(IMPERSONATION_TOKEN_KEY);
     sessionStorage.removeItem('admin_token');
+    sessionStorage.removeItem('dentix_impersonation_tenant');
+    sessionStorage.removeItem('dentix_impersonation_user');
+    sessionStorage.removeItem('dentix_impersonation_scope');
+}
+
+export function getAdminToken() {
+    return getImpersonationToken();
+}
+
+export function setAdminToken(token) {
+    setImpersonationToken(token);
+}
+
+export function removeAdminToken() {
+    clearImpersonationSession();
 }
 
 // Call this on logout to clear httpOnly cookies via backend
 export async function logout() {
+    clearImpersonationSession();
     try {
         // Import api dynamically to avoid circular dependency
         const { api } = await import('./api/apiClient');

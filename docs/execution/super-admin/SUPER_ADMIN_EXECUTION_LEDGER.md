@@ -114,5 +114,33 @@ Manual verification:
 Notes:
 - Super Admin impersonation request contract is fully repaired, validated, and tested.
 
+---
+
+## MS-04 — Impersonation authentication and return
+Status: PASS
+Commit: 53486ee5
+Files changed:
+- `frontend/src/api/apiClient.js`
+- `frontend/src/components/common/ImpersonationBar.jsx`
+- `frontend/src/components/common/ImpersonationBar.test.jsx`
+- `frontend/src/utils.js`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/components/common/ImpersonationBar.test.jsx src/features/admin/SuperAdmin/TenantDetailPanel.test.jsx --run` -> PASS (2 test files, 6 tests passed)
+
+Manual verification:
+- Used dedicated sessionStorage impersonation-token helper/key (`dentix_impersonation_token`) in `frontend/src/utils.js`.
+- Configured Axios request interceptor in `apiClient.js` to automatically attach `Authorization: Bearer <token>` when impersonating.
+- Preserved original httpOnly Super Admin cookie session untouched.
+- Return action safely removes impersonation token, metadata, clears React Query cache, resets tenant store, and navigates to `/admin/tenants`.
+- Session mismatch and logout handlers properly clean up impersonation session keys.
+- ImpersonationBar renders only when a real impersonation token is active, displaying clinic name and read-only scope status.
+
+Notes:
+- Super Admin impersonation session lifecycle (acquire -> simulate -> return) is completely functional and secure without affecting the admin session cookie.
+
+
 
 
