@@ -113,8 +113,8 @@ async def update_super_admin_profile(
     return success_response(data=schemas.User.model_validate(user), message="تم تحديث الملف الشخصي بنجاح")
 
 
-
 from backend.core.logging_sanitizer import sanitize_text, sanitize_stack_trace
+
 
 @router.post("/logs", response_model=StandardResponse[dict])
 @limiter.limit("10/minute")
@@ -220,13 +220,11 @@ async def export_system_logs(
     output = io.StringIO()
     writer = csv.writer(output)
 
-    # Header
     writer.writerow([
         "ID", "Level", "Source", "Message", "Path", "Method",
         "User ID", "Tenant ID", "IP Address", "User Agent", "Created At", "Stack Trace"
     ])
 
-    # Data
     for log in logs:
         writer.writerow([
             log.id,
@@ -251,40 +249,6 @@ async def export_system_logs(
         iter([output.getvalue()]),
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
-
-
-@router.put("/profile", response_model=StandardResponse[dict])
-async def update_profile(
-    profile_data: dict,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
-):
-    if current_user.role != Role.SUPER_ADMIN.value:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    res = await db.execute(select(models.User).where(models.User.id == current_user.id))
-    user = res.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Update fields
-    if "username" in profile_data and profile_data["username"]:
-        user.username = profile_data["username"]
-    if "email" in profile_data and profile_data["email"]:
-        user.email = profile_data["email"]
-    if "password" in profile_data and profile_data["password"]:
-        user.hashed_password = get_password_hash(profile_data["password"])
-
-    await db.commit()
-    return success_response(
-        data={
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "role": user.role,
-        },
-        message="Profile updated successfully",
     )
 
 
@@ -614,4 +578,3 @@ async def export_audit_logs(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
-
