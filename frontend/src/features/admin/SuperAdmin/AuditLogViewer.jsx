@@ -50,8 +50,15 @@ const AuditLogViewer = ({ tenants = [] }) => {
             setLoading(true);
             setFetchError(null);
             const params = new URLSearchParams();
+            const pageNum = Number(requestedFilters.page) || 1;
+            const limitNum = Number(requestedFilters.limit) || 20;
+            const skip = (pageNum - 1) * limitNum;
+
+            params.append('skip', String(skip));
+            params.append('limit', String(limitNum));
+
             Object.entries(requestedFilters).forEach(([key, val]) => {
-                if (val !== undefined && val !== null && val !== '') {
+                if (key !== 'page' && key !== 'limit' && val !== undefined && val !== null && val !== '') {
                     params.append(key, val);
                 }
             });

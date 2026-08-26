@@ -65,3 +65,24 @@ def test_ms36_regression_finance_forecast_safe_division():
 
     assert avg_daily == Decimal("0.00")
     assert forecast_next_month == Decimal("0.00")
+
+
+def test_ms36_regression_feature_flag_rollout_validation():
+    """Verify FeatureFlagCreate and FeatureFlagUpdate enforce rollout_percentage between 0 and 100."""
+    from backend.schemas.system import FeatureFlagCreate, FeatureFlagUpdate
+    from pydantic import ValidationError
+
+    # Valid values
+    for val in [0, 50, 100]:
+        flag = FeatureFlagCreate(key=f"test_flag_{val}", rollout_percentage=val)
+        assert flag.rollout_percentage == val
+        update = FeatureFlagUpdate(rollout_percentage=val)
+        assert update.rollout_percentage == val
+
+    # Invalid values
+    for val in [-1, -50, 101, 200]:
+        with pytest.raises(ValidationError):
+            FeatureFlagCreate(key="bad_flag", rollout_percentage=val)
+        with pytest.raises(ValidationError):
+            FeatureFlagUpdate(rollout_percentage=val)
+

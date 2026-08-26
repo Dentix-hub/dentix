@@ -14,6 +14,7 @@ export default function FeatureManager({ tenants = [], onToggleGlobal }) {
 
     // Form State
     const [form, setForm] = useState({ key: '', description: '', is_global_enabled: false, rollout_percentage: 100 });
+    const [overrideTenants, setOverrideTenants] = useState({});
 
     useEffect(() => {
         fetchFlags();
@@ -34,8 +35,15 @@ export default function FeatureManager({ tenants = [], onToggleGlobal }) {
 
     const handleCreateFlag = async () => {
         if (!form.key) return toast.error(t('super_admin.features.key_required') || 'مفتاح الميزة مطلوب');
+        const rollout = Number(form.rollout_percentage);
+        if (isNaN(rollout) || rollout < 0 || rollout > 100) {
+            return toast.error('نسبة الطرح يجب أن تكون بين 0 و 100');
+        }
         try {
-            await api.post('/api/v1/admin/features', form);
+            await api.post('/api/v1/admin/features', {
+                ...form,
+                rollout_percentage: rollout,
+            });
             setShowModal(false);
             setForm({ key: '', description: '', is_global_enabled: false, rollout_percentage: 100 });
             await fetchFlags();
@@ -72,13 +80,16 @@ export default function FeatureManager({ tenants = [], onToggleGlobal }) {
     };
 
     const handleOverride = async (key, tenantId, enabled) => {
+        if (!tenantId) {
+            return toast.error(t('super_admin.features.select_clinic') || 'يرجى اختيار العيادة أولاً');
+        }
         try {
             await api.post('/api/v1/admin/features/override', {
-                tenant_id: tenantId,
+                tenant_id: Number(tenantId),
                 feature_key: key,
                 is_enabled: enabled
             });
-            toast.success(t('super_admin.features.override_success') || 'تم تطبيق تخصيص المستأجر');
+            toast.success(t('super_admin.features.override_success') || 'تم تطبيق تخصيص المستأجر بنجاح');
         } catch (err) {
             toast.error(t('super_admin.features.override_fail') || 'فشل تطبيق التخصيص');
         }
@@ -124,19 +135,31 @@ export default function FeatureManager({ tenants = [], onToggleGlobal }) {
                         </div>
 
                         <div className={`flex flex-col md:flex-row items-center gap-4 w-full md:w-auto ${isRtl ? 'md:flex-row-reverse' : ''}`}>
-                            <div className={isRtl ? 'text-right' : 'text-left'}>
-                                <label className="text-xs font-bold text-slate-500 block mb-1">override tenant</label>
+                            <div className={`flex items-center gap-2 ${isRtl ? 'text-right' : 'text-left'}`}>
                                 <select
                                     className="w-full md:w-40 text-sm p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
-                                    onChange={(e) => {
-                                        if (e.target.value) handleOverride(flag.key, parseInt(e.target.value), !flag.is_global_enabled)
-                                    }}
+                                    value={overrideTenants[flag.key] || ''}
+                                    onChange={(e) => setOverrideTenants(prev => ({ ...prev, [flag.key]: e.target.value }))}
                                 >
                                     <option value="">{t('super_admin.features.select_clinic')}</option>
                                     {(tenants || []).map(t => (
                                         <option key={t.id} value={t.id}>{t.name}</option>
                                     ))}
                                 </select>
+                                <button
+                                    type="button"
+                                    onClick={() => handleOverride(flag.key, overrideTenants[flag.key], true)}
+                                    className="px-2.5 py-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors"
+                                >
+                                    تفعيل
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleOverride(flag.key, overrideTenants[flag.key], false)}
+                                    className="px-2.5 py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors"
+                                >
+                                    تعطيل
+                                </button>
                             </div>
 
                             <button
@@ -180,6 +203,17 @@ export default function FeatureManager({ tenants = [], onToggleGlobal }) {
                                     type="text"
                                     value={form.description}
                                     onChange={(e) => setForm({ ...form, description: e.target.value })}
+                                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none"
+                                />
+                            </div>
+                            <div className={isRtl ? 'text-right' : 'text-left'}>
+                                <label className="block text-sm font-bold text-slate-500 mb-1.5">Rollout Percentage (0 - 100%)</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    value={form.rollout_percentage}
+                                    onChange={(e) => setForm({ ...form, rollout_percentage: Math.max(0, Math.min(100, Number(e.target.value))) })}
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none"
                                 />
                             </div>

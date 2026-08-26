@@ -538,6 +538,7 @@ async def get_security_chart(
 @router.get("/audit-logs", response_model=StandardResponse[dict])
 async def get_audit_logs(
     skip: int = 0,
+    page: int = None,
     limit: int = 50,
     tenant_id: int = None,
     user_id: int = None,
@@ -550,6 +551,9 @@ async def get_audit_logs(
 ):
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
+
+    if page is not None and page > 0:
+        skip = (page - 1) * limit
 
     filters = {
         "tenant_id": tenant_id,
