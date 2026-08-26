@@ -454,7 +454,8 @@ Notes:
 
 ## MS-17 — Settings and global announcement
 Status: PASS
-Commit: Pending
+Commit: f2423339
+
 Files changed:
 - `backend/main.py`
 - `frontend/src/features/admin/SuperAdmin/SettingsManager.jsx`
@@ -479,6 +480,34 @@ Manual verification:
 
 Notes:
 - Settings are truthful, resilient, and synchronized with live frontend banners and support contact endpoints.
+
+## MS-18 — Profile update alignment
+Status: PASS
+Commit: Pending
+Files changed:
+- `backend/routers/system_admin.py`
+- `backend/tests/test_super_admin_profile.py`
+- `frontend/src/pages/admin/SystemPage.jsx`
+- `frontend/src/pages/admin/SystemPage.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `uv run ruff check --config ruff.toml backend/routers/system_admin.py backend/tests/test_super_admin_profile.py` -> PASS (All checks passed)
+- `$env:PYTHONPATH = "c:\Users\es\DENTIX"; uv run pytest backend/tests/test_super_admin_profile.py` -> PASS (1 passed, 100% coverage on test)
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/pages/admin/SystemPage.test.jsx --run` -> PASS (1 test file, 4 tests passed)
+
+Manual verification:
+- Integrated `PUT /api/v1/admin/system/profile` endpoint enforcing existing password policy (`validate_password`), length >= 8, complexity, and uniqueness checks.
+- Form disables submit when all inputs are empty, and client validation prevents empty submissions.
+- Replaced browser `window.confirm` with shared accessible `ConfirmDialog` primitive for profile updates and Google backup uploads.
+- Constructed clean payloads with only non-empty, trimmed fields.
+- Refreshed client identity in `useAuthStore` upon successful update.
+- Cleared password input state immediately following successful profile updates.
+- Surfaced detailed backend validation errors in toast notifications on error.
+
+Notes:
+- Super Admin profile management conforms to standard password policy, secure error propagation, and reactive auth state synchronization.
 
 ---
 

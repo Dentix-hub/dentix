@@ -8,9 +8,14 @@ import FeatureManager from '@/features/admin/SuperAdmin/FeatureManager';
 import SessionManager from '@/features/admin/SuperAdmin/SessionManager';
 import TwoFactorSetup from '@/features/admin/SuperAdmin/TwoFactorSetup';
 import { Settings, User, Database, Shield, Zap, Monitor } from 'lucide-react';
-import { toast } from '@/shared/ui';
+import { toast, ConfirmDialog } from '@/shared/ui';
+import { useAuthStore } from '@/store/auth.store';
+import { useTranslation } from 'react-i18next';
 
 export default function SystemPage() {
+    const { t, i18n } = useTranslation();
+    const isRtl = i18n.language === 'ar';
+
     const [activeTab, setActiveTab] = useState('settings');
     const [settings, setSettings] = useState([]);
     const [tenants, setTenants] = useState([]);
@@ -19,9 +24,12 @@ export default function SystemPage() {
     
     // Profile State
     const [profileForm, setProfileForm] = useState({ username: '', email: '', password: '' });
+    const [updatingProfile, setUpdatingProfile] = useState(false);
+    const [profileConfirmOpen, setProfileConfirmOpen] = useState(false);
     
     // Backup State
     const [uploading, setUploading] = useState(false);
+    const [backupConfirmOpen, setBackupConfirmOpen] = useState(false);
     
     // Google Drive Handlers
     const [googleConnected, setGoogleConnected] = useState(false);
@@ -40,7 +48,7 @@ export default function SystemPage() {
             setGoogleConnected(googleRes.data?.connected || false);
             setIs2faEnabled(userRes.data?.is_2fa_enabled || false);
         } catch (err) {
-            logger.error(err);
+            logger.error('Failed to fetch system data:', err);
         } finally {
             setLoading(false);
         }
@@ -62,15 +70,50 @@ export default function SystemPage() {
         }
     }, []);
 
-    const handleUpdateProfile = async (e) => {
+    const handleProfileSubmit = (e) => {
         e.preventDefault();
-        if (!window.confirm("هل أنت متأكد من تحديث بيانات الدخول؟")) return;
+        const username = profileForm.username.trim();
+        const email = profileForm.email.trim();
+        const password = profileForm.password.trim();
+
+        if (!username && !email && !password) {
+            toast.error(t('super_admin.profile.no_changes_error') || 'يرجى إدخال حقل واحد على الأقل للتحديث');
+            return;
+        }
+
+        setProfileConfirmOpen(true);
+    };
+
+    const confirmUpdateProfile = async () => {
+        const payload = {};
+        if (profileForm.username.trim()) payload.username = profileForm.username.trim();
+        if (profileForm.email.trim()) payload.email = profileForm.email.trim();
+        if (profileForm.password.trim()) payload.password = profileForm.password.trim();
+
+        setUpdatingProfile(true);
         try {
-            await api.put('/api/v1/admin/system/profile', profileForm);
-            toast.success("تم تحديث الملف الشخصي بنجاح");
+            const res = await api.put('/api/v1/admin/system/profile', payload);
+            toast.success(t('super_admin.profile.update_success') || "تم تحديث الملف الشخصي بنجاح");
+            
+            // Refresh identity state in auth store if user exists
+            const currentUser = useAuthStore.getState().user;
+            if (currentUser && res.data?.data) {
+                useAuthStore.getState().setUser({
+                    ...currentUser,
+                    ...res.data.data
+                });
+            }
+
             setProfileForm({ username: '', email: '', password: '' });
+            setProfileConfirmOpen(false);
         } catch (error) {
-            toast.error("فشل تحديث البيانات");
+            const detail = error.response?.data?.detail;
+            const message = typeof detail === 'string' 
+                ? detail 
+                : (Array.isArray(detail) ? detail.map(d => d.msg || d).join(', ') : (error.message || t('super_admin.profile.update_fail') || "فشل تحديث البيانات"));
+            toast.error(message);
+        } finally {
+            setUpdatingProfile(false);
         }
     };
 
@@ -84,12 +127,12 @@ export default function SystemPage() {
         }
     };
 
-    const handleGoogleUpload = async () => {
-        if (!window.confirm("هل تريد رفع نسخة احتياطية إلى Google Drive الآن؟")) return;
+    const confirmGoogleUpload = async () => {
         setUploading(true);
         try {
             await api.post('/api/v1/admin/system/backup/google-upload');
             toast.success("تم الرفع بنجاح");
+            setBackupConfirmOpen(false);
         } catch (error) {
             toast.error(error.response?.data?.detail || "فشل الرفع");
         } finally {
@@ -100,7 +143,7 @@ export default function SystemPage() {
     if (loading) return <div className="p-8 text-center text-slate-500">جاري تحميل إعدادات النظام...</div>;
 
     return (
-        <div className="space-y-6 animate-fade-in-up">
+        <div className="space-y-6 animate-fade-in-up" dir={isRtl ? 'rtl' : 'ltr'}>
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-4">
                     <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl text-slate-600 dark:text-slate-400">
@@ -139,39 +182,47 @@ export default function SystemPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800">
                         <h3 className="text-xl font-black mb-6 text-slate-800 dark:text-white">تحديث بيانات المدير</h3>
-                        <form onSubmit={handleUpdateProfile} className="space-y-6">
+                        <form onSubmit={handleProfileSubmit} className="space-y-6">
                             <div>
-                                <label className="block text-sm font-bold mb-2 text-slate-600">اسم المستخدم الجديد</label>
+                                <label htmlFor="profile_username" className="block text-sm font-bold mb-2 text-slate-600 dark:text-slate-400">اسم المستخدم الجديد</label>
                                 <input
+                                    id="profile_username"
                                     type="text"
-                                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 dark:text-slate-200"
                                     value={profileForm.username}
                                     onChange={e => setProfileForm({ ...profileForm, username: e.target.value })}
                                     placeholder="اتركه فارغاً إذا لم ترد تغييره"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-bold mb-2 text-slate-600">البريد الإلكتروني الجديد</label>
+                                <label htmlFor="profile_email" className="block text-sm font-bold mb-2 text-slate-600 dark:text-slate-400">البريد الإلكتروني الجديد</label>
                                 <input
+                                    id="profile_email"
                                     type="email"
-                                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 dark:text-slate-200"
                                     value={profileForm.email}
                                     onChange={e => setProfileForm({ ...profileForm, email: e.target.value })}
                                     placeholder="اتركه فارغاً إذا لم ترد تغييره"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-bold mb-2 text-slate-600">كلمة المرور الجديدة</label>
+                                <label htmlFor="profile_password" className="block text-sm font-bold mb-2 text-slate-600 dark:text-slate-400">كلمة المرور الجديدة</label>
                                 <input
+                                    id="profile_password"
                                     type="password"
-                                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
+                                    className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 dark:text-slate-200"
                                     value={profileForm.password}
                                     onChange={e => setProfileForm({ ...profileForm, password: e.target.value })}
                                     placeholder="*******"
+                                    autoComplete="new-password"
                                 />
                             </div>
-                            <button type="submit" className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 transition-all">
-                                حفظ التغييرات
+                            <button
+                                type="submit"
+                                disabled={updatingProfile || (!profileForm.username.trim() && !profileForm.email.trim() && !profileForm.password.trim())}
+                                className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 text-white rounded-2xl font-black shadow-xl shadow-indigo-500/20 transition-all cursor-pointer disabled:cursor-not-allowed"
+                            >
+                                {updatingProfile ? (t('common.saving') || 'جاري الحفظ...') : (t('super_admin.profile.save_changes') || 'حفظ التغييرات')}
                             </button>
                         </form>
                     </div>
@@ -199,7 +250,7 @@ export default function SystemPage() {
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center text-green-600">
                                     <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M23.64 12.03l-3.535 6.13H13.06l3.525-6.13h7.056zM11.97 12.03l-3.53 6.13H1.385l3.53-6.13h7.054zm0 0L8.44 5.89h7.065l3.53 6.134h-7.066zm-5.65 0L2.79 5.89h7.066l3.53 6.134H6.32zM12 2.625l3.535 6.13H8.465L12 2.625z" />
+                                        <path d="M23.64 12.03l-3.535 6.13H13.06l3.525-6.13h7.056zM11.97 12.03l-3.53-6.13H1.385l3.53-6.13h7.054zm0 0L8.44 5.89h7.065l3.53 6.134h-7.066zm-5.65 0L2.79 5.89h7.066l3.53 6.134H6.32zM12 2.625l3.535 6.13H8.465L12 2.625z" />
                                     </svg>
                                 </div>
                                 <div className="text-right">
@@ -216,7 +267,7 @@ export default function SystemPage() {
                                     ربط حساب Google
                                 </button>
                             ) : (
-                                <button onClick={handleGoogleUpload} disabled={uploading} className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg shadow-green-500/30 transition-all flex items-center gap-2">
+                                <button onClick={() => setBackupConfirmOpen(true)} disabled={uploading} className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-lg shadow-green-500/30 transition-all flex items-center gap-2">
                                     {uploading ? 'جاري الرفع...' : 'نسخ احتياطي للسحابة الآن'}
                                 </button>
                             )}
@@ -233,6 +284,32 @@ export default function SystemPage() {
             )}
             
             {activeTab === 'sessions' && <SessionManager />}
+
+            {/* Profile Update Confirmation Dialog */}
+            <ConfirmDialog
+                isOpen={profileConfirmOpen}
+                onClose={() => setProfileConfirmOpen(false)}
+                onConfirm={confirmUpdateProfile}
+                title={t('super_admin.profile.confirm_title') || 'تأكيد تحديث بيانات الدخول'}
+                message={t('super_admin.profile.confirm_msg') || 'هل أنت متأكد من رغبتك في تحديث بيانات الدخول؟'}
+                confirmText={t('common.confirm') || 'تأكيد'}
+                cancelText={t('common.cancel') || 'إلغاء'}
+                variant="primary"
+                isLoading={updatingProfile}
+            />
+
+            {/* Google Backup Confirmation Dialog */}
+            <ConfirmDialog
+                isOpen={backupConfirmOpen}
+                onClose={() => setBackupConfirmOpen(false)}
+                onConfirm={confirmGoogleUpload}
+                title="تأكيد رفع النسخة الاحتياطية"
+                message="هل تريد رفع نسخة احتياطية إلى Google Drive الآن؟"
+                confirmText="تأكيد الرفع"
+                cancelText="إلغاء"
+                variant="primary"
+                isLoading={uploading}
+            />
         </div>
     );
 }
