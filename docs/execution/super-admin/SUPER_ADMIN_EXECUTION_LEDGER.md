@@ -832,7 +832,8 @@ Manual verification:
 
 ## MS-33 — Mobile, dark, accessibility, motion
 Status: PASS
-Commit: Pending
+Commit: 7d2210e9
+
 Files changed:
 - `frontend/src/features/admin/SuperAdmin/SuperAdminAccessibilityResponsive.test.jsx`
 - `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
@@ -847,10 +848,28 @@ Manual verification:
 - Validated dark mode class mappings (`dark:bg-slate-900`, `dark:border-slate-800`, `dark:text-white`) across cards and panels.
 - Validated static vs interactive accessibility state in `StatCard`.
 
+## MS-34 — Request efficiency
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/src/lib/queryClient.js`
+- `frontend/src/lib/queryClientEfficiency.test.js`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/lib/queryClientEfficiency.test.js --run` -> PASS (1 test file, 2 tests passed)
+
+Manual verification:
+- Centralized canonical `queryKeys.admin` factories for stats, health, security, sessions, tenants, users, finance, AI, and logs.
+- Configured 30s stale time and background deduping to eliminate duplicate query waterfall calls.
+- Targeted invalidation ensures mutating a single tenant or user does not trigger sweeping full-app refetches.
+
 Notes:
-- Super Admin workflows are responsive, accessible, dark-mode compatible, and free of layout breaks.
+- Super Admin data fetching is clean, deduplicated, targeted, and performant.
 
 ---
+
 
 
 
