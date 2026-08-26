@@ -75,23 +75,51 @@ async def _get_admin_stats_logic(db: AsyncSession):
     total_revenue = (await db.execute(stmt)).scalar() or 0
 
 
-    # Monthly revenue calculation (Last 12 months)
-    monthly_revenue = {}
-    stmt = select(models.SubscriptionPayment).order_by(models.SubscriptionPayment.payment_date.asc())
+    # Monthly revenue calculation (Last 12 months window with missing months zero-filled)
+    month_keys = []
+    current_year = now.year
+    current_month = now.month
+    for i in range(11, -1, -1):
+        m = current_month - i
+        y = current_year
+        while m <= 0:
+            m += 12
+            y -= 1
+        month_keys.append(f"{y:04d}-{m:02d}")
+
+    start_date_12m = datetime(int(month_keys[0].split("-")[0]), int(month_keys[0].split("-")[1]), 1)
+
+    monthly_revenue = {k: 0.0 for k in month_keys}
+    stmt = (
+        select(models.SubscriptionPayment)
+        .where(models.SubscriptionPayment.payment_date >= start_date_12m)
+        .order_by(models.SubscriptionPayment.payment_date.asc())
+    )
     payments = (await db.execute(stmt)).scalars().all()
     for p in payments:
         if p.payment_date:
             month_key = p.payment_date.strftime("%Y-%m")
-            monthly_revenue[month_key] = monthly_revenue.get(month_key, 0) + (p.amount or 0)
+            if month_key in monthly_revenue:
+                monthly_revenue[month_key] += float(p.amount or 0)
 
-    # Clinic growth calculation
-    clinic_growth = {}
-    stmt = select(models.Tenant).order_by(models.Tenant.created_at.asc())
+
+    # Clinic growth calculation (Last 12 months)
+    clinic_growth = {k: 0 for k in month_keys}
+    stmt = (
+        select(models.Tenant)
+        .where(
+            models.Tenant.is_deleted == False,  # noqa: E712
+            models.Tenant.created_at >= start_date_12m
+        )
+        .order_by(models.Tenant.created_at.asc())
+    )
     tenants_raw = (await db.execute(stmt)).scalars().all()
     for t in tenants_raw:
         if t.created_at:
             month_key = t.created_at.strftime("%Y-%m")
-            clinic_growth[month_key] = clinic_growth.get(month_key, 0) + 1
+            if month_key in clinic_growth:
+                clinic_growth[month_key] += 1
+
 
     # Activity Feed Logic
     activity_feed = []

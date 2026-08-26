@@ -59,7 +59,11 @@ def test_admin_stats_subscription_status_semantics(client, super_admin_headers):
     import anyio
     anyio.run(seed)
 
+    from backend.core.cache import cache
+    cache.local_cache.clear()
+
     response = client.get("/api/v1/admin/stats", headers=super_admin_headers)
+
     assert response.status_code == 200
     res = response.json()
     assert res["success"] is True

@@ -271,7 +271,8 @@ Notes:
 
 ## MS-10 — Subscription status semantics
 Status: PASS
-Commit: Pending
+Commit: b7287dcf
+
 Files changed:
 - `backend/routers/admin_stats.py`
 - `backend/tests/test_admin_stats_semantics.py`
@@ -294,6 +295,33 @@ Manual verification:
 
 Notes:
 - Subscription status counts and labels are now 100% unified and consistent across Super Admin.
+
+## MS-11 — Dashboard 12-month analytics
+Status: PASS
+Commit: Pending
+Files changed:
+- `backend/routers/admin_stats.py`
+- `backend/tests/test_admin_charts_12m.py`
+- `frontend/src/features/admin/SuperAdmin/AdminCharts.jsx`
+- `frontend/src/features/admin/SuperAdmin/AdminCharts.test.jsx`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- `npm.cmd test -- src/features/admin/SuperAdmin/AdminCharts.test.jsx --run` -> PASS (1 test file, 2 tests passed)
+- `uv run ruff check --config ruff.toml backend/routers/admin_stats.py backend/tests/test_admin_charts_12m.py` -> PASS (All checks passed)
+- `$env:PYTHONPATH="c:\Users\es\DENTIX"; uv run pytest backend/tests/test_admin_charts_12m.py` -> PASS (1 passed)
+
+Manual verification:
+- Restricted revenue and clinic growth to exactly 12 months with chronological zero-filled baseline for missing months.
+- Excluded payments and tenants older than 12 months from chart calculations.
+- Localized month axis/tooltip labels according to active language (Arabic/English).
+- Removed redundant Recharts `<Legend />` tag to eliminate duplication with custom card legends.
+- Made plan distribution chart responsive with flexible mobile container (`min-h-[300px] flex-col md:flex-row`).
+- Added dark mode styling to tooltips and grid strokes.
+
+Notes:
+- 12-month window is strictly bounded, chronologically continuous, and free of redundant legends.
 
 ---
 
