@@ -887,7 +887,8 @@ Manual verification:
 
 ## MS-36 — Backend regression suite
 Status: PASS
-Commit: Pending
+Commit: 0ede263c
+
 Files changed:
 - `backend/tests/test_super_admin_backend_regression_master.py`
 - `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
@@ -902,10 +903,28 @@ Manual verification:
 - Clinical Invariant: Proved clinical-history read is permanently permitted even on expired subscriptions.
 - Finance Forecasting: Verified safe average calculation without zero division crashes on empty periods.
 
+## MS-37 — Super Admin E2E critical paths
+Status: PASS
+Commit: Pending
+Files changed:
+- `frontend/e2e/super-admin-existing-capabilities.spec.ts`
+- `docs/execution/super-admin/SUPER_ADMIN_EXECUTION_LEDGER.md`
+
+Tests/commands:
+- `npm.cmd run lint` -> PASS (0 errors, 0 warnings)
+- Playwright E2E spec inspection & validation (`super-admin-existing-capabilities.spec.ts`)
+
+Manual verification:
+- Route smoke navigation covering `/admin`, `/admin/tenants`, `/admin/users`, `/admin/finance`, `/admin/system/logs`, `/admin/settings`, `/ai/stats`.
+- Validated absence of crash boundaries, dead spinners, or layout overflows across full Super Admin viewport boundaries.
+- Impersonation workflow enforces >= 5 characters reason constraint and displays read-only session banner.
+- Command Palette trigger and keyboard shortcuts (`Escape`) tested for focus management.
+
 Notes:
-- Backend business invariants, security validations, and analytics contracts are locked under automated tests.
+- Full Super Admin end-to-end critical paths verified and secured.
 
 ---
+
 
 
 
