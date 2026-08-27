@@ -121,6 +121,17 @@ api.interceptors.request.use(config => {
             }
         }
     }
+
+    // Attach temporary Impersonation Bearer token when active
+    const impersonationToken = typeof window !== 'undefined' && window.sessionStorage
+        ? window.sessionStorage.getItem('dentix_impersonation_token') || window.sessionStorage.getItem('admin_token')
+        : null;
+
+    if (impersonationToken && impersonationToken !== 'impersonating' && !config.headers?.Authorization) {
+        config.headers = config.headers || {};
+        config.headers['Authorization'] = `Bearer ${impersonationToken}`;
+    }
+
     return config;
 });
 
@@ -246,6 +257,10 @@ api.interceptors.response.use(
                         logger.warn('[API] Tenant cleanup failed after session mismatch', tenantCleanupError);
                     }
 
+                    sessionStorage.removeItem('dentix_impersonation_token');
+                    sessionStorage.removeItem('dentix_impersonation_tenant');
+                    sessionStorage.removeItem('dentix_impersonation_user');
+                    sessionStorage.removeItem('dentix_impersonation_scope');
                     sessionStorage.removeItem('admin_token');
                     sessionStorage.removeItem('print_rx_data');
                     useAuthStore.getState().clearAuth();

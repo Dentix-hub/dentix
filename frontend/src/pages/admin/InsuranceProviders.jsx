@@ -7,7 +7,7 @@ import {
     deactivateInsuranceProvider
 } from '../../api';
 import { Building2, Plus, Edit2, Trash2, Phone, Mail } from 'lucide-react';
-import { toast } from '@/shared/ui';
+import { toast, ConfirmDialog } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
 export default function InsuranceProviders() {
     const { t } = useTranslation();
@@ -77,15 +77,23 @@ export default function InsuranceProviders() {
             toast.error("Error saving provider. Please check inputs.");
         }
     };
-    const handleDelete = async (id) => {
-        if (window.confirm("Are you sure you want to deactivate this provider?")) {
-            try {
-                await deactivateInsuranceProvider(id);
-                fetchProviders();
-            } catch (error) {
-                logger.error("Error deactivating:", error);
-                toast.error(error.response?.data?.detail || "فشل حذف/تعطيل شركة التأمين");
-            }
+    const [confirmDeactivateId, setConfirmDeactivateId] = useState(null);
+
+    const handleDelete = (id) => {
+        setConfirmDeactivateId(id);
+    };
+
+    const handleConfirmDeactivate = async () => {
+        if (!confirmDeactivateId) return;
+        try {
+            await deactivateInsuranceProvider(confirmDeactivateId);
+            toast.success(t('insurance.deactivated_success', 'تم تعطيل شركة التأمين بنجاح'));
+            fetchProviders();
+        } catch (error) {
+            logger.error("Error deactivating:", error);
+            toast.error(error.response?.data?.detail || "فشل حذف/تعطيل شركة التأمين");
+        } finally {
+            setConfirmDeactivateId(null);
         }
     };
     if (loading) return <div className="p-8 text-center">{t('common.loading')}</div>;
@@ -231,6 +239,17 @@ export default function InsuranceProviders() {
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                isOpen={Boolean(confirmDeactivateId)}
+                title={t('insurance.deactivate_title', 'تعطيل شركة التأمين')}
+                message={t('insurance.deactivate_confirm', 'هل أنت متأكد من تعطيل شركة التأمين هذه؟')}
+                confirmText={t('insurance.deactivate_btn', 'تعطيل')}
+                variant="danger"
+                onConfirm={handleConfirmDeactivate}
+                onClose={() => setConfirmDeactivateId(null)}
+                onCancel={() => setConfirmDeactivateId(null)}
+            />
         </div>
     );
 }

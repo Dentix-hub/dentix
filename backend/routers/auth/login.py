@@ -1,5 +1,15 @@
 import os
-from fastapi import APIRouter, Depends, HTTPException, status, Form, Request, Response, Cookie, Header
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    Form,
+    Request,
+    Response,
+    Cookie,
+    Header,
+)
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -66,7 +76,9 @@ def _get_csrf_token(request: Request) -> str | None:
     return request.cookies.get(_CSRF_COOKIE_NAME)
 
 
-def _validate_csrf(request: Request, x_csrf_token: str | None = Header(None, alias="X-CSRF-Token")) -> bool:
+def _validate_csrf(
+    request: Request, x_csrf_token: str | None = Header(None, alias="X-CSRF-Token")
+) -> bool:
     """Validate CSRF token using double-submit pattern."""
     cookie_token = request.cookies.get(_CSRF_COOKIE_NAME)
     if not cookie_token:
@@ -82,12 +94,13 @@ def _validate_csrf(request: Request, x_csrf_token: str | None = Header(None, ali
     return secrets.compare_digest(cookie_token, x_csrf_token)
 
 
-def require_csrf(request: Request, x_csrf_token: str | None = Header(None, alias="X-CSRF-Token")) -> None:
+def require_csrf(
+    request: Request, x_csrf_token: str | None = Header(None, alias="X-CSRF-Token")
+) -> None:
     """Dependency that raises 403 if CSRF validation fails."""
     if not _validate_csrf(request, x_csrf_token):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="CSRF token validation failed"
+            status_code=status.HTTP_403_FORBIDDEN, detail="CSRF token validation failed"
         )
 
 
@@ -106,6 +119,7 @@ def _set_auth_cookies(
     )
     if refresh_token:
         from backend.core.config import API_V1_STR
+
         response.set_cookie(
             key="refresh_token",
             value=refresh_token,
@@ -164,13 +178,13 @@ async def login_for_access_token(
             if lockout_time > datetime.now(timezone.utc):
                 raise HTTPException(
                     status_code=403,
-                    detail="تم قفل الحساب مؤقتاً بسبب كثرة المحاولات الخاطئة. يرجى المحاولة بعد 15 دقيقة."
+                    detail="تم قفل الحساب مؤقتاً بسبب كثرة المحاولات الخاطئة. يرجى المحاولة بعد 15 دقيقة.",
                 )
             else:
                 # Lockout expired, reset it
-                async with post_auth_write_scope(db, user) as scoped_db:
-                    user.account_locked_until = None
-                    user.failed_login_attempts = 0
+                async with post_auth_write_scope(db, user) as (scoped_db, scoped_user):
+                    scoped_user.account_locked_until = None
+                    scoped_user.failed_login_attempts = 0
                     await scoped_db.commit()
 
         # 3. Verify Credentials
@@ -187,12 +201,18 @@ async def login_for_access_token(
             is_valid = False
 
         if not user or not is_valid:
-            logger.warning(f"Login failed for: {form_data.username} from IP {_request_client_ip(request)}")
+            logger.warning(
+                f"Login failed for: {form_data.username} from IP {_request_client_ip(request)}"
+            )
             if user:
-                async with post_auth_write_scope(db, user) as scoped_db:
-                    user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
-                    if user.failed_login_attempts >= 5:
-                        user.account_locked_until = (datetime.now(timezone.utc) + timedelta(minutes=15)).replace(tzinfo=None)
+                async with post_auth_write_scope(db, user) as (scoped_db, scoped_user):
+                    scoped_user.failed_login_attempts = (
+                        scoped_user.failed_login_attempts or 0
+                    ) + 1
+                    if scoped_user.failed_login_attempts >= 5:
+                        scoped_user.account_locked_until = (
+                            datetime.now(timezone.utc) + timedelta(minutes=15)
+                        ).replace(tzinfo=None)
                     await scoped_db.commit()
 
             raise HTTPException(
@@ -204,7 +224,9 @@ async def login_for_access_token(
         # Check for Global Maintenance Mode
         if user.role != Role.SUPER_ADMIN.value:
             try:
-                stmt_m = select(models.SystemSetting).where(models.SystemSetting.key == "maintenance_mode")
+                stmt_m = select(models.SystemSetting).where(
+                    models.SystemSetting.key == "maintenance_mode"
+                )
                 result_m = await db.execute(stmt_m)
                 maintenance_mode = result_m.scalars().first()
                 if maintenance_mode and maintenance_mode.value.lower() == "true":
@@ -264,9 +286,9 @@ async def login_for_access_token(
         # revokes this device; security-wide actions still use revoke_all_user_sessions.
         session_id = str(uuid.uuid4())
 
-        async with post_auth_write_scope(db, user) as scoped_db:
-            user.failed_login_attempts = 0
-            user.account_locked_until = None
+        async with post_auth_write_scope(db, user) as (scoped_db, scoped_user):
+            scoped_user.failed_login_attempts = 0
+            scoped_user.account_locked_until = None
             await scoped_db.commit()
 
         access_token = auth.create_access_token(
@@ -299,24 +321,27 @@ async def login_for_access_token(
             )
 
         from fastapi.responses import JSONResponse
+
         # Mobile contract (HIGH-07): tokens are ALSO returned in the body so
         # native clients can use the Bearer flow; the web client keeps using
         # the httpOnly cookies set below and ignores these fields.
-        res = JSONResponse(content={
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "role": user.role,
-            "username": user.username,
-            "user": {
-                "id": str(user.id),
-                "name": user.full_name or user.username,
-                "email": user.email,
+        res = JSONResponse(
+            content={
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
                 "role": user.role,
-                "tenant_id": str(user.tenant_id) if user.tenant_id else None,
-            },
-            "session_id": session_id,
-        })
+                "username": user.username,
+                "user": {
+                    "id": str(user.id),
+                    "name": user.full_name or user.username,
+                    "email": user.email,
+                    "role": user.role,
+                    "tenant_id": str(user.tenant_id) if user.tenant_id else None,
+                },
+                "session_id": session_id,
+            }
+        )
         _set_auth_cookies(res, access_token, refresh_token)
         _set_csrf_cookie(res)
         return res
@@ -402,30 +427,35 @@ async def refresh_token(
             await db.commit()
         except Exception as rotation_error:
             await db.rollback()
-            logger.error("Failed to rotate refresh session: %s", rotation_error, exc_info=True)
+            logger.error(
+                "Failed to rotate refresh session: %s", rotation_error, exc_info=True
+            )
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Unable to refresh session. Please try again.",
             )
 
         from fastapi.responses import JSONResponse
+
         # Mobile contract (HIGH-07): rotated tokens are ALSO returned in the
         # body for native Bearer clients; the web keeps using cookies.
-        res = JSONResponse(content={
-            "access_token": access_token,
-            "refresh_token": new_refresh_token,
-            "token_type": "bearer",
-            "role": user.role,
-            "username": user.username,
-            "user": {
-                "id": str(user.id),
-                "name": user.full_name or user.username,
-                "email": user.email,
+        res = JSONResponse(
+            content={
+                "access_token": access_token,
+                "refresh_token": new_refresh_token,
+                "token_type": "bearer",
                 "role": user.role,
-                "tenant_id": str(user.tenant_id) if user.tenant_id else None,
-            },
-            "session_id": sid,
-        })
+                "username": user.username,
+                "user": {
+                    "id": str(user.id),
+                    "name": user.full_name or user.username,
+                    "email": user.email,
+                    "role": user.role,
+                    "tenant_id": str(user.tenant_id) if user.tenant_id else None,
+                },
+                "session_id": sid,
+            }
+        )
         _set_auth_cookies(res, access_token, new_refresh_token)
         _set_csrf_cookie(res)
         return res
@@ -443,23 +473,24 @@ async def refresh_token(
 
 
 @router.get("/session")
-async def get_auth_session(
-    current_user: models.User = Depends(get_current_user)
-):
+async def get_auth_session(current_user: models.User = Depends(get_current_user)):
     """Get the current authenticated user's session details."""
     from backend.core.response import success_response
-    return success_response(data={
-        "id": current_user.id,
-        "name": current_user.full_name or current_user.username,
-        "role": current_user.role,
-        "tenant_id": current_user.tenant_id,
-    })
+
+    return success_response(
+        data={
+            "id": current_user.id,
+            "name": current_user.full_name or current_user.username,
+            "role": current_user.role,
+            "tenant_id": current_user.tenant_id,
+        }
+    )
 
 
 @router.get("/sessions")
 async def get_sessions(
-
-    current_user: models.User = Depends(get_current_user), db: AsyncSession = Depends(get_async_db)
+    current_user: models.User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_async_db),
 ):
     """Get active sessions for current user."""
     return await AuthService.get_user_sessions(db, current_user.id)
@@ -487,7 +518,9 @@ async def logout(
     sid = None
     if token:
         try:
-            payload = auth.jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
+            payload = auth.jwt.decode(
+                token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM]
+            )
             sid = payload.get("sid")
         except auth.JWTError:
             sid = None
@@ -508,6 +541,7 @@ async def logout(
     )
     # Clear refresh_token cookie
     from backend.core.config import API_V1_STR
+
     response.delete_cookie(
         key="refresh_token",
         path=f"{API_V1_STR}/auth/refresh",
@@ -589,33 +623,45 @@ async def login_2fa(
             )
         except Exception as session_error:
             await db.rollback()
-            logger.error("2FA session persistence failed: %s", session_error, exc_info=True)
+            logger.error(
+                "2FA session persistence failed: %s", session_error, exc_info=True
+            )
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Unable to create a secure session. Please try again.",
             )
 
         from fastapi.responses import JSONResponse
-        res = JSONResponse(content={
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "role": user.role,
-            "username": user.username,
-            "user": {
-                "id": str(user.id),
-                "name": user.full_name or user.username,
-                "email": user.email,
+
+        res = JSONResponse(
+            content={
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
                 "role": user.role,
-                "tenant_id": str(user.tenant_id) if user.tenant_id else None,
-            },
-            "session_id": session_id,
-        })
+                "username": user.username,
+                "user": {
+                    "id": str(user.id),
+                    "name": user.full_name or user.username,
+                    "email": user.email,
+                    "role": user.role,
+                    "tenant_id": str(user.tenant_id) if user.tenant_id else None,
+                },
+                "session_id": session_id,
+            }
+        )
         _set_auth_cookies(res, access_token, refresh_token)
         _set_csrf_cookie(res)
         return res
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("2FA Error for user %s: %s", payload.get("sub") if 'payload' in locals() else "unknown", e, exc_info=True)
-        raise HTTPException(status_code=401, detail="Invalid 2FA code or session expired")
+        logger.error(
+            "2FA Error for user %s: %s",
+            payload.get("sub") if "payload" in locals() else "unknown",
+            e,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=401, detail="Invalid 2FA code or session expired"
+        )

@@ -2157,5 +2157,43 @@
         "recovering": "Restoring connection to the server...",
         "retry": "Retry",
         "write_blocked": "No connection — your change was not sent and no data was lost. Retry once the connection returns."
+    },
+    "sidebar": {
+        "dashboard": "Dashboard",
+        "clinics": "Clinics & Tenants",
+        "users": "Users",
+        "finance": "Finance & Billing",
+        "support_inbox": "Support Inbox",
+        "ai": "Artificial Intelligence",
+        "error_log": "System Error Logs",
+        "settings": "System Settings",
+        "appointments": "Appointments",
+        "patients": "Patients",
+        "inventory": "Inventory",
+        "logout": "Sign Out",
+        "user": "User",
+        "limited_account": "Limited Access Account",
+        "mode": {
+            "light": "Light Mode",
+            "dark": "Dark Mode"
+        }
+    },
+    "roles": {
+        "super_admin": "Super Administrator",
+        "admin": "Clinic Administrator",
+        "doctor": "Doctor",
+        "receptionist": "Receptionist",
+        "accountant": "Accountant",
+        "nurse": "Nurse"
+    },
+    "status": {
+        "active": "Active",
+        "inactive": "Inactive",
+        "expired": "Expired",
+        "archived": "Archived",
+        "success": "Success",
+        "failed": "Failed",
+        "pending": "Pending",
+        "running": "Running"
     }
 }

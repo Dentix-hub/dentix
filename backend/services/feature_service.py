@@ -61,14 +61,19 @@ class FeatureFlagService:
         return new_flag
 
     @staticmethod
-    async def update_flag(db: AsyncSession, key: str, update_data: dict):
+    async def update_flag(db: AsyncSession, key: str, update_data: schemas.FeatureFlagUpdate | dict):
         stmt = select(models.FeatureFlag).where(models.FeatureFlag.key == key)
         flag = (await db.execute(stmt)).scalar_one_or_none()
         if not flag:
             raise HTTPException(status_code=404, detail="Feature flag not found")
 
-        for k, v in update_data.items():
-            setattr(flag, k, v)
+        data_dict = update_data.model_dump(exclude_unset=True) if hasattr(update_data, "model_dump") else update_data
+        allowed_fields = {"description", "is_global_enabled", "rollout_percentage"}
+        for k, v in data_dict.items():
+            if k in allowed_fields and v is not None:
+                if k == "rollout_percentage" and not (0 <= v <= 100):
+                    raise HTTPException(status_code=422, detail="rollout_percentage must be between 0 and 100")
+                setattr(flag, k, v)
 
         await db.commit()
         await db.refresh(flag)

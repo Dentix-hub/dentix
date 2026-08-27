@@ -23,7 +23,8 @@ import {
     ChevronLeft,
     UserCog,
     Users2,
-    User
+    User,
+    Search
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useHotkeys } from 'react-hotkeys-hook';
@@ -142,14 +143,14 @@ const Layout = () => {
     let navItems = [];
     if (isSuperAdmin) {
         navItems = [
-            { icon: Shield, label: t('sidebar.dashboard'), path: '/admin' },
-            { icon: Home, label: t('sidebar.settings'), path: '/admin/tenants' },
-            { icon: UserCog, label: t('sidebar.users'), path: '/admin/users' },
-            { icon: Banknote, label: t('sidebar.billing'), path: '/admin/finance' },
-            { icon: HelpCircle, label: t('sidebar.contact'), path: '/admin/messages' },
-            { icon: Brain, label: t('sidebar.ai'), path: '/ai/stats' },
-            { icon: AlertTriangle, label: t('sidebar.error_log'), path: '/admin/system/logs' },
-            { icon: SettingsIcon, label: t('sidebar.settings'), path: '/admin/settings' },
+            { icon: Shield, label: t('sidebar.dashboard', 'لوحة التحكم'), path: '/admin' },
+            { icon: Building2, label: t('sidebar.clinics', 'العيادات والمستأجرين'), path: '/admin/tenants' },
+            { icon: UserCog, label: t('sidebar.users', 'إدارة المستخدمين'), path: '/admin/users' },
+            { icon: Banknote, label: t('sidebar.finance', 'المالية والفوترة'), path: '/admin/finance' },
+            { icon: HelpCircle, label: t('sidebar.support_inbox', 'صندوق الدعم'), path: '/admin/messages' },
+            { icon: Brain, label: t('sidebar.ai', 'الذكاء الاصطناعي'), path: '/ai/stats' },
+            { icon: AlertTriangle, label: t('sidebar.error_log', 'سجل الأخطاء'), path: '/admin/system/logs' },
+            { icon: SettingsIcon, label: t('sidebar.settings', 'إعدادات النظام'), path: '/admin/settings' },
         ];
     } else {
         navItems = [
@@ -444,7 +445,24 @@ const Layout = () => {
                         </div>
 
                         <div className="mx-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:max-w-xl sm:gap-3">
-                            <GlobalSearch />
+                            {isSuperAdmin ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setIsCommandPaletteOpen(true)}
+                                    aria-label={t('super_admin.palette.search_placeholder', 'بحث في النظام...')}
+                                    className="flex min-h-11 w-full max-w-md items-center justify-between rounded-2xl border border-border/60 bg-surface-hover/80 px-4 py-2.5 text-sm font-medium text-slate-500 shadow-sm transition-all hover:border-primary/30 hover:bg-surface cursor-pointer dark:text-slate-400"
+                                >
+                                    <span className="flex items-center gap-2">
+                                        <Search size={18} className="text-slate-400 shrink-0" />
+                                        <span className="truncate">{t('super_admin.palette.search_placeholder', 'ابحث عن عيادة، مستخدم، أو صفحة إدارية...')}</span>
+                                    </span>
+                                    <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded-lg border border-border bg-surface px-2 py-0.5 font-mono text-[11px] font-bold text-slate-500 shrink-0">
+                                        <span>Ctrl</span>+<span>K</span>
+                                    </kbd>
+                                </button>
+                            ) : (
+                                <GlobalSearch />
+                            )}
                             <div className="hidden lg:block">
                                 <NotificationBell />
                             </div>

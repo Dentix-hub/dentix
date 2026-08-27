@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 from typing import List
 from datetime import datetime, timedelta, timezone
 from backend import models, schemas
-from backend.database import get_async_db
+from backend.database import get_async_db, system_session_scope
 from backend.services.admin_service import AdminService
 from backend.services.subscription_renewal_service import (
     SubscriptionRenewalError,
@@ -337,64 +337,87 @@ async def impersonate_tenant(
             detail=f"النطاق '{scope}' غير صالح. القيم المسموحة: {allowed_scopes}"
         )
 
-    stmt = select(models.User).options(selectinload(models.User.tenant)).where(
-        models.User.tenant_id == tenant_id,
-        models.User.is_active == True,
-        models.User.is_deleted == False
-    )
-
-    if user_id:
-        stmt = stmt.where(models.User.id == user_id)
-        res = await db.execute(stmt)
-        target_user = res.scalar_one_or_none()
-        if not target_user:
-            raise HTTPException(status_code=404, detail="المستخدم غير موجود أو غير نشط في هذه العيادة")
-    else:
-        stmt = stmt.order_by((models.User.role == Role.MANAGER.value).desc())
-        res = await db.execute(stmt)
-        target_user = res.scalars().first()
-        if not target_user:
-            raise HTTPException(status_code=404, detail="No active users found for this clinic")
-
     client_ip = request.client.host if request.client else "unknown"
     user_agent = request.headers.get("user-agent", "unknown")
 
-    _logger.warning(
-        "[IMPERSONATION_START] admin_id=%s admin_username=%s target_user_id=%s "
-        "target_username=%s tenant_id=%s reason='%s' scope=%s ip=%s user_agent='%s'",
-        current_user.id, current_user.username,
-        target_user.id, target_user.username,
-        tenant_id, reason.strip(), scope,
-        client_ip, user_agent[:200]
-    )
+    # Impersonation is intentionally cross-tenant. Always resolve the target
+    # and write its audit record through the isolated native BYPASSRLS role;
+    # the ordinary request session must never gain this visibility.
+    async with system_session_scope() as system_db:
+        stmt = select(models.User).options(selectinload(models.User.tenant)).where(
+            models.User.tenant_id == tenant_id,
+            models.User.is_active == True,
+            # is_deleted is nullable in legacy rows; NULL means not deleted.
+            or_(models.User.is_deleted == False, models.User.is_deleted.is_(None)),
+        )
 
-    try:
-        if hasattr(models, 'AuditLog'):
-            audit = models.AuditLog(
-                performed_by_id=current_user.id,
-                performed_by_username=current_user.username,
-                target_user_id=target_user.id,
-                target_username=target_user.username,
-                action="IMPERSONATION_START",
-                entity_type="User",
-                entity_id=target_user.id,
-                details=(
-                    f"Admin '{current_user.username}' impersonated '{target_user.username}' "
-                    f"(tenant {tenant_id}). Reason: {reason.strip()}. Scope: {scope}. "
-                    f"IP: {client_ip}"
-                ),
-                tenant_id=tenant_id,
-            )
-            db.add(audit)
-            await db.commit()
-    except Exception as e:
-        _logger.error("[IMPERSONATION] Audit log DB write failed: %s", e)
+        if user_id:
+            stmt = stmt.where(models.User.id == user_id)
+            res = await system_db.execute(stmt)
+            target_user = res.scalar_one_or_none()
+            if not target_user:
+                raise HTTPException(
+                    status_code=404,
+                    detail="المستخدم غير موجود أو غير نشط في هذه العيادة",
+                )
+        else:
+            stmt = stmt.order_by((models.User.role == Role.MANAGER.value).desc())
+            res = await system_db.execute(stmt)
+            target_user = res.scalars().first()
+            if not target_user:
+                raise HTTPException(
+                    status_code=404,
+                    detail="No active users found for this clinic",
+                )
+
+        target_user_id = target_user.id
+        target_username = target_user.username
+        target_tenant_id = target_user.tenant_id
+        target_role = target_user.role
+        tenant_name = target_user.tenant.name if target_user.tenant else "Unknown"
+
+        _logger.warning(
+            "[IMPERSONATION_START] admin_id=%s admin_username=%s target_user_id=%s "
+            "target_username=%s tenant_id=%s reason='%s' scope=%s ip=%s user_agent='%s'",
+            current_user.id,
+            current_user.username,
+            target_user_id,
+            target_username,
+            tenant_id,
+            reason.strip(),
+            scope,
+            client_ip,
+            user_agent[:200],
+        )
+
+        try:
+            if hasattr(models, "AuditLog"):
+                audit = models.AuditLog(
+                    performed_by_id=current_user.id,
+                    performed_by_username=current_user.username,
+                    target_user_id=target_user_id,
+                    target_username=target_username,
+                    action="IMPERSONATION_START",
+                    entity_type="User",
+                    entity_id=target_user_id,
+                    details=(
+                        f"Admin '{current_user.username}' impersonated '{target_username}' "
+                        f"(tenant {tenant_id}). Reason: {reason.strip()}. Scope: {scope}. "
+                        f"IP: {client_ip}"
+                    ),
+                    tenant_id=tenant_id,
+                )
+                system_db.add(audit)
+                await system_db.commit()
+        except Exception as e:
+            await system_db.rollback()
+            _logger.error("[IMPERSONATION] Audit log DB write failed: %s", e)
 
     access_token = create_access_token(
         data={
-            "sub": target_user.username,
-            "tenant_id": target_user.tenant_id,
-            "role": target_user.role,
+            "sub": target_username,
+            "tenant_id": target_tenant_id,
+            "role": target_role,
             "is_impersonating": True,
             "impersonation_scope": scope,
             "admin_id": current_user.id,
@@ -404,13 +427,11 @@ async def impersonate_tenant(
         expires_delta=timedelta(minutes=30)
     )
 
-    tenant_name = target_user.tenant.name if target_user.tenant else "Unknown"
-
     return success_response(data={
         "access_token": access_token,
         "token_type": "bearer",
         "tenant_name": tenant_name,
-        "target_user": target_user.username,
+        "target_user": target_username,
         "scope": scope,
         "expires_in_minutes": 30,
     }, message=f"تم إنشاء جلسة دخول مؤقتة لعيادة {tenant_name}")

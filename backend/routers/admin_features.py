@@ -57,7 +57,7 @@ async def set_tenant_override(
 @router.put("/{key}", response_model=schemas.FeatureFlag)
 async def update_flag(
     key: str,
-    update_data: dict,  # Using dict for flexibility or a specific UpdateSchema
+    update_data: schemas.FeatureFlagUpdate,
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(get_super_admin),
 ):

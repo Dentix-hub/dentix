@@ -38,4 +38,18 @@ export const queryKeys = {
     procedures: ['procedures'],
     users: ['users'],
     labs: ['labs'],
+
+    admin: {
+        stats: ['admin', 'stats'],
+        health: ['admin', 'health', 'alerts'],
+        security: ['admin', 'security'],
+        sessions: ['admin', 'sessions'],
+        tenants: (filters = {}) => ['admin', 'tenants', filters],
+        tenant: (id) => ['admin', 'tenant', id],
+        users: (filters = {}) => ['admin', 'users', filters],
+        finance: (period = 'month') => ['admin', 'finance', period],
+        aiStats: (period = 'month') => ['admin', 'ai', 'stats', period],
+        aiLogs: (filters = {}) => ['admin', 'ai', 'logs', filters],
+        logs: (page = 1, limit = 50) => ['admin', 'system', 'logs', page, limit],
+    },
 };

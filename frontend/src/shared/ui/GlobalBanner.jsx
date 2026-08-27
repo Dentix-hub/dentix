@@ -11,8 +11,9 @@ const GlobalBanner = () => {
         const fetchBanner = async () => {
             try {
                 const res = await api.get('/api/v1/global-settings');
-                if (res.data?.banner) {
-                    setMessage(res.data.banner);
+                const bannerText = res.data?.data?.banner ?? res.data?.banner;
+                if (bannerText) {
+                    setMessage(bannerText);
                     setVisible(true);
                 }
             } catch (error) {

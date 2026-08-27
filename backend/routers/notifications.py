@@ -147,8 +147,21 @@ async def broadcast_notification(
     current_user: models.User = Depends(require_super_admin),
 ):
     """Broadcast a new notification (Super Admin only)."""
+    if not notification.is_global:
+        if notification.tenant_id is None:
+            raise HTTPException(
+                status_code=422,
+                detail="tenant_id is required for targeted notifications",
+            )
+        stmt = select(models.Tenant).where(models.Tenant.id == notification.tenant_id)
+        target_tenant = (await db.execute(stmt)).scalar_one_or_none()
+        if not target_tenant:
+            raise HTTPException(status_code=404, detail="Targeted tenant not found")
+    else:
+        notification.tenant_id = None
+
     db_notification = models.Notification(
-        **notification.dict(), created_by_id=current_user.id
+        **notification.model_dump(), created_by_id=current_user.id
     )
     db.add(db_notification)
     await db.commit()

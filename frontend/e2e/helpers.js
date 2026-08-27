@@ -5,6 +5,10 @@
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:5173';
 
 export const E2E_CREDENTIALS = {
+  superAdmin: {
+    username: process.env.E2E_SUPER_ADMIN_USERNAME || 'admin',
+    password: process.env.E2E_SUPER_ADMIN_PASSWORD || 'admin123',
+  },
   admin: { username: 'e2e_admin', password: 'Dentix-E2E_Admin!2026_X9' },
   doctor: { username: 'doctor1', password: 'Dentix-E2E_Doctor!2026_X9' },
   nurse: { username: 'nurse1', password: 'Dentix-E2E_Nurse!2026_X9' },
@@ -18,6 +22,14 @@ export async function loginAs(page, username, password) {
   await page.locator('input[type="password"]').fill(password);
   await page.locator('button[type="submit"]').click();
   await page.locator('nav').first().waitFor({ state: 'visible', timeout: 15000 });
+}
+
+export async function loginAsSuperAdmin(page) {
+  return loginAs(
+    page,
+    E2E_CREDENTIALS.superAdmin.username,
+    E2E_CREDENTIALS.superAdmin.password,
+  );
 }
 
 export async function loginAsAdmin(page) {

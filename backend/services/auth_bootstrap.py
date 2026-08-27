@@ -172,7 +172,10 @@ async def post_auth_write_scope(db: AsyncSession, user: models.User | None):
         from backend.database import system_session_scope
 
         async with system_session_scope() as system_db:
-            system_db.add(user)
-            yield system_db
+            # The bootstrap row may still be associated with the short-lived
+            # lookup session. ``merge`` copies it into this write session
+            # without trying to attach one ORM instance to two sessions.
+            scoped_user = await system_db.merge(user)
+            yield system_db, scoped_user
         return
-    yield db
+    yield db, user

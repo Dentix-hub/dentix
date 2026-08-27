@@ -5,6 +5,11 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 import translationAR from './locales/ar/translation.json';
 import translationEN from './locales/en/translation.json';
 import { patientWorkspaceAR, patientWorkspaceEN } from './locales/patientWorkspace';
+import { superAdminAR, superAdminEN } from './locales/superAdmin';
+import {
+    superAdminImpersonationAR,
+    superAdminImpersonationEN,
+} from './locales/superAdminImpersonation';
 
 const extendTranslation = (base, extension) => ({
     ...base,
@@ -18,12 +23,62 @@ const extendTranslation = (base, extension) => ({
     },
 });
 
+const SUPER_ADMIN_NAMESPACES = [
+    'system',
+    'profile',
+    'backup',
+    'features',
+    'tenant_detail',
+    'impersonation',
+];
+
+const extendSuperAdminTranslation = (base, extension) => {
+    const baseSuperAdmin = base.super_admin || {};
+    const extensionSuperAdmin = extension.super_admin || {};
+
+    return {
+        ...base,
+        super_admin: {
+            ...baseSuperAdmin,
+            ...extensionSuperAdmin,
+            ...Object.fromEntries(
+                SUPER_ADMIN_NAMESPACES.map((namespace) => [
+                    namespace,
+                    {
+                        ...(baseSuperAdmin[namespace] || {}),
+                        ...(extensionSuperAdmin[namespace] || {}),
+                    },
+                ]),
+            ),
+        },
+    };
+};
+
+const buildTranslation = (base, patientWorkspace, superAdmin, impersonation) =>
+    extendSuperAdminTranslation(
+        extendSuperAdminTranslation(
+            extendTranslation(base, patientWorkspace),
+            superAdmin,
+        ),
+        impersonation,
+    );
+
 const resources = {
     ar: {
-        translation: extendTranslation(translationAR, patientWorkspaceAR),
+        translation: buildTranslation(
+            translationAR,
+            patientWorkspaceAR,
+            superAdminAR,
+            superAdminImpersonationAR,
+        ),
     },
     en: {
-        translation: extendTranslation(translationEN, patientWorkspaceEN),
+        translation: buildTranslation(
+            translationEN,
+            patientWorkspaceEN,
+            superAdminEN,
+            superAdminImpersonationEN,
+        ),
     },
 };
 
