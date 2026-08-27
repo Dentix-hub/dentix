@@ -10,7 +10,7 @@ import {
     addPriceListItem
 } from '../../api';
 import { DollarSign, Plus, Edit2, Trash2, List, ShieldCheck, X } from 'lucide-react';
-import { toast } from '@/shared/ui';
+import { toast, ConfirmDialog } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
 import { useProcedures } from '@/shared/context/ProceduresContext';
 const PriceListEditor = ({ priceListId, onClose }) => {
@@ -238,14 +238,24 @@ export default function PriceLists() {
             toast.error("Error saving price list");
         }
     };
-    const handleDeactivateList = async (list) => {
-        if (!window.confirm(`هل أنت متأكد من تعطيل قائمة الأسعار: ${list.name} ؟`)) return;
+    const [confirmDeactivate, setConfirmDeactivate] = useState({ isOpen: false, list: null });
+
+    const handleDeactivateList = (list) => {
+        setConfirmDeactivate({ isOpen: true, list });
+    };
+
+    const handleConfirmDeactivate = async () => {
+        const list = confirmDeactivate.list;
+        if (!list) return;
         try {
             await deactivatePriceList(list.id);
+            toast.success(t('settings.price_lists.deactivated_success', 'تم تعطيل قائمة الأسعار بنجاح'));
             fetchData();
         } catch (error) {
             logger.error(error);
             toast.error(error.response?.data?.detail || "فشل تعطيل قائمة الأسعار");
+        } finally {
+            setConfirmDeactivate({ isOpen: false, list: null });
         }
     };
     if (loading) return <div>Loading...</div>;
@@ -423,6 +433,17 @@ export default function PriceLists() {
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                isOpen={confirmDeactivate.isOpen}
+                title={t('settings.price_lists.deactivate_title', 'تعطيل قائمة الأسعار')}
+                message={`${t('settings.price_lists.deactivate_confirm', 'هل أنت متأكد من تعطيل قائمة الأسعار')}: ${confirmDeactivate.list?.name || ''}؟`}
+                confirmText={t('settings.price_lists.deactivate_btn', 'تعطيل')}
+                variant="danger"
+                onConfirm={handleConfirmDeactivate}
+                onClose={() => setConfirmDeactivate({ isOpen: false, list: null })}
+                onCancel={() => setConfirmDeactivate({ isOpen: false, list: null })}
+            />
         </div>
     );
 }

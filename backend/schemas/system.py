@@ -1,6 +1,6 @@
 """System and admin schemas."""
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List
 from datetime import datetime, date
 
@@ -76,7 +76,7 @@ class FeatureFlag(BaseModel):
     key: str
     description: Optional[str] = None
     is_global_enabled: bool
-    rollout_percentage: int
+    rollout_percentage: int = Field(0, ge=0, le=100)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -85,7 +85,13 @@ class FeatureFlagCreate(BaseModel):
     key: str
     description: Optional[str] = None
     is_global_enabled: bool = False
-    rollout_percentage: int = 0
+    rollout_percentage: int = Field(0, ge=0, le=100)
+
+
+class FeatureFlagUpdate(BaseModel):
+    description: Optional[str] = None
+    is_global_enabled: Optional[bool] = None
+    rollout_percentage: Optional[int] = Field(None, ge=0, le=100)
 
 
 class TenantFeature(BaseModel):

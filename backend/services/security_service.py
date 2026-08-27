@@ -98,7 +98,15 @@ class SecurityService:
         admin_username: str,
         minutes: int = None,
     ):
-        stmt = select(models.BlockedIP).where(models.BlockedIP.ip_address == ip_address)
+        import ipaddress
+
+        clean_ip = ip_address.strip()
+        try:
+            ipaddress.ip_address(clean_ip)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="عنوان IP غير صالح (Invalid IP address)")
+
+        stmt = select(models.BlockedIP).where(models.BlockedIP.ip_address == clean_ip)
         existing = (await db.execute(stmt)).scalar_one_or_none()
         if existing:
             raise HTTPException(status_code=400, detail="IP already blocked")
@@ -106,7 +114,7 @@ class SecurityService:
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=minutes) if minutes else None
 
         new_block = models.BlockedIP(
-            ip_address=ip_address,
+            ip_address=clean_ip,
             reason=reason,
             blocked_by=admin_username,
             expires_at=expires_at,

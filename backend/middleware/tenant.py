@@ -35,8 +35,8 @@ logger = logging.getLogger("smart_clinic.tenant_middleware")
 _ACCESS_TOKEN_COOKIE = "access_token"
 
 
-def _tenant_id_from_signed_token(token: str) -> int | None:
-    """Return tenant_id from a signature-verified JWT; None otherwise."""
+def _request_scope_from_signed_token(token: str) -> tuple[int | None, bool]:
+    """Return the tenant/system scope encoded in a signature-verified JWT."""
     try:
         payload = auth.jwt.decode(
             token,
@@ -44,11 +44,21 @@ def _tenant_id_from_signed_token(token: str) -> int | None:
             algorithms=[auth.ALGORITHM],
         )
         tenant_id = payload.get("tenant_id")
-        return int(tenant_id) if tenant_id else None
+        resolved_tenant_id = int(tenant_id) if tenant_id else None
+        is_super_admin = (
+            resolved_tenant_id is None and payload.get("role") == "super_admin"
+        )
+        return resolved_tenant_id, is_super_admin
     except (auth.JWTError, TypeError, ValueError):
-        # Expired or invalid token — do NOT set tenant context.
+        # Expired or invalid token — do NOT set tenant or privileged context.
         # Auth dependency will reject with 401 later.
-        return None
+        return None, False
+
+
+def _tenant_id_from_signed_token(token: str) -> int | None:
+    """Backward-compatible helper for callers interested only in tenant ID."""
+    tenant_id, _ = _request_scope_from_signed_token(token)
+    return tenant_id
 
 
 class TenantMiddleware(BaseHTTPMiddleware):
@@ -62,15 +72,25 @@ class TenantMiddleware(BaseHTTPMiddleware):
             # httpOnly cookie used by the web client.
             auth_header = request.headers.get("Authorization")
             tenant_id = None
+            super_admin_bypass = False
             if auth_header and auth_header.startswith("Bearer "):
-                tenant_id = _tenant_id_from_signed_token(auth_header.split(" ")[1])
-            if tenant_id is None:
+                tenant_id, super_admin_bypass = _request_scope_from_signed_token(
+                    auth_header.split(" ")[1]
+                )
+            if tenant_id is None and not super_admin_bypass:
                 cookie_token = request.cookies.get(_ACCESS_TOKEN_COOKIE)
                 if cookie_token:
-                    tenant_id = _tenant_id_from_signed_token(cookie_token)
+                    tenant_id, super_admin_bypass = _request_scope_from_signed_token(
+                        cookie_token
+                    )
 
             if tenant_id is not None:
                 set_current_tenant_id(tenant_id)
+            if super_admin_bypass:
+                # get_async_db executes before get_current_user. Select the
+                # isolated BYPASSRLS pool now; the auth dependency still
+                # revalidates the signed identity and its stored database role.
+                set_super_admin_bypass(True)
 
             response = await call_next(request)
             return response

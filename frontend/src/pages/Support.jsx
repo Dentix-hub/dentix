@@ -12,19 +12,20 @@ export default function Support() {
     const [supportInfo, setSupportInfo] = useState({
         phone: '+20 120 130 1415',
         whatsapp: '201201301415',
-        email: 'support@smartdentalclinicapp.com',
+        email: 'support@dentix.com',
         working_hours: '9:00 AM - 10:00 PM'
     });
     useEffect(() => {
         const fetchSettings = async () => {
             try {
                 // We use the public global-settings endpoint
-                const { data } = await api.get('/api/v1/global-settings');
+                const res = await api.get('/api/v1/global-settings');
+                const data = res?.data?.data || res?.data;
                 if (data) {
                     setSupportInfo({
                         phone: data.support_phone || '+20 120 130 1415',
                         whatsapp: data.support_whatsapp || '201201301415',
-                        email: data.support_email || 'support@smartdentalclinicapp.com',
+                        email: data.support_email || 'support@dentix.com',
                         working_hours: data.support_working_hours || (i18n.language === 'ar' ? '9:00 ص - 10:00 م' : '9:00 AM - 10:00 PM')
                     });
                 }
@@ -92,13 +93,9 @@ export default function Support() {
                     <div className="bg-gradient-to-br from-cyan-600 to-indigo-600 rounded-3xl p-6 text-white shadow-xl shadow-indigo-500/20">
                         <Clock size={32} className="mb-4 opacity-80" />
                         <h3 className="text-xl font-bold mb-2">{t('static.support.working_hours')}</h3>
-                        <p className="opacity-90 leading-relaxed mb-4">
+                        <p className="opacity-90 leading-relaxed">
                             {t('static.support.working_hours_desc')} <span dir="ltr">{supportInfo.working_hours}</span>.
                         </p>
-                        <div className="flex items-center gap-2 text-sm font-bold bg-white/20 p-3 rounded-xl backdrop-blur-sm">
-                            <CheckCircle2 size={16} />
-                            <span>{t('static.support.available_now')}</span>
-                        </div>
                     </div>
                 </div>
                 {/* Contact Form */}
