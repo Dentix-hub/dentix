@@ -1868,6 +1868,13 @@
         },
         "finance": {
             "title": "Financial Insights",
+            "subtitle": "Monitor payments, subscriptions, plans, and financial reports",
+            "tabs": {
+                "payments": "Payments",
+                "subscriptions": "Subscriptions",
+                "plans": "Plans",
+                "reports": "Reports"
+            },
             "monthly_forecast_title": "Projected Monthly Revenue (Forecast)",
             "currency": "EGP",
             "mrr_desc": "Expected recurring revenue based on current active plans",
@@ -1983,6 +1990,7 @@
         },
         "payments": {
             "title": "Payment History",
+            "record_button": "Record Payment",
             "date_col": "Date",
             "tenant_col": "Clinic",
             "plan_col": "Plan",
@@ -2160,6 +2168,7 @@
     },
     "sidebar": {
         "dashboard": "Dashboard",
+        "system_admin": "System Admin",
         "clinics": "Clinics & Tenants",
         "users": "Users",
         "finance": "Finance & Billing",
