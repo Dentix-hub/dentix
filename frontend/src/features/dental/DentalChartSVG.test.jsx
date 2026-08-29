@@ -4,6 +4,7 @@ import DentalChartSVG from './DentalChartSVG';
 
 const getCrownContract = (container) => Array.from(container.querySelectorAll('svg[data-layer="crown"]')).map((svg) => {
     const path = svg.querySelector('path');
+    const orientation = svg.querySelector('[data-crown-orientation]');
     return {
         toothKey: svg.getAttribute('data-tooth-key'),
         width: svg.getAttribute('width'),
@@ -13,6 +14,7 @@ const getCrownContract = (container) => Array.from(container.querySelectorAll('s
         fill: path.getAttribute('fill'),
         stroke: path.getAttribute('stroke'),
         strokeWidth: path.getAttribute('stroke-width'),
+        transform: orientation.getAttribute('transform'),
     };
 });
 
@@ -46,5 +48,31 @@ describe('DentalChartSVG optional root extension', () => {
 
         expect(container.querySelectorAll('svg[data-layer="crown"]')).toHaveLength(20);
         expect(container.querySelectorAll('svg[data-layer="roots"]')).toHaveLength(20);
+    });
+
+    it('rotates only the upper permanent incisors so their incisal edge faces down', () => {
+        const { container } = render(
+            <DentalChartSVG teethStatus={{}} onToothClick={vi.fn()} isPediatric={false} showRoots />,
+        );
+
+        ['11', '12', '21', '22'].forEach((toothKey) => {
+            expect(container.querySelector(`svg[data-layer="crown"][data-tooth-key="${toothKey}"] [data-crown-orientation]`))
+                .toHaveAttribute('transform', 'rotate(180 25 30)');
+        });
+        expect(container.querySelector('svg[data-layer="crown"][data-tooth-key="31"] [data-crown-orientation]'))
+            .not.toHaveAttribute('transform');
+    });
+
+    it('applies the same upper-incisor orientation to primary teeth', () => {
+        const { container } = render(
+            <DentalChartSVG teethStatus={{}} onToothClick={vi.fn()} isPediatric showRoots />,
+        );
+
+        ['51', '52', '61', '62'].forEach((toothKey) => {
+            expect(container.querySelector(`svg[data-layer="crown"][data-tooth-key="${toothKey}"] [data-crown-orientation]`))
+                .toHaveAttribute('transform', 'rotate(180 25 30)');
+        });
+        expect(container.querySelector('svg[data-layer="crown"][data-tooth-key="71"] [data-crown-orientation]'))
+            .not.toHaveAttribute('transform');
     });
 });
