@@ -1,6 +1,6 @@
 # Odontogram Foundation Task Tracker
 
-Status values: `PENDING`, `IN PROGRESS`, `PASS`, `BLOCKED`, `ACCEPTED DEVIATION`.
+Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `ACCEPTED DEVIATION`.
 
 | Micro-task | Status | Evidence / note |
 | --- | --- | --- |
@@ -23,13 +23,13 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `BLOCKED`, `ACCEPTED DEVIATION`
 | A3-M05 Define mixed-dentition compatibility note | PASS | `MIXED_DENTITION_COMPATIBILITY.md` |
 | A4-M01 Inventory current crown outlines | PASS | `CROWN_OUTLINE_INVENTORY.md` |
 | A4-M02 Normalize crown shape access | PASS | All 52 anatomy keys resolve; 20/20 focused chart tests passed |
-| A4-M03 Preserve current visual style | PASS | Exact source-path equality test plus `evidence/A4-crown-parity.png`; zero browser errors |
-| A5-M01 Create root outline model | PASS | Immutable root registry resolves every anatomy root reference |
-| A5-M02 Add single-root anterior definitions | PASS | Maxillary/mandibular templates rendered in demo |
-| A5-M03 Add premolar root definitions | PASS | Single and maxillary first-premolar split roots rendered |
-| A5-M04 Add molar root definitions | PASS | Three-root maxillary and two-root mandibular families rendered |
-| A5-M05 Add primary tooth root definitions | PASS | Simplified anterior and flared primary molar families rendered |
-| A5-M06 Keep root style visually aligned | PASS | 30/30 focused tests; `evidence/A5-root-anatomy-families.png`; zero browser errors |
+| A4-M03 Preserve current visual style | REWORK REQUIRED | Standalone parity did not prove unchanged real-chart layout; user rejected evidence |
+| A5-M01 Create root outline model | REWORK REQUIRED | Contract must add cervical anchors and per-FDI overrides in one coordinate system |
+| A5-M02 Add single-root anterior definitions | REWORK REQUIRED | Hand-estimated generic path rejected; tooth-specific evidence required |
+| A5-M03 Add premolar root definitions | REWORK REQUIRED | Must model canonical defaults plus documented one/two-root variation |
+| A5-M04 Add molar root definitions | REWORK REQUIRED | Must correct root proportions, divergence, curvature, and palatal-root treatment |
+| A5-M05 Add primary tooth root definitions | REWORK REQUIRED | Must reserve successor space and avoid scaled permanent-root geometry |
+| A5-M06 Keep root style visually aligned | REWORK REQUIRED | Must be proven on the existing full chart with crown/layout diff evidence |
 | A6-M01 Create surface code constants | PENDING | — |
 | A6-M02 Define per-tooth clickable surface geometry | PENDING | — |
 | A6-M03 Support anterior surface model | PENDING | — |
