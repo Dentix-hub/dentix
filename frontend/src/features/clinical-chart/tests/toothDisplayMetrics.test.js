@@ -37,4 +37,11 @@ describe('tooth display metrics', () => {
         expect(getToothDisplayMetrics('12').crownPivot).toEqual({ x: 25, y: 12 });
         expect(getToothDisplayMetrics('42').crownPivot).toEqual({ x: 25, y: 42 });
     });
+
+    it('gives only permanent upper central incisors the approved subtle root increase', () => {
+        expect(getToothDisplayMetrics('11').rootScale).toEqual({ x: 0.97, y: 0.96 });
+        expect(getToothDisplayMetrics('21').rootScale).toEqual({ x: 0.97, y: 0.96 });
+        expect(getToothDisplayMetrics('31').rootScale).toEqual({ x: 0.95, y: 0.92 });
+        expect(getToothDisplayMetrics('41').rootScale).toEqual({ x: 0.95, y: 0.92 });
+    });
 });

@@ -20,6 +20,15 @@ const PRIMARY_ROOT_SCALE = Object.freeze({
 });
 
 const getRootScale = (anatomy, position) => {
+    if (
+        anatomy.dentition === 'permanent'
+        && anatomy.arch === 'maxillary'
+        && anatomy.toothType === 'incisor'
+        && position === 1
+    ) {
+        return Object.freeze({ x: 0.97, y: 0.96 });
+    }
+
     const scaleRegistry = anatomy.dentition === 'primary' ? PRIMARY_ROOT_SCALE : PERMANENT_ROOT_SCALE;
     const scale = scaleRegistry[anatomy.toothType];
     return anatomy.toothType === 'incisor' ? scale[position] : scale;
