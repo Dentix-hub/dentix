@@ -16,11 +16,11 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `BLOCKED`, `ACCEPTED DEVIATION`
 | A2-M02 Create subfolders | PASS | `components`, `domain`, `rendering`, `fixtures`, `hooks`, `tests` |
 | A2-M03 Create entry workspace component | PASS | Component test: 1/1 passed; frontend lint passed |
 | A2-M04 Create temporary demo route | PASS | DEV-only `/clinical-chart/demo`; browser DOM verified with zero console errors |
-| A3-M01 Create anatomy registry file | PENDING | — |
-| A3-M02 Define anatomy model shape | PENDING | — |
-| A3-M03 Define permanent dentition keys | PENDING | — |
-| A3-M04 Define primary dentition keys | PENDING | — |
-| A3-M05 Define mixed-dentition compatibility note | PENDING | — |
+| A3-M01 Create anatomy registry file | PASS | `domain/dentalAnatomyRegistry.js` exports immutable registry and lookup |
+| A3-M02 Define anatomy model shape | PASS | JSDoc contract covers every required field; 10/10 focused tests passed |
+| A3-M03 Define permanent dentition keys | PASS | All 32 permanent FDI positions represented and tested |
+| A3-M04 Define primary dentition keys | PASS | All 20 primary FDI positions represented and tested |
+| A3-M05 Define mixed-dentition compatibility note | PASS | `MIXED_DENTITION_COMPATIBILITY.md` |
 | A4-M01 Inventory current crown outlines | PENDING | — |
 | A4-M02 Normalize crown shape access | PENDING | — |
 | A4-M03 Preserve current visual style | PENDING | — |
