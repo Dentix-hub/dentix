@@ -24,12 +24,12 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `BLOCKED`, `ACCEPTED DEVIATION`
 | A4-M01 Inventory current crown outlines | PASS | `CROWN_OUTLINE_INVENTORY.md` |
 | A4-M02 Normalize crown shape access | PASS | All 52 anatomy keys resolve; 20/20 focused chart tests passed |
 | A4-M03 Preserve current visual style | PASS | Exact source-path equality test plus `evidence/A4-crown-parity.png`; zero browser errors |
-| A5-M01 Create root outline model | PENDING | — |
-| A5-M02 Add single-root anterior definitions | PENDING | — |
-| A5-M03 Add premolar root definitions | PENDING | — |
-| A5-M04 Add molar root definitions | PENDING | — |
-| A5-M05 Add primary tooth root definitions | PENDING | — |
-| A5-M06 Keep root style visually aligned | PENDING | — |
+| A5-M01 Create root outline model | PASS | Immutable root registry resolves every anatomy root reference |
+| A5-M02 Add single-root anterior definitions | PASS | Maxillary/mandibular templates rendered in demo |
+| A5-M03 Add premolar root definitions | PASS | Single and maxillary first-premolar split roots rendered |
+| A5-M04 Add molar root definitions | PASS | Three-root maxillary and two-root mandibular families rendered |
+| A5-M05 Add primary tooth root definitions | PASS | Simplified anterior and flared primary molar families rendered |
+| A5-M06 Keep root style visually aligned | PASS | 30/30 focused tests; `evidence/A5-root-anatomy-families.png`; zero browser errors |
 | A6-M01 Create surface code constants | PENDING | — |
 | A6-M02 Define per-tooth clickable surface geometry | PENDING | — |
 | A6-M03 Support anterior surface model | PENDING | — |

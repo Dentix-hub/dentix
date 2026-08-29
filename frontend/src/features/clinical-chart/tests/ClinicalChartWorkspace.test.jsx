@@ -10,5 +10,8 @@ describe('ClinicalChartWorkspace scaffold', () => {
         expect(screen.getByRole('heading', { name: 'مخطط الأسنان' })).toBeInTheDocument();
         expect(screen.getByTestId('source-crown')).toBeInTheDocument();
         expect(screen.getByTestId('normalized-crown')).toBeInTheDocument();
+        expect(screen.getByTestId('anatomy-tooth-11')).toHaveAttribute('data-root-count', '1');
+        expect(screen.getByTestId('anatomy-tooth-16')).toHaveAttribute('data-root-count', '3');
+        expect(screen.getByTestId('anatomy-tooth-75')).toHaveAttribute('data-root-count', '2');
     });
 });

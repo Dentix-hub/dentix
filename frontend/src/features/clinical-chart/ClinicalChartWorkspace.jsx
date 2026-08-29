@@ -1,4 +1,5 @@
 import CrownParityPreview from './components/CrownParityPreview';
+import RootAnatomyPreview from './components/RootAnatomyPreview';
 
 /**
  * Isolated entry point for the Dentix-native odontogram foundation.
@@ -25,6 +26,7 @@ export default function ClinicalChartWorkspace() {
                 </header>
 
                 <CrownParityPreview />
+                <RootAnatomyPreview />
             </section>
         </main>
     );
