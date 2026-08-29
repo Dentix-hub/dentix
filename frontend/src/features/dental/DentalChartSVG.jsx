@@ -73,6 +73,8 @@ const STATUS_STYLES = {
     RootCanal: { fill: '#e9d5ff', stroke: '#a855f7' },
 };
 
+const UPPER_INCISOR_KEYS = new Set(['11', '12', '21', '22', '51', '52', '61', '62']);
+
 const ToothRootLayer = memo(function ToothRootLayer({ toothKey, arch, opacity }) {
     const roots = getRootGeometry(toothKey);
 
@@ -109,6 +111,7 @@ const SVGTooth = memo(function SVGTooth({ number, status, onClick, isPediatric, 
     const style = STATUS_STYLES[condition];
     const palmerLabel = getPalmerLabel(number, isPediatric);
     const toothKey = String(toothToNumber(number));
+    const crownTransform = UPPER_INCISOR_KEYS.has(toothKey) ? 'rotate(180 25 30)' : undefined;
     const crownSvg = (
         <svg
             aria-hidden="true"
@@ -119,8 +122,10 @@ const SVGTooth = memo(function SVGTooth({ number, status, onClick, isPediatric, 
             viewBox="0 0 50 60"
             width="50"
         >
-            <path d={path} fill={style.fill} stroke={style.stroke} strokeWidth="2" className="transition-colors duration-300" />
-            {condition === 'Decayed' && <circle cx="25" cy="25" r="5" fill="#ef4444" />}
+            <g data-crown-orientation="incisal-edge" transform={crownTransform}>
+                <path d={path} fill={style.fill} stroke={style.stroke} strokeWidth="2" className="transition-colors duration-300" />
+                {condition === 'Decayed' && <circle cx="25" cy="25" r="5" fill="#ef4444" />}
+            </g>
         </svg>
     );
 
