@@ -12,10 +12,10 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `BLOCKED`, `ACCEPTED DEVIATION`
 | A1-M02 Define chart architectural layers | PASS | ADR “Architectural layers” and data-flow sections |
 | A1-M03 Define renderer non-responsibilities | PASS | ADR “Renderer non-responsibilities” section |
 | A1-M04 Define future readiness targets | PASS | ADR “Future-readiness targets” section |
-| A2-M01 Create feature directory | PENDING | — |
-| A2-M02 Create subfolders | PENDING | — |
-| A2-M03 Create entry workspace component | PENDING | — |
-| A2-M04 Create temporary demo route | PENDING | — |
+| A2-M01 Create feature directory | PASS | `frontend/src/features/clinical-chart/` |
+| A2-M02 Create subfolders | PASS | `components`, `domain`, `rendering`, `fixtures`, `hooks`, `tests` |
+| A2-M03 Create entry workspace component | PASS | Component test: 1/1 passed; frontend lint passed |
+| A2-M04 Create temporary demo route | PASS | DEV-only `/clinical-chart/demo`; browser DOM verified with zero console errors |
 | A3-M01 Create anatomy registry file | PENDING | — |
 | A3-M02 Define anatomy model shape | PENDING | — |
 | A3-M03 Define permanent dentition keys | PENDING | — |
