@@ -10,7 +10,7 @@ export default function ClinicalChartWorkspace() {
     return (
         <main className="min-h-screen bg-background p-4 sm:p-6" data-testid="clinical-chart-workspace">
             <div className="mx-auto max-w-7xl">
-                <DentalChartSVG teethStatus={{}} onToothClick={() => {}} isPediatric={false} />
+                <DentalChartSVG teethStatus={{}} onToothClick={() => {}} isPediatric={false} showRoots />
             </div>
         </main>
     );

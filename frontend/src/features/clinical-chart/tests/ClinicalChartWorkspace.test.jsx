@@ -9,6 +9,7 @@ describe('ClinicalChartWorkspace scaffold', () => {
         expect(screen.getByTestId('clinical-chart-workspace')).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: /مخطط الأسنان \(بالغين\)/ })).toBeInTheDocument();
         expect(screen.getAllByRole('button')).toHaveLength(32);
+        expect(document.querySelectorAll('[data-layer="roots"]')).toHaveLength(32);
         expect(screen.queryByText('Crown geometry parity')).not.toBeInTheDocument();
         expect(screen.queryByText('Root anatomy families')).not.toBeInTheDocument();
     });

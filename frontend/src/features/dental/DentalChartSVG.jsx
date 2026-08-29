@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { ROOT_VIEW_BOX, getRootGeometry } from '@/features/clinical-chart/rendering/rootGeometry';
 import { universalToPalmer, toothToNumber } from '@/utils/toothUtils';
 
 const TOOTH_PATHS = {
@@ -72,23 +73,70 @@ const STATUS_STYLES = {
     RootCanal: { fill: '#e9d5ff', stroke: '#a855f7' },
 };
 
-const SVGTooth = memo(function SVGTooth({ number, status, onClick, isPediatric }) {
+const ToothRootLayer = memo(function ToothRootLayer({ toothKey, arch, opacity }) {
+    const roots = getRootGeometry(toothKey);
+
+    return (
+        <svg
+            aria-hidden="true"
+            className={`pointer-events-none absolute ${arch === 'upper' ? 'top-0' : 'bottom-0'}`}
+            data-layer="roots"
+            data-tooth-key={toothKey}
+            height="48"
+            opacity={opacity}
+            viewBox={ROOT_VIEW_BOX}
+            width="50"
+        >
+            <g transform={arch === 'upper' ? 'rotate(180 25 24)' : undefined}>
+                {roots.map((root) => (
+                    <path
+                        d={root.path}
+                        fill={root.style.fill}
+                        key={root.outlineRef}
+                        stroke={root.style.stroke}
+                        strokeLinejoin="round"
+                        strokeWidth={root.style.strokeWidth}
+                    />
+                ))}
+            </g>
+        </svg>
+    );
+});
+
+const SVGTooth = memo(function SVGTooth({ number, status, onClick, isPediatric, showRoots, arch }) {
     const path = getToothPath(number, isPediatric);
     const condition = status?.condition || 'Healthy';
     const style = STATUS_STYLES[condition];
     const palmerLabel = getPalmerLabel(number, isPediatric);
+    const toothKey = String(toothToNumber(number));
+    const crownSvg = (
+        <svg
+            aria-hidden="true"
+            className={`${showRoots ? `absolute ${arch === 'upper' ? 'bottom-0' : 'top-0'}` : ''} transform transition-transform duration-200 group-hover:scale-105 group-focus-visible:scale-105`}
+            data-layer="crown"
+            data-tooth-key={toothKey}
+            height="60"
+            viewBox="0 0 50 60"
+            width="50"
+        >
+            <path d={path} fill={style.fill} stroke={style.stroke} strokeWidth="2" className="transition-colors duration-300" />
+            {condition === 'Decayed' && <circle cx="25" cy="25" r="5" fill="#ef4444" />}
+        </svg>
+    );
 
     return (
         <button
             type="button"
-            className="group relative flex min-h-[76px] min-w-[50px] shrink-0 cursor-pointer flex-col items-center gap-1 rounded-lg focus-visible:ring-focus"
+            className={`group relative flex min-w-[50px] shrink-0 cursor-pointer flex-col items-center gap-1 rounded-lg focus-visible:ring-focus ${showRoots ? (arch === 'upper' ? 'min-h-[112px]' : 'min-h-[98px]') : 'min-h-[76px]'}`}
             onClick={() => onClick(number)}
             aria-label={`Tooth ${palmerLabel} — ${condition}`}
         >
-            <svg width="50" height="60" viewBox="0 0 50 60" className="transform transition-transform duration-200 group-hover:scale-105 group-focus-visible:scale-105" aria-hidden="true">
-                <path d={path} fill={style.fill} stroke={style.stroke} strokeWidth="2" className="transition-colors duration-300" />
-                {condition === 'Decayed' && <circle cx="25" cy="25" r="5" fill="#ef4444" />}
-            </svg>
+            {showRoots ? (
+                <span className={`relative block w-[50px] ${arch === 'upper' ? 'h-[96px]' : 'h-[82px]'}`} aria-hidden="true">
+                    <ToothRootLayer toothKey={toothKey} arch={arch} opacity={style.opacity} />
+                    {crownSvg}
+                </span>
+            ) : crownSvg}
             <span className="absolute -bottom-5 flex w-full flex-col items-center">
                 <span className="w-full border-t border-slate-300 pt-1 text-center font-mono text-sm font-bold text-slate-600">{palmerLabel}</span>
             </span>
@@ -96,7 +144,7 @@ const SVGTooth = memo(function SVGTooth({ number, status, onClick, isPediatric }
     );
 });
 
-export default memo(function DentalChartSVG({ teethStatus, onToothClick, isPediatric }) {
+export default memo(function DentalChartSVG({ teethStatus, onToothClick, isPediatric, showRoots = false }) {
     const adultUpperLeft = [16, 15, 14, 13, 12, 11, 10, 9];
     const adultUpperRight = [8, 7, 6, 5, 4, 3, 2, 1];
     const adultLowerLeft = [17, 18, 19, 20, 21, 22, 23, 24];
@@ -126,13 +174,13 @@ export default memo(function DentalChartSVG({ teethStatus, onToothClick, isPedia
                         <div className="absolute inset-x-0 bottom-0 h-0.5 bg-slate-300" aria-hidden="true" />
                         <div className="flex gap-1 px-3 pb-4 sm:px-4">
                             {upperLeft.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} />
+                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="upper" />
                             ))}
                         </div>
                         <div className="w-0.5" />
                         <div className="flex gap-1 px-3 pb-4 sm:px-4">
                             {upperRight.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} />
+                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="upper" />
                             ))}
                         </div>
                     </div>
@@ -142,13 +190,13 @@ export default memo(function DentalChartSVG({ teethStatus, onToothClick, isPedia
                         <div className="absolute inset-x-0 top-0 h-0.5 bg-slate-300" aria-hidden="true" />
                         <div className="flex gap-1 px-3 pt-4 sm:px-4">
                             {lowerLeft.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} />
+                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="lower" />
                             ))}
                         </div>
                         <div className="w-0.5" />
                         <div className="flex gap-1 px-3 pt-4 sm:px-4">
                             {lowerRight.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} />
+                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="lower" />
                             ))}
                         </div>
                     </div>
