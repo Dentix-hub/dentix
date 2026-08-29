@@ -7,5 +7,7 @@
 | D-003 | 2026-08-29 | Preserve the pre-existing `clinical-chart-v2` experiment but do not make it the canonical module. | It contains useful prototypes and user-owned work, while the approved architecture requires `features/clinical-chart/`. | Locked |
 | D-004 | 2026-08-29 | Keep renderer state presentational and emit interaction intents instead of persistence commands. | Prevents the renderer from becoming the clinical source of truth. | Locked |
 | D-005 | 2026-08-29 | Supersede exploratory raster-first chart strategies with a Dentix-owned React/SVG renderer and data-driven visual rules. | Preserves the current Dentix style and avoids generating or pasting a separate image for every tooth-state combination. | Locked |
+| D-006 | 2026-08-29 | Reject the standalone crown/root specimen as visual acceptance and return A5 visuals to rework. | User review confirmed that the demo changed the existing chart and that hand-estimated family roots were anatomically inadequate. | Locked |
+| D-007 | 2026-08-29 | Freeze the existing Dentix chart as the pixel/geometry baseline; roots are an additive SVG layer only. | Enforces the original requirement and makes crown/layout changes detectable by regression evidence. | Locked |
 
 New decisions, deviations, and reversals must be appended here with evidence and the affected micro-task.
