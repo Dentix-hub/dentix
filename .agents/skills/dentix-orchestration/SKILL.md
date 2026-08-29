@@ -70,4 +70,4 @@ Wave 3: D after A+B+C
 - A distinct reviewer applies `dentix-code-review` without editing while acting as reviewer.
 - The orchestrator reruns targeted and required broad checks using `dentix-testing-verification` and current CI commands.
 - A ticket cannot move directly from `IMPLEMENTED` to `CLOSED`; independent verification is required.
-- Delegates and review tooling must not commit, merge, close, or release on behalf of the orchestrator unless an explicit repository workflow separately authorizes that exact action.
+- Delegates and review tooling must never merge, close, or release on behalf of the orchestrator. A bounded implementer commit is allowed only when the accepted brief explicitly authorizes it.
