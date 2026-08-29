@@ -95,7 +95,7 @@ const createAnatomyRecord = (toothKey, dentition) => {
         rootCount: rootIds.length,
         rootOutlineRefs: Object.freeze(rootIds.map((rootId) => Object.freeze({
             rootId,
-            outlineRef: `root:${dentition}:${arch}:${toothType}:${rootId}`,
+            outlineRef: `root:${toothKey}:${rootId}`,
         }))),
         canalAnchorPlaceholders: Object.freeze(rootIds.map((rootId) => Object.freeze({
             rootId,
@@ -126,4 +126,3 @@ export const DENTAL_ANATOMY_REGISTRY = Object.freeze(
 );
 
 export const getDentalAnatomy = (toothKey) => DENTAL_ANATOMY_REGISTRY[String(toothKey)] ?? null;
-
