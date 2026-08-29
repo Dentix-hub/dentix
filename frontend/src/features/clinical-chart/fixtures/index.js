@@ -1,0 +1,5 @@
+export {
+    ADULT_BASELINE_PROJECTION,
+    DEMO_PROJECTION_FIXTURES,
+    TARGET_COVERAGE_PROJECTION,
+} from './demoProjectionFixtures';

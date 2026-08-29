@@ -108,6 +108,7 @@ export const createClinicalChartRendererInput = ({
         anatomyDefinition,
         dentition,
         visualState: Object.freeze({
+            ...visualState,
             teeth: visualState.teeth ?? DEFAULT_VISUAL_STATE.teeth,
             selection: visualState.selection ?? null,
         }),

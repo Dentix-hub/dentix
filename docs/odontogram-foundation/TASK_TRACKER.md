@@ -39,10 +39,10 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A7-M02 Define input DTO contract | PASS | Documented and validated anatomy, visual state, dentition, notation, interaction mode, layers, and callback inputs; focused tests pass 22/22 |
 | A7-M03 Define output interaction intents | PASS | Neutral tooth, surface, root, and multi-select intents dispatch through generic and intent-specific callbacks; full frontend tests pass 461/461 |
 | A7-M04 Prevent persistence leakage | PASS | Renderer boundary imports only anatomy/tooth utilities/current chart; no backend API, domain service, or persistence dependency; lint and production build pass |
-| A8-M01 Create demo DTO schema | PENDING | — |
-| A8-M02 Define tooth visual state shape | PENDING | — |
-| A8-M03 Define target subshape | PENDING | — |
-| A8-M04 Add sample DTO fixtures | PENDING | — |
+| A8-M01 Create demo DTO schema | PASS | `domain/clinicalChartProjection.js` provides a validated, frozen, JSON-serializable version-1 demo projection; full frontend tests pass 468/468 |
+| A8-M02 Define tooth visual state shape | PASS | DTO and `PROJECTION_DTO_CONTRACT.md` document lifecycle, findings, procedures, selection, disabled state, and annotations |
+| A8-M03 Define target subshape | PASS | Whole-tooth, surface, anatomy-validated root, and nullable canal-placeholder targets are documented and tested |
+| A8-M04 Add sample DTO fixtures | PASS | Adult baseline and complete target-coverage fixtures load through the A7 renderer boundary; focused tests pass 29/29 |
 | A9-M01 Create visual rule registry file | PENDING | — |
 | A9-M02 Add lifecycle rules | PENDING | — |
 | A9-M03 Add finding rules | PENDING | — |
