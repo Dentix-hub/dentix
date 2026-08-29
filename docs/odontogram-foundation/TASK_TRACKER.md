@@ -21,9 +21,9 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `BLOCKED`, `ACCEPTED DEVIATION`
 | A3-M03 Define permanent dentition keys | PASS | All 32 permanent FDI positions represented and tested |
 | A3-M04 Define primary dentition keys | PASS | All 20 primary FDI positions represented and tested |
 | A3-M05 Define mixed-dentition compatibility note | PASS | `MIXED_DENTITION_COMPATIBILITY.md` |
-| A4-M01 Inventory current crown outlines | PENDING | — |
-| A4-M02 Normalize crown shape access | PENDING | — |
-| A4-M03 Preserve current visual style | PENDING | — |
+| A4-M01 Inventory current crown outlines | PASS | `CROWN_OUTLINE_INVENTORY.md` |
+| A4-M02 Normalize crown shape access | PASS | All 52 anatomy keys resolve; 20/20 focused chart tests passed |
+| A4-M03 Preserve current visual style | PASS | Exact source-path equality test plus `evidence/A4-crown-parity.png`; zero browser errors |
 | A5-M01 Create root outline model | PENDING | — |
 | A5-M02 Add single-root anterior definitions | PENDING | — |
 | A5-M03 Add premolar root definitions | PENDING | — |

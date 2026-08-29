@@ -1,3 +1,5 @@
+import CrownParityPreview from './components/CrownParityPreview';
+
 /**
  * Isolated entry point for the Dentix-native odontogram foundation.
  *
@@ -22,19 +24,8 @@ export default function ClinicalChartWorkspace() {
                     </p>
                 </header>
 
-                <div
-                    className="mt-5 flex min-h-72 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center"
-                    role="status"
-                >
-                    <div>
-                        <p className="font-semibold text-slate-700">Chart foundation ready</p>
-                        <p className="mt-1 text-sm text-slate-500">
-                            Anatomy and renderer layers are added in the next bounded phases.
-                        </p>
-                    </div>
-                </div>
+                <CrownParityPreview />
             </section>
         </main>
     );
 }
-
