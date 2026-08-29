@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import DentalChartSVG from './DentalChartSVG';
 
@@ -111,10 +111,71 @@ describe('DentalChartSVG optional root extension', () => {
         );
 
         expect(container.querySelector('svg[data-layer="roots"][data-tooth-key="11"] [data-root-scale]'))
+            .toHaveAttribute('data-root-scale', '0.97 0.96');
+        expect(container.querySelector('svg[data-layer="roots"][data-tooth-key="31"] [data-root-scale]'))
             .toHaveAttribute('data-root-scale', '0.95 0.92');
         expect(container.querySelector('svg[data-layer="roots"][data-tooth-key="12"] [data-root-scale]'))
             .toHaveAttribute('data-root-scale', '0.84 0.82');
         expect(container.querySelector('svg[data-layer="roots"][data-tooth-key="16"] [data-root-scale]'))
             .toHaveAttribute('data-root-scale', '0.9 0.84');
+    });
+
+    it('adds five accessible surface targets per tooth only in surface-selection mode', () => {
+        const { container } = render(
+            <DentalChartSVG
+                teethStatus={{}}
+                onToothClick={vi.fn()}
+                isPediatric={false}
+                showRoots
+                enableSurfaceSelection
+                onSurfaceClick={vi.fn()}
+            />,
+        );
+
+        expect(container.querySelectorAll('[data-layer="surfaces"]')).toHaveLength(32);
+        expect(screen.getAllByRole('button')).toHaveLength(160);
+        expect(container.querySelectorAll('button')).toHaveLength(0);
+        expect(container.querySelectorAll('[data-surface-code="O"]')).toHaveLength(20);
+        expect(container.querySelectorAll('[data-surface-code="I"]')).toHaveLength(12);
+    });
+
+    it('emits neutral surface selection intents for pointer and keyboard input', () => {
+        const onSurfaceClick = vi.fn();
+        render(
+            <DentalChartSVG
+                teethStatus={{}}
+                onToothClick={vi.fn()}
+                isPediatric={false}
+                enableSurfaceSelection
+                onSurfaceClick={onSurfaceClick}
+            />,
+        );
+        const mesialSurface = screen.getByRole('button', { name: 'Tooth UR1 — Mesial (M)' });
+
+        fireEvent.click(mesialSurface);
+        expect(onSurfaceClick).toHaveBeenLastCalledWith({ toothKey: '11', toothNumber: 8, surfaceCode: 'M' });
+
+        fireEvent.keyDown(mesialSurface, { key: 'Enter' });
+        expect(onSurfaceClick).toHaveBeenCalledTimes(2);
+        expect(mesialSurface).toHaveAttribute('tabindex', '0');
+        expect(mesialSurface.className.baseVal).toContain('focus:fill-blue-100');
+    });
+
+    it('shows a selected surface without changing the underlying crown path', () => {
+        const { container } = render(
+            <DentalChartSVG
+                teethStatus={{}}
+                onToothClick={vi.fn()}
+                isPediatric={false}
+                enableSurfaceSelection
+                selectedSurface={{ toothKey: '46', surfaceCode: 'O' }}
+                onSurfaceClick={vi.fn()}
+            />,
+        );
+        const selected = container.querySelector('svg[data-tooth-key="46"] [data-surface-code="O"]');
+
+        expect(selected).toHaveAttribute('aria-pressed', 'true');
+        expect(selected.className.baseVal).toContain('fill-blue-200');
+        expect(container.querySelector('svg[data-tooth-key="46"] [data-crown-orientation] > path').getAttribute('d')).toBeTruthy();
     });
 });

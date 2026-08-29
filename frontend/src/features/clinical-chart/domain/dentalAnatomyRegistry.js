@@ -90,7 +90,7 @@ const createAnatomyRecord = (toothKey, dentition) => {
         crownOutlineRef: `crown:${dentition}:${arch}:${toothType}`,
         surfaceMap: Object.freeze({
             model: surfaceModel,
-            geometryRef: `surfaces:${surfaceModel}`,
+            geometryRef: `surfaces:${toothKey}`,
         }),
         rootCount: rootIds.length,
         rootOutlineRefs: Object.freeze(rootIds.map((rootId) => Object.freeze({

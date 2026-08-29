@@ -23,18 +23,18 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A3-M05 Define mixed-dentition compatibility note | PASS | `MIXED_DENTITION_COMPATIBILITY.md` |
 | A4-M01 Inventory current crown outlines | PASS | `CROWN_OUTLINE_INVENTORY.md` |
 | A4-M02 Normalize crown shape access | PASS | All 52 anatomy keys resolve; 20/20 focused chart tests passed |
-| A4-M03 Preserve current visual style | IN PROGRESS | Crown paths/colors/strokes/viewBoxes remain unchanged; approved orientation correction is applied to upper incisors and lateral incisors now use restrained per-FDI display scaling; visual approval still required |
-| A5-M01 Create root outline model | IN PROGRESS | One `0 0 50 48` coordinate system, FDI-specific outline refs, cervical/apex anchors, and closed cubic paths implemented; awaiting visual approval |
-| A5-M02 Add single-root anterior definitions | IN PROGRESS | Separate central/lateral incisor and canine profiles with side mirroring and tooth-specific FDI records; awaiting visual approval |
-| A5-M03 Add premolar root definitions | IN PROGRESS | Canonical two-root maxillary first premolar and single-root remaining premolars implemented with variant-ready records; awaiting visual approval |
-| A5-M04 Add molar root definitions | IN PROGRESS | Maxillary MB/DB/palatal and mandibular mesial/distal records use smooth, unequal, position-adjusted roots; awaiting visual approval |
-| A5-M05 Add primary tooth root definitions | IN PROGRESS | Independent primary anterior profiles plus strongly divergent primary molar roots reserve successor space; awaiting visual approval |
-| A5-M06 Keep root style visually aligned | IN PROGRESS | Roots render behind the existing crown path and share a 52-tooth display-metrics registry that scales root width/length by crown family; browser visual inspection is policy-blocked, so user approval is required |
-| A6-M01 Create surface code constants | PENDING | — |
-| A6-M02 Define per-tooth clickable surface geometry | PENDING | — |
-| A6-M03 Support anterior surface model | PENDING | — |
-| A6-M04 Support posterior surface model | PENDING | — |
-| A6-M05 Add hover/focus/selected states | PENDING | — |
+| A4-M03 Preserve current visual style | PASS | User approved the retained crown style plus upper-incisor orientation and restrained lateral-incisor scaling |
+| A5-M01 Create root outline model | PASS | One `0 0 50 48` coordinate system, FDI-specific refs, cervical/apex anchors, and closed cubic paths; registry tests pass |
+| A5-M02 Add single-root anterior definitions | IN PROGRESS | User approved anterior roots and requested a final subtle permanent upper-central increase; implemented and awaiting visual confirmation |
+| A5-M03 Add premolar root definitions | PASS | User approved canonical two-root maxillary first premolar and single-root remaining premolar rendering |
+| A5-M04 Add molar root definitions | PASS | User approved unequal maxillary MB/DB/palatal and mandibular mesial/distal rendering |
+| A5-M05 Add primary tooth root definitions | PASS | Primary anterior and divergent molar definitions resolve and render through the same tested registry |
+| A5-M06 Keep root style visually aligned | IN PROGRESS | 52-tooth display metrics scale root width/length by crown family; final upper-central adjustment awaits visual confirmation |
+| A6-M01 Create surface code constants | PASS | `SURFACE_CODES` exports M, D, O, I, B, L, P; focused tests pass |
+| A6-M02 Define per-tooth clickable surface geometry | PASS | Five closed clipped regions resolve for all 52 FDI teeth; 51/51 focused tests pass |
+| A6-M03 Support anterior surface model | PASS | Incisor and canine geometries use incisal-compatible regions with P/L by arch |
+| A6-M04 Support posterior surface model | PASS | Premolar and molar geometries use occlusal regions with mirrored M/D |
+| A6-M05 Add hover/focus/selected states | IN PROGRESS | Pointer and keyboard intents plus selected-state toggling pass component tests; visual approval pending |
 | A7-M01 Create renderer adapter interface | PENDING | — |
 | A7-M02 Define input DTO contract | PENDING | — |
 | A7-M03 Define output interaction intents | PENDING | — |
