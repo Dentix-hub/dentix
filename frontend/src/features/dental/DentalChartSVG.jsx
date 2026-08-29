@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { getToothDisplayMetrics } from '@/features/clinical-chart/domain/toothDisplayMetrics';
 import { ROOT_VIEW_BOX, getRootGeometry } from '@/features/clinical-chart/rendering/rootGeometry';
 import { universalToPalmer, toothToNumber } from '@/utils/toothUtils';
 
@@ -77,6 +78,8 @@ const UPPER_INCISOR_KEYS = new Set(['11', '12', '21', '22', '51', '52', '61', '6
 
 const ToothRootLayer = memo(function ToothRootLayer({ toothKey, arch, opacity }) {
     const roots = getRootGeometry(toothKey);
+    const { x: rootScaleX, y: rootScaleY } = roots[0].displayScale;
+    const rootScaleTransform = `translate(25 0) scale(${rootScaleX} ${rootScaleY}) translate(-25 0)`;
 
     return (
         <svg
@@ -89,17 +92,19 @@ const ToothRootLayer = memo(function ToothRootLayer({ toothKey, arch, opacity })
             viewBox={ROOT_VIEW_BOX}
             width="50"
         >
-            <g transform={arch === 'upper' ? 'rotate(180 25 24)' : undefined}>
-                {roots.map((root) => (
-                    <path
-                        d={root.path}
-                        fill={root.style.fill}
-                        key={root.outlineRef}
-                        stroke={root.style.stroke}
-                        strokeLinejoin="round"
-                        strokeWidth={root.style.strokeWidth}
-                    />
-                ))}
+            <g data-root-orientation="apical" transform={arch === 'upper' ? 'rotate(180 25 24)' : undefined}>
+                <g data-root-scale={`${rootScaleX} ${rootScaleY}`} transform={rootScaleTransform}>
+                    {roots.map((root) => (
+                        <path
+                            d={root.path}
+                            fill={root.style.fill}
+                            key={root.outlineRef}
+                            stroke={root.style.stroke}
+                            strokeLinejoin="round"
+                            strokeWidth={root.style.strokeWidth}
+                        />
+                    ))}
+                </g>
             </g>
         </svg>
     );
@@ -111,7 +116,11 @@ const SVGTooth = memo(function SVGTooth({ number, status, onClick, isPediatric, 
     const style = STATUS_STYLES[condition];
     const palmerLabel = getPalmerLabel(number, isPediatric);
     const toothKey = String(toothToNumber(number));
+    const displayMetrics = getToothDisplayMetrics(toothKey);
     const crownTransform = UPPER_INCISOR_KEYS.has(toothKey) ? 'rotate(180 25 30)' : undefined;
+    const crownScaleTransform = displayMetrics.crownScale === 1
+        ? undefined
+        : `translate(${displayMetrics.crownPivot.x} ${displayMetrics.crownPivot.y}) scale(${displayMetrics.crownScale}) translate(${-displayMetrics.crownPivot.x} ${-displayMetrics.crownPivot.y})`;
     const crownSvg = (
         <svg
             aria-hidden="true"
@@ -122,9 +131,11 @@ const SVGTooth = memo(function SVGTooth({ number, status, onClick, isPediatric, 
             viewBox="0 0 50 60"
             width="50"
         >
-            <g data-crown-orientation="incisal-edge" transform={crownTransform}>
-                <path d={path} fill={style.fill} stroke={style.stroke} strokeWidth="2" className="transition-colors duration-300" />
-                {condition === 'Decayed' && <circle cx="25" cy="25" r="5" fill="#ef4444" />}
+            <g data-crown-scale={displayMetrics.crownScale} transform={crownScaleTransform}>
+                <g data-crown-orientation="incisal-edge" transform={crownTransform}>
+                    <path d={path} fill={style.fill} stroke={style.stroke} strokeWidth="2" className="transition-colors duration-300" />
+                    {condition === 'Decayed' && <circle cx="25" cy="25" r="5" fill="#ef4444" />}
+                </g>
             </g>
         </svg>
     );
