@@ -75,6 +75,8 @@ For multi-step or plan-based work:
 
 When an approved plan exists, execute the approved plan rather than replacing it with a shorter plan.
 
+For multi-ticket or delegated parallel work, apply `dentix-orchestration` in addition to `dentix-plan-execution`. Parallel execution must use isolated worktrees and explicit dependency and parallel-safety classification.
+
 ## 6. Debugging Discipline
 
 Before fixing a bug:
