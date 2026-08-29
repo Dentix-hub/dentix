@@ -1,4 +1,5 @@
 import { DENTAL_ANATOMY_REGISTRY, getDentalAnatomy } from '../domain/dentalAnatomyRegistry';
+import { getToothDisplayMetrics } from '../domain/toothDisplayMetrics';
 
 export const ROOT_STYLE_TOKENS = Object.freeze({
     fill: '#ffffff',
@@ -123,6 +124,7 @@ const rootEntries = Object.values(DENTAL_ANATOMY_REGISTRY).flatMap((anatomy) =>
         outlineRef,
         (() => {
             const spec = resolveToothRootSpec(anatomy, rootId);
+            const displayMetrics = getToothDisplayMetrics(anatomy.toothKey);
             return Object.freeze({
                 outlineRef,
                 toothKey: anatomy.toothKey,
@@ -139,6 +141,7 @@ const rootEntries = Object.values(DENTAL_ANATOMY_REGISTRY).flatMap((anatomy) =>
                     right: Object.freeze({ x: spec.neckRight, y: 0 }),
                 }),
                 apexAnchor: Object.freeze({ x: spec.apexX, y: spec.apexY }),
+                displayScale: displayMetrics.rootScale,
                 style: ROOT_STYLE_TOKENS,
             });
         })(),

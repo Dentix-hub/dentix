@@ -22,6 +22,10 @@ describe('root anatomy geometry', () => {
                 expect(root.cervicalAnchors.left.x).toBeLessThan(root.cervicalAnchors.right.x);
                 expect(root.apexAnchor.y).toBeGreaterThan(30);
                 expect(root.apexAnchor.y).toBeLessThan(48);
+                expect(root.displayScale.x).toBeGreaterThanOrEqual(0.8);
+                expect(root.displayScale.x).toBeLessThanOrEqual(1);
+                expect(root.displayScale.y).toBeGreaterThanOrEqual(0.8);
+                expect(root.displayScale.y).toBeLessThanOrEqual(1);
             });
         });
     });
@@ -53,5 +57,12 @@ describe('root anatomy geometry', () => {
         expect(Math.max(...primaryUpperMolar.map((root) => root.apexAnchor.x))).toBeGreaterThan(45);
         expect(Math.min(...primaryLowerMolar.map((root) => root.apexAnchor.x))).toBeLessThan(5);
         expect(Math.max(...primaryLowerMolar.map((root) => root.apexAnchor.x))).toBeGreaterThan(45);
+    });
+
+    it('uses crown-family proportions and gives lateral incisors a smaller root scale', () => {
+        expect(getRootGeometry('12')[0].displayScale.y).toBeLessThan(getRootGeometry('11')[0].displayScale.y);
+        expect(getRootGeometry('42')[0].displayScale.x).toBeLessThan(getRootGeometry('41')[0].displayScale.x);
+        expect(getRootGeometry('52')[0].displayScale.y).toBeLessThan(getRootGeometry('51')[0].displayScale.y);
+        expect(getRootGeometry('16')[0].displayScale).not.toEqual(getRootGeometry('13')[0].displayScale);
     });
 });

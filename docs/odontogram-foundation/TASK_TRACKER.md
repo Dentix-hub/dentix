@@ -23,13 +23,13 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A3-M05 Define mixed-dentition compatibility note | PASS | `MIXED_DENTITION_COMPATIBILITY.md` |
 | A4-M01 Inventory current crown outlines | PASS | `CROWN_OUTLINE_INVENTORY.md` |
 | A4-M02 Normalize crown shape access | PASS | All 52 anatomy keys resolve; 20/20 focused chart tests passed |
-| A4-M03 Preserve current visual style | IN PROGRESS | Automated contract confirms all 32 crown paths, colors, strokes, dimensions, and viewBoxes stay unchanged when roots are enabled; visual approval still required |
+| A4-M03 Preserve current visual style | IN PROGRESS | Crown paths/colors/strokes/viewBoxes remain unchanged; approved orientation correction is applied to upper incisors and lateral incisors now use restrained per-FDI display scaling; visual approval still required |
 | A5-M01 Create root outline model | IN PROGRESS | One `0 0 50 48` coordinate system, FDI-specific outline refs, cervical/apex anchors, and closed cubic paths implemented; awaiting visual approval |
 | A5-M02 Add single-root anterior definitions | IN PROGRESS | Separate central/lateral incisor and canine profiles with side mirroring and tooth-specific FDI records; awaiting visual approval |
 | A5-M03 Add premolar root definitions | IN PROGRESS | Canonical two-root maxillary first premolar and single-root remaining premolars implemented with variant-ready records; awaiting visual approval |
 | A5-M04 Add molar root definitions | IN PROGRESS | Maxillary MB/DB/palatal and mandibular mesial/distal records use smooth, unequal, position-adjusted roots; awaiting visual approval |
 | A5-M05 Add primary tooth root definitions | IN PROGRESS | Independent primary anterior profiles plus strongly divergent primary molar roots reserve successor space; awaiting visual approval |
-| A5-M06 Keep root style visually aligned | IN PROGRESS | Roots render behind the untouched existing crown path in the actual `DentalChartSVG`; browser visual inspection is policy-blocked, so user approval is required |
+| A5-M06 Keep root style visually aligned | IN PROGRESS | Roots render behind the existing crown path and share a 52-tooth display-metrics registry that scales root width/length by crown family; browser visual inspection is policy-blocked, so user approval is required |
 | A6-M01 Create surface code constants | PENDING | — |
 | A6-M02 Define per-tooth clickable surface geometry | PENDING | — |
 | A6-M03 Support anterior surface model | PENDING | — |
