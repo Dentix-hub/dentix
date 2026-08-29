@@ -8,7 +8,7 @@ describe('ClinicalChartWorkspace scaffold', () => {
 
         expect(screen.getByTestId('clinical-chart-workspace')).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: 'مخطط الأسنان' })).toBeInTheDocument();
-        expect(screen.getByRole('status')).toHaveTextContent('Chart foundation ready');
+        expect(screen.getByTestId('source-crown')).toBeInTheDocument();
+        expect(screen.getByTestId('normalized-crown')).toBeInTheDocument();
     });
 });
-
