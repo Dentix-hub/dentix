@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import ClinicalChartRenderer from './components/ClinicalChartRenderer';
 import { DENTAL_ANATOMY_REGISTRY, DENTITIONS } from './domain/dentalAnatomyRegistry';
-import { ADULT_BASELINE_PROJECTION } from './fixtures/demoProjectionFixtures';
+import { VISUAL_RULE_DEMO_PROJECTION } from './fixtures/visualRuleDemoProjection';
 import {
     CHART_INTERACTION_MODES,
     CHART_INTENT_TYPES,
@@ -35,7 +35,7 @@ export default function ClinicalChartWorkspace() {
         anatomyDefinition: DENTAL_ANATOMY_REGISTRY,
         dentition: DENTITIONS.PERMANENT,
         visualState: {
-            ...ADULT_BASELINE_PROJECTION,
+            ...VISUAL_RULE_DEMO_PROJECTION,
             selection,
         },
         notationMode: CHART_NOTATION_MODES.PALMER,

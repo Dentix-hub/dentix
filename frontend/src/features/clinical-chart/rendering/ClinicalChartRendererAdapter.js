@@ -2,6 +2,7 @@ import {
     DENTAL_ANATOMY_REGISTRY,
     DENTITIONS,
 } from '../domain/dentalAnatomyRegistry';
+import { resolveClinicalChartVisuals } from '../domain/visualRuleRegistry';
 import { toothToNumber } from '@/utils/toothUtils';
 
 export const CHART_NOTATION_MODES = Object.freeze({
@@ -188,11 +189,13 @@ export const createClinicalChartRendererAdapter = (input) => {
     const selectedSurface = normalizedInput.visualState.selection?.kind === 'surface'
         ? normalizedInput.visualState.selection
         : null;
+    const toothVisuals = resolveClinicalChartVisuals(normalizedInput.visualState);
 
     return Object.freeze({
         input: normalizedInput,
         chartProps: Object.freeze({
             teethStatus: normalizedInput.visualState.teeth,
+            toothVisuals,
             onToothClick: isReadOnly ? undefined : toothSelected,
             isPediatric: normalizedInput.dentition === DENTITIONS.PRIMARY,
             showRoots: normalizedInput.layers.roots,

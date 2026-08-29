@@ -43,11 +43,11 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A8-M02 Define tooth visual state shape | PASS | DTO and `PROJECTION_DTO_CONTRACT.md` document lifecycle, findings, procedures, selection, disabled state, and annotations |
 | A8-M03 Define target subshape | PASS | Whole-tooth, surface, anatomy-validated root, and nullable canal-placeholder targets are documented and tested |
 | A8-M04 Add sample DTO fixtures | PASS | Adult baseline and complete target-coverage fixtures load through the A7 renderer boundary; focused tests pass 29/29 |
-| A9-M01 Create visual rule registry file | PENDING | — |
-| A9-M02 Add lifecycle rules | PENDING | — |
-| A9-M03 Add finding rules | PENDING | — |
-| A9-M04 Add procedure rules | PENDING | — |
-| A9-M05 Add layer mapping | PENDING | — |
+| A9-M01 Create visual rule registry file | PASS | `domain/visualRuleRegistry.js` exports immutable semantic rules, lookups, and DTO-to-instruction resolvers |
+| A9-M02 Add lifecycle rules | PASS | PRESENT, MISSING, EXTRACTED, IMPACTED, and UNERUPTED render in the live A9 demo fixture |
+| A9-M03 Add finding rules | PASS | CARIES is crown-surface-local, FRACTURE is a clipped crack, and PAIN uses a crown/root marker; rendering tests pass |
+| A9-M04 Add procedure rules | PASS | Composite, RCT, crown, bridge, implant fixture/crown, and planned/completed extraction effects render programmatically; focused tests pass 34/34 |
+| A9-M05 Add layer mapping | PASS | Stable indices enforce anatomy → lifecycle → findings → existing/completed → planned/active → selection; live browser verified 32 crowns, 32 root layers, 160 surface controls, and no document overflow |
 | A10-M01 Add root layer renderer | PENDING | — |
 | A10-M02 Handle single-root teeth | PENDING | — |
 | A10-M03 Handle premolars | PENDING | — |
