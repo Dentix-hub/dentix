@@ -176,7 +176,7 @@ describe('DentalChartSVG optional root extension', () => {
 
         expect(selected).toHaveAttribute('aria-pressed', 'true');
         expect(selected.className.baseVal).toContain('fill-blue-200');
-        expect(container.querySelector('svg[data-tooth-key="46"] [data-crown-orientation] > path').getAttribute('d')).toBeTruthy();
+        expect(container.querySelector('svg[data-tooth-key="46"] [data-layer-role="base-anatomy"] path').getAttribute('d')).toBeTruthy();
     });
 
     it('keeps the direct chart non-interactive when read-only overrides surface mode', () => {
