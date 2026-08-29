@@ -178,4 +178,21 @@ describe('DentalChartSVG optional root extension', () => {
         expect(selected.className.baseVal).toContain('fill-blue-200');
         expect(container.querySelector('svg[data-tooth-key="46"] [data-crown-orientation] > path').getAttribute('d')).toBeTruthy();
     });
+
+    it('keeps the direct chart non-interactive when read-only overrides surface mode', () => {
+        const { container } = render(
+            <DentalChartSVG
+                teethStatus={{}}
+                onToothClick={vi.fn()}
+                isPediatric={false}
+                enableSurfaceSelection
+                onSurfaceClick={vi.fn()}
+                readOnly
+            />,
+        );
+
+        expect(screen.queryAllByRole('button')).toHaveLength(0);
+        expect(container.querySelectorAll('[data-layer="surfaces"]')).toHaveLength(0);
+        expect(container.firstChild).toHaveAttribute('data-interaction-mode', 'read-only');
+    });
 });
