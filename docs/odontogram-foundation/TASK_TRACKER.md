@@ -25,20 +25,20 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A4-M02 Normalize crown shape access | PASS | All 52 anatomy keys resolve; 20/20 focused chart tests passed |
 | A4-M03 Preserve current visual style | PASS | User approved the retained crown style plus upper-incisor orientation and restrained lateral-incisor scaling |
 | A5-M01 Create root outline model | PASS | One `0 0 50 48` coordinate system, FDI-specific refs, cervical/apex anchors, and closed cubic paths; registry tests pass |
-| A5-M02 Add single-root anterior definitions | IN PROGRESS | User approved anterior roots and requested a final subtle permanent upper-central increase; implemented and awaiting visual confirmation |
+| A5-M02 Add single-root anterior definitions | PASS | User continued after the final permanent upper-central root increase and proportional review |
 | A5-M03 Add premolar root definitions | PASS | User approved canonical two-root maxillary first premolar and single-root remaining premolar rendering |
 | A5-M04 Add molar root definitions | PASS | User approved unequal maxillary MB/DB/palatal and mandibular mesial/distal rendering |
 | A5-M05 Add primary tooth root definitions | PASS | Primary anterior and divergent molar definitions resolve and render through the same tested registry |
-| A5-M06 Keep root style visually aligned | IN PROGRESS | 52-tooth display metrics scale root width/length by crown family; final upper-central adjustment awaits visual confirmation |
+| A5-M06 Keep root style visually aligned | PASS | User continued after reviewing the 52-tooth proportional metrics and final upper-central adjustment |
 | A6-M01 Create surface code constants | PASS | `SURFACE_CODES` exports M, D, O, I, B, L, P; focused tests pass |
 | A6-M02 Define per-tooth clickable surface geometry | PASS | Five closed clipped regions resolve for all 52 FDI teeth; 51/51 focused tests pass |
 | A6-M03 Support anterior surface model | PASS | Incisor and canine geometries use incisal-compatible regions with P/L by arch |
 | A6-M04 Support posterior surface model | PASS | Premolar and molar geometries use occlusal regions with mirrored M/D |
-| A6-M05 Add hover/focus/selected states | IN PROGRESS | Pointer and keyboard intents plus selected-state toggling pass component tests; visual approval pending |
-| A7-M01 Create renderer adapter interface | PENDING | — |
-| A7-M02 Define input DTO contract | PENDING | — |
-| A7-M03 Define output interaction intents | PENDING | — |
-| A7-M04 Prevent persistence leakage | PENDING | — |
+| A6-M05 Add hover/focus/selected states | PASS | User continued after pointer, keyboard, hover, focus, and selected-state behavior was presented; component regressions pass |
+| A7-M01 Create renderer adapter interface | PASS | `rendering/ClinicalChartRendererAdapter.js` and stateless `ClinicalChartRenderer.jsx` are wired into the demo workspace |
+| A7-M02 Define input DTO contract | PASS | Documented and validated anatomy, visual state, dentition, notation, interaction mode, layers, and callback inputs; focused tests pass 22/22 |
+| A7-M03 Define output interaction intents | PASS | Neutral tooth, surface, root, and multi-select intents dispatch through generic and intent-specific callbacks; full frontend tests pass 461/461 |
+| A7-M04 Prevent persistence leakage | PASS | Renderer boundary imports only anatomy/tooth utilities/current chart; no backend API, domain service, or persistence dependency; lint and production build pass |
 | A8-M01 Create demo DTO schema | PENDING | — |
 | A8-M02 Define tooth visual state shape | PENDING | — |
 | A8-M03 Define target subshape | PENDING | — |

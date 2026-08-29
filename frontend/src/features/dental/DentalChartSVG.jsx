@@ -168,6 +168,7 @@ const SVGTooth = memo(function SVGTooth({
     enableSurfaceSelection,
     selectedSurface,
     onSurfaceClick,
+    readOnly,
 }) {
     const reactId = useId();
     const path = getToothPath(number, isPediatric);
@@ -244,6 +245,17 @@ const SVGTooth = memo(function SVGTooth({
         );
     }
 
+    if (readOnly) {
+        return (
+            <div
+                aria-label={`Tooth ${palmerLabel} — ${condition}`}
+                className={`${toothClassName} cursor-default`}
+            >
+                {toothContent}
+            </div>
+        );
+    }
+
     return (
         <button
             type="button"
@@ -264,6 +276,8 @@ export default memo(function DentalChartSVG({
     enableSurfaceSelection = false,
     selectedSurface = null,
     onSurfaceClick,
+    readOnly = false,
+    notationMode = 'palmer',
 }) {
     const adultUpperLeft = [16, 15, 14, 13, 12, 11, 10, 9];
     const adultUpperRight = [8, 7, 6, 5, 4, 3, 2, 1];
@@ -279,9 +293,14 @@ export default memo(function DentalChartSVG({
     const lowerRight = isPediatric ? childLowerRight : adultLowerRight;
     const lowerLeft = isPediatric ? childLowerLeft : adultLowerLeft;
     const chartMinWidth = isPediatric ? 'min-w-[480px]' : 'min-w-[700px]';
+    const surfaceSelectionEnabled = enableSurfaceSelection && !readOnly;
 
     return (
-        <div className="min-w-0 overflow-x-auto overscroll-x-contain rounded-2xl bg-slate-50 p-3 text-center shadow-inner touch-pan-x sm:rounded-3xl sm:p-5 lg:p-8">
+        <div
+            className="min-w-0 overflow-x-auto overscroll-x-contain rounded-2xl bg-slate-50 p-3 text-center shadow-inner touch-pan-x sm:rounded-3xl sm:p-5 lg:p-8"
+            data-interaction-mode={readOnly ? 'read-only' : 'edit'}
+            data-notation-mode={notationMode}
+        >
             <div className={`${chartMinWidth} inline-flex flex-col`} dir="ltr">
                 <h3 className="mb-7 text-lg font-bold text-slate-700 sm:mb-8">
                     {isPediatric ? 'مخطط الأسنان (أطفال)' : 'مخطط الأسنان (بالغين)'}
@@ -294,13 +313,13 @@ export default memo(function DentalChartSVG({
                         <div className="absolute inset-x-0 bottom-0 h-0.5 bg-slate-300" aria-hidden="true" />
                         <div className="flex gap-1 px-3 pb-4 sm:px-4">
                             {upperLeft.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="upper" enableSurfaceSelection={enableSurfaceSelection} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} />
+                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="upper" enableSurfaceSelection={surfaceSelectionEnabled} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} readOnly={readOnly} />
                             ))}
                         </div>
                         <div className="w-0.5" />
                         <div className="flex gap-1 px-3 pb-4 sm:px-4">
                             {upperRight.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="upper" enableSurfaceSelection={enableSurfaceSelection} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} />
+                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="upper" enableSurfaceSelection={surfaceSelectionEnabled} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} readOnly={readOnly} />
                             ))}
                         </div>
                     </div>
@@ -310,13 +329,13 @@ export default memo(function DentalChartSVG({
                         <div className="absolute inset-x-0 top-0 h-0.5 bg-slate-300" aria-hidden="true" />
                         <div className="flex gap-1 px-3 pt-4 sm:px-4">
                             {lowerLeft.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="lower" enableSurfaceSelection={enableSurfaceSelection} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} />
+                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="lower" enableSurfaceSelection={surfaceSelectionEnabled} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} readOnly={readOnly} />
                             ))}
                         </div>
                         <div className="w-0.5" />
                         <div className="flex gap-1 px-3 pt-4 sm:px-4">
                             {lowerRight.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="lower" enableSurfaceSelection={enableSurfaceSelection} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} />
+                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="lower" enableSurfaceSelection={surfaceSelectionEnabled} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} readOnly={readOnly} />
                             ))}
                         </div>
                     </div>
