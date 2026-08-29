@@ -6,12 +6,12 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `BLOCKED`, `ACCEPTED DEVIATION`
 | --- | --- | --- |
 | A0-M01 Revalidate current main | PASS | `BASELINE_DRIFT_REPORT.md`; fetched `origin/main@89d67010` |
 | A0-M02 Create execution docs folder | PASS | Required four files plus drift report created |
-| A0-M03 Record baseline metadata | IN PROGRESS | Recorded in `README.md`; commit pending |
-| A0-M04 Create explicit scope lock note | IN PROGRESS | Recorded in `README.md`; commit pending |
-| A1-M01 Write chart direction ADR | PENDING | — |
-| A1-M02 Define chart architectural layers | PENDING | — |
-| A1-M03 Define renderer non-responsibilities | PENDING | — |
-| A1-M04 Define future readiness targets | PENDING | — |
+| A0-M03 Record baseline metadata | PASS | `README.md`; committed in `c0e27897` |
+| A0-M04 Create explicit scope lock note | PASS | `README.md`; committed in `c0e27897` |
+| A1-M01 Write chart direction ADR | PASS | `ADR-001-CHART-DIRECTION.md` |
+| A1-M02 Define chart architectural layers | PASS | ADR “Architectural layers” and data-flow sections |
+| A1-M03 Define renderer non-responsibilities | PASS | ADR “Renderer non-responsibilities” section |
+| A1-M04 Define future readiness targets | PASS | ADR “Future-readiness targets” section |
 | A2-M01 Create feature directory | PENDING | — |
 | A2-M02 Create subfolders | PENDING | — |
 | A2-M03 Create entry workspace component | PENDING | — |
@@ -99,4 +99,3 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `BLOCKED`, `ACCEPTED DEVIATION`
 | A17-M05 Write Codex completion report | PENDING | — |
 | A17-M06 Write handoff package for Gemini | PENDING | — |
 | A17-M07 Hard stop | PENDING | — |
-
