@@ -3,16 +3,24 @@ name: Dentix Mobile Responsive Gate
 on:
   pull_request:
     branches: [ staging, main ]
+    types: [ opened, synchronize, reopened, ready_for_review, labeled ]
   push:
-    branches: [ staging ]
+    branches: [ staging, main ]
 
 concurrency:
-  group: dentix-mobile-responsive-${{ github.event.pull_request.number || github.ref }}
+  group: >-
+    dentix-mobile-responsive-${{ github.event.pull_request.number || github.ref }}-${{
+      github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:')
+      && github.event.label.name || 'validation'
+    }}
   cancel-in-progress: true
 
 jobs:
   responsive:
-    name: Responsive Acceptance Matrix
+    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / Responsive Acceptance Matrix' || 'Responsive Acceptance Matrix' }}
+    if: >-
+      github.event.action != 'labeled' ||
+      !startsWith(github.event.label.name, 'agent:')
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -47,18 +55,44 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+
+      - name: Fetch base branch for PR diff
+        if: github.event_name == 'pull_request'
+        run: git fetch --depth=50 origin ${{ github.base_ref }} || true
+
+      - name: Classify CI Scope
+        id: classify
+        env:
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels) }}
+        run: |
+          set -euo pipefail
+          python .github/scripts/classify_ci_scope.py \
+            --event "${{ github.event_name }}" \
+            --target-branch "${{ github.base_ref || github.ref_name }}" \
+            --base-ref "origin/${{ github.base_ref || 'staging' }}" \
+            --labels-json "${PR_LABELS:-[]}" \
+            --output-format github-output
+
+      - name: Skip notice when UI and mobile untouched
+        if: ${{ !cancelled() && steps.classify.outcome == 'success' && steps.classify.outputs.force_full == 'false' && steps.classify.outputs.frontend == 'false' && steps.classify.outputs.clinical_ui == 'false' && steps.classify.outputs.mobile == 'false' }}
+        run: echo "UI and mobile surfaces untouched; skipping responsive matrix safely."
 
       - name: Set up Python 3.11
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.frontend == 'true' || steps.classify.outputs.clinical_ui == 'true' || steps.classify.outputs.mobile == 'true') }}
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install pinned uv
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.frontend == 'true' || steps.classify.outputs.clinical_ui == 'true' || steps.classify.outputs.mobile == 'true') }}
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: '0.12.5'
 
       - name: Install backend dependencies from frozen lock
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.frontend == 'true' || steps.classify.outputs.clinical_ui == 'true' || steps.classify.outputs.mobile == 'true') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -66,9 +100,11 @@ jobs:
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Initialize responsive-test database
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.frontend == 'true' || steps.classify.outputs.clinical_ui == 'true' || steps.classify.outputs.mobile == 'true') }}
         run: python -m backend.scripts.preflight_migrations
 
       - name: Provision isolated responsive-test database roles
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.frontend == 'true' || steps.classify.outputs.clinical_ui == 'true' || steps.classify.outputs.mobile == 'true') }}
         shell: bash
         run: |
           python - <<'PY'
@@ -94,6 +130,7 @@ jobs:
           echo "SYSTEM_DATABASE_URL=${SYSTEM_DATABASE_URL_PREFIX}${SYSTEM_DATABASE_URL_SUFFIX}" >> "$GITHUB_ENV"
 
       - name: Start backend
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.frontend == 'true' || steps.classify.outputs.clinical_ui == 'true' || steps.classify.outputs.mobile == 'true') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -118,6 +155,7 @@ jobs:
           exit 1
 
       - name: Set up Node.js 20
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.frontend == 'true' || steps.classify.outputs.clinical_ui == 'true' || steps.classify.outputs.mobile == 'true') }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -125,30 +163,37 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.frontend == 'true' || steps.classify.outputs.clinical_ui == 'true' || steps.classify.outputs.mobile == 'true') }}
         working-directory: frontend
         run: npm ci
 
       - name: Build recovered frontend
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.frontend == 'true' || steps.classify.outputs.clinical_ui == 'true' || steps.classify.outputs.mobile == 'true') }}
         working-directory: frontend
         run: npm run build
 
       - name: Design-system guardrails
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.frontend == 'true' || steps.classify.outputs.clinical_ui == 'true' || steps.classify.outputs.mobile == 'true') }}
         working-directory: frontend
         run: npm run design:guardrails
 
       - name: Date/time responsive unit regression
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.frontend == 'true' || steps.classify.outputs.clinical_ui == 'true' || steps.classify.outputs.mobile == 'true') }}
         working-directory: frontend
         run: npx vitest run src/shared/ui/DateTimePicker.test.jsx --reporter=verbose
 
       - name: Install Playwright Chromium
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.frontend == 'true' || steps.classify.outputs.clinical_ui == 'true' || steps.classify.outputs.mobile == 'true') }}
         working-directory: frontend
         run: npx playwright install chromium
 
       - name: Prepare isolated responsive-test data
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.frontend == 'true' || steps.classify.outputs.clinical_ui == 'true' || steps.classify.outputs.mobile == 'true') }}
         working-directory: frontend
         run: npx playwright test e2e/setup.spec.ts --config=playwright.config.ts --project=setup --retries=0
 
       - name: Run 320 / Arabic / English / tablet matrix
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.frontend == 'true' || steps.classify.outputs.clinical_ui == 'true' || steps.classify.outputs.mobile == 'true') }}
         working-directory: frontend
         run: >-
           npx playwright test e2e/mobile-responsive.spec.ts
@@ -161,11 +206,11 @@ jobs:
           --retries=0
 
       - name: Show backend log on failure
-        if: failure()
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.frontend == 'true' || steps.classify.outputs.clinical_ui == 'true' || steps.classify.outputs.mobile == 'true') && failure() }}
         run: cat /tmp/dentix-mobile-backend.log || true
 
       - name: Upload Playwright responsive artifacts
-        if: failure()
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.frontend == 'true' || steps.classify.outputs.clinical_ui == 'true' || steps.classify.outputs.mobile == 'true') && failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: mobile-responsive-playwright-report

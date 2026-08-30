@@ -1,81 +1,60 @@
-## Source Issue
+## Source & Wave Information
 
-Closes #
+- **Source Plan / Spec**:
+- **Wave ID**:
+- **Execution Mode**: `FAST` | `STANDARD`
+- **Risk Classification**: `LOW` | `NORMAL` | `CLINICAL_UI`
+- **Closed Issues**: Closes #
 
-Source plan/spec and requirement IDs:
+## Ticket Traceability & Commit Mapping
 
-## Scope
+| Issue | Commit SHA | Touched Files | Summary |
+| --- | --- | --- | --- |
+| # |  |  |  |
 
--
+## Scope & Non-Goals
 
-## Changes
+- **Included Scope**:
+- [ ] No declared non-goals were implemented.
+- [ ] Drift-abort observed: no unlisted production files touched without reclassification.
 
--
+## Verification Evidence (T1 / T2)
 
-## Non-Goals Confirmed
-
-- [ ] No declared non-goal was implemented.
-- [ ] Any scope expansion is listed and explicitly approved below.
-
-Scope expansion, if any:
-
-## Risk
-
-Risk classification(s): `LOW` / `NORMAL` / `CLINICAL` / `FINANCE` / `AUTH_RBAC` / `TENANCY_RLS` / `DATABASE_MIGRATION` / `DEPLOYMENT` / `SECURITY`
-
-Parallel classification: `PARALLEL_SAFE` / `PARALLEL_AFTER:<ticket>` / `SERIAL_ONLY`
-
-## DENTIX Skills Applied
-
--
-
-## Verification
-
-Record every command actually run. Do not report a pass without its exit status and inspected result.
-
-| Exact command | Exit status | Result summary | New or baseline failure |
+### T1 Targeted Ticket Verification
+| Exact Command | Exit Code | Result Summary | New or Baseline Failure |
 | --- | ---: | --- | --- |
-|  |  |  |  |
+|  | 0 |  | None |
 
-CI/check links and status:
+### T2 Wave Gate Verification
+| Gate Type | Exact Command | Exit Code | Evidence Summary |
+| --- | --- | ---: | --- |
+| Lint |  | 0 | Clean |
+| Subsystem Tests |  | 0 | Passed |
+| Build |  | 0 | Successful |
+| Visual / UI Matrix |  | 0 | Attached screenshots / evidence |
 
-## Acceptance Criteria
+## Acceptance Criteria Reconciliation
 
-- [ ] Each source-issue criterion is copied or linked here and checked individually.
-- [ ] The actual diff and unexpected files were independently inspected.
-- [ ] Required targeted and broad repository gates passed.
+- [ ] All issue acceptance criteria checklist items satisfied.
+- [ ] Actual diff inspected and matches declared touch surfaces.
 
-Criterion evidence:
+## Efficiency Telemetry
 
-- [ ]
+- **Wave ID**:
+- **Ticket Count**:
+- **Independent Reviewer Sessions**: 0 (FAST) / 1 (STANDARD wave boundary)
+- **Model-Driven CI Polling Calls**: 0 (Strictly enforced: stopped at `AWAITING_CI`)
 
-## Security / Tenancy / RBAC Impact
+## Screenshots / Visual Evidence (when UI / Clinical UI)
 
-Select one after consideration; do not use an unreviewed `N/A`.
-
-- [ ] No relevant change — reason documented below.
-- [ ] Reviewed — no impact found; review evidence documented below.
-- [ ] Relevant change — impact, controls, and regression evidence documented below.
-
-Details:
-
-## Database / Migration Impact
-
-- [ ] No schema or migration change.
-- [ ] Relevant database/migration change is explicitly authorized and detailed below.
-
-Details and lineage/drift evidence:
-
-## Screenshots (when UI)
-
-Attach relevant desktop/mobile and LTR/RTL evidence, or explain why this PR has no UI impact.
+Attach desktop/mobile or LTR/RTL evidence here, or state N/A (no UI change).
 
 ## Known Limitations
 
--
+- None.
 
-## Independent Review
+## Review & Integration Gate
 
-- [ ] Reviewer is distinct from the bounded implementer.
-- [ ] Findings and resolutions are linked or summarized.
-- [ ] No automatic merge is authorized by this template.
+- [ ] STANDARD wave review completed by distinct reviewer, or FAST mechanical inspection verified.
+- [ ] CI state transitioned to `agent:ci-green`.
+- [ ] No automatic merge authorized.

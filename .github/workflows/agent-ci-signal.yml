@@ -1,0 +1,56 @@
+name: Agent CI Signal
+
+# IMPORTANT:
+# workflow_run executes on the default branch (main).
+# It evaluates check runs deterministically without running untrusted PR code.
+# Permissions are minimal: read contents/checks, write issue comments/labels.
+
+on:
+  workflow_run:
+    workflows:
+      - "Dentix CI"
+      - "Dentix PostgreSQL HTTP IDOR Gate"
+      - "Dentix PostgreSQL RLS Concurrency Gate"
+      - "Dentix Mobile Responsive Gate"
+      - "Dentix Stale Deployment Recovery"
+      - "Dentix History Secret Scan"
+      - "Dentix Branch Governance"
+      - "Dentix Platform Branch Protection"
+    types: [completed]
+
+permissions:
+  contents: read
+  checks: read
+  issues: write
+
+concurrency:
+  group: agent-ci-signal-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: true
+
+jobs:
+  signal-evaluator:
+    name: Evaluate CI Completion Signal
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted default branch scripts
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Evaluate Check Statuses and Update PR Signal
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
+          echo "Evaluating CI signal for workflow '${{ github.event.workflow_run.name }}' on SHA ${HEAD_SHA}"
+          python .github/scripts/evaluate_ci_signal.py --sha "$HEAD_SHA"

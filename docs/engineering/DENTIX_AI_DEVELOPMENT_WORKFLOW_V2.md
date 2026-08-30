@@ -2,7 +2,7 @@
 
 ## Purpose and authority
 
-This workflow turns an approved DENTIX goal into traceable tickets, isolated implementation, independent review, and repository verification. It is an orchestration contract only. It does not change application behavior, API contracts, database behavior, tenant isolation, RBAC, clinical rules, or financial rules.
+This workflow turns an approved DENTIX goal into traceable tickets, isolated implementation, risk-appropriate review, wave-level integration, and repository verification. It is an orchestration contract only. It does not change application behavior, API contracts, database behavior, tenant isolation, RBAC, clinical rules, or financial rules.
 
 When instructions conflict, apply this precedence exactly:
 
@@ -16,6 +16,19 @@ When instructions conflict, apply this precedence exactly:
 
 External delegate or review tooling is transport or an execution engine. It is never a DENTIX policy authority and cannot override this precedence.
 
+## Core V2.1 Lean Architecture
+
+Workflow V2.1 decouples scope tracking from expensive execution cycles:
+
+```text
+micro-ticket               = scope and traceability unit
+wave or high-risk boundary = review unit
+wave or phase              = verification unit (T2)
+wave                       = normal PR unit (FAST / STANDARD)
+high-risk ticket           = individual PR unit (HIGH_RISK)
+release / protected push   = full CI unit (T3)
+```
+
 ## Roles and decision rights
 
 ### User / Product Authority
@@ -25,28 +38,36 @@ External delegate or review tooling is transport or an execution engine. It is n
 
 ### Orchestrator
 
-- Inspects repository truth and reads the complete source plan or specification.
-- Builds and maintains the ticket ledger, dependency graph, risk classification, and execution waves.
-- Produces self-contained delegate briefs and dispatches only ready tickets.
-- Reviews returned diffs, reruns verification independently, and decides whether work is ready for integration.
+- Inspects repository truth and reads the complete source plan or specification once before dispatch.
+- Builds and maintains the ticket ledger, dependency graph, risk classification, execution modes, and execution waves.
+- Produces self-contained delegate briefs with explicit touch surfaces and dispatches only ready tickets.
+- Reviews returned diffs mechanically or schedules independent wave/ticket reviews based on execution mode.
+- Recalculates the dependency graph immediately on drift or contract changes, otherwise at wave boundaries.
 - Never treats an implementer's final report as proof and never bypasses repository gates.
 
 ### Implementer
 
-- Edits only within one bounded ticket or explicitly approved batch in its assigned isolated worktree.
-- Applies the relevant native DENTIX domain skills, respects the declared touch surface, and reports unexpected dependencies or scope expansion.
-- Runs targeted checks and returns structured evidence, but cannot verify, merge, close, or release its own work.
+- Edits only within one bounded ticket or assigned wave in its isolated worktree.
+- Applies the relevant native DENTIX domain skills, respects the declared touch surface, and stops if unexpected production files are required (drift-abort).
+- Runs targeted T1 checks for production changes and direct regressions before returning. Cannot verify, merge, close, or release its own work.
 
 ### Independent Reviewer
 
 - Reviews requirements against the actual diff in a distinct read-only session or lane.
+- Invocation Cadence:
+  - **FAST**: Orchestrator mechanical diff/scope inspection only.
+  - **STANDARD**: One independent review per wave at the wave boundary (`WAVE_READY`).
+  - **HIGH_RISK**: Independent review per ticket.
+  - **DWF-11 Debate Review**: Optional, reserved for severe architectural/security disputes; never default.
 - Applies `.agents/skills/dentix-code-review/SKILL.md`, including tenant/RBAC, data-integrity, compatibility, and test review.
-- Does not edit while acting as reviewer and does not relay a merge or commit on behalf of the orchestrator.
+- Does not edit while acting as reviewer and does not merge on behalf of the orchestrator.
 
-### CI
+### CI & Status Checks
 
-- Runs the repository-defined checks and supplies authoritative technical gate evidence.
-- A green implementer-local check does not replace required CI.
+- Runs repository-defined checks and supplies authoritative technical gate evidence.
+- Conditional PR execution routes low-risk checks cleanly while keeping required status contexts materialized.
+- Pushes to protected branches (`staging`, `main`) always execute full CI.
+- Model-driven CI polling is forbidden. After PR creation, state transitions to `AWAITING_CI` and the model stops.
 
 ### Release
 
@@ -54,110 +75,91 @@ External delegate or review tooling is transport or an execution engine. It is n
 - Production promotion occurs from `staging` to `main`, except documented branch-governance exceptions.
 - No implementer, reviewer, or orchestration tool may merge automatically.
 
-## Ticket lifecycle
+## Execution Modes & Risk Classification
 
-Every executable ticket moves through this lifecycle:
+Every ticket declares an `execution_mode`:
+
+### 1. FAST
+- **Scope**: Tests-only, docs-only, or isolated presentational UI.
+- **Constraints**: Touched-file pilot cap <= 3 files, single subsystem, no shared contracts, no auth/RBAC/tenancy/finance/migrations/clinical semantics.
+- **Lifecycle**: T1 targeted check where relevant, orchestrator mechanical inspection, wave PR allowed.
+
+### 2. STANDARD
+- **Scope**: Ordinary product features, refactors, and non-high-risk UI/backend logic.
+- **Constraints**: Wave budget <= 5 tickets in the same subsystem/risk family, no HIGH_RISK tickets mixed in.
+- **Lifecycle**: T1 for production changes, one independent review per wave, T2 wave gate, wave PR.
+
+### 3. HIGH_RISK
+- **Closed List**:
+  - Authentication & Authorization (RBAC)
+  - Multi-tenant boundary isolation & PostgreSQL RLS
+  - Finance, invoicing, doctor commissions, payment ledgers
+  - Database migrations and schema lineage
+  - Security controls, cookies, CORS, secrets
+  - Shared API, session, or financial contracts
+  - Clinical semantics (tooth identity, notation meaning, clinical condition/treatment semantics)
+  - Deployment workflows and branch governance
+  - Irreversible data operations
+- **Constraints**: `SERIAL_ONLY` by default, independent review per ticket, immediate T1, risk-specific T2, full T3, individual PR (1 ticket = 1 PR).
+
+## Clinical Risk Split
+
+To avoid imposing full surgical clinical-semantics overhead on purely presentational rendering:
+- `risk:clinical-semantics`: Modifies tooth numbering, notation systems, clinical condition semantics, treatment meanings, or persisted clinical state. Default: `HIGH_RISK`.
+- `risk:clinical-ui`: Renderer layout, root visual geometry (source-of-truth unchanged), inspector UI, responsive/RTL layout. Default: `STANDARD` with mandatory visual/screenshot evidence. Escalates to `HIGH_RISK` immediately if semantic data is touched.
+
+## Verification Tiers
+
+- **`T0` (Development Sanity)**: Rapid syntax, typecheck, or lint check during active coding.
+- **`T1` (Targeted Ticket Verification)**: Focused unit/integration test for the specific ticket. Mandatory for all production code changes and direct regressions before the wave gate.
+- **`T2` (Wave / Phase Gate)**: Comprehensive subsystem lint, test, build, and visual validation executed once at the wave boundary.
+- **`T3` (Repository / Protected Integration)**: Full repository CI suites executed on PRs (risk-appropriate) and protected pushes (`staging`/`main`). Operational thresholds are defined by active CI configurations (e.g. `--cov-fail-under`).
+
+## Ticket Lifecycle
 
 ```text
 DRAFT
   -> READY
   -> IN_PROGRESS
   -> IMPLEMENTED
-  -> REVIEW_REQUIRED
+  -> WAVE_READY
+  -> AWAITING_CI
   -> VERIFIED
   -> CLOSED
 ```
 
-`IMPLEMENTED -> CLOSED` is forbidden. `IMPLEMENTED` means the bounded implementation returned; it does not mean acceptance criteria or repository gates passed. A ticket becomes `VERIFIED` only after the orchestrator checks every acceptance criterion, an independent review is complete, and required verification is rerun against the actual diff. Only verified work may be closed.
+Additional terminal/pause states: `BLOCKED`, `CI_RED`.
 
-## Ticket contract and completion evidence
+- `IMPLEMENTED`: Bounded ticket work returned. FAST/STANDARD tickets reach `IMPLEMENTED` without individual independent reviews.
+- `WAVE_READY`: Wave is assembled, ready for wave-level review and T2 verification.
+- `AWAITING_CI`: PR is open; AI model stops execution. No polling.
+- `VERIFIED`: Wave review and required CI checks have passed.
+- `CLOSED`: Traceability recorded.
 
-Each AI-executable ticket must state its source plan, problem, objective, scope, non-goals, dependencies, parallel classification, expected touch surface, acceptance criteria, required native skills, risk, verification, and completion evidence. Acceptance criteria must be observable and checklist-based.
+## Worktree Isolation
 
-The expected touch surface is a review boundary, not permission to omit necessary tests. If an unlisted production file is required, the implementer must stop or explicitly report the scope expansion. Completion evidence includes the actual diff, exact commands and exit statuses, acceptance results, review findings and resolutions, CI state, and known limitations.
+- **Concurrent Writers**: 1 concurrent writer = 1 isolated Git worktree and scoped branch. Two write-capable delegates never share a checkout.
+- **Serial Wave Reuse**: Serial tickets within the same wave assigned to one implementer reuse a single worktree with distinct, bounded commits per ticket.
+- Initial write concurrency cap is 2; raise to 3 only after proven pilot validation.
 
-## Worktree isolation
+## PR Strategy
 
-- Every write-capable delegate uses its own Git worktree or equivalent isolated checkout and its own scoped branch.
-- Two write-capable delegates must never edit the same checkout.
-- The orchestrator records the repository, worktree, branch, and base SHA in every delegate brief.
-- Delegates cannot edit, commit, merge, or clean another delegate's worktree.
-- The orchestrator owns integration and checks `git status`, the full diff, unexpected files, and `git diff --check` after every return.
+- **Wave PR (FAST / STANDARD)**: One PR per wave combining up to 5 related tickets from the same subsystem, preserving 1 commit per ticket.
+- **Individual PR (HIGH_RISK)**: Exactly 1 ticket = 1 PR.
+- *Note*: Pilot PRs #120/#122/#123 and #121/#124/#125 demonstrate pilot-only 1-ticket-1-PR baseline evidence, not the daily default for low-risk work.
 
-## Dependency graph
+## Drift-Abort Policy
 
-Before dispatch, the orchestrator must:
+If an implementer discovers that modifying unlisted production files or crossing subsystem/contract boundaries is necessary:
+1. Immediately stop editing.
+2. Report the drift to the orchestrator.
+3. Orchestrator reclassifies the risk and updates the ticket scope/brief before proceeding.
 
-1. Map every approved requirement to at least one ticket or an explicit justified `N/A`.
-2. Record each ticket's dependencies and affected contracts/files.
-3. Reject cycles or unresolved prerequisites.
-4. Dispatch only tickets whose dependencies are verified.
-5. Recalculate the graph after every execution wave or contract change.
-6. Reconcile completed tickets against the original plan so no requirement disappears during decomposition.
+## CI Interaction: No AI CI Polling
 
-Tickets should have one coherent objective, one primary seam or module, observable acceptance, and bounded verification. They must be neither uncontrolled multi-day mega-phases nor line-by-line fragments that cannot independently pass acceptance.
-
-## Parallel-safety classification
-
-Every ticket must be exactly one of:
-
-- `PARALLEL_SAFE`: proven independent of all tickets in the same wave.
-- `PARALLEL_AFTER:<ticket>`: dispatchable only after the named dependency is verified.
-- `SERIAL_ONLY`: must not overlap another write-capable ticket.
-
-No ticket is implicitly parallel-safe. Same-file or same-contract uncertainty collapses parallel work into serial work. Authentication, RBAC, tenant isolation/RLS, finance, related migrations, shared API contracts, central state, deployment workflow, and unsettled shared seams default to `SERIAL_ONLY` unless independence is explicitly proven. The initial pilot permits at most two simultaneous write-capable delegates; the cap may rise to three only after successful validation.
-
-## Risk classification
-
-Every ticket has one or more of these risk tags:
-
-- `LOW`
-- `NORMAL`
-- `CLINICAL`
-- `FINANCE`
-- `AUTH_RBAC`
-- `TENANCY_RLS`
-- `DATABASE_MIGRATION`
-- `DEPLOYMENT`
-- `SECURITY`
-
-Risk determines required skills, reviewer expertise, serialization, and verification. High-risk work remains serial by default and must not weaken security, privacy, tenant isolation, RBAC, data integrity, or branch governance for speed.
-
-## Execution algorithm
-
-1. Read the complete approved source and repository authorities.
-2. Build the full ticket ledger and requirement-coverage map.
-3. Resolve dependencies, risks, parallel safety, and execution waves.
-4. Create a self-contained brief for every ready ticket.
-5. Dispatch only into isolated worktrees.
-6. Inspect each returned diff and unexpected scope independently.
-7. Apply native DENTIX review policy and rerun required repository checks.
-8. Integrate only verified work through a PR to `staging`.
-9. Recalculate the remaining graph and run an anti-skip reconciliation after every wave.
-10. Report the final program status strictly as `DONE`, `PARTIAL`, or `BLOCKED`.
-
-## GitHub execution conventions
-
-Recommended lifecycle labels are `agent:ready`, `agent:blocked`, `agent:in-progress`, `agent:review`, and `agent:verified`. Parallel labels are `parallel:safe` and `parallel:serial`. Risk labels are `risk:clinical`, `risk:finance`, `risk:auth-rbac`, `risk:tenancy-rls`, `risk:database`, `risk:deployment`, and `risk:security`. Inspect existing labels before creating only those that are missing; never rename unrelated labels.
-
-Map an issue to one scoped branch whose prefix reflects the work:
-
-```text
-Issue #341 feature -> feat/dtx-341-odontogram-root-rendering
-Issue #342 fix     -> fix/dtx-342-patient-cache-invalidation
-Issue #343 tests   -> test/dtx-343-finance-regression-coverage
-```
-
-The issue number and source requirement IDs must remain visible in the delegate brief and PR evidence.
-
-Example dependency waves:
-
-```text
-Wave 0: foundational contract
-Wave 1: A + B in parallel
-Wave 2: C after A
-Wave 3: D after A+B+C
-```
+Model-driven polling of GitHub Actions, deployment jobs, or remote workflows is strictly forbidden:
+- After pushing a PR or triggering CI, record PR number and commit SHA, set `agent:awaiting-ci`, and stop the model loop.
+- Resume occurs on the next invocation by reading the deterministic GitHub status check / label signal (`agent:ci-green` or `agent:ci-red`).
 
 ## Emergency path
 
