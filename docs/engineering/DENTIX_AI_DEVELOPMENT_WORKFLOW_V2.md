@@ -105,7 +105,7 @@ Every ticket must be exactly one of:
 - `PARALLEL_AFTER:<ticket>`: dispatchable only after the named dependency is verified.
 - `SERIAL_ONLY`: must not overlap another write-capable ticket.
 
-No ticket is implicitly parallel-safe. Same-file or same-contract uncertainty collapses parallel work into serial work. Authentication, RBAC, tenant isolation/RLS, finance, related migrations, shared API contracts, central state, deployment workflow, and unsettled shared seams default to `SERIAL_ONLY` unless independence is explicitly proven. The initial pilot permits at most two simultaneous write-capable delegates; the cap may rise to three only after successful validation.
+No ticket is implicitly parallel-safe. Same-file or same-contract uncertainty collapses parallel work into serial work. Authentication, RBAC, tenant isolation/RLS, finance, related migrations, shared API contracts, central state, deployment workflow, and unsettled shared seams default to `SERIAL_ONLY` unless independence is explicitly proven. The validated operating cap is three simultaneous write-capable delegates. Risk, dependencies, shared seams, or available review capacity may reduce that cap; they never justify exceeding it.
 
 ## Risk classification
 
@@ -158,6 +158,33 @@ Wave 1: A + B in parallel
 Wave 2: C after A
 Wave 3: D after A+B+C
 ```
+
+## Pilot hardening record
+
+The initial single-ticket, two-ticket parallel, and large-plan graph pilots produced these reusable findings. Update the smallest responsible layer when a similar failure recurs; do not encode a model brand into DENTIX architecture.
+
+| Classification | Observed failure or risk | Permanent response |
+| --- | --- | --- |
+| `TOOLING` | Project delegate trust is content- and worktree-bound; external review execution may also require explicit approval before repository content is sent to configured model providers. | Validate and approve the exact project lane map in each execution worktree. External relays fail closed when trust or data-sharing authority is absent. |
+| `DEPENDENCY_CLASSIFICATION` | Conditional graph waves initially allowed dependent clinical rendering tasks to overlap. | Represent dependencies with actual tracker blocker links and collapse uncertain shared seams to `SERIAL_ONLY`. |
+| `REVIEW_GAP` | Independent graph review found omitted non-goals and role boundaries even though all task IDs were present. | Reconcile tasks, acceptance criteria, non-goals, validation families, and user/role gates; ID coverage alone is insufficient. |
+| `TEST_GAP` | A broad frontend run produced one transient timeout that passed in isolation and on an identical full rerun. | Record the first failure, isolate it, rerun the unchanged broad command, and distinguish baseline/flaky evidence from a change-introduced regression. |
+
+No new native skill is warranted by these findings: workflow governance owns the graph and review rules, the existing testing skill owns failure classification, and external relay behavior remains external tooling.
+
+## Optional external review integration
+
+External debate review is an additional read-only engine. `.agents/skills/dentix-code-review/SKILL.md` remains the policy source. Both `review-main` and `review-debate` must resolve to read-only-capable lanes, preferably on different implementers or models. A review engine must never edit, approve, request changes, merge, or release.
+
+External severities are inputs, not replacements for DENTIX severity:
+
+| External level | Engine meaning | DENTIX handling |
+| --- | --- | --- |
+| `P0` | Blocking security finding | Reclassify as `CRITICAL` or `HIGH` using the native DENTIX definitions. |
+| `P1` | Other blocking finding | Reclassify as `HIGH` or `MEDIUM` according to actual business and contract impact. |
+| `P2` | Non-blocking finding | Reclassify as `MEDIUM`, `LOW`, or `NOTE`; never promote or dismiss it solely from the external label. |
+
+Every finding is verified against the code. Every babysitter fix must pass normal DENTIX review and repository verification, and babysitting may report merge readiness but must never merge.
 
 ## Emergency path
 

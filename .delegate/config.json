@@ -12,6 +12,18 @@
     },
     "complex": {
       "implementer": "codex"
+    },
+    "review-main": {
+      "implementer": "agy",
+      "model": "gemini-3.1-pro-high",
+      "effort": "high",
+      "readOnly": true
+    },
+    "review-debate": {
+      "implementer": "codex",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "readOnly": true
     }
   }
 }

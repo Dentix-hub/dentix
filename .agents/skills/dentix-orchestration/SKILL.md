@@ -52,7 +52,7 @@ Do not restate or weaken those skills. When several domains apply, require every
 - Never allow two write-capable delegates to edit the same checkout.
 - Same-file or same-contract uncertainty collapses parallel work into serial work.
 - Auth, RBAC, tenant isolation/RLS, finance, related migrations, central state, shared contracts, and deployment work default to `SERIAL_ONLY` unless independence is explicitly proven.
-- Initial write-capable concurrency is at most two; raise it only after the approved pilot passes.
+- The validated operating cap is three simultaneous write-capable delegates. Lower it whenever risk, dependencies, shared seams, or review capacity require; never exceed it.
 
 Example waves:
 
