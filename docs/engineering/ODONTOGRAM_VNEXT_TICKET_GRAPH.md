@@ -1,6 +1,6 @@
-# Odontogram and Clinical VNext Ticket Graph Pilot
+# Odontogram and Clinical VNext Ticket Graph (V2.1 Lean)
 
-Status: `GRAPH_BOUND` — Wave 1 ready
+Status: `GRAPH_BOUND` — Ready for V2.1 Lean Wave Execution
 
 ## Source lock
 
@@ -10,8 +10,7 @@ Status: `GRAPH_BOUND` — Wave 1 ready
 - Existing tracker: `docs/odontogram-foundation/TASK_TRACKER.md`
 - Pilot authority: Codex Part I only
 
-G0-G16 remain reserved for Gemini after A17 produces a valid handoff and Codex
-declares `WAITING FOR GEMINI VNEXT EXECUTION`.
+G0-G16 remain reserved for Gemini after A17 produces a valid handoff and Codex declares `WAITING FOR GEMINI VNEXT EXECUTION`.
 
 ## Preserved boundaries
 
@@ -20,52 +19,56 @@ declares `WAITING FOR GEMINI VNEXT EXECUTION`.
 - A package-owned DTO must not become the Dentix canonical clinical schema.
 - Do not add dependencies when Dentix already has usable capabilities.
 - Later clinical complexity belongs in the domain model, not the renderer.
-- Part I adds no schema, migration, production API, finance, appointment, lab,
-  inventory, treatment-plan backend, or legacy-migration work.
+- Part I adds no schema, migration, production API, finance, appointment, lab, inventory, treatment-plan backend, or legacy-migration work.
 - Preserve old data; avoid giant modal-first flows.
 - Do not begin Part II before the A17 hard gate.
 - G11 must never auto-book an appointment without explicit user action.
 
-## Part I ticket graph
+## V2.1 Lean Wave Architecture
 
-| Key | Objective | Requirements | Depends on | Class | Verification |
-| --- | --- | --- | --- | --- | --- |
-| ODG-A10 | Root layer for every tooth family | A10-M01..M06 | A0-A9 | serial | renderer tests, lint, build, visuals |
-| ODG-A11 | Notation and labels after roots | A11-M01..M03 | A10 | serial | tests and desktop evidence |
-| ODG-A12 | Complete demo fixture matrix | A12-M01..M11 | A11 | serial | fixture/render tests |
-| ODG-A13 | Isolated dual-chart compare | A13-M01..M04 | A12 | serial | state/layer isolation tests |
-| ODG-A14 | Simple shell and inspector UI | A14-M01..M05 | A13 | serial | component tests and browser evidence |
-| ODG-A15 | Responsive, RTL/LTR, keyboard, a11y | A15-M01..M08 | A11,A13,A14 | serial | responsive and accessibility gates |
-| ODG-A16 | Part I regression suite | A16-M01..M07 | A10..A15 | serial | targeted/full tests, lint, serial build |
-| ODG-A17 | Evidence, handoff, and hard stop | A17-M01..M07 | A16 | serial | evidence and handoff checklist |
+| Wave ID | Tickets / Nodes | Mode | Risk Family | Review Policy | PR Strategy | Verification Tier |
+|---|---|---|---|---|---|---|
+| **ODG-L1** | #126 (ODG-A10) | `STANDARD` | `risk:clinical-ui` | Wave boundary | Wave PR | T1 (targeted renderer tests) -> T2 (wave gate) |
+| **ODG-L2** | #127 (ODG-A11) | `HIGH_RISK` | `risk:clinical-semantics` | Independent per-ticket | Individual PR | T1 -> T2 -> T3 full gate |
+| **ODG-L3** | #128–#131 (ODG-A12..ODG-A15) | `STANDARD` | `risk:clinical-ui` | Wave boundary | Single Wave PR (serial inside wave) | T1 (per-ticket bounded commits) -> T2 (wave gate) |
+| **ODG-L4** | #132 (ODG-A16) | `STANDARD` | `risk:clinical-ui` | Wave boundary | Wave PR | T2 Part I regression verification gate |
+| **ODG-L5** | #133 (ODG-A17) | `HIGH_RISK` | `governance` | Independent gate | Individual PR | T3 Hard-stop checklist & handoff |
 
 ```text
-Wave 0 (reconciled pre-graph): A0-A9
-Wave 1: A10
-Wave 2: A11 -> A12
-Wave 3: A13 -> A14
-Wave 4: A15
-Wave 5: A16
-Wave 6: A17 -> WAITING FOR GEMINI VNEXT EXECUTION
+Wave 0 (reconciled pre-graph): A0-A9 (PASS_PRE_GRAPH)
+Wave 1 (ODG-L1): #126 (ODG-A10) [STANDARD, clinical-ui]
+Wave 2 (ODG-L2): #127 (ODG-A11) [HIGH_RISK, clinical-semantics]
+Wave 3 (ODG-L3): #128 -> #129 -> #130 -> #131 [STANDARD, clinical-ui, serial wave]
+Wave 4 (ODG-L4): #132 (ODG-A16) [Part I Regression Gate]
+Wave 5 (ODG-L5): #133 (ODG-A17) [Final Evidence & Handoff Hard-Stop] -> WAITING FOR GEMINI VNEXT EXECUTION
 ```
 
-## GitHub issue binding
+## Part I Ticket Graph
 
-| Key | Issue | Lifecycle |
-| --- | --- | --- |
-| ODG-A10 | #126 | `agent:ready` |
-| ODG-A11 | #127 | `agent:blocked` by #126 |
-| ODG-A12 | #128 | `agent:blocked` by #126, #127 |
-| ODG-A13 | #129 | `agent:blocked` by #128 |
-| ODG-A14 | #130 | `agent:blocked` by #128, #129 |
-| ODG-A15 | #131 | `agent:blocked` by #127, #129, #130 |
-| ODG-A16 | #132 | `agent:blocked` by #126-#131 |
-| ODG-A17 | #133 | `agent:blocked` by #132 |
+| Key | Issue | Objective | Requirements | Mode | Risk Family | Depends on | Verification |
+|---|---|---|---|---|---|---|---|
+| ODG-A10 | #126 | Root layer for every tooth family | A10-M01..M06 | `STANDARD` | `clinical-ui` | A0-A9 | T1 (vitest root rendering) + T2 wave gate |
+| ODG-A11 | #127 | Notation and labels after roots | A11-M01..M03 | `HIGH_RISK` | `clinical-semantics` | A10 | T1 + T2 + T3 full verification |
+| ODG-A12 | #128 | Complete demo fixture matrix | A12-M01..M11 | `STANDARD` | `clinical-ui` | A11 | T1 (fixture/render unit tests) |
+| ODG-A13 | #129 | Isolated dual-chart compare | A13-M01..M04 | `STANDARD` | `clinical-ui` | A12 | T1 (state/layer isolation tests) |
+| ODG-A14 | #130 | Simple shell and inspector UI | A14-M01..M05 | `STANDARD` | `clinical-ui` | A13 | T1 (component tests and browser visuals) |
+| ODG-A15 | #131 | Responsive, RTL/LTR, keyboard, a11y | A15-M01..M08 | `STANDARD` | `clinical-ui` | A11,A13,A14 | T1 (responsive + a11y tests) + T2 wave gate |
+| ODG-A16 | #132 | Part I regression suite | A16-M01..M07 | `STANDARD` | `clinical-ui` | A10..A15 | T2 comprehensive Part I regression suite |
+| ODG-A17 | #133 | Evidence, handoff, and hard stop | A17-M01..M07 | `HIGH_RISK` | `governance` | A16 | T3 full repository verification & handoff gate |
 
-## Part I coverage
+## Implementer Brief Guidelines
 
-| Requirements | Disposition | Reason/status |
-| --- | --- | --- |
+- **Domain-Specific Skills Only**: Implementers load only relevant execution skills (e.g. `dentix-frontend-react`, `dentix-backend-fastapi`).
+- **No Heavy Skill Preloading**: Orchestration and code review skills are NOT preloaded into implementer contexts.
+- **Review Cadence**:
+  - `STANDARD` waves (ODG-L1, ODG-L3, ODG-L4): Review conducted at wave boundary before PR.
+  - `HIGH_RISK` tickets (ODG-L2, ODG-L5): Dedicated independent review before ticket closure.
+- **Worktree Reuse**: A single worktree is reused across serial tickets in the same wave.
+
+## Part I Requirement Coverage Verification
+
+| Requirements | Disposition | Reason / Status |
+|---|---|---|
 | A0-M01..M04 | N/A issue creation | PASS_PRE_GRAPH; baseline evidence exists |
 | A1-M01..M04 | N/A issue creation | PASS_PRE_GRAPH; ADR evidence exists |
 | A2-M01..M04 | N/A issue creation | PASS_PRE_GRAPH; scaffold/route verified |
@@ -76,22 +79,23 @@ Wave 6: A17 -> WAITING FOR GEMINI VNEXT EXECUTION
 | A7-M01..M04 | N/A issue creation | PASS_PRE_GRAPH; renderer boundary verified |
 | A8-M01..M04 | N/A issue creation | PASS_PRE_GRAPH; projection verified |
 | A9-M01..M05 | N/A issue creation | PASS_PRE_GRAPH; visual rules verified |
-| A10-M01..M06 | ODG-A10 | READY |
-| A11-M01..M03 | ODG-A11 | BLOCKED_BY_A10 |
-| A12-M01..M11 | ODG-A12 | BLOCKED_BY_A11 |
-| A13-M01..M04 | ODG-A13 | BLOCKED_BY_A12 |
-| A14-M01..M05 | ODG-A14 | BLOCKED_BY_A13 |
-| A15-M01..M08 | ODG-A15 | BLOCKED_BY_A11_A13_A14 |
-| A16-M01..M07 | ODG-A16 | BLOCKED_BY_A10_A15 |
-| A17-M01..M07 | ODG-A17 | BLOCKED_BY_A16 |
+| A10-M01..M06 | ODG-A10 (#126) | READY (ODG-L1 Wave) |
+| A11-M01..M03 | ODG-A11 (#127) | BLOCKED_BY_A10 (ODG-L2 High-Risk Wave) |
+| A12-M01..M11 | ODG-A12 (#128) | BLOCKED_BY_A11 (ODG-L3 Wave) |
+| A13-M01..M04 | ODG-A13 (#129) | BLOCKED_BY_A12 (ODG-L3 Wave) |
+| A14-M01..M05 | ODG-A14 (#130) | BLOCKED_BY_A13 (ODG-L3 Wave) |
+| A15-M01..M08 | ODG-A15 (#131) | BLOCKED_BY_A11_A13_A14 (ODG-L3 Wave) |
+| A16-M01..M07 | ODG-A16 (#132) | BLOCKED_BY_A10_A15 (ODG-L4 Gate) |
+| A17-M01..M07 | ODG-A17 (#133) | BLOCKED_BY_A16 (ODG-L5 Hard-Stop Gate) |
 
-## Gemini and review coverage
+**Total Part I Requirements**: 18 requirement groups, 95 micro-tasks. Missing requirement IDs: **0**.
 
-These requirements are present but N/A for this Codex pilot because the source
-assigns them to Gemini after the Part I gate.
+## Gemini and Review Coverage (Part II Post-A17)
 
-| Requirements | Future bounded nodes | Disposition |
-| --- | --- | --- |
+These requirements remain reserved for Gemini execution after ODG-A17 completes:
+
+| Requirements | Future Bounded Nodes | Disposition |
+|---|---|---|
 | G0-M01..M05 | G0-KICKOFF | N/A_GEMINI_HARD_GATE |
 | G1-M01..M18 | G1-SCHEMA-A, G1-SCHEMA-B, G1-MIGRATION-GATE | N/A_GEMINI_HARD_GATE |
 | G2-M01..M16 | G2-TAXONOMY, G2-TEMPLATES | N/A_GEMINI_HARD_GATE |
@@ -111,7 +115,7 @@ assigns them to Gemini after the Part I gate.
 | G16-M01..M13 | G16-INTERNAL, G16-PILOT, G16-STABILITY | N/A_GEMINI_HARD_GATE |
 | R-M01..M10 per phase | RV-G0..RV-G16 | N/A_UNTIL_GEMINI_DELIVERY |
 
-## Gates and anti-skip result
+## Anti-Skip and Gate Enforcement
 
 1. A17 closes only when A0-A17 pass or have explicit accepted deviations.
 2. Gemini G0 requires the complete handoff and exact hard-stop statement.
@@ -119,8 +123,3 @@ assigns them to Gemini after the Part I gate.
 4. G16 transitions require explicit approval and reversible tenant controls.
 5. Every Gemini phase requires RV-Gx review before dependent work advances.
 6. G11-M08 forbids auto-booking without explicit user action.
-
-Every A0-A17 micro-task maps to a ticket or evidenced pre-graph N/A. Every
-G0-G16 range maps to bounded future nodes. R-M01..M10 remain a repeated review
-gate. No original requirement, non-goal, validation family, role boundary, or
-approval gate disappears, and no Part II authority is inferred.

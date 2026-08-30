@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use this form for one coherent, independently reviewable DENTIX objective. Master plans remain strategic sources; this issue is the executable contract.
+        Use this form for one coherent, bounded DENTIX objective. Master plans remain strategic sources; this issue is the executable scope contract.
 
   - type: textarea
     id: problem
@@ -29,6 +29,27 @@ body:
       label: Source spec or plan
       description: Link or repository path, including relevant requirement IDs.
       placeholder: docs/...md — P1.1, P1.2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: execution_mode
+    attributes:
+      label: Execution mode
+      description: FAST (tests/docs/isolated UI <= 3 files), STANDARD (wave <= 5 tickets), HIGH_RISK (strict controls).
+      options:
+        - FAST
+        - STANDARD
+        - HIGH_RISK
+    validations:
+      required: true
+
+  - type: input
+    id: wave_id
+    attributes:
+      label: Wave ID
+      description: Execution wave identifier (e.g. ODG-L1, ODG-L3, WAVE-01, or NONE for standalone).
+      placeholder: ODG-L1
     validations:
       required: true
 
@@ -74,11 +95,66 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk classification
+      description: Select every applicable risk. High-risk and clinical-semantics work default to serial execution.
+      multiple: true
+      options:
+        - LOW
+        - NORMAL
+        - CLINICAL_UI
+        - CLINICAL_SEMANTICS
+        - FINANCE
+        - AUTH_RBAC
+        - TENANCY_RLS
+        - DATABASE_MIGRATION
+        - DEPLOYMENT
+        - SECURITY
+    validations:
+      required: true
+
+  - type: dropdown
+    id: verification_tier
+    attributes:
+      label: Verification tier
+      description: T1 (targeted ticket check), T2 (wave/phase gate), T3 (repository CI).
+      options:
+        - T1_TARGETED
+        - T2_WAVE_GATE
+        - T3_FULL_INTEGRATION
+    validations:
+      required: true
+
+  - type: dropdown
+    id: review_policy
+    attributes:
+      label: Review policy
+      description: Review cadence for this ticket.
+      options:
+        - MECHANICAL_INSPECTION_FAST
+        - INDEPENDENT_WAVE_REVIEW_STANDARD
+        - PER_TICKET_INDEPENDENT_REVIEW_HIGH_RISK
+    validations:
+      required: true
+
+  - type: dropdown
+    id: pr_strategy
+    attributes:
+      label: PR strategy
+      description: How this ticket is integrated.
+      options:
+        - WAVE_PR
+        - INDIVIDUAL_PR
+    validations:
+      required: true
+
   - type: textarea
     id: expected_touch_surface
     attributes:
       label: Expected touch surface
-      description: List expected production files/modules. Stop or report scope expansion before touching an unlisted production file; necessary tests are not excluded.
+      description: List expected production files/modules (pilot cap <= 3 for FAST). Stop immediately (drift-abort) before modifying unlisted production files.
       placeholder: |
         - path/to/module
         - path/to/test
@@ -96,42 +172,12 @@ body:
     validations:
       required: true
 
-  - type: textarea
-    id: required_skills
+  - type: input
+    id: domain_skills
     attributes:
-      label: Required DENTIX skills
-      description: List every native .agents/skills policy required for implementation, verification, and review.
-      placeholder: dentix-plan-execution, dentix-frontend-react, dentix-testing-verification, dentix-code-review
-    validations:
-      required: true
-
-  - type: dropdown
-    id: risk
-    attributes:
-      label: Risk classification
-      description: Select every applicable risk. High-risk work defaults to serial execution.
-      multiple: true
-      options:
-        - LOW
-        - NORMAL
-        - CLINICAL
-        - FINANCE
-        - AUTH_RBAC
-        - TENANCY_RLS
-        - DATABASE_MIGRATION
-        - DEPLOYMENT
-        - SECURITY
-    validations:
-      required: true
-
-  - type: textarea
-    id: verification
-    attributes:
-      label: Verification
-      description: List targeted and broad verification commands/classes. CI and current package scripts remain authoritative.
-      placeholder: |
-        - Command/class: ...
-        - Expected evidence: exit status, counts, and failure classification
+      label: Primary domain skill
+      description: Primary native domain skill required (e.g. dentix-frontend-react, dentix-backend-fastapi).
+      placeholder: dentix-frontend-react
     validations:
       required: true
 
@@ -139,12 +185,11 @@ body:
     id: completion_evidence
     attributes:
       label: Completion evidence
-      description: Define the diff, acceptance, review, test, CI, and limitation evidence required before verification.
+      description: Evidence required before ticket is marked IMPLEMENTED / VERIFIED.
       placeholder: |
-        - [ ] Diff and unexpected files reviewed
-        - [ ] Acceptance criteria checked individually
-        - [ ] Independent review complete
-        - [ ] Exact verification commands and exit statuses recorded
+        - [ ] Diff inspected within expected touch surface
+        - [ ] T1 targeted test commands and exit codes recorded
+        - [ ] Acceptance criteria checklist satisfied
     validations:
       required: true
 
@@ -154,6 +199,8 @@ body:
       label: DENTIX constraints acknowledged
       options:
         - label: Tenant isolation, RBAC, privacy, data integrity, API/database contracts, and branch governance remain authoritative.
+          required: true
+        - label: Model-driven CI polling is forbidden; stop upon reaching AWAITING_CI.
           required: true
         - label: The implementer will not merge or claim broader completion than this ticket.
           required: true

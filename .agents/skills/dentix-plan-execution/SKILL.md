@@ -6,26 +6,27 @@ description: Execute an approved multi-phase DENTIX implementation plan without 
 # DENTIX Plan Execution Discipline
 
 ## Purpose
-Enforce rigorous, complete execution of approved implementation plans across the DENTIX repository. Prevent skipped plan items, premature completion claims, silent reduction of acceptance criteria, and "done with important parts" shortcuts.
+Enforce rigorous, complete execution of approved implementation plans across the DENTIX repository. Prevent skipped plan items, premature completion claims, silent reduction of acceptance criteria, and "done with important parts" shortcuts, while avoiding redundant broad test suites after every micro-task.
 
 ## Required Execution Algorithm
 
 1. **Read & Decompose**:
-   - Read the referenced implementation plan in its entirety.
+   - Read the referenced implementation plan in its entirety once before editing.
    - Extract every phase, task ID, acceptance criterion, file constraint, verification step, and non-goal.
 2. **Build Ledger**:
    - Construct a task ledger with explicit statuses: `NOT_STARTED`, `IN_PROGRESS`, `PASS`, `BLOCKED`, `N/A`.
    - Initialize all items as `NOT_STARTED`.
-3. **Phase-by-Phase Order**:
-   - Execute strictly in plan order unless explicit parallel execution is authorized.
+3. **Phase-by-Phase & Wave Order**:
+   - Execute strictly in plan/wave order unless explicit parallel execution is authorized.
    - Before beginning each phase, inspect the working tree and confirm the phase assumptions remain valid.
-4. **Execution & Verification**:
+4. **Execution & Tier-Aware Verification**:
    - Mark active phase/task as `IN_PROGRESS`.
-   - Implement every mandatory requirement surgically.
-   - Execute the specified verification commands (tests, linter, build).
-   - Only after successful verification, mark the task/phase `PASS`.
-5. **Anti-Skip Checkpoint**:
-   - After completing each phase, review all remaining tasks.
+   - Implement every mandatory requirement surgically respecting the declared touch surface.
+   - Apply targeted ticket verification (`T1`) for production changes and direct regressions.
+   - The default unit for broad/expensive test, lint, and build suites is the **approved wave or phase gate (`T2`)**.
+   - Mark task/phase `PASS` only after its required tier verification passes.
+5. **Anti-Skip Checkpoints**:
+   - Reconcile the ledger at: wave boundaries, phase boundaries, drift events, and final completion.
    - Explicitly verify: *Which numbered plan IDs remain `NOT_STARTED` or `BLOCKED`?*
    - Never proceed to final completion if any planned item is unaddressed.
 6. **Reporting & Integrity**:
