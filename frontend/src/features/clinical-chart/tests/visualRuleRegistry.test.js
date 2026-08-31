@@ -98,15 +98,14 @@ describe('clinical chart visual rule registry', () => {
         expect(Object.isFrozen(visuals)).toBe(true);
     });
 
-    it('keeps unknown semantic codes in the DTO but safely omits unresolved drawing instructions', () => {
-        const state = createToothVisualState({
+    it('rejects unknown semantic codes before they can disappear from rendering', () => {
+        expect(() => createToothVisualState({
             toothKey: '11',
             findings: [{ code: 'FUTURE_FINDING' }],
+        })).toThrow('finding.code must be one of');
+        expect(() => createToothVisualState({
+            toothKey: '11',
             procedures: [{ code: 'FUTURE_PROCEDURE' }],
-        });
-        const visual = resolveToothVisualInstructions(state);
-
-        expect(state.findings[0].code).toBe('FUTURE_FINDING');
-        expect(visual.instructions.map(({ category }) => category)).toEqual(['lifecycle']);
+        })).toThrow('procedure.code must be one of');
     });
 });

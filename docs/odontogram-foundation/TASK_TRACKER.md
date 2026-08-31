@@ -23,7 +23,7 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A3-M05 Define mixed-dentition compatibility note | PASS | `MIXED_DENTITION_COMPATIBILITY.md` |
 | A4-M01 Inventory current crown outlines | PASS | `CROWN_OUTLINE_INVENTORY.md` |
 | A4-M02 Normalize crown shape access | PASS | All 52 anatomy keys resolve; 20/20 focused chart tests passed |
-| A4-M03 Preserve current visual style | PASS | User approved the retained crown style plus upper-incisor orientation and restrained lateral-incisor scaling |
+| A4-M03 Preserve current visual style | PASS | Protected reconciliation removed all crown orientation/scaling transforms; roots remain additive and the production crown geometry stays unchanged |
 | A5-M01 Create root outline model | PASS | One `0 0 50 48` coordinate system, FDI-specific refs, cervical/apex anchors, and closed cubic paths; registry tests pass |
 | A5-M02 Add single-root anterior definitions | PASS | User continued after the final permanent upper-central root increase and proportional review |
 | A5-M03 Add premolar root definitions | PASS | User approved canonical two-root maxillary first premolar and single-root remaining premolar rendering |

@@ -131,7 +131,17 @@ describe('clinical chart demo projection DTO', () => {
             kind: 'surface',
             toothKey: '46',
             surfaceCode: 'X',
-        })).toThrow('Unsupported surface code: X');
+        })).toThrow('Surface code X is not valid for tooth 46');
+        expect(() => createProjectionTarget({
+            kind: 'surface',
+            toothKey: '46',
+            surfaceCode: 'I',
+        })).toThrow('Surface code I is not valid for tooth 46');
+        expect(() => createProjectionTarget({
+            kind: 'surface',
+            toothKey: '11',
+            surfaceCode: 'L',
+        })).toThrow('Surface code L is not valid for tooth 11');
         expect(() => createProjectionTarget({
             kind: 'root',
             toothKey: '11',
@@ -169,5 +179,17 @@ describe('clinical chart demo projection DTO', () => {
             toothKey: '46',
             disabled: 'false',
         })).toThrow('disabled must be a boolean');
+        expect(() => createToothVisualState({
+            toothKey: '46',
+            lifecycle: 'UNKNOWN',
+        })).toThrow('lifecycle must be one of');
+        expect(() => createToothVisualState({
+            toothKey: '46',
+            findings: [{ code: 'TYPO_FINDING' }],
+        })).toThrow('finding.code must be one of');
+        expect(() => createToothVisualState({
+            toothKey: '46',
+            procedures: [{ code: 'TYPO_PROCEDURE' }],
+        })).toThrow('procedure.code must be one of');
     });
 });

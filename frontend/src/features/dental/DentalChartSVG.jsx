@@ -1,5 +1,4 @@
 import { memo, useId } from 'react';
-import { getToothDisplayMetrics } from '@/features/clinical-chart/domain/toothDisplayMetrics';
 import { ROOT_VIEW_BOX, getRootGeometry } from '@/features/clinical-chart/rendering/rootGeometry';
 import { getSurfaceGeometry } from '@/features/clinical-chart/rendering/surfaceGeometry';
 import {
@@ -82,8 +81,6 @@ const STATUS_STYLES = {
     Crown: { fill: '#fef08a', stroke: '#eab308' },
     RootCanal: { fill: '#e9d5ff', stroke: '#a855f7' },
 };
-
-const UPPER_INCISOR_KEYS = new Set(['11', '12', '21', '22', '51', '52', '61', '62']);
 
 const ToothRootLayer = memo(function ToothRootLayer({ toothKey, arch, opacity, toothVisual }) {
     const roots = getRootGeometry(toothKey);
@@ -204,11 +201,6 @@ const SVGTooth = memo(function SVGTooth({
     const palmerLabel = getPalmerLabel(number, isPediatric);
     const toothKey = String(toothToNumber(number));
     const crownClipId = `dentix-crown-${reactId.replace(/:/g, '')}`;
-    const displayMetrics = getToothDisplayMetrics(toothKey);
-    const crownTransform = UPPER_INCISOR_KEYS.has(toothKey) ? 'rotate(180 25 30)' : undefined;
-    const crownScaleTransform = displayMetrics.crownScale === 1
-        ? undefined
-        : `translate(${displayMetrics.crownPivot.x} ${displayMetrics.crownPivot.y}) scale(${displayMetrics.crownScale}) translate(${-displayMetrics.crownPivot.x} ${-displayMetrics.crownPivot.y})`;
     const crownBaseOpacity = getBaseAnatomyOpacity(toothVisual);
     const needsCrownClip = enableSurfaceSelection || (toothVisual?.instructions.length ?? 0) > 0;
     const crownSvg = (
@@ -228,8 +220,8 @@ const SVGTooth = memo(function SVGTooth({
                     </clipPath>
                 </defs>
             )}
-            <g data-crown-scale={displayMetrics.crownScale} transform={crownScaleTransform}>
-                <g data-crown-orientation="incisal-edge" transform={crownTransform}>
+            <g data-crown-scale="1">
+                <g data-crown-orientation="baseline">
                     <g data-layer-index="0" data-layer-role="base-anatomy" opacity={crownBaseOpacity}>
                         <path d={path} fill={style.fill} stroke={style.stroke} strokeWidth="2" className="transition-colors duration-300" />
                     </g>

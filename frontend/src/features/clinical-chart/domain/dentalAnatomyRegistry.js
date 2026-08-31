@@ -80,6 +80,13 @@ const createAnatomyRecord = (toothKey, dentition) => {
     const surfaceModel = [TOOTH_TYPES.INCISOR, TOOTH_TYPES.CANINE].includes(toothType)
         ? 'anterior'
         : 'posterior';
+    const surfaceCodes = [
+        'M',
+        'D',
+        surfaceModel === 'posterior' ? 'O' : 'I',
+        'B',
+        arch === 'maxillary' ? 'P' : 'L',
+    ];
 
     return Object.freeze({
         toothKey,
@@ -91,6 +98,7 @@ const createAnatomyRecord = (toothKey, dentition) => {
         surfaceMap: Object.freeze({
             model: surfaceModel,
             geometryRef: `surfaces:${toothKey}`,
+            surfaceCodes: Object.freeze(surfaceCodes),
         }),
         rootCount: rootIds.length,
         rootOutlineRefs: Object.freeze(rootIds.map((rootId) => Object.freeze({

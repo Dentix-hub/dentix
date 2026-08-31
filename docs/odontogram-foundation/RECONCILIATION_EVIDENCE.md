@@ -32,6 +32,16 @@ T1 command:
 npm.cmd run test -- src/features/clinical-chart/tests src/features/dental/DentalChartSVG.test.jsx
 ```
 
-Result: exit code `0`; `11` test files passed; `89` tests passed; no failures.
+Initial result: exit code `0`; `11` test files passed; `89` tests passed; no failures.
+
+Post-review remediation result: exit code `0`; `11` test files passed; `78` tests passed; no failures. The count changed because transform-specific assertions were replaced by one parameterized invariant covering every permanent and primary crown.
+
+## Independent review remediation
+
+- Removed all production crown orientation and scaling transforms so roots remain an additive layer over the protected crown baseline.
+- Removed dormant crown transform fields from the display-metrics registry.
+- Added per-tooth surface validation from the anatomy registry.
+- Centralized the supported lifecycle, finding, and procedure code lists in the domain layer and made the projection DTO fail fast on unknown values.
+- Converted the two evidence artifacts to genuine PNG encoding while preserving their filenames.
 
 T2 and protected integration evidence are recorded on the reconciliation PR before ODG-L1 begins.

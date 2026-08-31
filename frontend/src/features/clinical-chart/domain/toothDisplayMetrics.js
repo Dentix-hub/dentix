@@ -36,14 +36,9 @@ const getRootScale = (anatomy, position) => {
 
 const createDisplayMetrics = (anatomy) => {
     const position = Number(anatomy.toothKey[1]);
-    const isLateralIncisor = anatomy.toothType === 'incisor' && position === 2;
-    const crownScale = isLateralIncisor ? (anatomy.dentition === 'primary' ? 0.9 : 0.88) : 1;
-    const crownPivotY = anatomy.arch === 'maxillary' ? 12 : 42;
 
     return Object.freeze({
         toothKey: anatomy.toothKey,
-        crownScale,
-        crownPivot: Object.freeze({ x: 25, y: crownPivotY }),
         rootScale: getRootScale(anatomy, position),
     });
 };

@@ -52,56 +52,17 @@ describe('DentalChartSVG optional root extension', () => {
         expect(container.querySelectorAll('svg[data-layer="roots"]')).toHaveLength(20);
     });
 
-    it('rotates only the upper permanent incisors so their incisal edge faces down', () => {
+    it.each([false, true])('preserves every %s dentition crown without orientation or scale transforms', (isPediatric) => {
         const { container } = render(
-            <DentalChartSVG teethStatus={{}} onToothClick={vi.fn()} isPediatric={false} showRoots />,
+            <DentalChartSVG teethStatus={{}} onToothClick={vi.fn()} isPediatric={isPediatric} showRoots />,
         );
 
-        ['11', '12', '21', '22'].forEach((toothKey) => {
-            expect(container.querySelector(`svg[data-layer="crown"][data-tooth-key="${toothKey}"] [data-crown-orientation]`))
-                .toHaveAttribute('transform', 'rotate(180 25 30)');
-        });
-        expect(container.querySelector('svg[data-layer="crown"][data-tooth-key="31"] [data-crown-orientation]'))
-            .not.toHaveAttribute('transform');
-    });
-
-    it('applies the same upper-incisor orientation to primary teeth', () => {
-        const { container } = render(
-            <DentalChartSVG teethStatus={{}} onToothClick={vi.fn()} isPediatric showRoots />,
-        );
-
-        ['51', '52', '61', '62'].forEach((toothKey) => {
-            expect(container.querySelector(`svg[data-layer="crown"][data-tooth-key="${toothKey}"] [data-crown-orientation]`))
-                .toHaveAttribute('transform', 'rotate(180 25 30)');
-        });
-        expect(container.querySelector('svg[data-layer="crown"][data-tooth-key="71"] [data-crown-orientation]'))
-            .not.toHaveAttribute('transform');
-    });
-
-    it('renders permanent lateral incisors slightly smaller without changing central incisors', () => {
-        const { container } = render(
-            <DentalChartSVG teethStatus={{}} onToothClick={vi.fn()} isPediatric={false} showRoots />,
-        );
-
-        ['12', '22', '32', '42'].forEach((toothKey) => {
-            const scaleGroup = container.querySelector(`svg[data-layer="crown"][data-tooth-key="${toothKey}"] [data-crown-scale]`);
-            expect(scaleGroup).toHaveAttribute('data-crown-scale', '0.88');
-            expect(scaleGroup.getAttribute('transform')).toContain('scale(0.88)');
-        });
-        ['11', '21', '31', '41'].forEach((toothKey) => {
-            expect(container.querySelector(`svg[data-layer="crown"][data-tooth-key="${toothKey}"] [data-crown-scale]`))
-                .not.toHaveAttribute('transform');
-        });
-    });
-
-    it('applies the corresponding primary lateral-incisor scale', () => {
-        const { container } = render(
-            <DentalChartSVG teethStatus={{}} onToothClick={vi.fn()} isPediatric showRoots />,
-        );
-
-        ['52', '62', '72', '82'].forEach((toothKey) => {
-            expect(container.querySelector(`svg[data-layer="crown"][data-tooth-key="${toothKey}"] [data-crown-scale]`))
-                .toHaveAttribute('data-crown-scale', '0.9');
+        const crowns = container.querySelectorAll('svg[data-layer="crown"]');
+        expect(crowns).toHaveLength(isPediatric ? 20 : 32);
+        crowns.forEach((crown) => {
+            expect(crown.querySelector('[data-crown-orientation]')).not.toHaveAttribute('transform');
+            expect(crown.querySelector('[data-crown-scale]')).toHaveAttribute('data-crown-scale', '1');
+            expect(crown.querySelector('[data-crown-scale]')).not.toHaveAttribute('transform');
         });
     });
 

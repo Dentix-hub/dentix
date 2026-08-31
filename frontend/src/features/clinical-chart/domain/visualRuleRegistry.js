@@ -2,6 +2,13 @@ import {
     PROJECTION_TARGET_KINDS,
     PROJECTION_VISUAL_PHASES,
 } from './clinicalChartProjection';
+import {
+    FINDING_CODES,
+    PROCEDURE_CODES,
+    TOOTH_LIFECYCLE_CODES,
+} from './clinicalVisualCodes';
+
+export { FINDING_CODES, PROCEDURE_CODES, TOOTH_LIFECYCLE_CODES } from './clinicalVisualCodes';
 
 export const VISUAL_LAYER_ROLES = Object.freeze({
     BASE_ANATOMY: 'base-anatomy',
@@ -20,30 +27,6 @@ export const VISUAL_LAYER_SEQUENCE = Object.freeze([
     VISUAL_LAYER_ROLES.PLANNED_ACTIVE_WORK,
     VISUAL_LAYER_ROLES.SELECTION_FOCUS,
 ]);
-
-export const TOOTH_LIFECYCLE_CODES = Object.freeze({
-    PRESENT: 'PRESENT',
-    MISSING: 'MISSING',
-    EXTRACTED: 'EXTRACTED',
-    IMPACTED: 'IMPACTED',
-    UNERUPTED: 'UNERUPTED',
-});
-
-export const FINDING_CODES = Object.freeze({
-    CARIES: 'CARIES',
-    FRACTURE: 'FRACTURE',
-    PAIN: 'PAIN',
-});
-
-export const PROCEDURE_CODES = Object.freeze({
-    REST_COMPOSITE: 'REST_COMPOSITE',
-    ENDO_RCT: 'ENDO_RCT',
-    PROS_CROWN: 'PROS_CROWN',
-    PROS_BRIDGE: 'PROS_BRIDGE',
-    IMPLANT_FIXTURE: 'IMPLANT_FIXTURE',
-    IMPLANT_CROWN: 'IMPLANT_CROWN',
-    SURG_EXTRACTION: 'SURG_EXTRACTION',
-});
 
 const freezeRule = ({ category, code, layerRole, effect, targetKinds, presentation }) => Object.freeze({
     category,

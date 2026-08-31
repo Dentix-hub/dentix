@@ -4,6 +4,11 @@ import {
     PERMANENT_TOOTH_KEYS,
     PRIMARY_TOOTH_KEYS,
 } from './dentalAnatomyRegistry';
+import {
+    FINDING_CODES,
+    PROCEDURE_CODES,
+    TOOTH_LIFECYCLE_CODES,
+} from './clinicalVisualCodes';
 
 export const CLINICAL_CHART_PROJECTION_VERSION = 1;
 
@@ -25,8 +30,6 @@ export const PROJECTION_VISUAL_PHASES = Object.freeze({
     ACTIVE: 'active',
     COMPLETED: 'completed',
 });
-
-const PROJECTION_SURFACE_CODE_PATTERN = /^(M|D|O|I|B|L|P)$/;
 
 const assertRecord = (name, value) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -97,8 +100,9 @@ export const createProjectionTarget = (target, anatomyDefinition = DENTAL_ANATOM
 
     if (kind === PROJECTION_TARGET_KINDS.SURFACE) {
         const surfaceCode = requireString('target.surfaceCode', target.surfaceCode).toUpperCase();
-        if (!PROJECTION_SURFACE_CODE_PATTERN.test(surfaceCode)) {
-            throw new RangeError(`Unsupported surface code: ${surfaceCode}`);
+        const allowedSurfaceCodes = anatomyDefinition[toothKey].surfaceMap.surfaceCodes;
+        if (!allowedSurfaceCodes.includes(surfaceCode)) {
+            throw new RangeError(`Surface code ${surfaceCode} is not valid for tooth ${toothKey}`);
         }
         return Object.freeze({
             kind,
@@ -175,9 +179,15 @@ const createVisualEntry = ({
         throw new RangeError(`${entryType} annotation targets must belong to tooth ${toothKey}`);
     }
 
+    const code = requireString(`${entryType}.code`, entry.code).toUpperCase();
+    const allowedCodes = entryType === 'finding'
+        ? Object.values(FINDING_CODES)
+        : Object.values(PROCEDURE_CODES);
+    assertEnumValue(`${entryType}.code`, code, allowedCodes);
+
     return Object.freeze({
         visualId: requireString(`${entryType}.visualId`, entry.visualId ?? fallbackId),
-        code: requireString(`${entryType}.code`, entry.code),
+        code,
         phase,
         targets: Object.freeze(targets),
         annotations: Object.freeze(annotations),
@@ -241,9 +251,13 @@ export const createToothVisualState = (
         throw new RangeError(`annotation targets must belong to tooth ${toothKey}`);
     }
 
+    const lifecycle = requireString('lifecycle', state.lifecycle ?? TOOTH_LIFECYCLE_CODES.PRESENT)
+        .toUpperCase();
+    assertEnumValue('lifecycle', lifecycle, Object.values(TOOTH_LIFECYCLE_CODES));
+
     return Object.freeze({
         toothKey,
-        lifecycle: requireString('lifecycle', state.lifecycle ?? 'PRESENT'),
+        lifecycle,
         findings: Object.freeze(findings),
         procedures: Object.freeze(procedures),
         selection: Object.freeze({
