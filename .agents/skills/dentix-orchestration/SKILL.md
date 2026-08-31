@@ -41,6 +41,19 @@ plan execution  -> dentix-plan-execution
 
 Do not restate or weaken those skills. Do not force generic orchestration/review skill lists into simple delegate briefs.
 
+## Active Work Preflight
+
+Before dispatching a new master plan or execution wave:
+
+1. Read `docs/engineering/DENTIX_ACTIVE_WORK_REGISTRY.md`.
+2. Inspect open pull requests.
+3. Inspect current worktrees.
+4. Detect touch-surface overlap.
+5. Detect prerequisite work that is not integrated into the authoritative protected branch.
+6. Detect stale branches from earlier plans.
+
+If any overlap or prerequisite conflict exists, **DO NOT START NEW EXECUTION**. Enter Active Work Reconciliation first and record an explicit keep, defer, supersede, salvage, or cleanup-ready disposition before dispatch.
+
 ## Required Orchestration Algorithm
 
 1. Read the complete source plan or specification and repository authorities once before dispatch.
