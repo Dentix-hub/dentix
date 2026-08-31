@@ -302,7 +302,9 @@ const createInstruction = ({ rule, sourceId, phase, target, order }) => {
 
 const resolveEntryInstructions = (category, entries, startOrder) => entries.flatMap((entry, entryIndex) => {
     const rule = getVisualRule(category, entry.code);
-    if (!rule) return [];
+    if (!rule) {
+        throw new RangeError(`Unknown ${category} code: ${entry.code}`);
+    }
     return entry.targets
         .filter((target) => rule.targetKinds.includes(target.kind))
         .map((target, targetIndex) => createInstruction({
@@ -342,15 +344,16 @@ export const resolveToothVisualInstructions = (toothState) => {
     const instructions = [];
     const lifecycleRule = getVisualRule('lifecycle', normalizedState.lifecycle);
 
-    if (lifecycleRule) {
-        instructions.push(createInstruction({
-            rule: lifecycleRule,
-            sourceId: `lifecycle:${normalizedState.toothKey}`,
-            phase: null,
-            target: Object.freeze({ kind: PROJECTION_TARGET_KINDS.TOOTH, toothKey: normalizedState.toothKey }),
-            order: 0,
-        }));
+    if (!lifecycleRule) {
+        throw new RangeError(`Unknown lifecycle code: ${normalizedState.lifecycle}`);
     }
+    instructions.push(createInstruction({
+        rule: lifecycleRule,
+        sourceId: `lifecycle:${normalizedState.toothKey}`,
+        phase: null,
+        target: Object.freeze({ kind: PROJECTION_TARGET_KINDS.TOOTH, toothKey: normalizedState.toothKey }),
+        order: 0,
+    }));
 
     instructions.push(...resolveEntryInstructions('finding', normalizedState.findings, 1000));
     instructions.push(...resolveEntryInstructions('procedure', normalizedState.procedures, 2000));

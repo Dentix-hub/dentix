@@ -120,6 +120,21 @@ describe('ClinicalChartRendererAdapter contract', () => {
         expect(() => createInput({ [field]: value })).toThrow(TypeError);
     });
 
+    it.each([
+        ['lifecycle', { lifecycle: 'UNKNOWN' }, 'Unknown lifecycle code: UNKNOWN'],
+        ['finding', { findings: [{ code: 'UNKNOWN', targets: [] }] }, 'Unknown finding code: UNKNOWN'],
+        ['procedure', { procedures: [{ code: 'UNKNOWN', targets: [] }] }, 'Unknown procedure code: UNKNOWN'],
+    ])('rejects raw visual-state %s codes at the public adapter boundary', (_kind, toothState, message) => {
+        const input = createInput({
+            visualState: {
+                teeth: { 11: toothState },
+                selection: null,
+            },
+        });
+
+        expect(() => createClinicalChartRendererAdapter(input)).toThrow(message);
+    });
+
     it('renders through the adapter and forwards pointer interaction as a neutral intent', () => {
         const onSurfaceSelected = vi.fn();
         const input = createInput({ callbacks: { onSurfaceSelected } });

@@ -42,6 +42,7 @@ Post-review remediation result: exit code `0`; `11` test files passed; `78` test
 - Removed dormant crown transform fields from the display-metrics registry.
 - Added per-tooth surface validation from the anatomy registry.
 - Centralized the supported lifecycle, finding, and procedure code lists in the domain layer and made the projection DTO fail fast on unknown values.
+- Added defense-in-depth fail-fast checks in the visual resolver so raw public-adapter callers cannot bypass the projection DTO and silently drop unknown semantic codes.
 - Converted the two evidence artifacts to genuine PNG encoding while preserving their filenames.
 
 T2 and protected integration evidence are recorded on the reconciliation PR before ODG-L1 begins.
