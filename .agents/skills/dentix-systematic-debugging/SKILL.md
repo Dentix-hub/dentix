@@ -5,7 +5,11 @@ description: Diagnose and fix DENTIX bugs, exceptions, incorrect behavior, faile
 
 # DENTIX Systematic Debugging Guide
 
+## Activation Trigger (Failure-Only)
+Activate this skill **only** when an actual test failure, runtime exception, CI failure (`agent:ci-red`), build error, or verified regression occurs. **Do not preload this skill on clean implementation paths.**
+
 ## 4-Phase Root-Cause Analysis (RCA)
+
 
 ### Phase 1: Problem Definition & Reproduction
 - Define the exact discrepancy between **Expected Behavior** and **Observed Behavior**.

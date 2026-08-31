@@ -59,7 +59,7 @@ A subsequent repository-hygiene commit removes the malformed legacy `scripts/dep
 
 ## External integration note
 
-Repository code search contains no CodeRabbit configuration after Agent Stack normalization, but GitHub still reports a successful `CodeRabbit` external status check. That indicates the GitHub App/integration remains connected outside the repository files and must be disconnected in repository/organization integration settings if complete CodeRabbit removal is required.
+Repository code search contains no CodeRabbit configuration after Agent Stack normalization. On 2026-08-30, the repository owner confirmed that the CodeRabbit GitHub App was uninstalled and any personal GitHub authorization was revoked. A follow-up verification found no CodeRabbit webhook and confirmed that `CodeRabbit` is not one of the 12 unique required ruleset status contexts. Historical CodeRabbit statuses or comments on earlier commits and pull requests may remain as immutable audit history; they do not indicate current repository access.
 
 ## Known decisions / contracts produced during execution
 

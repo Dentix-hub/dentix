@@ -75,8 +75,18 @@ For multi-step or plan-based work:
 
 When an approved plan exists, execute the approved plan rather than replacing it with a shorter plan.
 
+For multi-ticket or delegated parallel work, apply `dentix-orchestration` in addition to `dentix-plan-execution`:
+- **Execution Modes**:
+  - `FAST`: Low-risk test, doc, or isolated presentational UI work (touched-file pilot cap <= 3, single subsystem, no shared contracts/auth/finance/migrations/clinical semantics). Uses T1 targeted checks, orchestrator mechanical inspection, and wave PRs.
+  - `STANDARD`: Normal product work (wave budget <= 5 tickets in same subsystem/risk family). Uses T1 for production changes, one independent review per wave at wave boundary, T2 wave gate, and wave PRs.
+  - `HIGH_RISK`: Closed list (auth, RBAC, tenancy/RLS, finance/money, migrations/schema lineage, security controls, shared contracts, clinical semantics, deployment/governance, irreversible data). Strict `SERIAL_ONLY` by default, independent review per ticket, full T1/T2/T3 verification, and individual PR.
+- **Worktree Isolation**: 1 concurrent writer = 1 isolated worktree. Serial wave tickets by a single writer reuse the same worktree with bounded commits.
+- **Drift-Abort**: If actual touched production files exceed the declared touch surface or cross subsystem/contract boundaries, immediately stop and reclassify.
+- **No Model CI Polling**: Model-driven CI polling is forbidden. After creating a PR or triggering CI, record metadata, set `agent:awaiting-ci`, and stop the model loop.
+
 ## 6. Debugging Discipline
 
+Activate `dentix-systematic-debugging` only upon actual failure or regression; do not preload it on clean paths.
 Before fixing a bug:
 1. Reproduce or establish evidence of the failure.
 2. Identify the root cause.
@@ -89,7 +99,13 @@ Before fixing a bug:
 
 Use the repository's existing test, lint, build, security, and analysis commands.
 
-Do not invent a universal coverage target. Follow the thresholds and checks defined by the current repository/CI (e.g. 70% backend CI fail-under).
+Do not invent a universal coverage target. The active CI configuration (e.g. `.github/workflows/ci.yml` `--cov-fail-under`) is the sole operational source of truth for coverage thresholds.
+
+Verification Tiers:
+- `T0`: Development sanity (syntax/types/lint).
+- `T1`: Targeted ticket verification (mandatory for production changes and direct regressions before wave gate).
+- `T2`: Wave/phase verification gate (subsystem tests, lint, build, clinical UI visual evidence).
+- `T3`: Repository/protected integration (CI PR checks, HIGH_RISK full suites, protected `staging`/`main` pushes).
 
 When a baseline test already fails:
 - record it,

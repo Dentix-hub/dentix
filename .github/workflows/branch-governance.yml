@@ -3,14 +3,17 @@ name: Dentix Branch Governance
 on:
   pull_request:
     branches: [main, staging]
-    types: [opened, synchronize, reopened, edited, ready_for_review]
+    types: [opened, synchronize, reopened, edited, ready_for_review, labeled]
 
 permissions:
   contents: read
 
 jobs:
   promotion-path:
-    name: Validate promotion path
+    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / Validate promotion path' || 'Validate promotion path' }}
+    if: >-
+      github.event.action != 'labeled' ||
+      !startsWith(github.event.label.name, 'agent:')
     runs-on: ubuntu-latest
     steps:
       - name: Validate PR source and target
@@ -52,23 +55,56 @@ jobs:
           exit 1
 
   workflow-authority:
-    name: Protect authoritative CD workflow
+    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / Protect authoritative CD workflow' || 'Protect authoritative CD workflow' }}
     runs-on: ubuntu-latest
-    if: github.base_ref == 'staging'
+    if: >-
+      github.event.action != 'labeled' ||
+      !startsWith(github.event.label.name, 'agent:')
     steps:
       - name: Checkout PR revision
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
-      - name: Reject staging-only CD workflow drift
+      - name: Protect authoritative CD workflow
+        env:
+          BASE_BRANCH: ${{ github.base_ref }}
+          HEAD_BRANCH: ${{ github.head_ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --depth=1 origin main
-          if ! git diff --quiet origin/main -- .github/workflows/cd.yml; then
-            echo "::error::.github/workflows/cd.yml must stay aligned with the authoritative main copy. Update main intentionally first, then sync staging."
-            git diff -- .github/workflows/cd.yml || true
-            exit 1
+          git fetch --depth=1 origin main staging
+
+          if [ "$BASE_BRANCH" = "staging" ]; then
+            if ! git diff --quiet origin/main -- .github/workflows/cd.yml; then
+              echo "::error::.github/workflows/cd.yml must stay aligned with the authoritative main copy. Update main intentionally first, then sync staging."
+              git diff -- .github/workflows/cd.yml || true
+              exit 1
+            fi
+            echo "CD workflow matches authoritative main copy."
+            exit 0
           fi
-          echo "CD workflow matches authoritative main copy."
+
+          if [ "$BASE_BRANCH" = "main" ] && [ "$HEAD_BRANCH" = "staging" ]; then
+            CURRENT_STAGING_SHA="$(git rev-parse origin/staging)"
+            if [ "$PR_HEAD_SHA" != "$CURRENT_STAGING_SHA" ]; then
+              echo "::error::Promotion head ${PR_HEAD_SHA} is stale; current protected staging is ${CURRENT_STAGING_SHA}."
+              exit 1
+            fi
+            echo "Promotion targets the current protected staging revision."
+            exit 0
+          fi
+
+          if [ "$BASE_BRANCH" = "main" ]; then
+            if ! git diff --quiet origin/main -- .github/workflows/cd.yml; then
+              echo "::error::Direct hotfix/release promotions must not mutate the authoritative CD workflow."
+              git diff origin/main -- .github/workflows/cd.yml || true
+              exit 1
+            fi
+            echo "Authoritative CD workflow is unchanged."
+            exit 0
+          fi
+
+          echo "::error::Unexpected protected target: ${BASE_BRANCH}"
+          exit 1

@@ -3,6 +3,7 @@ name: Dentix PostgreSQL HTTP IDOR Gate
 on:
   pull_request:
     branches: [main, staging]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
   push:
     branches: [main, staging]
 
@@ -10,12 +11,19 @@ permissions:
   contents: read
 
 concurrency:
-  group: dentix-pg-http-idor-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: >-
+    dentix-pg-http-idor-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{
+      github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:')
+      && github.event.label.name || 'validation'
+    }}
   cancel-in-progress: true
 
 jobs:
   postgres-http-idor:
-    name: PostgreSQL HTTP Cross-Tenant BOLA Matrix
+    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / PostgreSQL HTTP Cross-Tenant BOLA Matrix' || 'PostgreSQL HTTP Cross-Tenant BOLA Matrix' }}
+    if: >-
+      github.event.action != 'labeled' ||
+      !startsWith(github.event.label.name, 'agent:')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -43,29 +51,57 @@ jobs:
     steps:
       - name: Checkout tested revision
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+
+      - name: Fetch base branch for PR diff
+        if: github.event_name == 'pull_request'
+        run: git fetch --depth=50 origin ${{ github.base_ref }} || true
+
+      - name: Classify CI Scope
+        id: classify
+        env:
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels) }}
+        run: |
+          set -euo pipefail
+          python .github/scripts/classify_ci_scope.py \
+            --event "${{ github.event_name }}" \
+            --target-branch "${{ github.base_ref || github.ref_name }}" \
+            --base-ref "origin/${{ github.base_ref || 'staging' }}" \
+            --labels-json "${PR_LABELS:-[]}" \
+            --output-format github-output
+
+      - name: Skip notice when tenancy / backend untouched
+        if: ${{ !cancelled() && steps.classify.outcome == 'success' && steps.classify.outputs.force_full == 'false' && steps.classify.outputs.tenancy == 'false' && steps.classify.outputs.auth == 'false' && steps.classify.outputs.security == 'false' && steps.classify.outputs.backend == 'false' }}
+        run: echo "Auth, tenancy, security, and backend untouched; skipping HTTP IDOR gate safely."
 
       - name: Set up Python 3.11
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.tenancy == 'true' || steps.classify.outputs.auth == 'true' || steps.classify.outputs.security == 'true' || steps.classify.outputs.backend == 'true') }}
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install pinned uv
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.tenancy == 'true' || steps.classify.outputs.auth == 'true' || steps.classify.outputs.security == 'true' || steps.classify.outputs.backend == 'true') }}
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: '0.12.5'
 
       - name: Install dependencies from frozen lock
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.tenancy == 'true' || steps.classify.outputs.auth == 'true' || steps.classify.outputs.security == 'true' || steps.classify.outputs.backend == 'true') }}
         run: |
           set -euo pipefail
           uv sync --frozen
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Initialize PostgreSQL via production preflight
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.tenancy == 'true' || steps.classify.outputs.auth == 'true' || steps.classify.outputs.security == 'true' || steps.classify.outputs.backend == 'true') }}
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_idor
         run: python -m backend.scripts.preflight_migrations
 
       - name: Provision NOBYPASSRLS application role
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.tenancy == 'true' || steps.classify.outputs.auth == 'true' || steps.classify.outputs.security == 'true' || steps.classify.outputs.backend == 'true') }}
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_idor
         run: |
@@ -111,6 +147,7 @@ jobs:
           PY
 
       - name: Run HTTP BOLA and upload matrix through PostgreSQL FORCE RLS
+        if: ${{ !cancelled() && (steps.classify.outcome != 'success' || steps.classify.outputs.force_full != 'false' || steps.classify.outputs.tenancy == 'true' || steps.classify.outputs.auth == 'true' || steps.classify.outputs.security == 'true' || steps.classify.outputs.backend == 'true') }}
         env:
           APP_DATABASE_URL_PREFIX: postgresql://dentix_idor_app
           APP_DATABASE_URL_SUFFIX: :dentix_idor_app_pass@localhost:5432/dentix_idor
