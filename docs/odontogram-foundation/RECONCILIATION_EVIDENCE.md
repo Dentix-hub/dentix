@@ -34,7 +34,7 @@ npm.cmd run test -- src/features/clinical-chart/tests src/features/dental/Dental
 
 Initial result: exit code `0`; `11` test files passed; `89` tests passed; no failures.
 
-Post-review remediation result: exit code `0`; `11` test files passed; `78` tests passed; no failures. The count changed because transform-specific assertions were replaced by one parameterized invariant covering every permanent and primary crown.
+Post-review remediation result: exit code `0`; `11` test files passed; `81` tests passed; no failures. The suite replaces transform-specific assertions with one parameterized invariant covering every permanent and primary crown and adds three defense-in-depth public-adapter cases.
 
 ## Independent review remediation
 
@@ -45,4 +45,6 @@ Post-review remediation result: exit code `0`; `11` test files passed; `78` test
 - Added defense-in-depth fail-fast checks in the visual resolver so raw public-adapter callers cannot bypass the projection DTO and silently drop unknown semantic codes.
 - Converted the two evidence artifacts to genuine PNG encoding while preserving their filenames.
 
-T2 and protected integration evidence are recorded on the reconciliation PR before ODG-L1 begins.
+T2 local result: lint exit code `0`; full frontend suite exit code `0` with `106` test files and `462` tests passed; production build exit code `0`.
+
+Protected integration evidence is recorded on the reconciliation PR before ODG-L1 begins.
