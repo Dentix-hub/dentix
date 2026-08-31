@@ -14,7 +14,14 @@ from evaluate_ci_signal import (
 )
 
 
-def _make_check_run(name, status="completed", conclusion="success", app_id=GITHUB_ACTIONS_APP_ID, url=""):
+def _make_check_run(
+    name,
+    status="completed",
+    conclusion="success",
+    app_id=GITHUB_ACTIONS_APP_ID,
+    url="",
+    run_id=0,
+):
     """Helper to create a check-run dict with the expected app.id."""
     return {
         "name": name,
@@ -22,6 +29,7 @@ def _make_check_run(name, status="completed", conclusion="success", app_id=GITHU
         "conclusion": conclusion,
         "html_url": url,
         "app": {"id": app_id},
+        "id": run_id,
     }
 
 
@@ -53,6 +61,57 @@ def test_evaluate_checks_all_green(monkeypatch):
     assert state == "GREEN"
     assert len(failing) == 0
     assert len(pending) == 0
+
+
+def test_evaluate_checks_paginates_all_check_runs(monkeypatch):
+    noise_runs = [
+        _make_check_run(f"Agent label no-op {index}")
+        for index in range(100)
+    ]
+    required_runs = [_make_check_run(name) for name in REQUIRED_CHECK_CONTEXTS]
+    requested_endpoints = []
+
+    def fake_api(endpoint, **kwargs):
+        requested_endpoints.append(endpoint)
+        if endpoint.endswith("&page=1"):
+            return {"total_count": 112, "check_runs": noise_runs}
+        if endpoint.endswith("&page=2"):
+            return {"total_count": 112, "check_runs": required_runs}
+        raise AssertionError(f"Unexpected endpoint: {endpoint}")
+
+    monkeypatch.setattr("evaluate_ci_signal.github_api_request", fake_api)
+
+    state, failing, pending = evaluate_checks("dummy_sha", "token", "repo")
+
+    assert state == "GREEN"
+    assert failing == []
+    assert pending == []
+    assert requested_endpoints == [
+        "commits/dummy_sha/check-runs?per_page=100&page=1",
+        "commits/dummy_sha/check-runs?per_page=100&page=2",
+    ]
+
+
+def test_evaluate_checks_uses_newest_run_for_duplicate_context(monkeypatch):
+    duplicated_name = REQUIRED_CHECK_CONTEXTS[0]
+    check_runs = [_make_check_run(name, run_id=200) for name in REQUIRED_CHECK_CONTEXTS]
+    check_runs.append(
+        _make_check_run(duplicated_name, conclusion="cancelled", run_id=100)
+    )
+
+    monkeypatch.setattr(
+        "evaluate_ci_signal.github_api_request",
+        lambda endpoint, **kwargs: {
+            "total_count": len(check_runs),
+            "check_runs": check_runs,
+        },
+    )
+
+    state, failing, pending = evaluate_checks("dummy_sha", "token", "repo")
+
+    assert state == "GREEN"
+    assert failing == []
+    assert pending == []
 
 
 def test_evaluate_checks_missing_cd_authority_pending(monkeypatch):

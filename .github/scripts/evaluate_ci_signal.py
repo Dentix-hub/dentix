@@ -41,6 +41,7 @@ REQUIRED_CHECK_CONTEXTS = [
 GITHUB_ACTIONS_APP_ID = 15368
 
 ACCEPTED_CONCLUSIONS = {"success", "neutral", "skipped"}
+CHECK_RUNS_PAGE_SIZE = 100
 
 
 def github_api_request(
@@ -107,6 +108,30 @@ def get_open_pr_for_sha(sha: str, token: str, repo: str) -> Optional[dict]:
     return None
 
 
+def get_all_check_runs(sha: str, token: str, repo: str) -> List[dict]:
+    """Fetch every check-run page for a commit SHA."""
+    check_runs = []
+    page = 1
+
+    while True:
+        data = github_api_request(
+            f"commits/{sha}/check-runs?per_page={CHECK_RUNS_PAGE_SIZE}&page={page}",
+            token=token,
+            repo=repo,
+        )
+        page_runs = data.get("check_runs", [])
+        check_runs.extend(page_runs)
+
+        total_count = data.get("total_count")
+        if len(page_runs) < CHECK_RUNS_PAGE_SIZE:
+            break
+        if isinstance(total_count, int) and len(check_runs) >= total_count:
+            break
+        page += 1
+
+    return check_runs
+
+
 def evaluate_checks(sha: str, token: str, repo: str) -> Tuple[str, List[Dict[str, str]], List[str]]:
     """
     Evaluate check runs and statuses for a commit SHA.
@@ -115,8 +140,7 @@ def evaluate_checks(sha: str, token: str, repo: str) -> Tuple[str, List[Dict[str
 
     Only trusts check-runs from the expected GitHub Actions app (app.id validation).
     """
-    check_runs_data = github_api_request(f"commits/{sha}/check-runs", token=token, repo=repo)
-    check_runs = check_runs_data.get("check_runs", [])
+    check_runs = get_all_check_runs(sha, token=token, repo=repo)
 
     # Filter check runs to only those from the GitHub Actions app
     # This prevents spoofed or third-party check-runs from influencing the signal.
@@ -133,7 +157,14 @@ def evaluate_checks(sha: str, token: str, repo: str) -> Tuple[str, List[Dict[str
     if untrusted_count > 0:
         print(f"Notice: Filtered out {untrusted_count} check-runs from non-GitHub-Actions apps.")
 
-    check_by_name = {c.get("name"): c for c in trusted_runs}
+    check_by_name = {}
+    for check_run in trusted_runs:
+        name = check_run.get("name")
+        if not name:
+            continue
+        current = check_by_name.get(name)
+        if current is None or check_run.get("id", 0) > current.get("id", 0):
+            check_by_name[name] = check_run
 
     failing = []
     pending = []
