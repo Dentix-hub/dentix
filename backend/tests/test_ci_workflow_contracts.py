@@ -103,6 +103,20 @@ def test_mobile_responsive_runs_on_both_protected_push_branches():
     assert set(branches) == {"main", "staging"}
 
 
+def test_authoritative_cd_context_materializes_and_guards_main_promotions():
+    job = _load_workflow("branch-governance.yml")["jobs"]["workflow-authority"]
+
+    assert "github.base_ref == 'staging'" not in job["if"]
+    guard = job["steps"][1]
+    assert guard["name"] == "Protect authoritative CD workflow"
+    assert guard["env"]["PR_HEAD_SHA"] == (
+        "${{ github.event.pull_request.head.sha }}"
+    )
+    assert "git rev-parse origin/staging" in guard["run"]
+    assert 'if [ "$PR_HEAD_SHA" != "$CURRENT_STAGING_SHA" ]' in guard["run"]
+    assert "git diff --quiet origin/main -- .github/workflows/cd.yml" in guard["run"]
+
+
 def test_agent_ci_signal_uses_trusted_code_and_minimal_permissions():
     workflow = _load_workflow("agent-ci-signal.yml")
     assert workflow["permissions"] == {
