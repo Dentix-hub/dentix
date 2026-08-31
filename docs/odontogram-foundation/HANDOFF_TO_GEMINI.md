@@ -21,4 +21,3 @@ This document is intentionally created during A0 and will be completed during A1
 7. Known limitations
 8. Gemini integration boundaries
 9. Hard-stop declaration
-

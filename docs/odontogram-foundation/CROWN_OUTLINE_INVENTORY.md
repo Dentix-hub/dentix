@@ -42,4 +42,3 @@ Inventory date: `2026-08-29`
 - primary teeth resolve to the same family-level path language used by the current production chart;
 - source path strings and source style tokens remain unchanged;
 - notation conversion and ad hoc source imports stay outside renderer components.
-

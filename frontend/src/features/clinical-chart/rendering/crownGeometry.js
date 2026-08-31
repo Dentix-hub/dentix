@@ -70,4 +70,3 @@ export const getCrownGeometry = (toothKey) => {
         style: CROWN_STYLE_TOKENS.primary,
     });
 };
-

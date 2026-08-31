@@ -4,7 +4,7 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 
 | Micro-task | Status | Evidence / note |
 | --- | --- | --- |
-| A0-M01 Revalidate current main | PASS | `BASELINE_DRIFT_REPORT.md`; fetched `origin/main@89d67010` |
+| A0-M01 Revalidate current main | PASS | Initial: `BASELINE_DRIFT_REPORT.md`; protected reconciliation: `RECONCILIATION_EVIDENCE.md`, `origin/main@44a0930e` |
 | A0-M02 Create execution docs folder | PASS | Required four files plus drift report created |
 | A0-M03 Record baseline metadata | PASS | `README.md`; committed in `c0e27897` |
 | A0-M04 Create explicit scope lock note | PASS | `README.md`; committed in `c0e27897` |

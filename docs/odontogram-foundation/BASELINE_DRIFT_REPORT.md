@@ -43,4 +43,3 @@ These files are the starting inventory for A4. No backend or database drift is r
 ## Verdict
 
 **PASS WITH DOCUMENTED DRIFT.** Work may continue on the dedicated branch without rebasing user changes into `main`. Upstream localization changes are recorded and must not be overwritten.
-

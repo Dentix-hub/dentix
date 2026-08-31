@@ -27,4 +27,3 @@ describe('normalized crown geometry access', () => {
         expect(normalized.style).toEqual({ fill: '#ffffff', stroke: '#cbd5e1', strokeWidth: 1 });
     });
 });
-

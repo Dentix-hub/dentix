@@ -70,4 +70,3 @@ For every representative tooth family, capture a same-size overlay:
 - full-mouth view: row order, spacing, labels, shell, and interactions unchanged.
 
 No root phase may return to `PASS` until the user approves the real-chart comparison, not a standalone specimen.
-

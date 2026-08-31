@@ -26,8 +26,8 @@ The chart foundation follows **Dentix Native Renderer + Root Extension + Data-Dr
 ## Execution documents
 
 - `BASELINE_DRIFT_REPORT.md` — source-main comparison and pre-existing workspace inventory.
+- `RECONCILIATION_EVIDENCE.md` — protected-branch reconciliation metadata and verification.
 - `TASK_TRACKER.md` — micro-task ledger and verification status.
 - `DECISIONS.md` — implementation decisions and deviations.
 - `ADR-001-CHART-DIRECTION.md` — architectural direction and boundaries.
 - `HANDOFF_TO_GEMINI.md` — Part I handoff package, completed at A17.
-

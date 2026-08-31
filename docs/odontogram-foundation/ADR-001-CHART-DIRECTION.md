@@ -112,4 +112,3 @@ If an earlier exploratory document selected per-tooth raster variants as the pri
 - A1-M02: all five architectural layers are defined.
 - A1-M03: renderer non-responsibilities are explicit.
 - A1-M04: root/canal targeting, lifecycle layers, and multi-instance readiness are explicit.
-

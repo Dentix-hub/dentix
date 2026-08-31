@@ -22,4 +22,3 @@ FDI is the stable internal anatomy identity for this foundation. A later notatio
 ## Safety boundary
 
 The presence of permanent and primary teeth in a demo fixture is visual state only. It must not be interpreted as a diagnosis, eruption schedule, or production clinical record.
-
