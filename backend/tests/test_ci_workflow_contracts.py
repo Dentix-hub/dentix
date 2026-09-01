@@ -91,6 +91,17 @@ def test_required_context_names_are_preserved_only_for_validation_events(context
     assert f"Agent label no-op / {context}" in job_name
 
 
+def test_safety_dependency_check_avoids_unstable_full_advisory_feed():
+    backend_steps = _load_workflow("ci.yml")["jobs"]["backend"]["steps"]
+    safety_step = next(
+        step
+        for step in backend_steps
+        if step.get("name") == "Dependency vulnerability check — Safety"
+    )
+
+    assert safety_step["run"] == "safety check"
+    assert "--full-report" not in safety_step["run"]
+
 @pytest.mark.parametrize("filename", sorted(CONCURRENT_WORKFLOWS))
 def test_agent_label_runs_cannot_cancel_validation_runs(filename):
     concurrency_group = _load_workflow(filename)["concurrency"]["group"]
