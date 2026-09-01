@@ -329,11 +329,8 @@ jobs:
 
       - name: Dependency vulnerability check — Safety
         if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') }}
-        # The full advisory endpoint can be briefly inconsistent with Safety's
-        # package index and crash with a package-name KeyError (for example,
-        # `cuda-toolkit`). The default short report keeps the same vulnerability
-        # detection and failing exit code without querying that enrichment feed.
-        run: safety check
+        # Retry only Safety's exact feed-mismatch KeyError; every other non-zero exit remains fail-closed.
+        run: python .github/scripts/run_safety_check.py
 
   frontend:
     name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / Frontend Tests' || 'Frontend Tests' }}
