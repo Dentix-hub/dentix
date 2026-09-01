@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import ClinicalChartWorkspace from '../ClinicalChartWorkspace';
 
@@ -17,6 +17,17 @@ describe('ClinicalChartWorkspace scaffold', () => {
         expect(screen.queryByText('Root anatomy families')).not.toBeInTheDocument();
     });
 
+    it('shows a compact header, legend, and inline inspectors without a modal workflow', () => {
+        render(<ClinicalChartWorkspace />);
+
+        expect(screen.getByRole('heading', { name: 'Odontogram comparison' })).toBeInTheDocument();
+        const legend = screen.getByRole('list', { name: 'Clinical chart legend' });
+        expect(within(legend).getByText('Caries')).toBeInTheDocument();
+        expect(within(legend).getByText('Composite')).toBeInTheDocument();
+        expect(screen.getAllByTestId('clinical-chart-inspector')).toHaveLength(2);
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
     it('keeps focus selection isolated between chart instances', () => {
         const { container } = render(<ClinicalChartWorkspace />);
         const current = container.querySelector('[data-chart-instance="odontogram-current"]');
@@ -26,6 +37,12 @@ describe('ClinicalChartWorkspace scaffold', () => {
 
         expect(current).toHaveAttribute('data-selected-focus', '46:D');
         expect(history).toHaveAttribute('data-selected-focus', '');
+        const currentInspector = within(current).getByRole('complementary', {
+            name: 'Current chart inspector',
+        });
+        expect(within(currentInspector).getByText('46')).toBeInTheDocument();
+        expect(within(currentInspector).getByText('Distal (D)')).toBeInTheDocument();
+
     });
 
     it('keeps root and clinical-layer filters isolated between chart instances', () => {

@@ -72,11 +72,11 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A13-M02 Ensure state isolation | PASS | Each card owns presentation-only focus state; focused T1 passes |
 | A13-M03 Ensure independent layer filtering | PASS | Root and clinical-effect filters are local to each card; focused T1 passes |
 | A13-M04 Ensure read-only multi-instance support | PASS | Both renderer adapters remain read-only; focused T1 23/23 passes |
-| A14-M01 Create chart shell header | PENDING | — |
-| A14-M02 Create simple legend | PENDING | — |
-| A14-M03 Create simple inspector panel | PENDING | — |
-| A14-M04 Create simple selection summary | PENDING | — |
-| A14-M05 Keep UI intentionally simple | PENDING | — |
+| A14-M01 Create chart shell header | PASS | Compact comparison header is visible above the renderer cards |
+| A14-M02 Create simple legend | PASS | Six-item semantic color legend is visible and accessible |
+| A14-M03 Create simple inspector panel | PASS | Each chart has an inline read-only inspector; no modal is introduced |
+| A14-M04 Create simple selection summary | PASS | Inspector reports selected tooth, surface, finding count, and procedure count |
+| A14-M05 Keep UI intentionally simple | PASS | Focused T1 10/10 and targeted lint pass; no workflow engine or giant modal |
 | A15-M01 Verify chart on desktop | PENDING | — |
 | A15-M02 Verify chart on tablet width | PENDING | — |
 | A15-M03 Verify chart on mobile width | PENDING | — |

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import ClinicalChartRenderer from './ClinicalChartRenderer';
+import ClinicalChartInspector from './ClinicalChartInspector';
 import { DENTAL_ANATOMY_REGISTRY } from '../domain/dentalAnatomyRegistry';
 import {
     CHART_INTERACTION_MODES,
@@ -109,6 +110,7 @@ export default function ClinicalChartComparisonCard({
             </header>
 
             <ClinicalChartRenderer input={rendererInput} />
+            <ClinicalChartInspector selection={selection} title={title} toothState={projection.teeth[selection?.toothKey]} />
         </section>
     );
 }
