@@ -57,17 +57,17 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A11-M01 Support current notation display mode | PASS | Exact legacy Palmer labels match for all adult 1–32 and primary A–T sources after mapping to all 52 canonical FDI identities |
 | A11-M02 Add notation abstraction | PASS | Frozen presentation-only Palmer/FDI/Universal registry derives from canonical FDI identity and rejects unsupported or inherited keys; no selector rollout |
 | A11-M03 Verify label placement after roots | PASS | Final desktop evidence shows 32 labels/roots/crowns with zero clipping, overlap, identity mismatch, or document overflow |
-| A12-M01 Create adult dentition fixture | PENDING | — |
-| A12-M02 Create primary dentition fixture | PENDING | — |
-| A12-M03 Create mixed dentition fixture | PENDING | — |
-| A12-M04 Create caries-on-surface fixture | PENDING | — |
-| A12-M05 Create MOD restoration fixture | PENDING | — |
-| A12-M06 Create RCT fixture | PENDING | — |
-| A12-M07 Create crown fixture | PENDING | — |
-| A12-M08 Create missing tooth fixture | PENDING | — |
-| A12-M09 Create implant fixture | PENDING | — |
-| A12-M10 Create bridge fixture | PENDING | — |
-| A12-M11 Create simultaneous existing + planned fixture | PENDING | — |
+| A12-M01 Create adult dentition fixture | PASS | 32-tooth permanent projection fixture renders through the public adapter |
+| A12-M02 Create primary dentition fixture | PASS | 20-tooth primary projection fixture renders through the public adapter |
+| A12-M03 Create mixed dentition fixture | PASS | Explicit 24-tooth mixed FDI order renders permanent and primary anatomy together |
+| A12-M04 Create caries-on-surface fixture | PASS | Tooth 46 distal caries renders on crown surface D only |
+| A12-M05 Create MOD restoration fixture | PASS | Tooth 46 composite renders on M, O, and D surfaces |
+| A12-M06 Create RCT fixture | PASS | Tooth 46 RCT renders against mesial and distal roots |
+| A12-M07 Create crown fixture | PASS | Completed prosthetic crown renders on tooth 36 |
+| A12-M08 Create missing tooth fixture | PASS | Missing lifecycle renders on tooth 38 |
+| A12-M09 Create implant fixture | PASS | Tooth 23 implant fixture and crown render with natural roots hidden |
+| A12-M10 Create bridge fixture | PASS | 14-15-16 bridge units render with tooth 15 as the missing pontic |
+| A12-M11 Create simultaneous existing + planned fixture | PASS | Existing composite and planned crown layers render simultaneously on tooth 46 |
 | A13-M01 Create dual-chart page | PENDING | — |
 | A13-M02 Ensure state isolation | PENDING | — |
 | A13-M03 Ensure independent layer filtering | PENDING | — |

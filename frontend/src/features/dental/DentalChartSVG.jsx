@@ -84,6 +84,66 @@ const STATUS_STYLES = {
     Crown: { fill: '#fef08a', stroke: '#eab308' },
     RootCanal: { fill: '#e9d5ff', stroke: '#a855f7' },
 };
+const ADULT_LAYOUT = Object.freeze({
+    upperLeft: Object.freeze([16, 15, 14, 13, 12, 11, 10, 9]),
+    upperRight: Object.freeze([8, 7, 6, 5, 4, 3, 2, 1]),
+    lowerLeft: Object.freeze([17, 18, 19, 20, 21, 22, 23, 24]),
+    lowerRight: Object.freeze([25, 26, 27, 28, 29, 30, 31, 32]),
+});
+
+const PRIMARY_LAYOUT = Object.freeze({
+    upperLeft: Object.freeze(['J', 'I', 'H', 'G', 'F']),
+    upperRight: Object.freeze(['E', 'D', 'C', 'B', 'A']),
+    lowerLeft: Object.freeze(['K', 'L', 'M', 'N', 'O']),
+    lowerRight: Object.freeze(['P', 'Q', 'R', 'S', 'T']),
+});
+
+const SOURCE_IDS = Object.freeze([
+    ...Object.values(ADULT_LAYOUT).flat(),
+    ...Object.values(PRIMARY_LAYOUT).flat(),
+]);
+
+const SOURCE_ID_BY_TOOTH_KEY = Object.freeze(Object.fromEntries(
+    SOURCE_IDS.map((sourceId) => [String(toothToNumber(sourceId)), sourceId]),
+));
+
+const createLayoutEntry = (sourceId) => Object.freeze({
+    sourceId,
+    toothKey: String(toothToNumber(sourceId)),
+    isPediatric: typeof sourceId === 'string',
+});
+
+const createLegacyLayout = (isPediatric) => {
+    const sourceLayout = isPediatric ? PRIMARY_LAYOUT : ADULT_LAYOUT;
+    return Object.freeze(Object.fromEntries(Object.entries(sourceLayout).map(([quadrant, sourceIds]) => [
+        quadrant,
+        Object.freeze(sourceIds.map(createLayoutEntry)),
+    ])));
+};
+
+const MIXED_LAYOUT_QUADRANTS = Object.freeze({
+    upperLeft: Object.freeze(['2', '6']),
+    upperRight: Object.freeze(['1', '5']),
+    lowerLeft: Object.freeze(['3', '7']),
+    lowerRight: Object.freeze(['4', '8']),
+});
+
+const createMixedLayout = (toothOrder) => Object.freeze(Object.fromEntries(
+    Object.entries(MIXED_LAYOUT_QUADRANTS).map(([quadrant, quadrantCodes]) => [
+        quadrant,
+        Object.freeze(toothOrder
+            .map(String)
+            .filter((toothKey) => quadrantCodes.includes(toothKey[0]))
+            .map((toothKey) => {
+                const sourceId = SOURCE_ID_BY_TOOTH_KEY[toothKey];
+                return Object.freeze({
+                    sourceId,
+                    toothKey,
+                    isPediatric: typeof sourceId === 'string',
+                });
+            })),
+    ]),
+));
 
 const ToothRootLayer = memo(function ToothRootLayer({ toothKey, arch, opacity, toothVisual }) {
     const roots = getRootGeometry(toothKey);
@@ -185,6 +245,7 @@ const ToothSurfaceLayer = memo(function ToothSurfaceLayer({
 
 const SVGTooth = memo(function SVGTooth({
     number,
+    toothKey: explicitToothKey,
     status,
     onClick,
     isPediatric,
@@ -202,7 +263,7 @@ const SVGTooth = memo(function SVGTooth({
     const condition = status?.condition || 'Healthy';
     const style = STATUS_STYLES[condition];
     const disabled = Boolean(status?.disabled);
-    const toothKey = String(toothToNumber(number));
+    const toothKey = explicitToothKey ?? String(toothToNumber(number));
     const notation = resolveToothNotation({
         toothKey,
         notationMode,
@@ -319,6 +380,7 @@ export default memo(function DentalChartSVG({
     toothVisuals = {},
     onToothClick,
     isPediatric,
+    toothOrder,
     showRoots = false,
     enableSurfaceSelection = false,
     selectedSurface = null,
@@ -326,32 +388,48 @@ export default memo(function DentalChartSVG({
     readOnly = false,
     notationMode = DEFAULT_CHART_NOTATION_MODE,
 }) {
-    const adultUpperLeft = [16, 15, 14, 13, 12, 11, 10, 9];
-    const adultUpperRight = [8, 7, 6, 5, 4, 3, 2, 1];
-    const adultLowerLeft = [17, 18, 19, 20, 21, 22, 23, 24];
-    const adultLowerRight = [25, 26, 27, 28, 29, 30, 31, 32];
-    const childUpperLeft = ['J', 'I', 'H', 'G', 'F'];
-    const childUpperRight = ['E', 'D', 'C', 'B', 'A'];
-    const childLowerLeft = ['K', 'L', 'M', 'N', 'O'];
-    const childLowerRight = ['P', 'Q', 'R', 'S', 'T'];
-
-    const upperRight = isPediatric ? childUpperRight : adultUpperRight;
-    const upperLeft = isPediatric ? childUpperLeft : adultUpperLeft;
-    const lowerRight = isPediatric ? childLowerRight : adultLowerRight;
-    const lowerLeft = isPediatric ? childLowerLeft : adultLowerLeft;
-    const chartMinWidth = isPediatric ? 'min-w-[480px]' : 'min-w-[700px]';
+    const isMixedDentition = Array.isArray(toothOrder);
+    const layout = isMixedDentition
+        ? createMixedLayout(toothOrder)
+        : createLegacyLayout(isPediatric);
+    const chartMinWidth = isMixedDentition
+        ? 'min-w-[600px]'
+        : (isPediatric ? 'min-w-[480px]' : 'min-w-[700px]');
+    const chartTitle = isMixedDentition
+        ? 'مخطط الأسنان (مختلط)'
+        : (isPediatric ? 'مخطط الأسنان (أطفال)' : 'مخطط الأسنان (بالغين)');
     const surfaceSelectionEnabled = enableSurfaceSelection && !readOnly;
     const notationConfig = getChartNotationConfig(notationMode);
+    const renderTooth = (tooth, arch) => (
+        <SVGTooth
+            arch={arch}
+            enableSurfaceSelection={surfaceSelectionEnabled}
+            isPediatric={tooth.isPediatric}
+            key={tooth.toothKey}
+            notationMode={notationMode}
+            number={tooth.sourceId}
+            onClick={onToothClick}
+            onSurfaceClick={onSurfaceClick}
+            readOnly={readOnly}
+            selectedSurface={selectedSurface}
+            showRoots={showRoots}
+            status={teethStatus[tooth.toothKey]}
+            toothKey={tooth.toothKey}
+            toothVisual={toothVisuals[tooth.toothKey]}
+        />
+    );
+
 
     return (
         <div
             className="min-w-0 overflow-x-auto overscroll-x-contain rounded-2xl bg-slate-50 p-3 text-center shadow-inner touch-pan-x sm:rounded-3xl sm:p-5 lg:p-8"
+            data-dentition={isMixedDentition ? 'mixed' : (isPediatric ? 'primary' : 'permanent')}
             data-interaction-mode={readOnly ? 'read-only' : 'edit'}
             data-notation-mode={notationMode}
         >
             <div className={`${chartMinWidth} inline-flex flex-col`} dir="ltr">
                 <h3 className="mb-7 text-lg font-bold text-slate-700 sm:mb-8">
-                    {isPediatric ? 'مخطط الأسنان (أطفال)' : 'مخطط الأسنان (بالغين)'}
+                    {chartTitle}
                     <span className="mt-1 block text-xs font-normal text-slate-500">{notationConfig.displayName}</span>
                 </h3>
 
@@ -360,15 +438,11 @@ export default memo(function DentalChartSVG({
                         <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300" aria-hidden="true" />
                         <div className="absolute inset-x-0 bottom-0 h-0.5 bg-slate-300" aria-hidden="true" />
                         <div className="flex gap-1 px-3 pb-4 sm:px-4">
-                            {upperLeft.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="upper" enableSurfaceSelection={surfaceSelectionEnabled} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} readOnly={readOnly} toothVisual={toothVisuals[toothToNumber(number)]} notationMode={notationMode} />
-                            ))}
+                            {layout.upperLeft.map((tooth) => renderTooth(tooth, 'upper'))}
                         </div>
                         <div className="w-0.5" />
                         <div className="flex gap-1 px-3 pb-4 sm:px-4">
-                            {upperRight.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="upper" enableSurfaceSelection={surfaceSelectionEnabled} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} readOnly={readOnly} toothVisual={toothVisuals[toothToNumber(number)]} notationMode={notationMode} />
-                            ))}
+                            {layout.upperRight.map((tooth) => renderTooth(tooth, 'upper'))}
                         </div>
                     </div>
 
@@ -376,15 +450,11 @@ export default memo(function DentalChartSVG({
                         <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300" aria-hidden="true" />
                         <div className="absolute inset-x-0 top-0 h-0.5 bg-slate-300" aria-hidden="true" />
                         <div className="flex gap-1 px-3 pt-4 sm:px-4">
-                            {lowerLeft.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="lower" enableSurfaceSelection={surfaceSelectionEnabled} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} readOnly={readOnly} toothVisual={toothVisuals[toothToNumber(number)]} notationMode={notationMode} />
-                            ))}
+                            {layout.lowerLeft.map((tooth) => renderTooth(tooth, 'lower'))}
                         </div>
                         <div className="w-0.5" />
                         <div className="flex gap-1 px-3 pt-4 sm:px-4">
-                            {lowerRight.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="lower" enableSurfaceSelection={surfaceSelectionEnabled} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} readOnly={readOnly} toothVisual={toothVisuals[toothToNumber(number)]} notationMode={notationMode} />
-                            ))}
+                            {layout.lowerRight.map((tooth) => renderTooth(tooth, 'lower'))}
                         </div>
                     </div>
                 </div>
