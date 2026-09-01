@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import DentalChartSVG from './DentalChartSVG';
+import { CHART_NOTATION_MODES } from '@/features/clinical-chart/domain/chartNotation';
 
 const getCrownContract = (container) => Array.from(container.querySelectorAll('svg[data-layer="crown"]')).map((svg) => {
     const path = svg.querySelector('path');
@@ -21,6 +22,52 @@ const getCrownContract = (container) => Array.from(container.querySelectorAll('s
 });
 
 describe('DentalChartSVG optional root extension', () => {
+    it('preserves current Palmer labels by default after roots', () => {
+        const { container } = render(
+            <DentalChartSVG teethStatus={{}} onToothClick={vi.fn()} isPediatric={false} showRoots />,
+        );
+        const labels = container.querySelectorAll('[data-layer="notation-label"]');
+
+        expect(labels).toHaveLength(32);
+        expect(screen.getByText('Palmer Notation')).toBeInTheDocument();
+        expect(container.querySelector('[data-layer="notation-label"][data-tooth-key="11"]'))
+            .toHaveTextContent('UR1');
+        labels.forEach((label) => {
+            const anatomyViewport = label.parentElement.previousElementSibling;
+            expect(anatomyViewport.querySelector('[data-layer="roots"]')).toBeInTheDocument();
+            expect(anatomyViewport.querySelector('[data-layer="crown"]')).toBeInTheDocument();
+            expect(label.className).toContain('whitespace-nowrap');
+        });
+    });
+
+    it.each([
+        [CHART_NOTATION_MODES.FDI, 'FDI Notation', '11'],
+        [CHART_NOTATION_MODES.UNIVERSAL, 'Universal Notation', '8'],
+    ])('uses the bounded %s presentation config without changing tooth identity', (
+        notationMode,
+        displayName,
+        expectedLabel,
+    ) => {
+        const { container } = render(
+            <DentalChartSVG
+                teethStatus={{}}
+                onToothClick={vi.fn()}
+                isPediatric={false}
+                showRoots
+                notationMode={notationMode}
+            />,
+        );
+        const tooth11 = container.querySelector('[data-layer="notation-label"][data-tooth-key="11"]');
+
+        expect(screen.getByText(displayName)).toBeInTheDocument();
+        expect(tooth11).toHaveTextContent(expectedLabel);
+        expect(tooth11).toHaveAttribute('data-notation-mode', notationMode);
+        expect(container.querySelector('svg[data-layer="roots"][data-tooth-key="11"]'))
+            .toBeInTheDocument();
+        expect(container.querySelector('svg[data-layer="crown"][data-tooth-key="11"]'))
+            .toBeInTheDocument();
+    });
+
     it('keeps the production chart root-free by default', () => {
         const { container } = render(
             <DentalChartSVG teethStatus={{}} onToothClick={vi.fn()} isPediatric={false} />,

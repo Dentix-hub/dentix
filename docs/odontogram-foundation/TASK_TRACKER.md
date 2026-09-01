@@ -54,9 +54,9 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A10-M04 Handle molars | PASS | Permanent maxillary molars render three roots and mandibular molars render two; T1 matrix passes |
 | A10-M05 Handle primary teeth | PASS | All 20 primary teeth render independent roots; primary visual matrix and focused tests pass |
 | A10-M06 Prevent root overlap artifacts | PASS | All 52 root paths remain inside the fixed viewport; Playwright measured zero overlap, center-offset, or document-overflow defects |
-| A11-M01 Support current notation display mode | PENDING | — |
-| A11-M02 Add notation abstraction | PENDING | — |
-| A11-M03 Verify label placement after roots | PENDING | — |
+| A11-M01 Support current notation display mode | PASS | Exact legacy Palmer labels match for all adult 1–32 and primary A–T sources after mapping to all 52 canonical FDI identities |
+| A11-M02 Add notation abstraction | PASS | Frozen presentation-only Palmer/FDI/Universal registry derives from canonical FDI identity and rejects unsupported or inherited keys; no selector rollout |
+| A11-M03 Verify label placement after roots | PASS | Final desktop evidence shows 32 labels/roots/crowns with zero clipping, overlap, identity mismatch, or document overflow |
 | A12-M01 Create adult dentition fixture | PENDING | — |
 | A12-M02 Create primary dentition fixture | PENDING | — |
 | A12-M03 Create mixed dentition fixture | PENDING | — |
