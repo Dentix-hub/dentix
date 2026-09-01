@@ -6,6 +6,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
+SAFETY_POLICY_PATH = REPO_ROOT / ".safety-policy.yml"
 
 LABEL_TRIGGERED_JOBS = {
     "ci.yml": (
@@ -102,6 +103,20 @@ def test_safety_dependency_check_uses_fail_closed_retry_runner():
     assert safety_step["run"] == "python .github/scripts/run_safety_check.py"
     assert "continue-on-error" not in safety_step
     assert "|| true" not in safety_step["run"]
+
+def test_cuda_toolkit_exception_is_scoped_and_time_bounded():
+    with SAFETY_POLICY_PATH.open(encoding="utf-8") as stream:
+        security_policy = yaml.load(stream, Loader=yaml.BaseLoader)["security"]
+
+    exception = security_policy["ignore-vulnerabilities"]["SFTY-20260120-40557"]
+    reason = exception["reason"].lower()
+
+    assert exception["expires"] == "2026-09-30"
+    assert "torch 2.13.0" in reason
+    assert "gfx_hotspot" in reason
+    assert "does not invoke" in reason
+    assert security_policy["continue-on-vulnerability-error"] == "false"
+
 
 @pytest.mark.parametrize("filename", sorted(CONCURRENT_WORKFLOWS))
 def test_agent_label_runs_cannot_cancel_validation_runs(filename):
