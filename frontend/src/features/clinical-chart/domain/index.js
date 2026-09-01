@@ -26,3 +26,10 @@ export {
     TOOTH_TYPES,
     getDentalAnatomy,
 } from './dentalAnatomyRegistry';
+export {
+    CHART_NOTATION_CONFIG,
+    CHART_NOTATION_MODES,
+    DEFAULT_CHART_NOTATION_MODE,
+    getChartNotationConfig,
+    resolveToothNotation,
+} from './chartNotation';

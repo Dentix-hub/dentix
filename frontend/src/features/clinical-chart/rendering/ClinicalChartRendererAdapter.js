@@ -3,13 +3,13 @@ import {
     DENTITIONS,
 } from '../domain/dentalAnatomyRegistry';
 import { resolveClinicalChartVisuals } from '../domain/visualRuleRegistry';
+import {
+    CHART_NOTATION_MODES,
+    DEFAULT_CHART_NOTATION_MODE,
+} from '../domain/chartNotation';
 import { toothToNumber } from '@/utils/toothUtils';
 
-export const CHART_NOTATION_MODES = Object.freeze({
-    PALMER: 'palmer',
-    FDI: 'fdi',
-    UNIVERSAL: 'universal',
-});
+export { CHART_NOTATION_MODES };
 
 export const CHART_INTERACTION_MODES = Object.freeze({
     READ_ONLY: 'read-only',
@@ -87,7 +87,7 @@ export const createClinicalChartRendererInput = ({
     anatomyDefinition = DENTAL_ANATOMY_REGISTRY,
     dentition = DENTITIONS.PERMANENT,
     visualState = DEFAULT_VISUAL_STATE,
-    notationMode = CHART_NOTATION_MODES.PALMER,
+    notationMode = DEFAULT_CHART_NOTATION_MODE,
     interactionMode = CHART_INTERACTION_MODES.READ_ONLY,
     layers = DEFAULT_LAYERS,
     callbacks = DEFAULT_CALLBACKS,
