@@ -48,12 +48,12 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A9-M03 Add finding rules | PASS | CARIES is crown-surface-local, FRACTURE is a clipped crack, and PAIN uses a crown/root marker; rendering tests pass |
 | A9-M04 Add procedure rules | PASS | Composite, RCT, crown, bridge, implant fixture/crown, and planned/completed extraction effects render programmatically; focused tests pass 34/34 |
 | A9-M05 Add layer mapping | PASS | Stable indices enforce anatomy → lifecycle → findings → existing/completed → planned/active → selection; live browser verified 32 crowns, 32 root layers, 160 surface controls, and no document overflow |
-| A10-M01 Add root layer renderer | PENDING | — |
-| A10-M02 Handle single-root teeth | PENDING | — |
-| A10-M03 Handle premolars | PENDING | — |
-| A10-M04 Handle molars | PENDING | — |
-| A10-M05 Handle primary teeth | PENDING | — |
-| A10-M06 Prevent root overlap artifacts | PENDING | — |
+| A10-M01 Add root layer renderer | PASS | Independent root SVG renders as an `aria-hidden` sibling before the crown; focused renderer tests pass |
+| A10-M02 Handle single-root teeth | PASS | Permanent and primary anterior representatives render one anatomically aligned root; T1 matrix and visual evidence pass |
+| A10-M03 Handle premolars | PASS | Maxillary first premolars render two roots and remaining premolar representatives render one; T1 matrix passes |
+| A10-M04 Handle molars | PASS | Permanent maxillary molars render three roots and mandibular molars render two; T1 matrix passes |
+| A10-M05 Handle primary teeth | PASS | All 20 primary teeth render independent roots; primary visual matrix and focused tests pass |
+| A10-M06 Prevent root overlap artifacts | PASS | All 52 root paths remain inside the fixed viewport; Playwright measured zero overlap, center-offset, or document-overflow defects |
 | A11-M01 Support current notation display mode | PENDING | — |
 | A11-M02 Add notation abstraction | PENDING | — |
 | A11-M03 Verify label placement after roots | PENDING | — |
