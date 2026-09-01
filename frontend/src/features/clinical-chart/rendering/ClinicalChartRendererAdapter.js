@@ -2,6 +2,7 @@ import {
     DENTAL_ANATOMY_REGISTRY,
     DENTITIONS,
 } from '../domain/dentalAnatomyRegistry';
+import { PROJECTION_DENTITIONS } from '../domain/clinicalChartProjection';
 import { resolveClinicalChartVisuals } from '../domain/visualRuleRegistry';
 import {
     CHART_NOTATION_MODES,
@@ -62,7 +63,7 @@ const assertRecord = (name, value) => {
  * @typedef {object} ClinicalChartRendererInput
  * @property {string} chartId Unique identity for this chart instance.
  * @property {Readonly<Record<string, import('../domain/dentalAnatomyRegistry').DentalAnatomyRecord>>} anatomyDefinition
- * @property {'permanent'|'primary'} dentition
+ * @property {'permanent'|'primary'|'mixed'} dentition
  * @property {{teeth: Readonly<Record<string, object>>, selection: null|object}} visualState
  * @property {'palmer'|'fdi'|'universal'} notationMode
  * @property {'read-only'|'edit'} interactionMode
@@ -100,9 +101,27 @@ export const createClinicalChartRendererInput = ({
     assertRecord('visualState.teeth', visualState.teeth ?? DEFAULT_VISUAL_STATE.teeth);
     assertRecord('layers', layers);
     assertRecord('callbacks', callbacks);
-    assertEnumValue('dentition', dentition, Object.values(DENTITIONS));
+    assertEnumValue('dentition', dentition, Object.values(PROJECTION_DENTITIONS));
     assertEnumValue('notationMode', notationMode, Object.values(CHART_NOTATION_MODES));
     assertEnumValue('interactionMode', interactionMode, Object.values(CHART_INTERACTION_MODES));
+
+    const normalizedToothOrder = dentition === PROJECTION_DENTITIONS.MIXED
+        ? visualState.toothOrder
+        : undefined;
+    if (dentition === PROJECTION_DENTITIONS.MIXED && !Array.isArray(normalizedToothOrder)) {
+        throw new TypeError('mixed dentition requires visualState.toothOrder');
+    }
+    if (normalizedToothOrder) {
+        const normalizedKeys = normalizedToothOrder.map(String);
+        if (new Set(normalizedKeys).size !== normalizedKeys.length) {
+            throw new RangeError('visualState.toothOrder must not contain duplicate tooth keys');
+        }
+        normalizedKeys.forEach((toothKey) => {
+            if (!anatomyDefinition[toothKey]) {
+                throw new RangeError(`Unknown tooth key: ${toothKey}`);
+            }
+        });
+    }
 
     return Object.freeze({
         chartId: chartId.trim(),
@@ -112,6 +131,9 @@ export const createClinicalChartRendererInput = ({
             ...visualState,
             teeth: visualState.teeth ?? DEFAULT_VISUAL_STATE.teeth,
             selection: visualState.selection ?? null,
+            ...(normalizedToothOrder
+                ? { toothOrder: Object.freeze(normalizedToothOrder.map(String)) }
+                : {}),
         }),
         notationMode,
         interactionMode,
@@ -200,6 +222,9 @@ export const createClinicalChartRendererAdapter = (input) => {
             isPediatric: normalizedInput.dentition === DENTITIONS.PRIMARY,
             showRoots: normalizedInput.layers.roots,
             enableSurfaceSelection: !isReadOnly && normalizedInput.layers.surfaces,
+            toothOrder: normalizedInput.dentition === PROJECTION_DENTITIONS.MIXED
+                ? normalizedInput.visualState.toothOrder
+                : undefined,
             selectedSurface,
             onSurfaceClick: isReadOnly ? undefined : surfaceSelected,
             readOnly: isReadOnly,

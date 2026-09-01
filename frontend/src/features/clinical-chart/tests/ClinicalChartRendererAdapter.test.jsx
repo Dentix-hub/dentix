@@ -5,6 +5,7 @@ import {
     DENTAL_ANATOMY_REGISTRY,
     DENTITIONS,
 } from '../domain/dentalAnatomyRegistry';
+import { PROJECTION_DENTITIONS } from '../domain/clinicalChartProjection';
 import {
     CHART_INTERACTION_MODES,
     CHART_INTENT_TYPES,
@@ -112,8 +113,79 @@ describe('ClinicalChartRendererAdapter contract', () => {
             .toThrow('Unknown tooth key: 46');
     });
 
+    it('supports an explicit mixed-dentition order without changing stable FDI identity', () => {
+        const toothOrder = ['21', '61', '11', '51'];
+        const teeth = Object.fromEntries(toothOrder.map((toothKey) => [toothKey, {}]));
+        const onToothSelected = vi.fn();
+        const input = createInput({
+            dentition: PROJECTION_DENTITIONS.MIXED,
+            visualState: {
+                teeth,
+                toothOrder,
+                selection: null,
+            },
+            layers: {
+                roots: true,
+                surfaces: false,
+            },
+            callbacks: { onToothSelected },
+        });
+        const adapter = createClinicalChartRendererAdapter(input);
+        const { container } = render(<ClinicalChartRenderer input={input} />);
+        const renderedKeys = Array.from(container.querySelectorAll('[data-layer="crown"]'))
+            .map((node) => node.getAttribute('data-tooth-key'));
+
+        fireEvent.click(container
+            .querySelector('[data-layer="crown"][data-tooth-key="21"]')
+            .closest('button'));
+        fireEvent.click(container
+            .querySelector('[data-layer="crown"][data-tooth-key="61"]')
+            .closest('button'));
+
+        expect(adapter.chartProps).toMatchObject({
+            isPediatric: false,
+            toothOrder,
+        });
+        expect(container.firstChild).toHaveAttribute('data-dentition', 'mixed');
+        expect(renderedKeys).toHaveLength(4);
+        expect(renderedKeys).toEqual(toothOrder);
+        expect(onToothSelected).toHaveBeenNthCalledWith(1, {
+            type: CHART_INTENT_TYPES.TOOTH_SELECTED,
+            chartId: 'adapter-test',
+            target: { kind: 'tooth', toothKey: '21' },
+        });
+        expect(onToothSelected).toHaveBeenNthCalledWith(2, {
+            type: CHART_INTENT_TYPES.TOOTH_SELECTED,
+            chartId: 'adapter-test',
+            target: { kind: 'tooth', toothKey: '61' },
+        });
+    });
+
     it.each([
-        ['dentition', 'mixed'],
+        [
+            'missing order',
+            { teeth: {}, selection: null },
+            'mixed dentition requires visualState.toothOrder',
+        ],
+        [
+            'duplicate tooth',
+            { teeth: {}, selection: null, toothOrder: ['11', '11'] },
+            'visualState.toothOrder must not contain duplicate tooth keys',
+        ],
+        [
+            'unknown tooth',
+            { teeth: {}, selection: null, toothOrder: ['11', '99'] },
+            'Unknown tooth key: 99',
+        ],
+    ])('rejects mixed dentition with %s', (_caseName, visualState, message) => {
+        expect(() => createInput({
+            dentition: PROJECTION_DENTITIONS.MIXED,
+            visualState,
+        })).toThrow(message);
+    });
+
+
+    it.each([
         ['notationMode', 'iso-unknown'],
         ['interactionMode', 'disabled'],
     ])('rejects unsupported %s values', (field, value) => {
