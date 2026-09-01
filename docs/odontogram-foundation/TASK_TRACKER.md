@@ -68,10 +68,10 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A12-M09 Create implant fixture | PASS | Tooth 23 implant fixture and crown render with natural roots hidden |
 | A12-M10 Create bridge fixture | PASS | 14-15-16 bridge units render with tooth 15 as the missing pontic |
 | A12-M11 Create simultaneous existing + planned fixture | PASS | Existing composite and planned crown layers render simultaneously on tooth 46 |
-| A13-M01 Create dual-chart page | PENDING | — |
-| A13-M02 Ensure state isolation | PENDING | — |
-| A13-M03 Ensure independent layer filtering | PENDING | — |
-| A13-M04 Ensure read-only multi-instance support | PENDING | — |
+| A13-M01 Create dual-chart page | PASS | Current and historical projections render together through two bounded comparison cards |
+| A13-M02 Ensure state isolation | PASS | Each card owns presentation-only focus state; focused T1 passes |
+| A13-M03 Ensure independent layer filtering | PASS | Root and clinical-effect filters are local to each card; focused T1 passes |
+| A13-M04 Ensure read-only multi-instance support | PASS | Both renderer adapters remain read-only; focused T1 23/23 passes |
 | A14-M01 Create chart shell header | PENDING | — |
 | A14-M02 Create simple legend | PENDING | — |
 | A14-M03 Create simple inspector panel | PENDING | — |

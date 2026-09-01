@@ -3,26 +3,42 @@ import { describe, expect, it } from 'vitest';
 import ClinicalChartWorkspace from '../ClinicalChartWorkspace';
 
 describe('ClinicalChartWorkspace scaffold', () => {
-    it('renders the existing Dentix chart unchanged instead of a replacement specimen', () => {
-        render(<ClinicalChartWorkspace />);
+    it('renders two isolated read-only Dentix charts', () => {
+        const { container } = render(<ClinicalChartWorkspace />);
 
         expect(screen.getByTestId('clinical-chart-workspace')).toBeInTheDocument();
-        expect(screen.getByRole('heading', { name: /مخطط الأسنان \(بالغين\)/ })).toBeInTheDocument();
-        expect(screen.getAllByRole('button')).toHaveLength(160);
-        expect(document.querySelectorAll('[data-layer="roots"]')).toHaveLength(32);
-        expect(document.querySelectorAll('[data-layer="surfaces"]')).toHaveLength(32);
+        expect(screen.getAllByTestId('clinical-chart-instance')).toHaveLength(2);
+        expect(screen.getByRole('heading', { name: 'Current chart' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Previous chart' })).toBeInTheDocument();
+        expect(container.querySelectorAll('[data-interaction-mode="read-only"]')).toHaveLength(2);
+        expect(container.querySelectorAll('[data-layer="roots"]')).toHaveLength(64);
+        expect(container.querySelectorAll('[data-layer="surfaces"]')).toHaveLength(0);
         expect(screen.queryByText('Crown geometry parity')).not.toBeInTheDocument();
         expect(screen.queryByText('Root anatomy families')).not.toBeInTheDocument();
     });
 
-    it('toggles the selected surface in the isolated demo workspace', () => {
-        render(<ClinicalChartWorkspace />);
-        const surface = screen.getByRole('button', { name: 'Tooth UR1 — Mesial (M)' });
+    it('keeps focus selection isolated between chart instances', () => {
+        const { container } = render(<ClinicalChartWorkspace />);
+        const current = container.querySelector('[data-chart-instance="odontogram-current"]');
+        const history = container.querySelector('[data-chart-instance="odontogram-history"]');
 
-        expect(surface).toHaveAttribute('aria-pressed', 'false');
-        fireEvent.click(surface);
-        expect(surface).toHaveAttribute('aria-pressed', 'true');
-        fireEvent.click(surface);
-        expect(surface).toHaveAttribute('aria-pressed', 'false');
+        fireEvent.change(screen.getByLabelText('Preview focus - Current chart'), { target: { value: '46:D' } });
+
+        expect(current).toHaveAttribute('data-selected-focus', '46:D');
+        expect(history).toHaveAttribute('data-selected-focus', '');
+    });
+
+    it('keeps root and clinical-layer filters isolated between chart instances', () => {
+        const { container } = render(<ClinicalChartWorkspace />);
+        const current = container.querySelector('[data-chart-instance="odontogram-current"]');
+        const history = container.querySelector('[data-chart-instance="odontogram-history"]');
+
+        fireEvent.click(screen.getByLabelText('Show roots - Current chart'));
+        fireEvent.click(screen.getByLabelText('Show conditions and procedures - Current chart'));
+
+        expect(current.querySelectorAll('[data-layer="roots"]')).toHaveLength(0);
+        expect(history.querySelectorAll('[data-layer="roots"]')).toHaveLength(32);
+        expect(current.querySelectorAll('[data-effect]')).toHaveLength(0);
+        expect(history.querySelector('[data-interaction-mode="read-only"]')).toBeInTheDocument();
     });
 });

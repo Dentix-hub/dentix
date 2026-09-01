@@ -1,58 +1,21 @@
-import { useCallback, useMemo, useState } from 'react';
-import ClinicalChartRenderer from './components/ClinicalChartRenderer';
-import { DENTAL_ANATOMY_REGISTRY, DENTITIONS } from './domain/dentalAnatomyRegistry';
+import ClinicalChartComparisonCard from './components/ClinicalChartComparisonCard';
+import { A12_ADULT_DENTITION_FIXTURE } from './fixtures';
 import { VISUAL_RULE_DEMO_PROJECTION } from './fixtures/visualRuleDemoProjection';
-import {
-    CHART_INTERACTION_MODES,
-    CHART_INTENT_TYPES,
-    CHART_NOTATION_MODES,
-    createClinicalChartRendererInput,
-} from './rendering/ClinicalChartRendererAdapter';
 
 /**
  * Isolated entry point for the Dentix-native odontogram foundation.
  *
- * Clinical data is intentionally absent during the scaffold phase. Later phases
- * inject a Projection DTO and keep persistence outside this workspace.
+ * The comparison cards own presentation-only state. Both receive immutable demo
+ * projections and remain disconnected from persistence and clinical workflows.
  */
 export default function ClinicalChartWorkspace() {
-    const [selection, setSelection] = useState(null);
-
-    const handleIntent = useCallback((intent) => {
-        if (intent.type !== CHART_INTENT_TYPES.SURFACE_SELECTED) return;
-
-        setSelection((current) => (
-            current?.kind === 'surface'
-            && current.toothKey === intent.target.toothKey
-            && current.surfaceCode === intent.target.surfaceCode
-                ? null
-                : intent.target
-        ));
-    }, []);
-
-    const rendererInput = useMemo(() => createClinicalChartRendererInput({
-        chartId: 'odontogram-demo',
-        anatomyDefinition: DENTAL_ANATOMY_REGISTRY,
-        dentition: DENTITIONS.PERMANENT,
-        visualState: {
-            ...VISUAL_RULE_DEMO_PROJECTION,
-            selection,
-        },
-        notationMode: CHART_NOTATION_MODES.PALMER,
-        interactionMode: CHART_INTERACTION_MODES.EDIT,
-        layers: {
-            roots: true,
-            surfaces: true,
-        },
-        callbacks: {
-            onIntent: handleIntent,
-        },
-    }), [handleIntent, selection]);
-
     return (
-        <main className="min-h-screen bg-background p-4 sm:p-6" data-testid="clinical-chart-workspace">
-            <div className="mx-auto max-w-7xl">
-                <ClinicalChartRenderer input={rendererInput} />
+        <main className="min-h-screen bg-background p-3 sm:p-6" data-testid="clinical-chart-workspace">
+            <div className="mx-auto max-w-[1600px]" dir="rtl">
+                <div className="grid min-w-0 gap-5 xl:grid-cols-2">
+                    <ClinicalChartComparisonCard chartId="odontogram-current" projection={VISUAL_RULE_DEMO_PROJECTION} subtitle="Current state" title="Current chart" />
+                    <ClinicalChartComparisonCard chartId="odontogram-history" projection={A12_ADULT_DENTITION_FIXTURE} subtitle="Read-only historical snapshot" title="Previous chart" />
+                </div>
             </div>
         </main>
     );

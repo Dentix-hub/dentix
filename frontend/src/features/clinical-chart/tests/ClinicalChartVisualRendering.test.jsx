@@ -69,13 +69,13 @@ describe('clinical chart visual rule rendering', () => {
         expect(completed).not.toHaveAttribute('stroke-dasharray');
     });
 
-    it('keeps visual layer DOM order deterministic with selection controls last', () => {
+    it('keeps read-only visual layer DOM order deterministic without selection controls', () => {
         const { container } = render(<ClinicalChartWorkspace />);
         const layerIndexes = Array.from(toothCrown(container, '44').querySelectorAll('[data-layer-index]'))
             .map((node) => Number(node.getAttribute('data-layer-index')));
 
         expect(layerIndexes).toEqual([...layerIndexes].sort((left, right) => left - right));
         expect(layerIndexes[0]).toBe(0);
-        expect(layerIndexes.at(-1)).toBe(5);
+        expect(layerIndexes.at(-1)).toBe(3);
     });
 });
