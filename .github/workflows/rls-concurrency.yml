@@ -8,19 +8,12 @@ on:
     types: [ opened, synchronize, reopened, ready_for_review, labeled ]
 
 concurrency:
-  group: >-
-    dentix-rls-concurrency-${{ github.event.pull_request.number || github.ref }}-${{
-      github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:')
-      && github.event.label.name || 'validation'
-    }}
+  group: dentix-rls-concurrency-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   rls-concurrency:
-    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / Concurrent Tenant Isolation' || 'Concurrent Tenant Isolation' }}
-    if: >-
-      github.event.action != 'labeled' ||
-      !startsWith(github.event.label.name, 'agent:')
+    name: Concurrent Tenant Isolation
     runs-on: ubuntu-latest
     timeout-minutes: 10
 

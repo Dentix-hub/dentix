@@ -8,23 +8,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 SAFETY_POLICY_PATH = REPO_ROOT / ".safety-policy.yml"
 
-LABEL_TRIGGERED_JOBS = {
-    "ci.yml": (
-        "classify-scope",
-        "dependency-reproducibility",
-        "backend",
-        "frontend",
-        "e2e",
-        "production-container",
-    ),
-    "cross-tenant-http-postgres.yml": ("postgres-http-idor",),
-    "rls-concurrency.yml": ("rls-concurrency",),
-    "mobile-responsive.yml": ("responsive",),
-    "stale-deployment-recovery.yml": ("stale-deployment-recovery",),
-    "history-secret-scan.yml": ("history-secret-scan",),
-    "platform-branch-protection.yml": ("verify-platform-branch-rules",),
-}
-
 REQUIRED_CONTEXT_LOCATIONS = {
     "Frozen Dependency Reproducibility": ("ci.yml", "dependency-reproducibility"),
     "Backend Tests + Security": ("ci.yml", "backend"),
@@ -44,14 +27,17 @@ REQUIRED_CONTEXT_LOCATIONS = {
     ),
 }
 
-CONCURRENT_WORKFLOWS = {
+LABEL_SENSITIVE_WORKFLOWS = {
     "ci.yml",
     "cross-tenant-http-postgres.yml",
     "rls-concurrency.yml",
     "mobile-responsive.yml",
     "stale-deployment-recovery.yml",
     "history-secret-scan.yml",
+    "platform-branch-protection.yml",
 }
+
+ALL_RELEVANT_WORKFLOWS = LABEL_SENSITIVE_WORKFLOWS | {"branch-governance.yml", "mobile.yml"}
 
 
 def _load_workflow(filename):
@@ -59,34 +45,31 @@ def _load_workflow(filename):
         return yaml.load(stream, Loader=yaml.BaseLoader)
 
 
-@pytest.mark.parametrize(
-    ("filename", "job_id"),
-    [
-        (filename, job_id)
-        for filename, job_ids in LABEL_TRIGGERED_JOBS.items()
-        for job_id in job_ids
-    ],
-)
-def test_agent_label_events_use_distinct_noop_job_names(filename, job_id):
-    workflow = _load_workflow(filename)
-    assert "labeled" in workflow["on"]["pull_request"]["types"]
-
-    job = workflow["jobs"][job_id]
-    condition = job.get("if", "")
-    name = job.get("name", "")
-
-    assert "github.event.action != 'labeled'" in condition
-    assert "startsWith(github.event.label.name, 'agent:')" in condition
-    assert "Agent label no-op /" in name
-
-
 @pytest.mark.parametrize("context", sorted(REQUIRED_CONTEXT_LOCATIONS))
-def test_required_context_names_are_preserved_only_for_validation_events(context):
+def test_required_context_names_are_static_and_exact(context):
     filename, job_id = REQUIRED_CONTEXT_LOCATIONS[context]
     job_name = _load_workflow(filename)["jobs"][job_id]["name"]
+    assert job_name == context
 
-    assert context in job_name
-    assert f"Agent label no-op / {context}" in job_name
+
+@pytest.mark.parametrize("filename", sorted(ALL_RELEVANT_WORKFLOWS))
+def test_workflows_have_no_agent_label_special_casing(filename):
+    with (WORKFLOW_DIR / filename).open(encoding="utf-8") as stream:
+        content = stream.read()
+
+    assert ("agent" + ":") not in content
+    assert ("Agent label" + " no-op") not in content
+    assert ("startsWith" + "(github.event.label.name") not in content
+    assert "github.event.label.name" not in content
+
+
+@pytest.mark.parametrize("filename", sorted(LABEL_SENSITIVE_WORKFLOWS))
+def test_legitimate_label_safety_remains_on_pr_workflows(filename):
+    workflow = _load_workflow(filename)
+    types = workflow["on"]["pull_request"]["types"]
+    assert "labeled" in types
+    assert "synchronize" in types
+    assert "opened" in types
 
 
 def test_safety_dependency_check_uses_fail_closed_retry_runner():
@@ -114,13 +97,6 @@ def test_cuda_toolkit_exception_is_scoped_and_time_bounded():
     assert "gfx_hotspot" in reason
     assert "does not invoke" in reason
     assert security_policy["continue-on-vulnerability-error"] == "false"
-
-
-@pytest.mark.parametrize("filename", sorted(CONCURRENT_WORKFLOWS))
-def test_agent_label_runs_cannot_cancel_validation_runs(filename):
-    concurrency_group = _load_workflow(filename)["concurrency"]["group"]
-    assert "github.event.label.name" in concurrency_group
-    assert "'validation'" in concurrency_group
 
 
 def test_mobile_responsive_runs_on_both_protected_push_branches():
