@@ -45,7 +45,7 @@ Do not restate or weaken those skills. Do not force generic orchestration/review
 
 Before dispatching a new master plan or execution wave:
 
-1. Read `docs/engineering/DENTIX_ACTIVE_WORK_REGISTRY.md`.
+1. Verify target issue state on GitHub and ensure prerequisite work is integrated into `origin/staging`.
 2. Inspect open pull requests.
 3. Inspect current worktrees.
 4. Detect touch-surface overlap.
