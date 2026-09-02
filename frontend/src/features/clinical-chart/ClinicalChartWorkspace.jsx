@@ -1,58 +1,54 @@
-import { useCallback, useMemo, useState } from 'react';
-import ClinicalChartRenderer from './components/ClinicalChartRenderer';
-import { DENTAL_ANATOMY_REGISTRY, DENTITIONS } from './domain/dentalAnatomyRegistry';
-import { VISUAL_RULE_DEMO_PROJECTION } from './fixtures/visualRuleDemoProjection';
+import { useState } from 'react';
+import ClinicalChartComparisonCard from './components/ClinicalChartComparisonCard';
+import ClinicalChartWorkspaceShell from './components/ClinicalChartWorkspaceShell';
 import {
-    CHART_INTERACTION_MODES,
-    CHART_INTENT_TYPES,
-    CHART_NOTATION_MODES,
-    createClinicalChartRendererInput,
-} from './rendering/ClinicalChartRendererAdapter';
+    CLINICAL_CHART_COPY,
+    CLINICAL_CHART_LOCALES,
+} from './components/clinicalChartWorkspaceCopy';
+import { A12_ADULT_DENTITION_FIXTURE } from './fixtures';
+import { VISUAL_RULE_DEMO_PROJECTION } from './fixtures/visualRuleDemoProjection';
 
 /**
  * Isolated entry point for the Dentix-native odontogram foundation.
  *
- * Clinical data is intentionally absent during the scaffold phase. Later phases
- * inject a Projection DTO and keep persistence outside this workspace.
+ * The comparison cards own presentation-only state. Both receive immutable demo
+ * projections and remain disconnected from persistence and clinical workflows.
  */
 export default function ClinicalChartWorkspace() {
-    const [selection, setSelection] = useState(null);
-
-    const handleIntent = useCallback((intent) => {
-        if (intent.type !== CHART_INTENT_TYPES.SURFACE_SELECTED) return;
-
-        setSelection((current) => (
-            current?.kind === 'surface'
-            && current.toothKey === intent.target.toothKey
-            && current.surfaceCode === intent.target.surfaceCode
-                ? null
-                : intent.target
-        ));
-    }, []);
-
-    const rendererInput = useMemo(() => createClinicalChartRendererInput({
-        chartId: 'odontogram-demo',
-        anatomyDefinition: DENTAL_ANATOMY_REGISTRY,
-        dentition: DENTITIONS.PERMANENT,
-        visualState: {
-            ...VISUAL_RULE_DEMO_PROJECTION,
-            selection,
-        },
-        notationMode: CHART_NOTATION_MODES.PALMER,
-        interactionMode: CHART_INTERACTION_MODES.EDIT,
-        layers: {
-            roots: true,
-            surfaces: true,
-        },
-        callbacks: {
-            onIntent: handleIntent,
-        },
-    }), [handleIntent, selection]);
+    const [locale, setLocale] = useState(CLINICAL_CHART_LOCALES.AR);
+    const copy = CLINICAL_CHART_COPY[locale];
+    const direction = locale === CLINICAL_CHART_LOCALES.AR ? 'rtl' : 'ltr';
 
     return (
-        <main className="min-h-screen bg-background p-4 sm:p-6" data-testid="clinical-chart-workspace">
-            <div className="mx-auto max-w-7xl">
-                <ClinicalChartRenderer input={rendererInput} />
+        <main
+            className="min-h-screen bg-background p-3 sm:p-6"
+            data-locale={locale}
+            data-testid="clinical-chart-workspace"
+            dir={direction}
+            lang={locale}
+        >
+            <div className="mx-auto max-w-[1600px]">
+                <ClinicalChartWorkspaceShell
+                    copy={copy}
+                    locale={locale}
+                    onLocaleChange={setLocale}
+                />
+                <div className="grid min-w-0 gap-5 xl:grid-cols-2">
+                    <ClinicalChartComparisonCard
+                        chartId="odontogram-current"
+                        copy={copy}
+                        projection={VISUAL_RULE_DEMO_PROJECTION}
+                        subtitle={copy.currentSubtitle}
+                        title={copy.currentTitle}
+                    />
+                    <ClinicalChartComparisonCard
+                        chartId="odontogram-history"
+                        copy={copy}
+                        projection={A12_ADULT_DENTITION_FIXTURE}
+                        subtitle={copy.historySubtitle}
+                        title={copy.historyTitle}
+                    />
+                </div>
             </div>
         </main>
     );
