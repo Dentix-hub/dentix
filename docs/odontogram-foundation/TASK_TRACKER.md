@@ -77,14 +77,14 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A14-M03 Create simple inspector panel | PASS | Each chart has an inline read-only inspector; no modal is introduced |
 | A14-M04 Create simple selection summary | PASS | Inspector reports selected tooth, surface, finding count, and procedure count |
 | A14-M05 Keep UI intentionally simple | PASS | Focused T1 10/10 and targeted lint pass; no workflow engine or giant modal |
-| A15-M01 Verify chart on desktop | PENDING | — |
-| A15-M02 Verify chart on tablet width | PENDING | — |
-| A15-M03 Verify chart on mobile width | PENDING | — |
-| A15-M04 Add quadrant-friendly mobile behavior | PENDING | — |
-| A15-M05 Verify Arabic RTL layout | PENDING | — |
-| A15-M06 Verify English LTR layout | PENDING | — |
-| A15-M07 Add keyboard focus states | PENDING | — |
-| A15-M08 Add accessible labels where practical | PENDING | — |
+| A15-M01 Verify chart on desktop | PASS | 1440x1000 Playwright matrix and A15 desktop evidence |
+| A15-M02 Verify chart on tablet width | PASS | 768x1024 Playwright matrix and A15 tablet evidence |
+| A15-M03 Verify chart on mobile width | PASS | 390x844 Playwright matrix and A15 mobile evidence |
+| A15-M04 Add quadrant-friendly mobile behavior | PASS | Four mobile-only accessible quadrant controls scroll target FDI teeth into view |
+| A15-M05 Verify Arabic RTL layout | PASS | Default Arabic workspace renders with rtl direction |
+| A15-M06 Verify English LTR layout | PASS | In-feature language control renders English with ltr direction |
+| A15-M07 Add keyboard focus states | PASS | Language, select, checkbox, and quadrant controls expose focus-visible rings |
+| A15-M08 Add accessible labels where practical | PASS | Focused T1 27/27 and Playwright 3/3 pass; evidence document linked |
 | A16-M01 Add anatomy registry coverage test | PENDING | — |
 | A16-M02 Add renderer smoke test | PENDING | — |
 | A16-M03 Add multi-instance isolation test | PENDING | — |

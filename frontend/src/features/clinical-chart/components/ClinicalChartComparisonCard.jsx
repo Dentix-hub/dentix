@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import ClinicalChartRenderer from './ClinicalChartRenderer';
 import ClinicalChartInspector from './ClinicalChartInspector';
 import { DENTAL_ANATOMY_REGISTRY } from '../domain/dentalAnatomyRegistry';
@@ -9,17 +9,24 @@ import {
 } from '../rendering/ClinicalChartRendererAdapter';
 
 const FOCUS_OPTIONS = Object.freeze([
-    Object.freeze({ value: '', label: 'None', selection: null }),
+    Object.freeze({ value: '', labelKey: 'none', selection: null }),
     Object.freeze({
         value: '46:D',
-        label: 'Tooth 46 - Distal surface (D)',
+        labelKey: 'tooth46Distal',
         selection: Object.freeze({ kind: 'surface', toothKey: '46', surfaceCode: 'D' }),
     }),
     Object.freeze({
         value: '36:O',
-        label: 'Tooth 36 - Occlusal surface (O)',
+        labelKey: 'tooth36Occlusal',
         selection: Object.freeze({ kind: 'surface', toothKey: '36', surfaceCode: 'O' }),
     }),
+]);
+
+const QUADRANT_TARGETS = Object.freeze([
+    Object.freeze({ key: 'upperRight', shortLabel: 'UR', toothKey: '14' }),
+    Object.freeze({ key: 'upperLeft', shortLabel: 'UL', toothKey: '24' }),
+    Object.freeze({ key: 'lowerRight', shortLabel: 'LR', toothKey: '44' }),
+    Object.freeze({ key: 'lowerLeft', shortLabel: 'LL', toothKey: '34' }),
 ]);
 
 const focusValueFor = (selection) => (
@@ -35,8 +42,10 @@ export default function ClinicalChartComparisonCard({
     title,
     subtitle,
     projection,
+    copy,
     initialSelection = null,
 }) {
+    const chartFrameRef = useRef(null);
     const [selection, setSelection] = useState(initialSelection);
     const [showRoots, setShowRoots] = useState(true);
     const [showClinicalLayers, setShowClinicalLayers] = useState(true);
@@ -66,6 +75,12 @@ export default function ClinicalChartComparisonCard({
         setSelection(option?.selection ?? null);
     };
 
+    const focusQuadrant = (toothKey) => {
+        const selector = '[data-layer="crown"][data-tooth-key="' + toothKey + '"]';
+        const target = chartFrameRef.current?.querySelector(selector);
+        target?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    };
+
     return (
         <section
             aria-labelledby={chartId + '-title'}
@@ -74,7 +89,7 @@ export default function ClinicalChartComparisonCard({
             data-selected-focus={focusValueFor(selection)}
             data-testid="clinical-chart-instance"
         >
-            <header className="mb-3 flex flex-col gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-end sm:justify-between">
+            <header className="mb-3 flex flex-col gap-3 border-b border-slate-100 pb-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                     <h2 id={chartId + '-title'} className="text-base font-bold text-slate-900 sm:text-lg">
                         {title}
@@ -84,33 +99,66 @@ export default function ClinicalChartComparisonCard({
 
                 <div className="flex flex-wrap items-end gap-3 text-sm">
                     <label className="flex min-w-48 flex-col gap-1 font-medium text-slate-700">
-                        Preview focus
+                        {copy.previewFocus}
                         <select
-                            aria-label={'Preview focus - ' + title}
+                            aria-label={copy.previewFocus + ' - ' + title}
                             className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                             onChange={handleFocusChange}
                             value={focusValueFor(selection)}
                         >
-                            {FOCUS_OPTIONS.map(({ value, label }) => (
-                                <option key={value || 'none'} value={value}>{label}</option>
+                            {FOCUS_OPTIONS.map(({ value, labelKey }) => (
+                                <option key={value || 'none'} value={value}>{copy.focusOptions[labelKey]}</option>
                             ))}
                         </select>
                     </label>
 
                     <label className="flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-slate-700">
-                        <input aria-label={'Show roots - ' + title} checked={showRoots} onChange={(event) => setShowRoots(event.target.checked)} type="checkbox" />
-                        Roots
+                        <input
+                            aria-label={copy.showRoots + ' - ' + title}
+                            checked={showRoots}
+                            className="h-4 w-4 rounded outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                            onChange={(event) => setShowRoots(event.target.checked)}
+                            type="checkbox"
+                        />
+                        {copy.roots}
                     </label>
 
                     <label className="flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-slate-700">
-                        <input aria-label={'Show conditions and procedures - ' + title} checked={showClinicalLayers} onChange={(event) => setShowClinicalLayers(event.target.checked)} type="checkbox" />
-                        Conditions and procedures
+                        <input
+                            aria-label={copy.showClinicalLayers + ' - ' + title}
+                            checked={showClinicalLayers}
+                            className="h-4 w-4 rounded outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                            onChange={(event) => setShowClinicalLayers(event.target.checked)}
+                            type="checkbox"
+                        />
+                        {copy.clinicalLayers}
                     </label>
                 </div>
             </header>
 
-            <ClinicalChartRenderer input={rendererInput} />
-            <ClinicalChartInspector selection={selection} title={title} toothState={projection.teeth[selection?.toothKey]} />
+            <nav aria-label={copy.mobileQuadrants} className="mb-3 grid grid-cols-4 gap-2 sm:hidden" data-mobile-quadrant-nav>
+                {QUADRANT_TARGETS.map(({ key, shortLabel, toothKey }) => (
+                    <button
+                        aria-label={copy.quadrants[key]}
+                        className="min-h-11 rounded-xl border border-slate-300 bg-slate-50 px-2 text-xs font-bold text-slate-700 outline-none hover:bg-blue-50 focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                        key={key}
+                        onClick={() => focusQuadrant(toothKey)}
+                        type="button"
+                    >
+                        {shortLabel}
+                    </button>
+                ))}
+            </nav>
+
+            <div className="min-w-0" ref={chartFrameRef}>
+                <ClinicalChartRenderer input={rendererInput} />
+            </div>
+            <ClinicalChartInspector
+                copy={copy}
+                selection={selection}
+                title={title}
+                toothState={projection.teeth[selection?.toothKey]}
+            />
         </section>
     );
 }
