@@ -85,13 +85,13 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A15-M06 Verify English LTR layout | PASS | In-feature language control renders English with ltr direction |
 | A15-M07 Add keyboard focus states | PASS | Language, select, checkbox, and quadrant controls expose focus-visible rings |
 | A15-M08 Add accessible labels where practical | PASS | Focused T1 27/27 and Playwright 3/3 pass; evidence document linked |
-| A16-M01 Add anatomy registry coverage test | PENDING | — |
-| A16-M02 Add renderer smoke test | PENDING | — |
-| A16-M03 Add multi-instance isolation test | PENDING | — |
-| A16-M04 Add root visual regression evidence | PENDING | — |
-| A16-M05 Add mixed dentition render test | PENDING | — |
-| A16-M06 Add RTL render test | PENDING | — |
-| A16-M07 Add mobile render test if tooling allows | PENDING | — |
+| A16-M01 Add anatomy registry coverage test | PASS | Exhaustive 52-tooth anatomy registry test covers full schema, unique keys, unique surface geometry refs, unique root refs, and geometry matching; `a16RegressionGate.test.jsx` |
+| A16-M02 Add renderer smoke test | PASS | Table-driven generic smoke test renders all 11 A12 scenario fixtures without throwing and unmounts cleanly; `a16RegressionGate.test.jsx` |
+| A16-M03 Add multi-instance isolation test | PASS | Existing multi-instance tests verify focus selection, root filter, clinical layer, and inspector isolation; `ClinicalChartWorkspace.test.jsx` (7/7 pass) |
+| A16-M04 Add root visual regression evidence | PASS | Root geometry regression snapshot covers representative permanent/primary teeth (11, 14, 16, 36, 51, 55, 85); `a16RegressionGate.test.jsx` (7 snapshots) |
+| A16-M05 Add mixed dentition render test | PASS | Existing mixed dentition fixture test verifies 24-tooth mixed FDI order, permanent 26 (3 roots), and primary 63 (1 root); `a12ScenarioFixtures.test.jsx` |
+| A16-M06 Add RTL render test | PASS | Existing workspace tests verify default Arabic RTL (`dir="rtl"`, `lang="ar"`) and English LTR toggle (`dir="ltr"`, `lang="en"`); `ClinicalChartWorkspace.test.jsx` |
+| A16-M07 Add mobile render test if tooling allows | PASS | Existing Vitest tests verify 4-quadrant navigation, scroll behavior, and focus rings; Playwright E2E verifies 390x844 mobile viewport with no overflow; `odontogram-part1.spec.ts` (3/3 pass) |
 | A17-M01 Capture desktop screenshots | PENDING | — |
 | A17-M02 Capture mobile screenshots | PENDING | — |
 | A17-M03 Capture RTL screenshots | PENDING | — |
