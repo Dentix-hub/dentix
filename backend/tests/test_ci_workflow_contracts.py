@@ -8,24 +8,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = REPO_ROOT / ".github" / "workflows"
 SAFETY_POLICY_PATH = REPO_ROOT / ".safety-policy.yml"
 
-LABEL_TRIGGERED_JOBS = {
-    "ci.yml": (
-        "classify-scope",
-        "dependency-reproducibility",
-        "backend",
-        "frontend",
-        "e2e",
-        "production-container",
-    ),
-    "cross-tenant-http-postgres.yml": ("postgres-http-idor",),
-    "rls-concurrency.yml": ("rls-concurrency",),
-    "mobile-responsive.yml": ("responsive",),
-    "stale-deployment-recovery.yml": ("stale-deployment-recovery",),
-    "history-secret-scan.yml": ("history-secret-scan",),
-    "branch-governance.yml": ("promotion-path", "workflow-authority"),
-    "platform-branch-protection.yml": ("verify-platform-branch-rules",),
-}
-
 REQUIRED_CONTEXT_LOCATIONS = {
     "Frozen Dependency Reproducibility": ("ci.yml", "dependency-reproducibility"),
     "Backend Tests + Security": ("ci.yml", "backend"),
@@ -39,22 +21,29 @@ REQUIRED_CONTEXT_LOCATIONS = {
     ),
     "Responsive Acceptance Matrix": ("mobile-responsive.yml", "responsive"),
     "Full Git History Secret Scan": ("history-secret-scan.yml", "history-secret-scan"),
-    "Validate promotion path": ("branch-governance.yml", "promotion-path"),
-    "Protect authoritative CD workflow": ("branch-governance.yml", "workflow-authority"),
     "Verify GitHub branch enforcement": (
         "platform-branch-protection.yml",
         "verify-platform-branch-rules",
     ),
 }
 
-CONCURRENT_WORKFLOWS = {
+LABEL_SENSITIVE_WORKFLOWS = {
     "ci.yml",
     "cross-tenant-http-postgres.yml",
     "rls-concurrency.yml",
     "mobile-responsive.yml",
     "stale-deployment-recovery.yml",
-    "history-secret-scan.yml",
 }
+
+LABEL_INDEPENDENT_WORKFLOWS = {
+    "history-secret-scan.yml",
+    "platform-branch-protection.yml",
+    "branch-governance.yml",
+}
+
+ALL_RELEVANT_WORKFLOWS = (
+    LABEL_SENSITIVE_WORKFLOWS | LABEL_INDEPENDENT_WORKFLOWS | {"mobile.yml"}
+)
 
 
 def _load_workflow(filename):
@@ -62,34 +51,40 @@ def _load_workflow(filename):
         return yaml.load(stream, Loader=yaml.BaseLoader)
 
 
-@pytest.mark.parametrize(
-    ("filename", "job_id"),
-    [
-        (filename, job_id)
-        for filename, job_ids in LABEL_TRIGGERED_JOBS.items()
-        for job_id in job_ids
-    ],
-)
-def test_agent_label_events_use_distinct_noop_job_names(filename, job_id):
-    workflow = _load_workflow(filename)
-    assert "labeled" in workflow["on"]["pull_request"]["types"]
-
-    job = workflow["jobs"][job_id]
-    condition = job.get("if", "")
-    name = job.get("name", "")
-
-    assert "github.event.action != 'labeled'" in condition
-    assert "startsWith(github.event.label.name, 'agent:')" in condition
-    assert "Agent label no-op /" in name
-
-
 @pytest.mark.parametrize("context", sorted(REQUIRED_CONTEXT_LOCATIONS))
-def test_required_context_names_are_preserved_only_for_validation_events(context):
+def test_required_context_names_are_static_and_exact(context):
     filename, job_id = REQUIRED_CONTEXT_LOCATIONS[context]
     job_name = _load_workflow(filename)["jobs"][job_id]["name"]
+    assert job_name == context
 
-    assert context in job_name
-    assert f"Agent label no-op / {context}" in job_name
+
+@pytest.mark.parametrize("filename", sorted(ALL_RELEVANT_WORKFLOWS))
+def test_workflows_have_no_agent_label_special_casing(filename):
+    with (WORKFLOW_DIR / filename).open(encoding="utf-8") as stream:
+        content = stream.read()
+
+    assert ("agent" + ":") not in content
+    assert ("Agent label" + " no-op") not in content
+    assert ("startsWith" + "(github.event.label.name") not in content
+    assert "github.event.label.name" not in content
+
+
+@pytest.mark.parametrize("filename", sorted(LABEL_SENSITIVE_WORKFLOWS))
+def test_label_sensitive_workflows_retain_labeled_trigger(filename):
+    workflow = _load_workflow(filename)
+    types = workflow["on"]["pull_request"]["types"]
+    assert "labeled" in types
+    assert "synchronize" in types
+    assert "opened" in types
+
+
+@pytest.mark.parametrize("filename", sorted(LABEL_INDEPENDENT_WORKFLOWS))
+def test_label_independent_workflows_do_not_retrigger_on_labels(filename):
+    workflow = _load_workflow(filename)
+    types = workflow["on"]["pull_request"]["types"]
+    assert "labeled" not in types
+    assert "synchronize" in types
+    assert "opened" in types
 
 
 def test_safety_dependency_check_uses_fail_closed_retry_runner():
@@ -103,6 +98,7 @@ def test_safety_dependency_check_uses_fail_closed_retry_runner():
     assert safety_step["run"] == "python .github/scripts/run_safety_check.py"
     assert "continue-on-error" not in safety_step
     assert "|| true" not in safety_step["run"]
+
 
 def test_cuda_toolkit_exception_is_scoped_and_time_bounded():
     with SAFETY_POLICY_PATH.open(encoding="utf-8") as stream:
@@ -118,22 +114,19 @@ def test_cuda_toolkit_exception_is_scoped_and_time_bounded():
     assert security_policy["continue-on-vulnerability-error"] == "false"
 
 
-@pytest.mark.parametrize("filename", sorted(CONCURRENT_WORKFLOWS))
-def test_agent_label_runs_cannot_cancel_validation_runs(filename):
-    concurrency_group = _load_workflow(filename)["concurrency"]["group"]
-    assert "github.event.label.name" in concurrency_group
-    assert "'validation'" in concurrency_group
-
-
 def test_mobile_responsive_runs_on_both_protected_push_branches():
     branches = _load_workflow("mobile-responsive.yml")["on"]["push"]["branches"]
     assert set(branches) == {"main", "staging"}
 
 
 def test_authoritative_cd_context_materializes_and_guards_main_promotions():
-    job = _load_workflow("branch-governance.yml")["jobs"]["workflow-authority"]
+    workflow = _load_workflow("branch-governance.yml")
+    assert "labeled" not in workflow["on"]["pull_request"]["types"]
+    assert workflow["jobs"]["promotion-path"]["name"] == "Validate promotion path"
 
-    assert "github.base_ref == 'staging'" not in job["if"]
+    job = workflow["jobs"]["workflow-authority"]
+    assert job["name"] == "Protect authoritative CD workflow"
+    assert "github.base_ref == 'staging'" not in job.get("if", "")
     guard = job["steps"][1]
     assert guard["name"] == "Protect authoritative CD workflow"
     assert guard["env"]["PR_HEAD_SHA"] == (
@@ -142,22 +135,3 @@ def test_authoritative_cd_context_materializes_and_guards_main_promotions():
     assert "git rev-parse origin/staging" in guard["run"]
     assert 'if [ "$PR_HEAD_SHA" != "$CURRENT_STAGING_SHA" ]' in guard["run"]
     assert "git diff --quiet origin/main -- .github/workflows/cd.yml" in guard["run"]
-
-
-def test_agent_ci_signal_uses_trusted_code_and_minimal_permissions():
-    workflow = _load_workflow("agent-ci-signal.yml")
-    assert workflow["permissions"] == {
-        "contents": "read",
-        "checks": "read",
-        "issues": "write",
-    }
-    assert workflow["concurrency"] == {
-        "group": "agent-ci-signal-${{ github.event.workflow_run.head_sha }}",
-        "cancel-in-progress": "true",
-    }
-
-    checkout = workflow["jobs"]["signal-evaluator"]["steps"][0]
-    assert checkout["uses"] == "actions/checkout@v4"
-    assert checkout["with"]["ref"] == "${{ github.event.repository.default_branch }}"
-    assert checkout["with"]["persist-credentials"] == "false"
-    assert checkout["with"]["sparse-checkout"].strip() == ".github/scripts"

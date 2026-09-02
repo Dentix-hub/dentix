@@ -8,19 +8,12 @@ on:
     branches: [ staging, main ]
 
 concurrency:
-  group: >-
-    dentix-mobile-responsive-${{ github.event.pull_request.number || github.ref }}-${{
-      github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:')
-      && github.event.label.name || 'validation'
-    }}
+  group: dentix-mobile-responsive-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   responsive:
-    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / Responsive Acceptance Matrix' || 'Responsive Acceptance Matrix' }}
-    if: >-
-      github.event.action != 'labeled' ||
-      !startsWith(github.event.label.name, 'agent:')
+    name: Responsive Acceptance Matrix
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

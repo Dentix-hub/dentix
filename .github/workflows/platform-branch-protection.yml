@@ -3,7 +3,7 @@ name: Dentix Platform Branch Protection
 on:
   pull_request:
     branches: [main, staging]
-    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main, staging]
   workflow_dispatch:
@@ -13,10 +13,7 @@ permissions:
 
 jobs:
   verify-platform-branch-rules:
-    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / Verify GitHub branch enforcement' || 'Verify GitHub branch enforcement' }}
-    if: >-
-      github.event.action != 'labeled' ||
-      !startsWith(github.event.label.name, 'agent:')
+    name: Verify GitHub branch enforcement
     runs-on: ubuntu-latest
     steps:
       - name: Verify main and staging rules
