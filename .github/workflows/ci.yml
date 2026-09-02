@@ -8,19 +8,12 @@ on:
     types: [ opened, synchronize, reopened, ready_for_review, labeled ]
 
 concurrency:
-  group: >-
-    dentix-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{
-      github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:')
-      && github.event.label.name || 'validation'
-    }}
+  group: dentix-ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   classify-scope:
-    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / Classify CI Scope' || 'Classify CI Scope' }}
-    if: >-
-      github.event.action != 'labeled' ||
-      !startsWith(github.event.label.name, 'agent:')
+    name: Classify CI Scope
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.classifier.outputs.backend }}
@@ -63,11 +56,9 @@ jobs:
             --output-format github-output
 
   dependency-reproducibility:
-    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / Frozen Dependency Reproducibility' || 'Frozen Dependency Reproducibility' }}
+    name: Frozen Dependency Reproducibility
     needs: [classify-scope]
-    if: >-
-      always() &&
-      (github.event.action != 'labeled' || !startsWith(github.event.label.name, 'agent:'))
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Skip notice when dependencies unchanged
@@ -110,11 +101,9 @@ jobs:
           diff -u /tmp/deps-a.txt /tmp/deps-b.txt
 
   backend:
-    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / Backend Tests + Security' || 'Backend Tests + Security' }}
+    name: Backend Tests + Security
     needs: [classify-scope]
-    if: >-
-      always() &&
-      (github.event.action != 'labeled' || !startsWith(github.event.label.name, 'agent:'))
+    if: always()
     runs-on: ubuntu-latest
     env:
       DB_SSL_MODE: disable
@@ -329,14 +318,13 @@ jobs:
 
       - name: Dependency vulnerability check — Safety
         if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') }}
-        run: safety check --full-report
+        # Retry only Safety's exact feed-mismatch KeyError; every other non-zero exit remains fail-closed.
+        run: python .github/scripts/run_safety_check.py
 
   frontend:
-    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / Frontend Tests' || 'Frontend Tests' }}
+    name: Frontend Tests
     needs: [classify-scope]
-    if: >-
-      always() &&
-      (github.event.action != 'labeled' || !startsWith(github.event.label.name, 'agent:'))
+    if: always()
     runs-on: ubuntu-latest
     env:
       NODE_OPTIONS: --max-old-space-size=4096
@@ -406,11 +394,9 @@ jobs:
           done
 
   e2e:
-    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / E2E Critical Path (Playwright)' || 'E2E Critical Path (Playwright)' }}
+    name: E2E Critical Path (Playwright)
     needs: [classify-scope, backend, frontend, dependency-reproducibility]
-    if: >-
-      always() &&
-      (github.event.action != 'labeled' || !startsWith(github.event.label.name, 'agent:'))
+    if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -575,11 +561,9 @@ jobs:
             frontend/test-results/
 
   production-container:
-    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / Validate Production Container' || 'Validate Production Container' }}
+    name: Validate Production Container
     needs: [classify-scope, backend, frontend, e2e, dependency-reproducibility]
-    if: >-
-      always() &&
-      (github.event.action != 'labeled' || !startsWith(github.event.label.name, 'agent:'))
+    if: always()
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -11,19 +11,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: >-
-    dentix-pg-http-idor-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{
-      github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:')
-      && github.event.label.name || 'validation'
-    }}
+  group: dentix-pg-http-idor-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   postgres-http-idor:
-    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / PostgreSQL HTTP Cross-Tenant BOLA Matrix' || 'PostgreSQL HTTP Cross-Tenant BOLA Matrix' }}
-    if: >-
-      github.event.action != 'labeled' ||
-      !startsWith(github.event.label.name, 'agent:')
+    name: PostgreSQL HTTP Cross-Tenant BOLA Matrix
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
