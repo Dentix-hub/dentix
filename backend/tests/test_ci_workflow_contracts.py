@@ -33,11 +33,17 @@ LABEL_SENSITIVE_WORKFLOWS = {
     "rls-concurrency.yml",
     "mobile-responsive.yml",
     "stale-deployment-recovery.yml",
-    "history-secret-scan.yml",
-    "platform-branch-protection.yml",
 }
 
-ALL_RELEVANT_WORKFLOWS = LABEL_SENSITIVE_WORKFLOWS | {"branch-governance.yml", "mobile.yml"}
+LABEL_INDEPENDENT_WORKFLOWS = {
+    "history-secret-scan.yml",
+    "platform-branch-protection.yml",
+    "branch-governance.yml",
+}
+
+ALL_RELEVANT_WORKFLOWS = (
+    LABEL_SENSITIVE_WORKFLOWS | LABEL_INDEPENDENT_WORKFLOWS | {"mobile.yml"}
+)
 
 
 def _load_workflow(filename):
@@ -64,10 +70,19 @@ def test_workflows_have_no_agent_label_special_casing(filename):
 
 
 @pytest.mark.parametrize("filename", sorted(LABEL_SENSITIVE_WORKFLOWS))
-def test_legitimate_label_safety_remains_on_pr_workflows(filename):
+def test_label_sensitive_workflows_retain_labeled_trigger(filename):
     workflow = _load_workflow(filename)
     types = workflow["on"]["pull_request"]["types"]
     assert "labeled" in types
+    assert "synchronize" in types
+    assert "opened" in types
+
+
+@pytest.mark.parametrize("filename", sorted(LABEL_INDEPENDENT_WORKFLOWS))
+def test_label_independent_workflows_do_not_retrigger_on_labels(filename):
+    workflow = _load_workflow(filename)
+    types = workflow["on"]["pull_request"]["types"]
+    assert "labeled" not in types
     assert "synchronize" in types
     assert "opened" in types
 
