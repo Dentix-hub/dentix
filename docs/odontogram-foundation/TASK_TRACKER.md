@@ -57,17 +57,17 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A11-M01 Support current notation display mode | PASS | Default Palmer notation preserves familiar UR/UL/LL/LR and pediatric letter labels; DentalChartSVG and workspace tests pass |
 | A11-M02 Add notation abstraction | PASS | `domain/toothNotation.js` exports frozen constants, label resolvers, and converters between FDI, Palmer, and Universal; 8/8 tests pass in `ToothNotationAndLabels.test.jsx` |
 | A11-M03 Verify label placement after roots | PASS | Labels cleanly positioned with `-bottom-5` below root apices without overlap; dynamic header subtitle updates to active notation; tests pass |
-| A12-M01 Create adult dentition fixture | PENDING | — |
-| A12-M02 Create primary dentition fixture | PENDING | — |
-| A12-M03 Create mixed dentition fixture | PENDING | — |
-| A12-M04 Create caries-on-surface fixture | PENDING | — |
-| A12-M05 Create MOD restoration fixture | PENDING | — |
-| A12-M06 Create RCT fixture | PENDING | — |
-| A12-M07 Create crown fixture | PENDING | — |
-| A12-M08 Create missing tooth fixture | PENDING | — |
-| A12-M09 Create implant fixture | PENDING | — |
-| A12-M10 Create bridge fixture | PENDING | — |
-| A12-M11 Create simultaneous existing + planned fixture | PENDING | — |
+| A12-M01 Create adult dentition fixture | PASS | Full 32 permanent adult teeth fixture loads cleanly; verified in `ClinicalDemoFixtures.test.jsx` |
+| A12-M02 Create primary dentition fixture | PASS | Full 20 primary pediatric teeth fixture loads and renders cleanly; tests pass |
+| A12-M03 Create mixed dentition fixture | PASS | Mixed dentition fixture with explicit FDI tooth order and permanent + primary teeth; tests pass |
+| A12-M04 Create caries-on-surface fixture | PASS | Surface-targeted caries visual rules on 46-O, 16-M, 21-D verified; tests pass |
+| A12-M05 Create MOD restoration fixture | PASS | Multi-surface composite restoration visual rules on M, O, D verified; tests pass |
+| A12-M06 Create RCT fixture | PASS | Completed and active root canal therapy visual rules targeted to roots verified; tests pass |
+| A12-M07 Create crown fixture | PASS | Completed and planned prosthetic full crown visual rules verified; tests pass |
+| A12-M08 Create missing tooth fixture | PASS | Missing and extracted teeth visual rules (18, 28) verified in completed extraction fixture; tests pass |
+| A12-M09 Create implant fixture | PASS | Implant fixture and implant crown visual rules replacing roots on tooth 36 verified; tests pass |
+| A12-M10 Create bridge fixture | PASS | Multi-unit bridge fixture with abutment crowns (21, 23) and pontic (22) verified; tests pass |
+| A12-M11 Create simultaneous existing + planned fixture | PASS | Target coverage and extraction planned/completed fixtures cover simultaneous existing and planned phases; 12/12 tests pass |
 | A13-M01 Create dual-chart page | PENDING | — |
 | A13-M02 Ensure state isolation | PENDING | — |
 | A13-M03 Ensure independent layer filtering | PENDING | — |
