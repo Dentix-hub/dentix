@@ -54,9 +54,9 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A10-M04 Handle molars | PASS | All maxillary molars render 3 roots (MB, DB, Palatal); all mandibular molars render 2 roots (Mesial, Distal); tests pass |
 | A10-M05 Handle primary teeth | PASS | All 20 primary teeth render verified roots (incisors 1 root, maxillary molars 3 divergent roots, mandibular molars 2 divergent roots); tests pass |
 | A10-M06 Prevent root overlap artifacts | PASS | Root paths bounded in [0, 50] width, crowns smoothly mask cervical lines, `pointer-events-none` prevents click blocking, and 4px column separation prevents adjacent collisions; tests pass |
-| A11-M01 Support current notation display mode | PENDING | — |
-| A11-M02 Add notation abstraction | PENDING | — |
-| A11-M03 Verify label placement after roots | PENDING | — |
+| A11-M01 Support current notation display mode | PASS | Default Palmer notation preserves familiar UR/UL/LL/LR and pediatric letter labels; DentalChartSVG and workspace tests pass |
+| A11-M02 Add notation abstraction | PASS | `domain/toothNotation.js` exports frozen constants, label resolvers, and converters between FDI, Palmer, and Universal; 8/8 tests pass in `ToothNotationAndLabels.test.jsx` |
+| A11-M03 Verify label placement after roots | PASS | Labels cleanly positioned with `-bottom-5` below root apices without overlap; dynamic header subtitle updates to active notation; tests pass |
 | A12-M01 Create adult dentition fixture | PENDING | — |
 | A12-M02 Create primary dentition fixture | PENDING | — |
 | A12-M03 Create mixed dentition fixture | PENDING | — |
