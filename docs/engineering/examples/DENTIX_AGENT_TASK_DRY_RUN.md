@@ -12,7 +12,7 @@ Identify the canonical shared button component and report its repository path an
 
 ## Source spec or plan
 
-`docs/engineering/DENTIX_AI_DEVELOPMENT_WORKFLOW_V2.md` — read-only delegate smoke contract.
+`docs/engineering/DEVELOPMENT_WORKFLOW.md` — read-only delegate smoke contract.
 
 ## Scope
 
@@ -48,7 +48,6 @@ None. This is a read-only inspection with no contract dependency.
 
 ## Required DENTIX skills
 
-- `dentix-orchestration`
 - `dentix-frontend-react`
 - `dentix-testing-verification`
 
