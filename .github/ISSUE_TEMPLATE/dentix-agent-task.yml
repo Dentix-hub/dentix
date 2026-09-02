@@ -1,17 +1,17 @@
 name: DENTIX agent task
-description: Create a bounded, dependency-aware task suitable for isolated AI implementation.
+description: Create a bounded task suitable for AI implementation following the lean development workflow.
 title: "[DTX] "
 body:
   - type: markdown
     attributes:
       value: |
-        Use this form for one coherent, bounded DENTIX objective. Master plans remain strategic sources; this issue is the executable scope contract.
+        Use this form for one coherent, bounded DENTIX objective following `docs/engineering/DEVELOPMENT_WORKFLOW.md`.
 
   - type: textarea
     id: problem
     attributes:
       label: Problem
-      description: Describe the observed problem and why it matters.
+      description: Describe the observed problem or motivation.
     validations:
       required: true
 
@@ -26,38 +26,17 @@ body:
   - type: input
     id: source_spec
     attributes:
-      label: Source spec or plan
-      description: Link or repository path, including relevant requirement IDs.
-      placeholder: docs/...md — P1.1, P1.2
+      label: Source spec or approved plan
+      description: Repository path, documentation link, or approved requirement reference.
+      placeholder: docs/...md — Section X
     validations:
-      required: true
-
-  - type: dropdown
-    id: execution_mode
-    attributes:
-      label: Execution mode
-      description: FAST (tests/docs/isolated UI <= 3 files), STANDARD (wave <= 5 tickets), HIGH_RISK (strict controls).
-      options:
-        - FAST
-        - STANDARD
-        - HIGH_RISK
-    validations:
-      required: true
-
-  - type: input
-    id: wave_id
-    attributes:
-      label: Wave ID
-      description: Execution wave identifier (e.g. ODG-L1, ODG-L3, WAVE-01, or NONE for standalone).
-      placeholder: ODG-L1
-    validations:
-      required: true
+      required: false
 
   - type: textarea
     id: scope
     attributes:
       label: Scope
-      description: List the work explicitly included in this ticket.
+      description: List the work explicitly included in this task.
       placeholder: |
         - ...
         - ...
@@ -68,7 +47,7 @@ body:
     id: non_goals
     attributes:
       label: Explicit non-goals
-      description: List work this ticket must not perform.
+      description: List work this task must not perform.
       placeholder: |
         - ...
         - ...
@@ -79,87 +58,30 @@ body:
     id: dependencies
     attributes:
       label: Dependencies
-      description: Name blocking issues/contracts, or state None with a short justification.
+      description: Name blocking issues, prerequisites, or contracts (or state None).
+      placeholder: None
     validations:
       required: true
 
-  - type: dropdown
-    id: parallel_classification
+  - type: textarea
+    id: sensitive_surfaces
     attributes:
-      label: Parallel classification
-      description: No ticket is implicitly parallel-safe.
-      options:
-        - PARALLEL_SAFE
-        - PARALLEL_AFTER:<ticket>
-        - SERIAL_ONLY
+      label: Sensitive surfaces / risk notes
+      description: Note if touching auth, RBAC, tenancy/RLS, finance, database migrations, clinical semantics, or shared API contracts.
+      placeholder: None (or describe sensitive surface and independent review requirement)
     validations:
-      required: true
-
-  - type: dropdown
-    id: risk
-    attributes:
-      label: Risk classification
-      description: Select every applicable risk. High-risk and clinical-semantics work default to serial execution.
-      multiple: true
-      options:
-        - LOW
-        - NORMAL
-        - CLINICAL_UI
-        - CLINICAL_SEMANTICS
-        - FINANCE
-        - AUTH_RBAC
-        - TENANCY_RLS
-        - DATABASE_MIGRATION
-        - DEPLOYMENT
-        - SECURITY
-    validations:
-      required: true
-
-  - type: dropdown
-    id: verification_tier
-    attributes:
-      label: Verification tier
-      description: T1 (targeted ticket check), T2 (wave/phase gate), T3 (repository CI).
-      options:
-        - T1_TARGETED
-        - T2_WAVE_GATE
-        - T3_FULL_INTEGRATION
-    validations:
-      required: true
-
-  - type: dropdown
-    id: review_policy
-    attributes:
-      label: Review policy
-      description: Review cadence for this ticket.
-      options:
-        - MECHANICAL_INSPECTION_FAST
-        - INDEPENDENT_WAVE_REVIEW_STANDARD
-        - PER_TICKET_INDEPENDENT_REVIEW_HIGH_RISK
-    validations:
-      required: true
-
-  - type: dropdown
-    id: pr_strategy
-    attributes:
-      label: PR strategy
-      description: How this ticket is integrated.
-      options:
-        - WAVE_PR
-        - INDIVIDUAL_PR
-    validations:
-      required: true
+      required: false
 
   - type: textarea
     id: expected_touch_surface
     attributes:
       label: Expected touch surface
-      description: List expected production files/modules (pilot cap <= 3 for FAST). Stop immediately (drift-abort) before modifying unlisted production files.
+      description: List expected production modules/files where useful.
       placeholder: |
         - path/to/module
         - path/to/test
     validations:
-      required: true
+      required: false
 
   - type: textarea
     id: acceptance_criteria
@@ -179,17 +101,17 @@ body:
       description: Primary native domain skill required (e.g. dentix-frontend-react, dentix-backend-fastapi).
       placeholder: dentix-frontend-react
     validations:
-      required: true
+      required: false
 
   - type: textarea
     id: completion_evidence
     attributes:
       label: Completion evidence
-      description: Evidence required before ticket is marked IMPLEMENTED / VERIFIED.
+      description: Evidence required before task is marked completed.
       placeholder: |
-        - [ ] Diff inspected within expected touch surface
-        - [ ] T1 targeted test commands and exit codes recorded
+        - [ ] Targeted test commands and results recorded
         - [ ] Acceptance criteria checklist satisfied
+        - [ ] Working tree clean and diff inspected
     validations:
       required: true
 
@@ -200,7 +122,7 @@ body:
       options:
         - label: Tenant isolation, RBAC, privacy, data integrity, API/database contracts, and branch governance remain authoritative.
           required: true
-        - label: Model-driven CI polling is forbidden; stop upon reaching AWAITING_CI.
+        - label: AI assistants must not poll CI in a loop; stop active execution after opening a PR or triggering CI.
           required: true
-        - label: The implementer will not merge or claim broader completion than this ticket.
+        - label: The implementer will not merge or claim broader completion than this task.
           required: true

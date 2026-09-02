@@ -22,7 +22,6 @@ LABEL_TRIGGERED_JOBS = {
     "mobile-responsive.yml": ("responsive",),
     "stale-deployment-recovery.yml": ("stale-deployment-recovery",),
     "history-secret-scan.yml": ("history-secret-scan",),
-    "branch-governance.yml": ("promotion-path", "workflow-authority"),
     "platform-branch-protection.yml": ("verify-platform-branch-rules",),
 }
 
@@ -39,8 +38,6 @@ REQUIRED_CONTEXT_LOCATIONS = {
     ),
     "Responsive Acceptance Matrix": ("mobile-responsive.yml", "responsive"),
     "Full Git History Secret Scan": ("history-secret-scan.yml", "history-secret-scan"),
-    "Validate promotion path": ("branch-governance.yml", "promotion-path"),
-    "Protect authoritative CD workflow": ("branch-governance.yml", "workflow-authority"),
     "Verify GitHub branch enforcement": (
         "platform-branch-protection.yml",
         "verify-platform-branch-rules",
@@ -104,6 +101,7 @@ def test_safety_dependency_check_uses_fail_closed_retry_runner():
     assert "continue-on-error" not in safety_step
     assert "|| true" not in safety_step["run"]
 
+
 def test_cuda_toolkit_exception_is_scoped_and_time_bounded():
     with SAFETY_POLICY_PATH.open(encoding="utf-8") as stream:
         security_policy = yaml.load(stream, Loader=yaml.BaseLoader)["security"]
@@ -131,9 +129,13 @@ def test_mobile_responsive_runs_on_both_protected_push_branches():
 
 
 def test_authoritative_cd_context_materializes_and_guards_main_promotions():
-    job = _load_workflow("branch-governance.yml")["jobs"]["workflow-authority"]
+    workflow = _load_workflow("branch-governance.yml")
+    assert "labeled" not in workflow["on"]["pull_request"]["types"]
+    assert workflow["jobs"]["promotion-path"]["name"] == "Validate promotion path"
 
-    assert "github.base_ref == 'staging'" not in job["if"]
+    job = workflow["jobs"]["workflow-authority"]
+    assert job["name"] == "Protect authoritative CD workflow"
+    assert "github.base_ref == 'staging'" not in job.get("if", "")
     guard = job["steps"][1]
     assert guard["name"] == "Protect authoritative CD workflow"
     assert guard["env"]["PR_HEAD_SHA"] == (
@@ -142,22 +144,3 @@ def test_authoritative_cd_context_materializes_and_guards_main_promotions():
     assert "git rev-parse origin/staging" in guard["run"]
     assert 'if [ "$PR_HEAD_SHA" != "$CURRENT_STAGING_SHA" ]' in guard["run"]
     assert "git diff --quiet origin/main -- .github/workflows/cd.yml" in guard["run"]
-
-
-def test_agent_ci_signal_uses_trusted_code_and_minimal_permissions():
-    workflow = _load_workflow("agent-ci-signal.yml")
-    assert workflow["permissions"] == {
-        "contents": "read",
-        "checks": "read",
-        "issues": "write",
-    }
-    assert workflow["concurrency"] == {
-        "group": "agent-ci-signal-${{ github.event.workflow_run.head_sha }}",
-        "cancel-in-progress": "true",
-    }
-
-    checkout = workflow["jobs"]["signal-evaluator"]["steps"][0]
-    assert checkout["uses"] == "actions/checkout@v4"
-    assert checkout["with"]["ref"] == "${{ github.event.repository.default_branch }}"
-    assert checkout["with"]["persist-credentials"] == "false"
-    assert checkout["with"]["sparse-checkout"].strip() == ".github/scripts"

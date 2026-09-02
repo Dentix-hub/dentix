@@ -1,60 +1,45 @@
-## Source & Wave Information
+## Summary
 
-- **Source Plan / Spec**:
-- **Wave ID**:
-- **Execution Mode**: `FAST` | `STANDARD`
-- **Risk Classification**: `LOW` | `NORMAL` | `CLINICAL_UI`
-- **Closed Issues**: Closes #
+<!-- Concise description of the change and user/developer-facing outcome -->
 
-## Ticket Traceability & Commit Mapping
+## Source / Issue
 
-| Issue | Commit SHA | Touched Files | Summary |
-| --- | --- | --- | --- |
-| # |  |  |  |
+Closes #
+<!-- Link to approved plan or spec section if applicable -->
 
-## Scope & Non-Goals
+## Scope
 
-- **Included Scope**:
-- [ ] No declared non-goals were implemented.
-- [ ] Drift-abort observed: no unlisted production files touched without reclassification.
+-
 
-## Verification Evidence (T1 / T2)
+## Non-Goals
 
-### T1 Targeted Ticket Verification
-| Exact Command | Exit Code | Result Summary | New or Baseline Failure |
-| --- | ---: | --- | --- |
-|  | 0 |  | None |
+-
 
-### T2 Wave Gate Verification
-| Gate Type | Exact Command | Exit Code | Evidence Summary |
-| --- | --- | ---: | --- |
-| Lint |  | 0 | Clean |
-| Subsystem Tests |  | 0 | Passed |
-| Build |  | 0 | Successful |
-| Visual / UI Matrix |  | 0 | Attached screenshots / evidence |
+## Changes
 
-## Acceptance Criteria Reconciliation
+-
 
-- [ ] All issue acceptance criteria checklist items satisfied.
-- [ ] Actual diff inspected and matches declared touch surfaces.
+## Verification
 
-## Efficiency Telemetry
+- **Targeted tests**:
+- **Subsystem tests**:
+- **Lint / Typecheck**:
+- **Production build**:
+- **Visual evidence (if UI change)**: N/A
 
-- **Wave ID**:
-- **Ticket Count**:
-- **Independent Reviewer Sessions**: 0 (FAST) / 1 (STANDARD wave boundary)
-- **Model-Driven CI Polling Calls**: 0 (Strictly enforced: stopped at `AWAITING_CI`)
+## Sensitive Change Review
 
-## Screenshots / Visual Evidence (when UI / Clinical UI)
+- [ ] Not required (standard product, UI, test, or documentation change)
+- [ ] Independent review required and completed
 
-Attach desktop/mobile or LTR/RTL evidence here, or state N/A (no UI change).
+*Reason / Surface (if applicable)*:
+
+## Safety & Compatibility
+
+- Tenant isolation: Preserved
+- RBAC / Permissions: Preserved
+- API contracts / DB schemas: Preserved
 
 ## Known Limitations
 
-- None.
-
-## Review & Integration Gate
-
-- [ ] STANDARD wave review completed by distinct reviewer, or FAST mechanical inspection verified.
-- [ ] CI state transitioned to `agent:ci-green`.
-- [ ] No automatic merge authorized.
+- None
