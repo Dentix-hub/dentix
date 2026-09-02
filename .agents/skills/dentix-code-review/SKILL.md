@@ -6,12 +6,13 @@ description: Review DENTIX diffs or implementations for correctness, regressions
 # DENTIX Code Review Discipline
 
 ## Review Activation Cadence
-Do not invoke independent reviewer sessions indiscriminately:
-- **`FAST` Mode**: Independent reviewer is **not** invoked. Orchestrator performs mechanical diff and touch-surface inspection.
-- **`STANDARD` Mode**: Exactly **one** independent review per wave at the wave boundary (`WAVE_READY`) performed by a distinct read-only reviewer.
-- **`HIGH_RISK` Mode**: Mandatory independent review **per ticket** prior to PR creation.
-- **Shared Contracts / Release Gates**: Independent review required before merging shared contracts or executing final program release.
-- **DWF-11 Debate Review**: Rare, opt-in escalation for high-severity disputes only; never a daily default.
+Review diffs thoroughly when requested or when changes touch sensitive domains:
+- Authentication, authorization, or RBAC
+- Tenant isolation and Row Level Security (RLS)
+- Financial transactions, invoicing, and ledger logic
+- Database schemas and Alembic migrations
+- Clinical semantics and medical record integrity
+- Shared cross-subsystem contracts
 
 ## Severity Classification Model
 
@@ -21,7 +22,6 @@ Every finding must be categorized by severity:
 - **`MEDIUM`**: Inadequate error handling, unoptimized database query (N+1), race condition in UI state, missing test coverage, or edge-case defect.
 - **`LOW`**: Minor code quality flaw, non-standard naming, dead code, redundant calculation, or suboptimal logging.
 - **`NOTE`**: Architectural suggestion, optional refactoring opportunity, or documentation enhancement.
-
 
 ## Review Priority Sequence
 Evaluate code diffs in this strict hierarchical order:
