@@ -99,6 +99,7 @@ const ToothRootLayer = memo(function ToothRootLayer({ toothKey, arch, opacity, t
             className={`pointer-events-none absolute ${arch === 'upper' ? 'top-0' : 'bottom-0'}`}
             data-layer="roots"
             data-tooth-key={toothKey}
+            data-root-count={roots.length}
             height="48"
             opacity={opacity}
             viewBox={ROOT_VIEW_BOX}

@@ -48,12 +48,12 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A9-M03 Add finding rules | PASS | CARIES is crown-surface-local, FRACTURE is a clipped crack, and PAIN uses a crown/root marker; rendering tests pass |
 | A9-M04 Add procedure rules | PASS | Composite, RCT, crown, bridge, implant fixture/crown, and planned/completed extraction effects render programmatically; focused tests pass 34/34 |
 | A9-M05 Add layer mapping | PASS | Stable indices enforce anatomy → lifecycle → findings → existing/completed → planned/active → selection; live browser verified 32 crowns, 32 root layers, 160 surface controls, and no document overflow |
-| A10-M01 Add root layer renderer | PENDING | — |
-| A10-M02 Handle single-root teeth | PENDING | — |
-| A10-M03 Handle premolars | PENDING | — |
-| A10-M04 Handle molars | PENDING | — |
-| A10-M05 Handle primary teeth | PENDING | — |
-| A10-M06 Prevent root overlap artifacts | PENDING | — |
+| A10-M01 Add root layer renderer | PASS | Rendered as separate layer under crown with `data-layer="roots"`, viewBox 0 0 50 48, and proper z-order; focused tests pass 24/24 in `RootLayerRendering.test.jsx` |
+| A10-M02 Handle single-root teeth | PASS | All 12 permanent incisors/canines render 1 root with apical orientation (rotate 180 on upper, unrotated on lower); tests pass |
+| A10-M03 Handle premolars | PASS | Maxillary 1st premolars (14, 24) render 2 roots; maxillary 2nd and all mandibular premolars render 1 root; tests pass |
+| A10-M04 Handle molars | PASS | All maxillary molars render 3 roots (MB, DB, Palatal); all mandibular molars render 2 roots (Mesial, Distal); tests pass |
+| A10-M05 Handle primary teeth | PASS | All 20 primary teeth render verified roots (incisors 1 root, maxillary molars 3 divergent roots, mandibular molars 2 divergent roots); tests pass |
+| A10-M06 Prevent root overlap artifacts | PASS | Root paths bounded in [0, 50] width, crowns smoothly mask cervical lines, `pointer-events-none` prevents click blocking, and 4px column separation prevents adjacent collisions; tests pass |
 | A11-M01 Support current notation display mode | PENDING | — |
 | A11-M02 Add notation abstraction | PENDING | — |
 | A11-M03 Verify label placement after roots | PENDING | — |
