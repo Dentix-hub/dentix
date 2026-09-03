@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  statuses: read
 
 jobs:
   promotion-path:
@@ -70,6 +71,8 @@ jobs:
           BASE_BRANCH: ${{ github.base_ref }}
           HEAD_BRANCH: ${{ github.head_ref }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
@@ -91,7 +94,17 @@ jobs:
               echo "::error::Promotion head ${PR_HEAD_SHA} is stale; current protected staging is ${CURRENT_STAGING_SHA}."
               exit 1
             fi
-            echo "Promotion targets the current protected staging revision."
+
+            STAGING_SMOKE_STATE="$(
+              gh api "repos/${GH_REPOSITORY}/commits/${PR_HEAD_SHA}/status" \
+                --jq '[.statuses[] | select(.context == "Dentix CD - HF staging smoke")][0].state // ""'
+            )"
+            if [ "$STAGING_SMOKE_STATE" != "success" ]; then
+              echo "::error::Current staging revision ${PR_HEAD_SHA} is not promotion-ready: Dentix CD - HF staging smoke=${STAGING_SMOKE_STATE:-missing}."
+              exit 1
+            fi
+
+            echo "Promotion targets current protected staging revision with successful HF staging smoke."
             exit 0
           fi
 
