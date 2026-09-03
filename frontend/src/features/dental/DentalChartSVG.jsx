@@ -158,6 +158,7 @@ const ToothRootLayer = memo(function ToothRootLayer({ toothKey, arch, opacity, t
             aria-hidden="true"
             className={`pointer-events-none absolute ${arch === 'upper' ? 'top-0' : 'bottom-0'}`}
             data-layer="roots"
+            data-root-count={roots.length}
             data-tooth-key={toothKey}
             height="48"
             opacity={opacity}
