@@ -6,20 +6,27 @@ Deterministic change classifier for selective PR CI execution.
 Inputs:
   - Event type (github.event_name)
   - Target branch / ref
+  - Source branch for pull requests
   - Git commit range / diff against base
   - Optional PR labels (CLI or JSON)
 
 Outputs JSON with boolean classification flags.
 
 Safety model:
-  1. Protected pushes (staging/main) and workflow_dispatch: always force_full.
-  2. HIGH_RISK labels: always force_full.
-  3. Closed-list structural surfaces (models/schema lineage, shared API/session,
-     core security, migrations, governance) always force full.
-  4. Token-aware keyword scanning catches high-risk source paths without unsafe
+  1. Protected-branch pushes are post-merge CD handoffs; expensive CI already ran
+     at the protected PR boundary, so they do not repeat the suite.
+  2. A validated production promotion reuses the tested staging tree instead of
+     rerunning the same suite. Trusted sources are direct staging and the tightly
+     governed release/promotion-* reconciliation branch family. A HIGH_RISK label
+     can explicitly force a fresh full validation when needed.
+  3. workflow_dispatch always forces full validation.
+  4. HIGH_RISK labels force full validation.
+  5. Closed-list structural surfaces (models/schema lineage, shared API/session,
+     core security, migrations, governance) always force full validation.
+  6. Token-aware keyword scanning catches high-risk source paths without unsafe
      substring matches (for example, ``AuthorCard`` is not authentication).
-  5. Clinical UI remains STANDARD unless a clinical-semantics token is present.
-  6. Unrecognized paths and an empty/unavailable diff force full.
+  7. Clinical UI remains STANDARD unless a clinical-semantics token is present.
+  8. Unrecognized paths and an empty/unavailable diff force full validation.
 """
 
 import argparse
@@ -212,10 +219,21 @@ def _keyword_scan(path: str) -> Dict[str, bool]:
     return hits
 
 
+def _normalize_branch(branch: str) -> str:
+    value = str(branch or "").strip()
+    prefix = "refs/heads/"
+    return value[len(prefix):] if value.startswith(prefix) else value
+
+
+def _is_trusted_promotion_source(source_branch: str) -> bool:
+    return source_branch == "staging" or source_branch.startswith("release/promotion-")
+
+
 def classify_files(
     changed_files: List[str],
     event_name: str = "pull_request",
     target_branch: str = "staging",
+    source_branch: str = "",
     labels: Union[str, List[str], None] = None,
 ) -> Dict[str, bool]:
     """Classify the changed files and event context into boolean CI flags."""
@@ -240,12 +258,15 @@ def classify_files(
         "force_full": False,
     }
 
-    # ── Rule 1: Protected pushes always force full ──
-    if event_name == "push" and target_branch in (
-        "staging", "main",
-        "refs/heads/staging", "refs/heads/main",
-    ):
-        classification["force_full"] = True
+    normalized_target = _normalize_branch(target_branch)
+    normalized_source = _normalize_branch(source_branch)
+
+    # ── Rule 1: Protected pushes are post-merge CD handoffs ──
+    # main/staging cannot be updated directly under the active no-bypass ruleset.
+    # The protected PR boundary already performed the authoritative CI. Returning
+    # an empty scope lets Dentix CI complete quickly so workflow_run can hand the
+    # exact merged revision to CD without rerunning the full suite.
+    if event_name == "push" and normalized_target in ("staging", "main"):
         return classification
 
     # ── Rule 2: Manual dispatch always forces full ──
@@ -259,7 +280,18 @@ def classify_files(
             classification["force_full"] = True
             break
 
-    # ── Rule 4: No changed files → fail-safe full ──
+    # ── Rule 4: validated promotion -> main reuses prior staging validation ──
+    # Governance independently proves release/promotion-* branches are a single
+    # commit on current main whose tree exactly equals current validated staging.
+    if (
+        event_name == "pull_request"
+        and normalized_target == "main"
+        and _is_trusted_promotion_source(normalized_source)
+        and not classification["force_full"]
+    ):
+        return classification
+
+    # ── Rule 5: No changed files → fail-safe full ──
     if not changed_files:
         classification["force_full"] = True
         return classification
@@ -422,6 +454,7 @@ def main():
     parser.add_argument("--event", default=os.getenv("GITHUB_EVENT_NAME", "pull_request"))
     parser.add_argument("--base-ref", default=os.getenv("GITHUB_BASE_REF", "origin/staging"))
     parser.add_argument("--target-branch", default=os.getenv("GITHUB_BASE_REF", "staging"))
+    parser.add_argument("--source-branch", default=os.getenv("GITHUB_HEAD_REF", ""))
     parser.add_argument("--files", nargs="*", default=None)
     parser.add_argument("--labels", nargs="*", default=[])
     parser.add_argument("--labels-json", default=os.getenv("PR_LABELS", ""))
@@ -436,6 +469,7 @@ def main():
         changed_files=files,
         event_name=args.event,
         target_branch=args.target_branch,
+        source_branch=args.source_branch,
         labels=labels,
     )
 

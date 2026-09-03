@@ -123,12 +123,20 @@ def test_selective_ci_jobs_use_classifier_driven_job_level_conditions(job_id):
     assert "needs.classify-scope.outputs.force_full != 'false'" in job_if
 
 
+def test_ci_protected_push_trigger_remains_as_lightweight_cd_handoff():
+    workflow = _load_workflow("ci.yml")
+    triggers = workflow["on"]
+    assert "push" in triggers
+    assert set(triggers["push"]["branches"]) == {"main", "staging"}
+
+
 def test_governance_workflow_event_contract():
     workflow = _load_workflow("branch-governance.yml")
     triggers = workflow.get("on", {})
     assert "pull_request" in triggers
     assert "push" in triggers
     assert "workflow_dispatch" in triggers
+    assert workflow["permissions"]["statuses"] == "read"
 
     promo_job = workflow["jobs"]["promotion-path"]
     assert "github.event_name == 'pull_request'" in promo_job.get("if", "")
@@ -138,6 +146,29 @@ def test_governance_workflow_event_contract():
 
     verify_job = workflow["jobs"]["verify-platform-branch-rules"]
     assert verify_job["name"] == "Verify GitHub branch enforcement"
+
+
+def test_history_secret_scan_runs_on_introduction_not_again_on_protected_push():
+    workflow = _load_workflow("history-secret-scan.yml")
+    triggers = workflow["on"]
+    assert "pull_request" in triggers
+    assert "workflow_dispatch" in triggers
+    assert "push" not in triggers
+
+    job_if = workflow["jobs"]["history-secret-scan"]["if"]
+    assert "github.base_ref == 'main'" in job_if
+    assert "github.head_ref == 'staging'" in job_if
+
+
+def test_mobile_ci_runs_at_pr_boundary_not_again_after_merge_or_promotion():
+    workflow = _load_workflow("mobile.yml")
+    triggers = workflow["on"]
+    assert "pull_request" in triggers
+    assert "push" not in triggers
+
+    job_if = workflow["jobs"]["flutter-analyze-test"]["if"]
+    assert "github.base_ref == 'main'" in job_if
+    assert "github.head_ref == 'staging'" in job_if
 
 
 def test_safety_dependency_check_uses_fail_closed_retry_runner():
@@ -180,6 +211,9 @@ def test_authoritative_cd_context_materializes_and_guards_main_promotions():
     assert guard["env"]["PR_HEAD_SHA"] == (
         "${{ github.event.pull_request.head.sha }}"
     )
+    assert guard["env"]["GH_REPOSITORY"] == "${{ github.repository }}"
     assert "git rev-parse origin/staging" in guard["run"]
     assert 'if [ "$PR_HEAD_SHA" != "$CURRENT_STAGING_SHA" ]' in guard["run"]
+    assert "Dentix CD - HF staging smoke" in guard["run"]
+    assert 'if [ "$STAGING_SMOKE_STATE" != "success" ]' in guard["run"]
     assert "git diff --quiet origin/main -- .github/workflows/cd.yml" in guard["run"]
