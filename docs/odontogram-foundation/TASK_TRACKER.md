@@ -85,13 +85,13 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A15-M06 Verify English LTR layout | PASS | Standard LTR parent containers render without distortion or layout break; tests pass |
 | A15-M07 Add keyboard focus states | PASS | Interactive surfaces have `tabindex="0"`, focus rings (`focus:fill-blue-100 focus:stroke-blue-500`), and respond to keyboard Enter/Space; tests pass |
 | A15-M08 Add accessible labels where practical | PASS | Palmer & FDI labels preserved in `aria-label`, high-contrast color badges verified in `MobileResponsiveAndRTL.test.jsx` (10/10 pass) |
-| A16-M01 Add anatomy registry coverage test | PENDING | — |
-| A16-M02 Add renderer smoke test | PENDING | — |
-| A16-M03 Add multi-instance isolation test | PENDING | — |
-| A16-M04 Add root visual regression evidence | PENDING | — |
-| A16-M05 Add mixed dentition render test | PENDING | — |
-| A16-M06 Add RTL render test | PENDING | — |
-| A16-M07 Add mobile render test if tooling allows | PENDING | — |
+| A16-M01 Add anatomy registry coverage test | PASS | 100% test coverage across all 52 teeth (32 permanent + 20 primary) verifying dentition, arch, toothType, side, rootCount, surfaceMap, and getRootGeometry; tests pass |
+| A16-M02 Add renderer smoke test | PASS | Clean smoke tests for Permanent (32 teeth), Primary (20 teeth), and visual state projection rendering; tests pass |
+| A16-M03 Add multi-instance isolation test | PASS | Concurrent instance state isolation verified; selecting surfaces in instance A does not leak or alter instance B; tests pass |
+| A16-M04 Add root visual regression evidence | PASS | Root counts (1, 2, 3) and morphology verified on incisors (11), premolars (14), molars (16, 46); tests pass |
+| A16-M05 Add mixed dentition render test | PASS | Mixed dentition scenario rendered without layout collision or runtime error; tests pass |
+| A16-M06 Add RTL render test | PASS | Anatomical orientation preserved (patient right on left, patient left on right) under RTL root; tests pass |
+| A16-M07 Add mobile render test if tooling allows | PASS | Mobile quadrant focus (e.g. LL) rendered within narrow container without horizontal bleed; 8/8 tests pass in `FullRegressionVerification.test.jsx` |
 | A17-M01 Capture desktop screenshots | PENDING | — |
 | A17-M02 Capture mobile screenshots | PENDING | — |
 | A17-M03 Capture RTL screenshots | PENDING | — |
