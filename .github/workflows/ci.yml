@@ -58,39 +58,30 @@ jobs:
   dependency-reproducibility:
     name: Frozen Dependency Reproducibility
     needs: [classify-scope]
-    if: always()
+    if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.dependencies == 'true') }}
     runs-on: ubuntu-latest
     steps:
-      - name: Skip notice when dependencies unchanged
-        if: ${{ !cancelled() && needs.classify-scope.result == 'success' && needs.classify-scope.outputs.force_full == 'false' && needs.classify-scope.outputs.dependencies == 'false' }}
-        run: echo "Dependencies unchanged; skipping frozen dependency reproducibility check safely."
-
       - name: Checkout clean copy A
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.dependencies == 'true') }}
         uses: actions/checkout@v4
         with:
           path: checkout-a
 
       - name: Checkout clean copy B
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.dependencies == 'true') }}
         uses: actions/checkout@v4
         with:
           path: checkout-b
 
       - name: Set up Python 3.11
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.dependencies == 'true') }}
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install pinned uv
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.dependencies == 'true') }}
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: '0.12.5'
 
       - name: Sync both clean checkouts from frozen lock
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.dependencies == 'true') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -103,7 +94,7 @@ jobs:
   backend:
     name: Backend Tests + Security
     needs: [classify-scope]
-    if: always()
+    if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') }}
     runs-on: ubuntu-latest
     env:
       DB_SSL_MODE: disable
@@ -124,28 +115,20 @@ jobs:
           - 5432:5432
 
     steps:
-      - name: Skip notice when backend unchanged
-        if: ${{ !cancelled() && needs.classify-scope.result == 'success' && needs.classify-scope.outputs.force_full == 'false' && needs.classify-scope.outputs.backend == 'false' }}
-        run: echo "Backend unchanged; skipping backend test suite safely."
-
       - name: Checkout code
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') }}
         uses: actions/checkout@v4
 
       - name: Set up Python 3.11
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') }}
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install pinned uv
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') }}
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: '0.12.5'
 
       - name: Install dependencies from frozen lock
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') }}
         shell: bash
         run: |
           set -euo pipefail
@@ -153,7 +136,6 @@ jobs:
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Dependency compatibility smoke checks
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') }}
         run: |
           python - <<'PY'
           import importlib.util
@@ -181,11 +163,9 @@ jobs:
           PY
 
       - name: Ruff backend quality gate
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') }}
         run: ruff check --config ruff.toml backend
 
       - name: Initialize Database via production Alembic preflight
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') }}
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
           DB_SSL_MODE: disable
@@ -194,7 +174,6 @@ jobs:
         run: python -m backend.scripts.preflight_migrations
 
       - name: Alembic model/migration drift check
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') }}
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
           SECRET_KEY: test-secret-key-for-ci-only-at-least-32
@@ -202,7 +181,6 @@ jobs:
         run: python -m backend.scripts.check_migration_drift
 
       - name: Provision restricted PostgreSQL role for RLS smoke
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') }}
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
         run: |
@@ -257,8 +235,7 @@ jobs:
                    )
           PY
 
-      - name: Finance PostgreSQL smoke
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') }}
+      - name: Finance and RLS PostgreSQL smoke
         env:
           APP_DATABASE_URL_PREFIX: postgresql://dentix_ci_app
           APP_DATABASE_URL_SUFFIX: :dentix_ci_app_pass@localhost:5432/dentix_test
@@ -280,12 +257,12 @@ jobs:
             backend/ci_tests/test_auth_cookie_flow_http.py \
             backend/ci_tests/test_child_tenant_rls_postgres.py \
             backend/ci_tests/test_cross_tenant_http_postgres.py \
+            backend/ci_tests/test_upload_postgres_smoke.py \
             -v \
             --tb=short \
             --confcutdir=backend/ci_tests
 
       - name: Run tests with coverage
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') }}
         env:
           DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_test
           SECRET_KEY: test-secret-key-for-ci-only-at-least-32
@@ -302,14 +279,13 @@ jobs:
             --maxfail=0
 
       - name: Upload coverage report
-        if: ${{ (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') && always() }}
+        if: always()
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
           fail_ci_if_error: false
 
       - name: Security scan — Bandit
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') }}
         run: |
           bandit -r backend/ \
             -lll \
@@ -317,29 +293,24 @@ jobs:
             --format txt
 
       - name: Dependency vulnerability check — Safety
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.backend == 'true') }}
         # Retry only Safety's exact feed-mismatch KeyError; every other non-zero exit remains fail-closed.
         run: python .github/scripts/run_safety_check.py
 
   frontend:
     name: Frontend Tests
     needs: [classify-scope]
-    if: always()
+    if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.frontend == 'true') }}
     runs-on: ubuntu-latest
     env:
       NODE_OPTIONS: --max-old-space-size=4096
 
     steps:
-      - name: Skip notice when frontend unchanged
-        if: ${{ !cancelled() && needs.classify-scope.result == 'success' && needs.classify-scope.outputs.force_full == 'false' && needs.classify-scope.outputs.frontend == 'false' }}
-        run: echo "Frontend unchanged; skipping frontend test suite safely."
-
-      - name: Checkout code
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.frontend == 'true') }}
+      - name: Checkout code with base history
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js 20
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.frontend == 'true') }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -347,24 +318,29 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.frontend == 'true') }}
         run: cd frontend && npm ci
 
+      - name: Report legacy design-system debt
+        working-directory: frontend
+        run: npm run design:guardrails
+
+      - name: Reject newly-added guarded violations
+        if: github.event_name == 'pull_request'
+        working-directory: frontend
+        run: node scripts/check-design-system-guardrails.mjs --diff-base=origin/${{ github.base_ref }}
+
       - name: Run frontend lint
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.frontend == 'true') }}
         run: cd frontend && npm run lint
 
       - name: Build check
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.frontend == 'true') }}
         run: cd frontend && npm run build
 
       - name: PWA artifact baseline
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.frontend == 'true') }}
         working-directory: frontend
         run: node scripts/pwa-artifact-report.mjs dist
 
       - name: Upload PWA baseline report
-        if: ${{ (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.frontend == 'true') && always() }}
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pwa-baseline
@@ -372,7 +348,6 @@ jobs:
           if-no-files-found: ignore
 
       - name: Run frontend tests
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.frontend == 'true') }}
         timeout-minutes: 8
         working-directory: frontend
         shell: bash
@@ -393,10 +368,347 @@ jobs:
             echo "::endgroup::"
           done
 
+  rls-concurrency:
+    name: Concurrent Tenant Isolation
+    needs: [classify-scope]
+    if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.tenancy == 'true' || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.security == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+          POSTGRES_DB: dentix_rls_concurrency
+        options: >-
+          --health-cmd "pg_isready -U test_user -d dentix_rls_concurrency"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout tested revision
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: '0.12.5'
+
+      - name: Install dependencies from frozen lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv sync --frozen
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Initialize PostgreSQL via production preflight
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_rls_concurrency
+          DB_SSL_MODE: disable
+          SECRET_KEY: rls-concurrency-secret-for-ci-only-at-least-32
+          ENVIRONMENT: test
+          PYTHONPATH: .
+        run: python -m backend.scripts.preflight_migrations
+
+      - name: Provision restricted NOBYPASSRLS application role
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/dentix_rls_concurrency
+        run: |
+          python - <<'PY'
+          import os
+          import psycopg2
+
+          with psycopg2.connect(os.environ['DATABASE_URL']) as conn:
+              conn.autocommit = True
+              with conn.cursor() as cur:
+                  cur.execute(
+                      """
+                      CREATE ROLE dentix_rls_app WITH
+                          LOGIN
+                          PASSWORD 'dentix_rls_app_pass'
+                          NOSUPERUSER
+                          NOCREATEDB
+                          NOCREATEROLE
+                          NOINHERIT
+                          NOREPLICATION
+                          NOBYPASSRLS
+                      """
+                  )
+                  cur.execute(
+                      """
+                      CREATE ROLE dentix_rls_system WITH
+                          LOGIN
+                          PASSWORD 'dentix_rls_system_pass'
+                          NOSUPERUSER
+                          NOCREATEDB
+                          NOCREATEROLE
+                          NOINHERIT
+                          NOREPLICATION
+                          BYPASSRLS
+                      """
+                  )
+                  cur.execute(
+                      "GRANT CONNECT ON DATABASE dentix_rls_concurrency TO dentix_rls_app"
+                  )
+                  cur.execute(
+                      "GRANT CONNECT ON DATABASE dentix_rls_concurrency TO dentix_rls_system"
+                  )
+                  cur.execute("GRANT USAGE ON SCHEMA public TO dentix_rls_app")
+                  cur.execute("GRANT USAGE ON SCHEMA public TO dentix_rls_system")
+                  cur.execute(
+                      "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO dentix_rls_app"
+                  )
+                  cur.execute(
+                      "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO dentix_rls_system"
+                  )
+                  cur.execute(
+                      "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO dentix_rls_app"
+                  )
+                  cur.execute(
+                      "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO dentix_rls_system"
+                  )
+          PY
+
+      - name: Run concurrent tenant-isolation contract
+        env:
+          APP_DATABASE_URL_PREFIX: postgresql://dentix_rls_app
+          APP_DATABASE_URL_SUFFIX: :dentix_rls_app_pass@localhost:5432/dentix_rls_concurrency
+          SYSTEM_DATABASE_URL_PREFIX: postgresql://dentix_rls_system
+          SYSTEM_DATABASE_URL_SUFFIX: :dentix_rls_system_pass@localhost:5432/dentix_rls_concurrency
+          DB_SSL_MODE: disable
+          SECRET_KEY: rls-concurrency-secret-for-ci-only-at-least-32
+          ENVIRONMENT: test
+          PYTHONPATH: .
+        run: |
+          export DATABASE_URL="${APP_DATABASE_URL_PREFIX}${APP_DATABASE_URL_SUFFIX}"
+          export SYSTEM_DATABASE_URL="${SYSTEM_DATABASE_URL_PREFIX}${SYSTEM_DATABASE_URL_SUFFIX}"
+          pytest backend/ci_tests/test_rls_concurrency_postgres.py \
+            -v \
+            --tb=short \
+            --confcutdir=backend/ci_tests
+
+  stale-deployment-recovery:
+    name: Reproduce / Recover Stale Frontend Assets
+    needs: [classify-scope]
+    if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.pwa == 'true' || needs.classify-scope.outputs.frontend == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout tested revision
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Reproduce Version A to Version B asset skew
+        working-directory: frontend
+        run: node scripts/verify-stale-deployment-recovery.mjs
+
+      - name: Verify update accepted and update deferred contracts
+        working-directory: frontend
+        run: >-
+          npm test --
+          src/components/InstallPrompt.test.jsx
+          src/pwa/preloadRecovery.test.js
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install chromium
+
+      - name: Verify browser lifecycle stale-preload recovery matrix
+        working-directory: frontend
+        env:
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:5173
+        run: >-
+          npx playwright test e2e/stale-deployment-recovery.spec.ts
+          --config=playwright.config.ts
+          --project=chromium
+          --no-deps
+          --retries=0
+
+  responsive:
+    name: Responsive Acceptance Matrix
+    needs: [classify-scope]
+    if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.frontend == 'true' || needs.classify-scope.outputs.clinical_ui == 'true' || needs.classify-scope.outputs.mobile == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: mobile_user
+          POSTGRES_PASSWORD: mobile_pass
+          POSTGRES_DB: dentix_mobile
+        options: >-
+          --health-cmd "pg_isready -U mobile_user -d dentix_mobile"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgresql://mobile_user:mobile_pass@localhost:5432/dentix_mobile
+      DB_SSL_MODE: disable
+      SECRET_KEY: mobile-responsive-ci-secret-at-least-32
+      ENVIRONMENT: test
+      PYTHONPATH: .
+      ENABLE_IN_PROCESS_WORKERS: 'false'
+      FRONTEND_URL: http://localhost:5173
+      CORS_ORIGINS: http://localhost:5173
+      VITE_API_URL: http://localhost:8000/api/v1
+      VITE_API_BASE_URL: http://localhost:8000
+      PLAYWRIGHT_BASE_URL: http://localhost:5173
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: '0.12.5'
+
+      - name: Install backend dependencies from frozen lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv sync --frozen --no-dev
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Initialize responsive-test database
+        run: python -m backend.scripts.preflight_migrations
+
+      - name: Provision isolated responsive-test database roles
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import psycopg2
+
+          with psycopg2.connect(os.environ["DATABASE_URL"]) as conn:
+              conn.autocommit = True
+              with conn.cursor() as cur:
+                  cur.execute("CREATE ROLE dentix_mobile_app LOGIN PASSWORD 'dentix_mobile_app_pass' NOBYPASSRLS")
+                  cur.execute("CREATE ROLE dentix_mobile_system LOGIN PASSWORD 'dentix_mobile_system_pass' BYPASSRLS")
+                  for role in ("dentix_mobile_app", "dentix_mobile_system"):
+                      cur.execute(f"GRANT CONNECT ON DATABASE dentix_mobile TO {role}")
+                      cur.execute(f"GRANT USAGE ON SCHEMA public TO {role}")
+                      cur.execute(f"GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {role}")
+                      cur.execute(f"GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO {role}")
+          PY
+          APP_DATABASE_URL_PREFIX='postgresql://dentix_mobile_app'
+          APP_DATABASE_URL_SUFFIX=':dentix_mobile_app_pass@localhost:5432/dentix_mobile'
+          SYSTEM_DATABASE_URL_PREFIX='postgresql://dentix_mobile_system'
+          SYSTEM_DATABASE_URL_SUFFIX=':dentix_mobile_system_pass@localhost:5432/dentix_mobile'
+          echo "DATABASE_URL=${APP_DATABASE_URL_PREFIX}${APP_DATABASE_URL_SUFFIX}" >> "$GITHUB_ENV"
+          echo "SYSTEM_DATABASE_URL=${SYSTEM_DATABASE_URL_PREFIX}${SYSTEM_DATABASE_URL_SUFFIX}" >> "$GITHUB_ENV"
+
+      - name: Start backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup uvicorn backend.main:app --host 127.0.0.1 --port 8000 > /tmp/dentix-mobile-backend.log 2>&1 &
+          echo $! > /tmp/dentix-mobile-backend.pid
+
+          for attempt in {1..60}; do
+            if curl --fail --silent http://localhost:8000/api/v1/health > /dev/null; then
+              echo "Backend is ready."
+              exit 0
+            fi
+            if ! kill -0 "$(cat /tmp/dentix-mobile-backend.pid)" 2>/dev/null; then
+              echo "Backend exited before becoming ready."
+              cat /tmp/dentix-mobile-backend.log
+              exit 1
+            fi
+            sleep 2
+          done
+
+          echo "Backend did not become ready in time."
+          cat /tmp/dentix-mobile-backend.log
+          exit 1
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build recovered frontend
+        working-directory: frontend
+        run: npm run build
+
+      - name: Date/time responsive unit regression
+        working-directory: frontend
+        run: npx vitest run src/shared/ui/DateTimePicker.test.jsx --reporter=verbose
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install chromium
+
+      - name: Prepare isolated responsive-test data
+        working-directory: frontend
+        run: npx playwright test e2e/setup.spec.ts --config=playwright.config.ts --project=setup --retries=0
+
+      - name: Run 320 / Arabic / English / tablet matrix
+        working-directory: frontend
+        run: >-
+          npx playwright test e2e/mobile-responsive.spec.ts
+          --config=playwright.config.ts
+          --project=mobile-compact-320
+          --project=mobile-ar
+          --project=mobile-en
+          --project=tablet
+          --no-deps
+          --retries=0
+
+      - name: Show backend log on failure
+        if: failure()
+        run: cat /tmp/dentix-mobile-backend.log || true
+
+      - name: Upload Playwright responsive artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-responsive-playwright-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+
   e2e:
     name: E2E Critical Path (Playwright)
     needs: [classify-scope, backend, frontend, dependency-reproducibility]
-    if: always()
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -429,30 +741,22 @@ jobs:
       PLAYWRIGHT_BASE_URL: http://localhost:5173
 
     steps:
-      - name: Skip notice when E2E critical path not required
-        if: ${{ !cancelled() && needs.classify-scope.result == 'success' && needs.classify-scope.outputs.force_full == 'false' && !((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true') }}
-        run: echo "E2E critical path not required for this low-risk scoped change."
-
       - name: Checkout code with visual baselines
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) }}
         uses: actions/checkout@v4
         with:
           lfs: true
 
       - name: Set up Python 3.11
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) }}
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install pinned uv
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) }}
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           version: '0.12.5'
 
       - name: Install backend dependencies from frozen lock
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) }}
         shell: bash
         run: |
           set -euo pipefail
@@ -460,11 +764,9 @@ jobs:
           echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Initialize E2E database via production Alembic preflight
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) }}
         run: python -m backend.scripts.preflight_migrations
 
       - name: Provision isolated E2E database roles
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) }}
         shell: bash
         run: |
           python - <<'PY'
@@ -490,7 +792,6 @@ jobs:
           echo "SYSTEM_DATABASE_URL=${SYSTEM_DATABASE_URL_PREFIX}${SYSTEM_DATABASE_URL_SUFFIX}" >> "$GITHUB_ENV"
 
       - name: Start backend
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) }}
         shell: bash
         run: |
           set -euo pipefail
@@ -515,7 +816,6 @@ jobs:
           exit 1
 
       - name: Set up Node.js 20
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -523,37 +823,32 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) }}
         working-directory: frontend
         run: npm ci
 
       - name: Install Playwright Chromium
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) }}
         working-directory: frontend
         run: npx playwright install chromium
 
       - name: Prepare isolated E2E data
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) }}
         working-directory: frontend
         run: npx playwright test e2e/setup.spec.ts --config=playwright.config.ts --project=setup --retries=0
 
       - name: Run production critical path
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) }}
         working-directory: frontend
         run: npx playwright test e2e/critical-path.spec.ts --config=playwright.config.ts --project=chromium --no-deps --max-failures=1 --retries=0
 
       - name: Run UI visual regression
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) }}
         working-directory: frontend
         run: npx playwright test e2e/ui-regression.spec.ts --config=playwright.config.ts --project=visual-desktop --project=visual-mobile --no-deps --retries=0
 
       - name: Show backend log on failure
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) && failure() }}
+        if: failure()
         run: cat /tmp/dentix-e2e-backend.log || true
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) && failure() }}
+        if: failure()
         with:
           name: playwright-report
           path: |
@@ -563,7 +858,7 @@ jobs:
   production-container:
     name: Validate Production Container
     needs: [classify-scope, backend, frontend, e2e, dependency-reproducibility]
-    if: always()
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.container == 'true' || needs.classify-scope.outputs.dependencies == 'true') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -584,20 +879,13 @@ jobs:
           - 5432:5432
 
     steps:
-      - name: Skip notice when container unchanged
-        if: ${{ !cancelled() && needs.classify-scope.result == 'success' && needs.classify-scope.outputs.force_full == 'false' && needs.classify-scope.outputs.container == 'false' && needs.classify-scope.outputs.dependencies == 'false' }}
-        run: echo "Container and dependencies unchanged; skipping container validation safely."
-
       - name: Checkout tested revision
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.container == 'true' || needs.classify-scope.outputs.dependencies == 'true') }}
         uses: actions/checkout@v4
 
       - name: Configure BuildKit
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.container == 'true' || needs.classify-scope.outputs.dependencies == 'true') }}
         run: docker buildx create --name dentix-ci --driver docker-container --use
 
       - name: Build production image
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.container == 'true' || needs.classify-scope.outputs.dependencies == 'true') }}
         env:
           SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
         run: |
@@ -614,7 +902,6 @@ jobs:
           test "$IMAGE_REVISION" = "$GITHUB_SHA"
 
       - name: Run canonical image as non-root and verify startup contract
-        if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.container == 'true' || needs.classify-scope.outputs.dependencies == 'true') }}
         env:
           APP_DATABASE_URL_PREFIX: postgresql://dentix_container_app
           APP_DATABASE_URL_SUFFIX: :dentix_container_app_pass@127.0.0.1:5432/dentix_container
