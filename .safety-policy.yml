@@ -22,4 +22,21 @@ security:
         it uses only an embedded PersistentClient behind application RBAC and
         tenant filtering. No fixed stable ChromaDB release exists yet.
       expires: '2026-09-30'
+    SFTY-20260612-67432:
+      reason: >-
+        CVE-2026-45832 affects ChromaDB V1 HTTP collection endpoints where
+        tenant and database context is dropped before Chroma's server
+        authorization check. DENTIX does not expose a ChromaDB HTTP server or
+        use Chroma HttpClient/server authorization providers. It uses only an
+        in-process PersistentClient, while tenant identity comes from the
+        authenticated application user and is enforced by DENTIX application
+        filtering. No fixed ChromaDB release currently exists.
+      expires: '2026-09-30'
+    SFTY-20260120-40557:
+      reason: >-
+        cuda-toolkit 13.0.3 is a Linux-only transitive dependency pinned by
+        the latest Torch 2.13.0. DENTIX does not invoke NVIDIA Nsight Systems'
+        gfx_hotspot recipe or process_nsys_rep_cli.py, which is the affected
+        manual command path. No compatible fixed Torch release exists yet.
+      expires: '2026-09-30'
   continue-on-vulnerability-error: false

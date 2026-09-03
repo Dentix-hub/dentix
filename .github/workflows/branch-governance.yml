@@ -3,17 +3,14 @@ name: Dentix Branch Governance
 on:
   pull_request:
     branches: [main, staging]
-    types: [opened, synchronize, reopened, edited, ready_for_review, labeled]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
 
 permissions:
   contents: read
 
 jobs:
   promotion-path:
-    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / Validate promotion path' || 'Validate promotion path' }}
-    if: >-
-      github.event.action != 'labeled' ||
-      !startsWith(github.event.label.name, 'agent:')
+    name: Validate promotion path
     runs-on: ubuntu-latest
     steps:
       - name: Validate PR source and target
@@ -55,11 +52,8 @@ jobs:
           exit 1
 
   workflow-authority:
-    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / Protect authoritative CD workflow' || 'Protect authoritative CD workflow' }}
+    name: Protect authoritative CD workflow
     runs-on: ubuntu-latest
-    if: >-
-      github.event.action != 'labeled' ||
-      !startsWith(github.event.label.name, 'agent:')
     steps:
       - name: Checkout PR revision
         uses: actions/checkout@v4

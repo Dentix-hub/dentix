@@ -11,19 +11,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: >-
-    dentix-stale-deployment-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{
-      github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:')
-      && github.event.label.name || 'validation'
-    }}
+  group: dentix-stale-deployment-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   stale-deployment-recovery:
-    name: ${{ github.event.action == 'labeled' && startsWith(github.event.label.name, 'agent:') && 'Agent label no-op / Reproduce / Recover Stale Frontend Assets' || 'Reproduce / Recover Stale Frontend Assets' }}
-    if: >-
-      github.event.action != 'labeled' ||
-      !startsWith(github.event.label.name, 'agent:')
+    name: Reproduce / Recover Stale Frontend Assets
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
