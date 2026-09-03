@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import ClinicalChartRenderer from './components/ClinicalChartRenderer';
+import ClinicalChartShell from './components/ClinicalChartShell';
 import DualChartCompareWorkspace from './components/DualChartCompareWorkspace';
 import { DENTAL_ANATOMY_REGISTRY, DENTITIONS } from './domain/dentalAnatomyRegistry';
 import { VISUAL_RULE_DEMO_PROJECTION } from './fixtures/visualRuleDemoProjection';
@@ -13,7 +14,8 @@ import {
 /**
  * Isolated entry point for the Dentix-native clinical chart.
  *
- * Supports both single-chart focused editing and dual-chart history comparison.
+ * Supports single-chart focused editing, complete shell with inspector,
+ * and dual-chart history comparison.
  */
 export default function ClinicalChartWorkspace({ initialViewMode = 'single' }) {
     const [viewMode, setViewMode] = useState(initialViewMode);
@@ -54,7 +56,7 @@ export default function ClinicalChartWorkspace({ initialViewMode = 'single' }) {
         <main className="min-h-screen bg-background p-4 sm:p-6" data-testid="clinical-chart-workspace">
             <div className="mx-auto max-w-7xl">
                 <div className="mb-6 flex items-center justify-between border-b border-slate-200 pb-3" role="tablist">
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                         <div
                             aria-selected={viewMode === 'single'}
                             className={`cursor-pointer rounded-lg px-4 py-2 text-sm font-bold transition ${viewMode === 'single' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
@@ -65,6 +67,17 @@ export default function ClinicalChartWorkspace({ initialViewMode = 'single' }) {
                             tabIndex={0}
                         >
                             المخطط الفردي (Single Chart)
+                        </div>
+                        <div
+                            aria-selected={viewMode === 'shell'}
+                            className={`cursor-pointer rounded-lg px-4 py-2 text-sm font-bold transition ${viewMode === 'shell' ? 'bg-primary text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                            data-testid="tab-shell-chart"
+                            onClick={() => setViewMode('shell')}
+                            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setViewMode('shell')}
+                            role="tab"
+                            tabIndex={0}
+                        >
+                            شل المخطط ولوحة الفحص (Shell & Inspector)
                         </div>
                         <div
                             aria-selected={viewMode === 'dual'}
@@ -80,9 +93,13 @@ export default function ClinicalChartWorkspace({ initialViewMode = 'single' }) {
                     </div>
                 </div>
 
-                {viewMode === 'single' ? (
+                {viewMode === 'single' && (
                     <ClinicalChartRenderer input={rendererInput} />
-                ) : (
+                )}
+                {viewMode === 'shell' && (
+                    <ClinicalChartShell />
+                )}
+                {viewMode === 'dual' && (
                     <DualChartCompareWorkspace />
                 )}
             </div>

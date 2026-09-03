@@ -72,11 +72,11 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A13-M02 Ensure state isolation | PASS | Full isolation of surface selection and clinical fixtures verified without cross-chart state bleed; tests pass |
 | A13-M03 Ensure independent layer filtering | PASS | Independent root and surface layer toggles per instance verified; toggling instance A does not affect instance B; tests pass |
 | A13-M04 Ensure read-only multi-instance support | PASS | Concurrent read-only mode and per-instance read-only switching supported cleanly; 8/8 tests pass in `DualChartCompare.test.jsx` |
-| A14-M01 Create chart shell header | PENDING | — |
-| A14-M02 Create simple legend | PENDING | — |
-| A14-M03 Create simple inspector panel | PENDING | — |
-| A14-M04 Create simple selection summary | PENDING | — |
-| A14-M05 Keep UI intentionally simple | PENDING | — |
+| A14-M01 Create chart shell header | PASS | Minimal header with notation switcher (Palmer/FDI/Univ), root & surface layer toggles, and clear button implemented; tests pass |
+| A14-M02 Create simple legend | PASS | `ClinicalChartLegend` renders color-coded badges for all 8 clinical findings, restorations, crowns, bridges, and implants; tests pass |
+| A14-M03 Create simple inspector panel | PASS | `ClinicalChartInspector` shows anatomical tooth family, arch, roots count, surface details, and active procedures/findings; tests pass |
+| A14-M04 Create simple selection summary | PASS | `ClinicalChartSelectionSummary` renders active selection banner with quick clear button and empty prompt; tests pass |
+| A14-M05 Keep UI intentionally simple | PASS | Calm, clean Dentix shell integrated in `ClinicalChartShell` and `ClinicalChartWorkspace`; 10/10 tests pass in `ClinicalChartShell.test.jsx` |
 | A15-M01 Verify chart on desktop | PENDING | — |
 | A15-M02 Verify chart on tablet width | PENDING | — |
 | A15-M03 Verify chart on mobile width | PENDING | — |
