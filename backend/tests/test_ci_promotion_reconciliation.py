@@ -53,6 +53,16 @@ def test_high_risk_label_can_force_fresh_reconciled_promotion_ci():
     assert result["force_full"] is True
 
 
+def test_governance_checks_out_exact_pr_head_with_parent_history():
+    workflow = _workflow("branch-governance.yml")
+    checkout = workflow["jobs"]["workflow-authority"]["steps"][0]
+
+    assert checkout["name"] == "Checkout PR head revision"
+    assert checkout["uses"] == "actions/checkout@v4"
+    assert checkout["with"]["ref"] == "${{ github.event.pull_request.head.sha }}"
+    assert checkout["with"]["fetch-depth"] == "2"
+
+
 def test_governance_proves_reconciled_promotion_provenance_and_tree_identity():
     workflow = _workflow("branch-governance.yml")
     guard = workflow["jobs"]["workflow-authority"]["steps"][1]["run"]
