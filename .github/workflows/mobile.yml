@@ -1,11 +1,6 @@
 name: Mobile CI (Flutter)
 
 on:
-  push:
-    branches: [ main, staging ]
-    paths:
-      - 'dentix_mobile/**'
-      - '.github/workflows/mobile.yml'
   pull_request:
     branches: [ main, staging ]
     paths:
@@ -22,6 +17,7 @@ permissions:
 jobs:
   flutter-analyze-test:
     name: Flutter Analyze + Test
+    if: ${{ !(github.base_ref == 'main' && (github.head_ref == 'staging' || startsWith(github.head_ref, 'release/promotion-'))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
 

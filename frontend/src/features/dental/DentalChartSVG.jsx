@@ -1,5 +1,21 @@
-import { memo } from 'react';
-import { universalToPalmer, toothToNumber } from '@/utils/toothUtils';
+import { memo, useId } from 'react';
+import { getCrownGeometry } from '@/features/clinical-chart/rendering/crownGeometry';
+import { ROOT_VIEW_BOX, getRootGeometry } from '@/features/clinical-chart/rendering/rootGeometry';
+import { getSurfaceGeometry } from '@/features/clinical-chart/rendering/surfaceGeometry';
+import {
+    CrownVisualLayers,
+    RootVisualLayers,
+} from '@/features/clinical-chart/rendering/ClinicalToothVisualLayers';
+import {
+    getBaseAnatomyOpacity,
+    shouldHideNaturalRoots,
+} from '@/features/clinical-chart/rendering/visualInstructionSelectors';
+import {
+    DEFAULT_CHART_NOTATION_MODE,
+    getChartNotationConfig,
+    resolveToothNotation,
+} from '@/features/clinical-chart/domain/chartNotation';
+import { toothToNumber } from '@/utils/toothUtils';
 
 const TOOTH_PATHS = {
     upperMolarRight: "M10,5 C15,0 35,0 40,5 C45,15 45,35 40,45 C35,50 15,50 10,45 C5,35 5,15 10,5 Z M15,15 L20,20 M30,15 L25,20 M25,25 L25,35",
@@ -15,8 +31,6 @@ const TOOTH_PATHS = {
     lowerCanine: "M15,10 C20,5 30,5 35,10 C40,20 35,40 25,48 C15,40 10,20 15,10 Z",
     lowerIncisor: "M15,12 C18,10 32,10 35,12 C36,20 35,35 32,40 C28,42 22,42 18,40 C15,35 14,20 15,12 Z",
 };
-
-const getPalmerLabel = (id, isPediatric) => universalToPalmer(id, isPediatric);
 
 const getToothPath = (id, isPediatric) => {
     if (isPediatric) {
@@ -71,53 +85,395 @@ const STATUS_STYLES = {
     Crown: { fill: '#fef08a', stroke: '#eab308' },
     RootCanal: { fill: '#e9d5ff', stroke: '#a855f7' },
 };
+const ADULT_LAYOUT = Object.freeze({
+    upperLeft: Object.freeze([16, 15, 14, 13, 12, 11, 10, 9]),
+    upperRight: Object.freeze([8, 7, 6, 5, 4, 3, 2, 1]),
+    lowerLeft: Object.freeze([17, 18, 19, 20, 21, 22, 23, 24]),
+    lowerRight: Object.freeze([25, 26, 27, 28, 29, 30, 31, 32]),
+});
 
-const SVGTooth = memo(function SVGTooth({ number, status, onClick, isPediatric }) {
-    const path = getToothPath(number, isPediatric);
+const PRIMARY_LAYOUT = Object.freeze({
+    upperLeft: Object.freeze(['J', 'I', 'H', 'G', 'F']),
+    upperRight: Object.freeze(['E', 'D', 'C', 'B', 'A']),
+    lowerLeft: Object.freeze(['K', 'L', 'M', 'N', 'O']),
+    lowerRight: Object.freeze(['P', 'Q', 'R', 'S', 'T']),
+});
+
+const SOURCE_IDS = Object.freeze([
+    ...Object.values(ADULT_LAYOUT).flat(),
+    ...Object.values(PRIMARY_LAYOUT).flat(),
+]);
+
+const SOURCE_ID_BY_TOOTH_KEY = Object.freeze(Object.fromEntries(
+    SOURCE_IDS.map((sourceId) => [String(toothToNumber(sourceId)), sourceId]),
+));
+
+const createLayoutEntry = (sourceId) => Object.freeze({
+    sourceId,
+    toothKey: String(toothToNumber(sourceId)),
+    isPediatric: typeof sourceId === 'string',
+});
+
+const createLegacyLayout = (isPediatric) => {
+    const sourceLayout = isPediatric ? PRIMARY_LAYOUT : ADULT_LAYOUT;
+    return Object.freeze(Object.fromEntries(Object.entries(sourceLayout).map(([quadrant, sourceIds]) => [
+        quadrant,
+        Object.freeze(sourceIds.map(createLayoutEntry)),
+    ])));
+};
+
+const MIXED_LAYOUT_QUADRANTS = Object.freeze({
+    upperLeft: Object.freeze(['2', '6']),
+    upperRight: Object.freeze(['1', '5']),
+    lowerLeft: Object.freeze(['3', '7']),
+    lowerRight: Object.freeze(['4', '8']),
+});
+
+const createMixedLayout = (toothOrder) => Object.freeze(Object.fromEntries(
+    Object.entries(MIXED_LAYOUT_QUADRANTS).map(([quadrant, quadrantCodes]) => [
+        quadrant,
+        Object.freeze(toothOrder
+            .map(String)
+            .filter((toothKey) => quadrantCodes.includes(toothKey[0]))
+            .map((toothKey) => {
+                const sourceId = SOURCE_ID_BY_TOOTH_KEY[toothKey];
+                return Object.freeze({
+                    sourceId,
+                    toothKey,
+                    isPediatric: typeof sourceId === 'string',
+                });
+            })),
+    ]),
+));
+
+const ToothRootLayer = memo(function ToothRootLayer({ toothKey, arch, opacity, toothVisual }) {
+    const roots = getRootGeometry(toothKey);
+    const { x: rootScaleX, y: rootScaleY } = roots[0].displayScale;
+    const rootScaleTransform = `translate(25 0) scale(${rootScaleX} ${rootScaleY}) translate(-25 0)`;
+    const baseOpacity = shouldHideNaturalRoots(toothVisual)
+        ? 0
+        : getBaseAnatomyOpacity(toothVisual);
+
+    return (
+        <svg
+            aria-hidden="true"
+            className={`pointer-events-none absolute ${arch === 'upper' ? 'top-0' : 'bottom-0'}`}
+            data-layer="roots"
+            data-root-count={roots.length}
+            data-tooth-key={toothKey}
+            height="48"
+            opacity={opacity}
+            viewBox={ROOT_VIEW_BOX}
+            width="50"
+        >
+            <g data-root-orientation="apical" transform={arch === 'upper' ? 'rotate(180 25 24)' : undefined}>
+                <g data-root-scale={`${rootScaleX} ${rootScaleY}`} transform={rootScaleTransform}>
+                    <g data-layer-index="0" data-layer-role="base-anatomy" opacity={baseOpacity}>
+                        {roots.map((root) => (
+                            <path
+                                d={root.path}
+                                fill={root.style.fill}
+                                key={root.outlineRef}
+                                stroke={root.style.stroke}
+                                strokeLinejoin="round"
+                                strokeWidth={root.style.strokeWidth}
+                            />
+                        ))}
+                    </g>
+                    <RootVisualLayers roots={roots} toothVisual={toothVisual} />
+                </g>
+            </g>
+        </svg>
+    );
+});
+
+const ToothSurfaceLayer = memo(function ToothSurfaceLayer({
+    toothKey,
+    toothNumber,
+    toothLabel,
+    clipPathId,
+    selectedSurfaceCode,
+    onSurfaceClick,
+    disabled,
+}) {
+    const geometry = getSurfaceGeometry(toothKey);
+
+    const emitSelection = (event, surfaceCode) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (disabled) return;
+        onSurfaceClick?.({ toothKey, toothNumber, surfaceCode });
+    };
+
+    return (
+        <g
+            clipPath={`url(#${clipPathId})`}
+            data-layer="surfaces"
+            data-layer-index="5"
+            data-layer-role="selection-focus"
+            data-surface-model={geometry.model}
+        >
+            {geometry.surfaces.map((surface) => {
+                const isSelected = selectedSurfaceCode === surface.surfaceCode;
+                return (
+                    <path
+                        aria-label={`Tooth ${toothLabel} — ${surface.label} (${surface.surfaceCode})`}
+                        aria-disabled={disabled}
+                        aria-pressed={isSelected}
+                        className={disabled
+                            ? 'cursor-not-allowed fill-slate-100 stroke-slate-300 outline-none'
+                            : (isSelected
+                            ? 'cursor-pointer fill-blue-200 stroke-blue-600 outline-none transition-colors duration-150'
+                            : 'cursor-pointer fill-transparent stroke-transparent outline-none transition-colors duration-150 hover:fill-blue-100 hover:stroke-blue-400 focus:fill-blue-100 focus:stroke-blue-500')}
+                        d={surface.path}
+                        data-region={surface.region}
+                        data-surface-code={surface.surfaceCode}
+                        key={surface.surfaceCode}
+                        onClick={(event) => emitSelection(event, surface.surfaceCode)}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') emitSelection(event, surface.surfaceCode);
+                        }}
+                        role="button"
+                        strokeLinejoin="round"
+                        strokeWidth="1.25"
+                        tabIndex={disabled ? -1 : 0}
+                        vectorEffect="non-scaling-stroke"
+                    />
+                );
+            })}
+        </g>
+    );
+});
+
+const SVGTooth = memo(function SVGTooth({
+    number,
+    toothKey: explicitToothKey,
+    status,
+    onClick,
+    isPediatric,
+    showRoots,
+    arch,
+    enableSurfaceSelection,
+    selectedSurface,
+    onSurfaceClick,
+    readOnly,
+    toothVisual,
+    notationMode,
+}) {
+    const reactId = useId();
+    const toothKey = explicitToothKey ?? String(toothToNumber(number));
+    const crownGeometry = getCrownGeometry(toothKey);
+    const isOrganic = crownGeometry?.source === 'dental-v3-organic';
+    const legacyPath = getToothPath(number, isPediatric);
     const condition = status?.condition || 'Healthy';
     const style = STATUS_STYLES[condition];
-    const palmerLabel = getPalmerLabel(number, isPediatric);
+    const disabled = Boolean(status?.disabled);
+    const notation = resolveToothNotation({
+        toothKey,
+        notationMode,
+    });
+    const toothLabel = notation.label;
+    const crownClipId = `dentix-crown-${reactId.replace(/:/g, '')}`;
+    const crownBaseOpacity = getBaseAnatomyOpacity(toothVisual);
+    const needsCrownClip = enableSurfaceSelection || (toothVisual?.instructions.length ?? 0) > 0;
+    const organicTransform = isOrganic
+        ? (arch === 'upper'
+            ? `${crownGeometry.isMirror ? 'translate(25 0) scale(-1 1) translate(-25 0) ' : ''}translate(0 10) scale(0.5 0.70) translate(0 -85)`
+            : `${crownGeometry.isMirror ? 'translate(25 0) scale(-1 1) translate(-25 0) ' : ''}translate(0 4) scale(0.5 0.62)`)
+        : undefined;
+    const crownClipPath = isOrganic
+        ? Object.values(crownGeometry.paths).join(' ')
+        : (crownGeometry?.paths?.outline ?? legacyPath);
+    const crownSvg = (
+        <svg
+            aria-hidden={enableSurfaceSelection ? undefined : true}
+            className={`${showRoots ? `absolute ${arch === 'upper' ? 'bottom-0' : 'top-0'}` : ''} transform transition-transform duration-200 group-hover:scale-105 group-focus-visible:scale-105`}
+            data-layer="crown"
+            data-tooth-key={toothKey}
+            height="60"
+            viewBox="0 0 50 60"
+            width="50"
+        >
+            <g data-crown-scale="1">
+                <g data-crown-orientation="baseline">
+                    <g data-layer-index="0" data-layer-role="base-anatomy" opacity={crownBaseOpacity}>
+                        {isOrganic ? (
+                            <g transform={organicTransform}>
+                                {Object.entries(crownGeometry.paths).map(([surfaceKey, surfacePath]) => (
+                                    <path
+                                        key={surfaceKey}
+                                        d={surfacePath}
+                                        data-surface={surfaceKey}
+                                        fill={style.fill}
+                                        stroke={style.stroke}
+                                        strokeWidth={crownGeometry.style?.strokeWidth ?? 1}
+                                        strokeLinejoin="round"
+                                        className="transition-colors duration-300"
+                                    />
+                                ))}
+                            </g>
+                        ) : (
+                            <path
+                                d={crownGeometry?.paths?.outline ?? legacyPath}
+                                fill={style.fill}
+                                stroke={style.stroke}
+                                strokeWidth="2"
+                                className="transition-colors duration-300"
+                            />
+                        )}
+                    </g>
+                    {needsCrownClip && (
+                        <defs>
+                            <clipPath id={crownClipId}>
+                                <path d={crownClipPath} transform={organicTransform} />
+                            </clipPath>
+                        </defs>
+                    )}
+                    {condition === 'Decayed' && (
+                        <circle
+                            cx={25}
+                            cy={isOrganic ? (arch === 'upper' ? 28 : 20) : 25}
+                            r={5}
+                            fill="#ef4444"
+                        />
+                    )}
+                    <CrownVisualLayers
+                        crownClipId={crownClipId}
+                        crownPath={crownClipPath}
+                        crownTransform={organicTransform}
+                        toothKey={toothKey}
+                        toothVisual={toothVisual}
+                    />
+                    {enableSurfaceSelection && (
+                        <ToothSurfaceLayer
+                            toothKey={toothKey}
+                            toothNumber={number}
+                            toothLabel={toothLabel}
+                            clipPathId={crownClipId}
+                            selectedSurfaceCode={selectedSurface?.toothKey === toothKey ? selectedSurface.surfaceCode : null}
+                            onSurfaceClick={onSurfaceClick}
+                            disabled={disabled}
+                        />
+                    )}
+                </g>
+            </g>
+        </svg>
+    );
+
+    const toothContent = (
+        <>
+            {showRoots ? (
+                <span
+                    aria-hidden={enableSurfaceSelection ? undefined : true}
+                    className={`relative block w-[50px] ${arch === 'upper' ? 'h-[96px]' : 'h-[82px]'}`}
+                >
+                    <ToothRootLayer toothKey={toothKey} arch={arch} opacity={style.opacity} toothVisual={toothVisual} />
+                    {crownSvg}
+                </span>
+            ) : crownSvg}
+            <span className="absolute -bottom-5 flex w-full flex-col items-center">
+                <span
+                    className="w-full whitespace-nowrap border-t border-slate-300 pt-1 text-center font-mono text-sm font-bold leading-none text-slate-600"
+                    data-layer="notation-label"
+                    data-notation-mode={notation.mode}
+                    data-tooth-key={notation.toothKey}
+                >
+                    {toothLabel}
+                </span>
+            </span>
+        </>
+    );
+
+    const toothClassName = `group relative flex min-w-[50px] shrink-0 flex-col items-center gap-1 rounded-lg focus-visible:ring-focus ${showRoots ? (arch === 'upper' ? 'min-h-[112px]' : 'min-h-[98px]') : 'min-h-[76px]'}`;
+
+    if (enableSurfaceSelection) {
+        return (
+            <div className={`${toothClassName} cursor-default`} role="group" aria-disabled={disabled} aria-label={`Tooth ${toothLabel} surfaces`}>
+                {toothContent}
+            </div>
+        );
+    }
+
+    if (readOnly) {
+        return (
+            <div
+                aria-label={`Tooth ${toothLabel} — ${condition}`}
+                className={`${toothClassName} cursor-default`}
+            >
+                {toothContent}
+            </div>
+        );
+    }
 
     return (
         <button
             type="button"
-            className="group relative flex min-h-[76px] min-w-[50px] shrink-0 cursor-pointer flex-col items-center gap-1 rounded-lg focus-visible:ring-focus"
+            className={`${toothClassName} cursor-pointer`}
+            disabled={disabled}
             onClick={() => onClick(number)}
-            aria-label={`Tooth ${palmerLabel} — ${condition}`}
+            aria-label={`Tooth ${toothLabel} — ${condition}`}
         >
-            <svg width="50" height="60" viewBox="0 0 50 60" className="transform transition-transform duration-200 group-hover:scale-105 group-focus-visible:scale-105" aria-hidden="true">
-                <path d={path} fill={style.fill} stroke={style.stroke} strokeWidth="2" className="transition-colors duration-300" />
-                {condition === 'Decayed' && <circle cx="25" cy="25" r="5" fill="#ef4444" />}
-            </svg>
-            <span className="absolute -bottom-5 flex w-full flex-col items-center">
-                <span className="w-full border-t border-slate-300 pt-1 text-center font-mono text-sm font-bold text-slate-600">{palmerLabel}</span>
-            </span>
+            {toothContent}
         </button>
     );
 });
 
-export default memo(function DentalChartSVG({ teethStatus, onToothClick, isPediatric }) {
-    const adultUpperLeft = [16, 15, 14, 13, 12, 11, 10, 9];
-    const adultUpperRight = [8, 7, 6, 5, 4, 3, 2, 1];
-    const adultLowerLeft = [17, 18, 19, 20, 21, 22, 23, 24];
-    const adultLowerRight = [25, 26, 27, 28, 29, 30, 31, 32];
-    const childUpperLeft = ['J', 'I', 'H', 'G', 'F'];
-    const childUpperRight = ['E', 'D', 'C', 'B', 'A'];
-    const childLowerLeft = ['K', 'L', 'M', 'N', 'O'];
-    const childLowerRight = ['P', 'Q', 'R', 'S', 'T'];
+export default memo(function DentalChartSVG({
+    teethStatus,
+    toothVisuals = {},
+    onToothClick,
+    isPediatric,
+    toothOrder,
+    showRoots = false,
+    enableSurfaceSelection = false,
+    selectedSurface = null,
+    onSurfaceClick,
+    readOnly = false,
+    notationMode = DEFAULT_CHART_NOTATION_MODE,
+}) {
+    const isMixedDentition = Array.isArray(toothOrder);
+    const layout = isMixedDentition
+        ? createMixedLayout(toothOrder)
+        : createLegacyLayout(isPediatric);
+    const chartMinWidth = isMixedDentition
+        ? 'min-w-[600px]'
+        : (isPediatric ? 'min-w-[480px]' : 'min-w-[700px]');
+    const chartTitle = isMixedDentition
+        ? 'مخطط الأسنان (مختلط)'
+        : (isPediatric ? 'مخطط الأسنان (أطفال)' : 'مخطط الأسنان (بالغين)');
+    const surfaceSelectionEnabled = enableSurfaceSelection && !readOnly;
+    const notationConfig = getChartNotationConfig(notationMode);
+    const renderTooth = (tooth, arch) => (
+        <SVGTooth
+            arch={arch}
+            enableSurfaceSelection={surfaceSelectionEnabled}
+            isPediatric={tooth.isPediatric}
+            key={tooth.toothKey}
+            notationMode={notationMode}
+            number={tooth.sourceId}
+            onClick={onToothClick}
+            onSurfaceClick={onSurfaceClick}
+            readOnly={readOnly}
+            selectedSurface={selectedSurface}
+            showRoots={showRoots}
+            status={teethStatus[tooth.toothKey]}
+            toothKey={tooth.toothKey}
+            toothVisual={toothVisuals[tooth.toothKey]}
+        />
+    );
 
-    const upperRight = isPediatric ? childUpperRight : adultUpperRight;
-    const upperLeft = isPediatric ? childUpperLeft : adultUpperLeft;
-    const lowerRight = isPediatric ? childLowerRight : adultLowerRight;
-    const lowerLeft = isPediatric ? childLowerLeft : adultLowerLeft;
-    const chartMinWidth = isPediatric ? 'min-w-[480px]' : 'min-w-[700px]';
 
     return (
-        <div className="min-w-0 overflow-x-auto overscroll-x-contain rounded-2xl bg-slate-50 p-3 text-center shadow-inner touch-pan-x sm:rounded-3xl sm:p-5 lg:p-8">
+        <div
+            className="min-w-0 overflow-x-auto overscroll-x-contain rounded-2xl bg-slate-50 p-3 text-center shadow-inner touch-pan-x sm:rounded-3xl sm:p-5 lg:p-8"
+            data-dentition={isMixedDentition ? 'mixed' : (isPediatric ? 'primary' : 'permanent')}
+            data-interaction-mode={readOnly ? 'read-only' : 'edit'}
+            data-notation-mode={notationMode}
+        >
             <div className={`${chartMinWidth} inline-flex flex-col`} dir="ltr">
                 <h3 className="mb-7 text-lg font-bold text-slate-700 sm:mb-8">
-                    {isPediatric ? 'مخطط الأسنان (أطفال)' : 'مخطط الأسنان (بالغين)'}
-                    <span className="mt-1 block text-xs font-normal text-slate-500">Palmer Notation</span>
+                    {chartTitle}
+                    <span className="mt-1 block text-xs font-normal text-slate-500">{notationConfig.displayName}</span>
                 </h3>
 
                 <div className="inline-flex flex-col gap-14 sm:gap-16">
@@ -125,15 +481,11 @@ export default memo(function DentalChartSVG({ teethStatus, onToothClick, isPedia
                         <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300" aria-hidden="true" />
                         <div className="absolute inset-x-0 bottom-0 h-0.5 bg-slate-300" aria-hidden="true" />
                         <div className="flex gap-1 px-3 pb-4 sm:px-4">
-                            {upperLeft.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} />
-                            ))}
+                            {layout.upperLeft.map((tooth) => renderTooth(tooth, 'upper'))}
                         </div>
                         <div className="w-0.5" />
                         <div className="flex gap-1 px-3 pb-4 sm:px-4">
-                            {upperRight.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} />
-                            ))}
+                            {layout.upperRight.map((tooth) => renderTooth(tooth, 'upper'))}
                         </div>
                     </div>
 
@@ -141,15 +493,11 @@ export default memo(function DentalChartSVG({ teethStatus, onToothClick, isPedia
                         <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300" aria-hidden="true" />
                         <div className="absolute inset-x-0 top-0 h-0.5 bg-slate-300" aria-hidden="true" />
                         <div className="flex gap-1 px-3 pt-4 sm:px-4">
-                            {lowerLeft.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} />
-                            ))}
+                            {layout.lowerLeft.map((tooth) => renderTooth(tooth, 'lower'))}
                         </div>
                         <div className="w-0.5" />
                         <div className="flex gap-1 px-3 pt-4 sm:px-4">
-                            {lowerRight.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} />
-                            ))}
+                            {layout.lowerRight.map((tooth) => renderTooth(tooth, 'lower'))}
                         </div>
                     </div>
                 </div>

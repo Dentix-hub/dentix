@@ -295,16 +295,56 @@ def test_workflow_governance():
     assert res["workflow_governance"] is True
 
 
-# ── Event & Label classification ──
+# ── Event, Promotion & Label classification ──
 
-def test_protected_push():
-    res = classify_files(["frontend/src/App.jsx"], event_name="push", target_branch="staging")
+def test_protected_push_staging_reuses_pr_validation():
+    res = classify_files(
+        ["backend/auth.py"],
+        event_name="push",
+        target_branch="staging",
+    )
+    assert not any(res.values())
+
+
+def test_protected_push_main_reuses_pr_validation():
+    res = classify_files(
+        [".github/workflows/ci.yml"],
+        event_name="push",
+        target_branch="refs/heads/main",
+    )
+    assert not any(res.values())
+
+
+def test_staging_to_main_promotion_reuses_validated_revision():
+    res = classify_files(
+        ["backend/auth.py", ".github/workflows/ci.yml"],
+        event_name="pull_request",
+        target_branch="main",
+        source_branch="staging",
+    )
+    assert not any(res.values())
+
+
+def test_high_risk_label_can_force_fresh_staging_to_main_validation():
+    res = classify_files(
+        ["frontend/src/App.jsx"],
+        event_name="pull_request",
+        target_branch="main",
+        source_branch="staging",
+        labels=["risk:high-risk"],
+    )
     assert res["force_full"] is True
 
 
-def test_protected_push_main():
-    res = classify_files(["frontend/src/App.jsx"], event_name="push", target_branch="main")
+def test_release_to_main_is_not_treated_as_trusted_staging_promotion():
+    res = classify_files(
+        [".github/workflows/ci.yml"],
+        event_name="pull_request",
+        target_branch="main",
+        source_branch="release/workflow-sync",
+    )
     assert res["force_full"] is True
+    assert res["workflow_governance"] is True
 
 
 def test_workflow_dispatch():

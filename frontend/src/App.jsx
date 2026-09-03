@@ -40,6 +40,9 @@ const Privacy = lazy(() => import('./pages/Privacy'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const Unauthorized = lazy(() => import('./pages/Unauthorized'));
 const Inventory = lazy(() => import('./pages/Inventory'));
+const ClinicalChartWorkspace = import.meta.env.DEV
+    ? lazy(() => import('@/features/clinical-chart/ClinicalChartWorkspace'))
+    : null;
 // Finance V2 Pages
 const FinanceLayout = lazy(() => import('@/features/finance/FinanceLayout'));
 import FinanceIndexRedirect from '@/features/finance/FinanceIndexRedirect';
@@ -101,6 +104,14 @@ function AppRoutes() {
             setDarkMode(false);
         }
     }, [setDarkMode]);
+
+    if (import.meta.env.DEV && location.pathname === '/clinical-chart/demo' && ClinicalChartWorkspace) {
+        return (
+            <Suspense fallback={<LoadingSpinner />}>
+                <ClinicalChartWorkspace />
+            </Suspense>
+        );
+    }
 
     if (isBooting) {
         return <LoadingSpinner />;
