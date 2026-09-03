@@ -15,9 +15,10 @@ Outputs JSON with boolean classification flags.
 Safety model:
   1. Protected-branch pushes are post-merge CD handoffs; expensive CI already ran
      at the protected PR boundary, so they do not repeat the suite.
-  2. A direct staging -> main promotion reuses the validated staging revision
-     instead of rerunning the same suite. A HIGH_RISK label can explicitly force
-     a fresh full validation when needed.
+  2. A validated production promotion reuses the tested staging tree instead of
+     rerunning the same suite. Trusted sources are direct staging and the tightly
+     governed release/promotion-* reconciliation branch family. A HIGH_RISK label
+     can explicitly force a fresh full validation when needed.
   3. workflow_dispatch always forces full validation.
   4. HIGH_RISK labels force full validation.
   5. Closed-list structural surfaces (models/schema lineage, shared API/session,
@@ -224,6 +225,10 @@ def _normalize_branch(branch: str) -> str:
     return value[len(prefix):] if value.startswith(prefix) else value
 
 
+def _is_trusted_promotion_source(source_branch: str) -> bool:
+    return source_branch == "staging" or source_branch.startswith("release/promotion-")
+
+
 def classify_files(
     changed_files: List[str],
     event_name: str = "pull_request",
@@ -275,11 +280,13 @@ def classify_files(
             classification["force_full"] = True
             break
 
-    # ── Rule 4: staging -> main is a trusted promotion, unless explicitly forced ──
+    # ── Rule 4: validated promotion -> main reuses prior staging validation ──
+    # Governance independently proves release/promotion-* branches are a single
+    # commit on current main whose tree exactly equals current validated staging.
     if (
         event_name == "pull_request"
         and normalized_target == "main"
-        and normalized_source == "staging"
+        and _is_trusted_promotion_source(normalized_source)
         and not classification["force_full"]
     ):
         return classification
