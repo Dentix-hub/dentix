@@ -108,6 +108,54 @@ jobs:
             exit 0
           fi
 
+          if [ "$BASE_BRANCH" = "main" ] && [[ "$HEAD_BRANCH" == release/promotion-* ]]; then
+            CURRENT_MAIN_SHA="$(git rev-parse origin/main)"
+            CURRENT_STAGING_SHA="$(git rev-parse origin/staging)"
+
+            if ! git cat-file -e "${PR_HEAD_SHA}^" 2>/dev/null; then
+              echo "::error::Promotion reconciliation head must have exactly one parent based on current main."
+              exit 1
+            fi
+
+            PARENT_LINE="$(git rev-list --parents -n 1 "$PR_HEAD_SHA")"
+            PARENT_COUNT="$(awk '{print NF - 1}' <<< "$PARENT_LINE")"
+            if [ "$PARENT_COUNT" -ne 1 ]; then
+              echo "::error::Promotion reconciliation head must be a single-parent commit; found ${PARENT_COUNT} parents."
+              exit 1
+            fi
+
+            PR_PARENT_SHA="$(git rev-parse "${PR_HEAD_SHA}^")"
+            if [ "$PR_PARENT_SHA" != "$CURRENT_MAIN_SHA" ]; then
+              echo "::error::Promotion reconciliation branch is stale or not based directly on current main. parent=${PR_PARENT_SHA} current_main=${CURRENT_MAIN_SHA}."
+              exit 1
+            fi
+
+            PR_TREE_SHA="$(git rev-parse "${PR_HEAD_SHA}^{tree}")"
+            STAGING_TREE_SHA="$(git rev-parse "${CURRENT_STAGING_SHA}^{tree}")"
+            if [ "$PR_TREE_SHA" != "$STAGING_TREE_SHA" ]; then
+              echo "::error::Promotion reconciliation tree ${PR_TREE_SHA} does not exactly match current staging tree ${STAGING_TREE_SHA}."
+              exit 1
+            fi
+
+            if ! git diff --quiet origin/main origin/staging -- .github/workflows/cd.yml; then
+              echo "::error::Validated staging cannot replace the authoritative main CD workflow during promotion. Align CD intentionally first."
+              git diff origin/main origin/staging -- .github/workflows/cd.yml || true
+              exit 1
+            fi
+
+            STAGING_SMOKE_STATE="$(
+              gh api "repos/${GH_REPOSITORY}/commits/${CURRENT_STAGING_SHA}/status" \
+                --jq '[.statuses[] | select(.context == "Dentix CD - HF staging smoke")][0].state // ""'
+            )"
+            if [ "$STAGING_SMOKE_STATE" != "success" ]; then
+              echo "::error::Current staging revision ${CURRENT_STAGING_SHA} is not promotion-ready: Dentix CD - HF staging smoke=${STAGING_SMOKE_STATE:-missing}."
+              exit 1
+            fi
+
+            echo "Promotion reconciliation is current-main-based, tree-identical to validated staging, and HF staging smoke is successful."
+            exit 0
+          fi
+
           if [ "$BASE_BRANCH" = "main" ]; then
             if ! git diff --quiet origin/main -- .github/workflows/cd.yml; then
               echo "::error::Direct hotfix/release promotions must not mutate the authoritative CD workflow."
