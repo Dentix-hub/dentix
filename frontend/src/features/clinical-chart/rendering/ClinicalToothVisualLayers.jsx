@@ -31,7 +31,7 @@ const InstructionGroup = ({ instruction, children }) => (
     </g>
 );
 
-const CrownInstruction = ({ instruction, toothKey, crownPath }) => {
+const CrownInstruction = ({ instruction, toothKey, crownPath, crownTransform }) => {
     const { effect, presentation, target } = instruction;
     const surfacePath = target.kind === 'surface'
         ? getSurfacePath(toothKey, target.surfaceCode)
@@ -44,6 +44,7 @@ const CrownInstruction = ({ instruction, toothKey, crownPath }) => {
             <InstructionGroup instruction={instruction}>
                 <path
                     d={crownPath}
+                    transform={crownTransform}
                     fill="none"
                     stroke={presentation.stroke}
                     strokeDasharray={presentation.strokeDasharray}
@@ -67,6 +68,7 @@ const CrownInstruction = ({ instruction, toothKey, crownPath }) => {
             <InstructionGroup instruction={instruction}>
                 <path
                     d={crownPath}
+                    transform={crownTransform}
                     fill={presentation.fill}
                     fillOpacity={presentation.fillOpacity}
                     stroke={presentation.stroke}
@@ -140,6 +142,7 @@ const CrownInstruction = ({ instruction, toothKey, crownPath }) => {
             <InstructionGroup instruction={instruction}>
                 <path
                     d={crownPath}
+                    transform={crownTransform}
                     fill={presentation.fill}
                     fillOpacity={presentation.fillOpacity}
                     stroke={presentation.stroke}
@@ -179,6 +182,7 @@ const CrownInstruction = ({ instruction, toothKey, crownPath }) => {
             <InstructionGroup instruction={instruction}>
                 <path
                     d={surfacePath ?? crownPath}
+                    transform={surfacePath ? undefined : crownTransform}
                     fill={presentation.fill}
                     fillOpacity={presentation.fillOpacity}
                     stroke={presentation.stroke}
@@ -191,7 +195,15 @@ const CrownInstruction = ({ instruction, toothKey, crownPath }) => {
     if (effect === 'disabled') {
         return (
             <InstructionGroup instruction={instruction}>
-                <path d={crownPath} fill="#e2e8f0" fillOpacity="0.28" stroke={presentation.stroke} strokeDasharray="2 2" strokeWidth="1" />
+                <path
+                    d={crownPath}
+                    transform={crownTransform}
+                    fill="#e2e8f0"
+                    fillOpacity="0.28"
+                    stroke={presentation.stroke}
+                    strokeDasharray="2 2"
+                    strokeWidth="1"
+                />
             </InstructionGroup>
         );
     }
@@ -211,6 +223,7 @@ export const CrownVisualLayers = memo(function CrownVisualLayers({
     toothKey,
     crownPath,
     crownClipId,
+    crownTransform,
     toothVisual,
 }) {
     return CROWN_LAYER_ROLES.map((layerRole) => {
@@ -226,6 +239,7 @@ export const CrownVisualLayers = memo(function CrownVisualLayers({
                 {instructions.map((instruction) => (
                     <CrownInstruction
                         crownPath={crownPath}
+                        crownTransform={crownTransform}
                         instruction={instruction}
                         key={instruction.instructionId}
                         toothKey={toothKey}

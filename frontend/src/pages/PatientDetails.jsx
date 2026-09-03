@@ -389,6 +389,7 @@ export default function PatientDetails() {
                                         teethStatus={effectiveTeethStatus}
                                         onToothClick={handleToothClick}
                                         isPediatric={isPediatric}
+                                        showRoots
                                     />
                                 )}
                             </div>
