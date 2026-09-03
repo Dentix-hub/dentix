@@ -1,4 +1,5 @@
 import { memo, useId } from 'react';
+import { getCrownGeometry } from '@/features/clinical-chart/rendering/crownGeometry';
 import { ROOT_VIEW_BOX, getRootGeometry } from '@/features/clinical-chart/rendering/rootGeometry';
 import { getSurfaceGeometry } from '@/features/clinical-chart/rendering/surfaceGeometry';
 import {
@@ -260,11 +261,13 @@ const SVGTooth = memo(function SVGTooth({
     notationMode,
 }) {
     const reactId = useId();
-    const path = getToothPath(number, isPediatric);
+    const toothKey = explicitToothKey ?? String(toothToNumber(number));
+    const crownGeometry = getCrownGeometry(toothKey);
+    const isOrganic = crownGeometry?.source === 'dental-v3-organic';
+    const legacyPath = getToothPath(number, isPediatric);
     const condition = status?.condition || 'Healthy';
     const style = STATUS_STYLES[condition];
     const disabled = Boolean(status?.disabled);
-    const toothKey = explicitToothKey ?? String(toothToNumber(number));
     const notation = resolveToothNotation({
         toothKey,
         notationMode,
@@ -273,6 +276,14 @@ const SVGTooth = memo(function SVGTooth({
     const crownClipId = `dentix-crown-${reactId.replace(/:/g, '')}`;
     const crownBaseOpacity = getBaseAnatomyOpacity(toothVisual);
     const needsCrownClip = enableSurfaceSelection || (toothVisual?.instructions.length ?? 0) > 0;
+    const organicTransform = isOrganic
+        ? (arch === 'upper'
+            ? `${crownGeometry.isMirror ? 'translate(25 0) scale(-1 1) translate(-25 0) ' : ''}translate(0 10) scale(0.5 0.70) translate(0 -85)`
+            : `${crownGeometry.isMirror ? 'translate(25 0) scale(-1 1) translate(-25 0) ' : ''}translate(0 4) scale(0.5 0.62)`)
+        : undefined;
+    const crownClipPath = isOrganic
+        ? Object.values(crownGeometry.paths).join(' ')
+        : (crownGeometry?.paths?.outline ?? legacyPath);
     const crownSvg = (
         <svg
             aria-hidden={enableSurfaceSelection ? undefined : true}
@@ -283,22 +294,52 @@ const SVGTooth = memo(function SVGTooth({
             viewBox="0 0 50 60"
             width="50"
         >
-            {needsCrownClip && (
-                <defs>
-                    <clipPath id={crownClipId}>
-                        <path d={path} />
-                    </clipPath>
-                </defs>
-            )}
             <g data-crown-scale="1">
                 <g data-crown-orientation="baseline">
                     <g data-layer-index="0" data-layer-role="base-anatomy" opacity={crownBaseOpacity}>
-                        <path d={path} fill={style.fill} stroke={style.stroke} strokeWidth="2" className="transition-colors duration-300" />
+                        {isOrganic ? (
+                            <g transform={organicTransform}>
+                                {Object.entries(crownGeometry.paths).map(([surfaceKey, surfacePath]) => (
+                                    <path
+                                        key={surfaceKey}
+                                        d={surfacePath}
+                                        data-surface={surfaceKey}
+                                        fill={style.fill}
+                                        stroke={style.stroke}
+                                        strokeWidth={crownGeometry.style?.strokeWidth ?? 1}
+                                        strokeLinejoin="round"
+                                        className="transition-colors duration-300"
+                                    />
+                                ))}
+                            </g>
+                        ) : (
+                            <path
+                                d={crownGeometry?.paths?.outline ?? legacyPath}
+                                fill={style.fill}
+                                stroke={style.stroke}
+                                strokeWidth="2"
+                                className="transition-colors duration-300"
+                            />
+                        )}
                     </g>
-                    {condition === 'Decayed' && <circle cx="25" cy="25" r="5" fill="#ef4444" />}
+                    {needsCrownClip && (
+                        <defs>
+                            <clipPath id={crownClipId}>
+                                <path d={crownClipPath} transform={organicTransform} />
+                            </clipPath>
+                        </defs>
+                    )}
+                    {condition === 'Decayed' && (
+                        <circle
+                            cx={25}
+                            cy={isOrganic ? (arch === 'upper' ? 28 : 20) : 25}
+                            r={5}
+                            fill="#ef4444"
+                        />
+                    )}
                     <CrownVisualLayers
                         crownClipId={crownClipId}
-                        crownPath={path}
+                        crownPath={crownClipPath}
                         toothKey={toothKey}
                         toothVisual={toothVisual}
                     />
