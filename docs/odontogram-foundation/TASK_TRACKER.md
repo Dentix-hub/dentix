@@ -92,10 +92,10 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A16-M05 Add mixed dentition render test | PASS | Mixed dentition scenario rendered without layout collision or runtime error; tests pass |
 | A16-M06 Add RTL render test | PASS | Anatomical orientation preserved (patient right on left, patient left on right) under RTL root; tests pass |
 | A16-M07 Add mobile render test if tooling allows | PASS | Mobile quadrant focus (e.g. LL) rendered within narrow container without horizontal bleed; 8/8 tests pass in `FullRegressionVerification.test.jsx` |
-| A17-M01 Capture desktop screenshots | PENDING | — |
-| A17-M02 Capture mobile screenshots | PENDING | — |
-| A17-M03 Capture RTL screenshots | PENDING | — |
-| A17-M04 Capture history-compare screenshots | PENDING | — |
-| A17-M05 Write Codex completion report | PENDING | — |
-| A17-M06 Write handoff package for Gemini | PENDING | — |
-| A17-M07 Hard stop | PENDING | — |
+| A17-M01 Capture desktop screenshots | PASS | Desktop adult dentition screenshot saved in `evidence/A17-desktop-adult-dentition.png` |
+| A17-M02 Capture mobile screenshots | PASS | Mobile quadrant focus screenshot saved in `evidence/A17-mobile-quadrant-focus.png` |
+| A17-M03 Capture RTL screenshots | PASS | Arabic RTL orientation screenshot saved in `evidence/A17-arabic-rtl-preserved-axes.png` |
+| A17-M04 Capture history-compare screenshots | PASS | Dual-chart history comparison screenshot saved in `evidence/A17-history-dual-chart-compare.png` |
+| A17-M05 Write Codex completion report | PASS | Completed comprehensive Part I completion report in `docs/odontogram-foundation/CODEX_PART_I_COMPLETION_REPORT.md` |
+| A17-M06 Write handoff package for Gemini | PASS | Official handoff documentation written in `docs/odontogram-foundation/HANDOFF_TO_GEMINI.md` |
+| A17-M07 Hard stop | PASS | Hard stop observed; Part I 100% complete (95/95 micro-tasks PASS); waiting for Gemini VNext execution |
