@@ -68,10 +68,10 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A12-M09 Create implant fixture | PASS | Implant fixture and implant crown visual rules replacing roots on tooth 36 verified; tests pass |
 | A12-M10 Create bridge fixture | PASS | Multi-unit bridge fixture with abutment crowns (21, 23) and pontic (22) verified; tests pass |
 | A12-M11 Create simultaneous existing + planned fixture | PASS | Target coverage and extraction planned/completed fixtures cover simultaneous existing and planned phases; 12/12 tests pass |
-| A13-M01 Create dual-chart page | PENDING | — |
-| A13-M02 Ensure state isolation | PENDING | — |
-| A13-M03 Ensure independent layer filtering | PENDING | — |
-| A13-M04 Ensure read-only multi-instance support | PENDING | — |
+| A13-M01 Create dual-chart page | PASS | Dual-chart side-by-side workspace implemented with tabs in `ClinicalChartWorkspace` and `DualChartCompareWorkspace`; tests pass |
+| A13-M02 Ensure state isolation | PASS | Full isolation of surface selection and clinical fixtures verified without cross-chart state bleed; tests pass |
+| A13-M03 Ensure independent layer filtering | PASS | Independent root and surface layer toggles per instance verified; toggling instance A does not affect instance B; tests pass |
+| A13-M04 Ensure read-only multi-instance support | PASS | Concurrent read-only mode and per-instance read-only switching supported cleanly; 8/8 tests pass in `DualChartCompare.test.jsx` |
 | A14-M01 Create chart shell header | PENDING | — |
 | A14-M02 Create simple legend | PENDING | — |
 | A14-M03 Create simple inspector panel | PENDING | — |
