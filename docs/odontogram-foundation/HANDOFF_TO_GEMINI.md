@@ -148,6 +148,16 @@ When interactive elements are triggered, the adapter dispatches neutral intent o
   }
 }
 
+// Canal Target Example (supported by ProjectionTarget contract)
+{
+  target: {
+    kind: 'canal',
+    toothKey: '14',
+    rootId: 'buccal',
+    canalId: null // or string placeholder identifier
+  }
+}
+
 // Multi-Select Changed Intent
 {
   type: 'chart/multi-select-changed',
@@ -199,6 +209,37 @@ The chart provides 5 accessible clipped polygon targets per tooth:
 - **Anterior teeth:** Center region is Incisal (`I`).
 - **Posterior teeth:** Center region is Occlusal (`O`).
 
+### Supported Root IDs & Anatomy Model
+
+Root identities are derived directly from `dentalAnatomyRegistry.js`. The allowed root IDs are:
+
+* `single` — Incisors, canines, second premolars, and all mandibular premolars.
+* `buccal` — Permanent maxillary first premolars (`14`, `24`).
+* `palatal` — Permanent maxillary first premolars (`14`, `24`) and all maxillary molars (`16`, `17`, `18`, `26`, `27`, `28`, `54`, `55`, `64`, `65`).
+* `mesiobuccal` — Maxillary molars (`16`, `17`, `18`, `26`, `27`, `28`, `54`, `55`, `64`, `65`).
+* `distobuccal` — Maxillary molars (`16`, `17`, `18`, `26`, `27`, `28`, `54`, `55`, `64`, `65`).
+* `mesial` — Mandibular molars (`36`, `37`, `38`, `46`, `47`, `48`, `74`, `75`, `84`, `85`).
+* `distal` — Mandibular molars (`36`, `37`, `38`, `46`, `47`, `48`, `74`, `75`, `84`, `85`).
+
+> [!IMPORTANT]
+> Permanent maxillary first premolars `14` and `24` use:
+> ```text
+> buccal
+> palatal
+> ```
+> Do not omit `buccal`.
+
+### Supported Projection Target Kinds (`PROJECTION_TARGET_KINDS`)
+
+Derived directly from `clinicalChartProjection.js`, the real DTO supports four target kinds:
+
+* `tooth` — Whole tooth target (`kind: 'tooth', toothKey`).
+* `surface` — Surface facet target (`kind: 'surface', toothKey, surfaceCode`).
+* `root` — Anatomical root target (`kind: 'root', toothKey, rootId`).
+* `canal` — Root canal placeholder target (`kind: 'canal', toothKey, rootId, canalId: string | null`).
+
+The DTO supports this full union (`tooth | surface | root | canal`) consistently across findings, procedures, tooth selection targets, and active selection. Do not document or assume a narrower union.
+
 ---
 
 ## 7. Canonical Visual Codes (Findings & Procedures)
@@ -248,6 +289,14 @@ Visual entries accept four lifecycle phases that determine visual layer styling 
 > This schema is a **Frontend Adapter Projection DTO** (`schemaVersion: 1`), NOT the backend database schema. The backend database will store normalized clinical work items, appointments, and treatment plans in PostgreSQL tables. A backend projection service will map those entities into this frontend DTO format for rendering.
 
 ```typescript
+interface ProjectionTarget {
+  kind: 'tooth' | 'surface' | 'root' | 'canal';
+  toothKey: string;
+  surfaceCode?: 'M' | 'D' | 'O' | 'I' | 'B' | 'L' | 'P';
+  rootId?: 'single' | 'buccal' | 'palatal' | 'mesiobuccal' | 'distobuccal' | 'mesial' | 'distal';
+  canalId?: string | null;
+}
+
 interface ClinicalChartProjection {
   schemaVersion: 1;
   projectionId: string;
@@ -265,8 +314,8 @@ interface ClinicalChartProjection {
           kind: 'tooth' | 'surface' | 'root' | 'canal';
           toothKey: string;
           surfaceCode?: 'M' | 'D' | 'O' | 'I' | 'B' | 'L' | 'P';
-          rootId?: 'mesial' | 'distal' | 'palatal' | 'single' | 'mesiobuccal' | 'distobuccal';
-          canalId?: string;
+          rootId?: 'single' | 'buccal' | 'palatal' | 'mesiobuccal' | 'distobuccal' | 'mesial' | 'distal';
+          canalId?: string | null;
         }>;
         annotations?: Array<{ text: string; target?: object }>;
       }>;
@@ -278,17 +327,19 @@ interface ClinicalChartProjection {
           kind: 'tooth' | 'surface' | 'root' | 'canal';
           toothKey: string;
           surfaceCode?: 'M' | 'D' | 'O' | 'I' | 'B' | 'L' | 'P';
-          rootId?: 'mesial' | 'distal' | 'palatal' | 'single' | 'mesiobuccal' | 'distobuccal';
-          canalId?: string;
+          rootId?: 'single' | 'buccal' | 'palatal' | 'mesiobuccal' | 'distobuccal' | 'mesial' | 'distal';
+          canalId?: string | null;
         }>;
         annotations?: Array<{ text: string; target?: object }>;
       }>;
       selection: {
         isSelected?: boolean;
         targets: Array<{
-          kind: 'tooth' | 'surface' | 'root';
+          kind: 'tooth' | 'surface' | 'root' | 'canal';
           toothKey: string;
-          surfaceCode?: string;
+          surfaceCode?: 'M' | 'D' | 'O' | 'I' | 'B' | 'L' | 'P';
+          rootId?: 'single' | 'buccal' | 'palatal' | 'mesiobuccal' | 'distobuccal' | 'mesial' | 'distal';
+          canalId?: string | null;
         }>;
       };
       disabled?: boolean;
@@ -296,10 +347,11 @@ interface ClinicalChartProjection {
     };
   };
   selection: {
-    kind: 'tooth' | 'surface' | 'root';
+    kind: 'tooth' | 'surface' | 'root' | 'canal';
     toothKey: string;
-    surfaceCode?: string;
-    rootId?: string;
+    surfaceCode?: 'M' | 'D' | 'O' | 'I' | 'B' | 'L' | 'P';
+    rootId?: 'single' | 'buccal' | 'palatal' | 'mesiobuccal' | 'distobuccal' | 'mesial' | 'distal';
+    canalId?: string | null;
   } | null;
 }
 ```
