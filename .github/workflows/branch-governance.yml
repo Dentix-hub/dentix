@@ -61,9 +61,10 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout PR revision
+      - name: Checkout PR head revision
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 2
 
       - name: Protect authoritative CD workflow
