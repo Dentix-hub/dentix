@@ -255,6 +255,7 @@ export default function ClinicalChartShell({
 }) {
     const [notationMode, setNotationMode] = useState(initialNotationMode);
     const [layers, setLayers] = useState(initialLayers);
+    const [focusQuadrant, setFocusQuadrant] = useState('all');
     const [selection, setSelection] = useState(projection?.selection || null);
 
     const handleIntent = useCallback((intent) => {
@@ -283,10 +284,11 @@ export default function ClinicalChartShell({
         notationMode,
         interactionMode,
         layers,
+        focusQuadrant,
         callbacks: {
             onIntent: handleIntent,
         },
-    }), [handleIntent, initialDentition, interactionMode, layers, notationMode, projection, selection]);
+    }), [focusQuadrant, handleIntent, initialDentition, interactionMode, layers, notationMode, projection, selection]);
 
     return (
         <div
@@ -327,6 +329,26 @@ export default function ClinicalChartShell({
                             <option value={CHART_NOTATION_MODES.UNIVERSAL}>
                                 {NOTATION_MODE_LABELS[CHART_NOTATION_MODES.UNIVERSAL]}
                             </option>
+                        </select>
+                    </div>
+
+                    {/* A15-M04: Quadrant Focus Toggle for Mobile/Tablet */}
+                    <div className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 p-1">
+                        <span className="px-1.5 text-xs font-semibold text-slate-400">الربع:</span>
+                        <select
+                            aria-label="Quadrant focus"
+                            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 shadow-2xs focus:border-primary focus:outline-none"
+                            data-testid="shell-quadrant-select"
+                            onChange={(e) => setFocusQuadrant(e.target.value)}
+                            value={focusQuadrant}
+                        >
+                            <option value="all">كافة الأسنان (All)</option>
+                            <option value="UR">الربع 1 (UR)</option>
+                            <option value="UL">الربع 2 (UL)</option>
+                            <option value="LL">الربع 3 (LL)</option>
+                            <option value="LR">الربع 4 (LR)</option>
+                            <option value="upper">الفك العلوي (Upper)</option>
+                            <option value="lower">الفك السفلي (Lower)</option>
                         </select>
                     </div>
 

@@ -321,7 +321,7 @@ const SVGTooth = memo(function SVGTooth({
 });
 
 export default memo(function DentalChartSVG({
-    teethStatus,
+    teethStatus = {},
     toothVisuals = {},
     onToothClick,
     isPediatric,
@@ -331,6 +331,7 @@ export default memo(function DentalChartSVG({
     onSurfaceClick,
     readOnly = false,
     notationMode = 'palmer',
+    focusQuadrant = 'all',
 }) {
     const adultUpperLeft = [16, 15, 14, 13, 12, 11, 10, 9];
     const adultUpperRight = [8, 7, 6, 5, 4, 3, 2, 1];
@@ -345,12 +346,23 @@ export default memo(function DentalChartSVG({
     const upperLeft = isPediatric ? childUpperLeft : adultUpperLeft;
     const lowerRight = isPediatric ? childLowerRight : adultLowerRight;
     const lowerLeft = isPediatric ? childLowerLeft : adultLowerLeft;
-    const chartMinWidth = isPediatric ? 'min-w-[480px]' : 'min-w-[700px]';
+
+    const isQuadrantVisible = (quad) => {
+        if (focusQuadrant === 'all') return true;
+        if (focusQuadrant === 'upper') return quad === 'UR' || quad === 'UL';
+        if (focusQuadrant === 'lower') return quad === 'LR' || quad === 'LL';
+        return focusQuadrant === quad;
+    };
+
+    const chartMinWidth = focusQuadrant !== 'all'
+        ? 'min-w-0'
+        : (isPediatric ? 'min-w-[480px]' : 'min-w-[700px]');
     const surfaceSelectionEnabled = enableSurfaceSelection && !readOnly;
 
     return (
         <div
             className="min-w-0 overflow-x-auto overscroll-x-contain rounded-2xl bg-slate-50 p-3 text-center shadow-inner touch-pan-x sm:rounded-3xl sm:p-5 lg:p-8"
+            data-focus-quadrant={focusQuadrant}
             data-interaction-mode={readOnly ? 'read-only' : 'edit'}
             data-notation-mode={notationMode}
         >
@@ -364,33 +376,41 @@ export default memo(function DentalChartSVG({
                     <div className="relative flex justify-center gap-1">
                         <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300" aria-hidden="true" />
                         <div className="absolute inset-x-0 bottom-0 h-0.5 bg-slate-300" aria-hidden="true" />
-                        <div className="flex gap-1 px-3 pb-4 sm:px-4">
-                            {upperLeft.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="upper" enableSurfaceSelection={surfaceSelectionEnabled} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} readOnly={readOnly} toothVisual={toothVisuals[toothToNumber(number)]} notationMode={notationMode} />
-                            ))}
-                        </div>
-                        <div className="w-0.5" />
-                        <div className="flex gap-1 px-3 pb-4 sm:px-4">
-                            {upperRight.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="upper" enableSurfaceSelection={surfaceSelectionEnabled} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} readOnly={readOnly} toothVisual={toothVisuals[toothToNumber(number)]} notationMode={notationMode} />
-                            ))}
-                        </div>
+                        {isQuadrantVisible('UL') && (
+                            <div className="flex gap-1 px-3 pb-4 sm:px-4" data-quadrant="UL">
+                                {upperLeft.map(number => (
+                                    <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="upper" enableSurfaceSelection={surfaceSelectionEnabled} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} readOnly={readOnly} toothVisual={toothVisuals[toothToNumber(number)]} notationMode={notationMode} />
+                                ))}
+                            </div>
+                        )}
+                        {isQuadrantVisible('UL') && isQuadrantVisible('UR') && <div className="w-0.5" />}
+                        {isQuadrantVisible('UR') && (
+                            <div className="flex gap-1 px-3 pb-4 sm:px-4" data-quadrant="UR">
+                                {upperRight.map(number => (
+                                    <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="upper" enableSurfaceSelection={surfaceSelectionEnabled} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} readOnly={readOnly} toothVisual={toothVisuals[toothToNumber(number)]} notationMode={notationMode} />
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     <div className="relative flex justify-center gap-1">
                         <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300" aria-hidden="true" />
                         <div className="absolute inset-x-0 top-0 h-0.5 bg-slate-300" aria-hidden="true" />
-                        <div className="flex gap-1 px-3 pt-4 sm:px-4">
-                            {lowerLeft.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="lower" enableSurfaceSelection={surfaceSelectionEnabled} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} readOnly={readOnly} toothVisual={toothVisuals[toothToNumber(number)]} notationMode={notationMode} />
-                            ))}
-                        </div>
-                        <div className="w-0.5" />
-                        <div className="flex gap-1 px-3 pt-4 sm:px-4">
-                            {lowerRight.map(number => (
-                                <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="lower" enableSurfaceSelection={surfaceSelectionEnabled} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} readOnly={readOnly} toothVisual={toothVisuals[toothToNumber(number)]} notationMode={notationMode} />
-                            ))}
-                        </div>
+                        {isQuadrantVisible('LL') && (
+                            <div className="flex gap-1 px-3 pt-4 sm:px-4" data-quadrant="LL">
+                                {lowerLeft.map(number => (
+                                    <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="lower" enableSurfaceSelection={surfaceSelectionEnabled} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} readOnly={readOnly} toothVisual={toothVisuals[toothToNumber(number)]} notationMode={notationMode} />
+                                ))}
+                            </div>
+                        )}
+                        {isQuadrantVisible('LL') && isQuadrantVisible('LR') && <div className="w-0.5" />}
+                        {isQuadrantVisible('LR') && (
+                            <div className="flex gap-1 px-3 pt-4 sm:px-4" data-quadrant="LR">
+                                {lowerRight.map(number => (
+                                    <SVGTooth key={number} number={number} status={teethStatus[toothToNumber(number)]} onClick={onToothClick} isPediatric={isPediatric} showRoots={showRoots} arch="lower" enableSurfaceSelection={surfaceSelectionEnabled} selectedSurface={selectedSurface} onSurfaceClick={onSurfaceClick} readOnly={readOnly} toothVisual={toothVisuals[toothToNumber(number)]} notationMode={notationMode} />
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
 

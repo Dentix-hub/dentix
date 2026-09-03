@@ -90,6 +90,7 @@ export const createClinicalChartRendererInput = ({
     notationMode = CHART_NOTATION_MODES.PALMER,
     interactionMode = CHART_INTERACTION_MODES.READ_ONLY,
     layers = DEFAULT_LAYERS,
+    focusQuadrant = 'all',
     callbacks = DEFAULT_CALLBACKS,
 }) => {
     if (typeof chartId !== 'string' || chartId.trim() === '') {
@@ -119,6 +120,7 @@ export const createClinicalChartRendererInput = ({
             roots: Boolean(layers.roots),
             surfaces: Boolean(layers.surfaces),
         }),
+        focusQuadrant,
         callbacks,
     });
 };
@@ -204,6 +206,7 @@ export const createClinicalChartRendererAdapter = (input) => {
             onSurfaceClick: isReadOnly ? undefined : surfaceSelected,
             readOnly: isReadOnly,
             notationMode: normalizedInput.notationMode,
+            focusQuadrant: normalizedInput.focusQuadrant,
         }),
         intents: Object.freeze({
             toothSelected,

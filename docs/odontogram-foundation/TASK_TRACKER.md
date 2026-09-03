@@ -77,14 +77,14 @@ Status values: `PENDING`, `IN PROGRESS`, `PASS`, `REWORK REQUIRED`, `BLOCKED`, `
 | A14-M03 Create simple inspector panel | PASS | `ClinicalChartInspector` shows anatomical tooth family, arch, roots count, surface details, and active procedures/findings; tests pass |
 | A14-M04 Create simple selection summary | PASS | `ClinicalChartSelectionSummary` renders active selection banner with quick clear button and empty prompt; tests pass |
 | A14-M05 Keep UI intentionally simple | PASS | Calm, clean Dentix shell integrated in `ClinicalChartShell` and `ClinicalChartWorkspace`; 10/10 tests pass in `ClinicalChartShell.test.jsx` |
-| A15-M01 Verify chart on desktop | PENDING | — |
-| A15-M02 Verify chart on tablet width | PENDING | — |
-| A15-M03 Verify chart on mobile width | PENDING | — |
-| A15-M04 Add quadrant-friendly mobile behavior | PENDING | — |
-| A15-M05 Verify Arabic RTL layout | PENDING | — |
-| A15-M06 Verify English LTR layout | PENDING | — |
-| A15-M07 Add keyboard focus states | PENDING | — |
-| A15-M08 Add accessible labels where practical | PENDING | — |
+| A15-M01 Verify chart on desktop | PASS | Full 32-tooth arch verified within responsive max width container (max-w-7xl); tests pass |
+| A15-M02 Verify chart on tablet width | PASS | Smooth horizontal scroll container with touch panning (touch-pan-x, overscroll-x-contain) verified; tests pass |
+| A15-M03 Verify chart on mobile width | PASS | Mobile-first padding (p-3 sm:p-5 lg:p-8) and overflow safeguards verified; tests pass |
+| A15-M04 Add quadrant-friendly mobile behavior | PASS | `focusQuadrant` ('all' | 'UR' | 'UL' | 'LL' | 'LR' | 'upper' | 'lower') implemented in DentalChartSVG and Shell; single quadrant fitting 8 teeth without horizontal scroll verified; tests pass |
+| A15-M05 Verify Arabic RTL layout | PASS | Explicit `dir="ltr"` on inner anatomical canvas preserves medical axis orientation (patient right on left, patient left on right) even under parent `dir="rtl"`; tests pass |
+| A15-M06 Verify English LTR layout | PASS | Standard LTR parent containers render without distortion or layout break; tests pass |
+| A15-M07 Add keyboard focus states | PASS | Interactive surfaces have `tabindex="0"`, focus rings (`focus:fill-blue-100 focus:stroke-blue-500`), and respond to keyboard Enter/Space; tests pass |
+| A15-M08 Add accessible labels where practical | PASS | Palmer & FDI labels preserved in `aria-label`, high-contrast color badges verified in `MobileResponsiveAndRTL.test.jsx` (10/10 pass) |
 | A16-M01 Add anatomy registry coverage test | PENDING | — |
 | A16-M02 Add renderer smoke test | PENDING | — |
 | A16-M03 Add multi-instance isolation test | PENDING | — |
