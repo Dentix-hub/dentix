@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 import DentalChartSVG from './DentalChartSVG';
 import { CHART_NOTATION_MODES } from '@/features/clinical-chart/domain/chartNotation';
 import { getCrownGeometry } from '@/features/clinical-chart/rendering/crownGeometry';
+import {
+    createClinicalChartProjection,
+    resolveClinicalChartVisuals,
+} from '@/features/clinical-chart/domain';
 
 const getCrownContract = (container) => Array.from(container.querySelectorAll('svg[data-layer="crown"]')).map((svg) => {
     const path = svg.querySelector('path');
@@ -410,6 +414,256 @@ describe('DentalChartSVG live anatomical crown and root integration', () => {
         // Primary tooth 55 has single outline path
         const tooth55Paths = container.querySelectorAll('svg[data-layer="crown"][data-tooth-key="55"] [data-layer-role="base-anatomy"] path');
         expect(tooth55Paths).toHaveLength(1);
+    });
+});
+
+describe('DentalChartSVG whole-crown visual layer coordinate normalization', () => {
+    const UPPER_ORGANIC_TRANSFORM = 'translate(0 10) scale(0.5 0.70) translate(0 -85)';
+    const LOWER_RIGHT_ORGANIC_TRANSFORM = 'translate(0 4) scale(0.5 0.62)';
+
+    it('transforms source-space crown paths for MISSING lifecycle on permanent teeth while keeping local cross untransformed', () => {
+        const projection = createClinicalChartProjection({
+            projectionId: 'test-missing-transform',
+            dentition: 'permanent',
+            teeth: {
+                '16': { lifecycle: 'MISSING' },
+                '11': { lifecycle: 'MISSING' },
+            },
+        });
+        const toothVisuals = resolveClinicalChartVisuals(projection);
+
+        const { container } = render(
+            <DentalChartSVG
+                teethStatus={{}}
+                onToothClick={vi.fn()}
+                isPediatric={false}
+                toothVisuals={toothVisuals}
+                showRoots
+            />,
+        );
+
+        ['16', '11'].forEach((toothKey) => {
+            const crown = container.querySelector(`svg[data-layer="crown"][data-tooth-key="${toothKey}"]`);
+            const missingGroup = crown.querySelector('[data-effect="missing"]');
+            expect(missingGroup).toBeInTheDocument();
+
+            const paths = missingGroup.querySelectorAll('path');
+            // Path 0 is the crown outline (source-space) which must have organicTransform
+            expect(paths[0]).toHaveAttribute('transform', UPPER_ORGANIC_TRANSFORM);
+            expect(paths[0]).toHaveAttribute('stroke-dasharray', '3 2');
+
+            // Path 1 is the local X cross mark (0..50 / 0..60 space) which must NOT have transform
+            expect(paths[1]).not.toHaveAttribute('transform');
+            expect(paths[1]).toHaveAttribute('d', 'M16,17 L34,39 M34,17 L16,39');
+        });
+    });
+
+    it('transforms source-space crown paths for PROS_CROWN on permanent teeth across arches', () => {
+        const projection = createClinicalChartProjection({
+            projectionId: 'test-proscrown-transform',
+            dentition: 'permanent',
+            teeth: {
+                '16': { procedures: [{ code: 'PROS_CROWN', targets: [{ kind: 'tooth', toothKey: '16' }] }] },
+                '26': { procedures: [{ code: 'PROS_CROWN', targets: [{ kind: 'tooth', toothKey: '26' }] }] },
+                '46': { procedures: [{ code: 'PROS_CROWN', targets: [{ kind: 'tooth', toothKey: '46' }] }] },
+            },
+        });
+        const toothVisuals = resolveClinicalChartVisuals(projection);
+
+        const { container } = render(
+            <DentalChartSVG
+                teethStatus={{}}
+                onToothClick={vi.fn()}
+                isPediatric={false}
+                toothVisuals={toothVisuals}
+                showRoots
+            />,
+        );
+
+        // Maxillary right tooth 16
+        const crown16 = container.querySelector('svg[data-layer="crown"][data-tooth-key="16"]');
+        const prosCrown16 = crown16.querySelector('[data-effect="prosthetic-crown"] path');
+        expect(prosCrown16).toBeInTheDocument();
+        expect(prosCrown16).toHaveAttribute('transform', UPPER_ORGANIC_TRANSFORM);
+        expect(prosCrown16).toHaveAttribute('fill', '#fde68a');
+
+        // Maxillary left tooth 26 (mirrored)
+        const crown26 = container.querySelector('svg[data-layer="crown"][data-tooth-key="26"]');
+        const prosCrown26 = crown26.querySelector('[data-effect="prosthetic-crown"] path');
+        expect(prosCrown26).toBeInTheDocument();
+        expect(prosCrown26).toHaveAttribute(
+            'transform',
+            'translate(25 0) scale(-1 1) translate(-25 0) translate(0 10) scale(0.5 0.70) translate(0 -85)',
+        );
+
+        // Mandibular right tooth 46
+        const crown46 = container.querySelector('svg[data-layer="crown"][data-tooth-key="46"]');
+        const prosCrown46 = crown46.querySelector('[data-effect="prosthetic-crown"] path');
+        expect(prosCrown46).toBeInTheDocument();
+        expect(prosCrown46).toHaveAttribute('transform', LOWER_RIGHT_ORGANIC_TRANSFORM);
+    });
+
+    it('transforms source-space crown paths for tooth-level selection', () => {
+        const projectionToothSelection = createClinicalChartProjection({
+            projectionId: 'test-tooth-selection',
+            dentition: 'permanent',
+            teeth: {
+                '16': { selection: { isSelected: true, targets: [{ kind: 'tooth', toothKey: '16' }] } },
+            },
+        });
+        const visualsTooth = resolveClinicalChartVisuals(projectionToothSelection);
+
+        const { container } = render(
+            <DentalChartSVG
+                teethStatus={{}}
+                onToothClick={vi.fn()}
+                isPediatric={false}
+                toothVisuals={visualsTooth}
+                showRoots
+            />,
+        );
+
+        const selectedCrownPath = container.querySelector(
+            'svg[data-layer="crown"][data-tooth-key="16"] [data-effect="selected"] path',
+        );
+        expect(selectedCrownPath).toBeInTheDocument();
+        expect(selectedCrownPath).toHaveAttribute('transform', UPPER_ORGANIC_TRANSFORM);
+    });
+
+    it('does not transform surface-level procedure overlays (REST_COMPOSITE)', () => {
+        const projectionSurface = createClinicalChartProjection({
+            projectionId: 'test-surface-procedure',
+            dentition: 'permanent',
+            teeth: {
+                '44': {
+                    procedures: [{
+                        code: 'REST_COMPOSITE',
+                        targets: [{ kind: 'surface', toothKey: '44', surfaceCode: 'O' }],
+                    }],
+                },
+            },
+        });
+        const visualsSurface = resolveClinicalChartVisuals(projectionSurface);
+
+        const { container } = render(
+            <DentalChartSVG
+                teethStatus={{}}
+                onToothClick={vi.fn()}
+                isPediatric={false}
+                toothVisuals={visualsSurface}
+                showRoots
+            />,
+        );
+
+        const surfaceRestorationPath = container.querySelector(
+            'svg[data-layer="crown"][data-tooth-key="44"] [data-effect="surface-restoration"] path',
+        );
+        expect(surfaceRestorationPath).toBeInTheDocument();
+        expect(surfaceRestorationPath).not.toHaveAttribute('transform');
+    });
+
+    it('transforms source-space crown paths for disabled state on permanent teeth', () => {
+        const projection = createClinicalChartProjection({
+            projectionId: 'test-disabled-transform',
+            dentition: 'permanent',
+            teeth: {
+                '16': { disabled: true },
+                '11': { disabled: true },
+            },
+        });
+        const toothVisuals = resolveClinicalChartVisuals(projection);
+
+        const { container } = render(
+            <DentalChartSVG
+                teethStatus={{}}
+                onToothClick={vi.fn()}
+                isPediatric={false}
+                toothVisuals={toothVisuals}
+                showRoots
+            />,
+        );
+
+        ['16', '11'].forEach((toothKey) => {
+            const disabledPath = container.querySelector(
+                `svg[data-layer="crown"][data-tooth-key="${toothKey}"] [data-effect="disabled"] path`,
+            );
+            expect(disabledPath).toBeInTheDocument();
+            expect(disabledPath).toHaveAttribute('transform', UPPER_ORGANIC_TRANSFORM);
+            expect(disabledPath).toHaveAttribute('fill', '#e2e8f0');
+        });
+    });
+
+    it('does not apply organicTransform to generic local overlays (fracture, pain marker)', () => {
+        const projection = createClinicalChartProjection({
+            projectionId: 'test-local-overlays',
+            dentition: 'permanent',
+            teeth: {
+                '16': {
+                    findings: [
+                        { code: 'FRACTURE', targets: [{ kind: 'tooth', toothKey: '16' }] },
+                        { code: 'PAIN', targets: [{ kind: 'tooth', toothKey: '16' }] },
+                    ],
+                },
+            },
+        });
+        const toothVisuals = resolveClinicalChartVisuals(projection);
+
+        const { container } = render(
+            <DentalChartSVG
+                teethStatus={{}}
+                onToothClick={vi.fn()}
+                isPediatric={false}
+                toothVisuals={toothVisuals}
+                showRoots
+            />,
+        );
+
+        const crown = container.querySelector('svg[data-layer="crown"][data-tooth-key="16"]');
+        const fracturePath = crown.querySelector('[data-effect="fracture-line"] path');
+        expect(fracturePath).toBeInTheDocument();
+        expect(fracturePath).not.toHaveAttribute('transform');
+
+        const painCircle = crown.querySelector('[data-effect="pain-marker"] circle');
+        expect(painCircle).toBeInTheDocument();
+        expect(painCircle).not.toHaveAttribute('transform');
+    });
+
+    it('does not transform whole-crown overlays in primary dentition', () => {
+        const projection = createClinicalChartProjection({
+            projectionId: 'test-pediatric-overlays',
+            dentition: 'primary',
+            teeth: {
+                '55': {
+                    lifecycle: 'MISSING',
+                    procedures: [{ code: 'PROS_CROWN', targets: [{ kind: 'tooth', toothKey: '55' }] }],
+                    disabled: true,
+                },
+            },
+        });
+        const toothVisuals = resolveClinicalChartVisuals(projection);
+
+        const { container } = render(
+            <DentalChartSVG
+                teethStatus={{}}
+                onToothClick={vi.fn()}
+                isPediatric={true}
+                toothVisuals={toothVisuals}
+                showRoots
+            />,
+        );
+
+        const crown55 = container.querySelector('svg[data-layer="crown"][data-tooth-key="55"]');
+        const missingPath = crown55.querySelector('[data-effect="missing"] path');
+        expect(missingPath).toBeInTheDocument();
+        expect(missingPath).not.toHaveAttribute('transform');
+
+        const prosCrownPath = crown55.querySelector('[data-effect="prosthetic-crown"] path');
+        expect(prosCrownPath).toBeInTheDocument();
+        expect(prosCrownPath).not.toHaveAttribute('transform');
+
+        const disabledPath = crown55.querySelector('[data-effect="disabled"] path');
+        expect(disabledPath).toBeInTheDocument();
+        expect(disabledPath).not.toHaveAttribute('transform');
     });
 });
 

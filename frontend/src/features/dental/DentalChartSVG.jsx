@@ -340,6 +340,7 @@ const SVGTooth = memo(function SVGTooth({
                     <CrownVisualLayers
                         crownClipId={crownClipId}
                         crownPath={crownClipPath}
+                        crownTransform={organicTransform}
                         toothKey={toothKey}
                         toothVisual={toothVisual}
                     />
