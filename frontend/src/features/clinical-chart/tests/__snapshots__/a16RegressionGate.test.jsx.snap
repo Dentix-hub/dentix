@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`A16-M04 root geometry regression snapshot > matches snapshot for representative tooth 11 1`] = `
+exports[`A16-M04 root visual regression evidence > matches snapshot for representative tooth 11 1`] = `
 [
   {
     "apexAnchor": {
@@ -28,7 +28,7 @@ exports[`A16-M04 root geometry regression snapshot > matches snapshot for repres
 ]
 `;
 
-exports[`A16-M04 root geometry regression snapshot > matches snapshot for representative tooth 14 1`] = `
+exports[`A16-M04 root visual regression evidence > matches snapshot for representative tooth 14 1`] = `
 [
   {
     "apexAnchor": {
@@ -79,7 +79,7 @@ exports[`A16-M04 root geometry regression snapshot > matches snapshot for repres
 ]
 `;
 
-exports[`A16-M04 root geometry regression snapshot > matches snapshot for representative tooth 16 1`] = `
+exports[`A16-M04 root visual regression evidence > matches snapshot for representative tooth 16 1`] = `
 [
   {
     "apexAnchor": {
@@ -153,7 +153,7 @@ exports[`A16-M04 root geometry regression snapshot > matches snapshot for repres
 ]
 `;
 
-exports[`A16-M04 root geometry regression snapshot > matches snapshot for representative tooth 36 1`] = `
+exports[`A16-M04 root visual regression evidence > matches snapshot for representative tooth 36 1`] = `
 [
   {
     "apexAnchor": {
@@ -204,7 +204,7 @@ exports[`A16-M04 root geometry regression snapshot > matches snapshot for repres
 ]
 `;
 
-exports[`A16-M04 root geometry regression snapshot > matches snapshot for representative tooth 51 1`] = `
+exports[`A16-M04 root visual regression evidence > matches snapshot for representative tooth 51 1`] = `
 [
   {
     "apexAnchor": {
@@ -232,7 +232,7 @@ exports[`A16-M04 root geometry regression snapshot > matches snapshot for repres
 ]
 `;
 
-exports[`A16-M04 root geometry regression snapshot > matches snapshot for representative tooth 55 1`] = `
+exports[`A16-M04 root visual regression evidence > matches snapshot for representative tooth 55 1`] = `
 [
   {
     "apexAnchor": {
@@ -306,7 +306,7 @@ exports[`A16-M04 root geometry regression snapshot > matches snapshot for repres
 ]
 `;
 
-exports[`A16-M04 root geometry regression snapshot > matches snapshot for representative tooth 85 1`] = `
+exports[`A16-M04 root visual regression evidence > matches snapshot for representative tooth 85 1`] = `
 [
   {
     "apexAnchor": {
