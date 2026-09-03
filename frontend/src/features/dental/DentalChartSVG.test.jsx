@@ -211,20 +211,18 @@ describe('DentalChartSVG optional root extension', () => {
 });
 
 describe('DentalChartSVG live anatomical crown and root integration', () => {
-    const LEGACY_SIMPLIFIED_PATHS = [
-        "M10,5 C15,0 35,0 40,5 C45,15 45,35 40,45 C35,50 15,50 10,45 C5,35 5,15 10,5 Z M15,15 L20,20 M30,15 L25,20 M25,25 L25,35",
-        "M12,8 C17,3 33,3 38,8 C42,15 42,30 38,40 C33,45 17,45 12,40 C8,30 8,15 12,8 Z M25,15 L25,30",
-        "M15,10 C20,5 30,5 35,10 C40,20 35,40 25,48 C15,40 10,20 15,10 Z",
-        "M10,10 C15,8 35,8 40,10 C42,20 40,40 35,45 C30,48 20,48 15,45 C10,40 8,20 10,10 Z",
-        "M15,12 C18,10 32,10 35,12 C36,20 35,35 32,40 C28,42 22,42 18,40 C15,35 14,20 15,12 Z",
-    ];
+    const APPROVED_CROWN_PATHS = {
+        '11': "M10,10 C15,8 35,8 40,10 C42,20 40,40 35,45 C30,48 20,48 15,45 C10,40 8,20 10,10 Z",
+        '13': "M15,10 C20,5 30,5 35,10 C40,20 35,40 25,48 C15,40 10,20 15,10 Z",
+        '14': "M12,8 C17,3 33,3 38,8 C42,15 42,30 38,40 C33,45 17,45 12,40 C8,30 8,15 12,8 Z M25,15 L25,30",
+        '16': "M10,5 C15,0 35,0 40,5 C45,15 45,35 40,45 C35,50 15,50 10,45 C5,35 5,15 10,5 Z M15,15 L20,20 M30,15 L25,20 M25,25 L25,35",
+        '36': "M10,5 C15,0 35,0 40,5 C45,15 45,35 40,45 C35,50 15,50 10,45 C5,35 5,15 10,5 Z M15,15 L20,20 M30,15 L25,20 M25,25 L25,35",
+        '46': "M10,5 C15,0 35,0 40,5 C45,15 45,35 40,45 C35,50 15,50 10,45 C5,35 5,15 10,5 Z M15,15 L20,20 M30,15 L25,20 M25,25 L25,35",
+    };
 
     it.each(['11', '13', '14', '16', '36', '46'])(
-        'renders permanent tooth %s using anatomical dental-v3-organic geometry instead of legacy simplified paths',
+        'renders permanent tooth %s using approved DentalChartSVG crown geometry and protects against dental-v3-organic reconnection',
         (toothKey) => {
-            const crownGeometry = getCrownGeometry(toothKey);
-            expect(crownGeometry.source).toBe('dental-v3-organic');
-
             const { container } = render(
                 <DentalChartSVG teethStatus={{}} onToothClick={vi.fn()} isPediatric={false} showRoots />,
             );
@@ -236,33 +234,35 @@ describe('DentalChartSVG live anatomical crown and root integration', () => {
                 crownSvg.querySelectorAll('[data-layer-role="base-anatomy"] path'),
             ).map((p) => p.getAttribute('d'));
 
-            expect(renderedPaths).toHaveLength(5);
+            // Live chart must render exactly the single approved base crown path from TOOTH_PATHS
+            expect(renderedPaths).toHaveLength(1);
+            expect(renderedPaths[0]).toBe(APPROVED_CROWN_PATHS[toothKey]);
 
-            const expectedPaths = Object.values(crownGeometry.paths);
-            expect(renderedPaths).toEqual(expect.arrayContaining(expectedPaths));
-
-            renderedPaths.forEach((renderedPath) => {
-                expect(LEGACY_SIMPLIFIED_PATHS).not.toContain(renderedPath);
-            });
+            // Regression guard: must fail if reconnected to dental-v3-organic
+            const organicCrown = getCrownGeometry(toothKey);
+            if (organicCrown?.source === 'dental-v3-organic') {
+                Object.values(organicCrown.paths).forEach((organicPath) => {
+                    expect(renderedPaths[0]).not.toBe(organicPath);
+                });
+            }
         },
     );
 
-    it('preserves anatomical morphological distinction across tooth families', () => {
+    it('preserves morphological distinction across tooth families', () => {
         const { container } = render(
             <DentalChartSVG teethStatus={{}} onToothClick={vi.fn()} isPediatric={false} showRoots />,
         );
 
-        const getFirstSurfacePath = (toothKey) => container.querySelector(
+        const getCrownPath = (toothKey) => container.querySelector(
             `svg[data-layer="crown"][data-tooth-key="${toothKey}"] [data-layer-role="base-anatomy"] path`,
         )?.getAttribute('d');
 
-        const incisor11 = getFirstSurfacePath('11');
-        const canine13 = getFirstSurfacePath('13');
-        const premolar14 = getFirstSurfacePath('14');
-        const molar16 = getFirstSurfacePath('16');
-        const molar46 = getFirstSurfacePath('46');
+        const incisor11 = getCrownPath('11');
+        const canine13 = getCrownPath('13');
+        const premolar14 = getCrownPath('14');
+        const molar16 = getCrownPath('16');
 
-        expect(new Set([incisor11, canine13, premolar14, molar16, molar46]).size).toBe(5);
+        expect(new Set([incisor11, canine13, premolar14, molar16]).size).toBe(4);
     });
 
     it('renders root layers on the main chart with accurate root counts', () => {
@@ -407,9 +407,10 @@ describe('DentalChartSVG live anatomical crown and root integration', () => {
         expect(container.firstChild).toHaveAttribute('data-dentition', 'mixed');
         expect(container.querySelectorAll('svg[data-layer="crown"]')).toHaveLength(mixedToothOrder.length);
 
-        // Permanent tooth 16 has 5 anatomical surface paths
+        // Permanent tooth 16 has single approved base crown path
         const tooth16Paths = container.querySelectorAll('svg[data-layer="crown"][data-tooth-key="16"] [data-layer-role="base-anatomy"] path');
-        expect(tooth16Paths).toHaveLength(5);
+        expect(tooth16Paths).toHaveLength(1);
+        expect(tooth16Paths[0].getAttribute('d')).toBe(APPROVED_CROWN_PATHS['16']);
 
         // Primary tooth 55 has single outline path
         const tooth55Paths = container.querySelectorAll('svg[data-layer="crown"][data-tooth-key="55"] [data-layer-role="base-anatomy"] path');
@@ -418,10 +419,7 @@ describe('DentalChartSVG live anatomical crown and root integration', () => {
 });
 
 describe('DentalChartSVG whole-crown visual layer coordinate normalization', () => {
-    const UPPER_ORGANIC_TRANSFORM = 'translate(0 10) scale(0.5 0.70) translate(0 -85)';
-    const LOWER_RIGHT_ORGANIC_TRANSFORM = 'translate(0 4) scale(0.5 0.62)';
-
-    it('transforms source-space crown paths for MISSING lifecycle on permanent teeth while keeping local cross untransformed', () => {
+    it('renders crown paths for MISSING lifecycle on permanent teeth in native 50x60 space without organic transforms', () => {
         const projection = createClinicalChartProjection({
             projectionId: 'test-missing-transform',
             dentition: 'permanent',
@@ -448,17 +446,17 @@ describe('DentalChartSVG whole-crown visual layer coordinate normalization', () 
             expect(missingGroup).toBeInTheDocument();
 
             const paths = missingGroup.querySelectorAll('path');
-            // Path 0 is the crown outline (source-space) which must have organicTransform
-            expect(paths[0]).toHaveAttribute('transform', UPPER_ORGANIC_TRANSFORM);
+            // Path 0 is the crown outline (50x60 space) which has no transform
+            expect(paths[0]).not.toHaveAttribute('transform');
             expect(paths[0]).toHaveAttribute('stroke-dasharray', '3 2');
 
-            // Path 1 is the local X cross mark (0..50 / 0..60 space) which must NOT have transform
+            // Path 1 is the local X cross mark (0..50 / 0..60 space) which has no transform
             expect(paths[1]).not.toHaveAttribute('transform');
             expect(paths[1]).toHaveAttribute('d', 'M16,17 L34,39 M34,17 L16,39');
         });
     });
 
-    it('transforms source-space crown paths for PROS_CROWN on permanent teeth across arches', () => {
+    it('renders crown paths for PROS_CROWN on permanent teeth across arches in native 50x60 space without organic transforms', () => {
         const projection = createClinicalChartProjection({
             projectionId: 'test-proscrown-transform',
             dentition: 'permanent',
@@ -484,26 +482,23 @@ describe('DentalChartSVG whole-crown visual layer coordinate normalization', () 
         const crown16 = container.querySelector('svg[data-layer="crown"][data-tooth-key="16"]');
         const prosCrown16 = crown16.querySelector('[data-effect="prosthetic-crown"] path');
         expect(prosCrown16).toBeInTheDocument();
-        expect(prosCrown16).toHaveAttribute('transform', UPPER_ORGANIC_TRANSFORM);
+        expect(prosCrown16).not.toHaveAttribute('transform');
         expect(prosCrown16).toHaveAttribute('fill', '#fde68a');
 
-        // Maxillary left tooth 26 (mirrored)
+        // Maxillary left tooth 26
         const crown26 = container.querySelector('svg[data-layer="crown"][data-tooth-key="26"]');
         const prosCrown26 = crown26.querySelector('[data-effect="prosthetic-crown"] path');
         expect(prosCrown26).toBeInTheDocument();
-        expect(prosCrown26).toHaveAttribute(
-            'transform',
-            'translate(25 0) scale(-1 1) translate(-25 0) translate(0 10) scale(0.5 0.70) translate(0 -85)',
-        );
+        expect(prosCrown26).not.toHaveAttribute('transform');
 
         // Mandibular right tooth 46
         const crown46 = container.querySelector('svg[data-layer="crown"][data-tooth-key="46"]');
         const prosCrown46 = crown46.querySelector('[data-effect="prosthetic-crown"] path');
         expect(prosCrown46).toBeInTheDocument();
-        expect(prosCrown46).toHaveAttribute('transform', LOWER_RIGHT_ORGANIC_TRANSFORM);
+        expect(prosCrown46).not.toHaveAttribute('transform');
     });
 
-    it('transforms source-space crown paths for tooth-level selection', () => {
+    it('renders crown paths for tooth-level selection without organic transforms', () => {
         const projectionToothSelection = createClinicalChartProjection({
             projectionId: 'test-tooth-selection',
             dentition: 'permanent',
@@ -527,7 +522,7 @@ describe('DentalChartSVG whole-crown visual layer coordinate normalization', () 
             'svg[data-layer="crown"][data-tooth-key="16"] [data-effect="selected"] path',
         );
         expect(selectedCrownPath).toBeInTheDocument();
-        expect(selectedCrownPath).toHaveAttribute('transform', UPPER_ORGANIC_TRANSFORM);
+        expect(selectedCrownPath).not.toHaveAttribute('transform');
     });
 
     it('does not transform surface-level procedure overlays (REST_COMPOSITE)', () => {
@@ -562,7 +557,7 @@ describe('DentalChartSVG whole-crown visual layer coordinate normalization', () 
         expect(surfaceRestorationPath).not.toHaveAttribute('transform');
     });
 
-    it('transforms source-space crown paths for disabled state on permanent teeth', () => {
+    it('renders crown paths for disabled state on permanent teeth without organic transforms', () => {
         const projection = createClinicalChartProjection({
             projectionId: 'test-disabled-transform',
             dentition: 'permanent',
@@ -588,12 +583,12 @@ describe('DentalChartSVG whole-crown visual layer coordinate normalization', () 
                 `svg[data-layer="crown"][data-tooth-key="${toothKey}"] [data-effect="disabled"] path`,
             );
             expect(disabledPath).toBeInTheDocument();
-            expect(disabledPath).toHaveAttribute('transform', UPPER_ORGANIC_TRANSFORM);
+            expect(disabledPath).not.toHaveAttribute('transform');
             expect(disabledPath).toHaveAttribute('fill', '#e2e8f0');
         });
     });
 
-    it('does not apply organicTransform to generic local overlays (fracture, pain marker)', () => {
+    it('does not apply transform to generic local overlays (fracture, pain marker)', () => {
         const projection = createClinicalChartProjection({
             projectionId: 'test-local-overlays',
             dentition: 'permanent',
