@@ -1,0 +1,358 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`A16-M04 root visual regression evidence > matches snapshot for representative tooth 11 1`] = `
+[
+  {
+    "apexAnchor": {
+      "x": 24.4,
+      "y": 41.5,
+    },
+    "cervicalAnchors": {
+      "left": {
+        "x": 17,
+        "y": 0,
+      },
+      "right": {
+        "x": 33,
+        "y": 0,
+      },
+    },
+    "displayScale": {
+      "x": 0.97,
+      "y": 0.96,
+    },
+    "path": "M17,0 C18.28,9.96 19.72,29.88 23.25,39.7 Q24.4,42.2 25.55,39.7 C28.68,29.88 31.72,9.96 33,0 Z",
+    "rootId": "single",
+    "toothKey": "11",
+  },
+]
+`;
+
+exports[`A16-M04 root visual regression evidence > matches snapshot for representative tooth 14 1`] = `
+[
+  {
+    "apexAnchor": {
+      "x": 16.5,
+      "y": 40.5,
+    },
+    "cervicalAnchors": {
+      "left": {
+        "x": 13.5,
+        "y": 0,
+      },
+      "right": {
+        "x": 27,
+        "y": 0,
+      },
+    },
+    "displayScale": {
+      "x": 0.94,
+      "y": 0.9,
+    },
+    "path": "M13.5,0 C14.58,9.72 12.22,29.16 15.35,38.7 Q16.5,41.2 17.65,38.7 C19.78,29.16 25.92,9.72 27,0 Z",
+    "rootId": "buccal",
+    "toothKey": "14",
+  },
+  {
+    "apexAnchor": {
+      "x": 33.2,
+      "y": 43.5,
+    },
+    "cervicalAnchors": {
+      "left": {
+        "x": 23,
+        "y": 0,
+      },
+      "right": {
+        "x": 36.5,
+        "y": 0,
+      },
+    },
+    "displayScale": {
+      "x": 0.94,
+      "y": 0.9,
+    },
+    "path": "M23,0 C24.08,10.44 29.82,31.32 32.05,41.7 Q33.2,44.2 34.35,41.7 C37.38,31.32 35.42,10.44 36.5,0 Z",
+    "rootId": "palatal",
+    "toothKey": "14",
+  },
+]
+`;
+
+exports[`A16-M04 root visual regression evidence > matches snapshot for representative tooth 16 1`] = `
+[
+  {
+    "apexAnchor": {
+      "x": 7.2,
+      "y": 37.5,
+    },
+    "cervicalAnchors": {
+      "left": {
+        "x": 8.5,
+        "y": 0,
+      },
+      "right": {
+        "x": 23.5,
+        "y": 0,
+      },
+    },
+    "displayScale": {
+      "x": 0.9,
+      "y": 0.84,
+    },
+    "path": "M8.5,0 C9.7,9 2.2,27 6.05,35.7 Q7.2,38.2 8.35,35.7 C10.6,27 22.3,9 23.5,0 Z",
+    "rootId": "mesiobuccal",
+    "toothKey": "16",
+  },
+  {
+    "apexAnchor": {
+      "x": 43,
+      "y": 35.5,
+    },
+    "cervicalAnchors": {
+      "left": {
+        "x": 26.5,
+        "y": 0,
+      },
+      "right": {
+        "x": 41.5,
+        "y": 0,
+      },
+    },
+    "displayScale": {
+      "x": 0.9,
+      "y": 0.84,
+    },
+    "path": "M26.5,0 C27.7,8.52 39.6,25.56 41.85,33.7 Q43,36.2 44.15,33.7 C48,25.56 40.3,8.52 41.5,0 Z",
+    "rootId": "distobuccal",
+    "toothKey": "16",
+  },
+  {
+    "apexAnchor": {
+      "x": 25.7,
+      "y": 46,
+    },
+    "cervicalAnchors": {
+      "left": {
+        "x": 18.5,
+        "y": 0,
+      },
+      "right": {
+        "x": 31.5,
+        "y": 0,
+      },
+    },
+    "displayScale": {
+      "x": 0.9,
+      "y": 0.84,
+    },
+    "path": "M18.5,0 C19.54,11.04 22.31,33.12 24.55,44.2 Q25.7,46.7 26.85,44.2 C29.59,33.12 30.46,11.04 31.5,0 Z",
+    "rootId": "palatal",
+    "toothKey": "16",
+  },
+]
+`;
+
+exports[`A16-M04 root visual regression evidence > matches snapshot for representative tooth 36 1`] = `
+[
+  {
+    "apexAnchor": {
+      "x": 42,
+      "y": 43,
+    },
+    "cervicalAnchors": {
+      "left": {
+        "x": 24,
+        "y": 0,
+      },
+      "right": {
+        "x": 40.5,
+        "y": 0,
+      },
+    },
+    "displayScale": {
+      "x": 0.9,
+      "y": 0.84,
+    },
+    "path": "M24,0 C25.32,10.32 38.18,30.96 40.85,41.2 Q42,43.7 43.15,41.2 C47.42,30.96 39.18,10.32 40.5,0 Z",
+    "rootId": "mesial",
+    "toothKey": "36",
+  },
+  {
+    "apexAnchor": {
+      "x": 8,
+      "y": 41,
+    },
+    "cervicalAnchors": {
+      "left": {
+        "x": 9.5,
+        "y": 0,
+      },
+      "right": {
+        "x": 26,
+        "y": 0,
+      },
+    },
+    "displayScale": {
+      "x": 0.9,
+      "y": 0.84,
+    },
+    "path": "M9.5,0 C10.82,9.84 2.63,29.52 6.85,39.2 Q8,41.7 9.15,39.2 C11.87,29.52 24.68,9.84 26,0 Z",
+    "rootId": "distal",
+    "toothKey": "36",
+  },
+]
+`;
+
+exports[`A16-M04 root visual regression evidence > matches snapshot for representative tooth 51 1`] = `
+[
+  {
+    "apexAnchor": {
+      "x": 24.6,
+      "y": 34.5,
+    },
+    "cervicalAnchors": {
+      "left": {
+        "x": 18.5,
+        "y": 0,
+      },
+      "right": {
+        "x": 31.5,
+        "y": 0,
+      },
+    },
+    "displayScale": {
+      "x": 0.92,
+      "y": 0.86,
+    },
+    "path": "M18.5,0 C19.54,8.28 20.81,24.84 23.45,32.7 Q24.6,35.2 25.75,32.7 C28.09,24.84 30.46,8.28 31.5,0 Z",
+    "rootId": "single",
+    "toothKey": "51",
+  },
+]
+`;
+
+exports[`A16-M04 root visual regression evidence > matches snapshot for representative tooth 55 1`] = `
+[
+  {
+    "apexAnchor": {
+      "x": 3.5,
+      "y": 37.5,
+    },
+    "cervicalAnchors": {
+      "left": {
+        "x": 9,
+        "y": 0,
+      },
+      "right": {
+        "x": 21.5,
+        "y": 0,
+      },
+    },
+    "displayScale": {
+      "x": 0.88,
+      "y": 0.86,
+    },
+    "path": "M9,0 C10,9 -1.15,27 2.35,35.7 Q3.5,38.2 4.65,35.7 C5.85,27 20.5,9 21.5,0 Z",
+    "rootId": "mesiobuccal",
+    "toothKey": "55",
+  },
+  {
+    "apexAnchor": {
+      "x": 46.5,
+      "y": 36,
+    },
+    "cervicalAnchors": {
+      "left": {
+        "x": 28.5,
+        "y": 0,
+      },
+      "right": {
+        "x": 41,
+        "y": 0,
+      },
+    },
+    "displayScale": {
+      "x": 0.88,
+      "y": 0.86,
+    },
+    "path": "M28.5,0 C29.5,8.64 44.15,25.92 45.35,34.2 Q46.5,36.7 47.65,34.2 C51.15,25.92 40,8.64 41,0 Z",
+    "rootId": "distobuccal",
+    "toothKey": "55",
+  },
+  {
+    "apexAnchor": {
+      "x": 25.5,
+      "y": 43,
+    },
+    "cervicalAnchors": {
+      "left": {
+        "x": 19.5,
+        "y": 0,
+      },
+      "right": {
+        "x": 30.5,
+        "y": 0,
+      },
+    },
+    "displayScale": {
+      "x": 0.88,
+      "y": 0.86,
+    },
+    "path": "M19.5,0 C20.38,10.32 22.62,30.96 24.35,41.2 Q25.5,43.7 26.65,41.2 C28.78,30.96 29.62,10.32 30.5,0 Z",
+    "rootId": "palatal",
+    "toothKey": "55",
+  },
+]
+`;
+
+exports[`A16-M04 root visual regression evidence > matches snapshot for representative tooth 85 1`] = `
+[
+  {
+    "apexAnchor": {
+      "x": 4.5,
+      "y": 41,
+    },
+    "cervicalAnchors": {
+      "left": {
+        "x": 10,
+        "y": 0,
+      },
+      "right": {
+        "x": 24,
+        "y": 0,
+      },
+    },
+    "displayScale": {
+      "x": 0.88,
+      "y": 0.86,
+    },
+    "path": "M10,0 C11.12,9.84 -0.52,29.52 3.35,39.2 Q4.5,41.7 5.65,39.2 C7.32,29.52 22.88,9.84 24,0 Z",
+    "rootId": "mesial",
+    "toothKey": "85",
+  },
+  {
+    "apexAnchor": {
+      "x": 45.5,
+      "y": 41,
+    },
+    "cervicalAnchors": {
+      "left": {
+        "x": 26,
+        "y": 0,
+      },
+      "right": {
+        "x": 40,
+        "y": 0,
+      },
+    },
+    "displayScale": {
+      "x": 0.88,
+      "y": 0.86,
+    },
+    "path": "M26,0 C27.12,9.84 42.68,29.52 44.35,39.2 Q45.5,41.7 46.65,39.2 C50.52,29.52 38.88,9.84 40,0 Z",
+    "rootId": "distal",
+    "toothKey": "85",
+  },
+]
+`;
