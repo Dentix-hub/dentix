@@ -1,24 +1,31 @@
+<!-- STATUS: HISTORICAL / NON-AUTHORITATIVE -->
 # DENTIX_ODONTOGRAM_FIRST_EXECUTION_AND_VNEXT_HANDOFF_FINAL_MASTER_PLAN
 
-## Status
-Final execution plan for:
-1. **Codex implements the odontogram/chart slice first**
-2. **Gemini implements the remaining Unified Clinical Workflow VNext**
-3. **Codex reviews and verifies Gemini phase-by-phase**
+> **Classification**: `HISTORICAL-ARCHIVE`
+> **Status**: HISTORICAL / NON-AUTHORITATIVE ARCHIVE
+> **Notice**:
+> - This document is retained strictly as a historical requirement source record.
+> - Its product, clinical, and anatomical requirements are preserved through the active product specification (`docs/product/ODONTOGRAM_VNEXT_PRODUCT_SPEC.md`) and traceability matrix (`docs/product/ODONTOGRAM_TRACEABILITY_MATRIX.md`).
+> - Its agent assignments, Codex/Gemini sequencing, branches, waves, micro-ticket mechanics, testing lifecycle, PR lifecycle, and release mechanics are obsolete.
+> - It cannot override `PROJECT_STANDARDS.md`.
+> - It cannot override `docs/engineering/DEVELOPMENT_WORKFLOW.md`.
+> - It cannot override `AGENTS.md`.
+> - No current task should execute directly from its historical workflow instructions.
+> - Current development lifecycle is governed exclusively by `docs/engineering/DEVELOPMENT_WORKFLOW.md`.
 
 ---
 
-# 0. Purpose
+# 0. Historical Purpose & Context (Archival Record)
 
-This plan replaces ambiguity with a strict execution contract.
+*Historical Note: The section below reflects legacy execution planning between Codex and Gemini. For current development execution, refer exclusively to `docs/engineering/DEVELOPMENT_WORKFLOW.md` and `PROJECT_STANDARDS.md`.*
 
-The intended delivery model is:
+The historical intended delivery model was:
 
 - **Step 1:** Codex executes **only the chart/odontogram foundation**
 - **Step 2:** Gemini executes the **remaining VNext clinical workflow**
 - **Step 3:** Codex performs a **forensic review and verification pass** on each Gemini delivery block
 
-This plan is written in **very small, explicit, bounded micro-tasks** so execution can be delegated safely.
+This plan was written in **very small, explicit, bounded micro-tasks** for legacy tracking.
 
 ---
 

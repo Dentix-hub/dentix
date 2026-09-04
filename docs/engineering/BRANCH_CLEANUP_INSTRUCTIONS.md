@@ -1,7 +1,7 @@
 # DENTIX Branch Cleanup & Maintenance Guide
 
-**Document Classification:** ENGINEERING RUNBOOK  
-**Status:** DRAFT — FOR USE POST-REMOTE-QUALIFICATION  
+**Document Classification:** ENGINEERING RUNBOOK<br>
+**Status:** DRAFT — FOR USE POST-REMOTE-QUALIFICATION<br>
 **Authority:** `docs/engineering/DEVELOPMENT_WORKFLOW.md`
 
 ---

@@ -19,7 +19,7 @@ If generic guidance conflicts with DENTIX project standards, DENTIX project stan
 
 Apply guidance in this order:
 
-1. Non-negotiable safety, tenant isolation, RBAC, data integrity, and privacy constraints.
+1. Non-negotiable safety, tenant isolation, RBAC, data integrity, privacy, clinical integrity, and financial integrity constraints.
 2. Explicit current user requirement or approved implementation plan (within safety constraints).
 3. `PROJECT_STANDARDS.md` (architecture authority).
 4. `docs/engineering/DEVELOPMENT_WORKFLOW.md` (development lifecycle authority).

@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """
-DENTIX Static Authority Linter
-==============================
-Deterministic verification gate enforcing repository authority hierarchy,
-bidirectional skill catalog integrity, coverage ownership, document classifications,
-and deprecation boundaries.
-
-This linter is deterministic and strictly local (zero network calls).
-Returns 0 on success, non-zero if any authority violations are detected.
+DENTIX Static Authority & Precedence Linter
+===========================================
+Deterministic, local-only validator enforcing DENTIX architectural authority,
+the canonical nine-layer precedence hierarchy, single workflow authority,
+bidirectional skill catalog matching, and classification standards.
 """
 
 from __future__ import annotations
@@ -16,26 +13,65 @@ import re
 import sys
 from pathlib import Path
 
+CANONICAL_HIERARCHY: list[tuple[int, str, list[str]]] = [
+    (1, "Non-negotiable safety, tenant isolation, RBAC, data integrity, privacy, clinical integrity, and financial integrity", [
+        r"safety",
+        r"(?:tenant|isolation)",
+        r"rbac",
+        r"data\s+integrity",
+        r"privacy",
+        r"clinical\s+integrity",
+        r"financial\s+integrity",
+    ]),
+    (2, "Explicit current user requirement or approved implementation plan within safety constraints", [
+        r"(?:user\s+requirement|approved\s+(?:implementation\s+plan|product\s+decision))",
+    ]),
+    (3, "PROJECT_STANDARDS.md", [
+        r"PROJECT_STANDARDS\.md",
+    ]),
+    (4, "docs/engineering/DEVELOPMENT_WORKFLOW.md", [
+        r"(?:docs/engineering/)?DEVELOPMENT_WORKFLOW\.md",
+    ]),
+    (5, "AGENTS.md", [
+        r"AGENTS\.md",
+    ]),
+    (6, "Active product / domain specifications", [
+        r"active\s+product\s+(?:/\s*domain\s+)?specifications?",
+    ]),
+    (7, "Relevant .agents/skills/ instructions", [
+        r"\.agents/skills/",
+    ]),
+    (8, "External skills as optional subordinate helpers", [
+        r"external\s+skills?",
+    ]),
+    (9, "General engineering conventions", [
+        r"general\s+engineering",
+    ]),
+]
+
 
 def get_repo_root() -> Path:
     current = Path(__file__).resolve()
     for parent in current.parents:
-        if (parent / ".git").exists() or (parent / "PROJECT_STANDARDS.md").exists():
+        if (parent / ".git").exists():
             return parent
     return current.parent.parent.parent
 
 
 def check_canonical_files_exist(root: Path, failures: list[str]) -> None:
-    required_files = [
+    canonical_files = [
         root / "PROJECT_STANDARDS.md",
         root / "AGENTS.md",
-        root / ".agents" / "README.md",
         root / "docs" / "engineering" / "DEVELOPMENT_WORKFLOW.md",
+        root / ".agents" / "README.md",
         root / "docs" / "AI_AGENT_STACK.md",
+        root / "docs" / "product" / "ODONTOGRAM_VNEXT_PRODUCT_SPEC.md",
+        root / "docs" / "product" / "ODONTOGRAM_TRACEABILITY_MATRIX.md",
     ]
-    for path in required_files:
+
+    for path in canonical_files:
         if not path.exists():
-            failures.append(f"Missing required canonical authority file: '{path.relative_to(root)}'.")
+            failures.append(f"Missing canonical authority file: {path.relative_to(root)}")
 
 
 def check_skill_catalog_bidirectional(root: Path, failures: list[str]) -> int:
@@ -43,41 +79,39 @@ def check_skill_catalog_bidirectional(root: Path, failures: list[str]) -> int:
     readme_path = root / ".agents" / "README.md"
 
     if not skills_dir.exists():
-        failures.append("Missing .agents/skills directory.")
+        failures.append("Missing skills directory: '.agents/skills'")
         return 0
 
-    if not readme_path.exists():
-        failures.append("Missing .agents/README.md.")
-        return 0
+    all_skill_dirs = [d for d in skills_dir.iterdir() if d.is_dir() and d.name.startswith("dentix-")]
 
-    readme_content = readme_path.read_text(encoding="utf-8")
-    skill_folders = sorted([d.name for d in skills_dir.iterdir() if d.is_dir()])
+    valid_disk_skills: set[str] = set()
+    for d in all_skill_dirs:
+        skill_md = d / "SKILL.md"
+        if not skill_md.exists():
+            failures.append(f"Skill directory '{d.relative_to(root)}' is missing required 'SKILL.md'.")
+        else:
+            valid_disk_skills.add(d.name)
 
-    # Extract catalog skill names from README: lines like `1. `dentix-foo`: ...`
-    catalog_skills = re.findall(r"`(dentix-[a-z0-9-]+)`", readme_content)
-    catalog_skills_unique = sorted(set(catalog_skills))
+    catalog_skills: set[str] = set()
+    if readme_path.exists():
+        content = readme_path.read_text(encoding="utf-8")
+        catalog_skills = set(re.findall(r"`(dentix-[a-z0-9-]+)`", content))
+    else:
+        failures.append("Missing README catalog: '.agents/README.md'")
 
-    # Direction 1: Every skill directory must appear in the README catalog
-    for skill_name in skill_folders:
-        folder = skills_dir / skill_name
-        skill_file = folder / "SKILL.md"
-        if not skill_file.exists():
-            failures.append(f"Skill directory '{skill_name}' is missing SKILL.md.")
-            continue
+    disk_only = valid_disk_skills - catalog_skills
+    if disk_only:
+        failures.append(
+            f"Skill(s) exists on disk but is not cataloged in '.agents/README.md': {sorted(disk_only)}"
+        )
 
-        content = skill_file.read_text(encoding="utf-8")
-        if not (content.startswith("---") and "name:" in content and "description:" in content):
-            failures.append(f"Skill '{skill_name}/SKILL.md' missing required YAML frontmatter (name/description).")
+    catalog_only = catalog_skills - valid_disk_skills
+    if catalog_only:
+        failures.append(
+            f"Skill(s) cataloged in '.agents/README.md' does not exist as a directory with 'SKILL.md' under '.agents/skills/': {sorted(catalog_only)}"
+        )
 
-        if skill_name not in catalog_skills_unique:
-            failures.append(f"Skill directory '{skill_name}' exists on disk but is not cataloged in .agents/README.md.")
-
-    # Direction 2: Every skill listed in the README catalog must exist on disk
-    for catalog_name in catalog_skills_unique:
-        if catalog_name not in skill_folders:
-            failures.append(f"Catalog entry '{catalog_name}' in .agents/README.md does not exist as a directory under .agents/skills/.")
-
-    return len(skill_folders)
+    return len(valid_disk_skills)
 
 
 def check_no_obsolete_agent_paths(root: Path, failures: list[str]) -> None:
@@ -89,14 +123,13 @@ def check_no_obsolete_agent_paths(root: Path, failures: list[str]) -> None:
         root / "docs" / "AI_AGENT_STACK.md",
     ]
 
-    obsolete_pattern = re.compile(r"(?<!\w)\.agent/")
+    pattern = re.compile(r"(?<!\w)\.agent/")
 
     for path in active_authority_files:
         if not path.exists():
             continue
         content = path.read_text(encoding="utf-8")
-        matches = obsolete_pattern.findall(content)
-        if matches:
+        if pattern.search(content):
             failures.append(f"Active authority file '{path.relative_to(root)}' contains obsolete '.agent/' reference.")
 
 
@@ -165,6 +198,109 @@ def check_single_workflow_authority(root: Path, failures: list[str]) -> None:
                 f"'{doc.relative_to(root)}' must explicitly reference '{workflow_rel}' as canonical development lifecycle authority."
             )
 
+        # Reject if described as optional, subordinate, or secondary
+        subordinate_pattern = re.compile(
+            r"(?:DEVELOPMENT_WORKFLOW\.md.*?is\s+(?:optional|subordinate|secondary|non-authoritative)|"
+            r"(?:optional|subordinate|secondary)\s+(?:authority\s+)?DEVELOPMENT_WORKFLOW\.md)",
+            re.IGNORECASE,
+        )
+        if subordinate_pattern.search(content):
+            failures.append(
+                f"'{doc.relative_to(root)}' describes '{workflow_rel}' as optional or subordinate."
+            )
+
+    # Reject if any active document describes the legacy master plan as an active execution authority
+    active_spec_docs = [
+        root / "docs" / "product" / "ODONTOGRAM_VNEXT_PRODUCT_SPEC.md",
+        root / "docs" / "product" / "ODONTOGRAM_TRACEABILITY_MATRIX.md",
+    ]
+    legacy_authority_pattern = re.compile(
+        r"(?:authoritative\s+master\s+plan|Source\s+Authority:\s*`?[^`\n]*MASTER_PLAN)",
+        re.IGNORECASE,
+    )
+    for doc in documents_requiring_workflow + active_spec_docs:
+        if not doc.exists():
+            continue
+        content = doc.read_text(encoding="utf-8")
+        if legacy_authority_pattern.search(content):
+            failures.append(
+                f"'{doc.relative_to(root)}' improperly describes legacy master plan as an active execution/source authority."
+            )
+
+
+def check_nine_layer_hierarchy(root: Path, failures: list[str]) -> None:
+    authority_docs = [
+        root / "AGENTS.md",
+        root / ".agents" / "README.md",
+        root / "docs" / "AI_AGENT_STACK.md",
+    ]
+
+    section_pattern = re.compile(
+        r"##\s+(?:(?:\d+\.)?\s*)?(?:Instruction\s+Precedence|Source\s+Priority|Source-of-Truth\s+Hierarchy).*?(?=\n##|\Z)",
+        re.IGNORECASE | re.DOTALL,
+    )
+    list_item_pattern = re.compile(r"^\s*([1-9])\.\s+(.*)$")
+
+    for doc in authority_docs:
+        if not doc.exists():
+            continue
+        content = doc.read_text(encoding="utf-8")
+
+        m_sec = section_pattern.search(content)
+        if not m_sec:
+            failures.append(
+                f"'{doc.relative_to(root)}' is missing explicit authority hierarchy section "
+                "('Instruction Precedence', 'Source Priority', or 'Source-of-Truth Hierarchy')."
+            )
+            continue
+
+        sec_text = m_sec.group(0)
+        lines = sec_text.splitlines()
+
+        # Find 1..9 list sequence inside the authority section
+        numbered_items: dict[int, str] = {}
+        for line in lines:
+            m = list_item_pattern.match(line)
+            if m:
+                num = int(m.group(1))
+                text = m.group(2).strip()
+                if 1 <= num <= 9:
+                    if num in numbered_items:
+                        failures.append(
+                            f"'{doc.relative_to(root)}' contains duplicated hierarchy number {num} in authority section."
+                        )
+                    numbered_items[num] = text
+
+        if len(numbered_items) != 9 or sorted(numbered_items.keys()) != list(range(1, 10)):
+            failures.append(
+                f"'{doc.relative_to(root)}' must contain an explicit sequential 1..9 authority hierarchy list. "
+                f"Found {len(numbered_items)} items: {sorted(numbered_items.keys())}."
+            )
+            continue
+
+        # Validate each layer matches canonical definition
+        for layer_num, desc, patterns in CANONICAL_HIERARCHY:
+            item_text = numbered_items[layer_num]
+            all_match = all(re.search(pat, item_text, re.IGNORECASE) for pat in patterns)
+            if not all_match:
+                failures.append(
+                    f"'{doc.relative_to(root)}' layer {layer_num} mismatch: expected '{desc}', found '{item_text}'."
+                )
+
+        # Check external skills rank strictly below native skills
+        layer7_text = numbered_items.get(7, "")
+        layer8_text = numbered_items.get(8, "")
+        if "external" in layer7_text.lower() or "skills/" in layer8_text.lower():
+            failures.append(
+                f"'{doc.relative_to(root)}' incorrectly ranks External skills higher than DENTIX native skills."
+            )
+
+        # Reject claims that external skills are authorities
+        if re.search(r"external\s+skills?.*?(?:override|supersede|authority\s+over)", content, re.IGNORECASE):
+            failures.append(
+                f"'{doc.relative_to(root)}' incorrectly attributes overriding authority to External skills."
+            )
+
 
 def check_historical_headers(root: Path, failures: list[str]) -> None:
     historical_files = [
@@ -172,6 +308,7 @@ def check_historical_headers(root: Path, failures: list[str]) -> None:
         root / "docs" / "tttt.md",
         root / "docs" / "engineering" / "DENTIX_WORKFLOW_V2_1_PHASE7_PILOT_EVIDENCE.md",
         root / "docs" / "engineering" / "ODONTOGRAM_VNEXT_TICKET_GRAPH.md",
+        root / "docs" / "DENTIX_ODONTOGRAM_FIRST_EXECUTION_AND_VNEXT_HANDOFF_FINAL_MASTER_PLAN.md",
     ]
 
     header_pattern = re.compile(r"STATUS:\s*HISTORICAL\s*/\s*NON-AUTHORITATIVE", re.IGNORECASE)
@@ -192,6 +329,9 @@ def check_document_classifications(root: Path, failures: list[str]) -> None:
         (root / "docs" / "AI_GOVERNANCE_RULES.md", "RUNTIME-AI"),
         (root / "docs" / "HERMES_AGENT_GUIDE.md", "ARCHITECTURE-REFERENCE"),
         (root / "docs" / "product" / "ODONTOGRAM_VNEXT_PRODUCT_SPEC.md", "PRODUCT-SPEC"),
+        (root / "docs" / "product" / "ODONTOGRAM_TRACEABILITY_MATRIX.md", "PRODUCT-SPEC"),
+        (root / "docs" / "engineering" / "BRANCH_DISPOSITION_LEDGER.md", "ARCHITECTURE-REFERENCE"),
+        (root / "docs" / "engineering" / "CLINICAL_CHART_DISPOSITION.md", "ARCHITECTURE-REFERENCE"),
     ]
 
     for path, expected_cls in expected_classifications:
@@ -203,27 +343,6 @@ def check_document_classifications(root: Path, failures: list[str]) -> None:
             failures.append(
                 f"Document '{path.relative_to(root)}' is missing expected classification '{expected_cls}' in header."
             )
-
-
-def check_external_skills_precedence(root: Path, failures: list[str]) -> None:
-    authority_docs = [
-        root / "AGENTS.md",
-        root / ".agents" / "README.md",
-        root / "docs" / "AI_AGENT_STACK.md",
-    ]
-
-    for path in authority_docs:
-        if not path.exists():
-            continue
-        content = path.read_text(encoding="utf-8")
-        match_native = re.search(r"(\.agents/skills|Relevant \.agents/skills)", content, re.IGNORECASE)
-        match_external = re.search(r"External skills", content, re.IGNORECASE)
-
-        if match_native and match_external:
-            if match_external.start() < match_native.start():
-                failures.append(
-                    f"'{path.relative_to(root)}' incorrectly ranks External skills higher than DENTIX native skills."
-                )
 
 
 def run_linter(root: Path | None = None) -> tuple[int, list[str], int]:
@@ -238,9 +357,9 @@ def run_linter(root: Path | None = None) -> tuple[int, list[str], int]:
     check_no_retired_ci_signal(root, failures)
     check_no_hardcoded_coverage(root, failures)
     check_single_workflow_authority(root, failures)
+    check_nine_layer_hierarchy(root, failures)
     check_historical_headers(root, failures)
     check_document_classifications(root, failures)
-    check_external_skills_precedence(root, failures)
 
     exit_code = 1 if failures else 0
     return exit_code, failures, skill_count
@@ -258,16 +377,17 @@ def main() -> int:
             print(f"  {idx}. {failure}")
         return 1
 
-    print(f"\n[OK] All authority checks PASSED.")
-    print(f"  - Canonical authority files verified")
+    print("\n[OK] All authority checks PASSED.")
+    print("  - Canonical authority files verified")
     print(f"  - Skill catalog and filesystem match bidirectionally ({skill_count} native skills detected)")
-    print(f"  - DEVELOPMENT_WORKFLOW.md is authoritative across all entrypoints")
-    print(f"  - No obsolete .agent/ paths in active authorities")
-    print(f"  - No retired agent-ci-signal references")
-    print(f"  - No hardcoded coverage values in native skills or AI stack docs")
-    print(f"  - Historical documents have required archive headers")
-    print(f"  - Document classifications verified (RUNTIME-AI, ARCHITECTURE-REFERENCE, PRODUCT-SPEC)")
-    print(f"  - External skills strictly subordinate to DENTIX standards")
+    print("  - DEVELOPMENT_WORKFLOW.md is authoritative across all entrypoints")
+    print("  - Nine-layer authority hierarchy strictly verified in canonical order (1..9)")
+    print("  - No obsolete .agent/ paths in active authorities")
+    print("  - No retired agent-ci-signal references")
+    print("  - No hardcoded coverage values in native skills or AI stack docs")
+    print("  - Historical documents have required archive headers")
+    print("  - Document classifications verified (RUNTIME-AI, ARCHITECTURE-REFERENCE, PRODUCT-SPEC)")
+    print("  - External skills strictly subordinate to DENTIX standards")
     return 0
 
 

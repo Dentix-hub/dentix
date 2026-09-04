@@ -10,7 +10,7 @@ The DENTIX AI agent stack is designed to be natively compatible with modern AI c
 
 ## 3. Source-of-Truth Hierarchy
 When instructions or design decisions interact, agents must strictly follow this canonical precedence order:
-1. **Non-Negotiable Safety & Integrity**: Tenant isolation (`tenant_id`), authorization / RBAC, privacy, clinical record integrity, financial integrity, data integrity, and production safety.
+1. **Non-Negotiable Safety & Integrity**: Tenant isolation (`tenant_id`), authorization / RBAC, privacy, clinical integrity, financial integrity, data integrity, and production safety.
 2. **Current User Requirement / Approved Product Decision**: Explicit user prompt or approved implementation plan (strictly within layer-1 constraints).
 3. **`PROJECT_STANDARDS.md`**: Canonical DENTIX architecture and engineering authority.
 4. **`docs/engineering/DEVELOPMENT_WORKFLOW.md`**: Sole canonical development lifecycle authority for branching, testing, review, PR, and release.

@@ -3,7 +3,7 @@
 This directory contains repository-scoped skills used by supported AI coding runtimes (including Codex and Antigravity).
 
 ## Source Priority
-1. Non-negotiable safety, tenant isolation, RBAC, data integrity, and privacy constraints
+1. Non-negotiable safety, tenant isolation, RBAC, data integrity, privacy, clinical integrity, and financial integrity constraints
 2. Explicit current user requirement or approved implementation plan (within safety constraints)
 3. `PROJECT_STANDARDS.md` (architecture authority)
 4. `docs/engineering/DEVELOPMENT_WORKFLOW.md` (development lifecycle authority)

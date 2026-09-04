@@ -10,6 +10,7 @@ This tool never performs any mutating actions (no write, no push, no fetch, no d
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import shutil
@@ -44,49 +45,88 @@ def get_repo_root() -> Path:
 
 
 def audit_local_state(root: Path) -> dict:
-    _, branch = run_cmd(["git", "branch", "--show-current"], cwd=root)
-    _, head_sha = run_cmd(["git", "rev-parse", "HEAD"], cwd=root)
-    _, status = run_cmd(["git", "status", "--porcelain"], cwd=root)
+    local_errors: list[str] = []
+
+    code_b, branch = run_cmd(["git", "branch", "--show-current"], cwd=root)
+    if code_b != 0:
+        local_errors.append(f"git branch --show-current failed: {branch}")
+
+    code_h, head_sha = run_cmd(["git", "rev-parse", "HEAD"], cwd=root)
+    if code_h != 0:
+        local_errors.append(f"git rev-parse HEAD failed: {head_sha}")
+
+    code_s, status = run_cmd(["git", "status", "--porcelain"], cwd=root)
+    if code_s != 0:
+        local_errors.append(f"git status --porcelain failed: {status}")
 
     # Local tracking refs
-    _, local_origin_staging = run_cmd(["git", "rev-parse", "origin/staging"], cwd=root)
-    _, local_origin_main = run_cmd(["git", "rev-parse", "origin/main"], cwd=root)
+    code_ostag, local_origin_staging = run_cmd(["git", "rev-parse", "origin/staging"], cwd=root)
+    if code_ostag != 0:
+        local_errors.append(f"git rev-parse origin/staging failed: {local_origin_staging}")
+
+    code_omain, local_origin_main = run_cmd(["git", "rev-parse", "origin/main"], cwd=root)
+    if code_omain != 0:
+        local_errors.append(f"git rev-parse origin/main failed: {local_origin_main}")
 
     # Local branch inventory and ahead/behind vs staging
-    _, branch_lines_raw = run_cmd(["git", "for-each-ref", "--format=%(refname:short) %(objectname)", "refs/heads/"], cwd=root)
+    code_refs, branch_lines_raw = run_cmd(
+        ["git", "for-each-ref", "--format=%(refname:short) %(objectname)", "refs/heads/"], cwd=root
+    )
+    if code_refs != 0:
+        local_errors.append(f"git for-each-ref failed: {branch_lines_raw}")
+
     local_branches: list[dict] = []
+    if code_refs == 0:
+        for line in branch_lines_raw.splitlines():
+            parts = line.strip().split()
+            if not parts:
+                continue
+            b_name = parts[0]
+            b_sha = parts[1] if len(parts) > 1 else ""
+            if not b_sha:
+                local_errors.append(f"Missing SHA for branch '{b_name}' in branch inventory: '{line}'")
 
-    for line in branch_lines_raw.splitlines():
-        parts = line.strip().split()
-        if not parts:
-            continue
-        b_name = parts[0]
-        b_sha = parts[1] if len(parts) > 1 else ""
+            code_ahead, ahead = run_cmd(["git", "rev-list", "--count", f"staging..{b_name}"], cwd=root)
+            if code_ahead != 0:
+                local_errors.append(f"git rev-list --count staging..{b_name} failed: {ahead}")
+                ahead_val = -1
+            else:
+                ahead_val = int(ahead) if ahead.isdigit() else -1
 
-        _, ahead = run_cmd(["git", "rev-list", "--count", f"staging..{b_name}"], cwd=root)
-        _, behind = run_cmd(["git", "rev-list", "--count", f"{b_name}..staging"], cwd=root)
+            code_behind, behind = run_cmd(["git", "rev-list", "--count", f"{b_name}..staging"], cwd=root)
+            if code_behind != 0:
+                local_errors.append(f"git rev-list --count {b_name}..staging failed: {behind}")
+                behind_val = -1
+            else:
+                behind_val = int(behind) if behind.isdigit() else -1
 
-        local_branches.append({
-            "name": b_name,
-            "sha": b_sha,
-            "ahead_vs_staging": int(ahead) if ahead.isdigit() else -1,
-            "behind_vs_staging": int(behind) if behind.isdigit() else -1,
-        })
+            local_branches.append({
+                "name": b_name,
+                "sha": b_sha,
+                "ahead_vs_staging": ahead_val,
+                "behind_vs_staging": behind_val,
+            })
 
     return {
-        "current_branch": branch,
-        "head_sha": head_sha,
-        "is_clean": len(status) == 0,
-        "uncommitted_lines": status.splitlines() if status else [],
-        "local_origin_staging": local_origin_staging,
-        "local_origin_main": local_origin_main,
+        "current_branch": branch if code_b == 0 else "UNKNOWN",
+        "head_sha": head_sha if code_h == 0 else "UNKNOWN",
+        "is_clean": len(status) == 0 if code_s == 0 else False,
+        "uncommitted_lines": status.splitlines() if (code_s == 0 and status) else [],
+        "local_origin_staging": local_origin_staging if code_ostag == 0 else "UNKNOWN",
+        "local_origin_main": local_origin_main if code_omain == 0 else "UNKNOWN",
         "local_branches": local_branches,
+        "errors": local_errors,
     }
 
 
-def audit_worktrees(root: Path) -> list[dict]:
-    _, wt_raw = run_cmd(["git", "worktree", "list", "--porcelain"], cwd=root)
-    worktrees = []
+def audit_worktrees(root: Path) -> tuple[list[dict], list[str]]:
+    errors: list[str] = []
+    code, wt_raw = run_cmd(["git", "worktree", "list", "--porcelain"], cwd=root)
+    if code != 0:
+        errors.append(f"git worktree list failed: {wt_raw}")
+        return [], errors
+
+    worktrees: list[dict] = []
     current_wt: dict = {}
 
     for line in wt_raw.splitlines():
@@ -105,31 +145,52 @@ def audit_worktrees(root: Path) -> list[dict]:
     for wt in worktrees:
         wt_path = Path(wt["path"])
         if wt_path.exists():
-            _, wt_status = run_cmd(["git", "status", "--porcelain"], cwd=wt_path)
-            wt["is_clean"] = len(wt_status) == 0
+            status_code, wt_status = run_cmd(["git", "status", "--porcelain"], cwd=wt_path)
+            if status_code != 0:
+                wt["is_clean"] = False
+                wt["status_failed"] = True
+                errors.append(f"git status --porcelain failed for worktree at '{wt_path}': {wt_status}")
+            else:
+                wt["is_clean"] = len(wt_status) == 0
+                wt["status_failed"] = False
         else:
             wt["exists"] = False
+            wt["is_clean"] = False
+            wt["status_failed"] = True
+            errors.append(f"Registered worktree directory does not exist: '{wt_path}'")
 
-    return worktrees
+    return worktrees, errors
 
 
 def audit_remote_github(root: Path, local_state: dict) -> dict:
     if not shutil.which("gh"):
         return {
-            "status": "REMOTE_AUDIT_PARTIAL",
+            "status": "REMOTE_AUDIT_FAILED",
             "reason": "gh CLI not found on PATH",
+            "errors": ["gh CLI not found on PATH"],
         }
 
-    auth_code, _ = run_cmd(["gh", "auth", "status"], cwd=root)
+    auth_code, auth_out = run_cmd(["gh", "auth", "status"], cwd=root)
     if auth_code != 0:
         return {
-            "status": "REMOTE_AUDIT_PARTIAL",
-            "reason": "gh not authenticated",
+            "status": "REMOTE_AUDIT_FAILED",
+            "reason": f"gh not authenticated: {auth_out.splitlines()[0] if auth_out else 'unknown error'}",
+            "errors": [f"gh auth status failed: {auth_out}"],
         }
 
     # Determine nameWithOwner
-    repo_code, repo_out = run_cmd(["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"], cwd=root)
-    repo_name = repo_out.strip() if repo_code == 0 and repo_out.strip() else "Dentix-hub/dentix"
+    repo_code, repo_out = run_cmd(
+        ["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"], cwd=root
+    )
+    if repo_code != 0 or not repo_out.strip():
+        return {
+            "status": "REMOTE_AUDIT_FAILED",
+            "reason": f"Failed to determine repository identity: {repo_out}",
+            "errors": [f"gh repo view failed: {repo_out}"],
+        }
+
+    repo_name = repo_out.strip()
+    query_errors: list[str] = []
 
     # Remote branches inventory
     branches_code, branches_out = run_cmd(
@@ -137,7 +198,9 @@ def audit_remote_github(root: Path, local_state: dict) -> dict:
         cwd=root,
     )
     remote_branches: dict[str, str] = {}
-    if branches_code == 0:
+    if branches_code != 0:
+        query_errors.append(f"Failed to query remote branches: {branches_out}")
+    else:
         for line in branches_out.splitlines():
             line = line.strip()
             if not line:
@@ -145,11 +208,19 @@ def audit_remote_github(root: Path, local_state: dict) -> dict:
             try:
                 b_info = json.loads(line)
                 remote_branches[b_info["name"]] = b_info["sha"]
-            except Exception:
-                pass
+            except Exception as exc:
+                query_errors.append(f"Malformed branch JSON line '{line}': {exc}")
+
+        if not remote_branches and not query_errors:
+            query_errors.append("Remote branch inventory returned empty list from API")
 
     remote_main_sha = remote_branches.get("main", "")
     remote_staging_sha = remote_branches.get("staging", "")
+
+    if not remote_main_sha:
+        query_errors.append("Remote branch 'main' not found in remote branch inventory")
+    if not remote_staging_sha:
+        query_errors.append("Remote branch 'staging' not found in remote branch inventory")
 
     # Compare remote vs local remote-tracking refs
     local_origin_main = local_state.get("local_origin_main", "")
@@ -157,31 +228,41 @@ def audit_remote_github(root: Path, local_state: dict) -> dict:
 
     stale_refs: list[str] = []
     if remote_main_sha and local_origin_main and remote_main_sha != local_origin_main:
-        stale_refs.append(f"origin/main (local tracking: {local_origin_main[:8]}, remote live: {remote_main_sha[:8]})")
+        stale_refs.append(
+            f"origin/main (local tracking: {local_origin_main[:8]}, remote live: {remote_main_sha[:8]})"
+        )
     if remote_staging_sha and local_origin_staging and remote_staging_sha != local_origin_staging:
-        stale_refs.append(f"origin/staging (local tracking: {local_origin_staging[:8]}, remote live: {remote_staging_sha[:8]})")
+        stale_refs.append(
+            f"origin/staging (local tracking: {local_origin_staging[:8]}, remote live: {remote_staging_sha[:8]})"
+        )
 
     # Open PRs
-    prs: list[dict] = []
+    prs: list[dict] | None = None
     pr_code, pr_out = run_cmd(
         ["gh", "pr", "list", "--state", "open", "--json", "number,title,headRefName,baseRefName,state"],
         cwd=root,
     )
-    if pr_code == 0 and pr_out.strip():
+    if pr_code != 0:
+        query_errors.append(f"Failed to query open PRs: {pr_out}")
+    else:
         try:
             prs = json.loads(pr_out)
-        except Exception:
-            prs = []
+        except Exception as exc:
+            query_errors.append(f"Malformed open PR JSON response: {exc}")
+            prs = None
 
-    # Blocked issues (agent:blocked)
-    blocked_issues: list[dict] = []
+    # Blocked issues
+    blocked_issues: list[dict] | None = None
     issue_code, issue_out = run_cmd(
         ["gh", "issue", "list", "--state", "open", "--json", "number,title,labels,state"],
         cwd=root,
     )
-    if issue_code == 0 and issue_out.strip():
+    if issue_code != 0:
+        query_errors.append(f"Failed to query open issues: {issue_out}")
+    else:
         try:
             all_issues = json.loads(issue_out)
+            blocked_issues = []
             for iss in all_issues:
                 label_names = [lbl.get("name", "").lower() for lbl in iss.get("labels", [])]
                 if any("blocked" in lbl for lbl in label_names):
@@ -190,10 +271,11 @@ def audit_remote_github(root: Path, local_state: dict) -> dict:
                         "title": iss.get("title"),
                         "labels": [lbl.get("name") for lbl in iss.get("labels", [])],
                     })
-        except Exception:
-            pass
+        except Exception as exc:
+            query_errors.append(f"Malformed open issues JSON response: {exc}")
+            blocked_issues = None
 
-    # Governance drift between remote main and staging
+    # Main / Staging governance drift
     governance_files = [
         "AGENTS.md",
         "PROJECT_STANDARDS.md",
@@ -206,7 +288,10 @@ def audit_remote_github(root: Path, local_state: dict) -> dict:
         ["gh", "api", f"repos/{repo_name}/compare/main...staging"],
         cwd=root,
     )
-    if cmp_code == 0 and cmp_out.strip():
+    if cmp_code != 0:
+        query_errors.append(f"Failed to compare remote main...staging: {cmp_out}")
+        drift_report = {f: "Comparison query failed" for f in governance_files}
+    else:
         try:
             cmp_data = json.loads(cmp_out)
             changed_files = {f["filename"]: f.get("status", "modified") for f in cmp_data.get("files", [])}
@@ -215,13 +300,15 @@ def audit_remote_github(root: Path, local_state: dict) -> dict:
                     drift_report[gfile] = f"DRIFT DETECTED ({changed_files[gfile]} on staging vs main)"
                 else:
                     drift_report[gfile] = "IN SYNC (identical between remote main and staging)"
-        except Exception as e:
-            drift_report = {f: f"Error inspecting drift: {e}" for f in governance_files}
-    else:
-        drift_report = {f: "Unable to compare remote main..staging" for f in governance_files}
+        except Exception as exc:
+            query_errors.append(f"Malformed compare JSON response: {exc}")
+            drift_report = {f: f"Error parsing compare JSON: {exc}" for f in governance_files}
+
+    # Final Remote Status Determination
+    status = "REMOTE_AUDIT_LIVE" if not query_errors else "REMOTE_AUDIT_PARTIAL"
 
     return {
-        "status": "REMOTE_AUDIT_LIVE",
+        "status": status,
         "repo_name": repo_name,
         "remote_branches_count": len(remote_branches),
         "remote_branches": remote_branches,
@@ -231,34 +318,44 @@ def audit_remote_github(root: Path, local_state: dict) -> dict:
         "open_prs": prs,
         "blocked_issues": blocked_issues,
         "governance_drift": drift_report,
+        "errors": query_errors,
     }
 
 
-def detect_duplicate_work(local_branches: list[dict], open_prs: list[dict], blocked_issues: list[dict]) -> list[dict]:
+def detect_duplicate_work(
+    local_branches: list[dict],
+    open_prs: list[dict] | None,
+    blocked_issues: list[dict] | None,
+) -> list[dict]:
     """
     Heuristic detection for duplicate ticket work across active branches and PRs.
     Identifies ticket IDs like ODG-A12, ODG-144, or shared functional keywords.
     """
     findings: list[dict] = []
-
-    # Map ticket/feature keys to candidate targets
-    token_pattern = re.compile(r"(ODG-[A-Z0-9]+|ODONTOGRAM|PROMOTION|RECONCILIATION|APPROVAL-SLICE)", re.IGNORECASE)
+    token_pattern = re.compile(
+        r"(ODG-[A-Z0-9]+|ODONTOGRAM|PROMOTION|RECONCILIATION|APPROVAL-SLICE)", re.IGNORECASE
+    )
     items_by_token: dict[str, list[str]] = {}
 
     for b in local_branches:
         name = b["name"]
-        # Only active unmerged or candidate branches
-        if b.get("ahead_vs_staging", 0) > 0 or "odontogram" in name.lower() or "codex" in name.lower() or "workflow" in name.lower():
+        if (
+            b.get("ahead_vs_staging", 0) > 0
+            or "odontogram" in name.lower()
+            or "codex" in name.lower()
+            or "workflow" in name.lower()
+        ):
             tokens = set(token_pattern.findall(name.upper()))
             for tok in tokens:
                 items_by_token.setdefault(tok, []).append(f"local-branch:{name}")
 
-    for pr in open_prs:
-        title = pr.get("title", "")
-        head = pr.get("headRefName", "")
-        tokens = set(token_pattern.findall(f"{title} {head}".upper()))
-        for tok in tokens:
-            items_by_token.setdefault(tok, []).append(f"pr:#{pr.get('number')} ({head})")
+    if open_prs:
+        for pr in open_prs:
+            title = pr.get("title", "")
+            head = pr.get("headRefName", "")
+            tokens = set(token_pattern.findall(f"{title} {head}".upper()))
+            for tok in tokens:
+                items_by_token.setdefault(tok, []).append(f"pr:#{pr.get('number')} ({head})")
 
     for tok, sources in items_by_token.items():
         unique_sources = sorted(set(sources))
@@ -272,12 +369,23 @@ def detect_duplicate_work(local_branches: list[dict], open_prs: list[dict], bloc
     return findings
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="DENTIX Live Development State Auditor (Read-Only)")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Strict qualification mode: exits non-zero if remote audit is not LIVE, refs are stale, or errors exist",
+    )
+    args = parser.parse_args(argv)
+
     root = get_repo_root()
     print("=" * 72)
-    print(f"DENTIX LIVE DEVELOPMENT STATE AUDITOR (V3 READ-ONLY)")
+    print("DENTIX LIVE DEVELOPMENT STATE AUDITOR (V3 READ-ONLY)")
     print(f"Repository Root: {root}")
+    print(f"Mode: {'STRICT QUALIFICATION' if args.strict else 'INFORMATIONAL READ-ONLY'}")
     print("=" * 72)
+
+    has_failures = False
 
     # 1. Local State
     local_state = audit_local_state(root)
@@ -290,12 +398,27 @@ def main() -> int:
         for line in local_state["uncommitted_lines"]:
             print(f"    {line}")
 
+    if local_state.get("errors"):
+        has_failures = True
+        print("  [ERROR] Local Git inspection encountered errors:")
+        for err in local_state["errors"]:
+            print(f"    ! {err}")
+
     # 2. Registered Worktrees
-    worktrees = audit_worktrees(root)
+    worktrees, wt_errors = audit_worktrees(root)
     print(f"\n[REGISTERED WORKTREES ({len(worktrees)})]")
     for wt in worktrees:
-        clean_str = "CLEAN" if wt.get("is_clean") else "DIRTY"
+        if wt.get("status_failed"):
+            clean_str = "STATUS_FAILED"
+        elif wt.get("is_clean"):
+            clean_str = "CLEAN"
+        else:
+            clean_str = "DIRTY"
         print(f"  - {wt.get('branch', 'DETACHED'):<38} [{clean_str}] {wt['path']}")
+    if wt_errors:
+        has_failures = True
+        for err in wt_errors:
+            print(f"    ! {err}")
 
     # 3. Local Branches & Staging Delta
     print(f"\n[LOCAL BRANCHES & DELTA VS STAGING ({len(local_state['local_branches'])})]")
@@ -319,6 +442,7 @@ def main() -> int:
         print(f"  Local origin/main:    {local_state['local_origin_main']}")
 
         if remote_info["stale_tracking_refs"]:
+            has_failures = True
             print("  [WARN] Stale Local Tracking Refs Detected:")
             for s in remote_info["stale_tracking_refs"]:
                 print(f"    ! {s}")
@@ -327,23 +451,35 @@ def main() -> int:
 
         # PRs
         prs = remote_info["open_prs"]
-        print(f"\n[OPEN PULL REQUESTS ({len(prs)})]")
-        if prs:
-            for pr in prs:
-                print(f"  - PR #{pr.get('number')} [{pr.get('headRefName')} -> {pr.get('baseRefName')}]: {pr.get('title')}")
+        if prs is not None:
+            print(f"\n[OPEN PULL REQUESTS ({len(prs)})]")
+            if prs:
+                for pr in prs:
+                    print(
+                        f"  - PR #{pr.get('number')} [{pr.get('headRefName')} -> {pr.get('baseRefName')}]: {pr.get('title')}"
+                    )
+            else:
+                print("  0 open pull requests found.")
         else:
-            print("  0 open pull requests found.")
+            has_failures = True
+            print("\n[OPEN PULL REQUESTS]")
+            print("  [ERROR] Failed to retrieve open pull requests from GitHub.")
 
         # Blocked Issues
         blocked = remote_info["blocked_issues"]
-        print(f"\n[BLOCKED ISSUES / AGENT EXECUTION STATE ({len(blocked)})]")
-        if blocked:
-            for iss in blocked:
-                lbls = ", ".join(iss.get("labels", []))
-                print(f"  - Issue #{iss.get('number')}: {iss.get('title')}")
-                print(f"    Labels: [{lbls}]")
+        if blocked is not None:
+            print(f"\n[BLOCKED ISSUES / AGENT EXECUTION STATE ({len(blocked)})]")
+            if blocked:
+                for iss in blocked:
+                    lbls = ", ".join(iss.get("labels", []))
+                    print(f"  - Issue #{iss.get('number')}: {iss.get('title')}")
+                    print(f"    Labels: [{lbls}]")
+            else:
+                print("  No open issues carrying 'agent:blocked' state.")
         else:
-            print("  No open issues carrying 'agent:blocked' state.")
+            has_failures = True
+            print("\n[BLOCKED ISSUES]")
+            print("  [ERROR] Failed to retrieve open issues from GitHub.")
 
         # Main vs Staging Governance Drift
         drift = remote_info.get("governance_drift", {})
@@ -363,12 +499,41 @@ def main() -> int:
             print("  No duplicate active branch targets detected.")
 
     else:
-        print(f"  Reason: {remote_info.get('reason')}")
-        print("  Remote queries skipped to preserve non-mutating local offline contract.")
+        has_failures = True
+        print(f"  Reason: {remote_info.get('reason', 'Remote query error')}")
+        if remote_info.get("errors"):
+            print("  Diagnostic Errors:")
+            for err in remote_info["errors"]:
+                print(f"    ! {err}")
+
+        # Print partial PR/issues if present
+        prs = remote_info.get("open_prs")
+        if prs is not None:
+            print(f"\n[OPEN PULL REQUESTS ({len(prs)})]")
+            for pr in prs:
+                print(f"  - PR #{pr.get('number')}: {pr.get('title')}")
+        else:
+            print("\n[OPEN PULL REQUESTS: QUERY FAILED OR SKIPPED]")
+
+        blocked = remote_info.get("blocked_issues")
+        if blocked is not None:
+            print(f"\n[BLOCKED ISSUES ({len(blocked)})]")
+            for iss in blocked:
+                print(f"  - Issue #{iss.get('number')}: {iss.get('title')}")
+        else:
+            print("\n[BLOCKED ISSUES: QUERY FAILED OR SKIPPED]")
 
     print("\n" + "=" * 72)
-    print("Audit completed successfully. Mode: READ-ONLY (no state altered).")
+    if has_failures:
+        print("Audit completed with warnings/partial state. Mode: READ-ONLY (no state altered).")
+    else:
+        print("Audit completed successfully. Mode: READ-ONLY (no state altered).")
     print("=" * 72)
+
+    if args.strict and has_failures:
+        print("\n::error::STRICT QUALIFICATION FAILURE: One or more qualification checks failed.")
+        return 1
+
     return 0
 
 

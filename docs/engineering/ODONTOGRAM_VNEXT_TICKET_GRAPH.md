@@ -2,7 +2,8 @@
 # STATUS: HISTORICAL / NON-AUTHORITATIVE
 > **Archived Document** — This file records historical V2.1 ticket graph mechanics (waves, micro-tickets, and execution nodes).
 > All active clinical, functional, and anatomical requirements have been extracted into the canonical product specification: [ODONTOGRAM_VNEXT_PRODUCT_SPEC.md](../product/ODONTOGRAM_VNEXT_PRODUCT_SPEC.md).
-> This file is preserved for historical evidence only and is strictly **NON-AUTHORITATIVE**. Active DENTIX development is governed exclusively by `docs/engineering/DEVELOPMENT_WORKFLOW.md`.
+> Complete requirement-to-architecture mapping is documented in: [ODONTOGRAM_TRACEABILITY_MATRIX.md](../product/ODONTOGRAM_TRACEABILITY_MATRIX.md).
+> This file is preserved for historical evidence only and is strictly **NON-AUTHORITATIVE**. It cannot override `PROJECT_STANDARDS.md`, `docs/engineering/DEVELOPMENT_WORKFLOW.md`, or root `AGENTS.md`. Active DENTIX development lifecycle is governed exclusively by `docs/engineering/DEVELOPMENT_WORKFLOW.md`.
 
 ---
 

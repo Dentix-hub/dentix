@@ -56,6 +56,24 @@ jobs:
           echo "::error::Unexpected protected target: ${BASE_BRANCH}"
           exit 1
 
+  authority-linter:
+    name: Check agent authority and precedence
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run authority linter
+        run: python .github/scripts/check_agent_authority.py
+
   workflow-authority:
     name: Protect authoritative CD workflow
     if: github.event_name == 'pull_request'
