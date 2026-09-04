@@ -353,3 +353,26 @@ def test_broken_skill_directory_missing_skill_md_fails(temp_repo):
     code, failures, _ = run_linter(temp_repo)
     assert code == 1
     assert any("missing required 'SKILL.md'" in f for f in failures)
+
+
+def test_orchestration_skill_exists_and_conforms():
+    root = Path(__file__).resolve().parent.parent.parent
+    orchestration_md = root / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md"
+    readme_md = root / ".agents" / "README.md"
+    agent_stack_md = root / "docs" / "AI_AGENT_STACK.md"
+
+    assert orchestration_md.exists(), "dentix-orchestration/SKILL.md must exist"
+    content = orchestration_md.read_text(encoding="utf-8")
+    assert "name: dentix-orchestration" in content
+    assert "NORMAL" in content and "HIGH_RISK" in content
+    assert "Codex Leader" in content
+    assert "Antigravity Implementer" in content
+    assert "DEVELOPMENT_WORKFLOW.md" in content
+
+    readme_content = readme_md.read_text(encoding="utf-8")
+    assert "`dentix-orchestration`" in readme_content
+    assert "11 Native Skills" in readme_content
+
+    stack_content = agent_stack_md.read_text(encoding="utf-8")
+    assert "`dentix-orchestration`" in stack_content
+    assert "11 Native DENTIX Skills" in stack_content

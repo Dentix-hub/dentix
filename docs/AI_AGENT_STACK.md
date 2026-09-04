@@ -48,6 +48,8 @@ Skills reside in the `.agents/skills/` directory. Each skill is encapsulated in 
     │   └── SKILL.md
     ├── dentix-performance/
     │   └── SKILL.md
+    ├── dentix-orchestration/
+    │   └── SKILL.md
     ├── dentix-plan-execution/
     │   └── SKILL.md
     ├── dentix-security-tenancy-rbac/
@@ -58,9 +60,10 @@ Skills reside in the `.agents/skills/` directory. Each skill is encapsulated in 
         └── SKILL.md
 ```
 
-## 6. The 10 Native DENTIX Skills Catalog
+## 6. The 11 Native DENTIX Skills Catalog
 | Skill Name | Purpose & Trigger | Primary Files / Stack |
 |:---|:---|:---|
+| `dentix-orchestration` | Lean router, task brief creation, model role coordination | Cross-repo multi-agent development |
 | `dentix-plan-execution` | Multi-phase plan execution without skipping requirements | Cross-repo plans, task ledgers |
 | `dentix-backend-fastapi` | FastAPI layered architecture (Router->Service->CRUD) | `backend/routers/`, `backend/services/`, `backend/crud/` |
 | `dentix-frontend-react` | React 18, Vite, Tailwind CSS, TanStack Query, Zustand | `frontend/src/` |
@@ -75,8 +78,9 @@ Skills reside in the `.agents/skills/` directory. Each skill is encapsulated in 
 ## 7. When a New Skill is Justified
 A new skill may only be introduced if all the following conditions are met:
 1. A new, permanent technology or major architectural subsystem is added to DENTIX (e.g. WhatsApp AI integration service, specialized DICOM medical imaging service).
-2. The domain requires distinct, non-trivial recurring guidance that cannot cleanly fit into one of the existing 10 skills.
+2. The domain requires distinct, non-trivial recurring guidance that cannot cleanly fit into one of the existing 11 skills.
 3. The skill can be expressed concisely (1-5 KB) with specific trigger descriptions.
+
 
 ## 8. When NOT to Add a Skill
 Do NOT create a skill for:
