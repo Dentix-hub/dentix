@@ -8,7 +8,9 @@ bidirectional skill catalog integrity, coverage ownership, and classification ru
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
+import shutil
 import tempfile
 
 import pytest
@@ -110,6 +112,17 @@ def create_valid_fixture(root: Path) -> None:
     )
     (root / "docs" / "engineering" / "CLINICAL_CHART_DISPOSITION.md").write_text(
         "# Disposition\nClassification: ARCHITECTURE-REFERENCE\n", encoding="utf-8"
+    )
+
+    # External skills provenance artifacts
+    real_lock = REPO_ROOT / "docs" / "engineering" / "EXTERNAL_SKILLS_LOCK.json"
+    real_verifier = REPO_ROOT / "scripts" / "verify_external_skills.py"
+    shutil.copy2(real_lock, root / "docs" / "engineering" / "EXTERNAL_SKILLS_LOCK.json")
+    (root / "scripts").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(real_verifier, root / "scripts" / "verify_external_skills.py")
+    (root / "docs" / "DENTIX_LEAN_LOCAL_FIRST_MULTI_AGENT_WORKFLOW_V3_FINAL_IMPLEMENTATION_PLAN.md").write_text(
+        "# Plan\n\n## Movement 2\nPrerequisite Gate: EXTERNAL_SKILL_PROVENANCE = PASS\n",
+        encoding="utf-8",
     )
 
 
@@ -376,3 +389,78 @@ def test_orchestration_skill_exists_and_conforms():
     stack_content = agent_stack_md.read_text(encoding="utf-8")
     assert "`dentix-orchestration`" in stack_content
     assert "11 Native DENTIX Skills" in stack_content
+
+
+def test_missing_external_skills_lock_fails(temp_repo):
+    (temp_repo / "docs" / "engineering" / "EXTERNAL_SKILLS_LOCK.json").unlink()
+    code, failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("EXTERNAL_SKILLS_LOCK.json" in f and "Missing" in f for f in failures)
+
+
+def test_missing_delegate_skill_from_lock_fails(temp_repo):
+    lock_file = temp_repo / "docs" / "engineering" / "EXTERNAL_SKILLS_LOCK.json"
+    data = json.loads(lock_file.read_text(encoding="utf-8"))
+    del data["skills"]["codex-delegate"]
+    lock_file.write_text(json.dumps(data), encoding="utf-8")
+
+    code, failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("codex-delegate" in f and "missing" in f.lower() for f in failures)
+
+
+def test_missing_repo_url_or_pinned_commit_fails(temp_repo):
+    lock_file = temp_repo / "docs" / "engineering" / "EXTERNAL_SKILLS_LOCK.json"
+    data = json.loads(lock_file.read_text(encoding="utf-8"))
+    data["source"]["repository_url"] = ""
+    lock_file.write_text(json.dumps(data), encoding="utf-8")
+
+    code, failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("repository_url" in f.lower() or "repository url" in f.lower() for f in failures)
+
+    data["source"]["repository_url"] = "https://github.com/amElnagdy/delegate-skills.git"
+    data["source"]["pinned_commit"] = ""
+    lock_file.write_text(json.dumps(data), encoding="utf-8")
+
+    code, failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("pinned_commit" in f.lower() or "pinned commit" in f.lower() for f in failures)
+
+
+def test_missing_provenance_verifier_fails(temp_repo):
+    (temp_repo / "scripts" / "verify_external_skills.py").unlink()
+    code, failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("verify_external_skills.py" in f and "Missing" in f for f in failures)
+
+
+def test_external_skills_lock_malformed_schema_fails(temp_repo):
+    lock_file = temp_repo / "docs" / "engineering" / "EXTERNAL_SKILLS_LOCK.json"
+    data = json.loads(lock_file.read_text(encoding="utf-8"))
+    data["unexpected_root_key"] = "prohibited"
+    lock_file.write_text(json.dumps(data), encoding="utf-8")
+
+    code, failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("Unexpected root field(s)" in f for f in failures)
+
+
+def test_external_skills_lock_canonical_pin_drift_fails(temp_repo):
+    lock_file = temp_repo / "docs" / "engineering" / "EXTERNAL_SKILLS_LOCK.json"
+    data = json.loads(lock_file.read_text(encoding="utf-8"))
+    data["source"]["pinned_commit"] = "0000000000000000000000000000000000000000"
+    lock_file.write_text(json.dumps(data), encoding="utf-8")
+
+    code, failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("canonical pinned commit" in f for f in failures)
+
+
+def test_plan_missing_external_skill_provenance_gate_fails(temp_repo):
+    plan_file = temp_repo / "docs" / "DENTIX_LEAN_LOCAL_FIRST_MULTI_AGENT_WORKFLOW_V3_FINAL_IMPLEMENTATION_PLAN.md"
+    plan_file.write_text("# Plan\nMovement 2 without gate.\n", encoding="utf-8")
+
+    code, failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("EXTERNAL_SKILL_PROVENANCE = PASS" in f for f in failures)

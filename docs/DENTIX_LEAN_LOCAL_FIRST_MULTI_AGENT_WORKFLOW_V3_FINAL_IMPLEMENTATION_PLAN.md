@@ -966,9 +966,69 @@ Then create and verify an off-repo Git bundle.
 
 ---
 
+# 28B. Pre-Movement-2 Corrective Gate — External Skill Provenance
+
+**Status:** POST-MOVEMENT-1 CORRECTIVE QUALIFICATION (APPEND-ONLY)
+**Gate Name:** `EXTERNAL_SKILL_PROVENANCE = PASS`
+
+### 1. Rationale for this Corrective Gate
+The initial Movement 1 completion report incorrectly treated the workflow as ready for Movement 2 without establishing external-skill provenance. The required external-skill provenance artifacts (`docs/engineering/EXTERNAL_SKILLS_LOCK.json`, `scripts/verify_external_skills.py`, and `backend/tests/test_external_skill_provenance.py`) were not implemented. External skills must never be introduced or executed in DENTIX without deterministic, immutable provenance qualification.
+
+### 2. Canonical Upstream Reference
+- **Repository:** `https://github.com/amElnagdy/delegate-skills.git`
+- **Pinned Immutable Commit:** `b781ee2e23089630e2fbee1cfd6174afe4edeb76`
+- **Declared Version:** `0.5.0`
+- **License:** `MIT`
+
+### 3. Covered External Skills
+1. `delegate-setup` (upstream: `skills/delegate-setup`)
+2. `agy-delegate` (upstream: `skills/agy-delegate`)
+3. `codex-delegate` (upstream: `skills/codex-delegate`)
+
+### 4. Verification Commands
+
+#### A. Authoritative Full-Gate Verification Command
+To establish complete provenance, both the lock manifest must be verified against the pinned upstream source checkout AND the installed skills must be verified against that validated manifest:
+```bash
+python scripts/verify_external_skills.py --source-root <local-checkout-at-pinned-commit>
+```
+Targeted automated test suite (offline fixtures):
+```bash
+python -m pytest backend/tests/test_external_skill_provenance.py -q
+```
+
+#### B. Installed-Only Diagnostic Command
+To inspect installed skills without re-verifying against the upstream source checkout:
+```bash
+python scripts/verify_external_skills.py --diagnostic
+```
+*(Note: Omission of `--source-root` performs diagnostic inspection only, cannot emit `EXTERNAL_SKILL_PROVENANCE = PASS`, and exits with code 2 if installed skills match or 1 if mismatches are found).*
+
+### 5. Pass/Fail Criteria
+1. `docs/engineering/EXTERNAL_SKILLS_LOCK.json` exists, conforms to deterministic schema, contains valid `file_count == len(files)`, declared version `0.5.0`, license `MIT`, and strictly contains no machine-specific absolute paths, Windows drive paths, or path traversal elements.
+2. Complete reference source tree at pinned commit `b781ee2e23089630e2fbee1cfd6174afe4edeb76` is verified via `git ls-tree -r --name-only` and `git cat-file -p` blobs, with zero unexpected, zero missing, and zero modified source files.
+3. Installed skills file tree matches pinned commit `b781ee2e23089630e2fbee1cfd6174afe4edeb76` for all three skills.
+4. Zero modified files, zero missing files, and zero unexpected files in installed skills (ignoring non-source artifacts: `.git`, `__pycache__`, `*.pyc`, and OS metadata).
+5. Strict read-only verification: verifier never writes into, alters, or reinstalls skills.
+6. Exit code 0 on full exact match; non-zero on any provenance failure or diagnostic-only run.
+
+### 6. Movement 2 Blocking Prerequisite
+Movement 2 MUST NOT begin unless `EXTERNAL_SKILL_PROVENANCE = PASS`.
+Installed-tree comparison alone cannot establish provenance. If any provenance check fails, is unverified, or is run only in diagnostic mode, Movement 2 is strictly BLOCKED.
+
+### 7. Historical Truth & Bundle Integrity
+- The existing Movement 0 and Movement 1 recovery bundles (`DENTIX_V3_movement_0_final_*.bundle`, `DENTIX_V3_movement_1_*.bundle`) were created prior to this qualification and do not contain this fix.
+- This is recorded as an append-only post-Movement-1 corrective qualification.
+- Existing commit IDs (`d2f5a18b`, `dc0ba2fc`, `fbe1b784`, `ee9aafa4`) and bundle metadata are preserved unchanged.
+- A requalified bundle may only be created after review and explicit user approval.
+
+---
+
 # 29. Movement 2 — Windows Delegate Transport Proof
 
 **Mode: LOCAL ONLY**
+
+**Prerequisite Gate:** `EXTERNAL_SKILL_PROVENANCE = PASS` (Movement 2 MUST NOT begin unless the provenance gate passes).
 
 Initial:
 

@@ -9,6 +9,7 @@ bidirectional skill catalog matching, and classification standards.
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -345,6 +346,64 @@ def check_document_classifications(root: Path, failures: list[str]) -> None:
             )
 
 
+def check_external_skills_governance(root: Path, failures: list[str]) -> None:
+    """
+    Enforce external skill provenance requirements:
+    1. EXTERNAL_SKILLS_LOCK.json exists and strictly satisfies full lock schema requirements.
+    2. verify_external_skills.py verifier exists and provides safe schema validation.
+    3. Implementation plan enforces EXTERNAL_SKILL_PROVENANCE = PASS before Movement 2.
+    """
+    verifier_path = root / "scripts" / "verify_external_skills.py"
+    if not verifier_path.exists():
+        failures.append("Missing external skill provenance verifier: 'scripts/verify_external_skills.py'")
+
+    lock_path = root / "docs" / "engineering" / "EXTERNAL_SKILLS_LOCK.json"
+    if not lock_path.exists():
+        failures.append("Missing external skills lock file: 'docs/engineering/EXTERNAL_SKILLS_LOCK.json'")
+    else:
+        try:
+            lock_data = json.loads(lock_path.read_text(encoding="utf-8"))
+            if verifier_path.exists():
+                import importlib.util
+                mod_name = f"verify_external_skills_{abs(hash(str(verifier_path)))}"
+                spec = importlib.util.spec_from_file_location(mod_name, verifier_path)
+                if spec and spec.loader:
+                    v_mod = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(v_mod)
+                    if hasattr(v_mod, "validate_lock_schema"):
+                        v_mod.validate_lock_schema(lock_data, failures)
+                    else:
+                        failures.append(
+                            "Verifier in 'scripts/verify_external_skills.py' is missing 'validate_lock_schema'."
+                        )
+                else:
+                    failures.append("Failed to load schema validator from 'scripts/verify_external_skills.py'.")
+        except json.JSONDecodeError as exc:
+            failures.append(f"External skills lock file is malformed JSON: {exc}")
+        except Exception as exc:
+            failures.append(f"External skills lock validation error: {exc}")
+
+    plan_path = root / "docs" / "DENTIX_LEAN_LOCAL_FIRST_MULTI_AGENT_WORKFLOW_V3_FINAL_IMPLEMENTATION_PLAN.md"
+    if plan_path.exists():
+        plan_content = plan_path.read_text(encoding="utf-8")
+        if "EXTERNAL_SKILL_PROVENANCE = PASS" not in plan_content:
+            failures.append(
+                "Implementation plan allows Movement 2 without required pre-Movement-2 gate: 'EXTERNAL_SKILL_PROVENANCE = PASS'"
+            )
+        elif not re.search(
+            r"Movement 2.*?(?:Prerequisite Gate|gate).*?EXTERNAL_SKILL_PROVENANCE\s*=\s*PASS|EXTERNAL_SKILL_PROVENANCE\s*=\s*PASS.*?Movement 2",
+            plan_content,
+            re.DOTALL | re.IGNORECASE,
+        ):
+            failures.append(
+                "Implementation plan does not link Movement 2 prerequisite to 'EXTERNAL_SKILL_PROVENANCE = PASS'"
+            )
+    else:
+        failures.append(
+            "Missing implementation plan: 'docs/DENTIX_LEAN_LOCAL_FIRST_MULTI_AGENT_WORKFLOW_V3_FINAL_IMPLEMENTATION_PLAN.md'"
+        )
+
+
 def run_linter(root: Path | None = None) -> tuple[int, list[str], int]:
     if root is None:
         root = get_repo_root()
@@ -360,6 +419,7 @@ def run_linter(root: Path | None = None) -> tuple[int, list[str], int]:
     check_nine_layer_hierarchy(root, failures)
     check_historical_headers(root, failures)
     check_document_classifications(root, failures)
+    check_external_skills_governance(root, failures)
 
     exit_code = 1 if failures else 0
     return exit_code, failures, skill_count
@@ -388,6 +448,7 @@ def main() -> int:
     print("  - Historical documents have required archive headers")
     print("  - Document classifications verified (RUNTIME-AI, ARCHITECTURE-REFERENCE, PRODUCT-SPEC)")
     print("  - External skills strictly subordinate to DENTIX standards")
+    print("  - External skill lock schema, verifier, and pre-Movement-2 gate verified")
     return 0
 
 
