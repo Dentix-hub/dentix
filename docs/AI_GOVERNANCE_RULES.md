@@ -1,7 +1,12 @@
-# 🧠 AI GOVERNANCE RULES
+# 🧠 AI GOVERNANCE RULES — IN-PRODUCT RUNTIME
 
-> **System**: Dentix Backend AI Agent
-> **Priority**: CRITICAL
+> **System**: Dentix In-Product Clinical AI Assistant & Runtime Policy Engine  
+> **Classification**: RUNTIME-AI  
+> **Priority**: CRITICAL  
+>
+> **GOVERNANCE SCOPE BOUNDARY**:  
+> This document governs strictly **in-product runtime AI features** within the Dentix application (clinical assistant, patient chat, medical summarization, and AI tool execution policies).  
+> It does **NOT** govern repository developer coding assistants, IDE agents, subagents, or CI/CD development workflows. Developer agent governance is defined exclusively by [AGENTS.md](file:///c:/Users/es/DENTIX/AGENTS.md) and [DEVELOPMENT_WORKFLOW.md](file:///c:/Users/es/DENTIX/docs/engineering/DEVELOPMENT_WORKFLOW.md).
 
 ## 1️⃣ CORE GOVERNANCE RULES (Non-Negotiable)
 

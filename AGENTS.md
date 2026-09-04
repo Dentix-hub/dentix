@@ -19,13 +19,15 @@ If generic guidance conflicts with DENTIX project standards, DENTIX project stan
 
 Apply guidance in this order:
 
-1. Explicit current user requirement or approved implementation plan.
-2. Security, tenant isolation, RBAC, data integrity, and privacy constraints.
-3. `PROJECT_STANDARDS.md`.
-4. This `AGENTS.md`.
-5. Task-specific repository documentation.
-6. Relevant `.agents/skills/` instructions.
-7. General engineering conventions.
+1. Non-negotiable safety, tenant isolation, RBAC, data integrity, and privacy constraints.
+2. Explicit current user requirement or approved implementation plan (within safety constraints).
+3. `PROJECT_STANDARDS.md` (architecture authority).
+4. `docs/engineering/DEVELOPMENT_WORKFLOW.md` (development lifecycle authority).
+5. This `AGENTS.md` (cross-runtime execution and safety contract).
+6. Active product / domain specifications.
+7. Relevant `.agents/skills/` instructions.
+8. External skills (optional methodology / transport only).
+9. General engineering conventions.
 
 Never use lower-priority guidance to override a higher-priority DENTIX rule.
 

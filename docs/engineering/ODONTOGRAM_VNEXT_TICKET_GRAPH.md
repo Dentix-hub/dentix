@@ -1,3 +1,9 @@
+<!-- STATUS: HISTORICAL / NON-AUTHORITATIVE -->
+# STATUS: HISTORICAL / NON-AUTHORITATIVE
+> **Archived Document** — This file records historical V2.1 ticket graph mechanics. Product requirements and clinical decisions are preserved for reference, but execution mechanics are strictly **NON-AUTHORITATIVE**. Active DENTIX development is governed by `docs/engineering/DEVELOPMENT_WORKFLOW.md`.
+
+---
+
 # Odontogram and Clinical VNext Ticket Graph (V2.1 Lean)
 
 Status: `GRAPH_BOUND` — Ready for V2.1 Lean Wave Execution

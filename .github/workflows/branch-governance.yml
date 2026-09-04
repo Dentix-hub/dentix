@@ -29,11 +29,11 @@ jobs:
 
           if [ "$BASE_BRANCH" = "main" ]; then
             case "$HEAD_BRANCH" in
-              staging|hotfix/*|release/*)
+              staging|hotfix/*|release/promotion-*)
                 echo "Allowed production promotion path."
                 ;;
               *)
-                echo "::error::Production PRs must come from staging, a documented release/* reconciliation branch, or an explicitly scoped hotfix/* branch."
+                echo "::error::Production PRs must come from staging, a documented release/promotion-* reconciliation branch, or an explicitly scoped hotfix/* branch."
                 exit 1
                 ;;
             esac
