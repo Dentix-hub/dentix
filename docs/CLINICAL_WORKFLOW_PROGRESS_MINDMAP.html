@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dentix Unified Clinical Workflow — لوحة متابعة تقدم الخطة</title>
+    <style>
+        :root {
+            --bg-primary: #090d16;
+            --bg-secondary: #0f172a;
+            --bg-card: #131d35;
+            --bg-hover: #1e293b;
+            --border-color: #223254;
+            --border-highlight: #3b82f6;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-sub: #64748b;
+            --accent-blue: #38bdf8;
+            --accent-green: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-purple: #a855f7;
+            --accent-rose: #f43f5e;
+            --badge-done-bg: rgba(16, 185, 129, 0.15);
+            --badge-done-text: #34d399;
+            --badge-done-border: rgba(16, 185, 129, 0.3);
+            --badge-prog-bg: rgba(245, 158, 11, 0.15);
+            --badge-prog-text: #fbbf24;
+            --badge-prog-border: rgba(245, 158, 11, 0.3);
+            --badge-pend-bg: rgba(148, 163, 184, 0.1);
+            --badge-pend-text: #94a3b8;
+            --badge-pend-border: rgba(148, 163, 184, 0.2);
+            --badge-block-bg: rgba(244, 63, 94, 0.15);
+            --badge-block-text: #fb7185;
+            --badge-block-border: rgba(244, 63, 94, 0.3);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans Arabic", Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 24px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* Header Header */
+        header {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            background: linear-gradient(135deg, #101c38 0%, #0d1527 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 28px 32px;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .header-title h1 {
+            font-size: 26px;
+            font-weight: 800;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-title p {
+            color: var(--text-muted);
+            margin-top: 6px;
+            font-size: 14px;
+        }
+
+        .header-meta {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .meta-tag {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .meta-tag strong {
+            color: var(--text-main);
+        }
+
+        /* Top KPI Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent-blue);
+        }
+
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--card-accent, var(--accent-blue));
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .stat-val-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+
+        .stat-val {
+            font-size: 32px;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .stat-sub {
+            font-size: 12px;
+            color: var(--text-sub);
+        }
+
+        /* Overall Progress Bar */
+        .progress-banner {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 22px 26px;
+            margin-bottom: 28px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .progress-header h3 {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .progress-pct-badge {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--accent-blue);
+        }
+
+        .bar-container {
+            width: 100%;
+            height: 12px;
+            background: #090e1a;
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+        }
+
+        .bar-fill {
+            height: 100%;
+            transition: width 0.6s ease;
+        }
+
+        .fill-part0 {
+            background: var(--accent-purple);
+        }
+
+        .fill-part1 {
+            background: var(--accent-blue);
+        }
+
+        .fill-part2 {
+            background: var(--accent-green);
+        }
+
+        .progress-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 14px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        /* Mind Map Visual Section */
+        .mindmap-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 28px;
+            margin-bottom: 32px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 16px;
+        }
+
+        .section-header h2 {
+            font-size: 20px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Interactive Mind Map Visual Branches */
+        .mindmap-root {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .branch-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 20px;
+            transition: all 0.2s;
+        }
+
+        .branch-card:hover {
+            border-color: rgba(59, 130, 246, 0.4);
+        }
+
+        .branch-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .branch-title-wrap {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .branch-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 15px;
+        }
+
+        .icon-p0 {
+            background: rgba(168, 85, 247, 0.2);
+            color: #c084fc;
+            border: 1px solid rgba(168, 85, 247, 0.4);
+        }
+
+        .icon-p1 {
+            background: rgba(56, 189, 248, 0.2);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.4);
+        }
+
+        .icon-p2 {
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.4);
+        }
+
+        .branch-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .branch-desc {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .branch-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .pct-pill {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 800;
+            font-size: 14px;
+        }
+
+        .toggle-icon {
+            font-size: 16px;
+            transition: transform 0.2s;
+            color: var(--text-muted);
+        }
+
+        .branch-content {
+            margin-top: 18px;
+            padding-top: 18px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+            gap: 14px;
+        }
+
+        /* Phase Leaf Nodes in Mind Map */
+        .phase-node {
+            background: #15223d;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            padding: 14px 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .phase-node:hover {
+            background: #192a4c;
+            border-color: var(--border-highlight);
+            transform: translateY(-1px);
+        }
+
+        .phase-node.is-current {
+            border-color: var(--accent-amber);
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.25);
+            background: linear-gradient(135deg, #1c2b48 0%, #202b41 100%);
+        }
+
+        .phase-node.is-current::before {
+            content: '👈 الدور الحالي';
+            position: absolute;
+            top: -10px;
+            left: 14px;
+            background: var(--accent-amber);
+            color: #000;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 6px;
+        }
+
+        .node-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .node-code {
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
+        .node-name {
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.4;
+            margin-bottom: 12px;
+        }
+
+        .node-bottom {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+
+        .node-tasks-count {
+            color: var(--text-sub);
+        }
+
+        /* Status Badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 6px;
+            letter-spacing: 0.3px;
+        }
+
+        .status-badge.done {
+            background: var(--badge-done-bg);
+            color: var(--badge-done-text);
+            border: 1px solid var(--badge-done-border);
+        }
+
+        .status-badge.progress {
+            background: var(--badge-prog-bg);
+            color: var(--badge-prog-text);
+            border: 1px solid var(--badge-prog-border);
+        }
+
+        .status-badge.pending {
+            background: var(--badge-pend-bg);
+            color: var(--badge-pend-text);
+            border: 1px solid var(--badge-pend-border);
+        }
+
+        .status-badge.blocked {
+            background: var(--badge-block-bg);
+            color: var(--badge-block-text);
+            border: 1px solid var(--badge-block-border);
+        }
+
+        /* Micro-Task Detailed Table Section */
+        .tasks-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 28px;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-btn:hover,
+        .filter-btn.active {
+            background: var(--accent-blue);
+            color: #000;
+            border-color: var(--accent-blue);
+            font-weight: 700;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            text-align: right;
+        }
+
+        th {
+            background: var(--bg-secondary);
+            color: var(--text-muted);
+            padding: 12px 16px;
+            border-bottom: 2px solid var(--border-color);
+            font-weight: 700;
+        }
+
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .task-code {
+            font-family: monospace;
+            font-weight: 700;
+            color: var(--accent-blue);
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            color: var(--text-sub);
+            font-size: 13px;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 12px;
+            }
+
+            header {
+                padding: 20px;
+            }
+
+            .branch-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Main Header -->
+        <header>
+            <div class="header-title">
+                <h1>🦷 خريطة تقدم وتتبع Unified Clinical Workflow VNext</h1>
+                <p>متابعة نسب إنجاز المراحل والمهام المصغرة (Micro-Tasks) مع التحديث اللحظي</p>
+            </div>
+            <div class="header-meta">
+                <div class="meta-tag">الفرع الأساسي: <strong>feature/odontogram-foundation-codex</strong></div>
+                <div class="meta-tag">الهدف المباشر: <strong>Phase A10 (Root Rendering)</strong></div>
+                <div class="meta-tag">تاريخ التحديث: <strong>2026-09-02</strong></div>
+            </div>
+        </header>
+
+        <!-- KPI Metrics Grid -->
+        <div class="stats-grid">
+            <div class="stat-card" style="--card-accent: var(--accent-green);">
+                <div class="stat-label">نسبة إنجاز مخطط الأسنان (Part I)</div>
+                <div class="stat-val-row">
+                    <div class="stat-val" id="part1-pct" style="color: var(--accent-green);">100%</div>
+                    <div class="stat-sub">95 من 95 مهمة (مكتمل ومفحوص)</div>
+                </div>
+            </div>
+
+            <div class="stat-card" style="--card-accent: var(--accent-blue);">
+                <div class="stat-label">المحطة الحالية (Current Focus)</div>
+                <div class="stat-val-row">
+                    <div class="stat-val" style="font-size: 22px; color: var(--accent-blue);">Part I Complete</div>
+                    <div class="stat-sub">تم تسليم وثيقة HANDOFF_TO_GEMINI</div>
+                </div>
+            </div>
+
+            <div class="stat-card" style="--card-accent: var(--accent-purple);">
+                <div class="stat-label">الأبحاث والنماذج (Part 0)</div>
+                <div class="stat-val-row">
+                    <div class="stat-val" style="color: #c084fc;">100%</div>
+                    <div class="stat-sub">Spikes A, B, C, D + ADR</div>
+                </div>
+            </div>
+
+            <div class="stat-card" style="--card-accent: var(--accent-amber);">
+                <div class="stat-label">محرك العيادة الخلفي (Part II Core)</div>
+                <div class="stat-val-row">
+                    <div class="stat-val" style="color: var(--accent-amber);">جاهز للبدء</div>
+                    <div class="stat-sub">في انتظار إشارة البدء من المستخدم</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Overview Bar -->
+        <div class="progress-banner">
+            <div class="progress-header">
+                <h3>إجمالي تقدم شريحة المخطط الأساسي (Part I — Odontogram Foundation)</h3>
+                <div class="progress-pct-badge" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border-color: rgba(16, 185, 129, 0.3);">100% مكتمل بالكامل 🏆</div>
+            </div>
+            <div class="bar-container">
+                <div class="bar-fill fill-part1" style="width: 100%; background: linear-gradient(90deg, #3b82f6, #10b981);"></div>
+            </div>
+            <div class="progress-legend">
+                <div class="legend-item"><span class="legend-dot" style="background: var(--accent-green);"></span> 95
+                    مهمة منجزة ومفحوصة بالكامل بنسبة 100% (A0 إلى A17)</div>
+                <div class="legend-item"><span class="legend-dot" style="background: var(--accent-blue);"></span> تم إعداد وتوثيق حزمة التسليم HANDOFF_TO_GEMINI.md والتقاط الأدلة</div>
+                <div class="legend-item"><span class="legend-dot" style="background: var(--accent-amber);"></span> جاهز للانطلاق فوراً في Part II (Clinical Core Backend)</div>
+            </div>
+        </div>
+
+        <!-- Interactive Mind Map Visualization Section -->
+        <div class="mindmap-section">
+            <div class="section-header">
+                <h2>🗺️ الخريطة الذهنية التفاعلية لمسار المشروع (Mind Map)</h2>
+                <div style="font-size: 13px; color: var(--text-muted);">انقر على أي مسار لتوسيعه أو طيّه</div>
+            </div>
+
+            <div class="mindmap-root">
+                <!-- Branch 0: Forensics and Spikes -->
+                <div class="branch-card">
+                    <div class="branch-header" onclick="toggleBranch('b0')">
+                        <div class="branch-title-wrap">
+                            <div class="branch-icon icon-p0">P0</div>
+                            <div>
+                                <div class="branch-title">المرحلة 0 و 0A: الفحص الجنائي، تقييم المصادر وتجارب المخطط
+                                </div>
+                                <div class="branch-desc">جرد البيانات القديمة + تجارب النماذج الأولية A/B/C/D واختيار
+                                    التوجه الأصلي Native</div>
+                            </div>
+                        </div>
+                        <div class="branch-meta">
+                            <span class="status-badge done">منجزة بالكامل (100%)</span>
+                            <span class="toggle-icon" id="t-b0">▼</span>
+                        </div>
+                    </div>
+                    <div class="branch-content" id="b0">
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">Phase 0</span>
+                                <span class="status-badge done">أدوات كاملة</span>
+                            </div>
+                            <div class="node-name">Forensic Production Data Baseline (فحص الجداول والبيانات القديمة)
+                            </div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">17 مهمة فحص وتوثيق</span>
+                                <span style="color: var(--accent-green); font-weight: 700;">100% محلياً</span>
+                            </div>
+                        </div>
+
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">Phase 0A</span>
+                                <span class="status-badge done">مكتملة ومعتمدة</span>
+                            </div>
+                            <div class="node-name">Odontogram Spikes & ADR-001 (تجارب A/B/C/D واعتماد التوجه الأصلي)
+                            </div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">6 مهام رئيسية + E2E</span>
+                                <span style="color: var(--accent-green); font-weight: 700;">100%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Branch 1: Part I Odontogram Foundation (CURRENT) -->
+                <div class="branch-card" style="border-color: rgba(56, 189, 248, 0.4);">
+                    <div class="branch-header" onclick="toggleBranch('b1')">
+                        <div class="branch-title-wrap">
+                            <div class="branch-icon icon-p1">P1</div>
+                            <div>
+                                <div class="branch-title">الجزء الأول (Part I): أساسات مخطط الأسنان ومحرك الرسم (Codex
+                                    First)</div>
+                                <div class="branch-desc">بناء الشل، التيجان، الأسطح، الجذور، القواعد البصرية، والـ DTO
+                                    المستقل</div>
+                            </div>
+                        </div>
+                        <div class="branch-meta">
+                            <span class="status-badge done">🟢 مكتمل 100% (95/95 PASS)</span>
+                            <span class="toggle-icon" id="t-b1">▼</span>
+                        </div>
+                    </div>
+                    <div class="branch-content" id="b1">
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">A0 – A2</span>
+                                <span class="status-badge done">منجز (100%)</span>
+                            </div>
+                            <div class="node-name">تجميد خط الأساس، وثيقة القرار المعماري ADR، وهيكل المجلدات</div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">12 مهمة</span>
+                                <span style="color: var(--accent-green);">12 / 12 PASS</span>
+                            </div>
+                        </div>
+
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">A3 – A5</span>
+                                <span class="status-badge done">منجز (100%)</span>
+                            </div>
+                            <div class="node-name">سجل التشريح (32 دائم + 20 لبني) وهندسة التيجان والجذور النمطية</div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">14 مهمة</span>
+                                <span style="color: var(--accent-green);">14 / 14 PASS</span>
+                            </div>
+                        </div>
+
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">A6 – A8</span>
+                                <span class="status-badge done">منجز (100%)</span>
+                            </div>
+                            <div class="node-name">هندسة الأسطح القابلة للنقر (MODIBL) والـ Adapter و Projection DTO
+                            </div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">13 مهمة</span>
+                                <span style="color: var(--accent-green);">13 / 13 PASS</span>
+                            </div>
+                        </div>
+
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">A9</span>
+                                <span class="status-badge done">منجز (100%)</span>
+                            </div>
+                            <div class="node-name">سجل القواعد البصرية والترميز اللوني الكامل (Visual Rule Registry)
+                            </div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">5 مهام</span>
+                                <span style="color: var(--accent-green);">5 / 5 PASS</span>
+                            </div>
+                        </div>
+
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">Phase A10</span>
+                                <span class="status-badge done">منجز (100%)</span>
+                            </div>
+                            <div class="node-name"><strong>Root Layer Rendering</strong>: رسم طبقة الجذور كطبقة تشريحية
+                                في SVG النهائي</div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">6 مهام</span>
+                                <span style="color: var(--accent-green);">6 / 6 PASS</span>
+                            </div>
+                        </div>
+
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">Phase A11</span>
+                                <span class="status-badge done">منجز (100%)</span>
+                            </div>
+                            <div class="node-name"><strong>Notation & Labels</strong>: ترقيم وتسميات الأسنان ودعم أنظمة FDI / Palmer / Universal</div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">3 مهام</span>
+                                <span style="color: var(--accent-green);">3 / 3 PASS</span>
+                            </div>
+                        </div>
+
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">Phase A12</span>
+                                <span class="status-badge done">منجز (100%)</span>
+                            </div>
+                            <div class="node-name"><strong>Clinical Demo Fixtures</strong>: تغطية السيناريوهات السريرية الـ 11 بالكامل (Caries, RCT, Crown, Bridge, Implant, Extraction)</div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">11 مهمة</span>
+                                <span style="color: var(--accent-green);">11 / 11 PASS</span>
+                            </div>
+                        </div>
+
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">Phase A13</span>
+                                <span class="status-badge done">منجز (100%)</span>
+                            </div>
+                            <div class="node-name"><strong>Dual-Chart History Compare</strong>: شاشة المقارنة الثنائية وعزل الحالات وتصفية الطبقات المستقلة</div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">4 مهام</span>
+                                <span style="color: var(--accent-green);">4 / 4 PASS</span>
+                            </div>
+                        </div>
+
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">Phase A14</span>
+                                <span class="status-badge done">منجز (100%)</span>
+                            </div>
+                            <div class="node-name"><strong>Shell Chrome & Inspector</strong>: شل المخطط، الشريط التفاعلي، دليل الرموز، لوحة الفحص ومسح التحديد</div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">5 مهام</span>
+                                <span style="color: var(--accent-green);">5 / 5 PASS</span>
+                            </div>
+                        </div>
+
+                        <!-- CURRENT ACTIVE NODE -->
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">Phase A15</span>
+                                <span class="status-badge done">منجز (100%)</span>
+                            </div>
+                            <div class="node-name"><strong>Mobile, RTL & A11y</strong>: التجاوب مع الموبايل والتابلت، ودعم العربية RTL والتركيز بالكيبورد</div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">8 مهام</span>
+                                <span style="color: var(--accent-green);">8 / 8 PASS</span>
+                            </div>
+                        </div>
+
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">Phase A16</span>
+                                <span class="status-badge done">منجز (100%)</span>
+                            </div>
+                            <div class="node-name"><strong>Regression Suite</strong>: حزمة اختبارات الانحدار الشاملة ومطابقة كافة العقود (196/196 test pass)</div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">7 مهام</span>
+                                <span style="color: var(--accent-green);">7 / 7 PASS</span>
+                            </div>
+                        </div>
+
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">Phase A17</span>
+                                <span class="status-badge done">منجز (100%)</span>
+                            </div>
+                            <div class="node-name"><strong>Handoff & Evidence</strong>: إعداد حزمة التسليم النهائي الرسمية HANDOFF_TO_GEMINI.md والتقاط صور الأدلة الأربعة</div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">7 مهام</span>
+                                <span style="color: var(--accent-green);">7 / 7 PASS</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Branch 2: Part II Clinical Core Workflow (NEXT AFTER HANDOFF) -->
+                <div class="branch-card">
+                    <div class="branch-header" onclick="toggleBranch('b2')">
+                        <div class="branch-title-wrap">
+                            <div class="branch-icon icon-p2">P2</div>
+                            <div>
+                                <div class="branch-title">الجزء الثاني (Part II): محرك العيادة الشامل وقواعد البيانات
+                                    (Gemini Core)</div>
+                                <div class="branch-desc">جداول Work Items، خطط العلاج، ربط المعامل، المخزون، الحسابات
+                                    والمواعيد</div>
+                            </div>
+                        </div>
+                        <div class="branch-meta">
+                            <span class="status-badge pending">في انتظار تسليم المخطط (0%)</span>
+                            <span class="toggle-icon" id="t-b2">▼</span>
+                        </div>
+                    </div>
+                    <div class="branch-content" id="b2" style="display: none;">
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">G0 – G1</span>
+                                <span class="status-badge pending">معلق</span>
+                            </div>
+                            <div class="node-name">Additive Clinical Core Schema (جداول Work Items والـ Migrations وخطط
+                                العلاج)</div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">الخطوة الأولى بعد المخطط</span>
+                                <span style="color: var(--text-sub);">0%</span>
+                            </div>
+                        </div>
+
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">G2 – G7</span>
+                                <span class="status-badge pending">معلق</span>
+                            </div>
+                            <div class="node-name">كتالوج الإجراءات، محرك ترحيل البيانات القديمة، وراوترات الـ API وربط
+                                المخطط بالبيانات</div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">FastAPI + Services</span>
+                                <span style="color: var(--text-sub);">0%</span>
+                            </div>
+                        </div>
+
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">G8 – G10</span>
+                                <span class="status-badge pending">معلق</span>
+                            </div>
+                            <div class="node-name">الإدخال السريع بدون احتكاك (Zero-Friction UX)، خطط العلاج التفاعلية،
+                                ومحرك الجلسات</div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">React Frontend</span>
+                                <span style="color: var(--text-sub);">0%</span>
+                            </div>
+                        </div>
+
+                        <div class="phase-node">
+                            <div class="node-top">
+                                <span class="node-code">G11 – G16</span>
+                                <span class="status-badge pending">معلق</span>
+                            </div>
+                            <div class="node-name">تكامل المعامل، استهلاك المخزون بالجلسة، مطابقة الفواتير السابقة،
+                                والتشغيل النهائي</div>
+                            <div class="node-bottom">
+                                <span class="node-tasks-count">تكامل شامل + Cutover</span>
+                                <span style="color: var(--text-sub);">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Detailed Phase & Tasks Table -->
+        <div class="tasks-section">
+            <div class="section-header">
+                <h2>📋 جدول تفاصيل مراحل شريحة المخطط (Part I Micro-Tasks Breakdown)</h2>
+                <div class="filter-bar">
+                    <button class="filter-btn active" onclick="filterTasks('all')">الكل</button>
+                    <button class="filter-btn" onclick="filterTasks('done')">المنجز فقط</button>
+                    <button class="filter-btn" onclick="filterTasks('active')">المهمة الحالية (A10)</button>
+                    <button class="filter-btn" onclick="filterTasks('pending')">المتبقي</button>
+                </div>
+            </div>
+
+            <div class="table-wrap">
+                <table id="tasks-table">
+                    <thead>
+                        <tr>
+                            <th>رمز المهمة</th>
+                            <th>المرحلة</th>
+                            <th>عنوان المهمة وتفاصيلها</th>
+                            <th>الحالة</th>
+                            <th>الدليل والملف البرمجي</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Completed Samples -->
+                        <tr data-status="done">
+                            <td class="task-code">A0-M01..M04</td>
+                            <td>Phase A0</td>
+                            <td>تجميد ومطابقة خط الأساس لبيئة العمل وملف إحكام النطاق</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>docs/odontogram-foundation/BASELINE_DRIFT_REPORT.md</td>
+                        </tr>
+                        <tr data-status="done">
+                            <td class="task-code">A1-M01..M04</td>
+                            <td>Phase A1</td>
+                            <td>توثيق قرار المخطط المعماري ADR-001 وتحديد طبقات العرض الخمس</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>docs/odontogram-foundation/ADR-001-CHART-DIRECTION.md</td>
+                        </tr>
+                        <tr data-status="done">
+                            <td class="task-code">A3-M01..M05</td>
+                            <td>Phase A3</td>
+                            <td>سجل تشريح الأسنان الدائمة (32) واللبنية (20) وعقود البيانات</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>domain/dentalAnatomyRegistry.js (10/10 tests)</td>
+                        </tr>
+                        <tr data-status="done">
+                            <td class="task-code">A5-M01..M06</td>
+                            <td>Phase A5</td>
+                            <td>هندسة جذور الأسنان الأمامية، الضواحك، الطواحين، والأسنان اللبنية</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>rendering/rootGeometry.js (tests pass)</td>
+                        </tr>
+                        <tr data-status="done">
+                            <td class="task-code">A6-M01..M05</td>
+                            <td>Phase A6</td>
+                            <td>الأسطح القابلة للنقر (MODIBL) وتفاعل التحويم والاختيار</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>rendering/surfaceGeometry.js (51/51 tests)</td>
+                        </tr>
+                        <tr data-status="done">
+                            <td class="task-code">A8-M01..M04</td>
+                            <td>Phase A8</td>
+                            <td>عقد نموذج العرض (Demo Projection DTO) ومحاذاة البيانات</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>domain/clinicalChartProjection.js (468 tests)</td>
+                        </tr>
+                        <tr data-status="done">
+                            <td class="task-code">A9-M01..M05</td>
+                            <td>Phase A9</td>
+                            <td>سجل القواعد البصرية والكلركودينج الشامل (التسوس، الكمبوزيت، RCT، التيجان، الزراعة)</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>domain/visualRuleRegistry.js (34/34 tests)</td>
+                        </tr>
+
+                        <!-- COMPLETED TASKS (A10) -->
+                        <tr data-status="done">
+                            <td class="task-code">A10-M01</td>
+                            <td>Phase A10</td>
+                            <td>إضافة طبقة رسم الجذور (Add root layer renderer) كطبقة SVG تشريحية</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>tests/RootLayerRendering.test.jsx (24/24 pass)</td>
+                        </tr>
+                        <tr data-status="done">
+                            <td class="task-code">A10-M02..M05</td>
+                            <td>Phase A10</td>
+                            <td>معالجة جذور الأسنان الأمامية، الضواحك، الطواحين، واللبنية والتأكد من رسمها</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>tests/RootLayerRendering.test.jsx (24/24 pass)</td>
+                        </tr>
+                        <tr data-status="done">
+                            <td class="task-code">A10-M06</td>
+                            <td>Phase A10</td>
+                            <td>منع عيوب التداخل البصري والتشوهات بين التيجان والجذور (Overlap artifacts)</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>tests/RootLayerRendering.test.jsx (24/24 pass)</td>
+                        </tr>
+
+                        <!-- COMPLETED TASKS (A11) -->
+                        <tr data-status="done">
+                            <td class="task-code">A11-M01..M03</td>
+                            <td>Phase A11</td>
+                            <td>محاذاة أرقام وتسميات الأسنان وتجريد أنظمة الترقيم (FDI / Palmer / Universal)</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>domain/toothNotation.js / tests (8/8 pass)</td>
+                        </tr>
+
+                        <!-- COMPLETED TASKS (A12) -->
+                        <tr data-status="done">
+                            <td class="task-code">A12-M01..M11</td>
+                            <td>Phase A12</td>
+                            <td>تفعيل ومطابقة 11 سيناريو سريري كامل (تسوس، حشوة MOD، علاج جذور، تاج، زراعة، جسر، خلع)</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>fixtures/demoProjectionFixtures.js (12/12 pass)</td>
+                        </tr>
+
+                        <!-- COMPLETED TASKS (A13) -->
+                        <tr data-status="done">
+                            <td class="task-code">A13-M01..M04</td>
+                            <td>Phase A13</td>
+                            <td>صفحة المقارنة الثنائية وعزل الحالات السريرية وتصفية الطبقات المستقلة</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>tests/DualChartCompare.test.jsx (8/8 pass)</td>
+                        </tr>
+
+                        <!-- COMPLETED TASKS (A14) -->
+                        <tr data-status="done">
+                            <td class="task-code">A14-M01..M05</td>
+                            <td>Phase A14</td>
+                            <td>شل المخطط، الشريط التفاعلي، دليل الرموز، لوحة الفحص ومسح التحديد</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>tests/ClinicalChartShell.test.jsx (10/10 pass)</td>
+                        </tr>
+
+                        <!-- COMPLETED TASKS (A15) -->
+                        <tr data-status="done">
+                            <td class="task-code">A15-M01..M08</td>
+                            <td>Phase A15</td>
+                            <td>تدقيق التجاوب على الموبايل والتابلت ودعم العربية RTL وإمكانية الوصول A11y</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>tests/MobileResponsiveAndRTL.test.jsx (10/10 pass)</td>
+                        </tr>
+
+                        <!-- COMPLETED TASKS (A16) -->
+                        <tr data-status="done">
+                            <td class="task-code">A16-M01..M07</td>
+                            <td>Phase A16</td>
+                            <td>حزمة اختبارات الانحدار الشاملة وتدقيق كافة العقود والسيناريوهات</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>tests/FullRegressionVerification.test.jsx (196/196 pass)</td>
+                        </tr>
+
+                        <!-- COMPLETED TASKS (A17 - FINAL HANDOFF) -->
+                        <tr data-status="done">
+                            <td class="task-code">A17-M01..M07</td>
+                            <td>Phase A17</td>
+                            <td>التقاط الأدلة وتوثيق حزمة التسليم النهائي الرسمية HANDOFF_TO_GEMINI.md</td>
+                            <td><span class="status-badge done">PASS (100%)</span></td>
+                            <td>docs/odontogram-foundation/HANDOFF_TO_GEMINI.md</td>
+                        </tr>
+                        <!-- NEXT MILESTONE: PART II -->
+                        <tr data-status="active" style="background: rgba(16, 185, 129, 0.08);">
+                            <td class="task-code" style="color: var(--accent-green);">Part II Core</td>
+                            <td><strong>المحطة القادمة</strong></td>
+                            <td><strong>محرك العيادة وقواعد البيانات (Work Items, Treatment Plans, Ledger)</strong></td>
+                            <td><span class="status-badge done" style="background: rgba(16, 185, 129, 0.2); color: var(--accent-green);">جاهز للبدء فوراً</span></td>
+                            <td>Gemini Core Track</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <footer>
+            Dentix Unified Clinical Workflow • يتم تحديث هذه اللوحة دورياً عقب إنجاز كل خطوة برمجية
+        </footer>
+    </div>
+
+    <script>
+        function toggleBranch(id) {
+            const el = document.getElementById(id);
+            const icon = document.getElementById('t-' + id);
+            if (el.style.display === 'none') {
+                el.style.display = 'grid';
+                icon.textContent = '▼';
+            } else {
+                el.style.display = 'none';
+                icon.textContent = '◀';
+            }
+        }
+
+        function filterTasks(status) {
+            const btns = document.querySelectorAll('.filter-btn');
+            btns.forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+
+            const rows = document.querySelectorAll('#tasks-table tbody tr');
+            rows.forEach(row => {
+                if (status === 'all') {
+                    row.style.display = '';
+                } else {
+                    row.style.display = row.getAttribute('data-status') === status ? '' : 'none';
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>
