@@ -1,6 +1,8 @@
 <!-- STATUS: HISTORICAL / NON-AUTHORITATIVE -->
 # STATUS: HISTORICAL / NON-AUTHORITATIVE
-> **Archived Document** — This file records historical V2.1 ticket graph mechanics. Product requirements and clinical decisions are preserved for reference, but execution mechanics are strictly **NON-AUTHORITATIVE**. Active DENTIX development is governed by `docs/engineering/DEVELOPMENT_WORKFLOW.md`.
+> **Archived Document** — This file records historical V2.1 ticket graph mechanics (waves, micro-tickets, and execution nodes).
+> All active clinical, functional, and anatomical requirements have been extracted into the canonical product specification: [ODONTOGRAM_VNEXT_PRODUCT_SPEC.md](../product/ODONTOGRAM_VNEXT_PRODUCT_SPEC.md).
+> This file is preserved for historical evidence only and is strictly **NON-AUTHORITATIVE**. Active DENTIX development is governed exclusively by `docs/engineering/DEVELOPMENT_WORKFLOW.md`.
 
 ---
 

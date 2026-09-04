@@ -3,9 +3,10 @@
 DENTIX Static Authority Linter
 ==============================
 Deterministic verification gate enforcing repository authority hierarchy,
-skill catalog integrity, coverage ownership, and deprecation boundaries.
+bidirectional skill catalog integrity, coverage ownership, document classifications,
+and deprecation boundaries.
 
-This linter is a deterministic check, not an AI oracle.
+This linter is deterministic and strictly local (zero network calls).
 Returns 0 on success, non-zero if any authority violations are detected.
 """
 
@@ -24,33 +25,59 @@ def get_repo_root() -> Path:
     return current.parent.parent.parent
 
 
-def check_skill_catalog(root: Path, failures: list[str]) -> None:
+def check_canonical_files_exist(root: Path, failures: list[str]) -> None:
+    required_files = [
+        root / "PROJECT_STANDARDS.md",
+        root / "AGENTS.md",
+        root / ".agents" / "README.md",
+        root / "docs" / "engineering" / "DEVELOPMENT_WORKFLOW.md",
+        root / "docs" / "AI_AGENT_STACK.md",
+    ]
+    for path in required_files:
+        if not path.exists():
+            failures.append(f"Missing required canonical authority file: '{path.relative_to(root)}'.")
+
+
+def check_skill_catalog_bidirectional(root: Path, failures: list[str]) -> int:
     skills_dir = root / ".agents" / "skills"
     readme_path = root / ".agents" / "README.md"
 
     if not skills_dir.exists():
         failures.append("Missing .agents/skills directory.")
-        return
+        return 0
 
     if not readme_path.exists():
         failures.append("Missing .agents/README.md.")
-        return
+        return 0
 
     readme_content = readme_path.read_text(encoding="utf-8")
-    skill_folders = [d for d in skills_dir.iterdir() if d.is_dir()]
+    skill_folders = sorted([d.name for d in skills_dir.iterdir() if d.is_dir()])
 
-    for folder in skill_folders:
+    # Extract catalog skill names from README: lines like `1. `dentix-foo`: ...`
+    catalog_skills = re.findall(r"`(dentix-[a-z0-9-]+)`", readme_content)
+    catalog_skills_unique = sorted(set(catalog_skills))
+
+    # Direction 1: Every skill directory must appear in the README catalog
+    for skill_name in skill_folders:
+        folder = skills_dir / skill_name
         skill_file = folder / "SKILL.md"
         if not skill_file.exists():
-            failures.append(f"Skill directory '{folder.name}' is missing SKILL.md.")
+            failures.append(f"Skill directory '{skill_name}' is missing SKILL.md.")
             continue
 
         content = skill_file.read_text(encoding="utf-8")
         if not (content.startswith("---") and "name:" in content and "description:" in content):
-            failures.append(f"Skill '{folder.name}/SKILL.md' missing required YAML frontmatter (name/description).")
+            failures.append(f"Skill '{skill_name}/SKILL.md' missing required YAML frontmatter (name/description).")
 
-        if folder.name not in readme_content:
-            failures.append(f"Skill '{folder.name}' not registered in .agents/README.md.")
+        if skill_name not in catalog_skills_unique:
+            failures.append(f"Skill directory '{skill_name}' exists on disk but is not cataloged in .agents/README.md.")
+
+    # Direction 2: Every skill listed in the README catalog must exist on disk
+    for catalog_name in catalog_skills_unique:
+        if catalog_name not in skill_folders:
+            failures.append(f"Catalog entry '{catalog_name}' in .agents/README.md does not exist as a directory under .agents/skills/.")
+
+    return len(skill_folders)
 
 
 def check_no_obsolete_agent_paths(root: Path, failures: list[str]) -> None:
@@ -59,9 +86,10 @@ def check_no_obsolete_agent_paths(root: Path, failures: list[str]) -> None:
         root / "AGENTS.md",
         root / ".agents" / "README.md",
         root / "docs" / "engineering" / "DEVELOPMENT_WORKFLOW.md",
+        root / "docs" / "AI_AGENT_STACK.md",
     ]
 
-    obsolete_pattern = re.compile(r"(?<!\w)\.agent/(?!\w)")
+    obsolete_pattern = re.compile(r"(?<!\w)\.agent/")
 
     for path in active_authority_files:
         if not path.exists():
@@ -78,6 +106,7 @@ def check_no_retired_ci_signal(root: Path, failures: list[str]) -> None:
         root / "AGENTS.md",
         root / ".agents" / "README.md",
         root / "docs" / "engineering" / "DEVELOPMENT_WORKFLOW.md",
+        root / "docs" / "AI_AGENT_STACK.md",
     ]
     workflows_dir = root / ".github" / "workflows"
     if workflows_dir.exists():
@@ -93,36 +122,48 @@ def check_no_retired_ci_signal(root: Path, failures: list[str]) -> None:
 
 def check_no_hardcoded_coverage(root: Path, failures: list[str]) -> None:
     skills_dir = root / ".agents" / "skills"
-    if not skills_dir.exists():
-        return
+    coverage_pattern = re.compile(r"\b\d{1,3}%")
 
-    coverage_percentage_pattern = re.compile(r"\b\d{2}%\b")
+    files_to_check: list[Path] = []
+    if skills_dir.exists():
+        files_to_check.extend(skills_dir.glob("*/SKILL.md"))
+    files_to_check.append(root / "docs" / "AI_AGENT_STACK.md")
+    files_to_check.append(root / "AGENTS.md")
 
-    for skill_file in skills_dir.glob("*/SKILL.md"):
-        content = skill_file.read_text(encoding="utf-8")
-        matches = coverage_percentage_pattern.findall(content)
+    for file_path in files_to_check:
+        if not file_path.exists():
+            continue
+        content = file_path.read_text(encoding="utf-8")
+        matches = coverage_pattern.findall(content)
         if matches:
             failures.append(
-                f"Skill '{skill_file.relative_to(root)}' hard-codes coverage percentage {matches}. "
+                f"File '{file_path.relative_to(root)}' hard-codes coverage percentage {matches}. "
                 "Coverage thresholds must defer to active CI configuration (.github/workflows/ci.yml)."
             )
 
 
 def check_single_workflow_authority(root: Path, failures: list[str]) -> None:
+    workflow_rel = "docs/engineering/DEVELOPMENT_WORKFLOW.md"
     workflow_doc = root / "docs" / "engineering" / "DEVELOPMENT_WORKFLOW.md"
-    agents_doc = root / "AGENTS.md"
 
     if not workflow_doc.exists():
-        failures.append("Missing canonical development workflow: docs/engineering/DEVELOPMENT_WORKFLOW.md.")
+        failures.append(f"Missing canonical development workflow: {workflow_rel}.")
         return
 
-    if not agents_doc.exists():
-        failures.append("Missing root AGENTS.md.")
-        return
+    documents_requiring_workflow = [
+        root / "AGENTS.md",
+        root / ".agents" / "README.md",
+        root / "docs" / "AI_AGENT_STACK.md",
+    ]
 
-    agents_content = agents_doc.read_text(encoding="utf-8")
-    if "docs/engineering/DEVELOPMENT_WORKFLOW.md" not in agents_content:
-        failures.append("AGENTS.md must explicitly reference docs/engineering/DEVELOPMENT_WORKFLOW.md as lifecycle authority.")
+    for doc in documents_requiring_workflow:
+        if not doc.exists():
+            continue
+        content = doc.read_text(encoding="utf-8")
+        if workflow_rel not in content:
+            failures.append(
+                f"'{doc.relative_to(root)}' must explicitly reference '{workflow_rel}' as canonical development lifecycle authority."
+            )
 
 
 def check_historical_headers(root: Path, failures: list[str]) -> None:
@@ -146,16 +187,36 @@ def check_historical_headers(root: Path, failures: list[str]) -> None:
             )
 
 
-def check_external_skills_precedence(root: Path, failures: list[str]) -> None:
-    agents_doc = root / "AGENTS.md"
-    readme_doc = root / ".agents" / "README.md"
+def check_document_classifications(root: Path, failures: list[str]) -> None:
+    expected_classifications = [
+        (root / "docs" / "AI_GOVERNANCE_RULES.md", "RUNTIME-AI"),
+        (root / "docs" / "HERMES_AGENT_GUIDE.md", "ARCHITECTURE-REFERENCE"),
+        (root / "docs" / "product" / "ODONTOGRAM_VNEXT_PRODUCT_SPEC.md", "PRODUCT-SPEC"),
+    ]
 
-    for path in (agents_doc, readme_doc):
+    for path, expected_cls in expected_classifications:
+        if not path.exists():
+            failures.append(f"Required classified document missing: '{path.relative_to(root)}'.")
+            continue
+        first_lines = "".join(path.read_text(encoding="utf-8").splitlines(keepends=True)[:15])
+        if expected_cls.lower() not in first_lines.lower():
+            failures.append(
+                f"Document '{path.relative_to(root)}' is missing expected classification '{expected_cls}' in header."
+            )
+
+
+def check_external_skills_precedence(root: Path, failures: list[str]) -> None:
+    authority_docs = [
+        root / "AGENTS.md",
+        root / ".agents" / "README.md",
+        root / "docs" / "AI_AGENT_STACK.md",
+    ]
+
+    for path in authority_docs:
         if not path.exists():
             continue
         content = path.read_text(encoding="utf-8")
-        # Ensure external skills is mentioned below native skills / standards
-        match_native = re.search(r"(\.agents/skills|Relevant \.agents/skills)", content)
+        match_native = re.search(r"(\.agents/skills|Relevant \.agents/skills)", content, re.IGNORECASE)
         match_external = re.search(r"External skills", content, re.IGNORECASE)
 
         if match_native and match_external:
@@ -165,19 +226,31 @@ def check_external_skills_precedence(root: Path, failures: list[str]) -> None:
                 )
 
 
-def main() -> int:
-    root = get_repo_root()
+def run_linter(root: Path | None = None) -> tuple[int, list[str], int]:
+    if root is None:
+        root = get_repo_root()
+
     failures: list[str] = []
 
-    print(f"Running DENTIX Authority Linter against: {root}")
-
-    check_skill_catalog(root, failures)
+    check_canonical_files_exist(root, failures)
+    skill_count = check_skill_catalog_bidirectional(root, failures)
     check_no_obsolete_agent_paths(root, failures)
     check_no_retired_ci_signal(root, failures)
     check_no_hardcoded_coverage(root, failures)
     check_single_workflow_authority(root, failures)
     check_historical_headers(root, failures)
+    check_document_classifications(root, failures)
     check_external_skills_precedence(root, failures)
+
+    exit_code = 1 if failures else 0
+    return exit_code, failures, skill_count
+
+
+def main() -> int:
+    root = get_repo_root()
+    print(f"Running DENTIX Authority Linter against: {root}")
+
+    exit_code, failures, skill_count = run_linter(root)
 
     if failures:
         print("\n::error::Authority Linter FAILED with the following violations:")
@@ -185,14 +258,16 @@ def main() -> int:
             print(f"  {idx}. {failure}")
         return 1
 
-    print("\n[OK] All authority checks PASSED.")
-    print("  - Skill catalog matches filesystem (10 native skills)")
-    print("  - No obsolete .agent/ paths in active authorities")
-    print("  - No retired agent-ci-signal references")
-    print("  - No hardcoded coverage values in native skills")
-    print("  - DEVELOPMENT_WORKFLOW.md is authoritative")
-    print("  - Historical documents have required archive headers")
-    print("  - External skills strictly subordinate to DENTIX standards")
+    print(f"\n[OK] All authority checks PASSED.")
+    print(f"  - Canonical authority files verified")
+    print(f"  - Skill catalog and filesystem match bidirectionally ({skill_count} native skills detected)")
+    print(f"  - DEVELOPMENT_WORKFLOW.md is authoritative across all entrypoints")
+    print(f"  - No obsolete .agent/ paths in active authorities")
+    print(f"  - No retired agent-ci-signal references")
+    print(f"  - No hardcoded coverage values in native skills or AI stack docs")
+    print(f"  - Historical documents have required archive headers")
+    print(f"  - Document classifications verified (RUNTIME-AI, ARCHITECTURE-REFERENCE, PRODUCT-SPEC)")
+    print(f"  - External skills strictly subordinate to DENTIX standards")
     return 0
 
 

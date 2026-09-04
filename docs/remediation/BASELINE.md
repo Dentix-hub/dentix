@@ -16,7 +16,7 @@ In accordance with `PROJECT_TRUTH.md`, `PROJECT_STANDARDS.md`, and `AGENTS.md`, 
 5. **Historical artifacts** (plans, memory files).
 
 ## 2. Identified Entry Points & Configurations
-- **Repository Name**: `Dentix` (`c:\Users\es\DENTIX`)
+- **Repository Name**: `Dentix`
 - **Backend Entry Point**: `backend/main.py` (FastAPI `app`)
 - **Frontend Entry Point**: `frontend/src/main.jsx` (React + Vite)
 - **Alembic Configuration**: `backend/alembic.ini`, migrations in `backend/alembic/versions/`
