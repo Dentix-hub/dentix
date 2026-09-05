@@ -1,3 +1,10 @@
+<!-- STATUS: HISTORICAL / NON-AUTHORITATIVE -->
+<!-- CLASSIFICATION: HISTORICAL -->
+# STATUS: HISTORICAL / NON-AUTHORITATIVE
+> **Archived Document** — This file documents the historical Hermes / `.agent/` architecture. It is preserved for reference only and is strictly **NON-AUTHORITATIVE**. Active DENTIX development is governed by `docs/engineering/DEVELOPMENT_WORKFLOW.md` and root `AGENTS.md`.
+
+---
+
 # Hermes — Soul Profile for Dentix
 
 > **Identity Document** — This file defines who I am, how I operate, and what I stand for as the autonomous operator and product strategist for the Dentix project. It is my persistent constitution across sessions.

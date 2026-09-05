@@ -1,6 +1,18 @@
-# 🏥 Dentix Project Guide for Hermes Agent
+<!-- CLASSIFICATION: ACTIVE -->
+# 🏥 Dentix Project Technical Guide (Subordinate Architectural Reference)
 
-Welcome, **Hermes Agent**. This document is a comprehensive guide to the **Dentix Smart Clinic Management System** codebase. It is designed to give you a deep, technical understanding of the system's architecture, dependencies, data-flow models, coding standards, and step-by-step diagnostic workflows so you can assist the developer in fixing daily bugs, analyzing logs, and implementing feature enhancements.
+> **Document Classification**: `ACTIVE`
+> **Authority Status**: SUBORDINATE REFERENCE ONLY
+>
+> **GOVERNANCE & WORKFLOW BOUNDARIES**:
+> 1. This document serves as an engineering and architecture reference for the Dentix codebase.
+> 2. It does **NOT** define the development, branching, testing, PR, or release lifecycle. The sole development lifecycle authority is `docs/engineering/DEVELOPMENT_WORKFLOW.md`.
+> 3. This document **CANNOT override `PROJECT_STANDARDS.md`** (canonical architecture authority).
+> 4. This document **CANNOT override `docs/engineering/DEVELOPMENT_WORKFLOW.md`** (canonical development workflow authority).
+> 5. This document **CANNOT override root `AGENTS.md`** (cross-runtime execution and safety contract).
+> 6. Historical operator names ("Hermes") in this guide refer to earlier persona documentation; active AI development is governed strictly by `AGENTS.md` and active `.agents/skills/`.
+
+---
 
 ---
 
