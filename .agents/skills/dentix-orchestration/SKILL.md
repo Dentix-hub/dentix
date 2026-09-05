@@ -5,7 +5,7 @@ description: Lean orchestration and router for DENTIX multi-agent development. C
 
 # DENTIX Lean Multi-Agent Orchestration
 
-`dentix-orchestration` is a **lean router**, not a competing workflow framework. It operates strictly under [DEVELOPMENT_WORKFLOW.md](../../docs/engineering/DEVELOPMENT_WORKFLOW.md) (the sole development lifecycle authority) and [PROJECT_STANDARDS.md](../../PROJECT_STANDARDS.md) (the architecture authority).
+`dentix-orchestration` is a **lean router**, not a competing workflow framework. It operates strictly under [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md) (the sole development lifecycle authority) and [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md) (the architecture authority).
 
 The orchestration contract reduces decisions and prevents workflow duplication:
 **one workflow, one local task, one clear owner, one implementation route, one review boundary, one PR, one CI decision, one release path.**

@@ -13,6 +13,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 CANONICAL_HIERARCHY: list[tuple[int, str, list[str]]] = [
     (1, "Non-negotiable safety, tenant isolation, RBAC, data integrity, privacy, clinical integrity, and financial integrity", [
@@ -404,6 +405,104 @@ def check_external_skills_governance(root: Path, failures: list[str]) -> None:
         )
 
 
+def check_orchestration_authority_links(root: Path, failures: list[str]) -> None:
+    """Check the skill's two explicit inline authority links, not semantic compliance."""
+    root = root.resolve()
+    source_rel = ".agents/skills/dentix-orchestration/SKILL.md"
+    source = root / source_rel
+    expected_paths = (
+        "PROJECT_STANDARDS.md",
+        "docs/engineering/DEVELOPMENT_WORKFLOW.md",
+    )
+    try:
+        if not source.resolve().is_relative_to(root) or not source.is_file():
+            raise ValueError("source must be a file inside the repository")
+        content = source.read_text(encoding="utf-8")
+    except (OSError, ValueError, RuntimeError) as exc:
+        failures.append(
+            f"'{source_rel}' cannot supply required authority links to "
+            f"{list(expected_paths)}: {exc}."
+        )
+        return
+
+    # Consume code and comments in source order: their contents cannot open
+    # another context. This is only a filter for this document's inline links.
+    inline_code_pattern = (
+        r"(?<!`)(?P<ticks>`+)(?!`)(?:(?!\n\s*\n)[\s\S])*?"
+        r"(?<!`)(?P=ticks)(?!`)"
+    )
+    context_pattern = re.compile(
+        r"(?P<comment><!--[\s\S]*?(?:-->|\Z))"
+        r"|(?P<fence>^ {0,3}(?P<marker>`{3,}|~{3,})[^\n]*$)"
+        r"|(?P<indented>^(?: {4,}|\t)[^\n]*)"
+        rf"|(?P<inline>{inline_code_pattern})",
+        re.MULTILINE,
+    )
+    prose: list[str] = []
+    cursor = 0
+    while match := context_pattern.search(content, cursor):
+        prose.append(content[cursor:match.start()])
+        cursor = match.end()
+        if match.group("inline") is not None:
+            # Preserve backtick-wrapped link labels; the link matcher below
+            # consumes standalone code spans without counting their contents.
+            prose.append(match.group(0))
+        else:
+            prose.append("\n")
+            if match.group("fence") is not None:
+                marker = match.group("marker")
+                closing = re.compile(
+                    r"^ {0,3}" + re.escape(marker[0])
+                    + "{" + str(len(marker)) + r",}[ \t]*$",
+                    re.MULTILINE,
+                ).search(content, cursor)
+                cursor = closing.end() if closing else len(content)
+    prose.append(content[cursor:])
+    content = "".join(prose)
+
+    for expected_rel in expected_paths:
+        expected = root / expected_rel
+        label = re.escape(expected.name)
+        # Consume inline code before considering link-shaped text inside it.
+        # Ensure closing delimiter has exact count of backticks via lookbehind and lookahead.
+        link_pattern = (
+            inline_code_pattern
+            + rf"|(?<![!\\])\[`?{label}`?\]\((?P<destination>[^)\r\n]*)\)"
+        )
+        destinations = [
+            match.group("destination") for match in re.finditer(link_pattern, content)
+            if match.group("destination") is not None
+        ]
+        if not destinations:
+            failures.append(
+                f"'{source_rel}' is missing an inline authority link to '{expected_rel}'."
+            )
+        try:
+            canonical = expected.resolve()
+            if not canonical.is_relative_to(root) or not canonical.is_file():
+                raise ValueError("canonical target must be a file inside the repository")
+        except (OSError, ValueError, RuntimeError) as exc:
+            failures.append(f"'{source_rel}' requires canonical target '{expected_rel}': {exc}.")
+            continue
+
+        for destination in destinations:
+            try:
+                target_text = destination.strip()
+                if target_text.startswith("<") and target_text.endswith(">"):
+                    target_text = target_text[1:-1]
+                url = urlsplit(target_text)
+                if url.scheme or url.netloc or url.query or not url.path:
+                    raise ValueError("expected a local file link")
+                linked = (source.parent / unquote(url.path)).resolve()
+                if not linked.is_relative_to(root) or linked != canonical or not linked.is_file():
+                    raise ValueError("link does not resolve to the canonical file inside the repository")
+            except (OSError, ValueError, RuntimeError) as exc:
+                failures.append(
+                    f"'{source_rel}' has invalid authority link '{destination}'; "
+                    f"expected '{expected_rel}': {exc}."
+                )
+
+
 def run_linter(root: Path | None = None) -> tuple[int, list[str], int]:
     if root is None:
         root = get_repo_root()
@@ -420,6 +519,7 @@ def run_linter(root: Path | None = None) -> tuple[int, list[str], int]:
     check_historical_headers(root, failures)
     check_document_classifications(root, failures)
     check_external_skills_governance(root, failures)
+    check_orchestration_authority_links(root, failures)
 
     exit_code = 1 if failures else 0
     return exit_code, failures, skill_count
@@ -449,6 +549,7 @@ def main() -> int:
     print("  - Document classifications verified (RUNTIME-AI, ARCHITECTURE-REFERENCE, PRODUCT-SPEC)")
     print("  - External skills strictly subordinate to DENTIX standards")
     print("  - External skill lock schema, verifier, and pre-Movement-2 gate verified")
+    print("  - Orchestration authority links resolve to canonical repository files (link integrity only)")
     return 0
 
 

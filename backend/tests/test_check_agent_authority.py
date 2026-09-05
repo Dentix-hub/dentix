@@ -24,6 +24,7 @@ if spec is None or spec.loader is None:
 linter_mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(linter_mod)
 run_linter = linter_mod.run_linter
+check_orchestration_authority_links = linter_mod.check_orchestration_authority_links
 
 CANONICAL_HIERARCHY_TEXT = """1. Non-negotiable safety, tenant isolation, RBAC, data integrity, privacy, clinical integrity, and financial integrity constraints.
 2. Explicit current user requirement or approved implementation plan (within safety constraints).
@@ -45,6 +46,7 @@ def create_valid_fixture(root: Path) -> None:
     (root / "docs" / "product").mkdir(parents=True, exist_ok=True)
     (root / "docs" / "remediation").mkdir(parents=True, exist_ok=True)
     (root / ".agents" / "skills" / "dentix-backend-fastapi").mkdir(parents=True, exist_ok=True)
+    (root / ".agents" / "skills" / "dentix-orchestration").mkdir(parents=True, exist_ok=True)
 
     (root / "docs" / "engineering" / "DEVELOPMENT_WORKFLOW.md").write_text(
         "# Development Workflow\nSole development lifecycle authority.\n",
@@ -57,7 +59,9 @@ def create_valid_fixture(root: Path) -> None:
     )
 
     (root / ".agents" / "README.md").write_text(
-        f"# Catalog\n\n## Source Priority\n{CANONICAL_HIERARCHY_TEXT}\n\n## Catalog\n1. `dentix-backend-fastapi`: FastAPI layered architecture.\n",
+        f"# Catalog\n\n## Source Priority\n{CANONICAL_HIERARCHY_TEXT}\n\n## Catalog\n"
+        "1. `dentix-backend-fastapi`: FastAPI layered architecture.\n"
+        "2. `dentix-orchestration`: Lean multi-agent router.\n",
         encoding="utf-8",
     )
 
@@ -68,6 +72,18 @@ def create_valid_fixture(root: Path) -> None:
         "---\n"
         "# Content\n"
         "Verify coverage meets active CI configuration thresholds.\n",
+        encoding="utf-8",
+    )
+
+    (root / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md").write_text(
+        "---\n"
+        "name: dentix-orchestration\n"
+        "description: Lean orchestration and router\n"
+        "---\n"
+        "# Content\n"
+        "Operates under [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md) "
+        "and [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md).\n"
+        "Coverage thresholds must defer to active CI configuration.\n",
         encoding="utf-8",
     )
 
@@ -138,7 +154,7 @@ def test_valid_canonical_fixture_passes(temp_repo):
     code, failures, skill_count = run_linter(temp_repo)
     assert code == 0, f"Expected 0, got failures: {failures}"
     assert len(failures) == 0
-    assert skill_count == 1
+    assert skill_count == 2
 
 
 def test_missing_layer_in_hierarchy_fails(temp_repo):
@@ -464,3 +480,661 @@ def test_plan_missing_external_skill_provenance_gate_fails(temp_repo):
     code, failures, _ = run_linter(temp_repo)
     assert code == 1
     assert any("EXTERNAL_SKILL_PROVENANCE = PASS" in f for f in failures)
+
+
+# ==============================================================================
+# Movement 3A Pilot B: Orchestration Authority Links Regression Tests
+# ==============================================================================
+
+
+def test_orchestration_authority_links_canonical_pass(temp_repo):
+    failures: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures)
+    assert len(failures) == 0
+
+    # Also test valid variant with backtick-wrapped labels and angle brackets
+    orch_skill = temp_repo / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md"
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "Governed by [`PROJECT_STANDARDS.md`](<../../../PROJECT_STANDARDS.md>) and "
+        "[`DEVELOPMENT_WORKFLOW.md`](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md).\n",
+        encoding="utf-8",
+    )
+    failures_alt: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_alt)
+    assert len(failures_alt) == 0
+
+
+def test_orchestration_authority_links_original_broken_links_fail(temp_repo):
+    orch_skill = temp_repo / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md"
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "Operates under [DEVELOPMENT_WORKFLOW.md](../../docs/engineering/DEVELOPMENT_WORKFLOW.md) "
+        "and [PROJECT_STANDARDS.md](../../PROJECT_STANDARDS.md).\n",
+        encoding="utf-8",
+    )
+
+    failures: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures)
+    assert len(failures) == 2
+    assert any(
+        "has invalid authority link '../../PROJECT_STANDARDS.md'" in f
+        and "expected 'PROJECT_STANDARDS.md'" in f
+        for f in failures
+    )
+    assert any(
+        "has invalid authority link '../../docs/engineering/DEVELOPMENT_WORKFLOW.md'" in f
+        and "expected 'docs/engineering/DEVELOPMENT_WORKFLOW.md'" in f
+        for f in failures
+    )
+
+    code, linter_failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("has invalid authority link" in f for f in linter_failures)
+
+
+def test_orchestration_authority_links_missing_either_link_fails(temp_repo):
+    orch_skill = temp_repo / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md"
+
+    # Case A: Missing PROJECT_STANDARDS.md link
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "Operates under [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md).\n",
+        encoding="utf-8",
+    )
+    failures_a: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_a)
+    assert len(failures_a) == 1
+    assert any(
+        "is missing an inline authority link to 'PROJECT_STANDARDS.md'" in f
+        for f in failures_a
+    )
+
+    # Case B: Missing DEVELOPMENT_WORKFLOW.md link
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "Operates under [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md).\n",
+        encoding="utf-8",
+    )
+    failures_b: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_b)
+    assert len(failures_b) == 1
+    assert any(
+        "is missing an inline authority link to 'docs/engineering/DEVELOPMENT_WORKFLOW.md'" in f
+        for f in failures_b
+    )
+
+
+def test_orchestration_authority_links_missing_source_fails(temp_repo):
+    orch_skill = temp_repo / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md"
+    orch_skill.unlink()
+
+    failures: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures)
+    assert len(failures) == 1
+    assert any(
+        "cannot supply required authority links" in f
+        and "source must be a file inside the repository" in f
+        for f in failures
+    )
+
+    code, linter_failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("cannot supply required authority links" in f for f in linter_failures)
+
+
+def test_orchestration_authority_links_wrong_file_same_basename_fails(temp_repo):
+    orch_skill = temp_repo / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md"
+
+    # Case A: PROJECT_STANDARDS.md in wrong directory (docs/PROJECT_STANDARDS.md)
+    wrong_standards = temp_repo / "docs" / "PROJECT_STANDARDS.md"
+    wrong_standards.write_text("# Wrong Standards\n", encoding="utf-8")
+
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "Operates under [PROJECT_STANDARDS.md](../../../docs/PROJECT_STANDARDS.md) "
+        "and [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md).\n",
+        encoding="utf-8",
+    )
+    failures_a: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_a)
+    assert any(
+        "has invalid authority link '../../../docs/PROJECT_STANDARDS.md'" in f
+        and "link does not resolve to the canonical file inside the repository" in f
+        for f in failures_a
+    )
+
+    # Case B: DEVELOPMENT_WORKFLOW.md in wrong directory (root DEVELOPMENT_WORKFLOW.md)
+    wrong_workflow = temp_repo / "DEVELOPMENT_WORKFLOW.md"
+    wrong_workflow.write_text("# Wrong Workflow\n", encoding="utf-8")
+
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "Operates under [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md) "
+        "and [DEVELOPMENT_WORKFLOW.md](../../../DEVELOPMENT_WORKFLOW.md).\n",
+        encoding="utf-8",
+    )
+    failures_b: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_b)
+    assert any(
+        "has invalid authority link '../../../DEVELOPMENT_WORKFLOW.md'" in f
+        and "link does not resolve to the canonical file inside the repository" in f
+        for f in failures_b
+    )
+
+
+def test_orchestration_authority_links_missing_canonical_target_or_directory_fails(temp_repo):
+    # Subcase 1: Canonical target missing (unlinked)
+    (temp_repo / "PROJECT_STANDARDS.md").unlink()
+    failures_missing: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_missing)
+    assert any(
+        "requires canonical target 'PROJECT_STANDARDS.md': canonical target must be a file inside the repository" in f
+        for f in failures_missing
+    )
+
+    # Subcase 2: Canonical target replaced by a directory
+    (temp_repo / "PROJECT_STANDARDS.md").mkdir()
+    failures_dir: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_dir)
+    assert any(
+        "requires canonical target 'PROJECT_STANDARDS.md': canonical target must be a file inside the repository" in f
+        for f in failures_dir
+    )
+
+    # Subcase 3: Canonical DEVELOPMENT_WORKFLOW.md replaced by a directory
+    (temp_repo / "PROJECT_STANDARDS.md").rmdir()
+    (temp_repo / "PROJECT_STANDARDS.md").write_text("# Standards\n", encoding="utf-8")
+    (temp_repo / "docs" / "engineering" / "DEVELOPMENT_WORKFLOW.md").unlink()
+    (temp_repo / "docs" / "engineering" / "DEVELOPMENT_WORKFLOW.md").mkdir()
+    failures_workflow_dir: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_workflow_dir)
+    assert any(
+        "requires canonical target 'docs/engineering/DEVELOPMENT_WORKFLOW.md': canonical target must be a file inside the repository" in f
+        for f in failures_workflow_dir
+    )
+
+
+def test_orchestration_authority_links_outside_repo_target_fails(temp_repo):
+    orch_skill = temp_repo / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md"
+
+    # Subcase 1: Path traversing above repository root
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "Operates under [PROJECT_STANDARDS.md](../../../../PROJECT_STANDARDS.md) "
+        "and [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md).\n",
+        encoding="utf-8",
+    )
+    failures_outside: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_outside)
+    assert any(
+        "has invalid authority link '../../../../PROJECT_STANDARDS.md'" in f
+        and "link does not resolve to the canonical file inside the repository" in f
+        for f in failures_outside
+    )
+
+    # Subcase 2: Link with external scheme (https://)
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "Operates under [PROJECT_STANDARDS.md](https://example.com/PROJECT_STANDARDS.md) "
+        "and [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md).\n",
+        encoding="utf-8",
+    )
+    failures_url: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_url)
+    assert any(
+        "has invalid authority link 'https://example.com/PROJECT_STANDARDS.md'" in f
+        and "expected a local file link" in f
+        for f in failures_url
+    )
+
+    # Subcase 3: Link with query parameter
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "Operates under [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md?v=1) "
+        "and [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md).\n",
+        encoding="utf-8",
+    )
+    failures_query: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_query)
+    assert any(
+        "has invalid authority link '../../../PROJECT_STANDARDS.md?v=1'" in f
+        and "expected a local file link" in f
+        for f in failures_query
+    )
+
+
+def test_orchestration_authority_links_valid_plus_conflicting_duplicate_fails(temp_repo):
+    orch_skill = temp_repo / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md"
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "Operates under [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md) "
+        "and [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md).\n"
+        "Conflicting reference: [PROJECT_STANDARDS.md](../../PROJECT_STANDARDS.md).\n",
+        encoding="utf-8",
+    )
+
+    failures: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures)
+    assert any(
+        "has invalid authority link '../../PROJECT_STANDARDS.md'" in f
+        and "expected 'PROJECT_STANDARDS.md'" in f
+        for f in failures
+    )
+
+    code, linter_failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("has invalid authority link '../../PROJECT_STANDARDS.md'" in f for f in linter_failures)
+
+
+def test_orchestration_authority_links_in_comments_fences_code_fail(temp_repo):
+    orch_skill = temp_repo / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md"
+
+    # Subcase 1: Link only in HTML comment
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "<!-- [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md) -->\n"
+        "[DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md)\n",
+        encoding="utf-8",
+    )
+    failures_comment: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_comment)
+    assert any(
+        "is missing an inline authority link to 'PROJECT_STANDARDS.md'" in f
+        for f in failures_comment
+    )
+
+    # Subcase 2: Link only in fenced code block (backticks)
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "```markdown\n"
+        "[PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md)\n"
+        "```\n"
+        "[DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md)\n",
+        encoding="utf-8",
+    )
+    failures_fence_backticks: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_fence_backticks)
+    assert any(
+        "is missing an inline authority link to 'PROJECT_STANDARDS.md'" in f
+        for f in failures_fence_backticks
+    )
+
+    # Subcase 3: Link only in fenced code block (tildes)
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "~~~\n"
+        "[DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md)\n"
+        "~~~\n"
+        "[PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md)\n",
+        encoding="utf-8",
+    )
+    failures_fence_tildes: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_fence_tildes)
+    assert any(
+        "is missing an inline authority link to 'docs/engineering/DEVELOPMENT_WORKFLOW.md'" in f
+        for f in failures_fence_tildes
+    )
+
+    # Subcase 4: Link only in inline code ticks
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "`[PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md)`\n"
+        "[DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md)\n",
+        encoding="utf-8",
+    )
+    failures_inline_code: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_inline_code)
+    assert any(
+        "is missing an inline authority link to 'PROJECT_STANDARDS.md'" in f
+        for f in failures_inline_code
+    )
+
+
+def test_orchestration_authority_links_run_linter_integration(temp_repo):
+    # Integration test through run_linter with broken link
+    orch_skill = temp_repo / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md"
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "Operates under [PROJECT_STANDARDS.md](../../PROJECT_STANDARDS.md) "
+        "and [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md).\n",
+        encoding="utf-8",
+    )
+
+    code, failures, skill_count = run_linter(temp_repo)
+    assert code == 1
+    assert skill_count == 2
+    # Verify useful, descriptive failure message
+    expected_failure_snippet = (
+        "'.agents/skills/dentix-orchestration/SKILL.md' has invalid authority link "
+        "'../../PROJECT_STANDARDS.md'; expected 'PROJECT_STANDARDS.md'"
+    )
+    assert any(expected_failure_snippet in f for f in failures)
+
+    # Restore canonical link and verify clean run_linter pass
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "Operates under [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md) "
+        "and [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md).\n",
+        encoding="utf-8",
+    )
+    code_pass, failures_pass, skill_count_pass = run_linter(temp_repo)
+    assert code_pass == 0
+    assert len(failures_pass) == 0
+    assert skill_count_pass == 2
+
+
+def test_orchestration_authority_links_indented_code_block_fails(temp_repo):
+    orch_skill = temp_repo / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md"
+
+    # Links only in a 4-space indented code block (both authority documents)
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "    [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md)\n"
+        "    [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md)\n",
+        encoding="utf-8",
+    )
+    failures: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures)
+    assert any(
+        "'.agents/skills/dentix-orchestration/SKILL.md' is missing an inline authority link to 'PROJECT_STANDARDS.md'" in f
+        for f in failures
+    )
+    assert any(
+        "'.agents/skills/dentix-orchestration/SKILL.md' is missing an inline authority link to 'docs/engineering/DEVELOPMENT_WORKFLOW.md'" in f
+        for f in failures
+    )
+
+    code, linter_failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("is missing an inline authority link" in f for f in linter_failures)
+
+    # Also test tab-indented code line
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "\t[PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md)\n"
+        "\t[DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md)\n",
+        encoding="utf-8",
+    )
+    failures_tab: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_tab)
+    assert any("is missing an inline authority link to 'PROJECT_STANDARDS.md'" in f for f in failures_tab)
+    assert any("is missing an inline authority link to 'docs/engineering/DEVELOPMENT_WORKFLOW.md'" in f for f in failures_tab)
+
+
+def test_orchestration_authority_links_multiline_inline_code_fails(temp_repo):
+    orch_skill = temp_repo / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md"
+
+    # Multiline inline-code span with single backtick (both authority documents)
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "`code start\n"
+        "[PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md)\n"
+        "[DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md)\n"
+        "code end`\n",
+        encoding="utf-8",
+    )
+    failures: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures)
+    assert any(
+        "'.agents/skills/dentix-orchestration/SKILL.md' is missing an inline authority link to 'PROJECT_STANDARDS.md'" in f
+        for f in failures
+    )
+    assert any(
+        "'.agents/skills/dentix-orchestration/SKILL.md' is missing an inline authority link to 'docs/engineering/DEVELOPMENT_WORKFLOW.md'" in f
+        for f in failures
+    )
+
+    code, linter_failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("is missing an inline authority link" in f for f in linter_failures)
+
+    # Multiline inline-code span with double backticks
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "``\n"
+        "[PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md)\n"
+        "[DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md)\n"
+        "``\n",
+        encoding="utf-8",
+    )
+    failures_double: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_double)
+    assert any("is missing an inline authority link to 'PROJECT_STANDARDS.md'" in f for f in failures_double)
+    assert any("is missing an inline authority link to 'docs/engineering/DEVELOPMENT_WORKFLOW.md'" in f for f in failures_double)
+
+
+def test_orchestration_authority_links_unterminated_comment_fails(temp_repo):
+    orch_skill = temp_repo / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md"
+
+    # Unterminated HTML comment extending to end of document (both authority documents)
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "<!-- Unterminated comment extending to EOF\n"
+        "[PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md)\n"
+        "[DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md)\n",
+        encoding="utf-8",
+    )
+    failures: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures)
+    assert any(
+        "'.agents/skills/dentix-orchestration/SKILL.md' is missing an inline authority link to 'PROJECT_STANDARDS.md'" in f
+        for f in failures
+    )
+    assert any(
+        "'.agents/skills/dentix-orchestration/SKILL.md' is missing an inline authority link to 'docs/engineering/DEVELOPMENT_WORKFLOW.md'" in f
+        for f in failures
+    )
+
+    code, linter_failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("is missing an inline authority link" in f for f in linter_failures)
+
+
+def test_orchestration_authority_links_positive_controls(temp_repo):
+    orch_skill = temp_repo / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md"
+
+    # Positive Control 1: Ordinary prose links after a closed HTML comment
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "<!-- Completed closed comment -->\n"
+        "Operates under [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md) "
+        "and [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md).\n",
+        encoding="utf-8",
+    )
+    f1: list[str] = []
+    check_orchestration_authority_links(temp_repo, f1)
+    assert len(f1) == 0
+
+    # Positive Control 2: Ordinary prose links after a 4-space indented code block
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "    # Indented code block\n"
+        "    git status\n"
+        "\n"
+        "Operates under [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md) "
+        "and [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md).\n",
+        encoding="utf-8",
+    )
+    f2: list[str] = []
+    check_orchestration_authority_links(temp_repo, f2)
+    assert len(f2) == 0
+
+    # Positive Control 3: Ordinary prose links after multiline inline code span with backtick/angle-bracket syntax
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "`multiline\n"
+        "code span`\n"
+        "Governed by [`PROJECT_STANDARDS.md`](<../../../PROJECT_STANDARDS.md>) and "
+        "[`DEVELOPMENT_WORKFLOW.md`](<../../../docs/engineering/DEVELOPMENT_WORKFLOW.md>).\n",
+        encoding="utf-8",
+    )
+    f3: list[str] = []
+    check_orchestration_authority_links(temp_repo, f3)
+    assert len(f3) == 0
+
+    # Positive Control 4: Ordinary prose links appearing before trailing unclosed comment
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "Operates under [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md) "
+        "and [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md).\n"
+        "<!-- unclosed trailing note\n",
+        encoding="utf-8",
+    )
+    f4: list[str] = []
+    check_orchestration_authority_links(temp_repo, f4)
+    assert len(f4) == 0
+
+
+def test_orchestration_authority_links_code_containing_comment_delimiters_passes(temp_repo):
+    """Reviewer Finding 1: Code examples containing <!-- must not erase genuine prose links after them."""
+    orch_skill = temp_repo / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md"
+
+    # Case 1A: Closed code fence containing <!-- before genuine prose links
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "```html\n"
+        "<!-- example comment inside closed code fence without close\n"
+        "```\n\n"
+        "Operates under [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md) "
+        "and [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md).\n",
+        encoding="utf-8",
+    )
+    failures_fence: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_fence)
+    assert len(failures_fence) == 0
+
+    code_fence, linter_failures_fence, _ = run_linter(temp_repo)
+    assert code_fence == 0
+    assert len(linter_failures_fence) == 0
+
+    # Case 1B: Indented code block containing <!-- before genuine prose links
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "    <!-- example comment in 4-space indented block\n\n"
+        "Operates under [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md) "
+        "and [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md).\n",
+        encoding="utf-8",
+    )
+    failures_indented: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_indented)
+    assert len(failures_indented) == 0
+
+    code_indented, linter_failures_indented, _ = run_linter(temp_repo)
+    assert code_indented == 0
+    assert len(linter_failures_indented) == 0
+
+    # Case 1C: Single-line inline code containing <!-- before genuine prose links
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "Use `<!--` in templates.\n\n"
+        "Operates under [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md) "
+        "and [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md).\n",
+        encoding="utf-8",
+    )
+    failures_inline: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_inline)
+    assert len(failures_inline) == 0
+
+    code_inline, linter_failures_inline, _ = run_linter(temp_repo)
+    assert code_inline == 0
+    assert len(linter_failures_inline) == 0
+
+    # Case 1D: Multiline inline code containing <!-- before genuine prose links
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "`multiline\n"
+        "<!-- unclosed in code span\n"
+        "code end`\n\n"
+        "Operates under [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md) "
+        "and [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md).\n",
+        encoding="utf-8",
+    )
+    failures_inline_multi: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_inline_multi)
+    assert len(failures_inline_multi) == 0
+
+    code_inline_multi, linter_failures_inline_multi, _ = run_linter(temp_repo)
+    assert code_inline_multi == 0
+    assert len(linter_failures_inline_multi) == 0
+
+
+def test_orchestration_authority_links_unequal_backtick_counts_in_multiline_code_fails(temp_repo):
+    """Reviewer Finding 2: Unequal backtick counts inside multiline code must not prematurely close code span."""
+    orch_skill = temp_repo / ".agents" / "skills" / "dentix-orchestration" / "SKILL.md"
+
+    # Case 2A: 1-tick opening with 2-ticks sequence inside code span (should FAIL finding prose links)
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "`start\n"
+        "``\n"
+        "[PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md)\n"
+        "[DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md)\n"
+        "``\n"
+        "end`\n",
+        encoding="utf-8",
+    )
+    failures_1_2: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_1_2)
+    assert any("is missing an inline authority link to 'PROJECT_STANDARDS.md'" in f for f in failures_1_2)
+    assert any("is missing an inline authority link to 'docs/engineering/DEVELOPMENT_WORKFLOW.md'" in f for f in failures_1_2)
+
+    code_1_2, linter_failures_1_2, _ = run_linter(temp_repo)
+    assert code_1_2 == 1
+    assert any("is missing an inline authority link" in f for f in linter_failures_1_2)
+
+    # Case 2B: 2-ticks opening with 1-tick and 3-ticks sequences inside code span
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "``\n"
+        "`single tick` and ```triple tick```\n"
+        "[PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md)\n"
+        "[DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md)\n"
+        "``\n",
+        encoding="utf-8",
+    )
+    failures_2_13: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_2_13)
+    assert any("is missing an inline authority link to 'PROJECT_STANDARDS.md'" in f for f in failures_2_13)
+    assert any("is missing an inline authority link to 'docs/engineering/DEVELOPMENT_WORKFLOW.md'" in f for f in failures_2_13)
+
+    # Case 2C: Positive control: multiline code with unequal ticks inside, followed by real prose links
+    orch_skill.write_text(
+        "---\nname: dentix-orchestration\ndescription: router\n---\n"
+        "`start\n"
+        "``\n"
+        "example\n"
+        "``\n"
+        "end`\n\n"
+        "Operates under [DEVELOPMENT_WORKFLOW.md](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md) "
+        "and [PROJECT_STANDARDS.md](../../../PROJECT_STANDARDS.md).\n",
+        encoding="utf-8",
+    )
+    failures_pos: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures_pos)
+    assert len(failures_pos) == 0
+
+    code_pos, linter_failures_pos, _ = run_linter(temp_repo)
+    assert code_pos == 0
+    assert len(linter_failures_pos) == 0
+
+
+@pytest.mark.parametrize("prefix,suffix", [
+    ("<!-- Example ` -->\n", ""),
+    ("<!-- Example ` -->\n", "\n<!-- Another ` -->"),
+    ("<!--\n```\n-->\n", ""),
+    ("Use `<!--` in templates.\n\n", ""),
+    ("```html\n<!--\n```\n\n", ""),
+])
+def test_authority_links_preserve_source_order(temp_repo, prefix, suffix):
+    source = temp_repo / ".agents/skills/dentix-orchestration/SKILL.md"
+    links = (
+        "[`PROJECT_STANDARDS.md`](../../../PROJECT_STANDARDS.md) and "
+        "[`DEVELOPMENT_WORKFLOW.md`](../../../docs/engineering/DEVELOPMENT_WORKFLOW.md)"
+    )
+    source.write_text(prefix + links + suffix, encoding="utf-8")
+    failures: list[str] = []
+    check_orchestration_authority_links(temp_repo, failures)
+    assert failures == []
+    code, integration_failures, _ = run_linter(temp_repo)
+    assert code == 0, integration_failures
