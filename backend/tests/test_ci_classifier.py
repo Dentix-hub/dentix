@@ -390,3 +390,23 @@ def test_pr_template_is_docs():
     res = classify_files([".github/pull_request_template.md"])
     assert res["force_full"] is False
     assert res["docs_only"] is True
+
+
+# ── Empty and whitespace diff handling ──
+
+def test_empty_and_whitespace_entries_fail_safe_to_force_full():
+    res = classify_files(["", "   ", "\t"])
+    assert res["force_full"] is True
+
+
+def test_blank_entries_with_docs_path_ignored():
+    res = classify_files(["", "docs/engineering/README.md", "   ", "\t"])
+    assert res["docs_only"] is True
+    assert res["force_full"] is False
+
+
+def test_blank_entries_with_frontend_path_preserves_frontend():
+    res = classify_files(["   ", "frontend/src/components/Navbar.jsx", ""])
+    assert res["frontend"] is True
+    assert res["backend"] is False
+    assert res["force_full"] is False

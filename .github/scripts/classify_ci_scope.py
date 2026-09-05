@@ -239,6 +239,9 @@ def classify_files(
     """Classify the changed files and event context into boolean CI flags."""
     label_list = parse_labels(labels)
 
+    normalized_files = [str(path).replace("\\", "/").strip() for path in changed_files]
+    changed_files = [path for path in normalized_files if path]
+
     classification = {
         "frontend": False,
         "backend": False,
@@ -299,11 +302,7 @@ def classify_files(
     unrecognized = []
     docs_files = []
 
-    for f in changed_files:
-        path_str = f.replace("\\", "/").strip()
-        if not path_str:
-            continue
-
+    for path_str in changed_files:
         path_lower = path_str.lower()
 
         # ── Executable governance surfaces ──
