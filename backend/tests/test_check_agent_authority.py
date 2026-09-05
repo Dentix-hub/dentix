@@ -49,17 +49,17 @@ def create_valid_fixture(root: Path) -> None:
     (root / ".agents" / "skills" / "dentix-orchestration").mkdir(parents=True, exist_ok=True)
 
     (root / "docs" / "engineering" / "DEVELOPMENT_WORKFLOW.md").write_text(
-        "# Development Workflow\nSole development lifecycle authority.\n",
+        "<!-- CLASSIFICATION: ACTIVE -->\n# Development Workflow\nSole development lifecycle authority.\n",
         encoding="utf-8",
     )
 
     (root / "AGENTS.md").write_text(
-        f"# Instructions\n\n## 2. Instruction Precedence\n\nApply guidance in this order:\n\n{CANONICAL_HIERARCHY_TEXT}\n",
+        f"<!-- CLASSIFICATION: ACTIVE -->\n# Instructions\n\n## 2. Instruction Precedence\n\nApply guidance in this order:\n\n{CANONICAL_HIERARCHY_TEXT}\n",
         encoding="utf-8",
     )
 
     (root / ".agents" / "README.md").write_text(
-        f"# Catalog\n\n## Source Priority\n{CANONICAL_HIERARCHY_TEXT}\n\n## Catalog\n"
+        f"<!-- CLASSIFICATION: ACTIVE -->\n# Catalog\n\n## Source Priority\n{CANONICAL_HIERARCHY_TEXT}\n\n## Catalog\n"
         "1. `dentix-backend-fastapi`: FastAPI layered architecture.\n"
         "2. `dentix-orchestration`: Lean multi-agent router.\n",
         encoding="utf-8",
@@ -88,7 +88,7 @@ def create_valid_fixture(root: Path) -> None:
     )
 
     (root / "docs" / "AI_AGENT_STACK.md").write_text(
-        f"# AI Stack\n\n## 3. Source-of-Truth Hierarchy\n{CANONICAL_HIERARCHY_TEXT}\n\nCoverage governed by active CI.\n",
+        f"<!-- CLASSIFICATION: ACTIVE -->\n# AI Stack\n\n## 3. Source-of-Truth Hierarchy\n{CANONICAL_HIERARCHY_TEXT}\n\nCoverage governed by active CI.\n",
         encoding="utf-8",
     )
 
@@ -112,10 +112,10 @@ def create_valid_fixture(root: Path) -> None:
 
     # Classified documents
     (root / "docs" / "AI_GOVERNANCE_RULES.md").write_text(
-        "# AI Rules\nClassification: RUNTIME-AI\n", encoding="utf-8"
+        "<!-- CLASSIFICATION: RUNTIME-AI -->\n# AI Rules\n", encoding="utf-8"
     )
     (root / "docs" / "HERMES_AGENT_GUIDE.md").write_text(
-        "# Technical Guide\n<!-- CLASSIFICATION: ARCHITECTURE-REFERENCE -->\n", encoding="utf-8"
+        "<!-- CLASSIFICATION: ACTIVE -->\n# Technical Guide\n", encoding="utf-8"
     )
     (root / "docs" / "product" / "ODONTOGRAM_VNEXT_PRODUCT_SPEC.md").write_text(
         "# Odontogram Spec\n<!-- CLASSIFICATION: PRODUCT-SPEC -->\n", encoding="utf-8"
@@ -124,10 +124,13 @@ def create_valid_fixture(root: Path) -> None:
         "# Traceability Matrix\n<!-- CLASSIFICATION: PRODUCT-SPEC -->\n", encoding="utf-8"
     )
     (root / "docs" / "engineering" / "BRANCH_DISPOSITION_LEDGER.md").write_text(
-        "# Ledger\nClassification: ARCHITECTURE-REFERENCE\n", encoding="utf-8"
+        "<!-- CLASSIFICATION: ACTIVE -->\n# Ledger\n", encoding="utf-8"
     )
     (root / "docs" / "engineering" / "CLINICAL_CHART_DISPOSITION.md").write_text(
-        "# Disposition\nClassification: ARCHITECTURE-REFERENCE\n", encoding="utf-8"
+        "<!-- CLASSIFICATION: ACTIVE -->\n# Disposition\n", encoding="utf-8"
+    )
+    (root / "docs" / "engineering" / "BRANCH_CLEANUP_INSTRUCTIONS.md").write_text(
+        "<!-- CLASSIFICATION: ACTIVE -->\n# Branch Cleanup\n", encoding="utf-8"
     )
 
     # External skills provenance artifacts
@@ -137,7 +140,8 @@ def create_valid_fixture(root: Path) -> None:
     (root / "scripts").mkdir(parents=True, exist_ok=True)
     shutil.copy2(real_verifier, root / "scripts" / "verify_external_skills.py")
     (root / "docs" / "DENTIX_LEAN_LOCAL_FIRST_MULTI_AGENT_WORKFLOW_V3_FINAL_IMPLEMENTATION_PLAN.md").write_text(
-        "# Plan\n\n## Movement 2\nPrerequisite Gate: EXTERNAL_SKILL_PROVENANCE = PASS\n",
+        historical_header
+        + "# Completed V3 Plan\n\n## Movement 2\nPrerequisite Gate: EXTERNAL_SKILL_PROVENANCE = PASS\n",
         encoding="utf-8",
     )
 
@@ -334,6 +338,56 @@ def test_legacy_master_plan_missing_historical_header_fails(temp_repo):
     code, failures, _ = run_linter(temp_repo)
     assert code == 1
     assert any("DENTIX_ODONTOGRAM_FIRST_EXECUTION_AND_VNEXT_HANDOFF_FINAL_MASTER_PLAN.md" in f and "missing mandatory 'STATUS: HISTORICAL / NON-AUTHORITATIVE'" in f for f in failures)
+
+
+def test_completed_v3_plan_missing_historical_header_fails(temp_repo):
+    plan = temp_repo / "docs" / "DENTIX_LEAN_LOCAL_FIRST_MULTI_AGENT_WORKFLOW_V3_FINAL_IMPLEMENTATION_PLAN.md"
+    plan.write_text(
+        "# Plan\n\n## Movement 2\nPrerequisite Gate: EXTERNAL_SKILL_PROVENANCE = PASS\n",
+        encoding="utf-8",
+    )
+    code, failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any(
+        "DENTIX_LEAN_LOCAL_FIRST_MULTI_AGENT_WORKFLOW_V3_FINAL_IMPLEMENTATION_PLAN.md" in f
+        and "missing mandatory 'STATUS: HISTORICAL / NON-AUTHORITATIVE'" in f
+        for f in failures
+    )
+
+
+def test_completed_v3_plan_cannot_claim_active_workflow_authority(temp_repo):
+    plan = temp_repo / "docs" / "DENTIX_LEAN_LOCAL_FIRST_MULTI_AGENT_WORKFLOW_V3_FINAL_IMPLEMENTATION_PLAN.md"
+    content = plan.read_text(encoding="utf-8")
+    plan.write_text(
+        content + "\nThis plan establishes one lean DENTIX development workflow.\n",
+        encoding="utf-8",
+    )
+    code, failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("still claims active workflow authority" in f for f in failures)
+
+
+@pytest.mark.parametrize(
+    "classification",
+    ["ARCHITECTURE-REFERENCE", "ENGINEERING-RUNBOOK", "NOT-ACTIVE", "ACTIVE-REFERENCE"],
+)
+def test_unsupported_document_classification_fails(temp_repo, classification):
+    guide = temp_repo / "docs" / "HERMES_AGENT_GUIDE.md"
+    guide.write_text(
+        f"<!-- CLASSIFICATION: {classification} -->\n# Technical Guide\n",
+        encoding="utf-8",
+    )
+    code, failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("HERMES_AGENT_GUIDE.md" in f and "unsupported classification" in f for f in failures)
+
+
+def test_missing_document_classification_marker_fails(temp_repo):
+    guide = temp_repo / "docs" / "HERMES_AGENT_GUIDE.md"
+    guide.write_text("# Technical Guide\n", encoding="utf-8")
+    code, failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any("HERMES_AGENT_GUIDE.md" in f and "missing canonical classification marker" in f for f in failures)
 
 
 def test_active_doc_claiming_master_plan_execution_authority_fails(temp_repo):

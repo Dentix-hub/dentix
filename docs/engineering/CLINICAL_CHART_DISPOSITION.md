@@ -1,8 +1,9 @@
+<!-- CLASSIFICATION: ACTIVE -->
 # DENTIX Clinical Chart & Odontogram State Disposition
 
 **Audit Date:** 2026-09-04
 **Forensic Status:** `DOCUMENTED, NOT RECONCILED`
-**Classification:** `ARCHITECTURE-REFERENCE`
+**Classification:** `ACTIVE`
 **Authority:** `PROJECT_STANDARDS.md` & `docs/engineering/DEVELOPMENT_WORKFLOW.md`
 
 ---

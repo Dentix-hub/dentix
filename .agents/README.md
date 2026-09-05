@@ -1,3 +1,4 @@
+<!-- CLASSIFICATION: ACTIVE -->
 # DENTIX Agent Skills
 
 This directory contains repository-scoped skills used by supported AI coding runtimes (including Codex and Antigravity).

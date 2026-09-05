@@ -1,3 +1,4 @@
+<!-- CLASSIFICATION: ACTIVE -->
 # DENTIX AI Agent Stack Architecture
 
 ## 1. Purpose

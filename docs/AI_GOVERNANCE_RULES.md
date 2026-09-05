@@ -1,3 +1,4 @@
+<!-- CLASSIFICATION: RUNTIME-AI -->
 # 🧠 AI GOVERNANCE RULES — IN-PRODUCT RUNTIME
 
 > **System**: Dentix In-Product Clinical AI Assistant & Runtime Policy Engine<br>

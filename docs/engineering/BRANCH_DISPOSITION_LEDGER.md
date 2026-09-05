@@ -1,7 +1,8 @@
+<!-- CLASSIFICATION: ACTIVE -->
 # DENTIX Local Branch Disposition Ledger
 
 **Authority:** `docs/engineering/DEVELOPMENT_WORKFLOW.md`
-**Classification:** `ARCHITECTURE-REFERENCE`
+**Classification:** `ACTIVE`
 **Scope:** Repository branch inventory, forensic ancestry verification, and disposition governance.
 
 ---

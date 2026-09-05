@@ -33,6 +33,8 @@ def mock_clean_local_state():
         "uncommitted_lines": [],
         "local_origin_staging": "65be3b70",
         "local_origin_main": "86fbf612",
+        "branch_delta_baseline_ref": "origin/staging",
+        "branch_delta_baseline_sha": "65be3b70",
         "local_branches": [
             {"name": "chore/workflow-v3-movement-0", "sha": "dc0ba2fc", "ahead_vs_staging": 2, "behind_vs_staging": 0}
         ],
@@ -321,15 +323,15 @@ def test_ahead_rev_list_failure_records_error_and_fails_strict(capsys):
             return 0, "65be3b70"
         if "for-each-ref" in cmd_str:
             return 0, "feat/branch1 12345678"
-        if "staging..feat/branch1" in cmd_str:
+        if "origin/staging..feat/branch1" in cmd_str:
             return 128, "fatal: bad object staging"
-        if "feat/branch1..staging" in cmd_str:
+        if "feat/branch1..origin/staging" in cmd_str:
             return 0, "0"
         return 0, ""
 
     with patch.object(auditor_mod, "run_cmd", side_effect=mock_run):
         state = auditor_mod.audit_local_state(Path("."))
-        assert any("git rev-list --count staging..feat/branch1 failed" in e for e in state["errors"])
+        assert any("git rev-list --count origin/staging..feat/branch1 failed" in e for e in state["errors"])
         assert state["local_branches"][0]["ahead_vs_staging"] == -1
 
     with patch.object(auditor_mod, "audit_local_state", return_value=state), \
@@ -353,15 +355,15 @@ def test_behind_rev_list_failure_records_error_and_fails_strict(capsys):
             return 0, "65be3b70"
         if "for-each-ref" in cmd_str:
             return 0, "feat/branch1 12345678"
-        if "staging..feat/branch1" in cmd_str:
+        if "origin/staging..feat/branch1" in cmd_str:
             return 0, "0"
-        if "feat/branch1..staging" in cmd_str:
+        if "feat/branch1..origin/staging" in cmd_str:
             return 128, "fatal: bad object staging"
         return 0, ""
 
     with patch.object(auditor_mod, "run_cmd", side_effect=mock_run):
         state = auditor_mod.audit_local_state(Path("."))
-        assert any("git rev-list --count feat/branch1..staging failed" in e for e in state["errors"])
+        assert any("git rev-list --count feat/branch1..origin/staging failed" in e for e in state["errors"])
         assert state["local_branches"][0]["behind_vs_staging"] == -1
 
     with patch.object(auditor_mod, "audit_local_state", return_value=state), \
@@ -423,3 +425,75 @@ def test_worktree_status_failure_records_error_and_fails_strict(capsys):
         code = auditor_mod.main(["--strict"])
         assert code == 1
         assert "STRICT QUALIFICATION FAILURE" in capsys.readouterr().out
+
+
+def test_branch_deltas_use_origin_staging_and_report_baseline():
+    executed_commands = []
+
+    def mock_run(cmd, cwd=None):
+        executed_commands.append(cmd)
+        cmd_str = " ".join(cmd)
+        if "branch --show-current" in cmd_str:
+            return 0, "feature/example"
+        if "rev-parse HEAD" in cmd_str:
+            return 0, "11112222"
+        if "status --porcelain" in cmd_str:
+            return 0, ""
+        if "rev-parse origin/staging" in cmd_str:
+            return 0, "remote-staging-sha"
+        if "rev-parse origin/main" in cmd_str:
+            return 0, "remote-main-sha"
+        if "for-each-ref" in cmd_str:
+            return 0, "feature/example 11112222"
+        if "rev-list" in cmd_str:
+            return 0, "0"
+        return 0, ""
+
+    with patch.object(auditor_mod, "run_cmd", side_effect=mock_run):
+        state = auditor_mod.audit_local_state(Path("."))
+
+    rev_list_args = [cmd[-1] for cmd in executed_commands if "rev-list" in cmd]
+    assert rev_list_args == [
+        "origin/staging..feature/example",
+        "feature/example..origin/staging",
+    ]
+    assert state["branch_delta_baseline_ref"] == "origin/staging"
+    assert state["branch_delta_baseline_sha"] == "remote-staging-sha"
+
+
+def test_strict_mode_fails_for_dirty_workspace(mock_clean_local_state, capsys):
+    dirty_state = dict(mock_clean_local_state)
+    dirty_state["is_clean"] = False
+    dirty_state["uncommitted_lines"] = [" M governed-file.md"]
+    remote = {
+        "status": "REMOTE_AUDIT_LIVE", "open_prs": [], "blocked_issues": [],
+        "stale_tracking_refs": [], "repo_name": "r", "remote_branches_count": 2,
+        "remote_main_sha": "a", "remote_staging_sha": "65be3b70", "governance_drift": {},
+    }
+    with patch.object(auditor_mod, "audit_local_state", return_value=dirty_state), \
+         patch.object(auditor_mod, "audit_worktrees", return_value=([], [])), \
+         patch.object(auditor_mod, "audit_remote_github", return_value=remote):
+        assert auditor_mod.main(["--strict"]) == 1
+    assert "STRICT QUALIFICATION FAILURE" in capsys.readouterr().out
+
+
+def test_strict_mode_requires_explicit_duplicate_disposition(mock_clean_local_state, capsys):
+    remote = {
+        "status": "REMOTE_AUDIT_LIVE", "open_prs": [], "blocked_issues": [],
+        "stale_tracking_refs": [], "repo_name": "r", "remote_branches_count": 2,
+        "remote_main_sha": "a", "remote_staging_sha": "65be3b70", "governance_drift": {},
+    }
+    finding = [{
+        "identifier": "ODONTOGRAM",
+        "sources": ["local-branch:feature/a", "local-branch:feature/b"],
+        "label": "POSSIBLE_DUPLICATE_WORK",
+    }]
+    with patch.object(auditor_mod, "audit_local_state", return_value=mock_clean_local_state), \
+         patch.object(auditor_mod, "audit_worktrees", return_value=([], [])), \
+         patch.object(auditor_mod, "audit_remote_github", return_value=remote), \
+         patch.object(auditor_mod, "detect_duplicate_work", return_value=finding):
+        assert auditor_mod.main(["--strict"]) == 1
+        assert auditor_mod.main(["--strict", "--allow-duplicate-token", "ODONTOGRAM"]) == 0
+    output = capsys.readouterr().out
+    assert "POSSIBLE_DUPLICATE_WORK" in output
+    assert "ACCEPTED_DUPLICATE" in output

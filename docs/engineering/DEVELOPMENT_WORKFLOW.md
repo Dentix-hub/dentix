@@ -1,3 +1,4 @@
+<!-- CLASSIFICATION: ACTIVE -->
 # DENTIX Development Workflow
 
 ## 1. Overview & Core Lifecycle

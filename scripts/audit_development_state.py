@@ -68,7 +68,10 @@ def audit_local_state(root: Path) -> dict:
     if code_omain != 0:
         local_errors.append(f"git rev-parse origin/main failed: {local_origin_main}")
 
-    # Local branch inventory and ahead/behind vs staging
+    branch_delta_baseline_ref = "origin/staging"
+    branch_delta_baseline_sha = local_origin_staging if code_ostag == 0 else "UNKNOWN"
+
+    # Local branch inventory and ahead/behind vs the remote-tracking staging ref.
     code_refs, branch_lines_raw = run_cmd(
         ["git", "for-each-ref", "--format=%(refname:short) %(objectname)", "refs/heads/"], cwd=root
     )
@@ -86,16 +89,24 @@ def audit_local_state(root: Path) -> dict:
             if not b_sha:
                 local_errors.append(f"Missing SHA for branch '{b_name}' in branch inventory: '{line}'")
 
-            code_ahead, ahead = run_cmd(["git", "rev-list", "--count", f"staging..{b_name}"], cwd=root)
+            code_ahead, ahead = run_cmd(
+                ["git", "rev-list", "--count", f"{branch_delta_baseline_ref}..{b_name}"], cwd=root
+            )
             if code_ahead != 0:
-                local_errors.append(f"git rev-list --count staging..{b_name} failed: {ahead}")
+                local_errors.append(
+                    f"git rev-list --count {branch_delta_baseline_ref}..{b_name} failed: {ahead}"
+                )
                 ahead_val = -1
             else:
                 ahead_val = int(ahead) if ahead.isdigit() else -1
 
-            code_behind, behind = run_cmd(["git", "rev-list", "--count", f"{b_name}..staging"], cwd=root)
+            code_behind, behind = run_cmd(
+                ["git", "rev-list", "--count", f"{b_name}..{branch_delta_baseline_ref}"], cwd=root
+            )
             if code_behind != 0:
-                local_errors.append(f"git rev-list --count {b_name}..staging failed: {behind}")
+                local_errors.append(
+                    f"git rev-list --count {b_name}..{branch_delta_baseline_ref} failed: {behind}"
+                )
                 behind_val = -1
             else:
                 behind_val = int(behind) if behind.isdigit() else -1
@@ -114,6 +125,8 @@ def audit_local_state(root: Path) -> dict:
         "uncommitted_lines": status.splitlines() if (code_s == 0 and status) else [],
         "local_origin_staging": local_origin_staging if code_ostag == 0 else "UNKNOWN",
         "local_origin_main": local_origin_main if code_omain == 0 else "UNKNOWN",
+        "branch_delta_baseline_ref": branch_delta_baseline_ref,
+        "branch_delta_baseline_sha": branch_delta_baseline_sha,
         "local_branches": local_branches,
         "errors": local_errors,
     }
@@ -374,7 +387,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--strict",
         action="store_true",
-        help="Strict qualification mode: exits non-zero if remote audit is not LIVE, refs are stale, or errors exist",
+        help=(
+            "Strict qualification mode: exits non-zero if the workspace/worktrees are dirty, "
+            "remote audit is not LIVE, refs are stale, unresolved duplicate work exists, or errors occur"
+        ),
+    )
+    parser.add_argument(
+        "--allow-duplicate-token",
+        action="append",
+        default=[],
+        metavar="TOKEN",
+        help="Explicitly accept one duplicate-work token for this audit run; repeat for multiple tokens",
     )
     args = parser.parse_args(argv)
 
@@ -394,6 +417,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  HEAD SHA:       {local_state['head_sha']}")
     print(f"  Working Tree:   {'CLEAN' if local_state['is_clean'] else 'DIRTY'}")
     if not local_state["is_clean"]:
+        has_failures = True
         print(f"  Uncommitted changes ({len(local_state['uncommitted_lines'])} lines):")
         for line in local_state["uncommitted_lines"]:
             print(f"    {line}")
@@ -419,9 +443,14 @@ def main(argv: list[str] | None = None) -> int:
         has_failures = True
         for err in wt_errors:
             print(f"    ! {err}")
+    if any(not wt.get("is_clean", False) for wt in worktrees):
+        has_failures = True
 
     # 3. Local Branches & Staging Delta
-    print(f"\n[LOCAL BRANCHES & DELTA VS STAGING ({len(local_state['local_branches'])})]")
+    baseline_ref = local_state.get("branch_delta_baseline_ref", "UNKNOWN")
+    baseline_sha = local_state.get("branch_delta_baseline_sha", "UNKNOWN")
+    print(f"\n[LOCAL BRANCHES & DELTA VS {baseline_ref.upper()} ({len(local_state['local_branches'])})]")
+    print(f"  Baseline: {baseline_ref} @ {baseline_sha}")
     for b in local_state["local_branches"]:
         ahead = b["ahead_vs_staging"]
         behind = b["behind_vs_staging"]
@@ -489,12 +518,24 @@ def main(argv: list[str] | None = None) -> int:
 
         # Duplicate Work Detection
         dup_findings = detect_duplicate_work(local_state["local_branches"], prs, blocked)
+        accepted_duplicate_tokens = {
+            token.strip().upper() for token in args.allow_duplicate_token if token.strip()
+        }
+        unresolved_duplicates = [
+            finding
+            for finding in dup_findings
+            if finding["identifier"].upper() not in accepted_duplicate_tokens
+        ]
         print(f"\n[DUPLICATE TICKET DETECTION ({len(dup_findings)})]")
         if dup_findings:
             for f in dup_findings:
-                print(f"  - [{f['label']}] Target Token '{f['identifier']}':")
+                accepted = f["identifier"].upper() in accepted_duplicate_tokens
+                label = "ACCEPTED_DUPLICATE" if accepted else f["label"]
+                print(f"  - [{label}] Target Token '{f['identifier']}':")
                 for src in f["sources"]:
                     print(f"      * {src}")
+            if unresolved_duplicates:
+                has_failures = True
         else:
             print("  No duplicate active branch targets detected.")
 

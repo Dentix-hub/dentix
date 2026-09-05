@@ -132,12 +132,42 @@ def provenance_fixture():
         }
 
 
-# 1. Exact match passes in full-gate mode
-def test_exact_match_passes(provenance_fixture):
+# 1. Exact match in a Git source passes in full-gate mode
+def test_exact_match_passes(provenance_fixture, monkeypatch):
+    source_root = provenance_fixture["source_root"]
+    (source_root / ".git-commit").unlink()
+    subprocess.run(["git", "init"], cwd=source_root, capture_output=True, check=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=source_root, capture_output=True, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=source_root, capture_output=True, check=True)
+    subprocess.run(["git", "add", "."], cwd=source_root, capture_output=True, check=True)
+    subprocess.run(["git", "commit", "-m", "pinned fixture"], cwd=source_root, capture_output=True, check=True)
+
+    original_run = subprocess.run
+
+    def pinned_git_run(cmd, *args, **kwargs):
+        if kwargs.get("cwd") == source_root and isinstance(cmd, list):
+            if cmd[:3] == ["git", "rev-parse", "HEAD"]:
+                return subprocess.CompletedProcess(
+                    cmd, 0, stdout=CANONICAL_PINNED_COMMIT + "\n", stderr=""
+                )
+            if cmd[:4] == ["git", "ls-tree", "-r", "--name-only"]:
+                actual_cmd = list(cmd)
+                actual_cmd[4] = "HEAD"
+                return original_run(actual_cmd, *args, **kwargs)
+            if cmd[:3] == ["git", "cat-file", "-p"]:
+                actual_cmd = list(cmd)
+                target = actual_cmd[3]
+                if target.startswith(f"{CANONICAL_PINNED_COMMIT}:"):
+                    actual_cmd[3] = "HEAD:" + target[len(CANONICAL_PINNED_COMMIT) + 1:]
+                return original_run(actual_cmd, *args, **kwargs)
+        return original_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", pinned_git_run)
+
     code, failures, summary = verify_skills(
         lock_file=provenance_fixture["lock_file"],
         installed_root=provenance_fixture["installed_root"],
-        source_root=provenance_fixture["source_root"],
+        source_root=source_root,
     )
     assert code == 0, f"Expected 0, got failures: {failures}"
     assert len(failures) == 0
@@ -608,8 +638,8 @@ def test_all_six_files_of_alleged_historical_commit_must_match_before_attributin
     assert is_commit_proven(fully_matching_installed, alleged_commit_files)
 
 
-# 24. CLI Execution Smoke Test with source-root passes full gate
-def test_cli_execution_full_gate_smoke(provenance_fixture):
+# 24. Non-Git CLI source remains diagnostic and cannot pass the full gate
+def test_cli_execution_non_git_source_is_diagnostic(provenance_fixture):
     res = subprocess.run(
         [
             sys.executable,
@@ -624,9 +654,24 @@ def test_cli_execution_full_gate_smoke(provenance_fixture):
         capture_output=True,
         text=True,
     )
-    assert res.returncode == 0
-    assert "[PASS] EXTERNAL_SKILL_PROVENANCE = PASS" in res.stdout
+    assert res.returncode == 2
+    assert "[DIAGNOSTIC]" in res.stdout
+    assert "source root is not a Git repository" in res.stdout
+    assert "EXTERNAL_SKILL_PROVENANCE = PASS" not in res.stdout
     assert "delegate-setup" in res.stdout
+
+
+def test_non_git_source_commit_assertion_cannot_pass_full_gate(provenance_fixture):
+    code, failures, summary = verify_skills(
+        lock_file=provenance_fixture["lock_file"],
+        installed_root=provenance_fixture["installed_root"],
+        source_root=provenance_fixture["source_root"],
+        source_commit=CANONICAL_PINNED_COMMIT,
+    )
+    assert code == 2
+    assert failures == []
+    assert summary["source_verified"] is False
+    assert summary["mode"] == "DIAGNOSTIC"
 
 
 # 25. uppercase commit SHA fails
@@ -1038,15 +1083,15 @@ def test_ordinary_directory_and_ordinary_files_still_pass(provenance_fixture):
     assert "references/schema.md" in scanned
     assert "scripts/config.mjs" in scanned
 
-    # Full gate verification passes
+    # Ordinary non-Git trees can pass diagnostic byte checks, but not provenance.
     code, failures, summary = verify_skills(
         lock_file=provenance_fixture["lock_file"],
         installed_root=provenance_fixture["installed_root"],
         source_root=provenance_fixture["source_root"],
     )
-    assert code == 0
+    assert code == 2
     assert len(failures) == 0
-    assert summary["source_verified"] is True
+    assert summary["source_verified"] is False
     assert summary["skills"]["delegate-setup"]["status"] == "PASS"
     assert summary["skills"]["agy-delegate"]["status"] == "PASS"
     assert summary["skills"]["codex-delegate"]["status"] == "PASS"

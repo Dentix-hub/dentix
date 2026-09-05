@@ -490,6 +490,10 @@ def verify_skills(
         "total_expected_files": 0,
         "source_verified": False,
         "mode": "FULL_GATE" if (source_root is not None and not diagnostic) else "DIAGNOSTIC",
+        "source_verification_reason": (
+            "diagnostic mode was requested" if diagnostic else
+            "source root was not provided" if source_root is None else ""
+        ),
     }
 
     if not lock_file.exists():
@@ -616,7 +620,13 @@ def verify_skills(
                             )
 
             else:
-                # Non-Git offline fixture source
+                # A non-Git tree can support diagnostic byte comparison, but it
+                # cannot prove immutable commit/tree provenance for the full gate.
+                summary["mode"] = "DIAGNOSTIC"
+                summary["source_verification_reason"] = (
+                    "source root is not a Git repository; full provenance requires "
+                    "git HEAD, ls-tree, and cat-file verification"
+                )
                 marker_path = source_root / ".git-commit"
                 if source_commit:
                     found_commit = source_commit.strip().lower()
@@ -682,7 +692,7 @@ def verify_skills(
                                 f"MODIFIED_SOURCE_FILE: [{skill_name}] '{common_p}' size mismatch in source directory (expected {exp_m['size']}, got {act_size})"
                             )
 
-        if not failures:
+        if is_git and not failures:
             summary["source_verified"] = True
 
     # 2. Installed skills verification
@@ -810,7 +820,7 @@ def main() -> int:
         "--source-commit",
         type=str,
         default=None,
-        help="Optional commit SHA to verify source root against",
+        help="Optional diagnostic assertion for a non-Git source; never establishes the full gate",
     )
     parser.add_argument(
         "--diagnostic",
@@ -863,7 +873,10 @@ def main() -> int:
         return 0
     elif exit_code == 2:
         print("[DIAGNOSTIC] Installed skill inspection completed.")
-        print("WARNING: Full provenance was NOT established because --source-root was not provided.")
+        print(
+            "WARNING: Full provenance was NOT established because "
+            f"{summary.get('source_verification_reason', 'the source was not Git-verified')}."
+        )
         print("EXTERNAL_SKILL_PROVENANCE gate CANNOT pass without source verification against pinned commit.")
         print("Run full verification with:")
         print("  python scripts/verify_external_skills.py --source-root <path-to-pinned-source-repo>")

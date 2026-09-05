@@ -1,7 +1,7 @@
-<!-- CLASSIFICATION: ARCHITECTURE-REFERENCE -->
+<!-- CLASSIFICATION: ACTIVE -->
 # 🏥 Dentix Project Technical Guide (Subordinate Architectural Reference)
 
-> **Document Classification**: `ARCHITECTURE-REFERENCE`
+> **Document Classification**: `ACTIVE`
 > **Authority Status**: SUBORDINATE REFERENCE ONLY
 >
 > **GOVERNANCE & WORKFLOW BOUNDARIES**:

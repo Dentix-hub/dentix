@@ -305,12 +305,15 @@ def check_nine_layer_hierarchy(root: Path, failures: list[str]) -> None:
 
 
 def check_historical_headers(root: Path, failures: list[str]) -> None:
+    completed_v3_plan = root / "docs" / "DENTIX_LEAN_LOCAL_FIRST_MULTI_AGENT_WORKFLOW_V3_FINAL_IMPLEMENTATION_PLAN.md"
     historical_files = [
         root / "docs" / "soul.md",
         root / "docs" / "tttt.md",
         root / "docs" / "engineering" / "DENTIX_WORKFLOW_V2_1_PHASE7_PILOT_EVIDENCE.md",
         root / "docs" / "engineering" / "ODONTOGRAM_VNEXT_TICKET_GRAPH.md",
+        root / "docs" / "engineering" / "M3A_PILOT_B_ACCEPTANCE.md",
         root / "docs" / "DENTIX_ODONTOGRAM_FIRST_EXECUTION_AND_VNEXT_HANDOFF_FINAL_MASTER_PLAN.md",
+        completed_v3_plan,
     ]
 
     header_pattern = re.compile(r"STATUS:\s*HISTORICAL\s*/\s*NON-AUTHORITATIVE", re.IGNORECASE)
@@ -325,25 +328,59 @@ def check_historical_headers(root: Path, failures: list[str]) -> None:
                 "'STATUS: HISTORICAL / NON-AUTHORITATIVE' archive header."
             )
 
+    if completed_v3_plan.exists():
+        content = completed_v3_plan.read_text(encoding="utf-8")
+        active_claim_pattern = re.compile(
+            r"Status:.*READY FOR CONTROLLED EXECUTION|"
+            r"This plan establishes one lean DENTIX development workflow",
+            re.IGNORECASE,
+        )
+        if active_claim_pattern.search(content):
+            failures.append(
+                f"Completed plan '{completed_v3_plan.relative_to(root)}' still claims active workflow authority."
+            )
+
 
 def check_document_classifications(root: Path, failures: list[str]) -> None:
     expected_classifications = [
+        (root / "AGENTS.md", "ACTIVE"),
+        (root / ".agents" / "README.md", "ACTIVE"),
+        (root / "docs" / "AI_AGENT_STACK.md", "ACTIVE"),
+        (root / "docs" / "engineering" / "DEVELOPMENT_WORKFLOW.md", "ACTIVE"),
         (root / "docs" / "AI_GOVERNANCE_RULES.md", "RUNTIME-AI"),
-        (root / "docs" / "HERMES_AGENT_GUIDE.md", "ARCHITECTURE-REFERENCE"),
+        (root / "docs" / "HERMES_AGENT_GUIDE.md", "ACTIVE"),
         (root / "docs" / "product" / "ODONTOGRAM_VNEXT_PRODUCT_SPEC.md", "PRODUCT-SPEC"),
         (root / "docs" / "product" / "ODONTOGRAM_TRACEABILITY_MATRIX.md", "PRODUCT-SPEC"),
-        (root / "docs" / "engineering" / "BRANCH_DISPOSITION_LEDGER.md", "ARCHITECTURE-REFERENCE"),
-        (root / "docs" / "engineering" / "CLINICAL_CHART_DISPOSITION.md", "ARCHITECTURE-REFERENCE"),
+        (root / "docs" / "engineering" / "BRANCH_CLEANUP_INSTRUCTIONS.md", "ACTIVE"),
+        (root / "docs" / "engineering" / "BRANCH_DISPOSITION_LEDGER.md", "ACTIVE"),
+        (root / "docs" / "engineering" / "CLINICAL_CHART_DISPOSITION.md", "ACTIVE"),
     ]
+    canonical_classifications = {"ACTIVE", "PRODUCT-SPEC", "RUNTIME-AI", "HISTORICAL"}
+    marker_pattern = re.compile(r"<!--\s*CLASSIFICATION:\s*([A-Z][A-Z-]*)\s*-->", re.IGNORECASE)
 
     for path, expected_cls in expected_classifications:
         if not path.exists():
             failures.append(f"Required classified document missing: '{path.relative_to(root)}'.")
             continue
         first_lines = "".join(path.read_text(encoding="utf-8").splitlines(keepends=True)[:15])
-        if expected_cls.lower() not in first_lines.lower():
+        marker = marker_pattern.search(first_lines)
+        if marker is None:
             failures.append(
-                f"Document '{path.relative_to(root)}' is missing expected classification '{expected_cls}' in header."
+                f"Document '{path.relative_to(root)}' is missing canonical classification marker "
+                f"'<!-- CLASSIFICATION: {expected_cls} -->' in its header."
+            )
+            continue
+
+        actual_cls = marker.group(1).upper()
+        if actual_cls not in canonical_classifications:
+            failures.append(
+                f"Document '{path.relative_to(root)}' uses unsupported classification '{actual_cls}'; "
+                f"expected one of {sorted(canonical_classifications)}."
+            )
+        elif actual_cls != expected_cls:
+            failures.append(
+                f"Document '{path.relative_to(root)}' has classification '{actual_cls}', "
+                f"expected '{expected_cls}'."
             )
 
 
@@ -546,7 +583,7 @@ def main() -> int:
     print("  - No retired agent-ci-signal references")
     print("  - No hardcoded coverage values in native skills or AI stack docs")
     print("  - Historical documents have required archive headers")
-    print("  - Document classifications verified (RUNTIME-AI, ARCHITECTURE-REFERENCE, PRODUCT-SPEC)")
+    print("  - Document classifications verified (ACTIVE, PRODUCT-SPEC, RUNTIME-AI, HISTORICAL)")
     print("  - External skills strictly subordinate to DENTIX standards")
     print("  - External skill lock schema, verifier, and pre-Movement-2 gate verified")
     print("  - Orchestration authority links resolve to canonical repository files (link integrity only)")

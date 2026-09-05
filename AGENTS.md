@@ -1,3 +1,4 @@
+<!-- CLASSIFICATION: ACTIVE -->
 # DENTIX Repository Instructions
 
 ## 1. Source of Truth
