@@ -1,4 +1,5 @@
 <!-- STATUS: HISTORICAL / NON-AUTHORITATIVE -->
+<!-- CLASSIFICATION: HISTORICAL -->
 # STATUS: HISTORICAL / NON-AUTHORITATIVE
 > **Archived Document** — This file records historical V2.1 ticket graph mechanics (waves, micro-tickets, and execution nodes).
 > All active clinical, functional, and anatomical requirements have been extracted into the canonical product specification: [ODONTOGRAM_VNEXT_PRODUCT_SPEC.md](../product/ODONTOGRAM_VNEXT_PRODUCT_SPEC.md).

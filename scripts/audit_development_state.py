@@ -252,7 +252,10 @@ def audit_remote_github(root: Path, local_state: dict) -> dict:
     # Open PRs
     prs: list[dict] | None = None
     pr_code, pr_out = run_cmd(
-        ["gh", "pr", "list", "--state", "open", "--json", "number,title,headRefName,baseRefName,state"],
+        [
+            "gh", "pr", "list", "--state", "open", "--limit", "1000",
+            "--json", "number,title,headRefName,baseRefName,state",
+        ],
         cwd=root,
     )
     if pr_code != 0:
@@ -267,7 +270,10 @@ def audit_remote_github(root: Path, local_state: dict) -> dict:
     # Blocked issues
     blocked_issues: list[dict] | None = None
     issue_code, issue_out = run_cmd(
-        ["gh", "issue", "list", "--state", "open", "--json", "number,title,labels,state"],
+        [
+            "gh", "issue", "list", "--state", "open", "--limit", "1000",
+            "--json", "number,title,labels,state",
+        ],
         cwd=root,
     )
     if issue_code != 0:

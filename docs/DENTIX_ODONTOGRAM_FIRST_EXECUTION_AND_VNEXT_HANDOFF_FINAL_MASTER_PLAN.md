@@ -1,7 +1,8 @@
 <!-- STATUS: HISTORICAL / NON-AUTHORITATIVE -->
+<!-- CLASSIFICATION: HISTORICAL -->
 # DENTIX_ODONTOGRAM_FIRST_EXECUTION_AND_VNEXT_HANDOFF_FINAL_MASTER_PLAN
 
-> **Classification**: `HISTORICAL-ARCHIVE`
+> **Classification**: `HISTORICAL`
 > **Status**: HISTORICAL / NON-AUTHORITATIVE ARCHIVE
 > **Notice**:
 > - This document is retained strictly as a historical requirement source record.

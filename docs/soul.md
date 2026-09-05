@@ -1,4 +1,5 @@
 <!-- STATUS: HISTORICAL / NON-AUTHORITATIVE -->
+<!-- CLASSIFICATION: HISTORICAL -->
 # STATUS: HISTORICAL / NON-AUTHORITATIVE
 > **Archived Document** — This file documents the historical Hermes / `.agent/` architecture. It is preserved for reference only and is strictly **NON-AUTHORITATIVE**. Active DENTIX development is governed by `docs/engineering/DEVELOPMENT_WORKFLOW.md` and root `AGENTS.md`.
 

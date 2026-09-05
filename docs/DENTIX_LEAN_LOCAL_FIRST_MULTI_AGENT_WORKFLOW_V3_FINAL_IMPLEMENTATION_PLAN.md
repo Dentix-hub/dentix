@@ -1,4 +1,5 @@
 <!-- STATUS: HISTORICAL / NON-AUTHORITATIVE -->
+<!-- CLASSIFICATION: HISTORICAL -->
 # STATUS: HISTORICAL / NON-AUTHORITATIVE
 > Archived after completion of local and remote qualification. This document preserves implementation evidence and cannot control current execution. The sole active lifecycle authority is `docs/engineering/DEVELOPMENT_WORKFLOW.md`.
 

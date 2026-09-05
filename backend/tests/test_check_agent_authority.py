@@ -95,6 +95,7 @@ def create_valid_fixture(root: Path) -> None:
     # Historical files with required headers
     historical_header = (
         "<!-- STATUS: HISTORICAL / NON-AUTHORITATIVE -->\n"
+        "<!-- CLASSIFICATION: HISTORICAL -->\n"
         "# STATUS: HISTORICAL / NON-AUTHORITATIVE\n"
         "> Archived.\n\n"
     )
@@ -105,6 +106,9 @@ def create_valid_fixture(root: Path) -> None:
     )
     (root / "docs" / "engineering" / "ODONTOGRAM_VNEXT_TICKET_GRAPH.md").write_text(
         historical_header + "# Ticket Graph\n", encoding="utf-8"
+    )
+    (root / "docs" / "engineering" / "M3A_PILOT_B_ACCEPTANCE.md").write_text(
+        historical_header + "# Pilot B Acceptance\n", encoding="utf-8"
     )
     (root / "docs" / "DENTIX_ODONTOGRAM_FIRST_EXECUTION_AND_VNEXT_HANDOFF_FINAL_MASTER_PLAN.md").write_text(
         historical_header + "# Master Plan\n", encoding="utf-8"
@@ -338,6 +342,22 @@ def test_legacy_master_plan_missing_historical_header_fails(temp_repo):
     code, failures, _ = run_linter(temp_repo)
     assert code == 1
     assert any("DENTIX_ODONTOGRAM_FIRST_EXECUTION_AND_VNEXT_HANDOFF_FINAL_MASTER_PLAN.md" in f and "missing mandatory 'STATUS: HISTORICAL / NON-AUTHORITATIVE'" in f for f in failures)
+
+
+def test_historical_master_plan_rejects_unsupported_classification(temp_repo):
+    master_plan = temp_repo / "docs" / "DENTIX_ODONTOGRAM_FIRST_EXECUTION_AND_VNEXT_HANDOFF_FINAL_MASTER_PLAN.md"
+    content = master_plan.read_text(encoding="utf-8")
+    master_plan.write_text(
+        content.replace("CLASSIFICATION: HISTORICAL", "CLASSIFICATION: HISTORICAL-ARCHIVE"),
+        encoding="utf-8",
+    )
+    code, failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any(
+        "DENTIX_ODONTOGRAM_FIRST_EXECUTION_AND_VNEXT_HANDOFF_FINAL_MASTER_PLAN.md" in f
+        and "unsupported classification 'HISTORICAL-ARCHIVE'" in f
+        for f in failures
+    )
 
 
 def test_completed_v3_plan_missing_historical_header_fails(temp_repo):

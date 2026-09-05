@@ -520,10 +520,12 @@ def verify_skills(
     summary["repository_url"] = source_info["repository_url"]
 
     # 1. Source root verification
+    is_git = False
     if source_root is not None and not diagnostic:
         summary["source_root"] = str(source_root)
         if not source_root.exists() or not source_root.is_dir():
             failures.append(f"Specified source root does not exist: '{source_root}'")
+            summary["source_verification_reason"] = "specified source root does not exist or is not a directory"
         else:
             is_git = (source_root / ".git").exists()
             if is_git:

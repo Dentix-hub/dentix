@@ -1,4 +1,5 @@
 <!-- STATUS: HISTORICAL / NON-AUTHORITATIVE -->
+<!-- CLASSIFICATION: HISTORICAL -->
 # STATUS: HISTORICAL / NON-AUTHORITATIVE
 > **Archived Scratch Document** — This scratch/prompt reference is strictly **NON-AUTHORITATIVE**. Current development authority is governed by `docs/engineering/DEVELOPMENT_WORKFLOW.md` and root `AGENTS.md`.
 

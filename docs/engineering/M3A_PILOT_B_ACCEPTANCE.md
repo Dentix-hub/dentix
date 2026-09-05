@@ -1,4 +1,5 @@
 STATUS: HISTORICAL / NON-AUTHORITATIVE
+<!-- CLASSIFICATION: HISTORICAL -->
 
 # Movement 3A Pilot B — Local acceptance record
 

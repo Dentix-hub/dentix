@@ -354,6 +354,13 @@ def check_document_classifications(root: Path, failures: list[str]) -> None:
         (root / "docs" / "engineering" / "BRANCH_CLEANUP_INSTRUCTIONS.md", "ACTIVE"),
         (root / "docs" / "engineering" / "BRANCH_DISPOSITION_LEDGER.md", "ACTIVE"),
         (root / "docs" / "engineering" / "CLINICAL_CHART_DISPOSITION.md", "ACTIVE"),
+        (root / "docs" / "soul.md", "HISTORICAL"),
+        (root / "docs" / "tttt.md", "HISTORICAL"),
+        (root / "docs" / "engineering" / "DENTIX_WORKFLOW_V2_1_PHASE7_PILOT_EVIDENCE.md", "HISTORICAL"),
+        (root / "docs" / "engineering" / "ODONTOGRAM_VNEXT_TICKET_GRAPH.md", "HISTORICAL"),
+        (root / "docs" / "engineering" / "M3A_PILOT_B_ACCEPTANCE.md", "HISTORICAL"),
+        (root / "docs" / "DENTIX_ODONTOGRAM_FIRST_EXECUTION_AND_VNEXT_HANDOFF_FINAL_MASTER_PLAN.md", "HISTORICAL"),
+        (root / "docs" / "DENTIX_LEAN_LOCAL_FIRST_MULTI_AGENT_WORKFLOW_V3_FINAL_IMPLEMENTATION_PLAN.md", "HISTORICAL"),
     ]
     canonical_classifications = {"ACTIVE", "PRODUCT-SPEC", "RUNTIME-AI", "HISTORICAL"}
     marker_pattern = re.compile(r"<!--\s*CLASSIFICATION:\s*([A-Z][A-Z-]*)\s*-->", re.IGNORECASE)

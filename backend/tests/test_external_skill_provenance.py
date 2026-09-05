@@ -674,6 +674,19 @@ def test_non_git_source_commit_assertion_cannot_pass_full_gate(provenance_fixtur
     assert summary["mode"] == "DIAGNOSTIC"
 
 
+def test_missing_source_root_fails_without_exception(provenance_fixture):
+    missing_source = provenance_fixture["source_root"].parent / "missing-source-root"
+    code, failures, summary = verify_skills(
+        lock_file=provenance_fixture["lock_file"],
+        installed_root=provenance_fixture["installed_root"],
+        source_root=missing_source,
+    )
+    assert code == 1
+    assert failures == [f"Specified source root does not exist: '{missing_source}'"]
+    assert summary["source_verified"] is False
+    assert summary["source_verification_reason"] == "specified source root does not exist or is not a directory"
+
+
 # 25. uppercase commit SHA fails
 def test_uppercase_commit_sha_fails(provenance_fixture):
     lock_data = build_lock_dict(SAMPLE_SKILL_FILES)

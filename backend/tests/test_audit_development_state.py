@@ -43,7 +43,10 @@ def mock_clean_local_state():
 
 
 def test_all_commands_succeed_returns_live(mock_clean_local_state):
+    observed_commands = []
+
     def mock_run(cmd, cwd=None):
+        observed_commands.append(cmd)
         cmd_str = " ".join(cmd)
         if "auth status" in cmd_str:
             return 0, "Logged in to github.com"
@@ -69,6 +72,10 @@ def test_all_commands_succeed_returns_live(mock_clean_local_state):
         assert len(res["errors"]) == 0
         assert res["open_prs"] == []
         assert res["blocked_issues"] == []
+        pr_command = next(cmd for cmd in observed_commands if cmd[:3] == ["gh", "pr", "list"])
+        issue_command = next(cmd for cmd in observed_commands if cmd[:3] == ["gh", "issue", "list"])
+        assert pr_command[pr_command.index("--limit") + 1] == "1000"
+        assert issue_command[issue_command.index("--limit") + 1] == "1000"
 
 
 def test_gh_unavailable_returns_failed(mock_clean_local_state):
