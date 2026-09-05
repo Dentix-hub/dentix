@@ -41,7 +41,7 @@ DELETE TEMPORARY BRANCHES
 * **`staging`**: Protected canonical integration branch.
 * **Feature Branches**: Ephemeral, short-lived branches created from and merged into `staging`. Delete feature branches immediately after successful merge.
 * **Production Promotion**: Normal production promotion is the current protected `staging` revision into `main`. Do not create a new main-alignment PR after every small feature unless a release is actually intended.
-* **Direct `main` Exceptions**: `hotfix/*` and documented `release/*` reconciliation branches remain exceptional paths and must undergo fresh CI because they are not trusted `staging` promotions.
+* **Direct `main` Exceptions**: `hotfix/*` and documented `release/promotion-*` reconciliation branches remain exceptional paths and must undergo fresh CI because they are not trusted `staging` promotions.
 
 ---
 
@@ -69,7 +69,7 @@ DELETE TEMPORARY BRANCHES
 * **Protected Push After Merge**: Do **not** rerun the already-passed full test/build matrix merely because the PR was merged. The protected-branch `Dentix CI` run acts as a lightweight handoff so CD can deploy the exact merged revision.
 * **`staging` Runtime Gate**: The deployed staging revision must pass `Dentix CD - HF staging smoke` before it can use the trusted `staging → main` promotion path.
 * **`staging → main` Promotion**: Reuse the exact already-validated staging revision. Heavy CI jobs and duplicate secret/mobile builds may be skipped; governance, provenance, branch protection, and staging-smoke evidence remain mandatory.
-* **Direct `main` Hotfix/Release**: A `hotfix/*` or `release/*` branch that does not come directly from current `staging` must run fresh CI under the normal classifier rules.
+* **Direct `main` Hotfix/Release**: A `hotfix/*` or `release/promotion-*` branch that does not come directly from current `staging` must run fresh CI under the normal classifier rules.
 * **Explicit Override**: Applying a supported HIGH_RISK label to a `staging → main` PR intentionally forces fresh full CI if a second validation is desired.
 * **Integrity**: Never weaken validation, assertions, RLS/security/finance/clinical checks, or deployment smoke merely to make CI green or faster.
 
