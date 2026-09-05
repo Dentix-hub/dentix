@@ -1,0 +1,115 @@
+{
+  "schema_version": "1.0.0",
+  "source": {
+    "name": "delegate-skills",
+    "repository_url": "https://github.com/amElnagdy/delegate-skills.git",
+    "pinned_commit": "b781ee2e23089630e2fbee1cfd6174afe4edeb76",
+    "license": "MIT",
+    "declared_version": "0.5.0"
+  },
+  "skills": {
+    "delegate-setup": {
+      "upstream_subpath": "skills/delegate-setup",
+      "installed_subpath": "skills/delegate-setup",
+      "declared_version": "0.5.0",
+      "license": "MIT",
+      "file_count": 7,
+      "files": {
+        "SKILL.md": {
+          "sha256": "adf510d3c3d50e8d8e90abb8d9dbcc6124c83626d4580ceb152ccd8ed64c0d75",
+          "size": 10929
+        },
+        "references/schema.md": {
+          "sha256": "00652cdc5ac81c4f28d61213a51692c2b7aa2235f12ef03eb50441025cf69cc6",
+          "size": 5131
+        },
+        "references/setup-dialogue.md": {
+          "sha256": "ce6668f5f9209f841d2c506f2e32be0fab3ac402133aadfda1cc008d90f5c988",
+          "size": 6958
+        },
+        "scripts/config.mjs": {
+          "sha256": "67f02a975150d266a978d89339f9daf9de8fa1278a9627bd0db4c612ba26f49b",
+          "size": 17897
+        },
+        "scripts/discover.mjs": {
+          "sha256": "d68ec32e9dab78de9c4ecb8836721ded3cb2dd78271e1071aa6d66d6e035f331",
+          "size": 16072
+        },
+        "scripts/implementers.mjs": {
+          "sha256": "0b5d6d464073480fb5aaa1898cea2b1a7744e0a5934bf9f4f77064763d2ff9e7",
+          "size": 16307
+        },
+        "scripts/lane.mjs": {
+          "sha256": "478931e4fa941ebfc9ec48f8372207f1200172c2c38e44d03828627b98c63dc9",
+          "size": 6817
+        }
+      }
+    },
+    "agy-delegate": {
+      "upstream_subpath": "skills/agy-delegate",
+      "installed_subpath": "skills/agy-delegate",
+      "declared_version": "0.5.0",
+      "license": "MIT",
+      "file_count": 6,
+      "files": {
+        "SKILL.md": {
+          "sha256": "078e73710a327ca1cda5df593789004f6f650ce68ea39f156ac080bcd3bc7b01",
+          "size": 8488
+        },
+        "references/dispatch-and-poll.md": {
+          "sha256": "e2588f200f1a8c24428e3d2950f52bab539d8ebfc581b222cf39850a69d6ba84",
+          "size": 9380
+        },
+        "references/multi-task-queues.md": {
+          "sha256": "e0d48bc9c5604ebeca82fbe5d529fa8bbecb58945ca9fc12bf8ae37b4189a2e8",
+          "size": 2960
+        },
+        "references/review-and-land.md": {
+          "sha256": "b7b851d9ddac36104cb8cc08a42c2bcf2f2655ebfb607cf45d189088cb316c26",
+          "size": 5408
+        },
+        "references/writing-the-brief.md": {
+          "sha256": "9eb35ea9a977149fcde1b2ecc5116bc0d6124062d0625c2c3bd5b1420c90f200",
+          "size": 5460
+        },
+        "scripts/relay.mjs": {
+          "sha256": "bd62feda1127825b2e04f856942ca04fac994a621f36a802377867dc6538998e",
+          "size": 34031
+        }
+      }
+    },
+    "codex-delegate": {
+      "upstream_subpath": "skills/codex-delegate",
+      "installed_subpath": "skills/codex-delegate",
+      "declared_version": "0.5.0",
+      "license": "MIT",
+      "file_count": 6,
+      "files": {
+        "SKILL.md": {
+          "sha256": "60aa857bc222202fae8a8eb7e1875ba9dec011f574d38f07b17e279e97ad2286",
+          "size": 10202
+        },
+        "references/dispatch-and-poll.md": {
+          "sha256": "9035c784feb2a343be910034321671b93924d64573389907822c357df0ca8e13",
+          "size": 11686
+        },
+        "references/multi-task-queues.md": {
+          "sha256": "ae42b337dacfaa90affdeacb6c30495a814b23c5fb0181a2d9b62125d4b43cee",
+          "size": 3741
+        },
+        "references/review-and-land.md": {
+          "sha256": "9a47cc3e525c0e3e2d1d145dc96db782461eaeeafcc1870fe3870d0c2d462b23",
+          "size": 7877
+        },
+        "references/writing-the-brief.md": {
+          "sha256": "8dfa30e6638cf8eeacbfde3f65228f2d7df182e8d49d6ea1b4083f28cd24e8a7",
+          "size": 6072
+        },
+        "scripts/relay.mjs": {
+          "sha256": "7cd50aeb9952e499e5b959b0dc63e34d0c080fbcf7088ee7bcde78d6864b7cce",
+          "size": 31980
+        }
+      }
+    }
+  }
+}

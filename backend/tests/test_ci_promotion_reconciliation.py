@@ -78,6 +78,14 @@ def test_governance_proves_reconciled_promotion_provenance_and_tree_identity():
     assert "git diff --quiet origin/main origin/staging -- .github/workflows/cd.yml" in guard
 
 
+def test_active_workflow_documents_exact_reconciliation_branch_family():
+    workflow_doc = (REPO_ROOT / "docs" / "engineering" / "DEVELOPMENT_WORKFLOW.md").read_text(
+        encoding="utf-8"
+    )
+    assert workflow_doc.count("`release/promotion-*`") == 2
+    assert "`release/*`" not in workflow_doc
+
+
 def test_duplicate_secret_and_flutter_work_are_skipped_only_for_trusted_promotion_family():
     history_job_if = _workflow("history-secret-scan.yml")["jobs"]["history-secret-scan"]["if"]
     mobile_job_if = _workflow("mobile.yml")["jobs"]["flutter-analyze-test"]["if"]

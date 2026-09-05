@@ -1,3 +1,4 @@
+<!-- CLASSIFICATION: ACTIVE -->
 # DENTIX AI Agent Stack Architecture
 
 ## 1. Purpose
@@ -9,16 +10,18 @@ The DENTIX AI agent stack is designed to be natively compatible with modern AI c
 - **Antigravity IDE / Agent Ecosystem**: Operates with repository instructions and `.agents/skills/` as local workspace customizations.
 
 ## 3. Source-of-Truth Hierarchy
-When instructions or design decisions interact, agents must strictly follow this precedence:
-1. **Explicit Current Task / Approved Plan**: Current user prompt or approved implementation plan.
-2. **Security & Compliance Constraints**: Multi-tenant isolation (`tenant_id`), RBAC permissions, clinical PII protection, and financial integrity.
-3. **`PROJECT_STANDARDS.md`**: Canonical DENTIX architecture and engineering specifications.
-4. **Root `AGENTS.md`**: Cross-runtime execution, safety, and completion discipline.
-5. **Task-Specific Documentation**: Domain documents under `docs/` and module READMEs.
-6. **Relevant `.agents/skills/`**: Progressive-disclosure guidance for specific technical domains.
-7. **General Engineering Best Practices**: Clean code and standard language idioms.
+When instructions or design decisions interact, agents must strictly follow this canonical precedence order:
+1. **Non-Negotiable Safety & Integrity**: Tenant isolation (`tenant_id`), authorization / RBAC, privacy, clinical integrity, financial integrity, data integrity, and production safety.
+2. **Current User Requirement / Approved Product Decision**: Explicit user prompt or approved implementation plan (strictly within layer-1 constraints).
+3. **`PROJECT_STANDARDS.md`**: Canonical DENTIX architecture and engineering authority.
+4. **`docs/engineering/DEVELOPMENT_WORKFLOW.md`**: Sole canonical development lifecycle authority for branching, testing, review, PR, and release.
+5. **Root `AGENTS.md`**: Cross-runtime execution, safety, and completion discipline contract.
+6. **Active Product / Domain Specifications**: Product semantics and acceptance criteria.
+7. **Relevant `.agents/skills/` Instructions**: Progressive-disclosure guidance for specific technical domains.
+8. **External Skills**: Optional methodology or transport helpers only; never repository authorities.
+9. **General Engineering Practice**: Clean code, standard patterns, and language idioms.
 
-`PROJECT_STANDARDS.md` defines the canonical DENTIX architecture and engineering conventions. `AGENTS.md` defines cross-runtime execution, safety, and completion discipline. If `AGENTS.md` is ever interpreted in a way that conflicts with `PROJECT_STANDARDS.md` on project architecture, `PROJECT_STANDARDS.md` wins.
+`PROJECT_STANDARDS.md` defines the canonical DENTIX architecture. `docs/engineering/DEVELOPMENT_WORKFLOW.md` is the sole development lifecycle authority. Everything else operates under them. External skills or tools must not become repository authorities.
 
 ## 4. Root `AGENTS.md` Purpose
 Root `AGENTS.md` acts as the primary, always-active cross-runtime contract. It establishes invariant guardrails:
@@ -46,6 +49,8 @@ Skills reside in the `.agents/skills/` directory. Each skill is encapsulated in 
     │   └── SKILL.md
     ├── dentix-performance/
     │   └── SKILL.md
+    ├── dentix-orchestration/
+    │   └── SKILL.md
     ├── dentix-plan-execution/
     │   └── SKILL.md
     ├── dentix-security-tenancy-rbac/
@@ -56,16 +61,17 @@ Skills reside in the `.agents/skills/` directory. Each skill is encapsulated in 
         └── SKILL.md
 ```
 
-## 6. The 10 Native DENTIX Skills Catalog
+## 6. The 11 Native DENTIX Skills Catalog
 | Skill Name | Purpose & Trigger | Primary Files / Stack |
 |:---|:---|:---|
+| `dentix-orchestration` | Lean router, task brief creation, model role coordination | Cross-repo multi-agent development |
 | `dentix-plan-execution` | Multi-phase plan execution without skipping requirements | Cross-repo plans, task ledgers |
 | `dentix-backend-fastapi` | FastAPI layered architecture (Router->Service->CRUD) | `backend/routers/`, `backend/services/`, `backend/crud/` |
 | `dentix-frontend-react` | React 18, Vite, Tailwind CSS, TanStack Query, Zustand | `frontend/src/` |
 | `dentix-mobile-flutter` | Flutter mobile client, Riverpod state, GoRouter, Dio | `dentix_mobile/lib/` |
 | `dentix-security-tenancy-rbac` | Tenant boundaries, RBAC permissions, clinical PII, finance | `backend/core/tenant_scope.py`, auth |
 | `dentix-database-migrations` | SQLAlchemy async models, PostgreSQL indexing, Alembic | `backend/alembic/`, `backend/models/` |
-| `dentix-testing-verification` | Test runner discovery, pytest (70% CI coverage), vitest | `backend/tests/`, `frontend/src/tests/` |
+| `dentix-testing-verification` | Test runner discovery, pytest (active CI coverage), vitest | `backend/tests/`, `frontend/src/tests/` |
 | `dentix-systematic-debugging` | 4-phase evidence-first root cause analysis (RCA) | Defect resolution, error traces |
 | `dentix-code-review` | Severity-graded review (`CRITICAL` to `NOTE`) & priority | Pull requests, code diffs |
 | `dentix-performance` | Measurement-first query optimization, caching, rendering | SQL profiling, React memo, caching layer |
@@ -73,8 +79,9 @@ Skills reside in the `.agents/skills/` directory. Each skill is encapsulated in 
 ## 7. When a New Skill is Justified
 A new skill may only be introduced if all the following conditions are met:
 1. A new, permanent technology or major architectural subsystem is added to DENTIX (e.g. WhatsApp AI integration service, specialized DICOM medical imaging service).
-2. The domain requires distinct, non-trivial recurring guidance that cannot cleanly fit into one of the existing 10 skills.
+2. The domain requires distinct, non-trivial recurring guidance that cannot cleanly fit into one of the existing 11 skills.
 3. The skill can be expressed concisely (1-5 KB) with specific trigger descriptions.
+
 
 ## 8. When NOT to Add a Skill
 Do NOT create a skill for:
@@ -93,7 +100,7 @@ When executing multi-step tasks or implementation plans:
 ## 10. Verification Policy
 - Execute test commands before claiming success.
 - Separate pre-existing baseline failures from newly introduced changes.
-- Adhere to repository CI thresholds (70% backend coverage fail-under).
+- Adhere to repository CI thresholds governed by active CI configuration (`.github/workflows/ci.yml`).
 
 ## 11. Security & Multi-Tenancy Policy
 - Multi-tenancy is invariant: every database query touching clinic data must scope by `tenant_id`.
