@@ -1,3 +1,10 @@
+<!-- STATUS: HISTORICAL / NON-AUTHORITATIVE -->
+<!-- CLASSIFICATION: HISTORICAL -->
+# STATUS: HISTORICAL / NON-AUTHORITATIVE
+> **Archived Document** — This file records historical V2.1 pilot evidence and references retired `agent-ci-signal`. It is strictly **NON-AUTHORITATIVE**. Active DENTIX development is governed by `docs/engineering/DEVELOPMENT_WORKFLOW.md`.
+
+---
+
 # DENTIX Workflow V2.1 — Phase 7 Lean Pilot Evidence
 
 ## Current status

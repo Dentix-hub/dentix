@@ -47,4 +47,4 @@ Router -> Service -> CRUD -> Database (SQLAlchemy Async / PostgreSQL)
 ## Verification Checklist
 - Run targeted pytest suites: `pytest backend/tests/test_<module>.py -v`.
 - Check tenant isolation with multi-tenant test cases.
-- Verify that coverage meets repository CI thresholds (70% minimum).
+- Verify that coverage meets active CI configuration thresholds.
