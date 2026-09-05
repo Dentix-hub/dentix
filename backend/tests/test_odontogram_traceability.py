@@ -142,14 +142,14 @@ def parse_source_master_plan() -> dict[str, dict]:
         phase_display = f"{pkey} ({ptitle})" if pkey != "R-M" else "Review Micro-Tasks Per Gemini Phase"
 
         phase_acceptance = None
-        for _, l in p["raw_lines"]:
-            m_acc = re.match(r"^\s*\*\*Acceptance:?\*\*\s*(.*)$", l, re.IGNORECASE)
+        for _, line in p["raw_lines"]:
+            m_acc = re.match(r"^\s*\*\*Acceptance:?\*\*\s*(.*)$", line, re.IGNORECASE)
             if m_acc:
                 phase_acceptance = m_acc.group(1).strip()
 
         phase_items: list[dict] = []
-        for lnum, l in p["raw_lines"]:
-            m_item = re.match(r"^##\s+(([AG]\d+-M\d+)|(R-M\d+))\s*[-—\u2013\u2014]\s*(.*)$", l)
+        for lnum, line in p["raw_lines"]:
+            m_item = re.match(r"^##\s+(([AG]\d+-M\d+)|(R-M\d+))\s*[-—\u2013\u2014]\s*(.*)$", line)
             if m_item:
                 item_id = m_item.group(1)
                 item_title = m_item.group(4).strip()
@@ -167,9 +167,9 @@ def parse_source_master_plan() -> dict[str, dict]:
             for it_idx, it in enumerate(phase_items):
                 start_l = it["line_num"]
                 end_l = phase_items[it_idx + 1]["line_num"] if it_idx + 1 < len(phase_items) else 999999
-                for lnum, l in p["raw_lines"]:
+                for lnum, line in p["raw_lines"]:
                     if start_l <= lnum < end_l:
-                        m_acc = re.match(r"^\s*\*\*Acceptance:?\*\*\s*(.*)$", l, re.IGNORECASE)
+                        m_acc = re.match(r"^\s*\*\*Acceptance:?\*\*\s*(.*)$", line, re.IGNORECASE)
                         if m_acc:
                             it["acceptance"] = m_acc.group(1).strip()
         else:
@@ -209,15 +209,15 @@ def parse_source_phases() -> dict[str, dict]:
         ptitle = p["title"]
 
         phase_acceptance = None
-        for _, l in p["raw_lines"]:
-            m_acc = re.match(r"^\s*\*\*Acceptance:?\*\*\s*(.*)$", l, re.IGNORECASE)
+        for _, line in p["raw_lines"]:
+            m_acc = re.match(r"^\s*\*\*Acceptance:?\*\*\s*(.*)$", line, re.IGNORECASE)
             if m_acc:
                 phase_acceptance = m_acc.group(1).strip()
                 break
 
         tasks: list[dict] = []
-        for lnum, l in p["raw_lines"]:
-            m_item = re.match(r"^##\s+(([AG]\d+-M\d+)|(R-M\d+))\s*[-—\u2013\u2014]\s*(.*)$", l)
+        for lnum, line in p["raw_lines"]:
+            m_item = re.match(r"^##\s+(([AG]\d+-M\d+)|(R-M\d+))\s*[-—\u2013\u2014]\s*(.*)$", line)
             if m_item:
                 tasks.append({"id": m_item.group(1), "title": m_item.group(4).strip()})
 
