@@ -15,6 +15,29 @@ async function expectNoDocumentOverflow(page: Page) {
     .toBeLessThanOrEqual(dimensions.clientWidth + 2);
 }
 
+async function expectDesktopChartsFullyVisible(page: Page) {
+  const clippedCharts = await page.locator('[data-testid="clinical-chart-instance"]')
+    .evaluateAll((cards) => cards.flatMap((card) => {
+      const viewport = card.querySelector('[data-chart-scroll-viewport]');
+      if (!(viewport instanceof HTMLElement)) return ['missing-scroll-viewport'];
+
+      const viewportRect = viewport.getBoundingClientRect();
+      const clippedTeeth = Array.from(card.querySelectorAll('[data-layer="crown"]'))
+        .filter((tooth) => {
+          const toothRect = tooth.getBoundingClientRect();
+          return toothRect.left < viewportRect.left - 1
+            || toothRect.right > viewportRect.right + 1;
+        })
+        .map((tooth) => tooth.getAttribute('data-tooth-key'));
+
+      return viewport.scrollWidth > viewport.clientWidth + 2
+        ? ['internal-overflow:' + viewport.scrollWidth + ':' + viewport.clientWidth, ...clippedTeeth]
+        : clippedTeeth;
+    }));
+
+  expect(clippedCharts).toEqual([]);
+}
+
 test.describe('Odontogram Part I responsive and directional evidence', () => {
   test('desktop Arabic RTL comparison is usable', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -26,6 +49,7 @@ test.describe('Odontogram Part I responsive and directional evidence', () => {
     await expect(page.getByTestId('clinical-chart-instance')).toHaveCount(2);
     await expect(page.getByRole('heading', { name: 'مقارنة مخطط الأسنان' })).toBeVisible();
     await expectNoDocumentOverflow(page);
+    await expectDesktopChartsFullyVisible(page);
 
     await page.screenshot({
       fullPage: true,
@@ -62,6 +86,12 @@ test.describe('Odontogram Part I responsive and directional evidence', () => {
     await quadrantNavigation.getByRole('button', {
       name: 'الربع العلوي الأيمن',
     }).click();
+
+    const chartViewport = currentChart.locator('[data-chart-scroll-viewport]');
+    const targetTooth = currentChart.locator('[data-layer="crown"][data-tooth-key="14"]');
+    await expect(targetTooth).toBeInViewport();
+    await expect(chartViewport).toBeVisible();
+    await expect(currentChart.getByRole('heading', { name: 'مخطط الأسنان (بالغين)' })).toBeVisible();
 
     await page.getByRole('button', { name: 'العربية' }).focus();
     await expect(page.getByRole('button', { name: 'العربية' })).toBeFocused();

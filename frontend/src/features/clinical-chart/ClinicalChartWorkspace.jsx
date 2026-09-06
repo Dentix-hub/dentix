@@ -33,7 +33,7 @@ export default function ClinicalChartWorkspace() {
                     locale={locale}
                     onLocaleChange={setLocale}
                 />
-                <div className="grid min-w-0 gap-5 xl:grid-cols-2">
+                <div className="grid min-w-0 gap-5">
                     <ClinicalChartComparisonCard
                         chartId="odontogram-current"
                         copy={copy}

@@ -4,7 +4,7 @@
 > **Milestone:** Part I Odontogram Foundation Reconciliation Pass  
 > **Target Track:** Gemini Core Track (Part II: Clinical Core, Treatment Plans, Work Items & Integrations)  
 > **Reconciliation Branch:** `fix/odontogram-phase1-reconciliation`  
-> **Current Staging SHA:** `d7852948f86f795045026dce9248e68d7b7aa4ef`  
+> **Protected staging baseline SHA:** `614338f479e89ede7786bc85bd74eb0e25c32ed2`
 > **Original Codex Merge-Base:** `b38636bdd82ec3ebf4ab728d87f13407bcb78d4b`  
 > **Original Codex SHA:** `9b2c28f9dee211ba287876c270a7a50f0ae1e45a`
 
@@ -56,7 +56,7 @@ frontend/src/features/
 │   │   ├── rootGeometry.js                   # Root geometry and apex/cervical anchors
 │   │   ├── surfaceGeometry.js                # 5 clipped polygon surface hit targets per tooth
 │   │   └── visualInstructionSelectors.js     # Instruction helper selectors
-│   ├── tests/                               # 238 passing unit/integration tests
+│   ├── tests/                               # 230 passing focused Odontogram tests
 │   └── ClinicalChartWorkspace.jsx            # Standalone side-by-side comparison workspace
 └── dental/
     ├── DentalChartSVG.jsx                    # Hardware-accelerated SVG chart canvas
@@ -373,11 +373,107 @@ When Gemini Core initiates Part II (Clinical Core Backend & Integration):
 
 ## 11. Hard Stop Declaration
 
-Part I (Odontogram Foundation) is **100% RECONCILED, VERIFIED, AND SEALED**.
+Part I (Odontogram Foundation) is a **verified local final candidate pending protected Issue #133 integration**.
 
 ```
 ========================================================================
-STATUS: WAITING FOR EXTERNAL REVIEW BEFORE GEMINI PART II
-ALL ODONTOGRAM FOUNDATION TASKS VERIFIED (238 / 238 TESTS PASS)
+STATUS: READY FOR PROTECTED ISSUE #133 INTEGRATION
+ODONTOGRAM SUBSYSTEM VERIFIED (230 / 230 TESTS PASS)
 ========================================================================
 ```
+---
+
+## 12. GEMINI IMPLEMENTATION HANDOFF
+
+### 1. Protected branch/SHA baseline
+
+- Protected target: `staging`
+- Protected baseline: `614338f479e89ede7786bc85bd74eb0e25c32ed2`
+- Baseline Dentix CI run: `33998775339` — success
+- Baseline Dentix Governance run: `33998775387` — success
+- Final candidate: `codex/odontogram-part1-final-gate`
+- Integration remains subject to the governed Issue #133 PR and protected CI.
+
+### 2. Completed Odontogram capabilities
+
+- Immutable 52-tooth permanent/primary anatomy registry.
+- Dentix-native crown geometry with independent anatomical roots.
+- Permanent, primary, and true mixed dentition layouts.
+- Palmer, FDI, and Universal presentation notation derived from canonical FDI identity.
+- Crown-surface findings and programmatic procedure effects.
+- Stable layer ordering, read-only multi-instance comparison, inspector, responsive/RTL shell, and accessible mobile quadrant navigation.
+- Desktop comparison with zero internal clipping or chart overflow.
+
+### 3. Canonical chart/frontend paths
+
+- `frontend/src/features/dental/DentalChartSVG.jsx`
+- `frontend/src/features/clinical-chart/domain/dentalAnatomyRegistry.js`
+- `frontend/src/features/clinical-chart/domain/clinicalChartProjection.js`
+- `frontend/src/features/clinical-chart/domain/chartNotation.js`
+- `frontend/src/features/clinical-chart/domain/visualRuleRegistry.js`
+- `frontend/src/features/clinical-chart/rendering/ClinicalChartRendererAdapter.js`
+- `frontend/src/features/clinical-chart/rendering/ClinicalToothVisualLayers.jsx`
+- `frontend/src/features/clinical-chart/rendering/crownGeometry.js`
+- `frontend/src/features/clinical-chart/rendering/rootGeometry.js`
+- `frontend/src/features/clinical-chart/rendering/surfaceGeometry.js`
+- `frontend/src/features/clinical-chart/fixtures/a12ScenarioFixtures.js`
+
+### 4. Contracts Gemini must preserve
+
+- The renderer consumes projection-ready DTOs and emits persistence-neutral intents.
+- The chart never imports API clients, repositories, services, or persistence.
+- Backend integration maps canonical clinical entities into `ClinicalChartProjection` schema version 1.
+- React Query owns future server state; the renderer remains stateless.
+- Existing geometry and visual-layer tests are compatibility gates.
+
+### 5. Clinical semantics Gemini must not reinterpret
+
+- FDI tooth key is canonical identity; notation is presentation only.
+- Caries is crown/surface-local and must never render on a root.
+- Maxillary inner surfaces are palatal; mandibular inner surfaces are lingual.
+- Anterior centers are incisal; posterior centers are occlusal.
+- Root identifiers, lifecycle codes, finding codes, procedure codes, and visual phases are the exact constants documented above.
+- The chart is a projection/controller, never the clinical source of truth.
+
+### 6. Remaining VNext execution starting point
+
+Begin only with Gemini G0 revalidation after protected Issue #133 integration. Then follow the approved G1–G16 dependency order. Codex does not start that work in this ticket.
+
+### 7. Required skills/context
+
+- `PROJECT_STANDARDS.md`
+- `docs/engineering/DEVELOPMENT_WORKFLOW.md`
+- `dentix-backend-fastapi`
+- `dentix-database-migrations`
+- `dentix-security-tenancy-rbac`
+- `dentix-frontend-react`
+- `dentix-testing-verification`
+
+### 8. Known deferred/salvage work
+
+- Canonical backend clinical models, services, CRUD, migrations, and RLS.
+- Treatment plan/work-item persistence and conflict rules.
+- React Query projection integration and intent binding.
+- Endodontic structured canal workflows.
+- Appointments, labs, inventory, finance, and rollout integration.
+- Legacy/untracked chart experiments are noncanonical unless explicitly reconciled through the paths above.
+
+### 9. Verification baseline
+
+- Focused layout T1: 118/118.
+- Odontogram subsystem: 230/230.
+- Playwright visual matrix: 3/3.
+- Frontend lint: pass.
+- Production build: pass.
+- Full frontend suite: 618 pass plus one unrelated Finance timeout; isolated Finance suite passes 3/3.
+- Final protected candidate CI is required before merge.
+
+### 10. Mandatory completion and hard-stop statement
+
+The following declaration becomes effective when the unchanged candidate passes protected CI and merges into `staging`:
+
+`ODONTOGRAM PART I COMPLETE — READY FOR GEMINI HANDOFF`
+
+`WAITING FOR GEMINI VNEXT EXECUTION`
+
+**HARD STOP — do not begin Gemini G0–G16 before protected integration.**
