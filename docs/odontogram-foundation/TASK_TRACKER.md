@@ -75,10 +75,10 @@
 | A14-M03 Create simple inspector panel | PASS | Inline read-only inspector in `ClinicalChartInspector.jsx`; no disruptive modal |
 | A14-M04 Create simple selection summary | PASS | Inspector reports selected tooth, surface, finding count, and procedure count |
 | A14-M05 Keep UI intentionally simple | PASS | Lightweight inspector and comparison cards without heavy workflow engine |
-| A15-M01 Verify chart on desktop | PASS | Desktop comparison verified; Playwright E2E and visual evidence archived |
-| A15-M02 Verify chart on tablet width | PASS | Tablet comparison verified; Playwright E2E and visual evidence archived |
-| A15-M03 Verify chart on mobile width | PASS | Mobile viewport verified; Playwright E2E and visual evidence archived |
-| A15-M04 Add quadrant-friendly mobile behavior | ACCEPTED DEVIATION | Destructive quadrant slicing (`focusQuadrant` dropdown) superseded by accessible horizontal touch-scroll container (`touch-pan-x overscroll-x-contain overflow-x-auto min-w-[600px]`) with 4-quadrant mobile navigation controls (`data-mobile-quadrant-nav`) that scroll target teeth into view smoothly; verified in `ClinicalChartWorkspace.test.jsx` and `a16RegressionGate.test.jsx` |
+| A15-M01 Verify chart on desktop | PASS | Fresh 1440x1000 evidence; both complete charts stack without internal overflow or clipped crowns; Playwright boundary assertion passes |
+| A15-M02 Verify chart on tablet width | PASS | Fresh 768x1024 English LTR evidence; accessible anatomical-row scrolling keeps title and legend stationary |
+| A15-M03 Verify chart on mobile width | PASS | Fresh 390x844 Arabic RTL evidence; selected quadrant target is verified in viewport |
+| A15-M04 Add quadrant-friendly mobile behavior | ACCEPTED DEVIATION | Destructive quadrant slicing remains superseded by four accessible quadrant controls and a focusable `data-chart-scroll-viewport`; only anatomical rows scroll while title/legend stay visible; unit and Playwright checks pass |
 | A15-M05 Verify Arabic RTL layout | PASS | Default Arabic workspace renders with `dir="rtl"` and `lang="ar"` |
 | A15-M06 Verify English LTR layout | PASS | In-feature language control toggles English with `dir="ltr"` and `lang="en"` |
 | A15-M07 Add keyboard focus states | PASS | Language, select, checkbox, surface targets, and quadrant controls expose `focus-visible:ring-2` |
@@ -93,7 +93,7 @@
 | A17-M01 Capture desktop screenshots | PASS | Desktop evidence archived in `docs/odontogram-foundation/evidence/A15-desktop-ar-rtl.png` and `A11-notation-labels-desktop.png` |
 | A17-M02 Capture mobile screenshots | PASS | Mobile evidence archived in `docs/odontogram-foundation/evidence/A15-mobile-ar-rtl.png` |
 | A17-M03 Capture RTL screenshots | PASS | RTL evidence archived in `docs/odontogram-foundation/evidence/A15-desktop-ar-rtl.png` and `A15-mobile-ar-rtl.png` |
-| A17-M04 Capture history-compare screenshots | PASS | Dual-chart comparison evidence archived in `docs/odontogram-foundation/evidence/A12-clinical-scenarios-1.png` |
-| A17-M05 Write Codex completion report | PASS | Reconciled completion report committed at `docs/odontogram-foundation/CODEX_COMPLETION_REPORT.md` |
-| A17-M06 Write handoff package for Gemini | PASS | Reconciled handoff package committed at `docs/odontogram-foundation/HANDOFF_TO_GEMINI.md` with verified code constants (`chart/surface-selected`), true mixed dentition, and exact schemas |
-| A17-M07 Hard stop | PASS | Part I complete, tested, and sealed; stopped before Gemini Part II |
+| A17-M04 Capture history-compare screenshots | PASS | Fresh dual-chart current/history comparison is archived in `docs/odontogram-foundation/evidence/A15-desktop-ar-rtl.png` |
+| A17-M05 Write Codex completion report | PASS | Final evidence-driven report present at `docs/odontogram-foundation/CODEX_COMPLETION_REPORT.md` |
+| A17-M06 Write handoff package for Gemini | PASS | Ten-part Gemini implementation handoff records protected baseline, canonical paths, contracts, clinical semantics, deferred work, and verification |
+| A17-M07 Hard stop | PASS | Candidate contains both mandatory completion declarations and prohibits Gemini G0-G16 until protected Issue #133 integration |
