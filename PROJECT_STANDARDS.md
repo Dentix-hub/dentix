@@ -9,19 +9,21 @@
 These constraints protect data integrity and security. They cannot be relaxed without explicit justification.
 
 ### Multi-Tenant Isolation
-- Every model containing end-user data MUST carry a `tenant_id` column.
+- Every model containing tenant-scoped clinic/end-user data MUST carry a `tenant_id` column. Globally shared or system models are not required to contain `tenant_id`.
 - Data separation is enforced at the database abstraction level using the automatic ORM execution event listener (`tenant_scope.py`).
 - Never retrieve an entity by primary key alone without matching against the active `tenant_id`.
 
 ### Server-Side RBAC
-- RBAC is enforced server-side on every FastAPI endpoint using existing authentication and RBAC dependencies (`get_current_user`, `check_permission`).
+- Protected application endpoints must enforce the appropriate server-side authentication/RBAC requirements using existing backend permission mechanisms (`get_current_user`, `check_permission`).
+- Intentionally public/system endpoints such as health/liveness/readiness probes may remain unauthenticated when their existing contract requires that.
 - Never rely solely on frontend UI hiding for access control.
 
 ### API Output Standardization
-All successful downstream routes MUST be enveloped in the `StandardResponse[T]` Pydantic type signature:
+- Normal application API responses should preserve their established `StandardResponse[T]` contract where applicable:
 ```python
 return success_response(data=items, message="Retrieved successfully")
 ```
+- Infrastructure probes, streaming/file responses, webhooks, and other intentionally specialized endpoints may preserve their existing response contracts.
 
 ---
 

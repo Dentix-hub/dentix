@@ -222,9 +222,49 @@ def test_retired_skill_in_historical_doc_does_not_fail(temp_repo):
     content = hist.read_text(encoding="utf-8")
     hist.write_text(content + "\nUsed dentix-orchestration for coordination.\n", encoding="utf-8")
     code, failures, _ = run_linter(temp_repo)
-    # Should not produce retired-skill-reference failures for historical docs
     retired_ref_failures = [f for f in failures if "references retired skill" in f]
     assert len(retired_ref_failures) == 0
+    assert code == 0
+
+
+def test_retired_skill_in_other_active_doc_fails(temp_repo):
+    """Any other classified ACTIVE document referencing a retired skill must fail."""
+    guide = temp_repo / "docs" / "HERMES_AGENT_GUIDE.md"
+    content = guide.read_text(encoding="utf-8")
+    guide.write_text(content + "\nUse `dentix-orchestration` for planning.\n", encoding="utf-8")
+    code, failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any(
+        "references retired skill 'dentix-orchestration'" in f and "HERMES_AGENT_GUIDE.md" in f
+        for f in failures
+    )
+
+
+def test_retired_skill_in_active_template_fails(temp_repo):
+    """An active agent issue template referencing a retired skill must fail."""
+    tpl_dir = temp_repo / ".github" / "ISSUE_TEMPLATE"
+    tpl_dir.mkdir(parents=True, exist_ok=True)
+    (tpl_dir / "dentix-agent-task.yml").write_text(
+        "name: Task\nbody:\n  - type: input\n    placeholder: dentix-systematic-debugging\n",
+        encoding="utf-8",
+    )
+    code, failures, _ = run_linter(temp_repo)
+    assert code == 1
+    assert any(
+        "references retired skill 'dentix-systematic-debugging'" in f and "dentix-agent-task.yml" in f
+        for f in failures
+    )
+
+
+def test_retired_skill_in_product_spec_does_not_fail(temp_repo):
+    """Product spec documents are allowed to preserve historical mentions."""
+    spec = temp_repo / "docs" / "product" / "ODONTOGRAM_VNEXT_PRODUCT_SPEC.md"
+    content = spec.read_text(encoding="utf-8")
+    spec.write_text(content + "\nHistorical notes mention dentix-frontend-react.\n", encoding="utf-8")
+    code, failures, _ = run_linter(temp_repo)
+    retired_ref_failures = [f for f in failures if "references retired skill" in f]
+    assert len(retired_ref_failures) == 0
+    assert code == 0
 
 
 # ==============================================================================

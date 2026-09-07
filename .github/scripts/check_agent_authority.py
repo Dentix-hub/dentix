@@ -132,23 +132,99 @@ def check_skill_catalog_bidirectional(root: Path, failures: list[str]) -> int:
 
 
 def check_no_retired_skill_references(root: Path, failures: list[str]) -> None:
-    """Verify that no ACTIVE document references retired skill names."""
-    active_authority_files = [
+    """Verify that no ACTIVE document or agent template references retired skill names."""
+    active_files: set[Path] = set()
+
+    # 1. Canonical active authority files
+    canonical_active = [
         root / "PROJECT_STANDARDS.md",
         root / "AGENTS.md",
         root / ".agents" / "README.md",
         root / "docs" / "engineering" / "DEVELOPMENT_WORKFLOW.md",
         root / "docs" / "AI_AGENT_STACK.md",
     ]
+    for p in canonical_active:
+        if p.exists():
+            active_files.add(p)
 
-    for path in active_authority_files:
-        if not path.exists():
+    # 2. Native skills on disk
+    skills_dir = root / ".agents" / "skills"
+    if skills_dir.exists():
+        for skill_md in skills_dir.glob("*/SKILL.md"):
+            if skill_md.is_file():
+                active_files.add(skill_md)
+
+    # 3. Active agent task templates and examples
+    issue_template_dir = root / ".github" / "ISSUE_TEMPLATE"
+    if issue_template_dir.exists():
+        for tpl in issue_template_dir.iterdir():
+            if tpl.is_file() and tpl.suffix in (".yml", ".yaml", ".md"):
+                active_files.add(tpl)
+
+    for examples_dir in [
+        root / "docs" / "engineering" / "examples",
+        root / "docs" / "examples",
+        root / ".agents" / "examples",
+    ]:
+        if examples_dir.exists():
+            for ex in examples_dir.glob("*.md"):
+                if ex.is_file():
+                    active_files.add(ex)
+
+    # 4. Classified ACTIVE documents repository-wide
+    marker_pattern = re.compile(r"<!--\s*CLASSIFICATION:\s*([A-Z][A-Z-]*)\s*-->", re.IGNORECASE)
+    hist_header_pattern = re.compile(r"STATUS:\s*HISTORICAL\s*/\s*NON-AUTHORITATIVE", re.IGNORECASE)
+
+    ignored_dir_names = {
+        ".git",
+        ".worktrees",
+        "node_modules",
+        "venv",
+        ".venv",
+        "__pycache__",
+        "build",
+        "dist",
+        ".pytest_cache",
+        ".hypothesis",
+    }
+
+    for md_file in root.rglob("*.md"):
+        if any(part in ignored_dir_names for part in md_file.parts):
             continue
-        content = path.read_text(encoding="utf-8")
-        for retired_skill in RETIRED_SKILLS:
+        if not md_file.is_file():
+            continue
+        try:
+            head = "".join(md_file.read_text(encoding="utf-8").splitlines(keepends=True)[:20])
+        except Exception:
+            continue
+
+        # Correctly classified HISTORICAL / NON-AUTHORITATIVE documents remain allowed to preserve retired skills
+        if hist_header_pattern.search(head):
+            continue
+
+        marker = marker_pattern.search(head)
+        if marker and marker.group(1).upper() == "ACTIVE":
+            active_files.add(md_file)
+
+    for path in sorted(active_files):
+        if not path.exists() or not path.is_file():
+            continue
+        try:
+            content = path.read_text(encoding="utf-8")
+        except Exception:
+            continue
+
+        head = "".join(content.splitlines(keepends=True)[:20])
+        if hist_header_pattern.search(head):
+            continue
+        marker = marker_pattern.search(head)
+        if marker and marker.group(1).upper() == "HISTORICAL":
+            continue
+
+        for retired_skill in sorted(RETIRED_SKILLS):
             if retired_skill in content:
                 failures.append(
-                    f"Active authority file '{path.relative_to(root)}' references retired skill '{retired_skill}'."
+                    f"Active file '{path.relative_to(root)}' references retired skill '{retired_skill}'."
                 )
 
 
