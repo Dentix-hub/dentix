@@ -441,12 +441,10 @@ Begin only with Gemini G0 revalidation after protected Issue #133 integration. T
 
 ### 7. Required skills/context
 
-- `PROJECT_STANDARDS.md`
+- `PROJECT_STANDARDS.md` (backend and frontend architecture)
 - `docs/engineering/DEVELOPMENT_WORKFLOW.md`
-- `dentix-backend-fastapi`
 - `dentix-database-migrations`
 - `dentix-security-tenancy-rbac`
-- `dentix-frontend-react`
 - `dentix-testing-verification`
 
 ### 8. Known deferred/salvage work

@@ -46,9 +46,9 @@ None. This is a read-only inspection with no contract dependency.
 - [ ] `git status --short` is identical before and after the inspection.
 - [ ] The delegate returns an understandable exit status and structured result.
 
-## Required DENTIX skills
+## Required DENTIX context / skills
 
-- `dentix-frontend-react`
+- `PROJECT_STANDARDS.md` (frontend architecture)
 - `dentix-testing-verification`
 
 ## Risk
