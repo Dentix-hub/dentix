@@ -1,120 +1,93 @@
 <!-- CLASSIFICATION: ACTIVE -->
 # DENTIX Repository Instructions
 
-## 1. Source of Truth
+## 1. Authority
 
-`PROJECT_STANDARDS.md` is the architectural and engineering source of truth for DENTIX.
+| Concern | Canonical Owner |
+|---|---|
+| Architecture & engineering conventions | `PROJECT_STANDARDS.md` |
+| Development lifecycle, Git, PR, CI, release | `docs/engineering/DEVELOPMENT_WORKFLOW.md` |
+| Product requirements & acceptance criteria | Active product / domain specifications |
+| CI thresholds & required commands | `.github/workflows/ci.yml` |
 
-`PROJECT_STANDARDS.md` defines the canonical DENTIX architecture and engineering conventions.
-This `AGENTS.md` defines cross-runtime execution, safety, and completion discipline.
-If this file is ever interpreted in a way that conflicts with `PROJECT_STANDARDS.md` on project architecture, `PROJECT_STANDARDS.md` wins.
-
-Before significant implementation work:
-1. Read the relevant existing code.
-2. Read `PROJECT_STANDARDS.md` before editing.
-3. Preserve existing business rules, API contracts, database behavior, authentication, RBAC, and tenant isolation unless the task explicitly requires a change.
+`PROJECT_STANDARDS.md` wins on architecture. `DEVELOPMENT_WORKFLOW.md` wins on lifecycle.
+This file (`AGENTS.md`) defines safety invariants, execution routing, and completion discipline.
 
 If generic guidance conflicts with DENTIX project standards, DENTIX project standards win.
 
-## 2. Instruction Precedence
+## 2. HARD Invariants
 
-Apply guidance in this order:
+These are non-negotiable. No task, plan, or convenience may override them.
 
-1. Non-negotiable safety, tenant isolation, RBAC, data integrity, privacy, clinical integrity, and financial integrity constraints.
-2. Explicit current user requirement or approved implementation plan (within safety constraints).
-3. `PROJECT_STANDARDS.md` (architecture authority).
-4. `docs/engineering/DEVELOPMENT_WORKFLOW.md` (development lifecycle authority).
-5. This `AGENTS.md` (cross-runtime execution and safety contract).
-6. Active product / domain specifications.
-7. Relevant `.agents/skills/` instructions.
-8. External skills (optional methodology / transport only).
-9. General engineering conventions.
+- **Tenant isolation**: Every query touching clinic data must scope by `tenant_id` via `tenant_scope.py`. Do not bypass tenant isolation mechanisms.
+- **Server-side RBAC**: Enforce permissions on every endpoint using existing auth dependencies. Never rely solely on frontend UI hiding.
+- **Privacy & clinical integrity**: Protect patient PII, medical records, and clinical semantics.
+- **Financial integrity**: Do not silently alter financial calculations, doctor commissions, or ledger entries.
+- **Data safety**: Do not change database schema or Alembic migrations unless the task explicitly requires it. Never edit applied migrations.
+- **API compatibility**: Do not break existing API contracts, remove features/routes, or replace real data with mocks.
+- **Secrets**: Never commit generated secrets or credentials.
+- **Truthful verification**: Every claimed test result must be backed by executed commands and real exit codes. Report `DONE`, `PARTIAL`, or `BLOCKED` truthfully.
 
-Never use lower-priority guidance to override a higher-priority DENTIX rule.
+## 3. Architecture Defaults
 
-## 3. Architecture Guardrails
+Detailed conventions are in `PROJECT_STANDARDS.md`. Key constraints:
 
-Backend:
-- Preserve the Router -> Service -> CRUD -> Database flow.
-- Keep business logic in services.
-- Preserve tenant-aware execution.
-- Do not bypass `tenant_scope.py` or equivalent tenant isolation mechanisms.
-- Do not change database schema or Alembic migrations unless the task explicitly requires a schema change.
+- **Backend**: Router → Service → CRUD → Database. Keep routers focused on HTTP semantics and delegation. Business logic in services. Tenant-aware execution throughout.
+- **Frontend**: React + Vite. React Query for server state. Zustand for client state. No Redux. Reuse shared UI before creating new primitives.
+- **Mobile**: Flutter/Dart with existing feature-driven architecture. Do not duplicate backend business logic in the mobile client.
 
-Frontend:
-- Preserve React + Vite.
-- Use React Query for server state.
-- Use Zustand for appropriate client state.
-- Do not introduce Redux.
-- Reuse the existing shared UI/design system before creating new primitives.
+## 4. Execution Routing
 
-Mobile:
-- Preserve the existing Flutter/Dart architecture and conventions.
-- Do not duplicate backend business logic into the mobile client.
+```
+Clear task → execute directly.
+Unclear task → use relevant planning skill when clarification adds value.
+Delegate only when delegation is materially cheaper or safer than inline execution.
+```
 
-## 4. Compatibility Rules
+- **NORMAL work**: Standard changes. Targeted verification during implementation. One real diff inspection before commit.
+- **HIGH_RISK work** (auth, RBAC, tenant isolation, RLS, finance/ledger/payments, migrations/schema, irreversible data, clinical semantics, major shared contracts): Activate the relevant DENTIX safety skill. Run relevant verification. Require independent review.
 
-Do not:
-- break existing API contracts to simplify implementation,
-- remove existing features/routes because they are inconvenient,
-- hardcode production data,
-- replace real data with mock data when real integration exists,
-- bypass permission checks,
-- expose cross-tenant data,
-- silently alter financial calculations,
-- silently change doctor/receptionist visibility behavior,
-- add production dependencies without a concrete need.
+## 5. Completion Discipline
 
-## 5. Execution Discipline
+- Account for every requirement and acceptance criterion. Do not silently shrink scope.
+- Do not substitute real implementation with TODO stubs or dummy mocks.
+- Report final status as `DONE`, `PARTIAL`, or `BLOCKED`. Never mark work as `DONE` if requirements remain unaddressed.
 
-For development process and execution lifecycle, follow `docs/engineering/DEVELOPMENT_WORKFLOW.md`.
+## 6. Verification
 
-Core principles:
-- Account for every requirement and acceptance criterion.
-- Implement surgically within the declared scope.
-- Run targeted tests during development.
-- Report final status truthfully as `DONE`, `PARTIAL`, or `BLOCKED`.
-- `PARTIAL` or `BLOCKED` work must never be reported as `DONE`.
-- AI assistants must not poll CI in a loop; stop active execution after opening a PR or triggering CI.
+Follow `docs/engineering/DEVELOPMENT_WORKFLOW.md` for verification cadence:
 
-## 6. Debugging Discipline
-
-Activate `dentix-systematic-debugging` only upon actual failure or regression; do not preload it on clean paths.
-Before fixing a bug:
-1. Reproduce or establish evidence of the failure.
-2. Identify the root cause.
-3. Inspect nearby dependent behavior.
-4. Make the smallest correct change.
-5. Run relevant regression verification.
-6. Do not fix one failure by weakening security, validation, tests, or tenant/RBAC behavior.
-
-## 7. Verification
-
-Use the repository's existing test, lint, build, security, and analysis commands.
-
-The active CI configuration (e.g. `.github/workflows/ci.yml`) is the operational source of truth for required test commands and coverage thresholds.
-
-Verification cadence:
 - **During coding**: Run fast, targeted tests for modified files.
 - **Before PR**: Run relevant subsystem tests, linter, and build checks.
-- **At PR Boundary**: CI is the authoritative integration verification gate.
+- **At PR boundary**: CI is the authoritative integration verification gate.
+- Do not rerun expensive verification at the same confidence boundary when no relevant code changed.
+- When a baseline test already fails: record it, do not hide it, do not claim your change introduced it, ensure no new failure.
 
-When a baseline test already fails:
-- record it,
-- do not hide it,
-- do not claim your change introduced it unless evidence shows that,
-- ensure your change introduces no new failure.
+## 7. Git Safety
 
-## 8. Git Safety
+- Do not discard unrelated user changes.
+- Do not use destructive reset/clean commands casually.
+- Do not invent alternate branches when a requested branch cannot be used.
+- Before declaring work complete: inspect `git diff`, confirm scope, run relevant verification, list anything not completed.
 
-Do not:
-- discard unrelated user changes,
-- use destructive reset/clean commands casually,
-- invent alternate branches when a requested branch cannot be used,
-- commit generated secrets or credentials.
+## 8. Progressive Disclosure
 
-Before declaring work complete:
-- inspect `git diff`,
-- confirm scope,
-- run relevant verification,
-- list anything not completed.
+Do not preload governance and skills. Default context is this file + user request + relevant code.
+
+Load additional material only on trigger:
+
+| Trigger | Load |
+|---|---|
+| Architecture uncertainty | `PROJECT_STANDARDS.md` |
+| Auth / RBAC / tenancy / RLS | `dentix-security-tenancy-rbac` skill |
+| Migration / schema | `dentix-database-migrations` skill |
+| Verification gate selection | `dentix-testing-verification` skill |
+| HIGH_RISK review | `dentix-code-review` skill |
+| Git / PR / release | `docs/engineering/DEVELOPMENT_WORKFLOW.md` |
+
+## 9. Remote Boundaries
+
+Local reversible implementation is autonomous once requested.
+Push/PR only when remote delivery is included in the user's request.
+Merge, deploy, protected-branch, and destructive actions require explicit authorization.
+AI assistants must not poll CI in a loop; stop active execution after opening a PR or triggering CI.

@@ -1,63 +1,36 @@
 ---
 name: dentix-testing-verification
-description: Design or run DENTIX verification for code changes, regressions, CI failures, acceptance criteria, backend tests, frontend checks, Flutter tests, tenant/RBAC coverage, or release-readiness.
+description: Select the minimum sufficient verification gate for a DENTIX change. Activate when deciding what tests to run, not to duplicate testing across layers.
 ---
 
-# DENTIX Testing & Verification Discipline
+# DENTIX Verification Policy
 
-## Principles of Verification
-1. **CI is the Command Source of Truth**: Before running broad verification, inspect `.github/workflows/ci.yml` and relevant package scripts. Active CI configuration is the sole operational source of truth for required commands, coverage flags (`--cov-fail-under`), and thresholds.
-2. **Targeted Verification Cadence**: Run focused unit/integration tests during development. Run broader subsystem checks before PR. CI serves as the authoritative integration gate.
-3. **No Fake Passes**: Every claimed test passage must be backed by executed terminal commands and real exit codes.
-4. **Baseline Failure Separation**: Distinguish pre-existing baseline failures from introduced regressions.
+## Purpose
 
-## Standard Verification Commands
+This skill answers one question: **What is the minimum sufficient verification for this diff?**
 
-### Backend (Python / Pytest)
-```bash
-# Targeted test for active feature
-pytest backend/tests/test_<feature>.py -v
+It does NOT create a separate testing workflow. It selects the gate.
 
-# Full suite with coverage (matches active CI configuration)
-pytest backend/tests/ \
-  --cov=backend \
-  --cov-report=xml \
-  --cov-report=term-missing \
-  -v \
-  --tb=short \
-  -x
-```
+## Principles
 
-Always consult `.github/workflows/ci.yml` for current coverage thresholds and active flags.
+1. **CI is the integration authority.** Active CI configuration (`.github/workflows/ci.yml`) owns required commands, coverage flags, and thresholds. Do not hard-code thresholds here.
+2. **No fake passes.** Every claimed test result must be backed by executed commands and real exit codes.
+3. **Baseline separation.** Distinguish pre-existing baseline failures from introduced regressions.
+4. **No duplication.** Do not rerun an unchanged expensive gate at the same confidence boundary when no relevant code changed after the previous successful run.
 
-### Frontend (React / Vitest / Vite)
-```bash
-# Run linting
-cd frontend && npm run lint
+## Verification Cadence
 
-# Run unit and component tests
-cd frontend && npm run test
+| Phase | What to run |
+|---|---|
+| During implementation | Smallest targeted test covering the changed behavior |
+| Before acceptance | One final relevant verification pass |
+| Before PR | Additional subsystem lint/build checks only when appropriate |
+| PR → CI | CI is authoritative. Stop. |
 
-# Run production build check
-cd frontend && npm run build
-```
+## Reporting
 
-### Mobile (Flutter)
-```bash
-# Static analysis
-flutter analyze
+**Success**: `PASS — <command> — <summary>` (one line)
 
-# Widget and unit tests
-flutter test
-```
+**Failure**: Include failing command, relevant error, classification (new / pre-existing baseline), and next action.
 
-## Reporting Format
-Always document test results using this standard format:
-```text
-Verification:
-- Command: <exact command line>
-- Exit Status: <exit code 0 / non-zero>
-- Result Summary: <passed count, skipped count, failure count, execution duration>
-- Failures: <list of failures or "None">
-- Classification: <New / Pre-existing Baseline>
-```
+HIGH_RISK or final reports may include additional evidence where useful.
