@@ -27,6 +27,7 @@ These are non-negotiable. No task, plan, or convenience may override them.
 - **API compatibility**: Do not break existing API contracts, remove features/routes, or replace real data with mocks.
 - **Secrets**: Never commit generated secrets or credentials.
 - **Truthful verification**: Every claimed test result must be backed by executed commands and real exit codes. Report `DONE`, `PARTIAL`, or `BLOCKED` truthfully.
+- **Test integrity**: Never weaken, skip, or rewrite a test assertion to make a genuinely failing test pass. A failing test reveals a real defect until proven otherwise; silently altering an assertion to hide that failure is equivalent to fabricating a test result.
 
 ## 3. Architecture Defaults
 
@@ -65,6 +66,8 @@ Follow `docs/engineering/DEVELOPMENT_WORKFLOW.md` for verification cadence:
 
 ## 7. Git Safety
 
+- **Preflight reconciliation**: Before starting new implementation on a ticket or feature scope, check for existing work covering it: `git branch -a`, `git log --all --oneline --grep="<ticket-id>"`, and open PRs. If unreconciled prior work exists, stop and choose one explicit path (continue the existing branch, reconcile/rebase it, or document why it's superseded) rather than silently creating a second parallel implementation.
+- **No orphaned local work**: A branch or worktree holding unmerged work must not be left idle across sessions without a remote copy (push to `origin` or create a verified `git bundle`). Local-only implementation work is not considered safely stored.
 - Do not discard unrelated user changes.
 - Do not use destructive reset/clean commands casually.
 - Do not invent alternate branches when a requested branch cannot be used.
