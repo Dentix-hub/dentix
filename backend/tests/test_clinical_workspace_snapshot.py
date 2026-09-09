@@ -256,6 +256,81 @@ async def test_snapshot_excludes_superseded_and_entered_in_error(workspace_test_
 
 
 @pytest.mark.asyncio
+async def test_snapshot_reduces_canonical_tooth_status_events(workspace_test_engine):
+    """Backfilled tooth-status events remain visible after COMPLETE cutover."""
+    with Session(workspace_test_engine) as session:
+        _enable_vnext_primary(session, tenant_id=1)
+        session.add(
+            ClinicalProjectionCoverage(
+                tenant_id=1,
+                patient_id=101,
+                domain="teeth",
+                status="COMPLETE",
+            )
+        )
+        events = [
+            ClinicalEvent(
+                id=31,
+                tenant_id=1,
+                patient_id=101,
+                event_type="tooth_lifecycle_changed",
+                payload={"kind": "lifecycle", "canonical_code": "MISSING"},
+                occurred_at=datetime.now(timezone.utc),
+            ),
+            ClinicalEvent(
+                id=32,
+                tenant_id=1,
+                patient_id=101,
+                event_type="finding_recorded",
+                payload={"kind": "finding", "canonical_code": "CARIES"},
+                occurred_at=datetime.now(timezone.utc),
+            ),
+            ClinicalEvent(
+                id=33,
+                tenant_id=1,
+                patient_id=101,
+                event_type="procedure_recorded",
+                payload={"kind": "procedure", "canonical_code": "ENDO_RCT"},
+                occurred_at=datetime.now(timezone.utc),
+            ),
+        ]
+        session.add_all(events)
+        session.flush()
+        session.add_all(
+            [
+                ClinicalEventTarget(
+                    tenant_id=1,
+                    event_id=31,
+                    target_kind="tooth",
+                    tooth_key="11",
+                ),
+                ClinicalEventTarget(
+                    tenant_id=1,
+                    event_id=32,
+                    target_kind="tooth",
+                    tooth_key="21",
+                ),
+                ClinicalEventTarget(
+                    tenant_id=1,
+                    event_id=33,
+                    target_kind="tooth",
+                    tooth_key="36",
+                ),
+            ]
+        )
+        session.commit()
+
+        snapshot = await ClinicalWorkspaceService(
+            AsyncSessionWrapper(session),
+            tenant_id=1,
+        ).get_workspace_snapshot(101)
+
+        assert snapshot.teeth["11"].lifecycle == "MISSING"
+        assert [entry.code for entry in snapshot.teeth["21"].findings] == ["CARIES"]
+        assert [entry.code for entry in snapshot.teeth["36"].procedures] == ["ENDO_RCT"]
+
+
+@pytest.mark.asyncio
 async def test_snapshot_complete_coverage_blocks_legacy(workspace_test_engine):
     """When coverage is COMPLETE, legacy fallback records are strictly blocked."""
     with Session(workspace_test_engine) as session:

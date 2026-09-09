@@ -27,18 +27,33 @@ const ALLOWED_LIFECYCLES = new Set(Object.values(TOOTH_LIFECYCLE_CODES));
 /**
  * Maps a single visual target safely to the renderer contract.
  */
-const mapTarget = (target, defaultToothKey) => {
+const mapTarget = (target, defaultToothKey, reportInvalid = () => {}) => {
     const kind = Object.values(PROJECTION_TARGET_KINDS).includes(target?.kind)
         ? target.kind
         : PROJECTION_TARGET_KINDS.TOOTH;
     const toothKey = String(target?.tooth_key || target?.toothKey || defaultToothKey);
+    const anatomy = DENTAL_ANATOMY_REGISTRY[toothKey];
+    if (!anatomy) {
+        reportInvalid(target, toothKey, `Unknown tooth key ${toothKey}`);
+        return null;
+    }
 
     const base = { kind, toothKey };
-    if (kind === PROJECTION_TARGET_KINDS.SURFACE && (target?.surface_code || target?.surfaceCode)) {
-        base.surfaceCode = String(target.surface_code || target.surfaceCode).toUpperCase();
+    if (kind === PROJECTION_TARGET_KINDS.SURFACE) {
+        const surfaceCode = String(target?.surface_code || target?.surfaceCode || '').toUpperCase();
+        if (!anatomy.surfaceMap.surfaceCodes.includes(surfaceCode)) {
+            reportInvalid(target, toothKey, `Surface ${surfaceCode || '(missing)'} is invalid for tooth ${toothKey}`);
+            return null;
+        }
+        base.surfaceCode = surfaceCode;
     }
-    if ((kind === PROJECTION_TARGET_KINDS.ROOT || kind === PROJECTION_TARGET_KINDS.CANAL) && (target?.root_id || target?.rootId)) {
-        base.rootId = String(target.root_id || target.rootId);
+    if (kind === PROJECTION_TARGET_KINDS.ROOT || kind === PROJECTION_TARGET_KINDS.CANAL) {
+        const rootId = String(target?.root_id || target?.rootId || '');
+        if (!anatomy.rootOutlineRefs.some((root) => root.rootId === rootId)) {
+            reportInvalid(target, toothKey, `Root ${rootId || '(missing)'} is invalid for tooth ${toothKey}`);
+            return null;
+        }
+        base.rootId = rootId;
     }
     if (kind === PROJECTION_TARGET_KINDS.CANAL && (target?.canal_id || target?.canalId)) {
         base.canalId = String(target.canal_id || target.canalId);
@@ -51,7 +66,13 @@ const mapTarget = (target, defaultToothKey) => {
  * Filters out unsupported clinical codes (e.g. PROS_DENTURE) from visual rendering
  * so the renderer remains stable and unpolluted. Unsupported codes stay in warnings.
  */
-const mapVisualEntries = (entries, allowedCodes, defaultPhase, toothKey) => {
+const mapVisualEntries = (
+    entries,
+    allowedCodes,
+    defaultPhase,
+    toothKey,
+    reportInvalid,
+) => {
     if (!Array.isArray(entries)) return [];
     const valid = [];
 
@@ -67,9 +88,28 @@ const mapVisualEntries = (entries, allowedCodes, defaultPhase, toothKey) => {
             ? entry.targets
             : [{ kind: 'tooth', tooth_key: toothKey }];
 
-        const targets = rawTargets
-            .filter((t) => String(t.tooth_key || t.toothKey || toothKey) === toothKey)
-            .map((t) => mapTarget(t, toothKey));
+        const targets = rawTargets.flatMap((target) => {
+            const targetToothKey = String(
+                target?.tooth_key || target?.toothKey || toothKey,
+            );
+            if (targetToothKey !== toothKey) {
+                reportInvalid(
+                    entry,
+                    target,
+                    targetToothKey,
+                    `Target tooth ${targetToothKey} does not match entry tooth ${toothKey}`,
+                );
+                return [];
+            }
+            const mapped = mapTarget(
+                target,
+                toothKey,
+                (invalidTarget, invalidToothKey, reason) => (
+                    reportInvalid(entry, invalidTarget, invalidToothKey, reason)
+                ),
+            );
+            return mapped ? [mapped] : [];
+        });
 
         if (targets.length === 0) return;
 
@@ -105,6 +145,20 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
     } = options;
 
     const rawTeeth = snapshot?.teeth || {};
+    const adapterWarnings = [];
+    const reportInvalidTarget = (entry, target, toothKey, reason) => {
+        adapterWarnings.push({
+            code: 'INVALID_ANATOMICAL_TARGET',
+            message: `${reason}; target omitted from the renderer projection.`,
+            source_kind: 'clinical_workspace_target',
+            source_id: entry?.visual_id || entry?.visualId || null,
+            raw_value: JSON.stringify(target || {}),
+            details: {
+                tooth_key: toothKey,
+                target_kind: target?.kind || null,
+            },
+        });
+    };
     const hasPrimaryData = PRIMARY_TOOTH_KEYS.some((k) => (
         rawTeeth[k] && (
             (rawTeeth[k].findings && rawTeeth[k].findings.length > 0)
@@ -121,10 +175,11 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
     ));
 
     let dentition = PROJECTION_DENTITIONS.PERMANENT;
-    if (isPediatric) {
-        dentition = PROJECTION_DENTITIONS.PRIMARY;
-    } else if (hasPrimaryData && hasPermanentData) {
+    const hasOppositeDentitionData = isPediatric ? hasPermanentData : hasPrimaryData;
+    if (hasOppositeDentitionData) {
         dentition = PROJECTION_DENTITIONS.MIXED;
+    } else if (isPediatric) {
+        dentition = PROJECTION_DENTITIONS.PRIMARY;
     }
 
     const toothOrder = dentition === PROJECTION_DENTITIONS.PRIMARY
@@ -135,6 +190,11 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
 
     const teeth = {};
     const legacyTeethStatus = {};
+    const mappedSelection = selection
+        ? mapTarget(selection, selection.toothKey, (target, toothKey, reason) => (
+            reportInvalidTarget(null, target, toothKey, reason)
+        ))
+        : null;
 
     toothOrder.forEach((toothKey) => {
         const raw = rawTeeth[toothKey] || {};
@@ -148,6 +208,7 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
             ALLOWED_FINDINGS,
             PROJECTION_VISUAL_PHASES.EXISTING,
             toothKey,
+            reportInvalidTarget,
         );
 
         const procedures = mapVisualEntries(
@@ -155,11 +216,12 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
             ALLOWED_PROCEDURES,
             PROJECTION_VISUAL_PHASES.COMPLETED,
             toothKey,
+            reportInvalidTarget,
         );
 
         const isSelected = selection?.toothKey === toothKey;
-        const selectionTargets = isSelected && selection?.kind && selection.kind !== 'tooth'
-            ? [mapTarget(selection, toothKey)]
+        const selectionTargets = isSelected && mappedSelection && mappedSelection.kind !== 'tooth'
+            ? [mappedSelection]
             : [];
 
         teeth[toothKey] = {
@@ -192,7 +254,7 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
         dentition,
         toothOrder: dentition === PROJECTION_DENTITIONS.MIXED ? toothOrder : undefined,
         teeth,
-        selection: selection ? mapTarget(selection, selection.toothKey) : null,
+        selection: mappedSelection,
         anatomyDefinition: DENTAL_ANATOMY_REGISTRY,
     });
 
@@ -230,7 +292,7 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
         sessions: 'UNCOVERED',
     };
     const readMode = snapshot?.read_mode || 'LEGACY_ONLY';
-    const warnings = snapshot?.warnings || [];
+    const warnings = [...(snapshot?.warnings || []), ...adapterWarnings];
 
     const hasFallbackWarning = warnings.some((w) => w.code === 'FALLBACK_DATA_ACTIVE');
     const isFallback = hasFallbackWarning

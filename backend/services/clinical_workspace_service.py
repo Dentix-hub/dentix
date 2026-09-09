@@ -183,6 +183,12 @@ class ClinicalWorkspaceService:
             active_native_work_items.sort(
                 key=lambda w: (w.created_at or datetime.min, w.id)
             )
+            native_work_item_visual_keys = {
+                (target.tooth_key, work_item.code)
+                for work_item in active_native_work_items
+                for target in (work_item.targets or [])
+                if (work_item.status or "").lower() != "cancelled"
+            }
 
             active_native_events: list[models.ClinicalEvent] = []
             for ev in events:
@@ -213,7 +219,18 @@ class ClinicalWorkspaceService:
                 target_tooth_keys = [t.tooth_key for t in ev_targets if t.tooth_key in teeth_map]
 
                 payload = ev.payload or {}
-                lifecycle_candidate = payload.get("lifecycle") or ev.event_type
+                event_type = str(ev.event_type or "").lower()
+                event_kind = str(payload.get("kind") or "").lower()
+                canonical_code = str(payload.get("canonical_code") or "").upper()
+                lifecycle_candidate = (
+                    payload.get("lifecycle")
+                    or (
+                        canonical_code
+                        if event_type == "tooth_lifecycle_changed" or event_kind == "lifecycle"
+                        else None
+                    )
+                    or ev.event_type
+                )
                 if isinstance(lifecycle_candidate, str) and lifecycle_candidate.upper() in CANONICAL_TOOTH_LIFECYCLE_CODES:
                     canon_lifecycle = lifecycle_candidate.upper()
                     for tk in target_tooth_keys:
@@ -228,6 +245,84 @@ class ClinicalWorkspaceService:
                             cond_candidate = payload.get("condition")
                             if cond_candidate:
                                 t_summary.condition = cond_candidate
+
+                visual_kind = None
+                supported_codes: set[str] = set()
+                if event_type == "finding_recorded" or event_kind == "finding":
+                    visual_kind = "finding"
+                    supported_codes = SUPPORTED_FINDING_CODES
+                elif event_type == "procedure_recorded" or event_kind == "procedure":
+                    visual_kind = "procedure"
+                    supported_codes = SUPPORTED_PROCEDURE_CODES
+
+                if visual_kind and canonical_code:
+                    if canonical_code not in supported_codes:
+                        warnings.append(
+                            schemas.ClinicalWorkspaceWarning(
+                                code="UNSUPPORTED_CLINICAL_CODE",
+                                message=(
+                                    f"Unsupported canonical code '{canonical_code}' on "
+                                    f"clinical event {ev.id} preserved as an unclassified warning."
+                                ),
+                                source_kind="clinical_event",
+                                source_id=ev.id,
+                                raw_value=canonical_code,
+                                details={"event_type": ev.event_type, "kind": visual_kind},
+                            )
+                        )
+                        continue
+
+                    workspace_targets = [
+                        schemas.WorkspaceTarget(
+                            kind=target.target_kind,
+                            tooth_key=target.tooth_key,
+                            surface_code=target.surface_code,
+                            root_id=target.root_id,
+                            canal_id=target.canal_id,
+                        )
+                        for target in ev_targets
+                        if target.tooth_key in teeth_map
+                    ]
+                    visual_entry = schemas.WorkspaceVisualEntry(
+                        visual_id=f"ve-ev-{ev.id}",
+                        entry_type=visual_kind,
+                        code=canonical_code,
+                        phase="existing" if visual_kind == "finding" else "completed",
+                        targets=workspace_targets,
+                        recorded_at=ev.occurred_at or ev.created_at,
+                        provenance="native",
+                        temporal_certainty="EXACT",
+                    )
+                    appended_tooth_keys: set[str] = set()
+                    for target in workspace_targets:
+                        visual_key = (target.tooth_key, canonical_code)
+                        if (
+                            visual_key in native_work_item_visual_keys
+                            or target.tooth_key in appended_tooth_keys
+                        ):
+                            continue
+                        appended_tooth_keys.add(target.tooth_key)
+                        native_teeth_with_truth.add(target.tooth_key)
+                        native_covered_procedures.add(visual_key)
+                        if target.surface_code:
+                            native_covered_surfaces.add(
+                                (target.tooth_key, target.surface_code, canonical_code)
+                            )
+                        t_summary = teeth_map[target.tooth_key]
+                        t_summary.provenance = "native"
+                        t_summary.temporal_certainty = "EXACT"
+                        if visual_kind == "finding":
+                            t_summary.findings.append(visual_entry)
+                            if canonical_code == FindingCode.CARIES.value:
+                                t_summary.condition = "Decayed"
+                        else:
+                            t_summary.procedures.append(visual_entry)
+                            if canonical_code == ProcedureCode.REST_COMPOSITE.value:
+                                t_summary.condition = "Filled"
+                            elif canonical_code == ProcedureCode.PROS_CROWN.value:
+                                t_summary.condition = "Crown"
+                            elif canonical_code == ProcedureCode.ENDO_RCT.value:
+                                t_summary.condition = "RootCanal"
 
             # Apply native work items to teeth and build work-item summaries
             for wi in active_native_work_items:

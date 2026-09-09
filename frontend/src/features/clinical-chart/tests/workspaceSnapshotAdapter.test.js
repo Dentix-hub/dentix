@@ -84,6 +84,66 @@ describe('workspaceSnapshotAdapter', () => {
         expect(adapted.isEmpty).toBe(false);
     });
 
+    it('does not hide opposite-dentition clinical data behind the adult/child toggle', () => {
+        const primaryOnly = createBaseSnapshot({
+            teeth: {
+                '55': {
+                    tooth_key: '55',
+                    lifecycle: 'MISSING',
+                },
+            },
+        });
+        const permanentOnly = createBaseSnapshot({
+            teeth: {
+                '16': {
+                    tooth_key: '16',
+                    lifecycle: 'MISSING',
+                },
+            },
+        });
+
+        const adult = adaptWorkspaceSnapshotToRenderer(primaryOnly);
+        const child = adaptWorkspaceSnapshotToRenderer(permanentOnly, { isPediatric: true });
+
+        expect(adult.dentition).toBe(PROJECTION_DENTITIONS.MIXED);
+        expect(adult.projection.teeth['55'].lifecycle).toBe('MISSING');
+        expect(child.dentition).toBe(PROJECTION_DENTITIONS.MIXED);
+        expect(child.projection.teeth['16'].lifecycle).toBe('MISSING');
+    });
+
+    it('omits invalid tooth-specific targets with warnings instead of crashing the chart', () => {
+        const snapshot = createBaseSnapshot({
+            teeth: {
+                '21': {
+                    tooth_key: '21',
+                    findings: [{
+                        visual_id: 'bad-surface',
+                        code: 'CARIES',
+                        phase: 'existing',
+                        targets: [{ kind: 'surface', tooth_key: '21', surface_code: 'O' }],
+                    }],
+                },
+                '16': {
+                    tooth_key: '16',
+                    procedures: [{
+                        visual_id: 'bad-root',
+                        code: 'ENDO_RCT',
+                        phase: 'completed',
+                        targets: [{ kind: 'root', tooth_key: '16', root_id: 'single' }],
+                    }],
+                },
+            },
+        });
+
+        const adapted = adaptWorkspaceSnapshotToRenderer(snapshot);
+
+        expect(adapted.projection.teeth['21'].findings).toHaveLength(0);
+        expect(adapted.projection.teeth['16'].procedures).toHaveLength(0);
+        expect(adapted.warnings.filter((warning) => (
+            warning.code === 'INVALID_ANATOMICAL_TARGET'
+        ))).toHaveLength(2);
+    });
+
     it('filters unsupported clinical codes from visual procedures while preserving warnings', () => {
         const snapshot = createBaseSnapshot({
             teeth: {
