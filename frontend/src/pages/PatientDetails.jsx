@@ -93,11 +93,14 @@ export default function PatientDetails() {
 
     const effectiveTeethStatusRef = useRef({});
 
-    const handleToothClick = useCallback((number) => {
-        const fdi = toothToNumber(number);
+    const handleToothClick = useCallback((number, notation = 'universal') => {
+        const isFdiKey = notation === 'fdi';
+        const fdi = isFdiKey ? Number.parseInt(number, 10) : toothToNumber(number);
         const current = effectiveTeethStatusRef.current[fdi]?.condition || 'Healthy';
         setSelectedToothCondition(current);
-        const palmerPrefix = universalToPalmer(number, isPediatric);
+        const palmerPrefix = isFdiKey
+            ? fdiToPalmer(fdi)
+            : universalToPalmer(number, isPediatric);
         setNewTreatment({
             ...getInitialTreatment(),
             tooth_number: palmerPrefix,

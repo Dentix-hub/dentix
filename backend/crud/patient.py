@@ -1,11 +1,26 @@
 import logging
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import load_only, joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend import models, schemas
 from backend.core.tenancy import get_current_tenant_id
 
 logger = logging.getLogger(__name__)
+
+
+# Patient-owned Clinical VNext rows whose patient foreign keys intentionally
+# remain restrictive. Delete dependent aggregates in leaf-to-root order before
+# removing the patient; every statement is tenant scoped as a second guard.
+PATIENT_CLINICAL_DELETE_ORDER = (
+    models.ClinicalAttachmentLink,
+    models.NextVisitRequest,
+    models.CareObservation,
+    models.ClinicalEvent,
+    models.ClinicalTreatmentPlan,
+    models.CareSession,
+    models.ClinicalWorkItem,
+    models.ClinicalProjectionCoverage,
+)
 
 
 def _validate_tenant(tenant_id: int):
@@ -92,6 +107,7 @@ async def delete_patient(db: AsyncSession, patient_id: int, tenant_id: int):
 
 
 async def delete_patient_permanently(db: AsyncSession, patient_id: int, tenant_id: int):
+    _validate_tenant(tenant_id)
     db_patient = await get_patient(db, patient_id, tenant_id)
     if not db_patient:
         result = await db.execute(
@@ -101,6 +117,13 @@ async def delete_patient_permanently(db: AsyncSession, patient_id: int, tenant_i
         )
         db_patient = result.scalars().first()
     if db_patient:
+        for clinical_model in PATIENT_CLINICAL_DELETE_ORDER:
+            await db.execute(
+                delete(clinical_model).where(
+                    clinical_model.patient_id == patient_id,
+                    clinical_model.tenant_id == tenant_id,
+                )
+            )
         await db.delete(db_patient)
         await db.commit()
     return db_patient

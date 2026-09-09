@@ -30,7 +30,9 @@ vi.mock('@/features/patients/modals/EditPatientModal.jsx', () => ({
 }));
 
 vi.mock('@/shared/ui/modals/TreatmentModal', () => ({
-    default: () => null,
+    default: ({ isOpen, initialData }) => (
+        isOpen ? <div data-testid="treatment-modal-tooth">{initialData?.tooth_number}</div> : null
+    ),
 }));
 
 vi.mock('@/shared/ui/modals/PrescriptionModal', () => ({
@@ -268,5 +270,33 @@ describe('PatientDetails Clinical Workspace Tab', () => {
 
         const readModeBadge = screen.getByTestId('clinical-workspace-read-mode');
         expect(readModeBadge.textContent).toBe('LEGACY_ONLY');
+    });
+
+    it('opens treatment entry with the renderer FDI tooth unchanged', () => {
+        mockUsePatientClinicalWorkspace.mockReturnValue({
+            data: {
+                schema_version: 1,
+                projection_id: 'cws-snap-123',
+                patient_id: 123,
+                tenant_id: 1,
+                read_mode: 'VNEXT_PRIMARY',
+                coverage: { teeth: 'COMPLETE', treatments: 'PARTIAL', sessions: 'UNCOVERED' },
+                warnings: [],
+                teeth: {},
+                work_items: [],
+            },
+            isLoading: false,
+            isError: false,
+            error: null,
+            refetch: vi.fn(),
+        });
+
+        const { container } = renderPatientDetails();
+        const tooth16 = container.querySelector('svg[data-layer="crown"][data-tooth-key="16"]');
+        expect(tooth16).not.toBeNull();
+
+        fireEvent.click(tooth16);
+
+        expect(screen.getByTestId('treatment-modal-tooth')).toHaveTextContent('UR6');
     });
 });
