@@ -119,14 +119,30 @@ def workspace_test_engine():
 
 
 
-def _enable_vnext_primary(session: Session, tenant_id: int = 1) -> None:
-    """Helper to enable VNEXT_PRIMARY mode for a tenant."""
-    tf = session.query(TenantFeature).filter_by(tenant_id=tenant_id, feature_key="clinical_vnext_primary").first()
-    if not tf:
-        tf = TenantFeature(tenant_id=tenant_id, feature_key="clinical_vnext_primary", is_enabled=True)
-        session.add(tf)
-    else:
-        tf.is_enabled = True
+def _enable_vnext_primary(
+    session: Session,
+    tenant_id: int = 1,
+    *,
+    native_writes: bool = True,
+) -> None:
+    """Enable primary reads and explicitly choose native-write readiness."""
+    for feature_key, is_enabled in (
+        ("clinical_vnext_primary", True),
+        ("clinical_vnext_native_writes", native_writes),
+    ):
+        tf = session.query(TenantFeature).filter_by(
+            tenant_id=tenant_id,
+            feature_key=feature_key,
+        ).first()
+        if not tf:
+            tf = TenantFeature(
+                tenant_id=tenant_id,
+                feature_key=feature_key,
+                is_enabled=is_enabled,
+            )
+            session.add(tf)
+        else:
+            tf.is_enabled = is_enabled
     session.commit()
 
 
@@ -274,6 +290,50 @@ async def test_snapshot_complete_coverage_blocks_legacy(workspace_test_engine):
         t36 = snapshot.teeth["36"]
         crown_procs = [p for p in t36.procedures if p.provenance == "legacy_fallback"]
         assert len(crown_procs) == 0
+
+
+@pytest.mark.asyncio
+async def test_complete_coverage_keeps_legacy_writes_until_native_commands_enabled(
+    workspace_test_engine,
+):
+    """Primary reads must not hide writes still accepted by legacy endpoints."""
+    with Session(workspace_test_engine) as session:
+        _enable_vnext_primary(session, tenant_id=1, native_writes=False)
+        session.add(
+            ClinicalProjectionCoverage(
+                tenant_id=1,
+                patient_id=101,
+                domain="treatments",
+                status="COMPLETE",
+            )
+        )
+        session.add(
+            Treatment(
+                id=51,
+                tenant_id=1,
+                patient_id=101,
+                tooth_number="36",
+                procedure="Crown",
+                cost=500.0,
+                status="Done",
+            )
+        )
+        session.commit()
+
+        snapshot = await ClinicalWorkspaceService(
+            AsyncSessionWrapper(session),
+            tenant_id=1,
+        ).get_workspace_snapshot(101)
+
+        assert any(
+            procedure.provenance == "legacy_fallback"
+            and procedure.code == "PROS_CROWN"
+            for procedure in snapshot.teeth["36"].procedures
+        )
+        assert any(
+            warning.code == "LEGACY_WRITE_COMPATIBILITY_ACTIVE"
+            for warning in snapshot.warnings
+        )
 
 
 @pytest.mark.asyncio
@@ -535,6 +595,12 @@ async def test_snapshot_rollout_modes(workspace_test_engine):
             session.add(tf_primary)
         else:
             tf_primary.is_enabled = True
+        tf_native_writes = TenantFeature(
+            tenant_id=1,
+            feature_key="clinical_vnext_native_writes",
+            is_enabled=True,
+        )
+        session.add(tf_native_writes)
         session.commit()
 
         cov_treatments = session.query(ClinicalProjectionCoverage).filter_by(

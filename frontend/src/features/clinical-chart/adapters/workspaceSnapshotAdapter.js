@@ -216,7 +216,7 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
         callbacks: {
             onIntent: options.onIntent,
             onToothSelected: (intent) => {
-                onToothClick?.(intent.target?.toothKey);
+                onToothClick?.(intent.target?.toothKey, 'fdi');
             },
             onSurfaceSelected: (intent) => {
                 onSurfaceClick?.(intent.target);

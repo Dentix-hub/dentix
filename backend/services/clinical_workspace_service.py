@@ -38,6 +38,7 @@ logger = logging.getLogger("smart_clinic")
 
 FEATURE_FLAG_CLINICAL_SHADOW = "clinical_vnext_shadow"
 FEATURE_FLAG_CLINICAL_PRIMARY = "clinical_vnext_primary"
+FEATURE_FLAG_CLINICAL_NATIVE_WRITES = "clinical_vnext_native_writes"
 
 SUPPORTED_FINDING_CODES: set[str] = {c.value for c in FindingCode}
 SUPPORTED_PROCEDURE_CODES: set[str] = set(FROZEN_RENDERER_PROCEDURE_CODES)
@@ -105,6 +106,37 @@ class ClinicalWorkspaceService:
 
         warnings: List[schemas.ClinicalWorkspaceWarning] = []
         has_fallback_truth = False
+
+        # COMPLETE coverage is safe to enforce only after the native command
+        # path is enabled. Until then, legacy writes remain authoritative and
+        # must continue to contribute without overriding native truth.
+        effective_coverage = dict(coverage)
+        if rollout_mode == "VNEXT_PRIMARY":
+            native_writes_enabled = await FeatureFlagService.is_feature_enabled(
+                self.db,
+                FEATURE_FLAG_CLINICAL_NATIVE_WRITES,
+                self.tenant_id,
+            )
+            if not native_writes_enabled:
+                compatibility_domains = [
+                    domain
+                    for domain, status in coverage.items()
+                    if status == "COMPLETE"
+                ]
+                for domain in compatibility_domains:
+                    effective_coverage[domain] = "PARTIAL"
+                if compatibility_domains:
+                    warnings.append(
+                        schemas.ClinicalWorkspaceWarning(
+                            code="LEGACY_WRITE_COMPATIBILITY_ACTIVE",
+                            message=(
+                                "Legacy clinical writes remain active; COMPLETE domains "
+                                "continue accepting deduplicated legacy contributions until "
+                                "the native command path is enabled."
+                            ),
+                            details={"domains": compatibility_domains},
+                        )
+                    )
 
         # Initialize full FDI teeth map (52 canonical FDI keys)
         teeth_map: Dict[str, schemas.WorkspaceToothSummary] = {}
@@ -286,9 +318,9 @@ class ClinicalWorkspaceService:
         # for UNCOVERED or PARTIAL domains, never over COMPLETE native truth.
         legacy_needed = (
             rollout_mode != "VNEXT_PRIMARY"
-            or coverage["teeth"] != "COMPLETE"
-            or coverage["treatments"] != "COMPLETE"
-            or coverage["sessions"] != "COMPLETE"
+            or effective_coverage["teeth"] != "COMPLETE"
+            or effective_coverage["treatments"] != "COMPLETE"
+            or effective_coverage["sessions"] != "COMPLETE"
         )
 
         if legacy_needed:
@@ -318,8 +350,8 @@ class ClinicalWorkspaceService:
                     )
                 )
 
-            effective_teeth_cov = "UNCOVERED" if rollout_mode != "VNEXT_PRIMARY" else coverage["teeth"]
-            effective_treatments_cov = "UNCOVERED" if rollout_mode != "VNEXT_PRIMARY" else coverage["treatments"]
+            effective_teeth_cov = "UNCOVERED" if rollout_mode != "VNEXT_PRIMARY" else effective_coverage["teeth"]
+            effective_treatments_cov = "UNCOVERED" if rollout_mode != "VNEXT_PRIMARY" else effective_coverage["treatments"]
 
             # Teeth contribution
             if effective_teeth_cov in ("UNCOVERED", "PARTIAL"):
@@ -479,7 +511,11 @@ class ClinicalWorkspaceService:
                 schemas.ClinicalWorkspaceWarning(
                     code="FALLBACK_DATA_ACTIVE",
                     message=fallback_msg,
-                    details={"coverage": coverage, "rollout_mode": rollout_mode},
+                    details={
+                        "coverage": coverage,
+                        "effective_coverage": effective_coverage,
+                        "rollout_mode": rollout_mode,
+                    },
                 )
             )
 

@@ -221,7 +221,7 @@ describe('workspaceSnapshotAdapter', () => {
         });
 
         expect(onToothClick).toHaveBeenCalledTimes(1);
-        expect(onToothClick).toHaveBeenCalledWith('16');
+        expect(onToothClick).toHaveBeenCalledWith('16', 'fdi');
 
         // Simulate surface click callback
         adapted.rendererInput.callbacks.onSurfaceSelected({
