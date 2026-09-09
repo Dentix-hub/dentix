@@ -58,3 +58,12 @@ from .procedure import (
     update_procedure,
     delete_procedure,
 )
+from .clinical_workspace import (
+    get_projection_coverages,
+    set_projection_coverage,
+    get_clinical_work_items_for_patient,
+    get_clinical_events_for_patient,
+    get_care_sessions_for_patient,
+    get_legacy_clinical_records_for_patient,
+    LegacyClinicalRecords,
+)
