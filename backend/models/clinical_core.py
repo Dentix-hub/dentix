@@ -631,6 +631,55 @@ class ClinicalAttachmentLink(Base):
     clinical_event = relationship("ClinicalEvent", back_populates="attachment_links")
 
 
+COVERAGE_DOMAINS: tuple[str, ...] = ("teeth", "treatments", "sessions")
+COVERAGE_STATES: tuple[str, ...] = ("UNCOVERED", "PARTIAL", "COMPLETE")
+DEFAULT_COVERAGE_STATE: str = "UNCOVERED"
+
+
+class ClinicalProjectionCoverage(Base):
+    """
+    Tenant-owned Clinical Projection Coverage persistence at patient/domain grain.
+    Initial domains: teeth, treatments, sessions.
+    States: UNCOVERED, PARTIAL, COMPLETE.
+    Default must never imply COMPLETE (server_default is UNCOVERED).
+    Enforces natural uniqueness for tenant+patient+domain, tenant ownership,
+    patient relationship, and PostgreSQL RLS.
+    """
+    __tablename__ = "clinical_projection_coverages"
+
+    __rls_policies__ = _tenant_rls_policy()
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    domain = Column(String(32), nullable=False)
+    status = Column(String(32), nullable=False, default=DEFAULT_COVERAGE_STATE, server_default=DEFAULT_COVERAGE_STATE)
+    notes = Column(Text, nullable=True)
+    version_id = Column(Integer, nullable=False, default=1, server_default="1")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        CheckConstraint(
+            "domain IN ('teeth', 'treatments', 'sessions')",
+            name="ck_cpc_domain",
+        ),
+        CheckConstraint(
+            "status IN ('UNCOVERED', 'PARTIAL', 'COMPLETE')",
+            name="ck_cpc_status",
+        ),
+        UniqueConstraint("tenant_id", "patient_id", "domain", name="uq_cpc_tenant_patient_domain"),
+        Index("ix_cpc_tenant_patient", "tenant_id", "patient_id"),
+        Index("ix_cpc_tenant_domain", "tenant_id", "domain"),
+    )
+
+    __mapper_args__ = {
+        "version_id_col": version_id,
+    }
+
+    patient = relationship("Patient")
+
+
 __all__ = [
     "ClinicalWorkItem",
     "ClinicalWorkItemTarget",
@@ -645,6 +694,10 @@ __all__ = [
     "WorkflowTemplate",
     "NextVisitRequest",
     "ClinicalAttachmentLink",
+    "ClinicalProjectionCoverage",
+    "COVERAGE_DOMAINS",
+    "COVERAGE_STATES",
+    "DEFAULT_COVERAGE_STATE",
     "FDI_TOOTH_KEYS",
     "SURFACE_CODES",
     "ROOT_IDS",

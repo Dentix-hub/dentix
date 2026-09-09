@@ -4,6 +4,7 @@ import { queryKeys } from '@/lib/queryClient';
 import {
     getPatient,
     getPatientTeeth,
+    getPatientClinicalWorkspace,
     getPatientTreatments,
     getPatientPayments,
     getAttachments,
@@ -23,6 +24,21 @@ export function usePatient(patientId) {
         },
         enabled: !!patientId,
         staleTime: 60 * 1000, // 1 minute
+    });
+}
+
+/**
+ * Hook for patient clinical workspace snapshot - loads only when chart tab is active
+ */
+export function usePatientClinicalWorkspace(patientId, { enabled = true } = {}) {
+    return useQuery({
+        queryKey: queryKeys.patientClinicalWorkspace(patientId),
+        queryFn: async () => {
+            const res = await getPatientClinicalWorkspace(patientId);
+            return res.data;
+        },
+        enabled: !!patientId && enabled,
+        staleTime: 30 * 1000,
     });
 }
 

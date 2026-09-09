@@ -47,6 +47,16 @@ from .clinical import (
     TreatmentSession,
 )
 
+# Clinical Workspace Snapshot (Issue #205)
+from .clinical_workspace import (
+    ClinicalWorkspaceWarning,
+    WorkspaceTarget,
+    WorkspaceVisualEntry,
+    WorkspaceToothSummary,
+    WorkspaceWorkItemSummary,
+    ClinicalWorkspaceSnapshot,
+)
+
 # Billing
 from .billing import (
     PaymentBase,
@@ -304,4 +314,11 @@ __all__ = [
     "TreatmentSessionBase",
     "TreatmentSessionCreate",
     "TreatmentSession",
+    # Clinical Workspace Snapshot
+    "ClinicalWorkspaceWarning",
+    "WorkspaceTarget",
+    "WorkspaceVisualEntry",
+    "WorkspaceToothSummary",
+    "WorkspaceWorkItemSummary",
+    "ClinicalWorkspaceSnapshot",
 ]

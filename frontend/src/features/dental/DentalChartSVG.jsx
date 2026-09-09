@@ -261,8 +261,8 @@ const SVGTooth = memo(function SVGTooth({
 }) {
     const reactId = useId();
     const path = getToothPath(number, isPediatric);
-    const condition = status?.condition || 'Healthy';
-    const style = STATUS_STYLES[condition];
+    const condition = status?.condition || null;
+    const style = (condition && STATUS_STYLES[condition]) || STATUS_STYLES.Healthy;
     const disabled = Boolean(status?.disabled);
     const toothKey = explicitToothKey ?? String(toothToNumber(number));
     const notation = resolveToothNotation({
@@ -368,7 +368,7 @@ const SVGTooth = memo(function SVGTooth({
     if (readOnly) {
         return (
             <div
-                aria-label={`Tooth ${toothLabel} — ${condition}`}
+                aria-label={condition ? `Tooth ${toothLabel} — ${condition}` : `Tooth ${toothLabel}`}
                 className={`${toothClassName} cursor-default`}
             >
                 {toothContent}
@@ -382,7 +382,7 @@ const SVGTooth = memo(function SVGTooth({
             className={`${toothClassName} cursor-pointer`}
             disabled={disabled}
             onClick={() => onClick(number)}
-            aria-label={`Tooth ${toothLabel} — ${condition}`}
+            aria-label={condition ? `Tooth ${toothLabel} — ${condition}` : `Tooth ${toothLabel}`}
         >
             {toothContent}
         </button>

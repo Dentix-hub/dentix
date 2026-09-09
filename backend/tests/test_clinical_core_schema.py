@@ -635,7 +635,10 @@ def test_alembic_single_head_is_f4a5b6c7d8e9():
 
     heads = script_dir.get_heads()
     assert len(heads) == 1, f"Expected exactly 1 Alembic head revision, found {heads}"
-    assert heads[0] == "f4a5b6c7d8e9", f"Expected head revision f4a5b6c7d8e9, got {heads[0]}"
+    assert heads[0] == "1a2b3c4d5e6f", f"Expected head revision 1a2b3c4d5e6f, got {heads[0]}"
+
+    head_rev = script_dir.get_revision("1a2b3c4d5e6f")
+    assert head_rev.down_revision == "f4a5b6c7d8e9", f"Expected parent revision f4a5b6c7d8e9, got {head_rev.down_revision}"
 
     rev = script_dir.get_revision("f4a5b6c7d8e9")
     assert rev.down_revision == "e3a4b5c6d7e8", f"Expected parent revision e3a4b5c6d7e8, got {rev.down_revision}"
@@ -674,13 +677,32 @@ def test_alembic_migration_upgrade_and_downgrade_sqlite(monkeypatch):
             for t in CLINICAL_G1_TABLES:
                 assert t not in tables_after_downgrade, f"Table {t} should have been dropped on downgrade"
 
-            # 4. Re-upgrade back to head
+            # 4. Upgrade to new head (applies f4a5b6c7d8e9 and 1a2b3c4d5e6f)
+            command.upgrade(config, "head")
+
+            inspector = sa.inspect(engine)
+            tables_after_head = set(inspector.get_table_names())
+            for t in CLINICAL_G1_TABLES:
+                assert t in tables_after_head, f"Table {t} missing after upgrade to head"
+            assert "clinical_projection_coverages" in tables_after_head, "Table clinical_projection_coverages missing after upgrade to head"
+
+            # 5. Downgrade exactly to f4a5b6c7d8e9: clinical_projection_coverages is removed, G1 tables remain
+            command.downgrade(config, "f4a5b6c7d8e9")
+
+            inspector = sa.inspect(engine)
+            tables_after_step_downgrade = set(inspector.get_table_names())
+            assert "clinical_projection_coverages" not in tables_after_step_downgrade, "Table clinical_projection_coverages should have been removed when downgrading to f4a5b6c7d8e9"
+            for t in CLINICAL_G1_TABLES:
+                assert t in tables_after_step_downgrade, f"Table {t} should still exist after downgrading to f4a5b6c7d8e9"
+
+            # 6. Re-upgrade back to head: clinical_projection_coverages is recreated
             command.upgrade(config, "head")
 
             inspector = sa.inspect(engine)
             tables_after_reupgrade = set(inspector.get_table_names())
             for t in CLINICAL_G1_TABLES:
                 assert t in tables_after_reupgrade, f"Table {t} missing after re-upgrade"
+            assert "clinical_projection_coverages" in tables_after_reupgrade, "Table clinical_projection_coverages missing after re-upgrade to head"
         finally:
             engine.dispose()
 

@@ -120,6 +120,7 @@ RLS_TABLES = (
     "domain_events",
     "push_subscriptions",
     *CLINICAL_G1_TABLES,
+    "clinical_projection_coverages",
 )
 
 CHILD_TENANT_RELATIONSHIPS = (
@@ -162,6 +163,8 @@ CHILD_TENANT_RELATIONSHIPS = (
     ("clinical_attachment_links", "work_item_id", "clinical_work_items", True),
     ("clinical_attachment_links", "care_session_id", "care_sessions", True),
     ("clinical_attachment_links", "clinical_event_id", "clinical_events", True),
+    # Clinical Projection Coverage
+    ("clinical_projection_coverages", "patient_id", "patients", False),
 )
 
 CLINICAL_G1_DIRECT_PARENT_PATIENT_RELATIONSHIPS = (
