@@ -193,8 +193,9 @@ async def test_snapshot_deterministic_ordering(workspace_test_engine):
         target1 = ClinicalWorkItemTarget(
             tenant_id=1,
             work_item_id=10,
-            target_kind="tooth",
+            target_kind="surface",
             tooth_key="16",
+            surface_code="O",
         )
         session.add_all([wi1, target1])
         session.commit()
@@ -260,6 +261,8 @@ async def test_snapshot_reduces_canonical_tooth_status_events(workspace_test_eng
     """Backfilled tooth-status events remain visible after COMPLETE cutover."""
     with Session(workspace_test_engine) as session:
         _enable_vnext_primary(session, tenant_id=1)
+        procedure_occurred_at = datetime(2026, 1, 2, 9, 0, tzinfo=timezone.utc)
+        procedure_recorded_at = datetime(2026, 1, 2, 10, 0, tzinfo=timezone.utc)
         session.add(
             ClinicalProjectionCoverage(
                 tenant_id=1,
@@ -291,7 +294,8 @@ async def test_snapshot_reduces_canonical_tooth_status_events(workspace_test_eng
                 patient_id=101,
                 event_type="procedure_recorded",
                 payload={"kind": "procedure", "canonical_code": "ENDO_RCT"},
-                occurred_at=datetime.now(timezone.utc),
+                occurred_at=procedure_occurred_at,
+                created_at=procedure_recorded_at,
             ),
         ]
         session.add_all(events)
@@ -328,6 +332,154 @@ async def test_snapshot_reduces_canonical_tooth_status_events(workspace_test_eng
         assert snapshot.teeth["11"].lifecycle == "MISSING"
         assert [entry.code for entry in snapshot.teeth["21"].findings] == ["CARIES"]
         assert [entry.code for entry in snapshot.teeth["36"].procedures] == ["ENDO_RCT"]
+        procedure_entry = snapshot.teeth["36"].procedures[0]
+        assert procedure_entry.occurred_at.replace(tzinfo=timezone.utc) == procedure_occurred_at
+        assert procedure_entry.recorded_at.replace(tzinfo=timezone.utc) == procedure_recorded_at
+
+
+@pytest.mark.asyncio
+async def test_snapshot_appends_multi_surface_work_item_once_per_tooth(
+    workspace_test_engine,
+):
+    """One MOD work item produces one visual carrying all of its tooth targets."""
+    with Session(workspace_test_engine) as session:
+        _enable_vnext_primary(session, tenant_id=1)
+        session.add(
+            ClinicalWorkItem(
+                id=34,
+                tenant_id=1,
+                patient_id=101,
+                kind="procedure",
+                code="REST_COMPOSITE",
+                status="completed",
+            )
+        )
+        session.add_all(
+            [
+                ClinicalWorkItemTarget(
+                    tenant_id=1,
+                    work_item_id=34,
+                    target_kind="surface",
+                    tooth_key="36",
+                    surface_code=surface_code,
+                )
+                for surface_code in ("M", "O", "D")
+            ]
+        )
+        session.commit()
+
+        snapshot = await ClinicalWorkspaceService(
+            AsyncSessionWrapper(session),
+            tenant_id=1,
+        ).get_workspace_snapshot(101)
+
+        composite_entries = [
+            entry
+            for entry in snapshot.teeth["36"].procedures
+            if entry.visual_id == "ve-wi-34"
+        ]
+        assert len(composite_entries) == 1
+        assert {target.surface_code for target in composite_entries[0].targets} == {
+            "M",
+            "O",
+            "D",
+        }
+
+
+@pytest.mark.asyncio
+async def test_later_lifecycle_event_overrides_completed_extraction(
+    workspace_test_engine,
+):
+    """A later explicit lifecycle correction wins over an older extraction work item."""
+    with Session(workspace_test_engine) as session:
+        _enable_vnext_primary(session, tenant_id=1)
+        extraction_at = datetime(2026, 1, 2, 9, 0, tzinfo=timezone.utc)
+        correction_at = extraction_at + timedelta(hours=1)
+        session.add(
+            ClinicalWorkItem(
+                id=35,
+                tenant_id=1,
+                patient_id=101,
+                kind="procedure",
+                code="SURG_EXTRACTION",
+                status="completed",
+                created_at=extraction_at,
+            )
+        )
+        session.add(
+            ClinicalWorkItemTarget(
+                tenant_id=1,
+                work_item_id=35,
+                target_kind="tooth",
+                tooth_key="46",
+            )
+        )
+        session.add(
+            ClinicalEvent(
+                id=36,
+                tenant_id=1,
+                patient_id=101,
+                event_type="tooth_lifecycle_changed",
+                payload={"kind": "lifecycle", "canonical_code": "PRESENT"},
+                occurred_at=correction_at,
+                created_at=correction_at,
+            )
+        )
+        session.add(
+            ClinicalEventTarget(
+                tenant_id=1,
+                event_id=36,
+                target_kind="tooth",
+                tooth_key="46",
+            )
+        )
+        session.commit()
+
+        snapshot = await ClinicalWorkspaceService(
+            AsyncSessionWrapper(session),
+            tenant_id=1,
+        ).get_workspace_snapshot(101)
+
+        assert snapshot.teeth["46"].lifecycle == "PRESENT"
+        assert snapshot.teeth["46"].condition != "Missing"
+
+
+@pytest.mark.asyncio
+async def test_legacy_composite_without_surface_reports_renderer_warning(
+    workspace_test_engine,
+):
+    """Legacy fillings without surface evidence must not claim renderer support."""
+    with Session(workspace_test_engine) as session:
+        session.add(
+            Treatment(
+                id=37,
+                tenant_id=1,
+                patient_id=101,
+                tooth_number="26",
+                procedure="Composite Filling",
+                cost=120.0,
+                status="Done",
+            )
+        )
+        session.commit()
+
+        snapshot = await ClinicalWorkspaceService(
+            AsyncSessionWrapper(session),
+            tenant_id=1,
+        ).get_workspace_snapshot(101)
+
+        work_item = next(item for item in snapshot.work_items if item.id == "legacy-37")
+        assert work_item.is_renderer_supported is False
+        assert not any(
+            entry.code == "REST_COMPOSITE"
+            for entry in snapshot.teeth["26"].procedures
+        )
+        assert any(
+            warning.code == "UNSUPPORTED_RENDERER_TARGET"
+            and warning.source_kind == "treatment"
+            and warning.source_id == 37
+            for warning in snapshot.warnings
+        )
 
 
 @pytest.mark.asyncio
@@ -434,7 +586,13 @@ async def test_snapshot_partial_coverage_deduplication(workspace_test_engine):
             code="REST_COMPOSITE",
             status="completed",
         )
-        target_native = ClinicalWorkItemTarget(tenant_id=1, work_item_id=60, target_kind="tooth", tooth_key="16")
+        target_native = ClinicalWorkItemTarget(
+            tenant_id=1,
+            work_item_id=60,
+            target_kind="surface",
+            tooth_key="16",
+            surface_code="O",
+        )
 
         # Legacy duplicate treatment: Filling on tooth 16 (maps to REST_COMPOSITE)
         leg_dup = Treatment(
