@@ -83,6 +83,11 @@ async def delete_tenant_data(db: AsyncSession, tenant_id: int) -> Dict[str, int]
     # keys. Remove them tenant-wide before the legacy cleanup reaches patients.
     deleted_counts.update(await delete_tenant_clinical_rows(db, tenant_id))
 
+    # Tenant-owned workflow templates
+    stmt_wt = delete(models.WorkflowTemplate).where(models.WorkflowTemplate.tenant_id == tenant_id)
+    res_wt = await db.execute(stmt_wt)
+    deleted_counts["workflow_templates"] = res_wt.rowcount
+
     # 1. MaterialSessions (via StockItem)
     stmt_stock_items = select(models.StockItem.id).where(models.StockItem.tenant_id == tenant_id)
     res_stock_items = await db.execute(stmt_stock_items)
@@ -256,6 +261,15 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
         "materials": {},
         "batches": {},
         "stock_items": {},
+        "appointments": {},
+        "attachments": {},
+        "workflow_templates": {},
+        "clinical_work_items": {},
+        "clinical_treatment_plans": {},
+        "clinical_treatment_plan_phases": {},
+        "care_sessions": {},
+        "care_session_steps": {},
+        "clinical_events": {},
     }
 
     # 1. Import Users
@@ -432,7 +446,7 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
 
     # 12. Import Appointments
     for appt_data in data.get("appointments", []):
-        appt_data.pop("id", None)
+        old_id = appt_data.pop("id", None)
         appt_data["patient_id"] = id_maps["patients"].get(appt_data.get("patient_id"))
         appt_data["doctor_id"] = id_maps["users"].get(appt_data.get("doctor_id"))
         appt_data["price_list_id"] = id_maps["price_lists"].get(
@@ -444,6 +458,9 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
         if appt_data["patient_id"]:
             appt = models.Appointment(**appt_data)
             db.add(appt)
+            await db.flush()
+            if old_id:
+                id_maps["appointments"][old_id] = appt.id
     imported_counts["appointments"] = len(data.get("appointments", []))
 
     # 13. Import Treatments
@@ -503,12 +520,16 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
     imported_counts["tooth_statuses"] = len(data.get("tooth_statuses", []))
 
     for att_data in data.get("attachments", []):
-        att_data.pop("id", None)
+        old_id = att_data.pop("id", None)
         att_data["tenant_id"] = tenant_id
         att_data["patient_id"] = id_maps["patients"].get(att_data.get("patient_id"))
         att_data["created_at"] = parse_datetime(att_data.get("created_at"))
         if att_data["patient_id"]:
-            db.add(models.Attachment(**att_data))
+            att = models.Attachment(**att_data)
+            db.add(att)
+            await db.flush()
+            if old_id:
+                id_maps["attachments"][old_id] = att.id
     imported_counts["attachments"] = len(data.get("attachments", []))
 
     for lo_data in data.get("lab_orders", []):
@@ -552,6 +573,233 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
         sm_data["created_at"] = parse_datetime(sm_data.get("created_at"))
         db.add(models.SavedMedication(**sm_data))
     imported_counts["saved_medications"] = len(data.get("saved_medications", []))
+
+    # 26. Import WorkflowTemplates
+    for wt_data in data.get("workflow_templates", []):
+        old_id = wt_data.pop("id", None)
+        wt_data["tenant_id"] = tenant_id
+        wt_data["created_at"] = parse_datetime(wt_data.get("created_at"))
+        wt_data["updated_at"] = parse_datetime(wt_data.get("updated_at"))
+        wt = models.WorkflowTemplate(**wt_data)
+        db.add(wt)
+        await db.flush()
+        if old_id:
+            id_maps["workflow_templates"][old_id] = wt.id
+    imported_counts["workflow_templates"] = len(data.get("workflow_templates", []))
+
+    # 27. Import ClinicalWorkItems
+    for wi_data in data.get("clinical_work_items", []):
+        old_id = wi_data.pop("id", None)
+        wi_data["tenant_id"] = tenant_id
+        wi_data["patient_id"] = id_maps["patients"].get(wi_data.get("patient_id"))
+        if wi_data.get("created_by_user_id"):
+            wi_data["created_by_user_id"] = id_maps["users"].get(wi_data.get("created_by_user_id"))
+        wi_data["created_at"] = parse_datetime(wi_data.get("created_at"))
+        wi_data["updated_at"] = parse_datetime(wi_data.get("updated_at"))
+        if wi_data["patient_id"]:
+            wi = models.ClinicalWorkItem(**wi_data)
+            db.add(wi)
+            await db.flush()
+            if old_id:
+                id_maps["clinical_work_items"][old_id] = wi.id
+    imported_counts["clinical_work_items"] = len(data.get("clinical_work_items", []))
+
+    # 28. Import ClinicalWorkItemTargets
+    for cwit_data in data.get("clinical_work_item_targets", []):
+        cwit_data.pop("id", None)
+        cwit_data["tenant_id"] = tenant_id
+        cwit_data["work_item_id"] = id_maps["clinical_work_items"].get(cwit_data.get("work_item_id"))
+        cwit_data["created_at"] = parse_datetime(cwit_data.get("created_at"))
+        if cwit_data["work_item_id"]:
+            cwit = models.ClinicalWorkItemTarget(**cwit_data)
+            db.add(cwit)
+    imported_counts["clinical_work_item_targets"] = len(data.get("clinical_work_item_targets", []))
+
+    # 29. Import ClinicalTreatmentPlans
+    for tp_data in data.get("clinical_treatment_plans", []):
+        old_id = tp_data.pop("id", None)
+        tp_data["tenant_id"] = tenant_id
+        tp_data["patient_id"] = id_maps["patients"].get(tp_data.get("patient_id"))
+        if tp_data.get("created_by_user_id"):
+            tp_data["created_by_user_id"] = id_maps["users"].get(tp_data.get("created_by_user_id"))
+        tp_data["created_at"] = parse_datetime(tp_data.get("created_at"))
+        tp_data["updated_at"] = parse_datetime(tp_data.get("updated_at"))
+        if tp_data["patient_id"]:
+            tp = models.ClinicalTreatmentPlan(**tp_data)
+            db.add(tp)
+            await db.flush()
+            if old_id:
+                id_maps["clinical_treatment_plans"][old_id] = tp.id
+    imported_counts["clinical_treatment_plans"] = len(data.get("clinical_treatment_plans", []))
+
+    # 30. Import ClinicalTreatmentPlanPhases
+    for tpp_data in data.get("clinical_treatment_plan_phases", []):
+        old_id = tpp_data.pop("id", None)
+        tpp_data["tenant_id"] = tenant_id
+        tpp_data["plan_id"] = id_maps["clinical_treatment_plans"].get(tpp_data.get("plan_id"))
+        tpp_data["created_at"] = parse_datetime(tpp_data.get("created_at"))
+        tpp_data["updated_at"] = parse_datetime(tpp_data.get("updated_at"))
+        if tpp_data["plan_id"]:
+            tpp = models.ClinicalTreatmentPlanPhase(**tpp_data)
+            db.add(tpp)
+            await db.flush()
+            if old_id:
+                id_maps["clinical_treatment_plan_phases"][old_id] = tpp.id
+    imported_counts["clinical_treatment_plan_phases"] = len(data.get("clinical_treatment_plan_phases", []))
+
+    # 31. Import ClinicalTreatmentPlanItems
+    for tpi_data in data.get("clinical_treatment_plan_items", []):
+        tpi_data.pop("id", None)
+        tpi_data["tenant_id"] = tenant_id
+        tpi_data["phase_id"] = id_maps["clinical_treatment_plan_phases"].get(tpi_data.get("phase_id"))
+        tpi_data["work_item_id"] = id_maps["clinical_work_items"].get(tpi_data.get("work_item_id"))
+        tpi_data["created_at"] = parse_datetime(tpi_data.get("created_at"))
+        tpi_data["updated_at"] = parse_datetime(tpi_data.get("updated_at"))
+        if tpi_data["phase_id"] and tpi_data["work_item_id"]:
+            tpi = models.ClinicalTreatmentPlanItem(**tpi_data)
+            db.add(tpi)
+    imported_counts["clinical_treatment_plan_items"] = len(data.get("clinical_treatment_plan_items", []))
+
+    # 32. Import CareSessions
+    for cs_data in data.get("care_sessions", []):
+        old_id = cs_data.pop("id", None)
+        cs_data["tenant_id"] = tenant_id
+        cs_data["patient_id"] = id_maps["patients"].get(cs_data.get("patient_id"))
+        if cs_data.get("appointment_id"):
+            cs_data["appointment_id"] = id_maps["appointments"].get(cs_data.get("appointment_id"))
+        if cs_data.get("provider_user_id"):
+            cs_data["provider_user_id"] = id_maps["users"].get(cs_data.get("provider_user_id"))
+        cs_data["started_at"] = parse_datetime(cs_data.get("started_at"))
+        cs_data["finished_at"] = parse_datetime(cs_data.get("finished_at"))
+        cs_data["created_at"] = parse_datetime(cs_data.get("created_at"))
+        cs_data["updated_at"] = parse_datetime(cs_data.get("updated_at"))
+        if cs_data["patient_id"]:
+            cs = models.CareSession(**cs_data)
+            db.add(cs)
+            await db.flush()
+            if old_id:
+                id_maps["care_sessions"][old_id] = cs.id
+    imported_counts["care_sessions"] = len(data.get("care_sessions", []))
+
+    # 33. Import CareSessionSteps
+    for css_data in data.get("care_session_steps", []):
+        old_id = css_data.pop("id", None)
+        css_data["tenant_id"] = tenant_id
+        css_data["care_session_id"] = id_maps["care_sessions"].get(css_data.get("care_session_id"))
+        if css_data.get("work_item_id"):
+            css_data["work_item_id"] = id_maps["clinical_work_items"].get(css_data.get("work_item_id"))
+        css_data["started_at"] = parse_datetime(css_data.get("started_at"))
+        css_data["completed_at"] = parse_datetime(css_data.get("completed_at"))
+        css_data["created_at"] = parse_datetime(css_data.get("created_at"))
+        css_data["updated_at"] = parse_datetime(css_data.get("updated_at"))
+        if css_data["care_session_id"]:
+            css = models.CareSessionStep(**css_data)
+            db.add(css)
+            await db.flush()
+            if old_id:
+                id_maps["care_session_steps"][old_id] = css.id
+    imported_counts["care_session_steps"] = len(data.get("care_session_steps", []))
+
+    # 34. Import CareObservations
+    for co_data in data.get("care_observations", []):
+        co_data.pop("id", None)
+        co_data["tenant_id"] = tenant_id
+        co_data["patient_id"] = id_maps["patients"].get(co_data.get("patient_id"))
+        co_data["care_session_id"] = id_maps["care_sessions"].get(co_data.get("care_session_id"))
+        if co_data.get("step_id"):
+            co_data["step_id"] = id_maps["care_session_steps"].get(co_data.get("step_id"))
+        if co_data.get("work_item_id"):
+            co_data["work_item_id"] = id_maps["clinical_work_items"].get(co_data.get("work_item_id"))
+        if co_data.get("recorded_by_user_id"):
+            co_data["recorded_by_user_id"] = id_maps["users"].get(co_data.get("recorded_by_user_id"))
+        co_data["recorded_at"] = parse_datetime(co_data.get("recorded_at"))
+        co_data["created_at"] = parse_datetime(co_data.get("created_at"))
+        if co_data["patient_id"] and co_data["care_session_id"]:
+            co = models.CareObservation(**co_data)
+            db.add(co)
+    imported_counts["care_observations"] = len(data.get("care_observations", []))
+
+    # 35. Import ClinicalEvents
+    for ce_data in data.get("clinical_events", []):
+        old_id = ce_data.pop("id", None)
+        ce_data["tenant_id"] = tenant_id
+        ce_data["patient_id"] = id_maps["patients"].get(ce_data.get("patient_id"))
+        if ce_data.get("work_item_id"):
+            ce_data["work_item_id"] = id_maps["clinical_work_items"].get(ce_data.get("work_item_id"))
+        if ce_data.get("care_session_id"):
+            ce_data["care_session_id"] = id_maps["care_sessions"].get(ce_data.get("care_session_id"))
+        if ce_data.get("actor_user_id"):
+            ce_data["actor_user_id"] = id_maps["users"].get(ce_data.get("actor_user_id"))
+        ce_data["occurred_at"] = parse_datetime(ce_data.get("occurred_at"))
+        ce_data["created_at"] = parse_datetime(ce_data.get("created_at"))
+        if ce_data["patient_id"]:
+            ce = models.ClinicalEvent(**ce_data)
+            db.add(ce)
+            await db.flush()
+            if old_id:
+                id_maps["clinical_events"][old_id] = ce.id
+    imported_counts["clinical_events"] = len(data.get("clinical_events", []))
+
+    # 36. Import ClinicalEventTargets
+    for cet_data in data.get("clinical_event_targets", []):
+        cet_data.pop("id", None)
+        cet_data["tenant_id"] = tenant_id
+        cet_data["event_id"] = id_maps["clinical_events"].get(cet_data.get("event_id"))
+        cet_data["created_at"] = parse_datetime(cet_data.get("created_at"))
+        if cet_data["event_id"]:
+            cet = models.ClinicalEventTarget(**cet_data)
+            db.add(cet)
+    imported_counts["clinical_event_targets"] = len(data.get("clinical_event_targets", []))
+
+    # 37. Import NextVisitRequests
+    for nvr_data in data.get("next_visit_requests", []):
+        nvr_data.pop("id", None)
+        nvr_data["tenant_id"] = tenant_id
+        nvr_data["patient_id"] = id_maps["patients"].get(nvr_data.get("patient_id"))
+        if nvr_data.get("care_session_id"):
+            nvr_data["care_session_id"] = id_maps["care_sessions"].get(nvr_data.get("care_session_id"))
+        if nvr_data.get("work_item_id"):
+            nvr_data["work_item_id"] = id_maps["clinical_work_items"].get(nvr_data.get("work_item_id"))
+        if nvr_data.get("requested_by_user_id"):
+            nvr_data["requested_by_user_id"] = id_maps["users"].get(nvr_data.get("requested_by_user_id"))
+        nvr_data["preferred_time_window_start"] = parse_datetime(nvr_data.get("preferred_time_window_start"))
+        nvr_data["preferred_time_window_end"] = parse_datetime(nvr_data.get("preferred_time_window_end"))
+        nvr_data["created_at"] = parse_datetime(nvr_data.get("created_at"))
+        nvr_data["updated_at"] = parse_datetime(nvr_data.get("updated_at"))
+        if nvr_data["patient_id"]:
+            nvr = models.NextVisitRequest(**nvr_data)
+            db.add(nvr)
+    imported_counts["next_visit_requests"] = len(data.get("next_visit_requests", []))
+
+    # 38. Import ClinicalAttachmentLinks
+    for cal_data in data.get("clinical_attachment_links", []):
+        cal_data.pop("id", None)
+        cal_data["tenant_id"] = tenant_id
+        cal_data["attachment_id"] = id_maps["attachments"].get(cal_data.get("attachment_id"))
+        cal_data["patient_id"] = id_maps["patients"].get(cal_data.get("patient_id"))
+        if cal_data.get("work_item_id"):
+            cal_data["work_item_id"] = id_maps["clinical_work_items"].get(cal_data.get("work_item_id"))
+        if cal_data.get("care_session_id"):
+            cal_data["care_session_id"] = id_maps["care_sessions"].get(cal_data.get("care_session_id"))
+        if cal_data.get("clinical_event_id"):
+            cal_data["clinical_event_id"] = id_maps["clinical_events"].get(cal_data.get("clinical_event_id"))
+        cal_data["created_at"] = parse_datetime(cal_data.get("created_at"))
+        if cal_data["attachment_id"] and cal_data["patient_id"]:
+            cal = models.ClinicalAttachmentLink(**cal_data)
+            db.add(cal)
+    imported_counts["clinical_attachment_links"] = len(data.get("clinical_attachment_links", []))
+
+    # 39. Import ClinicalProjectionCoverages
+    for cpc_data in data.get("clinical_projection_coverages", []):
+        cpc_data.pop("id", None)
+        cpc_data["tenant_id"] = tenant_id
+        cpc_data["patient_id"] = id_maps["patients"].get(cpc_data.get("patient_id"))
+        cpc_data["created_at"] = parse_datetime(cpc_data.get("created_at"))
+        cpc_data["updated_at"] = parse_datetime(cpc_data.get("updated_at"))
+        if cpc_data["patient_id"]:
+            cpc = models.ClinicalProjectionCoverage(**cpc_data)
+            db.add(cpc)
+    imported_counts["clinical_projection_coverages"] = len(data.get("clinical_projection_coverages", []))
 
     return imported_counts
 

@@ -22,12 +22,28 @@ PATIENT_CLINICAL_DELETE_ORDER = (
     models.ClinicalProjectionCoverage,
 )
 
+TENANT_CLINICAL_DELETE_ORDER = (
+    models.ClinicalAttachmentLink,
+    models.NextVisitRequest,
+    models.CareObservation,
+    models.ClinicalEventTarget,
+    models.ClinicalEvent,
+    models.CareSessionStep,
+    models.CareSession,
+    models.ClinicalTreatmentPlanItem,
+    models.ClinicalTreatmentPlanPhase,
+    models.ClinicalTreatmentPlan,
+    models.ClinicalWorkItemTarget,
+    models.ClinicalWorkItem,
+    models.ClinicalProjectionCoverage,
+)
+
 
 async def delete_tenant_clinical_rows(db: AsyncSession, tenant_id: int) -> dict[str, int]:
-    """Delete every patient-owned Clinical VNext aggregate for one tenant."""
+    """Delete every Clinical VNext aggregate for one tenant in leaf-to-root order."""
     _validate_tenant(tenant_id)
     deleted_counts: dict[str, int] = {}
-    for clinical_model in PATIENT_CLINICAL_DELETE_ORDER:
+    for clinical_model in TENANT_CLINICAL_DELETE_ORDER:
         result = await db.execute(
             delete(clinical_model).where(clinical_model.tenant_id == tenant_id)
         )

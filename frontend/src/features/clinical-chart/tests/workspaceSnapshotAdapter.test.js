@@ -329,4 +329,128 @@ describe('workspaceSnapshotAdapter', () => {
         expect(adapted.teethStatus['21']).toBeDefined();
         expect(adapted.teethStatus['21'].condition).toBe('Healthy');
     });
+
+    it('triggers mixed dentition when healthy PRESENT tooth exists outside default dentition without placeholder interference', () => {
+        // 1. Full 52-tooth placeholder set without clinical data must NOT trigger mixed dentition
+        const placeholderTeeth = {};
+        const allKeys = [
+            '18', '17', '16', '15', '14', '13', '12', '11',
+            '21', '22', '23', '24', '25', '26', '27', '28',
+            '38', '37', '36', '35', '34', '33', '32', '31',
+            '41', '42', '43', '44', '45', '46', '47', '48',
+            '55', '54', '53', '52', '51',
+            '61', '62', '63', '64', '65',
+            '75', '74', '73', '72', '71',
+            '81', '82', '83', '84', '85',
+        ];
+        allKeys.forEach((key) => {
+            placeholderTeeth[key] = {
+                tooth_key: key,
+                lifecycle: 'PRESENT',
+                condition: null,
+                findings: [],
+                procedures: [],
+            };
+        });
+        const placeholderSnap = createBaseSnapshot({ teeth: placeholderTeeth });
+        const adultPlaceholder = adaptWorkspaceSnapshotToRenderer(placeholderSnap);
+        expect(adultPlaceholder.dentition).toBe(PROJECTION_DENTITIONS.PERMANENT);
+        expect(adultPlaceholder.projection.toothOrder).toHaveLength(32);
+
+        const childPlaceholder = adaptWorkspaceSnapshotToRenderer(placeholderSnap, { isPediatric: true });
+        expect(childPlaceholder.dentition).toBe(PROJECTION_DENTITIONS.PRIMARY);
+        expect(childPlaceholder.projection.toothOrder).toHaveLength(20);
+
+        // 2. Adult with retained healthy primary tooth in 52-tooth set triggers MIXED
+        placeholderTeeth['55'].condition = 'Healthy';
+        const adultWithRetainedPrimary = adaptWorkspaceSnapshotToRenderer(createBaseSnapshot({ teeth: placeholderTeeth }));
+        expect(adultWithRetainedPrimary.dentition).toBe(PROJECTION_DENTITIONS.MIXED);
+        expect(adultWithRetainedPrimary.projection.toothOrder).toHaveLength(52);
+
+        // 3. Child with erupted healthy permanent tooth in 52-tooth set triggers MIXED
+        placeholderTeeth['55'].condition = null;
+        placeholderTeeth['16'].condition = 'Healthy';
+        const childWithEruptedPermanent = adaptWorkspaceSnapshotToRenderer(createBaseSnapshot({ teeth: placeholderTeeth }), { isPediatric: true });
+        expect(childWithEruptedPermanent.dentition).toBe(PROJECTION_DENTITIONS.MIXED);
+        expect(childWithEruptedPermanent.projection.toothOrder).toHaveLength(52);
+    });
+
+    it('clears stale lifecycle-derived conditions to null when lifecycle is PRESENT', () => {
+        const snapshot = createBaseSnapshot({
+            teeth: {
+                '14': {
+                    tooth_key: '14',
+                    lifecycle: 'PRESENT',
+                    condition: 'Missing',
+                },
+                '15': {
+                    tooth_key: '15',
+                    lifecycle: 'PRESENT',
+                    condition: 'Filled',
+                },
+            },
+        });
+
+        const adapted = adaptWorkspaceSnapshotToRenderer(snapshot);
+        // Stale "Missing" condition normalized to null on PRESENT tooth
+        expect(adapted.teethStatus['14'].condition).toBeNull();
+        // Independent "Filled" condition preserved on PRESENT tooth
+        expect(adapted.teethStatus['15'].condition).toBe('Filled');
+    });
+
+    it('filters valid sibling tooth targets in multi-tooth entries without emitting warnings', () => {
+        const snapshot = createBaseSnapshot({
+            teeth: {
+                '14': {
+                    tooth_key: '14',
+                    procedures: [
+                        {
+                            visual_id: 've-bridge-14',
+                            code: 'PROS_CROWN',
+                            phase: 'completed',
+                            targets: [
+                                { kind: 'tooth', tooth_key: '14' },
+                                { kind: 'tooth', tooth_key: '15' },
+                                { kind: 'tooth', tooth_key: '16' },
+                            ],
+                        },
+                    ],
+                },
+            },
+        });
+
+        const adapted = adaptWorkspaceSnapshotToRenderer(snapshot);
+        // Sibling tooth targets 15 and 16 are valid anatomical teeth, so no INVALID_ANATOMICAL_TARGET warning
+        expect(adapted.warnings.filter((w) => w.code === 'INVALID_ANATOMICAL_TARGET')).toHaveLength(0);
+        // Tooth 14's procedure only has target 14
+        const proc14 = adapted.projection.teeth['14'].procedures[0];
+        expect(proc14.targets).toHaveLength(1);
+        expect(proc14.targets[0].toothKey).toBe('14');
+    });
+
+    it('emits INVALID_ANATOMICAL_TARGET warning when target tooth key is anatomically invalid', () => {
+        const snapshot = createBaseSnapshot({
+            teeth: {
+                '14': {
+                    tooth_key: '14',
+                    procedures: [
+                        {
+                            visual_id: 've-invalid-tooth',
+                            code: 'PROS_CROWN',
+                            phase: 'completed',
+                            targets: [
+                                { kind: 'tooth', tooth_key: '14' },
+                                { kind: 'tooth', tooth_key: '99' },
+                            ],
+                        },
+                    ],
+                },
+            },
+        });
+
+        const adapted = adaptWorkspaceSnapshotToRenderer(snapshot);
+        const invalidWarnings = adapted.warnings.filter((w) => w.code === 'INVALID_ANATOMICAL_TARGET');
+        expect(invalidWarnings).toHaveLength(1);
+        expect(invalidWarnings[0].details.tooth_key).toBe('99');
+    });
 });

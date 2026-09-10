@@ -22,11 +22,14 @@ from backend import crud, models, schemas
 from backend.services.feature_service import FeatureFlagService
 from backend.clinical.catalog import (
     CANONICAL_FINDING_CODES,
+    CANONICAL_PROCEDURE_CODES,
     CANONICAL_TOOTH_LIFECYCLE_CODES,
     FROZEN_RENDERER_PROCEDURE_CODES,
     FindingCode,
     ProcedureCode,
     ToothLifecycleCode,
+    get_finding,
+    get_procedure,
 )
 from backend.clinical.legacy_mapping import (
     VerifiedPatientContext,
@@ -81,8 +84,32 @@ def _has_renderer_supported_target(
     targets: List[schemas.WorkspaceTarget],
 ) -> bool:
     """Match backend support claims to the frozen odontogram target contract."""
-    if code == ProcedureCode.REST_COMPOSITE.value:
-        return any(target.kind == "surface" and target.surface_code for target in targets)
+    if not targets:
+        return False
+
+    if code in CANONICAL_PROCEDURE_CODES:
+        proc = get_procedure(code)
+        if not proc.renderer_supported:
+            return False
+        allowed_kinds = set(proc.allowed_target_kinds)
+    elif code in CANONICAL_FINDING_CODES:
+        finding = get_finding(code)
+        allowed_kinds = set(finding.allowed_target_kinds)
+    elif code in CANONICAL_TOOTH_LIFECYCLE_CODES:
+        allowed_kinds = {"tooth"}
+    else:
+        return False
+
+    for target in targets:
+        if target.kind not in allowed_kinds:
+            return False
+        if target.kind == "surface" and not target.surface_code:
+            return False
+        if target.kind == "root" and not target.root_id:
+            return False
+        if target.kind == "canal" and not target.canal_id:
+            return False
+
     return True
 
 
@@ -234,7 +261,7 @@ class ClinicalWorkspaceService:
             )
 
             # Apply native events to teeth
-            latest_lifecycle_event_at: dict[str, datetime] = {}
+            latest_lifecycle_event_at: dict[str, tuple[datetime, datetime, int]] = {}
             for ev in active_native_events:
                 ev_targets = getattr(ev, "targets", []) or []
                 target_tooth_keys = [t.tooth_key for t in ev_targets if t.tooth_key in teeth_map]
@@ -257,8 +284,10 @@ class ClinicalWorkspaceService:
                     for tk in target_tooth_keys:
                         native_teeth_with_truth.add(tk)
                         native_teeth_status_with_truth.add(tk)
-                        latest_lifecycle_event_at[tk] = _normalized_datetime(
-                            ev.occurred_at or ev.created_at
+                        latest_lifecycle_event_at[tk] = (
+                            _normalized_datetime(ev.occurred_at or ev.created_at),
+                            _normalized_datetime(ev.created_at),
+                            ev.id,
                         )
                         t_summary = teeth_map[tk]
                         t_summary.lifecycle = canon_lifecycle
@@ -266,10 +295,23 @@ class ClinicalWorkspaceService:
                         t_summary.temporal_certainty = "EXACT"
                         if canon_lifecycle == ToothLifecycleCode.MISSING.value:
                             t_summary.condition = "Missing"
+                        elif canon_lifecycle == ToothLifecycleCode.EXTRACTED.value:
+                            t_summary.condition = "Missing"
+                        elif canon_lifecycle == ToothLifecycleCode.IMPACTED.value:
+                            t_summary.condition = "Impacted"
+                        elif canon_lifecycle == ToothLifecycleCode.UNERUPTED.value:
+                            t_summary.condition = "Unerupted"
                         elif canon_lifecycle == ToothLifecycleCode.PRESENT.value:
                             cond_candidate = payload.get("condition")
                             if cond_candidate:
                                 t_summary.condition = cond_candidate
+                            elif t_summary.condition and t_summary.condition.strip().lower() in {
+                                "missing",
+                                "extracted",
+                                "impacted",
+                                "unerupted",
+                            }:
+                                t_summary.condition = None
 
                 visual_kind = None
                 supported_codes: set[str] = set()
@@ -477,12 +519,52 @@ class ClinicalWorkspaceService:
                                 elif raw_code == ProcedureCode.ENDO_RCT.value:
                                     t_summary.condition = "RootCanal"
                                 elif raw_code == ProcedureCode.SURG_EXTRACTION.value and wi.status == "completed":
+                                    linked_events = []
+                                    for event in active_native_events:
+                                        if event.work_item_id != wi.id:
+                                            continue
+                                        event_payload = event.payload or {}
+                                        event_code = str(
+                                            event_payload.get("canonical_code") or ""
+                                        ).upper()
+                                        is_procedure_event = (
+                                            str(event.event_type or "").lower()
+                                            == "procedure_recorded"
+                                            or str(event_payload.get("kind") or "").lower()
+                                            == "procedure"
+                                        )
+                                        if is_procedure_event and (
+                                            not event_code or event_code == raw_code
+                                        ):
+                                            linked_events.append(event)
+                                    if linked_events:
+                                        linked_events.sort(
+                                            key=lambda e: (
+                                                _normalized_datetime(e.occurred_at or e.created_at),
+                                                _normalized_datetime(e.created_at),
+                                                e.id,
+                                            )
+                                        )
+                                        completion_ev = linked_events[-1]
+                                        extraction_tuple = (
+                                            _normalized_datetime(completion_ev.occurred_at or completion_ev.created_at),
+                                            _normalized_datetime(completion_ev.created_at),
+                                            completion_ev.id,
+                                        )
+                                    else:
+                                        extraction_tuple = (
+                                            _normalized_datetime(wi.created_at),
+                                            _normalized_datetime(wi.created_at),
+                                            0,
+                                        )
+
                                     later_lifecycle_event = latest_lifecycle_event_at.get(t.tooth_key)
                                     if (
                                         later_lifecycle_event is None
-                                        or later_lifecycle_event <= _normalized_datetime(wi.created_at)
+                                        or later_lifecycle_event <= extraction_tuple
                                     ):
-                                        t_summary.lifecycle = ToothLifecycleCode.EXTRACTED.value
+                                        latest_lifecycle_event_at[t.tooth_key] = extraction_tuple
+                                        t_summary.lifecycle = ToothLifecycleCode.MISSING.value
                                         t_summary.condition = "Missing"
 
         # 4. Fallback or Legacy-Only Contribution

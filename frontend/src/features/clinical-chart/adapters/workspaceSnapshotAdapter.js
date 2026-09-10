@@ -93,12 +93,14 @@ const mapVisualEntries = (
                 target?.tooth_key || target?.toothKey || toothKey,
             );
             if (targetToothKey !== toothKey) {
-                reportInvalid(
-                    entry,
-                    target,
-                    targetToothKey,
-                    `Target tooth ${targetToothKey} does not match entry tooth ${toothKey}`,
-                );
+                if (!DENTAL_ANATOMY_REGISTRY[targetToothKey]) {
+                    reportInvalid(
+                        entry,
+                        target,
+                        targetToothKey,
+                        `Target tooth ${targetToothKey} does not exist in dental anatomy registry`,
+                    );
+                }
                 return [];
             }
             const mapped = mapTarget(
@@ -159,20 +161,19 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
             },
         });
     };
-    const hasPrimaryData = PRIMARY_TOOTH_KEYS.some((k) => (
-        rawTeeth[k] && (
-            (rawTeeth[k].findings && rawTeeth[k].findings.length > 0)
-            || (rawTeeth[k].procedures && rawTeeth[k].procedures.length > 0)
-            || (rawTeeth[k].lifecycle && rawTeeth[k].lifecycle !== 'PRESENT')
-        )
-    ));
-    const hasPermanentData = PERMANENT_TOOTH_KEYS.some((k) => (
-        rawTeeth[k] && (
-            (rawTeeth[k].findings && rawTeeth[k].findings.length > 0)
-            || (rawTeeth[k].procedures && rawTeeth[k].procedures.length > 0)
-            || (rawTeeth[k].lifecycle && rawTeeth[k].lifecycle !== 'PRESENT')
-        )
-    ));
+    const isFullPlaceholderSet = Object.keys(rawTeeth).length >= 52;
+    const hasToothEvidence = (tooth) => {
+        if (!tooth) return false;
+        if (tooth.findings && tooth.findings.length > 0) return true;
+        if (tooth.procedures && tooth.procedures.length > 0) return true;
+        if (tooth.lifecycle && tooth.lifecycle !== 'PRESENT') return true;
+        if (tooth.condition && String(tooth.condition).trim().length > 0) return true;
+        if (tooth.notes && String(tooth.notes).trim().length > 0) return true;
+        if (!isFullPlaceholderSet) return true;
+        return false;
+    };
+    const hasPrimaryData = PRIMARY_TOOTH_KEYS.some((k) => hasToothEvidence(rawTeeth[k]));
+    const hasPermanentData = PERMANENT_TOOTH_KEYS.some((k) => hasToothEvidence(rawTeeth[k]));
 
     let dentition = PROJECTION_DENTITIONS.PERMANENT;
     const hasOppositeDentitionData = isPediatric ? hasPermanentData : hasPrimaryData;
@@ -238,7 +239,9 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
         };
 
         let toothCondition = raw.condition || null;
-        if (!toothCondition && lifecycle && lifecycle !== 'PRESENT') {
+        if (lifecycle === 'PRESENT' && ['Missing', 'Extracted', 'Impacted', 'Unerupted'].includes(toothCondition)) {
+            toothCondition = null;
+        } else if (!toothCondition && lifecycle && lifecycle !== 'PRESENT') {
             toothCondition = lifecycle === 'MISSING' ? 'Missing' : lifecycle;
         }
 

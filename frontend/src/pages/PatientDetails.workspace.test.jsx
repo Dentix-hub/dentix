@@ -53,10 +53,12 @@ vi.mock('@/shared/ui/modals/PaymentModal', () => ({
     default: () => null,
 }));
 
+const mockUseTreatmentOperations = vi.fn(() => ({
+    handleSaveTreatment: vi.fn(),
+}));
+
 vi.mock('@/features/patients/hooks/useTreatmentOperations', () => ({
-    useTreatmentOperations: () => ({
-        handleSaveTreatment: vi.fn(),
-    }),
+    useTreatmentOperations: (...args) => mockUseTreatmentOperations(...args),
 }));
 
 const mockUsePatientClinicalWorkspace = vi.fn();
@@ -367,5 +369,23 @@ describe('PatientDetails Clinical Workspace Tab', () => {
             expect(refetchWorkspace).toHaveBeenCalledTimes(1);
         });
         confirmSpy.mockRestore();
+    });
+
+    it('passes refetchWorkspace to useTreatmentOperations on mount', () => {
+        mockUsePatientClinicalWorkspace.mockReturnValue({
+            data: null,
+            isLoading: false,
+            isError: false,
+            error: null,
+            refetch: vi.fn(),
+        });
+
+        renderPatientDetails();
+
+        expect(mockUseTreatmentOperations).toHaveBeenCalledWith(
+            expect.objectContaining({
+                refetchWorkspace: expect.any(Function),
+            })
+        );
     });
 });
