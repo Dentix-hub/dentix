@@ -172,6 +172,7 @@ export default function PatientDetails() {
         patientId: id,
         refetchHistory,
         refetchTeeth: refetchAllTeeth,
+        refetchWorkspace,
         setIsTreatmentModalOpen,
         setEditingTreatmentId,
         editingTreatmentId,

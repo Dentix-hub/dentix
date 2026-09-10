@@ -284,6 +284,132 @@ async def export_tenant_data(db: AsyncSession, tenant_id: int) -> Dict:
         model_to_dict(pmw) for pmw in procedure_material_weights
     ]
 
+    # 26. WorkflowTemplates
+    res = await db.execute(
+        select(models.WorkflowTemplate).filter(models.WorkflowTemplate.tenant_id == tenant_id)
+    )
+    workflow_templates = res.scalars().all()
+    export_data["data"]["workflow_templates"] = [
+        model_to_dict(wt) for wt in workflow_templates
+    ]
+
+    # 27. ClinicalWorkItems
+    res = await db.execute(
+        select(models.ClinicalWorkItem).filter(models.ClinicalWorkItem.tenant_id == tenant_id)
+    )
+    clinical_work_items = res.scalars().all()
+    export_data["data"]["clinical_work_items"] = [
+        model_to_dict(wi) for wi in clinical_work_items
+    ]
+
+    # 28. ClinicalWorkItemTargets
+    res = await db.execute(
+        select(models.ClinicalWorkItemTarget).filter(models.ClinicalWorkItemTarget.tenant_id == tenant_id)
+    )
+    clinical_work_item_targets = res.scalars().all()
+    export_data["data"]["clinical_work_item_targets"] = [
+        model_to_dict(target) for target in clinical_work_item_targets
+    ]
+
+    # 29. ClinicalTreatmentPlans
+    res = await db.execute(
+        select(models.ClinicalTreatmentPlan).filter(models.ClinicalTreatmentPlan.tenant_id == tenant_id)
+    )
+    clinical_treatment_plans = res.scalars().all()
+    export_data["data"]["clinical_treatment_plans"] = [
+        model_to_dict(plan) for plan in clinical_treatment_plans
+    ]
+
+    # 30. ClinicalTreatmentPlanPhases
+    res = await db.execute(
+        select(models.ClinicalTreatmentPlanPhase).filter(models.ClinicalTreatmentPlanPhase.tenant_id == tenant_id)
+    )
+    clinical_treatment_plan_phases = res.scalars().all()
+    export_data["data"]["clinical_treatment_plan_phases"] = [
+        model_to_dict(phase) for phase in clinical_treatment_plan_phases
+    ]
+
+    # 31. ClinicalTreatmentPlanItems
+    res = await db.execute(
+        select(models.ClinicalTreatmentPlanItem).filter(models.ClinicalTreatmentPlanItem.tenant_id == tenant_id)
+    )
+    clinical_treatment_plan_items = res.scalars().all()
+    export_data["data"]["clinical_treatment_plan_items"] = [
+        model_to_dict(item) for item in clinical_treatment_plan_items
+    ]
+
+    # 32. CareSessions
+    res = await db.execute(
+        select(models.CareSession).filter(models.CareSession.tenant_id == tenant_id)
+    )
+    care_sessions = res.scalars().all()
+    export_data["data"]["care_sessions"] = [
+        model_to_dict(session) for session in care_sessions
+    ]
+
+    # 33. CareSessionSteps
+    res = await db.execute(
+        select(models.CareSessionStep).filter(models.CareSessionStep.tenant_id == tenant_id)
+    )
+    care_session_steps = res.scalars().all()
+    export_data["data"]["care_session_steps"] = [
+        model_to_dict(step) for step in care_session_steps
+    ]
+
+    # 34. CareObservations
+    res = await db.execute(
+        select(models.CareObservation).filter(models.CareObservation.tenant_id == tenant_id)
+    )
+    care_observations = res.scalars().all()
+    export_data["data"]["care_observations"] = [
+        model_to_dict(obs) for obs in care_observations
+    ]
+
+    # 35. ClinicalEvents
+    res = await db.execute(
+        select(models.ClinicalEvent).filter(models.ClinicalEvent.tenant_id == tenant_id)
+    )
+    clinical_events = res.scalars().all()
+    export_data["data"]["clinical_events"] = [
+        model_to_dict(event) for event in clinical_events
+    ]
+
+    # 36. ClinicalEventTargets
+    res = await db.execute(
+        select(models.ClinicalEventTarget).filter(models.ClinicalEventTarget.tenant_id == tenant_id)
+    )
+    clinical_event_targets = res.scalars().all()
+    export_data["data"]["clinical_event_targets"] = [
+        model_to_dict(target) for target in clinical_event_targets
+    ]
+
+    # 37. NextVisitRequests
+    res = await db.execute(
+        select(models.NextVisitRequest).filter(models.NextVisitRequest.tenant_id == tenant_id)
+    )
+    next_visit_requests = res.scalars().all()
+    export_data["data"]["next_visit_requests"] = [
+        model_to_dict(req) for req in next_visit_requests
+    ]
+
+    # 38. ClinicalAttachmentLinks
+    res = await db.execute(
+        select(models.ClinicalAttachmentLink).filter(models.ClinicalAttachmentLink.tenant_id == tenant_id)
+    )
+    clinical_attachment_links = res.scalars().all()
+    export_data["data"]["clinical_attachment_links"] = [
+        model_to_dict(link) for link in clinical_attachment_links
+    ]
+
+    # 39. ClinicalProjectionCoverages
+    res = await db.execute(
+        select(models.ClinicalProjectionCoverage).filter(models.ClinicalProjectionCoverage.tenant_id == tenant_id)
+    )
+    clinical_projection_coverages = res.scalars().all()
+    export_data["data"]["clinical_projection_coverages"] = [
+        model_to_dict(cov) for cov in clinical_projection_coverages
+    ]
+
     return export_data
 
 
