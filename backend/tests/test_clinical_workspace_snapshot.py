@@ -483,6 +483,170 @@ async def test_legacy_composite_without_surface_reports_renderer_warning(
 
 
 @pytest.mark.asyncio
+async def test_legacy_filled_tooth_status_reports_renderer_warning(
+    workspace_test_engine,
+):
+    """A Filled tooth status without surface evidence must not disappear silently."""
+    with Session(workspace_test_engine) as session:
+        session.add(
+            ToothStatus(
+                id=38,
+                tenant_id=1,
+                patient_id=101,
+                tooth_number=26,
+                condition="Filled",
+            )
+        )
+        session.commit()
+
+        snapshot = await ClinicalWorkspaceService(
+            AsyncSessionWrapper(session),
+            tenant_id=1,
+        ).get_workspace_snapshot(101)
+
+        assert snapshot.teeth["26"].condition == "Filled"
+        assert not any(
+            entry.code == "REST_COMPOSITE"
+            for entry in snapshot.teeth["26"].procedures
+        )
+        assert any(
+            warning.code == "UNSUPPORTED_RENDERER_TARGET"
+            and warning.source_kind == "tooth_status"
+            and warning.source_id == 38
+            for warning in snapshot.warnings
+        )
+
+
+@pytest.mark.asyncio
+async def test_event_deduplication_uses_linked_work_item_identity(
+    workspace_test_engine,
+):
+    """An unrelated completed event survives beside a same-code planned work item."""
+    with Session(workspace_test_engine) as session:
+        _enable_vnext_primary(session, tenant_id=1)
+        session.add(
+            ClinicalWorkItem(
+                id=39,
+                tenant_id=1,
+                patient_id=101,
+                kind="procedure",
+                code="PROS_CROWN",
+                status="planned",
+            )
+        )
+        session.add(
+            ClinicalWorkItemTarget(
+                tenant_id=1,
+                work_item_id=39,
+                target_kind="tooth",
+                tooth_key="16",
+            )
+        )
+        session.add_all(
+            [
+                ClinicalEvent(
+                    id=40,
+                    tenant_id=1,
+                    patient_id=101,
+                    event_type="procedure_recorded",
+                    payload={"kind": "procedure", "canonical_code": "PROS_CROWN"},
+                    occurred_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+                ),
+                ClinicalEvent(
+                    id=41,
+                    tenant_id=1,
+                    patient_id=101,
+                    work_item_id=39,
+                    event_type="procedure_recorded",
+                    payload={"kind": "procedure", "canonical_code": "PROS_CROWN"},
+                    occurred_at=datetime(2026, 1, 2, tzinfo=timezone.utc),
+                ),
+            ]
+        )
+        session.flush()
+        session.add_all(
+            [
+                ClinicalEventTarget(
+                    tenant_id=1,
+                    event_id=event_id,
+                    target_kind="tooth",
+                    tooth_key="16",
+                )
+                for event_id in (40, 41)
+            ]
+        )
+        session.commit()
+
+        snapshot = await ClinicalWorkspaceService(
+            AsyncSessionWrapper(session),
+            tenant_id=1,
+        ).get_workspace_snapshot(101)
+
+        visual_ids = {
+            entry.visual_id for entry in snapshot.teeth["16"].procedures
+        }
+        assert "ve-wi-39" in visual_ids
+        assert "ve-ev-40" in visual_ids
+        assert "ve-ev-41" not in visual_ids
+
+
+@pytest.mark.asyncio
+async def test_partial_teeth_fallback_ignores_native_treatment_only_truth(
+    workspace_test_engine,
+):
+    """Treatment-domain evidence cannot suppress unrelated legacy tooth status."""
+    with Session(workspace_test_engine) as session:
+        _enable_vnext_primary(session, tenant_id=1)
+        session.add(
+            ClinicalProjectionCoverage(
+                tenant_id=1,
+                patient_id=101,
+                domain="teeth",
+                status="PARTIAL",
+            )
+        )
+        session.add(
+            ClinicalWorkItem(
+                id=42,
+                tenant_id=1,
+                patient_id=101,
+                kind="procedure",
+                code="PROS_CROWN",
+                status="planned",
+            )
+        )
+        session.add(
+            ClinicalWorkItemTarget(
+                tenant_id=1,
+                work_item_id=42,
+                target_kind="tooth",
+                tooth_key="16",
+            )
+        )
+        session.add(
+            ToothStatus(
+                id=43,
+                tenant_id=1,
+                patient_id=101,
+                tooth_number=16,
+                condition="Missing",
+            )
+        )
+        session.commit()
+
+        snapshot = await ClinicalWorkspaceService(
+            AsyncSessionWrapper(session),
+            tenant_id=1,
+        ).get_workspace_snapshot(101)
+
+        assert snapshot.teeth["16"].lifecycle == "MISSING"
+        assert any(
+            entry.visual_id == "ve-wi-42"
+            for entry in snapshot.teeth["16"].procedures
+        )
+
+
+@pytest.mark.asyncio
 async def test_snapshot_complete_coverage_blocks_legacy(workspace_test_engine):
     """When coverage is COMPLETE, legacy fallback records are strictly blocked."""
     with Session(workspace_test_engine) as session:

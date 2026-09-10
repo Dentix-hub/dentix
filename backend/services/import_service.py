@@ -14,6 +14,7 @@ from sqlalchemy import select, delete
 from .. import models
 from ..models.price_list import InsuranceProvider, PriceList, PriceListItem
 from ..models.financial import LabPayment
+from ..crud.patient import delete_tenant_clinical_rows
 
 
 def parse_datetime(value: str) -> datetime:
@@ -77,6 +78,10 @@ async def delete_tenant_data(db: AsyncSession, tenant_id: int) -> Dict[str, int]
     deleted_counts = {}
 
     # Order: child tables first, parent tables last
+
+    # Clinical VNext patient-owned aggregates use restrictive patient foreign
+    # keys. Remove them tenant-wide before the legacy cleanup reaches patients.
+    deleted_counts.update(await delete_tenant_clinical_rows(db, tenant_id))
 
     # 1. MaterialSessions (via StockItem)
     stmt_stock_items = select(models.StockItem.id).where(models.StockItem.tenant_id == tenant_id)

@@ -270,12 +270,12 @@ export default function PatientDetails() {
         if (!window.confirm(t('patient_details.alerts.delete_treatment_confirm'))) return;
         try {
             await deleteTreatment(treatmentId);
-            refetchHistory();
+            await Promise.all([refetchHistory(), refetchWorkspace()]);
             toast.success(t('common.delete_success', 'تم الحذف بنجاح'));
         } catch (error) {
             toast.error(error.response?.data?.detail || t('patient_details.alerts.delete_treatment_fail'));
         }
-    }, [refetchHistory, t]);
+    }, [refetchHistory, refetchWorkspace, t]);
 
     const handleDeletePayment = useCallback(async (paymentId) => {
         if (!window.confirm(t('patient_details.alerts.delete_payment_confirm'))) return;
