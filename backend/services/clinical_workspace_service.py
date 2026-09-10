@@ -67,6 +67,25 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _normalized_datetime(value: Optional[datetime]) -> datetime:
+    """Return a timezone-aware UTC value suitable for deterministic comparisons."""
+    if value is None:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _has_renderer_supported_target(
+    code: str,
+    targets: List[schemas.WorkspaceTarget],
+) -> bool:
+    """Match backend support claims to the frozen odontogram target contract."""
+    if code == ProcedureCode.REST_COMPOSITE.value:
+        return any(target.kind == "surface" and target.surface_code for target in targets)
+    return True
+
+
 class ClinicalWorkspaceService:
     """Service orchestrating Clinical Workspace Snapshot assembly."""
 
@@ -181,7 +200,7 @@ class ClinicalWorkspaceService:
                     active_native_work_items.append(wi)
 
             active_native_work_items.sort(
-                key=lambda w: (w.created_at or datetime.min, w.id)
+                key=lambda w: (_normalized_datetime(w.created_at), w.id)
             )
             native_work_item_visual_keys = {
                 (target.tooth_key, work_item.code)
@@ -207,13 +226,14 @@ class ClinicalWorkspaceService:
 
             active_native_events.sort(
                 key=lambda e: (
-                    e.occurred_at or e.created_at or datetime.min,
-                    e.created_at or datetime.min,
+                    _normalized_datetime(e.occurred_at or e.created_at),
+                    _normalized_datetime(e.created_at),
                     e.id,
                 )
             )
 
             # Apply native events to teeth
+            latest_lifecycle_event_at: dict[str, datetime] = {}
             for ev in active_native_events:
                 ev_targets = getattr(ev, "targets", []) or []
                 target_tooth_keys = [t.tooth_key for t in ev_targets if t.tooth_key in teeth_map]
@@ -235,6 +255,9 @@ class ClinicalWorkspaceService:
                     canon_lifecycle = lifecycle_candidate.upper()
                     for tk in target_tooth_keys:
                         native_teeth_with_truth.add(tk)
+                        latest_lifecycle_event_at[tk] = _normalized_datetime(
+                            ev.occurred_at or ev.created_at
+                        )
                         t_summary = teeth_map[tk]
                         t_summary.lifecycle = canon_lifecycle
                         t_summary.provenance = "native"
@@ -283,13 +306,33 @@ class ClinicalWorkspaceService:
                         for target in ev_targets
                         if target.tooth_key in teeth_map
                     ]
+                    if not _has_renderer_supported_target(canonical_code, workspace_targets):
+                        warnings.append(
+                            schemas.ClinicalWorkspaceWarning(
+                                code="UNSUPPORTED_RENDERER_TARGET",
+                                message=(
+                                    f"Canonical code '{canonical_code}' on clinical event {ev.id} "
+                                    "has no target shape supported by the odontogram renderer."
+                                ),
+                                source_kind="clinical_event",
+                                source_id=ev.id,
+                                raw_value=canonical_code,
+                                details={
+                                    "event_type": ev.event_type,
+                                    "kind": visual_kind,
+                                    "target_kinds": [target.kind for target in workspace_targets],
+                                },
+                            )
+                        )
+                        continue
                     visual_entry = schemas.WorkspaceVisualEntry(
                         visual_id=f"ve-ev-{ev.id}",
                         entry_type=visual_kind,
                         code=canonical_code,
                         phase="existing" if visual_kind == "finding" else "completed",
                         targets=workspace_targets,
-                        recorded_at=ev.occurred_at or ev.created_at,
+                        occurred_at=ev.occurred_at,
+                        recorded_at=ev.created_at,
                         provenance="native",
                         temporal_certainty="EXACT",
                     )
@@ -341,8 +384,10 @@ class ClinicalWorkspaceService:
                     )
                     for t in (wi.targets or [])
                 ]
+                has_supported_target = _has_renderer_supported_target(raw_code, wi_targets)
+                is_supported = is_supported and has_supported_target
 
-                if not is_supported:
+                if not (is_supported_proc or is_supported_find):
                     warnings.append(
                         schemas.ClinicalWorkspaceWarning(
                             code="UNSUPPORTED_CLINICAL_CODE",
@@ -351,6 +396,25 @@ class ClinicalWorkspaceService:
                             source_id=wi.id,
                             raw_value=raw_code,
                             details={"work_item_id": wi.id, "kind": wi.kind, "code": raw_code},
+                        )
+                    )
+                elif not has_supported_target:
+                    warnings.append(
+                        schemas.ClinicalWorkspaceWarning(
+                            code="UNSUPPORTED_RENDERER_TARGET",
+                            message=(
+                                f"Clinical code '{raw_code}' on work item {wi.id} has no "
+                                "target shape supported by the odontogram renderer."
+                            ),
+                            source_kind="clinical_work_item",
+                            source_id=wi.id,
+                            raw_value=raw_code,
+                            details={
+                                "work_item_id": wi.id,
+                                "kind": wi.kind,
+                                "code": raw_code,
+                                "target_kinds": [target.kind for target in wi_targets],
+                            },
                         )
                     )
 
@@ -382,11 +446,13 @@ class ClinicalWorkspaceService:
                         provenance="native",
                         temporal_certainty="EXACT",
                     )
+                    appended_tooth_keys: set[str] = set()
                     for t in wi_targets:
                         native_covered_procedures.add((t.tooth_key, raw_code))
                         if t.surface_code:
                             native_covered_surfaces.add((t.tooth_key, t.surface_code, raw_code))
-                        if t.tooth_key in teeth_map:
+                        if t.tooth_key in teeth_map and t.tooth_key not in appended_tooth_keys:
+                            appended_tooth_keys.add(t.tooth_key)
                             native_teeth_with_truth.add(t.tooth_key)
                             t_summary = teeth_map[t.tooth_key]
                             t_summary.provenance = "native"
@@ -404,8 +470,13 @@ class ClinicalWorkspaceService:
                                 elif raw_code == ProcedureCode.ENDO_RCT.value:
                                     t_summary.condition = "RootCanal"
                                 elif raw_code == ProcedureCode.SURG_EXTRACTION.value and wi.status == "completed":
-                                    t_summary.lifecycle = ToothLifecycleCode.EXTRACTED.value
-                                    t_summary.condition = "Missing"
+                                    later_lifecycle_event = latest_lifecycle_event_at.get(t.tooth_key)
+                                    if (
+                                        later_lifecycle_event is None
+                                        or later_lifecycle_event <= _normalized_datetime(wi.created_at)
+                                    ):
+                                        t_summary.lifecycle = ToothLifecycleCode.EXTRACTED.value
+                                        t_summary.condition = "Missing"
 
         # 4. Fallback or Legacy-Only Contribution
         # When rollout_mode in ("LEGACY_ONLY", "SHADOW"), visible projection is legacy-driven.
@@ -540,8 +611,16 @@ class ClinicalWorkspaceService:
                         )
                         for t in wi_draft.targets
                     ]
+                    has_supported_target = _has_renderer_supported_target(
+                        wi_draft.code,
+                        fallback_targets,
+                    )
+                    is_supported = is_supported and has_supported_target
 
-                    if not is_supported:
+                    if (
+                        wi_draft.code not in SUPPORTED_PROCEDURE_CODES
+                        and wi_draft.code not in SUPPORTED_FINDING_CODES
+                    ):
                         warnings.append(
                             schemas.ClinicalWorkspaceWarning(
                                 code="UNSUPPORTED_CLINICAL_CODE",
@@ -550,6 +629,25 @@ class ClinicalWorkspaceService:
                                 source_id=wi_draft.source_id,
                                 raw_value=raw_proc,
                                 details={"source_id": wi_draft.source_id, "procedure": raw_proc},
+                            )
+                        )
+                    elif not has_supported_target:
+                        warnings.append(
+                            schemas.ClinicalWorkspaceWarning(
+                                code="UNSUPPORTED_RENDERER_TARGET",
+                                message=(
+                                    f"Legacy procedure '{raw_proc}' has no target shape "
+                                    "supported by the odontogram renderer."
+                                ),
+                                source_kind="treatment",
+                                source_id=wi_draft.source_id,
+                                raw_value=raw_proc,
+                                details={
+                                    "source_id": wi_draft.source_id,
+                                    "procedure": raw_proc,
+                                    "canonical_code": wi_draft.code,
+                                    "target_kinds": [target.kind for target in fallback_targets],
+                                },
                             )
                         )
 
