@@ -1,8 +1,18 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import PatientDetails from './PatientDetails';
+
+const { mockDeleteTreatment, mockUsePatientTreatments } = vi.hoisted(() => ({
+    mockDeleteTreatment: vi.fn(),
+    mockUsePatientTreatments: vi.fn(),
+}));
+
+vi.mock('../api', async (importOriginal) => ({
+    ...(await importOriginal()),
+    deleteTreatment: mockDeleteTreatment,
+}));
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
@@ -62,10 +72,7 @@ vi.mock('@/hooks/usePatientDetails', () => ({
         refetch: vi.fn(),
     }),
     usePatientClinicalWorkspace: (...args) => mockUsePatientClinicalWorkspace(...args),
-    usePatientTreatments: () => ({
-        data: [],
-        isLoading: false,
-    }),
+    usePatientTreatments: (...args) => mockUsePatientTreatments(...args),
     usePatientPayments: () => ({
         data: [],
         isLoading: false,
@@ -93,6 +100,19 @@ const renderPatientDetails = () => {
 };
 
 describe('PatientDetails Clinical Workspace Tab', () => {
+    beforeEach(() => {
+        Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
+            configurable: true,
+            value: vi.fn(),
+        });
+        mockDeleteTreatment.mockReset();
+        mockUsePatientTreatments.mockReturnValue({
+            data: [],
+            isLoading: false,
+            refetch: vi.fn(),
+        });
+    });
+
     it('renders loading skeleton when workspace snapshot is loading', () => {
         mockUsePatientClinicalWorkspace.mockReturnValue({
             data: null,
@@ -298,5 +318,54 @@ describe('PatientDetails Clinical Workspace Tab', () => {
         fireEvent.click(tooth16);
 
         expect(screen.getByTestId('treatment-modal-tooth')).toHaveTextContent('UR6');
+    });
+
+    it('refreshes history and clinical workspace after deleting a treatment', async () => {
+        const refetchWorkspace = vi.fn().mockResolvedValue({});
+        const refetchHistory = vi.fn().mockResolvedValue({});
+        mockDeleteTreatment.mockResolvedValue({});
+        mockUsePatientClinicalWorkspace.mockReturnValue({
+            data: {
+                schema_version: 1,
+                projection_id: 'cws-snap-123',
+                patient_id: 123,
+                tenant_id: 1,
+                read_mode: 'VNEXT_PRIMARY',
+                coverage: { teeth: 'COMPLETE', treatments: 'PARTIAL', sessions: 'UNCOVERED' },
+                warnings: [],
+                teeth: {},
+                work_items: [],
+            },
+            isLoading: false,
+            isError: false,
+            error: null,
+            refetch: refetchWorkspace,
+        });
+        mockUsePatientTreatments.mockReturnValue({
+            data: [{
+                id: 77,
+                date: '2026-01-01T00:00:00Z',
+                tooth_number: 16,
+                diagnosis: 'Caries',
+                procedure: 'Root canal',
+                status: 'Done',
+            }],
+            isLoading: false,
+            refetch: refetchHistory,
+        });
+        const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+
+        renderPatientDetails();
+        fireEvent.click(screen.getByText('patients.tabs.history'));
+        const procedure = await screen.findByText('Root canal');
+        const rowButtons = within(procedure.closest('tr')).getAllByRole('button');
+        fireEvent.click(rowButtons[1]);
+
+        await waitFor(() => {
+            expect(mockDeleteTreatment).toHaveBeenCalledWith(77);
+            expect(refetchHistory).toHaveBeenCalledTimes(1);
+            expect(refetchWorkspace).toHaveBeenCalledTimes(1);
+        });
+        confirmSpy.mockRestore();
     });
 });

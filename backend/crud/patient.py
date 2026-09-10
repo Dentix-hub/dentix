@@ -23,6 +23,18 @@ PATIENT_CLINICAL_DELETE_ORDER = (
 )
 
 
+async def delete_tenant_clinical_rows(db: AsyncSession, tenant_id: int) -> dict[str, int]:
+    """Delete every patient-owned Clinical VNext aggregate for one tenant."""
+    _validate_tenant(tenant_id)
+    deleted_counts: dict[str, int] = {}
+    for clinical_model in PATIENT_CLINICAL_DELETE_ORDER:
+        result = await db.execute(
+            delete(clinical_model).where(clinical_model.tenant_id == tenant_id)
+        )
+        deleted_counts[clinical_model.__tablename__] = result.rowcount
+    return deleted_counts
+
+
 def _validate_tenant(tenant_id: int):
     ctx_id = get_current_tenant_id()
     if ctx_id is not None and ctx_id != tenant_id:

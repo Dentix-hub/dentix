@@ -160,6 +160,7 @@ class ClinicalWorkspaceService:
         # Initialize full FDI teeth map (52 canonical FDI keys)
         teeth_map: Dict[str, schemas.WorkspaceToothSummary] = {}
         native_teeth_with_truth: set[str] = set()
+        native_teeth_status_with_truth: set[str] = set()
         native_covered_procedures: set[tuple[str, str]] = set()
         native_covered_surfaces: set[tuple[str, str, str]] = set()
         work_item_summaries: List[schemas.WorkspaceWorkItemSummary] = []
@@ -203,7 +204,7 @@ class ClinicalWorkspaceService:
                 key=lambda w: (_normalized_datetime(w.created_at), w.id)
             )
             native_work_item_visual_keys = {
-                (target.tooth_key, work_item.code)
+                (work_item.id, target.tooth_key, work_item.code)
                 for work_item in active_native_work_items
                 for target in (work_item.targets or [])
                 if (work_item.status or "").lower() != "cancelled"
@@ -255,6 +256,7 @@ class ClinicalWorkspaceService:
                     canon_lifecycle = lifecycle_candidate.upper()
                     for tk in target_tooth_keys:
                         native_teeth_with_truth.add(tk)
+                        native_teeth_status_with_truth.add(tk)
                         latest_lifecycle_event_at[tk] = _normalized_datetime(
                             ev.occurred_at or ev.created_at
                         )
@@ -339,8 +341,13 @@ class ClinicalWorkspaceService:
                     appended_tooth_keys: set[str] = set()
                     for target in workspace_targets:
                         visual_key = (target.tooth_key, canonical_code)
+                        linked_visual_key = (
+                            ev.work_item_id,
+                            target.tooth_key,
+                            canonical_code,
+                        )
                         if (
-                            visual_key in native_work_item_visual_keys
+                            linked_visual_key in native_work_item_visual_keys
                             or target.tooth_key in appended_tooth_keys
                         ):
                             continue
@@ -528,7 +535,10 @@ class ClinicalWorkspaceService:
                         tooth_key = f"{raw_tooth:02d}" if isinstance(raw_tooth, int) else str(raw_tooth)
 
                     if tooth_key in teeth_map:
-                        if effective_teeth_cov == "PARTIAL" and tooth_key in native_teeth_with_truth:
+                        if (
+                            effective_teeth_cov == "PARTIAL"
+                            and tooth_key in native_teeth_status_with_truth
+                        ):
                             continue
 
                         has_fallback_truth = True
@@ -556,17 +566,40 @@ class ClinicalWorkspaceService:
                             )
                         elif cond in LEGACY_PROCEDURE_MAP:
                             p_code = LEGACY_PROCEDURE_MAP[cond]
-                            t_summary.procedures.append(
-                                schemas.WorkspaceVisualEntry(
-                                    visual_id=f"ve-legacy-ts-{ts.id}",
-                                    entry_type="procedure",
-                                    code=p_code,
-                                    phase="completed",
-                                    targets=[schemas.WorkspaceTarget(kind="tooth", tooth_key=tooth_key)],
-                                    provenance="legacy_fallback",
-                                    temporal_certainty="UNKNOWN",
+                            legacy_targets = [
+                                schemas.WorkspaceTarget(kind="tooth", tooth_key=tooth_key)
+                            ]
+                            if _has_renderer_supported_target(p_code, legacy_targets):
+                                t_summary.procedures.append(
+                                    schemas.WorkspaceVisualEntry(
+                                        visual_id=f"ve-legacy-ts-{ts.id}",
+                                        entry_type="procedure",
+                                        code=p_code,
+                                        phase="completed",
+                                        targets=legacy_targets,
+                                        provenance="legacy_fallback",
+                                        temporal_certainty="UNKNOWN",
+                                    )
                                 )
-                            )
+                            else:
+                                warnings.append(
+                                    schemas.ClinicalWorkspaceWarning(
+                                        code="UNSUPPORTED_RENDERER_TARGET",
+                                        message=(
+                                            f"Legacy tooth status '{cond}' on tooth {tooth_key} "
+                                            "has no target shape supported by the odontogram renderer."
+                                        ),
+                                        source_kind="tooth_status",
+                                        source_id=ts.id,
+                                        raw_value=cond,
+                                        details={
+                                            "tooth_key": tooth_key,
+                                            "condition": cond,
+                                            "canonical_code": p_code,
+                                            "target_kinds": [target.kind for target in legacy_targets],
+                                        },
+                                    )
+                                )
                         else:
                             warnings.append(
                                 schemas.ClinicalWorkspaceWarning(
