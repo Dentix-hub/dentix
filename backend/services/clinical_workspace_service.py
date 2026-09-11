@@ -107,7 +107,7 @@ def _has_renderer_supported_target(
             return False
         if target.kind == "root" and not target.root_id:
             return False
-        if target.kind == "canal" and not target.canal_id:
+        if target.kind == "canal" and not target.root_id:
             return False
 
     return True
@@ -564,7 +564,7 @@ class ClinicalWorkspaceService:
                                         or later_lifecycle_event <= extraction_tuple
                                     ):
                                         latest_lifecycle_event_at[t.tooth_key] = extraction_tuple
-                                        t_summary.lifecycle = ToothLifecycleCode.MISSING.value
+                                        t_summary.lifecycle = ToothLifecycleCode.EXTRACTED.value
                                         t_summary.condition = "Missing"
 
         # 4. Fallback or Legacy-Only Contribution

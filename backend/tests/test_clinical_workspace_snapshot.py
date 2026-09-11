@@ -1166,7 +1166,7 @@ def test_endpoint_rbac_and_visibility(client, test_user, auth_headers, snapshot_
 
 @pytest.mark.asyncio
 async def test_renderer_target_validation_unsupported_shapes(workspace_test_engine):
-    """Unsupported target shapes emit UNSUPPORTED_RENDERER_TARGET warnings and set is_renderer_supported=False."""
+    """Target validation rejects unsupported shapes but accepts root-owned canal placeholders."""
     with Session(workspace_test_engine) as session:
         _enable_vnext_primary(session, tenant_id=1)
         # Crown on surface (only tooth is allowed)
@@ -1254,6 +1254,23 @@ async def test_renderer_target_validation_unsupported_shapes(workspace_test_engi
             tooth_key="14",
             surface_code="O",
         )
+        # Canal placeholders are root-owned; canal_id is intentionally optional.
+        wi_canal = ClinicalWorkItem(
+            id=606,
+            tenant_id=1,
+            patient_id=101,
+            kind="procedure",
+            code="ENDO_RCT",
+            status="planned",
+        )
+        t_canal = ClinicalWorkItemTarget(
+            tenant_id=1,
+            work_item_id=606,
+            target_kind="canal",
+            tooth_key="16",
+            root_id="mesiobuccal",
+            canal_id=None,
+        )
         session.add_all([
             wi_crown,
             t_crown,
@@ -1266,6 +1283,8 @@ async def test_renderer_target_validation_unsupported_shapes(workspace_test_engi
             wi_mixed,
             t_mixed_valid,
             t_mixed_invalid,
+            wi_canal,
+            t_canal,
         ])
         session.commit()
 
@@ -1279,12 +1298,14 @@ async def test_renderer_target_validation_unsupported_shapes(workspace_test_engi
         caries_summary = next(item for item in snapshot.work_items if item.id == 603)
         comp_summary = next(item for item in snapshot.work_items if item.id == 604)
         mixed_summary = next(item for item in snapshot.work_items if item.id == 605)
+        canal_summary = next(item for item in snapshot.work_items if item.id == 606)
 
         assert crown_summary.is_renderer_supported is False
         assert ext_summary.is_renderer_supported is False
         assert caries_summary.is_renderer_supported is False
         assert comp_summary.is_renderer_supported is False
         assert mixed_summary.is_renderer_supported is False
+        assert canal_summary.is_renderer_supported is True
 
         unsupported_target_warn_ids = {
             w.source_id
@@ -1296,6 +1317,7 @@ async def test_renderer_target_validation_unsupported_shapes(workspace_test_engi
         assert 603 in unsupported_target_warn_ids
         assert 604 in unsupported_target_warn_ids
         assert 605 in unsupported_target_warn_ids
+        assert 606 not in unsupported_target_warn_ids
 
 
 @pytest.mark.asyncio
@@ -1367,8 +1389,8 @@ async def test_completed_extraction_ordering_uses_linked_event_timestamp(
         ).get_workspace_snapshot(101)
 
         # Since linked completion event at T3 is later than T2 PRESENT correction,
-        # extraction ordering must apply MISSING lifecycle
-        assert snapshot.teeth["36"].lifecycle == "MISSING"
+        # extraction ordering must apply the canonical EXTRACTED lifecycle
+        assert snapshot.teeth["36"].lifecycle == "EXTRACTED"
         assert snapshot.teeth["36"].condition == "Missing"
 
 
