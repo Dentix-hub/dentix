@@ -45,7 +45,10 @@ from backend.models import (
 )
 from backend.auth import create_access_token
 from backend.clinical.catalog import FindingCode, ProcedureCode
-from backend.services.clinical_workspace_service import ClinicalWorkspaceService
+from backend.services.clinical_workspace_service import (
+    ClinicalWorkspaceService,
+    _normalized_datetime,
+)
 
 
 @pytest.fixture(scope="function")
@@ -1271,6 +1274,36 @@ async def test_renderer_target_validation_unsupported_shapes(workspace_test_engi
             root_id="mesiobuccal",
             canal_id=None,
         )
+        # A procedure code declared as a finding must remain visible as a warning.
+        wi_kind_mismatch = ClinicalWorkItem(
+            id=607,
+            tenant_id=1,
+            patient_id=101,
+            kind="finding",
+            code="PROS_CROWN",
+            status="planned",
+        )
+        t_kind_mismatch = ClinicalWorkItemTarget(
+            tenant_id=1,
+            work_item_id=607,
+            target_kind="tooth",
+            tooth_key="13",
+        )
+        # Planned procedures render their phase but must not become current conditions.
+        wi_planned_crown = ClinicalWorkItem(
+            id=608,
+            tenant_id=1,
+            patient_id=101,
+            kind="procedure",
+            code="PROS_CROWN",
+            status="planned",
+        )
+        t_planned_crown = ClinicalWorkItemTarget(
+            tenant_id=1,
+            work_item_id=608,
+            target_kind="tooth",
+            tooth_key="12",
+        )
         session.add_all([
             wi_crown,
             t_crown,
@@ -1285,6 +1318,10 @@ async def test_renderer_target_validation_unsupported_shapes(workspace_test_engi
             t_mixed_invalid,
             wi_canal,
             t_canal,
+            wi_kind_mismatch,
+            t_kind_mismatch,
+            wi_planned_crown,
+            t_planned_crown,
         ])
         session.commit()
 
@@ -1299,6 +1336,10 @@ async def test_renderer_target_validation_unsupported_shapes(workspace_test_engi
         comp_summary = next(item for item in snapshot.work_items if item.id == 604)
         mixed_summary = next(item for item in snapshot.work_items if item.id == 605)
         canal_summary = next(item for item in snapshot.work_items if item.id == 606)
+        mismatch_summary = next(item for item in snapshot.work_items if item.id == 607)
+        planned_crown_summary = next(
+            item for item in snapshot.work_items if item.id == 608
+        )
 
         assert crown_summary.is_renderer_supported is False
         assert ext_summary.is_renderer_supported is False
@@ -1306,6 +1347,10 @@ async def test_renderer_target_validation_unsupported_shapes(workspace_test_engi
         assert comp_summary.is_renderer_supported is False
         assert mixed_summary.is_renderer_supported is False
         assert canal_summary.is_renderer_supported is True
+        assert mismatch_summary.is_renderer_supported is False
+        assert planned_crown_summary.is_renderer_supported is True
+        assert snapshot.teeth["16"].condition is None
+        assert snapshot.teeth["12"].condition is None
 
         unsupported_target_warn_ids = {
             w.source_id
@@ -1318,6 +1363,11 @@ async def test_renderer_target_validation_unsupported_shapes(workspace_test_engi
         assert 604 in unsupported_target_warn_ids
         assert 605 in unsupported_target_warn_ids
         assert 606 not in unsupported_target_warn_ids
+        assert any(
+            warning.code == "UNSUPPORTED_CLINICAL_CODE"
+            and warning.source_id == 607
+            for warning in snapshot.warnings
+        )
 
 
 @pytest.mark.asyncio
@@ -1392,6 +1442,13 @@ async def test_completed_extraction_ordering_uses_linked_event_timestamp(
         # extraction ordering must apply the canonical EXTRACTED lifecycle
         assert snapshot.teeth["36"].lifecycle == "EXTRACTED"
         assert snapshot.teeth["36"].condition == "Missing"
+        extraction_visual = next(
+            entry
+            for entry in snapshot.teeth["36"].procedures
+            if entry.visual_id == "ve-wi-701"
+        )
+        assert _normalized_datetime(extraction_visual.occurred_at) == t3_completed
+        assert _normalized_datetime(extraction_visual.recorded_at) == t3_completed
 
 
 @pytest.mark.asyncio

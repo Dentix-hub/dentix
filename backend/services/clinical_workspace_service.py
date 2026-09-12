@@ -231,7 +231,7 @@ class ClinicalWorkspaceService:
                 key=lambda w: (_normalized_datetime(w.created_at), w.id)
             )
             native_work_item_visual_keys = {
-                (work_item.id, target.tooth_key, work_item.code)
+                (work_item.id, work_item.kind, target.tooth_key, work_item.code)
                 for work_item in active_native_work_items
                 for target in (work_item.targets or [])
                 if (work_item.status or "").lower() != "cancelled"
@@ -259,6 +259,20 @@ class ClinicalWorkspaceService:
                     e.id,
                 )
             )
+            linked_visual_events: dict[
+                tuple[int, str, str], models.ClinicalEvent
+            ] = {}
+            for event in active_native_events:
+                event_payload = event.payload or {}
+                event_type = str(event.event_type or "").lower()
+                event_kind = str(event_payload.get("kind") or "").lower()
+                event_code = str(event_payload.get("canonical_code") or "").upper()
+                if event_type == "finding_recorded":
+                    event_kind = "finding"
+                elif event_type == "procedure_recorded":
+                    event_kind = "procedure"
+                if event.work_item_id and event_kind in {"finding", "procedure"} and event_code:
+                    linked_visual_events[(event.work_item_id, event_kind, event_code)] = event
 
             # Apply native events to teeth
             latest_lifecycle_event_at: dict[str, tuple[datetime, datetime, int]] = {}
@@ -385,6 +399,7 @@ class ClinicalWorkspaceService:
                         visual_key = (target.tooth_key, canonical_code)
                         linked_visual_key = (
                             ev.work_item_id,
+                            visual_kind,
                             target.tooth_key,
                             canonical_code,
                         )
@@ -419,8 +434,15 @@ class ClinicalWorkspaceService:
             # Apply native work items to teeth and build work-item summaries
             for wi in active_native_work_items:
                 raw_code = wi.code
-                is_supported_proc = raw_code in SUPPORTED_PROCEDURE_CODES
-                is_supported_find = raw_code in SUPPORTED_FINDING_CODES
+                work_item_kind = str(wi.kind or "").lower()
+                is_supported_proc = (
+                    work_item_kind == "procedure"
+                    and raw_code in SUPPORTED_PROCEDURE_CODES
+                )
+                is_supported_find = (
+                    work_item_kind == "finding"
+                    and raw_code in SUPPORTED_FINDING_CODES
+                )
                 is_supported = is_supported_proc or is_supported_find
 
                 wi_targets = [
@@ -485,13 +507,25 @@ class ClinicalWorkspaceService:
                     phase = "completed" if wi.status == "completed" else (
                         "active" if wi.status == "active" else "planned"
                     )
+                    linked_visual_event = linked_visual_events.get(
+                        (wi.id, work_item_kind, raw_code)
+                    )
                     entry = schemas.WorkspaceVisualEntry(
                         visual_id=f"ve-wi-{wi.id}",
                         entry_type=wi.kind,
                         code=raw_code,
                         phase=phase,
                         targets=wi_targets,
-                        recorded_at=wi.created_at,
+                        occurred_at=(
+                            linked_visual_event.occurred_at
+                            if linked_visual_event
+                            else None
+                        ),
+                        recorded_at=(
+                            linked_visual_event.created_at
+                            if linked_visual_event
+                            else wi.created_at
+                        ),
                         provenance="native",
                         temporal_certainty="EXACT",
                     )
@@ -512,11 +546,20 @@ class ClinicalWorkspaceService:
                                     t_summary.condition = "Decayed"
                             else:
                                 t_summary.procedures.append(entry)
-                                if raw_code == ProcedureCode.REST_COMPOSITE.value:
+                                if (
+                                    wi.status == "completed"
+                                    and raw_code == ProcedureCode.REST_COMPOSITE.value
+                                ):
                                     t_summary.condition = "Filled"
-                                elif raw_code == ProcedureCode.PROS_CROWN.value:
+                                elif (
+                                    wi.status == "completed"
+                                    and raw_code == ProcedureCode.PROS_CROWN.value
+                                ):
                                     t_summary.condition = "Crown"
-                                elif raw_code == ProcedureCode.ENDO_RCT.value:
+                                elif (
+                                    wi.status == "completed"
+                                    and raw_code == ProcedureCode.ENDO_RCT.value
+                                ):
                                     t_summary.condition = "RootCanal"
                                 elif raw_code == ProcedureCode.SURG_EXTRACTION.value and wi.status == "completed":
                                     linked_events = []
