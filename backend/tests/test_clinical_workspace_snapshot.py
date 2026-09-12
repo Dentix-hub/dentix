@@ -1441,7 +1441,7 @@ async def test_completed_extraction_ordering_uses_linked_event_timestamp(
         # Since linked completion event at T3 is later than T2 PRESENT correction,
         # extraction ordering must apply the canonical EXTRACTED lifecycle
         assert snapshot.teeth["36"].lifecycle == "EXTRACTED"
-        assert snapshot.teeth["36"].condition == "Missing"
+        assert snapshot.teeth["36"].condition == "Extracted"
         extraction_visual = next(
             entry
             for entry in snapshot.teeth["36"].procedures
@@ -1638,3 +1638,153 @@ async def test_present_correction_semantics_clears_stale_lifecycle_conditions(
         # Tooth 15: independent "Filled" condition preserved
         assert snapshot.teeth["15"].lifecycle == "PRESENT"
         assert snapshot.teeth["15"].condition == "Filled"
+
+
+@pytest.mark.asyncio
+async def test_extracted_lifecycle_keeps_distinct_legacy_bridge_condition(
+    workspace_test_engine,
+):
+    """EXTRACTED must never collapse into the distinct MISSING legacy condition."""
+    with Session(workspace_test_engine) as session:
+        _enable_vnext_primary(session, tenant_id=1)
+        event_at = datetime(2026, 2, 1, 9, 0, tzinfo=timezone.utc)
+        event = ClinicalEvent(
+            id=901,
+            tenant_id=1,
+            patient_id=101,
+            event_type="tooth_lifecycle_changed",
+            payload={"kind": "lifecycle", "canonical_code": "EXTRACTED"},
+            occurred_at=event_at,
+            created_at=event_at,
+        )
+        target = ClinicalEventTarget(
+            tenant_id=1,
+            event_id=901,
+            target_kind="tooth",
+            tooth_key="24",
+        )
+        session.add_all([event, target])
+        session.commit()
+
+        snapshot = await ClinicalWorkspaceService(
+            AsyncSessionWrapper(session),
+            tenant_id=1,
+        ).get_workspace_snapshot(101)
+
+        assert snapshot.teeth["24"].lifecycle == "EXTRACTED"
+        assert snapshot.teeth["24"].condition == "Extracted"
+
+
+@pytest.mark.asyncio
+async def test_present_lifecycle_reads_migrated_raw_healthy_evidence(
+    workspace_test_engine,
+):
+    """Mapped Healthy evidence remains explicit when native coverage is complete."""
+    with Session(workspace_test_engine) as session:
+        _enable_vnext_primary(session, tenant_id=1)
+        event_at = datetime(2026, 2, 2, 9, 0, tzinfo=timezone.utc)
+        event = ClinicalEvent(
+            id=911,
+            tenant_id=1,
+            patient_id=101,
+            event_type="tooth_lifecycle_changed",
+            payload={
+                "kind": "lifecycle",
+                "canonical_code": "PRESENT",
+                "raw_condition": "Healthy",
+            },
+            occurred_at=event_at,
+            created_at=event_at,
+        )
+        target = ClinicalEventTarget(
+            tenant_id=1,
+            event_id=911,
+            target_kind="tooth",
+            tooth_key="51",
+        )
+        session.add_all([event, target])
+        session.commit()
+
+        snapshot = await ClinicalWorkspaceService(
+            AsyncSessionWrapper(session),
+            tenant_id=1,
+        ).get_workspace_snapshot(101)
+
+        assert snapshot.teeth["51"].lifecycle == "PRESENT"
+        assert snapshot.teeth["51"].condition == "Healthy"
+
+
+@pytest.mark.asyncio
+async def test_later_event_condition_wins_over_older_completed_work_item(
+    workspace_test_engine,
+):
+    """Condition evidence is reduced by clinical time across events and work items."""
+    with Session(workspace_test_engine) as session:
+        _enable_vnext_primary(session, tenant_id=1)
+        created_at = datetime(2026, 2, 1, 8, 0, tzinfo=timezone.utc)
+        crown_at = datetime(2026, 2, 1, 9, 0, tzinfo=timezone.utc)
+        caries_at = datetime(2026, 2, 2, 9, 0, tzinfo=timezone.utc)
+        work_item = ClinicalWorkItem(
+            id=921,
+            tenant_id=1,
+            patient_id=101,
+            kind="procedure",
+            code="PROS_CROWN",
+            status="completed",
+            created_at=created_at,
+        )
+        work_target = ClinicalWorkItemTarget(
+            tenant_id=1,
+            work_item_id=921,
+            target_kind="tooth",
+            tooth_key="26",
+        )
+        crown_event = ClinicalEvent(
+            id=922,
+            tenant_id=1,
+            patient_id=101,
+            work_item_id=921,
+            event_type="procedure_recorded",
+            payload={"kind": "procedure", "canonical_code": "PROS_CROWN"},
+            occurred_at=crown_at,
+            created_at=crown_at,
+        )
+        crown_target = ClinicalEventTarget(
+            tenant_id=1,
+            event_id=922,
+            target_kind="tooth",
+            tooth_key="26",
+        )
+        caries_event = ClinicalEvent(
+            id=923,
+            tenant_id=1,
+            patient_id=101,
+            event_type="finding_recorded",
+            payload={"kind": "finding", "canonical_code": "CARIES"},
+            occurred_at=caries_at,
+            created_at=caries_at,
+        )
+        caries_target = ClinicalEventTarget(
+            tenant_id=1,
+            event_id=923,
+            target_kind="tooth",
+            tooth_key="26",
+        )
+        session.add_all(
+            [
+                work_item,
+                work_target,
+                crown_event,
+                crown_target,
+                caries_event,
+                caries_target,
+            ]
+        )
+        session.commit()
+
+        snapshot = await ClinicalWorkspaceService(
+            AsyncSessionWrapper(session),
+            tenant_id=1,
+        ).get_workspace_snapshot(101)
+
+        assert snapshot.teeth["26"].condition == "Decayed"
