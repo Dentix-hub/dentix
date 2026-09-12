@@ -276,6 +276,9 @@ class ClinicalWorkspaceService:
 
             # Apply native events to teeth
             latest_lifecycle_event_at: dict[str, tuple[datetime, datetime, int]] = {}
+            latest_condition_evidence_at: dict[
+                str, tuple[datetime, datetime, int]
+            ] = {}
             for ev in active_native_events:
                 ev_targets = getattr(ev, "targets", []) or []
                 target_tooth_keys = [t.tooth_key for t in ev_targets if t.tooth_key in teeth_map]
@@ -284,6 +287,11 @@ class ClinicalWorkspaceService:
                 event_type = str(ev.event_type or "").lower()
                 event_kind = str(payload.get("kind") or "").lower()
                 canonical_code = str(payload.get("canonical_code") or "").upper()
+                event_order = (
+                    _normalized_datetime(ev.occurred_at or ev.created_at),
+                    _normalized_datetime(ev.created_at),
+                    ev.id,
+                )
                 lifecycle_candidate = (
                     payload.get("lifecycle")
                     or (
@@ -298,27 +306,30 @@ class ClinicalWorkspaceService:
                     for tk in target_tooth_keys:
                         native_teeth_with_truth.add(tk)
                         native_teeth_status_with_truth.add(tk)
-                        latest_lifecycle_event_at[tk] = (
-                            _normalized_datetime(ev.occurred_at or ev.created_at),
-                            _normalized_datetime(ev.created_at),
-                            ev.id,
-                        )
+                        latest_lifecycle_event_at[tk] = event_order
                         t_summary = teeth_map[tk]
                         t_summary.lifecycle = canon_lifecycle
                         t_summary.provenance = "native"
                         t_summary.temporal_certainty = "EXACT"
                         if canon_lifecycle == ToothLifecycleCode.MISSING.value:
                             t_summary.condition = "Missing"
+                            latest_condition_evidence_at[tk] = event_order
                         elif canon_lifecycle == ToothLifecycleCode.EXTRACTED.value:
-                            t_summary.condition = "Missing"
+                            t_summary.condition = "Extracted"
+                            latest_condition_evidence_at[tk] = event_order
                         elif canon_lifecycle == ToothLifecycleCode.IMPACTED.value:
                             t_summary.condition = "Impacted"
+                            latest_condition_evidence_at[tk] = event_order
                         elif canon_lifecycle == ToothLifecycleCode.UNERUPTED.value:
                             t_summary.condition = "Unerupted"
+                            latest_condition_evidence_at[tk] = event_order
                         elif canon_lifecycle == ToothLifecycleCode.PRESENT.value:
-                            cond_candidate = payload.get("condition")
+                            cond_candidate = payload.get("condition") or payload.get(
+                                "raw_condition"
+                            )
                             if cond_candidate:
                                 t_summary.condition = cond_candidate
+                                latest_condition_evidence_at[tk] = event_order
                             elif t_summary.condition and t_summary.condition.strip().lower() in {
                                 "missing",
                                 "extracted",
@@ -383,6 +394,27 @@ class ClinicalWorkspaceService:
                             )
                         )
                         continue
+                    visual_condition = None
+                    if (
+                        visual_kind == "finding"
+                        and canonical_code == FindingCode.CARIES.value
+                    ):
+                        visual_condition = "Decayed"
+                    elif (
+                        visual_kind == "procedure"
+                        and canonical_code == ProcedureCode.REST_COMPOSITE.value
+                    ):
+                        visual_condition = "Filled"
+                    elif (
+                        visual_kind == "procedure"
+                        and canonical_code == ProcedureCode.PROS_CROWN.value
+                    ):
+                        visual_condition = "Crown"
+                    elif (
+                        visual_kind == "procedure"
+                        and canonical_code == ProcedureCode.ENDO_RCT.value
+                    ):
+                        visual_condition = "RootCanal"
                     visual_entry = schemas.WorkspaceVisualEntry(
                         visual_id=f"ve-ev-{ev.id}",
                         entry_type=visual_kind,
@@ -396,6 +428,8 @@ class ClinicalWorkspaceService:
                     )
                     appended_tooth_keys: set[str] = set()
                     for target in workspace_targets:
+                        if visual_condition:
+                            latest_condition_evidence_at[target.tooth_key] = event_order
                         visual_key = (target.tooth_key, canonical_code)
                         linked_visual_key = (
                             ev.work_item_id,
@@ -420,21 +454,16 @@ class ClinicalWorkspaceService:
                         t_summary.temporal_certainty = "EXACT"
                         if visual_kind == "finding":
                             t_summary.findings.append(visual_entry)
-                            if canonical_code == FindingCode.CARIES.value:
-                                t_summary.condition = "Decayed"
                         else:
                             t_summary.procedures.append(visual_entry)
-                            if canonical_code == ProcedureCode.REST_COMPOSITE.value:
-                                t_summary.condition = "Filled"
-                            elif canonical_code == ProcedureCode.PROS_CROWN.value:
-                                t_summary.condition = "Crown"
-                            elif canonical_code == ProcedureCode.ENDO_RCT.value:
-                                t_summary.condition = "RootCanal"
+                        if visual_condition:
+                            t_summary.condition = visual_condition
 
             # Apply native work items to teeth and build work-item summaries
             for wi in active_native_work_items:
                 raw_code = wi.code
                 work_item_kind = str(wi.kind or "").lower()
+                work_item_status = str(wi.status or "").lower()
                 is_supported_proc = (
                     work_item_kind == "procedure"
                     and raw_code in SUPPORTED_PROCEDURE_CODES
@@ -503,13 +532,42 @@ class ClinicalWorkspaceService:
                 )
                 work_item_summaries.append(summary)
 
-                if is_supported and wi.status not in ("cancelled",):
-                    phase = "completed" if wi.status == "completed" else (
-                        "active" if wi.status == "active" else "planned"
+                if is_supported and work_item_status != "cancelled":
+                    phase = "completed" if work_item_status == "completed" else (
+                        "active" if work_item_status == "active" else "planned"
                     )
                     linked_visual_event = linked_visual_events.get(
                         (wi.id, work_item_kind, raw_code)
                     )
+                    condition_evidence_at = (
+                        (
+                            _normalized_datetime(
+                                linked_visual_event.occurred_at
+                                or linked_visual_event.created_at
+                            ),
+                            _normalized_datetime(linked_visual_event.created_at),
+                            linked_visual_event.id,
+                        )
+                        if linked_visual_event
+                        else (
+                            _normalized_datetime(wi.created_at),
+                            _normalized_datetime(wi.created_at),
+                            wi.id,
+                        )
+                    )
+                    work_item_condition = None
+                    if (
+                        work_item_kind == "finding"
+                        and raw_code == FindingCode.CARIES.value
+                    ):
+                        work_item_condition = "Decayed"
+                    elif work_item_status == "completed":
+                        if raw_code == ProcedureCode.REST_COMPOSITE.value:
+                            work_item_condition = "Filled"
+                        elif raw_code == ProcedureCode.PROS_CROWN.value:
+                            work_item_condition = "Crown"
+                        elif raw_code == ProcedureCode.ENDO_RCT.value:
+                            work_item_condition = "RootCanal"
                     entry = schemas.WorkspaceVisualEntry(
                         visual_id=f"ve-wi-{wi.id}",
                         entry_type=wi.kind,
@@ -540,28 +598,27 @@ class ClinicalWorkspaceService:
                             t_summary = teeth_map[t.tooth_key]
                             t_summary.provenance = "native"
                             t_summary.temporal_certainty = "EXACT"
-                            if wi.kind == "finding":
+                            if work_item_kind == "finding":
                                 t_summary.findings.append(entry)
-                                if raw_code == FindingCode.CARIES.value:
-                                    t_summary.condition = "Decayed"
                             else:
                                 t_summary.procedures.append(entry)
+                            if work_item_condition:
+                                latest_condition = latest_condition_evidence_at.get(
+                                    t.tooth_key
+                                )
                                 if (
-                                    wi.status == "completed"
-                                    and raw_code == ProcedureCode.REST_COMPOSITE.value
+                                    latest_condition is None
+                                    or latest_condition <= condition_evidence_at
                                 ):
-                                    t_summary.condition = "Filled"
-                                elif (
-                                    wi.status == "completed"
-                                    and raw_code == ProcedureCode.PROS_CROWN.value
-                                ):
-                                    t_summary.condition = "Crown"
-                                elif (
-                                    wi.status == "completed"
-                                    and raw_code == ProcedureCode.ENDO_RCT.value
-                                ):
-                                    t_summary.condition = "RootCanal"
-                                elif raw_code == ProcedureCode.SURG_EXTRACTION.value and wi.status == "completed":
+                                    t_summary.condition = work_item_condition
+                                    latest_condition_evidence_at[t.tooth_key] = (
+                                        condition_evidence_at
+                                    )
+                            if (
+                                work_item_kind == "procedure"
+                                and raw_code == ProcedureCode.SURG_EXTRACTION.value
+                                and work_item_status == "completed"
+                            ):
                                     linked_events = []
                                     for event in active_native_events:
                                         if event.work_item_id != wi.id:
@@ -608,7 +665,17 @@ class ClinicalWorkspaceService:
                                     ):
                                         latest_lifecycle_event_at[t.tooth_key] = extraction_tuple
                                         t_summary.lifecycle = ToothLifecycleCode.EXTRACTED.value
-                                        t_summary.condition = "Missing"
+                                        latest_condition = latest_condition_evidence_at.get(
+                                            t.tooth_key
+                                        )
+                                        if (
+                                            latest_condition is None
+                                            or latest_condition <= extraction_tuple
+                                        ):
+                                            t_summary.condition = "Extracted"
+                                            latest_condition_evidence_at[t.tooth_key] = (
+                                                extraction_tuple
+                                            )
 
         # 4. Fallback or Legacy-Only Contribution
         # When rollout_mode in ("LEGACY_ONLY", "SHADOW"), visible projection is legacy-driven.
