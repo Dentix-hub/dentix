@@ -1,6 +1,8 @@
-import { lazy, memo, Suspense, useCallback, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import DentalChartSVG from '@/features/dental/DentalChartSVG';
+import ClinicalChartRenderer from '@/features/clinical-chart/components/ClinicalChartRenderer';
+import { adaptWorkspaceSnapshotToRenderer } from '@/features/clinical-chart/adapters/workspaceSnapshotAdapter';
 import PatientInfoCard from '@/features/patients/PatientInfoCard';
 import { useProcedures } from '@/shared/context/ProceduresContext';
 import TreatmentModal from '@/shared/ui/modals/TreatmentModal';
@@ -13,6 +15,7 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import {
     usePatient,
     usePatientTeeth,
+    usePatientClinicalWorkspace,
     usePatientTreatments,
     usePatientPayments,
     usePatientAttachments,
@@ -79,7 +82,46 @@ export default function PatientDetails() {
         error: patientError,
         refetch: refetchPatient
     } = usePatient(id);
-    const { data: teethStatus = {}, isLoading: teethLoading, refetch: refetchTeeth } = usePatientTeeth(id, true);
+    const { data: teethStatus = {}, refetch: refetchTeeth } = usePatientTeeth(id, activeTab !== 'chart');
+    const {
+        data: workspaceSnapshot,
+        isLoading: workspaceLoading,
+        isError: workspaceIsError,
+        error: workspaceError,
+        refetch: refetchWorkspace,
+    } = usePatientClinicalWorkspace(id, { enabled: activeTab === 'chart' });
+
+    const effectiveTeethStatusRef = useRef({});
+
+    const handleToothClick = useCallback((number, notation = 'universal') => {
+        const isFdiKey = notation === 'fdi';
+        const fdi = isFdiKey ? Number.parseInt(number, 10) : toothToNumber(number);
+        const current = effectiveTeethStatusRef.current[fdi]?.condition || 'Healthy';
+        setSelectedToothCondition(current);
+        const palmerPrefix = isFdiKey
+            ? fdiToPalmer(fdi)
+            : universalToPalmer(number, isPediatric);
+        setNewTreatment({
+            ...getInitialTreatment(),
+            tooth_number: palmerPrefix,
+            default_price_list_id: patient?.default_price_list_id
+        });
+        setIsTreatmentModalOpen(true);
+    }, [isPediatric, patient]);
+
+    const adaptedChart = useMemo(() => {
+        return adaptWorkspaceSnapshotToRenderer(workspaceSnapshot, {
+            chartId: `patient-chart-${id}`,
+            isPediatric,
+            showRoots: true,
+            onToothClick: handleToothClick,
+        });
+    }, [workspaceSnapshot, id, isPediatric, handleToothClick]);
+
+    const [localTeethStatus] = useState(null);
+    const effectiveTeethStatus = localTeethStatus ?? (workspaceSnapshot ? adaptedChart.teethStatus : teethStatus);
+    effectiveTeethStatusRef.current = effectiveTeethStatus;
+
     const { data: history = [], refetch: refetchHistory } = usePatientTreatments(
         id,
         activeTab === 'history' || activeTab === 'billing' || activeTab === 'timeline'
@@ -93,9 +135,6 @@ export default function PatientDetails() {
         isLoading: attachmentsLoading,
         refetch: refetchAttachments
     } = usePatientAttachments(id, activeTab === 'files');
-
-    const [localTeethStatus] = useState(null);
-    const effectiveTeethStatus = localTeethStatus ?? teethStatus;
 
     const [isEditPatientOpen, setIsEditPatientOpen] = useState(false);
     const [isRxModalOpen, setIsRxModalOpen] = useState(false);
@@ -124,10 +163,16 @@ export default function PatientDetails() {
     const { mutateAsync: createPaymentMutate } = useCreatePayment();
     const { mutateAsync: deletePaymentMutate } = useDeletePayment();
 
+    const refetchAllTeeth = useCallback(() => {
+        refetchTeeth();
+        refetchWorkspace?.();
+    }, [refetchTeeth, refetchWorkspace]);
+
     const { handleSaveTreatment } = useTreatmentOperations({
         patientId: id,
         refetchHistory,
-        refetchTeeth,
+        refetchTeeth: refetchAllTeeth,
+        refetchWorkspace,
         setIsTreatmentModalOpen,
         setEditingTreatmentId,
         editingTreatmentId,
@@ -154,19 +199,6 @@ export default function PatientDetails() {
             // Preserve existing silent attachment-delete failure behavior.
         }
     }, [refetchAttachments]);
-
-    const handleToothClick = useCallback((number) => {
-        const fdi = toothToNumber(number);
-        const current = effectiveTeethStatus[fdi]?.condition || 'Healthy';
-        setSelectedToothCondition(current);
-        const palmerPrefix = universalToPalmer(number, isPediatric);
-        setNewTreatment({
-            ...getInitialTreatment(),
-            tooth_number: palmerPrefix,
-            default_price_list_id: patient?.default_price_list_id
-        });
-        setIsTreatmentModalOpen(true);
-    }, [effectiveTeethStatus, isPediatric, patient]);
 
     const handleSavePatient = useCallback(async (updatedData) => {
         try {
@@ -239,12 +271,12 @@ export default function PatientDetails() {
         if (!window.confirm(t('patient_details.alerts.delete_treatment_confirm'))) return;
         try {
             await deleteTreatment(treatmentId);
-            refetchHistory();
+            await Promise.all([refetchHistory(), refetchWorkspace()]);
             toast.success(t('common.delete_success', 'تم الحذف بنجاح'));
         } catch (error) {
             toast.error(error.response?.data?.detail || t('patient_details.alerts.delete_treatment_fail'));
         }
-    }, [refetchHistory, t]);
+    }, [refetchHistory, refetchWorkspace, t]);
 
     const handleDeletePayment = useCallback(async (paymentId) => {
         if (!window.confirm(t('patient_details.alerts.delete_payment_confirm'))) return;
@@ -360,7 +392,23 @@ export default function PatientDetails() {
                             <div className="min-w-0 space-y-4">
                                 <div className="flex min-w-0 flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                     <div className="min-w-0">
-                                        <h3 className="break-words font-bold text-slate-800 dark:text-white">{t('patient_details.chart.title')}</h3>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h3 className="break-words font-bold text-slate-800 dark:text-white">{t('patient_details.chart.title')}</h3>
+                                            {!workspaceLoading && !workspaceIsError && (
+                                                <span
+                                                    data-testid="clinical-workspace-read-mode"
+                                                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                                                        adaptedChart.readMode === 'VNEXT_PRIMARY'
+                                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                                            : adaptedChart.readMode === 'SHADOW'
+                                                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+                                                            : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300'
+                                                    }`}
+                                                >
+                                                    {adaptedChart.readMode}
+                                                </span>
+                                            )}
+                                        </div>
                                         <p className="mt-1 break-words text-xs text-slate-500 dark:text-slate-400">{t('patient_details.chart.subtitle')}</p>
                                     </div>
                                     <div className="grid w-full grid-cols-1 gap-2 min-[400px]:grid-cols-2 md:w-auto">
@@ -382,15 +430,87 @@ export default function PatientDetails() {
                                         </button>
                                     </div>
                                 </div>
-                                {teethLoading ? (
+
+                                {!workspaceLoading && !workspaceIsError && (
+                                    <div className="space-y-2" data-testid="clinical-workspace-status">
+                                        <div
+                                            data-testid="clinical-workspace-coverage"
+                                            className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-400"
+                                        >
+                                            <span className="font-semibold">{t('clinical.coverage', 'Coverage')}:</span>
+                                            {Object.entries(adaptedChart.coverage).map(([domain, status]) => (
+                                                <span
+                                                    key={domain}
+                                                    className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${
+                                                        status === 'COMPLETE'
+                                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                                                            : status === 'PARTIAL'
+                                                            ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                                                            : 'bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                                                    }`}
+                                                >
+                                                    <span>{domain}:</span>
+                                                    <span className="font-bold">{status}</span>
+                                                </span>
+                                            ))}
+                                        </div>
+
+                                        {adaptedChart.isFallback && (
+                                            <div
+                                                data-testid="clinical-workspace-fallback-banner"
+                                                className="rounded-lg border border-blue-200 bg-blue-50/70 p-2.5 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300"
+                                            >
+                                                <span className="font-semibold">{t('clinical.fallback_notice', 'Notice')}: </span>
+                                                {t('clinical.fallback_desc', 'Displaying clinical records with legacy fallback contribution.')}
+                                            </div>
+                                        )}
+
+                                        {adaptedChart.warnings && adaptedChart.warnings.length > 0 && (
+                                            <div
+                                                data-testid="clinical-workspace-warnings"
+                                                className="rounded-lg border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300"
+                                            >
+                                                <span className="font-semibold">{t('clinical.warnings', 'Warnings')}: </span>
+                                                <ul className="mt-1 list-inside list-disc space-y-0.5">
+                                                    {adaptedChart.warnings.map((w, idx) => (
+                                                        <li key={idx}>
+                                                            <span className="font-medium">[{w.code}]</span> {w.message}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+
+                                        {adaptedChart.isEmpty && (
+                                            <div
+                                                data-testid="clinical-workspace-empty"
+                                                className="rounded-lg border border-slate-200 bg-slate-50/50 p-2 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400"
+                                            >
+                                                {t('clinical.empty_workspace', 'No clinical events or work items recorded for this patient yet.')}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {workspaceLoading ? (
                                     <TabSkeleton />
+                                ) : workspaceIsError ? (
+                                    <section
+                                        data-testid="clinical-workspace-error"
+                                        className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-700 sm:p-4"
+                                    >
+                                        <h4 className="font-bold">{t('patient_details.chart_error', 'Failed to load clinical workspace')}</h4>
+                                        <p className="mt-1 text-sm">{workspaceError?.response?.data?.detail || workspaceError?.message || t('patient_details.unknown_error')}</p>
+                                        <button
+                                            type="button"
+                                            onClick={() => refetchWorkspace()}
+                                            className="mt-3 min-h-9 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-bold text-red-700 transition-colors hover:bg-red-50"
+                                        >
+                                            {t('patient_details.retry', 'Retry')}
+                                        </button>
+                                    </section>
                                 ) : (
-                                    <DentalChartSVG
-                                        teethStatus={effectiveTeethStatus}
-                                        onToothClick={handleToothClick}
-                                        isPediatric={isPediatric}
-                                        showRoots
-                                    />
+                                    <ClinicalChartRenderer input={adaptedChart.rendererInput} />
                                 )}
                             </div>
                         )}

@@ -61,3 +61,26 @@ from .inventory import (
     TreatmentMaterialUsage,
 )
 from .domain_event import DomainEvent
+from .clinical_core import (
+    ClinicalWorkItem,
+    ClinicalWorkItemTarget,
+    ClinicalTreatmentPlan,
+    ClinicalTreatmentPlanPhase,
+    ClinicalTreatmentPlanItem,
+    ClinicalEvent,
+    ClinicalEventTarget,
+    CareSession,
+    CareSessionStep,
+    CareObservation,
+    WorkflowTemplate,
+    NextVisitRequest,
+    ClinicalAttachmentLink,
+    ClinicalProjectionCoverage,
+    COVERAGE_DOMAINS,
+    COVERAGE_STATES,
+    DEFAULT_COVERAGE_STATE,
+    FDI_TOOTH_KEYS,
+    SURFACE_CODES,
+    ROOT_IDS,
+    TARGET_KINDS,
+)
