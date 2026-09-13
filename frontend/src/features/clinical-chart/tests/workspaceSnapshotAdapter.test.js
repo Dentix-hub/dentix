@@ -328,6 +328,17 @@ describe('workspaceSnapshotAdapter', () => {
         // Tooth 21 has explicit legacy Healthy -> preserved as 'Healthy'
         expect(adapted.teethStatus['21']).toBeDefined();
         expect(adapted.teethStatus['21'].condition).toBe('Healthy');
+        expect(adapted.isEmpty).toBe(false);
+
+        const noteOnly = adaptWorkspaceSnapshotToRenderer(createBaseSnapshot({
+            teeth: {
+                '22': {
+                    tooth_key: '22',
+                    notes: 'Monitor eruption',
+                },
+            },
+        }));
+        expect(noteOnly.isEmpty).toBe(false);
     });
 
     it('triggers mixed dentition when healthy PRESENT tooth exists outside default dentition without placeholder interference', () => {

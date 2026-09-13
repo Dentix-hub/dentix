@@ -301,7 +301,37 @@ class ClinicalWorkspaceService:
                     )
                     or ev.event_type
                 )
-                if isinstance(lifecycle_candidate, str) and lifecycle_candidate.upper() in CANONICAL_TOOTH_LIFECYCLE_CODES:
+                is_lifecycle_event = (
+                    event_type == "tooth_lifecycle_changed"
+                    or event_kind == "lifecycle"
+                )
+                is_supported_lifecycle = (
+                    isinstance(lifecycle_candidate, str)
+                    and lifecycle_candidate.upper()
+                    in CANONICAL_TOOTH_LIFECYCLE_CODES
+                )
+                if is_lifecycle_event and not is_supported_lifecycle:
+                    warnings.append(
+                        schemas.ClinicalWorkspaceWarning(
+                            code="UNSUPPORTED_CLINICAL_CODE",
+                            message=(
+                                f"Unsupported lifecycle code '{lifecycle_candidate}' on "
+                                f"clinical event {ev.id} preserved as an unclassified warning."
+                            ),
+                            source_kind="clinical_event",
+                            source_id=ev.id,
+                            raw_value=(
+                                str(lifecycle_candidate)
+                                if lifecycle_candidate is not None
+                                else None
+                            ),
+                            details={
+                                "event_type": ev.event_type,
+                                "kind": event_kind or "lifecycle",
+                            },
+                        )
+                    )
+                elif is_supported_lifecycle:
                     canon_lifecycle = lifecycle_candidate.upper()
                     for tk in target_tooth_keys:
                         native_teeth_with_truth.add(tk)
@@ -917,6 +947,17 @@ class ClinicalWorkspaceService:
                                     t_summary.findings.append(ve)
                                 else:
                                     t_summary.procedures.append(ve)
+                                    if (
+                                        wi_draft.status == "completed"
+                                        and wi_draft.code
+                                        == ProcedureCode.SURG_EXTRACTION.value
+                                        and t.tooth_key
+                                        not in native_teeth_status_with_truth
+                                    ):
+                                        t_summary.lifecycle = (
+                                            ToothLifecycleCode.EXTRACTED.value
+                                        )
+                                        t_summary.condition = "Extracted"
 
         if has_fallback_truth:
             if rollout_mode == "VNEXT_PRIMARY":

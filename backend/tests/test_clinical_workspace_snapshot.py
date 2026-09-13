@@ -486,6 +486,72 @@ async def test_legacy_composite_without_surface_reports_renderer_warning(
 
 
 @pytest.mark.asyncio
+async def test_completed_legacy_extraction_projects_extracted_lifecycle(
+    workspace_test_engine,
+):
+    """A completed legacy extraction is clinical lifecycle evidence without ToothStatus."""
+    with Session(workspace_test_engine) as session:
+        session.add(
+            Treatment(
+                id=39,
+                tenant_id=1,
+                patient_id=101,
+                tooth_number="26",
+                procedure="Simple Extraction",
+                cost=120.0,
+                status="Done",
+            )
+        )
+        session.commit()
+
+        snapshot = await ClinicalWorkspaceService(
+            AsyncSessionWrapper(session),
+            tenant_id=1,
+        ).get_workspace_snapshot(101)
+
+        assert snapshot.teeth["26"].lifecycle == "EXTRACTED"
+        assert snapshot.teeth["26"].condition == "Extracted"
+
+
+@pytest.mark.asyncio
+async def test_unknown_native_lifecycle_code_is_preserved_as_warning(
+    workspace_test_engine,
+):
+    """Authoritative coverage must not silently discard unknown lifecycle evidence."""
+    with Session(workspace_test_engine) as session:
+        _enable_vnext_primary(session, tenant_id=1)
+        event = ClinicalEvent(
+            id=40,
+            tenant_id=1,
+            patient_id=101,
+            event_type="tooth_lifecycle_changed",
+            payload={"kind": "lifecycle", "canonical_code": "TRANSPLANTED"},
+            occurred_at=datetime(2026, 2, 3, 9, 0, tzinfo=timezone.utc),
+        )
+        target = ClinicalEventTarget(
+            tenant_id=1,
+            event_id=40,
+            target_kind="tooth",
+            tooth_key="23",
+        )
+        session.add_all([event, target])
+        session.commit()
+
+        snapshot = await ClinicalWorkspaceService(
+            AsyncSessionWrapper(session),
+            tenant_id=1,
+        ).get_workspace_snapshot(101)
+
+        assert any(
+            warning.code == "UNSUPPORTED_CLINICAL_CODE"
+            and warning.source_kind == "clinical_event"
+            and warning.source_id == 40
+            and warning.raw_value == "TRANSPLANTED"
+            for warning in snapshot.warnings
+        )
+
+
+@pytest.mark.asyncio
 async def test_legacy_filled_tooth_status_reports_renderer_warning(
     workspace_test_engine,
 ):
