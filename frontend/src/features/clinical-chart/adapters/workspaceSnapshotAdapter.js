@@ -162,13 +162,18 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
         });
     };
     const isFullPlaceholderSet = Object.keys(rawTeeth).length >= 52;
-    const hasToothEvidence = (tooth) => {
+    const hasExplicitToothEvidence = (tooth) => {
         if (!tooth) return false;
         if (tooth.findings && tooth.findings.length > 0) return true;
         if (tooth.procedures && tooth.procedures.length > 0) return true;
         if (tooth.lifecycle && tooth.lifecycle !== 'PRESENT') return true;
         if (tooth.condition && String(tooth.condition).trim().length > 0) return true;
         if (tooth.notes && String(tooth.notes).trim().length > 0) return true;
+        return false;
+    };
+    const hasToothEvidence = (tooth) => {
+        if (hasExplicitToothEvidence(tooth)) return true;
+        if (!tooth) return false;
         if (!isFullPlaceholderSet) return true;
         return false;
     };
@@ -303,8 +308,8 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
     const isPartial = Object.values(coverage).some((s) => s === 'PARTIAL');
 
     const totalWorkItems = Array.isArray(snapshot?.work_items) ? snapshot.work_items.length : 0;
-    const hasAnyToothFindings = Object.values(teeth).some((t) => t.findings.length > 0 || t.procedures.length > 0 || t.lifecycle !== 'PRESENT');
-    const isEmpty = !snapshot || (!hasAnyToothFindings && totalWorkItems === 0);
+    const hasAnyToothEvidence = Object.values(rawTeeth).some(hasExplicitToothEvidence);
+    const isEmpty = !snapshot || (!hasAnyToothEvidence && totalWorkItems === 0);
 
     return Object.freeze({
         rendererInput,
