@@ -1,4 +1,6 @@
 import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryClient';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { createTreatment, updateTreatment, updateToothStatus } from '@/api';
@@ -9,12 +11,14 @@ export const useTreatmentOperations = ({
     patientId,
     refetchHistory,
     refetchTeeth,
+    refetchWorkspace,
     setIsTreatmentModalOpen,
     setEditingTreatmentId,
     editingTreatmentId,
     selectedToothCondition
 }) => {
     const { t } = useTranslation();
+    const queryClient = useQueryClient();
 
     const handleSaveTreatment = useCallback(async (data) => {
         try {
@@ -75,7 +79,15 @@ export const useTreatmentOperations = ({
 
             setIsTreatmentModalOpen(false);
             setEditingTreatmentId(null);
-            refetchHistory();
+            await Promise.all([
+                Promise.resolve(refetchHistory?.()),
+                Promise.resolve(refetchWorkspace?.()),
+            ]);
+            if (queryClient && patientId) {
+                queryClient.invalidateQueries({
+                    queryKey: queryKeys.patientClinicalWorkspace(patientId),
+                });
+            }
             toast.success(t('patient_details.alerts.treatment_save_success'));
         } catch (err) {
             logger.error(err);
@@ -106,7 +118,7 @@ export const useTreatmentOperations = ({
             err.alreadyNotified = true;
             throw err;
         }
-    }, [patientId, editingTreatmentId, refetchHistory, refetchTeeth, selectedToothCondition, setIsTreatmentModalOpen, setEditingTreatmentId, t]);
+    }, [patientId, editingTreatmentId, refetchHistory, refetchTeeth, refetchWorkspace, selectedToothCondition, setIsTreatmentModalOpen, setEditingTreatmentId, t, queryClient]);
 
     return { handleSaveTreatment };
 };

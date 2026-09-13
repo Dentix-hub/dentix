@@ -51,6 +51,13 @@ vi.mock('@/hooks/usePatientDetails', () => ({
         isLoading: false,
         refetch: vi.fn(),
     }),
+    usePatientClinicalWorkspace: () => ({
+        data: null,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+    }),
     usePatientTreatments: () => ({
         data: [],
         isLoading: false,
