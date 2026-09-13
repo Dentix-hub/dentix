@@ -31,6 +31,13 @@ def test_error_identity_prefers_verified_request_state():
     assert _get_request_identity(request) == (17, 23)
 
 
+def test_error_identity_prefers_immutable_auth_snapshot():
+    request = _request()
+    request.state.error_log_identity = (31, 47)
+
+    assert _get_request_identity(request) == (31, 47)
+
+
 def test_error_identity_uses_verified_token_when_auth_query_fails():
     token = auth.create_access_token({"sub": "clinic-admin", "tenant_id": 41})
 

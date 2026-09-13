@@ -70,3 +70,32 @@ def test_grace_period_entitlements():
     assert eval_res.status == "grace"
     assert eval_res.can_read_clinical is True
     assert eval_res.can_write_billable is True
+
+
+@pytest.mark.parametrize("use_naive_timestamp", [False, True])
+def test_active_subscription_past_end_without_grace_is_expired_read_only(
+    use_naive_timestamp,
+):
+    now = datetime.now(timezone.utc)
+    past = now - timedelta(days=2)
+    if use_naive_timestamp:
+        now = now.replace(tzinfo=None)
+        past = past.replace(tzinfo=None)
+
+    tenant = Tenant(
+        id=105,
+        name="No Grace Clinic",
+        subscription_status="active",
+        subscription_end_date=past,
+        grace_period_until=None,
+    )
+
+    eval_res = EntitlementService.evaluate_tenant_entitlements(
+        tenant,
+        now=now,
+        override_mode="enforce",
+    )
+
+    assert eval_res.status == "expired_read_only"
+    assert eval_res.can_read_clinical is True
+    assert eval_res.can_write_clinical is False

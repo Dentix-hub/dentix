@@ -15,6 +15,14 @@ from backend.services.subscription_state_machine import (
 )
 
 
+def _as_utc(value: Optional[datetime]) -> Optional[datetime]:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 class EntitlementEvaluation:
     def __init__(
         self,
@@ -60,26 +68,24 @@ class EntitlementService:
         Evaluate full entitlement set for a given tenant.
         """
         mode = override_mode or get_subscription_enforcement_mode()
-        current_time = now or datetime.now(timezone.utc)
+        current_time = _as_utc(now or datetime.now(timezone.utc))
         norm_status = normalize_state(getattr(tenant, "subscription_status", "trial"))
 
-        # Check explicit timestamp bounds if active/grace
-        is_past_end = False
-        if tenant.subscription_end_date and tenant.subscription_end_date < current_time:
-            is_past_end = True
-
-        is_past_grace = False
-        if tenant.grace_period_until and tenant.grace_period_until < current_time:
-            is_past_grace = True
+        subscription_end = _as_utc(tenant.subscription_end_date)
+        grace_end = _as_utc(tenant.grace_period_until)
+        is_past_end = bool(subscription_end and subscription_end < current_time)
+        is_in_grace = bool(grace_end and current_time <= grace_end)
 
         effective_status = norm_status
         if norm_status in {SubscriptionState.ACTIVE.value, SubscriptionState.TRIAL.value}:
             if is_past_end:
                 effective_status = (
-                    SubscriptionState.EXPIRED_READ_ONLY.value
-                    if is_past_grace
-                    else SubscriptionState.GRACE.value
+                    SubscriptionState.GRACE.value
+                    if is_in_grace
+                    else SubscriptionState.EXPIRED_READ_ONLY.value
                 )
+        elif norm_status == SubscriptionState.GRACE.value and not is_in_grace:
+            effective_status = SubscriptionState.EXPIRED_READ_ONLY.value
 
         # Invariant: Clinical-history read is ALWAYS permitted (enforced in EntitlementEvaluation)
         # In 'off' mode: allow all writes
