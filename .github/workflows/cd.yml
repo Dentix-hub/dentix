@@ -106,7 +106,7 @@ jobs:
             > .dentix-hf-deploy-revision
 
       - name: Sync tested revision to Hugging Face staging
-        uses: huggingface/hub-sync@v0.1.0
+        uses: huggingface/hub-sync@v0.3.0
         with:
           github_repo_id: ${{ github.repository }}
           huggingface_repo_id: ${{ secrets.HF_STAGING_SPACE }}
@@ -368,7 +368,7 @@ jobs:
             > .dentix-hf-deploy-revision
 
       - name: Sync tested revision to Hugging Face production
-        uses: huggingface/hub-sync@v0.1.0
+        uses: huggingface/hub-sync@v0.3.0
         with:
           github_repo_id: ${{ github.repository }}
           huggingface_repo_id: ${{ secrets.HF_PRODUCTION_SPACE }}
