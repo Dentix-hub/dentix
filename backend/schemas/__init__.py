@@ -45,6 +45,12 @@ from .clinical import (
     TreatmentSessionBase,
     TreatmentSessionCreate,
     TreatmentSession,
+    ToothProcedureItem,
+    ToothMultiProcedureCreate,
+    ToothFindingItem,
+    ToothFindingCreate,
+    ToothSymptomCreate,
+    ToothClinicalRecordResponse,
 )
 
 # Clinical Workspace Snapshot (Issue #205)
