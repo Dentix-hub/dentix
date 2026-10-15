@@ -166,4 +166,93 @@ describe('TreatmentModal', () => {
         const sessionDialog = await screen.findByTestId('track-session-dialog');
         expect(sessionDialog).toHaveTextContent('42:Composite A3');
     });
+
+    it('allows selecting surfaces via interactive buttons and sends them in save payload', async () => {
+        const onSave = vi.fn().mockResolvedValue(undefined);
+        renderTreatmentModal({ onSave });
+
+        // Surface buttons exist
+        const surfaceM = screen.getByRole('button', { name: /تحديد السطح M/i });
+        const surfaceO = screen.getByRole('button', { name: /تحديد السطح O/i });
+        expect(surfaceM).toHaveAttribute('aria-pressed', 'false');
+        expect(surfaceO).toHaveAttribute('aria-pressed', 'false');
+
+        // Click M and O
+        fireEvent.click(surfaceM);
+        fireEvent.click(surfaceO);
+
+        expect(surfaceM).toHaveAttribute('aria-pressed', 'true');
+        expect(surfaceO).toHaveAttribute('aria-pressed', 'true');
+
+        const surfaceInput = screen.getByLabelText('سطح السن (Surface)');
+        expect(surfaceInput).toHaveValue('MO');
+
+        fireEvent.click(screen.getByRole('button', { name: 'حفظ' }));
+
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+            surface: 'MO',
+            surfaces: ['M', 'O'],
+            target_kind: 'surface',
+        }));
+    });
+
+    it('normalizes pre-selected surface initialData and enables clearing surfaces', async () => {
+        const onSave = vi.fn().mockResolvedValue(undefined);
+        renderTreatmentModal({
+            onSave,
+            initialData: {
+                ...initialData,
+                surface: 'MOD',
+            },
+        });
+
+        const surfaceInput = screen.getByLabelText('سطح السن (Surface)');
+        expect(surfaceInput).toHaveValue('MOD');
+
+        const surfaceM = screen.getByRole('button', { name: /تحديد السطح M/i });
+        const surfaceO = screen.getByRole('button', { name: /تحديد السطح O/i });
+        const surfaceD = screen.getByRole('button', { name: /تحديد السطح D/i });
+        expect(surfaceM).toHaveAttribute('aria-pressed', 'true');
+        expect(surfaceO).toHaveAttribute('aria-pressed', 'true');
+        expect(surfaceD).toHaveAttribute('aria-pressed', 'true');
+
+        // Click clear surfaces
+        const clearBtn = screen.getByRole('button', { name: 'مسح الأسطح' });
+        fireEvent.click(clearBtn);
+
+        expect(surfaceInput).toHaveValue('');
+        expect(surfaceM).toHaveAttribute('aria-pressed', 'false');
+
+        fireEvent.click(screen.getByRole('button', { name: 'حفظ' }));
+
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+            surface: null,
+            surfaces: undefined,
+            target_kind: 'tooth',
+        }));
+    });
+
+    it('syncs manual surface input with surface pills', async () => {
+        const onSave = vi.fn().mockResolvedValue(undefined);
+        renderTreatmentModal({ onSave });
+
+        const surfaceInput = screen.getByLabelText('سطح السن (Surface)');
+        fireEvent.change(surfaceInput, { target: { value: 'ob' } });
+
+        const surfaceO = screen.getByRole('button', { name: /تحديد السطح O/i });
+        const surfaceB = screen.getByRole('button', { name: /تحديد السطح B/i });
+        expect(surfaceO).toHaveAttribute('aria-pressed', 'true');
+        expect(surfaceB).toHaveAttribute('aria-pressed', 'true');
+
+        fireEvent.click(screen.getByRole('button', { name: 'حفظ' }));
+
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+            surface: 'OB',
+            surfaces: ['O', 'B'],
+            target_kind: 'surface',
+        }));
+    });
 });

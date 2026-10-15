@@ -141,6 +141,7 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
         isPediatric = false,
         notationMode = DEFAULT_CHART_NOTATION_MODE,
         showRoots = true,
+        showSurfaces = false,
         selection = null,
         onToothClick,
         onSurfaceClick,
@@ -281,7 +282,7 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
         interactionMode: isReadOnly ? CHART_INTERACTION_MODES.READ_ONLY : CHART_INTERACTION_MODES.EDIT,
         layers: {
             roots: Boolean(showRoots),
-            surfaces: false,
+            surfaces: Boolean(showSurfaces ?? options.enableSurfaceSelection ?? false),
         },
         callbacks: {
             onIntent: options.onIntent,

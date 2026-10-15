@@ -12,6 +12,29 @@ import { MultiSessionPanel } from '../components/MultiSessionPanel';
 import Modal from '@/shared/ui/Modal';
 import logger from '@/utils/logger';
 
+const CLINICAL_SURFACES = [
+    { code: 'M', label: 'M', description: 'Mesial (أنسي)' },
+    { code: 'O', label: 'O', description: 'Occlusal (إطباقي)' },
+    { code: 'D', label: 'D', description: 'Distal (وحشي)' },
+    { code: 'B', label: 'B', description: 'Buccal (دهليزي)' },
+    { code: 'L', label: 'L', description: 'Lingual (لساني)' },
+    { code: 'I', label: 'I', description: 'Incisal (قاطع)' },
+    { code: 'P', label: 'P', description: 'Palatal (حنكي)' },
+];
+
+const normalizeTreatmentData = (data) => {
+    if (!data) return data;
+    const rawSurfaces = Array.isArray(data.surfaces)
+        ? data.surfaces
+        : (data.surface ? String(data.surface).replace(/[^A-Za-z]/g, '').toUpperCase().split('') : []);
+    return {
+        ...data,
+        surface: data.surface || rawSurfaces.join(''),
+        surfaces: rawSurfaces,
+        target_kind: data.target_kind || (rawSurfaces.length > 0 ? 'surface' : 'tooth'),
+    };
+};
+
 export default function TreatmentModal({
     isOpen,
     onClose,
@@ -22,7 +45,7 @@ export default function TreatmentModal({
     selectedToothCondition,
     setSelectedToothCondition
 }) {
-    const [treatment, setTreatment] = useState(initialData);
+    const [treatment, setTreatment] = useState(() => normalizeTreatmentData(initialData) || initialData);
     const [isSaving, setIsSaving] = useState(false);
     const isSavingRef = useRef(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
@@ -77,7 +100,7 @@ export default function TreatmentModal({
     }, [isOpen]);
     useEffect(() => {
         if (isOpen) {
-            setTreatment(initialData);
+            setTreatment(normalizeTreatmentData(initialData));
             // FIX: Always reset consumed materials when opening modal to prevent stale data
             if (isEditing && initialData.consumedMaterials && initialData.consumedMaterials.length > 0) {
                 logger.debug("[TreatmentModal] Loading existing materials:", initialData.consumedMaterials);
@@ -175,6 +198,32 @@ export default function TreatmentModal({
         setIsTrackSessionOpen(true);
     };
 
+    const toggleSurface = (code) => {
+        const currentSurfaces = Array.isArray(treatment?.surfaces) ? [...treatment.surfaces] : [];
+        const exists = currentSurfaces.includes(code);
+        const updated = exists ? currentSurfaces.filter(s => s !== code) : [...currentSurfaces, code];
+        const order = ['M', 'O', 'I', 'D', 'B', 'L', 'P'];
+        updated.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+        const surfaceStr = updated.join('');
+        setTreatment(prev => ({
+            ...prev,
+            surfaces: updated,
+            surface: surfaceStr,
+            target_kind: updated.length > 0 ? 'surface' : 'tooth',
+        }));
+    };
+
+    const handleSurfaceInputChange = (value) => {
+        const clean = value.replace(/[^A-Za-z]/g, '').toUpperCase();
+        const letters = clean.split('').filter((c, i, arr) => arr.indexOf(c) === i);
+        setTreatment(prev => ({
+            ...prev,
+            surface: clean,
+            surfaces: letters,
+            target_kind: letters.length > 0 ? 'surface' : 'tooth',
+        }));
+    };
+
     const handleSave = async (e, forceSkipStock = false) => {
         if (e) e.preventDefault();
         if (isSavingRef.current) return;
@@ -194,11 +243,20 @@ export default function TreatmentModal({
             }))
             .filter(m => m.quantity > 0 && m.material_id);
 
+        const surfaceList = Array.isArray(treatment.surfaces) && treatment.surfaces.length > 0
+            ? treatment.surfaces
+            : (treatment.surface ? String(treatment.surface).replace(/[^A-Za-z]/g, '').toUpperCase().split('') : []);
+        const surfaceStr = surfaceList.join('') || treatment.surface || null;
+        const targetKind = surfaceList.length > 0 ? 'surface' : (treatment.target_kind || 'tooth');
+
         const payload = {
             ...treatment,
             patient_id: treatment.patient_id,
             doctor_id: treatment.doctor_id,
             tooth_number: palmerToFdi(treatment.tooth_number) || null,
+            surface: surfaceStr,
+            surfaces: surfaceList.length > 0 ? surfaceList : undefined,
+            target_kind: targetKind,
             procedure_id: safeProcedures.find(p => p.name === treatment.procedure)?.id,
             cost: parseFloat(treatment.cost) || 0,
             discount: parseFloat(treatment.discount) || 0,
@@ -585,15 +643,63 @@ export default function TreatmentModal({
                         </div>
                     </div>
 
-                    <div>
-                        <label htmlFor="treatment-tooth-number" className="mb-1 block text-xs font-bold text-text-muted">رقم السن</label>
-                        <input
-                            id="treatment-tooth-number"
-                            value={treatment.tooth_number}
-                            onChange={e => setTreatment({ ...treatment, tooth_number: e.target.value })}
-                            placeholder="رقم السن"
-                            className="w-full rounded-control border border-border bg-surface-subtle p-3 text-text-primary outline-none focus-visible:ring-focus"
-                        />
+                    <div className="space-y-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label htmlFor="treatment-tooth-number" className="mb-1 block text-xs font-bold text-text-muted">رقم السن</label>
+                                <input
+                                    id="treatment-tooth-number"
+                                    value={treatment.tooth_number || ''}
+                                    onChange={e => setTreatment({ ...treatment, tooth_number: e.target.value })}
+                                    placeholder="رقم السن"
+                                    className="w-full rounded-control border border-border bg-surface-subtle p-3 text-text-primary outline-none focus-visible:ring-focus"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="treatment-surface" className="mb-1 block text-xs font-bold text-text-muted">سطح السن (Surface)</label>
+                                <input
+                                    id="treatment-surface"
+                                    value={treatment.surface || ''}
+                                    onChange={e => handleSurfaceInputChange(e.target.value)}
+                                    placeholder="مثال: MOD أو O أو M"
+                                    className="w-full rounded-control border border-border bg-surface-subtle p-3 text-text-primary outline-none focus-visible:ring-focus font-mono uppercase"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Interactive Surface Selector Pills */}
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                            <span className="text-xs font-bold text-text-muted me-1">الأسطح:</span>
+                            {CLINICAL_SURFACES.map(({ code, label, description }) => {
+                                const isSelected = Array.isArray(treatment?.surfaces) && treatment.surfaces.includes(code);
+                                return (
+                                    <button
+                                        key={code}
+                                        type="button"
+                                        onClick={() => toggleSurface(code)}
+                                        title={description}
+                                        aria-pressed={isSelected}
+                                        aria-label={`تحديد السطح ${code} - ${description}`}
+                                        className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                                            isSelected
+                                                ? 'bg-primary text-white border-primary shadow-sm scale-105'
+                                                : 'bg-surface text-text-secondary border-border hover:bg-surface-subtle hover:border-primary/40'
+                                        }`}
+                                    >
+                                        {label}
+                                    </button>
+                                );
+                            })}
+                            {(Array.isArray(treatment?.surfaces) && treatment.surfaces.length > 0) && (
+                                <button
+                                    type="button"
+                                    onClick={() => setTreatment(prev => ({ ...prev, surfaces: [], surface: '', target_kind: 'tooth' }))}
+                                    className="text-xs text-text-muted hover:text-red-500 ms-2 underline"
+                                >
+                                    مسح الأسطح
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {/* Advanced Toggle */}
