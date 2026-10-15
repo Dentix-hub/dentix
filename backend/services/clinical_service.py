@@ -129,6 +129,98 @@ class ClinicalService:
 
         return {"fdi": fdi_number, "condition": condition, "patient": patient.name}
 
+    async def _sync_work_item(
+        self,
+        patient_id: int,
+        kind: str,
+        code: str,
+        status: str,
+        tooth_key: str,
+        surfaces: Optional[List[str]] = None,
+        notes: Optional[str] = None,
+        payload_extra: Optional[Dict[str, Any]] = None,
+    ) -> models.ClinicalWorkItem:
+        """Helper to create ClinicalWorkItem and ClinicalEvent with proper targets."""
+        work_item = models.ClinicalWorkItem(
+            tenant_id=self.tenant_id,
+            patient_id=patient_id,
+            kind=kind,
+            code=code,
+            status=status,
+            notes=notes,
+            created_by_user_id=self.user_id,
+        )
+        self.db.add(work_item)
+        await self.db.flush()
+
+        from backend.models.clinical_core import SURFACE_CODES
+        valid_surfs = [s for s in (surfaces or []) if s in SURFACE_CODES]
+        if valid_surfs:
+            for s in valid_surfs:
+                self.db.add(
+                    models.ClinicalWorkItemTarget(
+                        tenant_id=self.tenant_id,
+                        work_item_id=work_item.id,
+                        target_kind="surface",
+                        tooth_key=tooth_key,
+                        surface_code=s,
+                    )
+                )
+        else:
+            self.db.add(
+                models.ClinicalWorkItemTarget(
+                    tenant_id=self.tenant_id,
+                    work_item_id=work_item.id,
+                    target_kind="tooth",
+                    tooth_key=tooth_key,
+                )
+            )
+
+        event_payload = {
+            "kind": kind,
+            "canonical_code": code,
+            "surfaces": valid_surfs,
+        }
+        if payload_extra:
+            event_payload.update(payload_extra)
+
+        event_type = f"{kind}_recorded"
+        event = models.ClinicalEvent(
+            tenant_id=self.tenant_id,
+            patient_id=patient_id,
+            work_item_id=work_item.id,
+            event_type=event_type,
+            occurred_at=datetime.utcnow(),
+            actor_user_id=self.user_id,
+            payload=event_payload,
+            notes=notes,
+        )
+        self.db.add(event)
+        await self.db.flush()
+
+        if valid_surfs:
+            for s in valid_surfs:
+                self.db.add(
+                    models.clinical_core.ClinicalEventTarget(
+                        tenant_id=self.tenant_id,
+                        event_id=event.id,
+                        target_kind="surface",
+                        tooth_key=tooth_key,
+                        surface_code=s,
+                    )
+                )
+        else:
+            self.db.add(
+                models.clinical_core.ClinicalEventTarget(
+                    tenant_id=self.tenant_id,
+                    event_id=event.id,
+                    target_kind="tooth",
+                    tooth_key=tooth_key,
+                )
+            )
+
+        return work_item
+
     async def add_treatment(
         self,
         patient: models.Patient,
@@ -137,8 +229,10 @@ class ClinicalService:
         tooth_str: str = None,
         diagnosis: str = None,
         notes: str = None,
+        surface: Optional[str] = None,
+        surfaces: Optional[List[str]] = None,
     ) -> models.Treatment:
-        """Create treatment and optionally update tooth/financials."""
+        """Create treatment and optionally update tooth/financials with surface support."""
 
         # Treatment Notes
         treatment_notes = ""
@@ -148,11 +242,25 @@ class ClinicalService:
             treatment_notes += f"تشخيص: {diagnosis}. "
         if notes:
             treatment_notes += notes
+
+        fdi_number = self._parse_tooth_number(tooth_str) if tooth_str else None
+
+        # Parse surfaces
+        valid_surfs: List[str] = []
+        if surfaces:
+            valid_surfs = [s.strip().upper() for s in surfaces]
+        elif surface:
+            valid_surfs = [c.upper() for c in surface.replace(",", "").replace(" ", "").strip()]
+
+        if valid_surfs:
+            treatment_notes += f" [Surfaces: {', '.join(valid_surfs)}]"
+
         treatment_notes += " [AI]"
 
         # Create Record
         treatment = models.Treatment(
             patient_id=patient.id,
+            tooth_number=fdi_number,
             procedure=procedure,
             cost=cost,
             notes=treatment_notes.strip(),
@@ -161,7 +269,35 @@ class ClinicalService:
             tenant_id=self.tenant_id,
             diagnosis=diagnosis or "General",
         )
+        if valid_surfs:
+            treatment.surfaces = valid_surfs
+            treatment.surface = "".join(valid_surfs)
+
         self.db.add(treatment)
+        await self.db.flush()
+
+        # Sync ClinicalWorkItem and ClinicalEvent if tooth number is present
+        if fdi_number:
+            tooth_key = str(fdi_number)
+            from backend.models.clinical_core import FDI_TOOTH_KEYS
+            if tooth_key in FDI_TOOTH_KEYS:
+                from backend.clinical.catalog import CANONICAL_PROCEDURE_CODES
+                from backend.clinical.legacy_mapping import LEGACY_PROCEDURE_ALLOWLIST
+                canonical_code = procedure
+                if canonical_code not in CANONICAL_PROCEDURE_CODES:
+                    canonical_code = LEGACY_PROCEDURE_ALLOWLIST.get(procedure, procedure)
+
+                await self._sync_work_item(
+                    patient_id=patient.id,
+                    kind="procedure",
+                    code=canonical_code,
+                    status="completed",
+                    tooth_key=tooth_key,
+                    surfaces=valid_surfs,
+                    notes=treatment.notes,
+                    payload_extra={"treatment_id": treatment.id},
+                )
+
         await self.db.commit()
         await self.db.refresh(treatment)
 
@@ -179,6 +315,194 @@ class ClinicalService:
                 logger.warning("Auto-tooth update failed: %s", e)
 
         return treatment
+
+    async def add_multi_procedure_treatment(
+        self,
+        patient: models.Patient,
+        tooth_str: str,
+        procedures: List[Dict[str, Any]],
+        diagnosis: Optional[str] = None,
+        notes: Optional[str] = None,
+    ) -> List[models.Treatment]:
+        """Record multiple procedures on a single tooth atomically."""
+        created_treatments: List[models.Treatment] = []
+        for proc in procedures:
+            treatment = await self.add_treatment(
+                patient=patient,
+                procedure=proc.get("procedure", "General Dental Procedure"),
+                cost=float(proc.get("cost", 0.0)),
+                tooth_str=tooth_str,
+                diagnosis=proc.get("diagnosis", diagnosis),
+                notes=proc.get("notes", notes),
+                surface=proc.get("surface"),
+                surfaces=proc.get("surfaces"),
+            )
+            created_treatments.append(treatment)
+        return created_treatments
+
+    async def record_tooth_finding(
+        self,
+        patient: models.Patient,
+        tooth_str: str,
+        finding_code: str,
+        surface: Optional[str] = None,
+        surfaces: Optional[List[str]] = None,
+        notes: Optional[str] = None,
+        severity: Optional[str] = None,
+    ) -> models.ClinicalWorkItem:
+        """Record a clinical finding (e.g. CARIES, FRACTURE) on a tooth with surface targets."""
+        fdi_number = self._parse_tooth_number(tooth_str)
+        if not fdi_number:
+            raise ValueError(f"Invalid tooth number: {tooth_str}")
+
+        tooth_key = str(fdi_number)
+        from backend.models.clinical_core import FDI_TOOTH_KEYS, SURFACE_CODES
+        if tooth_key not in FDI_TOOTH_KEYS:
+            raise ValueError(f"Tooth key '{tooth_key}' is not a valid FDI notation")
+
+        # Parse surfaces
+        valid_surfs: List[str] = []
+        if surfaces:
+            valid_surfs = [s.strip().upper() for s in surfaces if s.strip().upper() in SURFACE_CODES]
+        elif surface:
+            valid_surfs = [c.upper() for c in surface.replace(",", "").replace(" ", "").strip() if c.upper() in SURFACE_CODES]
+
+        work_item = await self._sync_work_item(
+            patient_id=patient.id,
+            kind="finding",
+            code=finding_code.upper(),
+            status="proposed",
+            tooth_key=tooth_key,
+            surfaces=valid_surfs,
+            notes=notes,
+            payload_extra={"severity": severity},
+        )
+
+        # Auto-update tooth condition
+        if finding_code.upper() == "CARIES":
+            try:
+                await self.update_tooth_status(patient, tooth_str, "Decayed", notes or f"Finding: {finding_code}")
+            except Exception as e:
+                logger.warning("Tooth status update failed for finding: %s", e)
+        elif finding_code.upper() == "FRACTURE":
+            try:
+                await self.update_tooth_status(patient, tooth_str, "Fractured", notes or f"Finding: {finding_code}")
+            except Exception as e:
+                logger.warning("Tooth status update failed for finding: %s", e)
+
+        await self.db.commit()
+        return work_item
+
+    async def record_tooth_symptom(
+        self,
+        patient: models.Patient,
+        tooth_str: str,
+        symptom: str,
+        severity: Optional[str] = "moderate",
+        notes: Optional[str] = None,
+    ) -> models.ClinicalWorkItem:
+        """Record a symptom (e.g. PAIN, sensitivity) on a tooth."""
+        finding_code = "PAIN" if any(w in symptom.lower() for w in ["pain", "وجع", "ألم"]) else symptom.upper().replace(" ", "_")
+        full_notes = f"Symptom: {symptom} (Severity: {severity}). {notes or ''}".strip()
+        return await self.record_tooth_finding(
+            patient=patient,
+            tooth_str=tooth_str,
+            finding_code=finding_code,
+            notes=full_notes,
+            severity=severity,
+        )
+
+    async def get_tooth_clinical_records(
+        self,
+        patient_id: int,
+        tooth_str: str,
+    ) -> Dict[str, Any]:
+        """Retrieve all treatments, work items, and tooth status for a tooth."""
+        fdi_number = self._parse_tooth_number(tooth_str)
+        if not fdi_number:
+            raise ValueError(f"Invalid tooth number: {tooth_str}")
+
+        tooth_key = str(fdi_number)
+
+        # Treatments
+        stmt_tr = (
+            select(models.Treatment)
+            .where(
+                models.Treatment.tenant_id == self.tenant_id,
+                models.Treatment.patient_id == patient_id,
+                models.Treatment.tooth_number == fdi_number,
+                models.Treatment.is_deleted == False,  # noqa: E712
+            )
+            .order_by(models.Treatment.date.desc())
+        )
+        treatments = (await self.db.execute(stmt_tr)).scalars().all()
+
+        # Tooth Status
+        stmt_ts = (
+            select(models.ToothStatus)
+            .where(
+                models.ToothStatus.tenant_id == self.tenant_id,
+                models.ToothStatus.patient_id == patient_id,
+                models.ToothStatus.tooth_number == fdi_number,
+            )
+        )
+        tooth_status = (await self.db.execute(stmt_ts)).scalars().first()
+
+        # Work items with targets
+        from sqlalchemy.orm import selectinload
+        stmt_wi = (
+            select(models.ClinicalWorkItem)
+            .options(selectinload(models.ClinicalWorkItem.targets))
+            .join(models.ClinicalWorkItemTarget)
+            .where(
+                models.ClinicalWorkItem.tenant_id == self.tenant_id,
+                models.ClinicalWorkItem.patient_id == patient_id,
+                models.ClinicalWorkItemTarget.tooth_key == tooth_key,
+            )
+            .order_by(models.ClinicalWorkItem.created_at.desc())
+        )
+        work_items = (await self.db.execute(stmt_wi)).scalars().all()
+
+        return {
+            "tooth_number": fdi_number,
+            "tooth_key": tooth_key,
+            "condition": tooth_status.condition if tooth_status else "Healthy",
+            "tooth_status": {
+                "condition": tooth_status.condition,
+                "notes": tooth_status.notes,
+            } if tooth_status else None,
+            "treatments": [
+                {
+                    "id": t.id,
+                    "procedure": t.procedure,
+                    "cost": float(t.cost),
+                    "discount": float(t.discount),
+                    "surface": t.surface,
+                    "surfaces": t.surfaces,
+                    "status": t.status,
+                    "date": str(t.date),
+                }
+                for t in treatments
+            ],
+            "work_items": [
+                {
+                    "id": w.id,
+                    "kind": w.kind,
+                    "code": w.code,
+                    "status": w.status,
+                    "notes": w.notes,
+                    "targets": [
+                        {
+                            "kind": tg.target_kind,
+                            "tooth_key": tg.tooth_key,
+                            "surface_code": tg.surface_code,
+                        }
+                        for tg in (w.targets or [])
+                    ],
+                }
+                for w in work_items
+            ],
+        }
 
     def _parse_tooth_number(self, tooth_str: Any) -> Optional[int]:
         """Parse tooth number (FDI, Universal, or Palmer/Miller) to FDI."""

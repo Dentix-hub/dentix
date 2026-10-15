@@ -58,6 +58,35 @@ class ToothStatusBase(BaseModel):
     tooth_number: int
     condition: str
     notes: Optional[str] = None
+    surface: Optional[str] = None
+    surfaces: Optional[list[str]] = None
+    tooth_key: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_tooth_status(self):
+        valid_surfaces = {"M", "D", "O", "I", "B", "L", "P"}
+        if self.surfaces:
+            normalized = []
+            for s in self.surfaces:
+                s_clean = s.strip().upper()
+                if s_clean not in valid_surfaces:
+                    raise ValueError(f"Invalid surface code '{s}'. Allowed: {sorted(valid_surfaces)}")
+                if s_clean not in normalized:
+                    normalized.append(s_clean)
+            self.surfaces = normalized
+            if not self.surface:
+                self.surface = "".join(sorted(normalized))
+        elif self.surface:
+            letters = [c.upper() for c in self.surface.replace(",", "").replace(" ", "").strip()]
+            for c in letters:
+                if c not in valid_surfaces:
+                    raise ValueError(f"Invalid surface code '{c}'. Allowed: {sorted(valid_surfaces)}")
+            self.surfaces = sorted(list(set(letters)))
+            self.surface = "".join(self.surfaces)
+
+        if not self.tooth_key and self.tooth_number is not None:
+            self.tooth_key = str(self.tooth_number)
+        return self
 
 
 class ToothStatusCreate(ToothStatusBase):
@@ -73,11 +102,15 @@ class ToothStatus(ToothStatusBase):
 class TreatmentBase(BaseModel):
     patient_id: int
     tooth_number: Optional[int] = None
+    tooth_key: Optional[str] = None
+    target_kind: Optional[str] = "tooth"
+    surface: Optional[str] = None
+    surfaces: Optional[list[str]] = None
     diagnosis: Optional[str] = None
     procedure: Optional[str] = None
     doctor_id: Optional[int] = None
     cost: NonNegativeMoney
-    discount: NonNegativeMoney = Decimal("0.00")
+    discount: Optional[NonNegativeMoney] = Decimal("0.00")
     canal_count: Optional[int] = None
     canal_lengths: Optional[str] = None
     sessions: Optional[str] = None
@@ -86,9 +119,41 @@ class TreatmentBase(BaseModel):
     status: str = "Done"  # Pending, In Progress, Done
 
     @model_validator(mode="after")
-    def validate_discount_not_above_cost(self):
+    def validate_treatment_rules(self):
+        if self.discount is None:
+            self.discount = Decimal("0.00")
         if self.discount > self.cost:
             raise ValueError("discount cannot exceed treatment cost")
+
+        valid_surfaces = {"M", "D", "O", "I", "B", "L", "P"}
+        if self.surfaces:
+            normalized = []
+            for s in self.surfaces:
+                s_clean = s.strip().upper()
+                if s_clean not in valid_surfaces:
+                    raise ValueError(f"Invalid surface code '{s}'. Allowed: {sorted(valid_surfaces)}")
+                if s_clean not in normalized:
+                    normalized.append(s_clean)
+            self.surfaces = normalized
+            if not self.surface:
+                self.surface = "".join(sorted(normalized))
+            self.target_kind = "surface"
+        elif self.surface:
+            letters = [c.upper() for c in self.surface.replace(",", "").replace(" ", "").strip()]
+            for c in letters:
+                if c not in valid_surfaces:
+                    raise ValueError(f"Invalid surface code '{c}'. Allowed: {sorted(valid_surfaces)}")
+            self.surfaces = sorted(list(set(letters)))
+            self.surface = "".join(self.surfaces)
+            self.target_kind = "surface"
+
+        if self.tooth_number is not None and not self.tooth_key:
+            self.tooth_key = str(self.tooth_number)
+        elif self.tooth_key and self.tooth_number is None:
+            try:
+                self.tooth_number = int(self.tooth_key)
+            except ValueError:
+                pass
         return self
 
 
@@ -105,6 +170,7 @@ class ConsumedMaterialItem(BaseModel):
 class TreatmentCreate(TreatmentBase):
     consumedMaterials: Optional[list[ConsumedMaterialItem]] = None
     skip_stock_check: Optional[bool] = False
+    price_list_id: Optional[int] = None
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -115,8 +181,9 @@ class TreatmentCreate(TreatmentBase):
                     "cost": 500.0,
                     "diagnosis": "Dental Caries",
                     "tooth_number": 14,
+                    "surface": "MOD",
                     "doctor_id": 2,
-                    "notes": "Mesial surface",
+                    "notes": "Mesio-occluso-distal composite",
                     "consumedMaterials": [
                         {"material_id": 1, "quantity": 1.0}
                     ],
@@ -124,6 +191,122 @@ class TreatmentCreate(TreatmentBase):
             ]
         }
     )
+
+
+class ToothProcedureItem(BaseModel):
+    """Single procedure specification within a multi-procedure tooth treatment."""
+    procedure: str
+    cost: NonNegativeMoney = Decimal("0.00")
+    discount: NonNegativeMoney = Decimal("0.00")
+    diagnosis: Optional[str] = None
+    surface: Optional[str] = None
+    surfaces: Optional[list[str]] = None
+    canal_count: Optional[int] = None
+    canal_lengths: Optional[str] = None
+    sessions: Optional[str] = None
+    complications: Optional[str] = None
+    notes: Optional[str] = None
+    status: str = "Done"
+    consumedMaterials: Optional[list[ConsumedMaterialItem]] = None
+    skip_stock_check: Optional[bool] = False
+    price_list_id: Optional[int] = None
+
+    @model_validator(mode="after")
+    def validate_procedure_item(self):
+        if self.discount > self.cost:
+            raise ValueError("discount cannot exceed procedure cost")
+        valid_surfaces = {"M", "D", "O", "I", "B", "L", "P"}
+        if self.surfaces:
+            normalized = []
+            for s in self.surfaces:
+                s_clean = s.strip().upper()
+                if s_clean not in valid_surfaces:
+                    raise ValueError(f"Invalid surface code '{s}'. Allowed: {sorted(valid_surfaces)}")
+                if s_clean not in normalized:
+                    normalized.append(s_clean)
+            self.surfaces = normalized
+            if not self.surface:
+                self.surface = "".join(sorted(normalized))
+        elif self.surface:
+            letters = [c.upper() for c in self.surface.replace(",", "").replace(" ", "").strip()]
+            for c in letters:
+                if c not in valid_surfaces:
+                    raise ValueError(f"Invalid surface code '{c}'. Allowed: {sorted(valid_surfaces)}")
+            self.surfaces = sorted(list(set(letters)))
+            self.surface = "".join(self.surfaces)
+        return self
+
+
+class ToothMultiProcedureCreate(BaseModel):
+    """Payload to record multiple procedures and optional findings on a single tooth."""
+    patient_id: int
+    tooth_number: int
+    tooth_key: Optional[str] = None
+    procedures: list[ToothProcedureItem] = Field(..., min_length=1)
+    doctor_id: Optional[int] = None
+    notes: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_tooth(self):
+        if not self.tooth_key:
+            self.tooth_key = str(self.tooth_number)
+        return self
+
+
+class ToothFindingItem(BaseModel):
+    """Single clinical finding specification on a tooth (e.g. CARIES, FRACTURE)."""
+    finding_code: str
+    surface: Optional[str] = None
+    surfaces: Optional[list[str]] = None
+    severity: Optional[str] = None
+    notes: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_finding_surfaces(self):
+        valid_surfaces = {"M", "D", "O", "I", "B", "L", "P"}
+        if self.surfaces:
+            normalized = [s.strip().upper() for s in self.surfaces if s.strip().upper() in valid_surfaces]
+            self.surfaces = sorted(list(set(normalized)))
+            if not self.surface:
+                self.surface = "".join(self.surfaces)
+        elif self.surface:
+            letters = [c.upper() for c in self.surface.replace(",", "").replace(" ", "").strip() if c.upper() in valid_surfaces]
+            self.surfaces = sorted(list(set(letters)))
+            self.surface = "".join(self.surfaces)
+        return self
+
+
+class ToothFindingCreate(BaseModel):
+    """Payload to record one or more clinical findings on a tooth."""
+    patient_id: int
+    tooth_number: int
+    tooth_key: Optional[str] = None
+    findings: list[ToothFindingItem] = Field(..., min_length=1)
+    doctor_id: Optional[int] = None
+    notes: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_tooth(self):
+        if not self.tooth_key:
+            self.tooth_key = str(self.tooth_number)
+        return self
+
+
+class ToothSymptomCreate(BaseModel):
+    """Payload to record symptoms on a tooth (e.g. PAIN, sensitivity)."""
+    patient_id: int
+    tooth_number: int
+    tooth_key: Optional[str] = None
+    symptom: str
+    severity: Optional[str] = "moderate"
+    notes: Optional[str] = None
+    doctor_id: Optional[int] = None
+
+    @model_validator(mode="after")
+    def validate_tooth(self):
+        if not self.tooth_key:
+            self.tooth_key = str(self.tooth_number)
+        return self
 
 
 class TreatmentSessionBase(BaseModel):
@@ -150,6 +333,17 @@ class Treatment(TreatmentBase):
     treatment_sessions: Optional[list[TreatmentSession]] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ToothClinicalRecordResponse(BaseModel):
+    """Response returned when recording multi-procedure, findings, or symptoms."""
+    patient_id: int
+    tooth_number: int
+    tooth_key: str
+    treatments: list[Treatment] = Field(default_factory=list)
+    work_item_ids: list[int] = Field(default_factory=list)
+    event_ids: list[int] = Field(default_factory=list)
+    message: str = "Clinical record saved successfully"
 
 
 class ProcedureBase(BaseModel):

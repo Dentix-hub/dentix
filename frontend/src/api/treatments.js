@@ -9,3 +9,9 @@ export const updateToothStatus = (data) => api.post('/api/v1/treatments/tooth_st
 export const addTreatmentSession = (treatmentId, data) => api.post(`/api/v1/treatments/${treatmentId}/sessions`, data);
 
 export const deleteTreatmentSession = (treatmentId, sessionId) => api.delete(`/api/v1/treatments/${treatmentId}/sessions/${sessionId}`);
+
+// Clinical surface and multi-procedure endpoints (PR 1/2)
+export const createMultiProcedureTreatment = (data) => api.post('/api/v1/treatments/multi-procedure', data);
+export const recordToothFinding = (data) => api.post('/api/v1/treatments/finding', data);
+export const recordToothSymptom = (data) => api.post('/api/v1/treatments/symptom', data);
+export const getToothClinicalRecords = (patientId, toothStr) => api.get(`/api/v1/treatments/tooth/${patientId}/${toothStr}`);

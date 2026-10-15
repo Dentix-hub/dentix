@@ -45,6 +45,22 @@ from .clinical import (
     TreatmentSessionBase,
     TreatmentSessionCreate,
     TreatmentSession,
+    ToothProcedureItem,
+    ToothMultiProcedureCreate,
+    ToothFindingItem,
+    ToothFindingCreate,
+    ToothSymptomCreate,
+    ToothClinicalRecordResponse,
+)
+
+# Clinical Workspace Snapshot (Issue #205)
+from .clinical_workspace import (
+    ClinicalWorkspaceWarning,
+    WorkspaceTarget,
+    WorkspaceVisualEntry,
+    WorkspaceToothSummary,
+    WorkspaceWorkItemSummary,
+    ClinicalWorkspaceSnapshot,
 )
 
 # Billing
@@ -304,4 +320,11 @@ __all__ = [
     "TreatmentSessionBase",
     "TreatmentSessionCreate",
     "TreatmentSession",
+    # Clinical Workspace Snapshot
+    "ClinicalWorkspaceWarning",
+    "WorkspaceTarget",
+    "WorkspaceVisualEntry",
+    "WorkspaceToothSummary",
+    "WorkspaceWorkItemSummary",
+    "ClinicalWorkspaceSnapshot",
 ]
