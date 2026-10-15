@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
 from .. import schemas
+from backend import crud
 from backend.database import get_async_db
 from backend.models import inventory as inv_models
 from backend.core.permissions import Permission, require_permission
@@ -97,6 +98,100 @@ async def update_tooth_status(
     from .. import crud
     result = await crud.update_tooth_status(db, status, current_user.tenant_id)
     return success_response(data=result, message="Tooth status updated")
+
+
+@router.post(
+    "/multi-procedure",
+    response_model=StandardResponse[schemas.ToothClinicalRecordResponse],
+    summary="Record multi-procedure treatment on a tooth",
+    description="Record multiple procedures on a single tooth in an atomic transaction with surface specifications.",
+)
+async def create_multi_procedure_treatment(
+    multi_data: schemas.ToothMultiProcedureCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
+):
+    await ensure_patient_visible(db, current_user, multi_data.patient_id)
+    treatment_svc = get_treatment_service(db, current_user.tenant_id, current_user)
+    result = await treatment_svc.create_multi_procedure_treatment(multi_data)
+    return success_response(data=result, message="Multi-procedure treatments recorded successfully")
+
+
+@router.post(
+    "/finding",
+    summary="Record clinical finding on a tooth",
+    description="Record a clinical finding (e.g. CARIES, FRACTURE) on a tooth with surface targets.",
+)
+async def record_tooth_finding(
+    payload: schemas.ToothFindingCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    await ensure_patient_visible(db, current_user, payload.patient_id)
+    from backend.services.clinical_service import ClinicalService
+    clinical_svc = ClinicalService(db, current_user.tenant_id, current_user.id)
+    patient = await crud.patient.get_patient(db, payload.patient_id, current_user.tenant_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    work_items = []
+    for item in payload.findings:
+        wi = await clinical_svc.record_tooth_finding(
+            patient=patient,
+            tooth_str=str(payload.tooth_number),
+            finding_code=item.finding_code,
+            surface=item.surface,
+            surfaces=item.surfaces,
+            notes=item.notes or payload.notes,
+            severity=item.severity,
+        )
+        work_items.append(wi.id)
+    return success_response(data={"work_item_ids": work_items}, message="Tooth findings recorded successfully")
+
+
+@router.post(
+    "/symptom",
+    summary="Record clinical symptom on a tooth",
+    description="Record a clinical symptom (e.g. pain, sensitivity) on a tooth.",
+)
+async def record_tooth_symptom(
+    payload: schemas.ToothSymptomCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    await ensure_patient_visible(db, current_user, payload.patient_id)
+    from backend.services.clinical_service import ClinicalService
+    clinical_svc = ClinicalService(db, current_user.tenant_id, current_user.id)
+    patient = await crud.patient.get_patient(db, payload.patient_id, current_user.tenant_id)
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    wi = await clinical_svc.record_tooth_symptom(
+        patient=patient,
+        tooth_str=str(payload.tooth_number),
+        symptom=payload.symptom,
+        severity=payload.severity,
+        notes=payload.notes,
+    )
+    return success_response(data={"work_item_id": wi.id}, message="Tooth symptom recorded successfully")
+
+
+@router.get(
+    "/tooth/{patient_id}/{tooth_str}",
+    summary="Get clinical records for a tooth",
+    description="Retrieve all treatments, work items, and tooth status for a specific tooth.",
+)
+async def get_tooth_clinical_records(
+    patient_id: int,
+    tooth_str: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(require_permission(Permission.CLINICAL_READ)),
+):
+    await ensure_patient_visible(db, current_user, patient_id)
+    from backend.services.clinical_service import ClinicalService
+    clinical_svc = ClinicalService(db, current_user.tenant_id, current_user.id)
+    records = await clinical_svc.get_tooth_clinical_records(patient_id, tooth_str)
+    return success_response(data=records, message="Tooth clinical records retrieved successfully")
 
 
 @router.get("/{treatment_id}/materials", response_model=StandardResponse[List[schemas.inventory.TreatmentMaterialUsageOut]], summary="Get treatment materials")
