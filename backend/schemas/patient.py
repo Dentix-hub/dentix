@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class PatientBase(BaseModel):
@@ -18,6 +18,13 @@ class PatientBase(BaseModel):
     assigned_doctor_id: Optional[int] = None
     default_price_list_id: Optional[int] = None
     date_of_birth: Optional[date] = None
+
+    @field_validator("age", "assigned_doctor_id", "default_price_list_id", "date_of_birth", mode="before")
+    @classmethod
+    def coerce_empty_to_none(cls, v):
+        if v == "" or (isinstance(v, str) and not v.strip()):
+            return None
+        return v
 
 
 class PatientCreate(PatientBase):
@@ -50,6 +57,13 @@ class PatientUpdate(BaseModel):
     default_price_list_id: Optional[int] = None
     assigned_doctor_id: Optional[int] = None
     date_of_birth: Optional[date] = None
+
+    @field_validator("age", "assigned_doctor_id", "default_price_list_id", "date_of_birth", mode="before")
+    @classmethod
+    def coerce_empty_to_none(cls, v):
+        if v == "" or (isinstance(v, str) and not v.strip()):
+            return None
+        return v
 
     model_config = ConfigDict(
         json_schema_extra={"examples": [{"phone": "+201098765432", "notes": "Updated contact info"}]}

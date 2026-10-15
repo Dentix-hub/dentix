@@ -38,6 +38,12 @@ export default function EditPatientModal({ isOpen, onClose, onSave, initialData 
         }
     }, [isOpen, initialData]);
 
+    const parseOptionalInt = (val) => {
+        if (val === '' || val === null || val === undefined) return null;
+        const parsed = Number.parseInt(val, 10);
+        return Number.isNaN(parsed) ? null : parsed;
+    };
+
     const handleSubmit = (event) => {
         event.preventDefault();
         const payload = {
@@ -45,14 +51,13 @@ export default function EditPatientModal({ isOpen, onClose, onSave, initialData 
             name: formData.name?.trim() || '',
             phone: formData.phone?.trim() || '',
             address: formData.address?.trim() || '',
-            age: formData.age === '' ? null : Number.parseInt(formData.age, 10),
-            assigned_doctor_id: formData.assigned_doctor_id === ''
-                ? null
-                : Number.parseInt(formData.assigned_doctor_id, 10),
+            age: parseOptionalInt(formData.age),
+            assigned_doctor_id: parseOptionalInt(formData.assigned_doctor_id),
+            default_price_list_id: parseOptionalInt(formData.default_price_list_id),
         };
 
         if (hasExactDob) {
-            payload.date_of_birth = formData.date_of_birth || null;
+            payload.date_of_birth = formData.date_of_birth?.trim() || null;
         } else if (initialData?.date_of_birth_precision === 'exact') {
             // Clearing an existing exact DOB is explicit: the user switched back to age-only mode.
             payload.date_of_birth = null;
