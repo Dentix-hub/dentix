@@ -31,6 +31,7 @@ async def create_treatment(
     # Remove fields that are not part of the Treatment model
     treatment_dict.pop("consumedMaterials", None)
     treatment_dict.pop("skip_stock_check", None)
+    treatment_dict.pop("target_kind", None)
 
     # Auto-fill doctor_id if not provided
     if not treatment_dict.get("doctor_id") and doctor_id:

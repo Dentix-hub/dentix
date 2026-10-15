@@ -132,6 +132,16 @@ class ToothStatus(Base):
             except ValueError:
                 pass
 
+    @property
+    def target_kind(self) -> str:
+        if hasattr(self, "_target_kind") and self._target_kind:
+            return self._target_kind
+        return "surface" if self.surfaces else "tooth"
+
+    @target_kind.setter
+    def target_kind(self, value: Optional[str]):
+        self._target_kind = value
+
 
 class Treatment(Base):
     __tablename__ = "treatments"
@@ -231,6 +241,16 @@ class Treatment(Base):
                 self.tooth_number = int(value)
             except ValueError:
                 pass
+
+    @property
+    def target_kind(self) -> str:
+        if hasattr(self, "_target_kind") and self._target_kind:
+            return self._target_kind
+        return "surface" if self.surfaces else "tooth"
+
+    @target_kind.setter
+    def target_kind(self, value: Optional[str]):
+        self._target_kind = value
 
 
 class TreatmentSession(Base):
