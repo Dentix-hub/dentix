@@ -304,6 +304,9 @@ build/
 # Test files
 test-results/
 coverage/
+frontend/playwright-report/
+frontend/stats.html
+dentix_mobile/analysis.txt
 
 # Documentation build
 docs/build/
