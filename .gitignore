@@ -307,7 +307,6 @@ coverage/
 frontend/playwright-report/
 frontend/stats.html
 dentix_mobile/analysis.txt
-docs/tttt.md
 
 # Documentation build
 docs/build/
