@@ -394,7 +394,7 @@ describe('A16-M06 RTL anatomical orientation preservation', () => {
         expect(shell).toHaveAttribute('dir', 'rtl');
 
         // Inner chart canvas explicitly specifies dir="ltr" to protect dental quadrant axis
-        const innerCanvas = container.querySelector('[data-notation-mode] > div[dir="ltr"]');
+        const innerCanvas = container.querySelector('[data-notation-mode] [data-chart-scroll-viewport] > div[dir="ltr"]');
         expect(innerCanvas).toBeInTheDocument();
 
         // Screen Left displays upper left / patient upper right (teeth 18-11 or Universal 1-8)
@@ -423,12 +423,14 @@ describe('A16-M07 mobile responsive behavior', () => {
 
         // Chart container provides horizontal touch scrolling
         const chartWrapper = container.querySelector('[data-dentition]');
-        expect(chartWrapper).toHaveClass('overflow-x-auto');
-        expect(chartWrapper).toHaveClass('overscroll-x-contain');
-        expect(chartWrapper).toHaveClass('touch-pan-x');
+        const scrollViewport = chartWrapper.querySelector('[data-chart-scroll-viewport]');
+        expect(scrollViewport).toHaveClass('overflow-x-auto');
+        expect(scrollViewport).toHaveClass('overscroll-x-contain');
+        expect(scrollViewport).toHaveClass('touch-pan-x');
+        expect(scrollViewport).toHaveAttribute('tabindex', '0');
 
         // Minimum width ensures teeth do not wrap awkwardly
-        const innerCanvas = chartWrapper.querySelector('div[dir="ltr"]');
+        const innerCanvas = scrollViewport.querySelector('div[dir="ltr"]');
         expect(innerCanvas).toHaveClass('min-w-[700px]');
 
         // Mobile quadrant navigation is available

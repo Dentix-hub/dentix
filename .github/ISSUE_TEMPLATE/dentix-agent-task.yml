@@ -97,9 +97,9 @@ body:
   - type: input
     id: domain_skills
     attributes:
-      label: Primary domain skill
-      description: Primary native domain skill required (e.g. dentix-frontend-react, dentix-backend-fastapi).
-      placeholder: dentix-frontend-react
+      label: Specialized safety skill
+      description: Specialized DENTIX safety skill if triggered (e.g. dentix-security-tenancy-rbac, dentix-database-migrations, dentix-testing-verification, dentix-code-review).
+      placeholder: dentix-testing-verification
     validations:
       required: false
 

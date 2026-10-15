@@ -436,57 +436,65 @@ export default memo(function DentalChartSVG({
 
     return (
         <div
-            className="min-w-0 overflow-x-auto overscroll-x-contain rounded-2xl bg-slate-50 p-3 text-center shadow-inner touch-pan-x sm:rounded-3xl sm:p-5 lg:p-8"
+            className="min-w-0 rounded-2xl bg-slate-50 p-3 text-center shadow-inner sm:rounded-3xl sm:p-5 lg:p-8"
             data-dentition={isMixedDentition ? 'mixed' : (isPediatric ? 'primary' : 'permanent')}
             data-interaction-mode={readOnly ? 'read-only' : 'edit'}
             data-notation-mode={notationMode}
         >
-            <div className={`${chartMinWidth} inline-flex flex-col`} dir="ltr">
-                <h3 className="mb-7 text-lg font-bold text-slate-700 sm:mb-8">
-                    {chartTitle}
-                    <span className="mt-1 block text-xs font-normal text-slate-500">{notationConfig.displayName}</span>
-                </h3>
+            <h3 className="mb-7 text-lg font-bold text-slate-700 sm:mb-8">
+                {chartTitle}
+                <span className="mt-1 block text-xs font-normal text-slate-500">{notationConfig.displayName}</span>
+            </h3>
 
-                <div className="inline-flex flex-col gap-14 sm:gap-16">
-                    <div className="relative flex justify-center gap-1">
-                        <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300" aria-hidden="true" />
-                        <div className="absolute inset-x-0 bottom-0 h-0.5 bg-slate-300" aria-hidden="true" />
-                        <div className="flex gap-1 px-3 pb-4 sm:px-4">
-                            {layout.upperLeft.map((tooth) => renderTooth(tooth, 'upper'))}
+            <div
+                aria-label={chartTitle}
+                className="min-w-0 overflow-x-auto overscroll-x-contain rounded-xl outline-none touch-pan-x focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                data-chart-scroll-viewport
+                role="region"
+                tabIndex={0}
+            >
+                <div className={chartMinWidth + ' inline-flex flex-col'} dir="ltr">
+                    <div className="inline-flex flex-col gap-14 sm:gap-16">
+                        <div className="relative flex justify-center gap-1">
+                            <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300" aria-hidden="true" />
+                            <div className="absolute inset-x-0 bottom-0 h-0.5 bg-slate-300" aria-hidden="true" />
+                            <div className="flex gap-1 px-3 pb-4 sm:px-4">
+                                {layout.upperLeft.map((tooth) => renderTooth(tooth, 'upper'))}
+                            </div>
+                            <div className="w-0.5" />
+                            <div className="flex gap-1 px-3 pb-4 sm:px-4">
+                                {layout.upperRight.map((tooth) => renderTooth(tooth, 'upper'))}
+                            </div>
                         </div>
-                        <div className="w-0.5" />
-                        <div className="flex gap-1 px-3 pb-4 sm:px-4">
-                            {layout.upperRight.map((tooth) => renderTooth(tooth, 'upper'))}
-                        </div>
-                    </div>
 
-                    <div className="relative flex justify-center gap-1">
-                        <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300" aria-hidden="true" />
-                        <div className="absolute inset-x-0 top-0 h-0.5 bg-slate-300" aria-hidden="true" />
-                        <div className="flex gap-1 px-3 pt-4 sm:px-4">
-                            {layout.lowerLeft.map((tooth) => renderTooth(tooth, 'lower'))}
-                        </div>
-                        <div className="w-0.5" />
-                        <div className="flex gap-1 px-3 pt-4 sm:px-4">
-                            {layout.lowerRight.map((tooth) => renderTooth(tooth, 'lower'))}
+                        <div className="relative flex justify-center gap-1">
+                            <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300" aria-hidden="true" />
+                            <div className="absolute inset-x-0 top-0 h-0.5 bg-slate-300" aria-hidden="true" />
+                            <div className="flex gap-1 px-3 pt-4 sm:px-4">
+                                {layout.lowerLeft.map((tooth) => renderTooth(tooth, 'lower'))}
+                            </div>
+                            <div className="w-0.5" />
+                            <div className="flex gap-1 px-3 pt-4 sm:px-4">
+                                {layout.lowerRight.map((tooth) => renderTooth(tooth, 'lower'))}
+                            </div>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <div className="mt-10 flex flex-wrap justify-center gap-3 border-t border-slate-200 pt-5 text-sm sm:mt-12 sm:gap-6 sm:pt-6" dir="rtl">
-                    {Object.entries(STATUS_STYLES).map(([status, statusStyle]) => (
-                        <div key={status} className="flex min-h-8 items-center gap-2">
-                            <div className="h-5 w-5 shrink-0 rounded-full border shadow-sm" style={{ backgroundColor: statusStyle.fill, borderColor: statusStyle.stroke, borderWidth: 2 }} aria-hidden="true" />
-                            <span className="font-medium text-slate-600">
-                                {status === 'Healthy' ? 'سليم' :
-                                    status === 'Decayed' ? 'تسوس' :
-                                        status === 'Filled' ? 'حشو' :
-                                            status === 'Missing' ? 'مخلوع' :
-                                                status === 'Crown' ? 'طربوش' : 'عصب'}
-                            </span>
-                        </div>
-                    ))}
-                </div>
+            <div className="mt-10 flex flex-wrap justify-center gap-3 border-t border-slate-200 pt-5 text-sm sm:mt-12 sm:gap-6 sm:pt-6" dir="rtl">
+                {Object.entries(STATUS_STYLES).map(([status, statusStyle]) => (
+                    <div key={status} className="flex min-h-8 items-center gap-2">
+                        <div className="h-5 w-5 shrink-0 rounded-full border shadow-sm" style={{ backgroundColor: statusStyle.fill, borderColor: statusStyle.stroke, borderWidth: 2 }} aria-hidden="true" />
+                        <span className="font-medium text-slate-600">
+                            {status === 'Healthy' ? 'سليم' :
+                                status === 'Decayed' ? 'تسوس' :
+                                    status === 'Filled' ? 'حشو' :
+                                        status === 'Missing' ? 'مخلوع' :
+                                            status === 'Crown' ? 'طربوش' : 'عصب'}
+                        </span>
+                    </div>
+                ))}
             </div>
         </div>
     );

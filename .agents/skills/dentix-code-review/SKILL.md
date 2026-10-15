@@ -5,14 +5,14 @@ description: Review DENTIX diffs or implementations for correctness, regressions
 
 # DENTIX Code Review Discipline
 
-## Review Activation Cadence
-Review diffs thoroughly when requested or when changes touch sensitive domains:
-- Authentication, authorization, or RBAC
-- Tenant isolation and Row Level Security (RLS)
-- Financial transactions, invoicing, and ledger logic
-- Database schemas and Alembic migrations
-- Clinical semantics and medical record integrity
-- Shared cross-subsystem contracts
+## Review Activation
+
+Activate this skill **only** for:
+- **HIGH_RISK changes**: Material modifications to authentication, RBAC, tenant isolation, RLS, finance/ledger/payments, database schemas, Alembic migrations, irreversible data, clinical semantics, medical records, or major shared contracts.
+- **Explicit review requests**: When the user or orchestrator specifically requests a code review.
+- **Exceptional release-sensitive review**: Pre-release or pre-deployment review when warranted.
+
+NORMAL changes (routine UI, standard service logic, documentation, tests) do **not** invoke this skill automatically.
 
 ## Severity Classification Model
 
