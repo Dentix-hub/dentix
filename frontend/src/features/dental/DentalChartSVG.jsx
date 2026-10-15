@@ -359,7 +359,13 @@ const SVGTooth = memo(function SVGTooth({
 
     if (enableSurfaceSelection) {
         return (
-            <div className={`${toothClassName} cursor-default`} role="group" aria-disabled={disabled} aria-label={`Tooth ${toothLabel} surfaces`}>
+            <div
+                className={`${toothClassName} cursor-default`}
+                role="group"
+                aria-disabled={disabled}
+                aria-label={`Tooth ${toothLabel} surfaces`}
+                onClick={() => onClick?.(number)}
+            >
                 {toothContent}
             </div>
         );

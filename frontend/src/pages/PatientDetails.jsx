@@ -104,19 +104,45 @@ export default function PatientDetails() {
         setNewTreatment({
             ...getInitialTreatment(),
             tooth_number: palmerPrefix,
+            surface: '',
+            surfaces: [],
+            target_kind: 'tooth',
             default_price_list_id: patient?.default_price_list_id
         });
         setIsTreatmentModalOpen(true);
     }, [isPediatric, patient]);
+
+    const handleSurfaceClick = useCallback((target) => {
+        if (!target) return;
+        const toothKey = String(target.toothKey || target.tooth_key || '');
+        const surfaceCode = target.surfaceCode || target.surface_code || '';
+        const fdi = Number.parseInt(toothKey, 10);
+        const current = effectiveTeethStatusRef.current[fdi]?.condition || 'Healthy';
+        setSelectedToothCondition(current);
+        const palmerPrefix = fdiToPalmer(fdi);
+        const surfaceUpper = surfaceCode ? String(surfaceCode).toUpperCase() : '';
+        setNewTreatment({
+            ...getInitialTreatment(),
+            tooth_number: palmerPrefix,
+            surface: surfaceUpper,
+            surfaces: surfaceUpper ? [surfaceUpper] : [],
+            target_kind: 'surface',
+            default_price_list_id: patient?.default_price_list_id,
+        });
+        setIsTreatmentModalOpen(true);
+    }, [patient]);
 
     const adaptedChart = useMemo(() => {
         return adaptWorkspaceSnapshotToRenderer(workspaceSnapshot, {
             chartId: `patient-chart-${id}`,
             isPediatric,
             showRoots: true,
+            showSurfaces: true,
+            enableSurfaceSelection: true,
             onToothClick: handleToothClick,
+            onSurfaceClick: handleSurfaceClick,
         });
-    }, [workspaceSnapshot, id, isPediatric, handleToothClick]);
+    }, [workspaceSnapshot, id, isPediatric, handleToothClick, handleSurfaceClick]);
 
     const [localTeethStatus] = useState(null);
     const effectiveTeethStatus = localTeethStatus ?? (workspaceSnapshot ? adaptedChart.teethStatus : teethStatus);
@@ -149,6 +175,9 @@ export default function PatientDetails() {
         cost: '',
         discount: '',
         tooth_number: '',
+        surface: '',
+        surfaces: [],
+        target_kind: 'tooth',
         canal_count: '',
         canals: [{ name: '', length: '' }],
         sessions: '',
@@ -236,6 +265,9 @@ export default function PatientDetails() {
         setNewTreatment({
             ...getInitialTreatment(),
             tooth_number: '',
+            surface: '',
+            surfaces: [],
+            target_kind: 'tooth',
             default_price_list_id: patient?.default_price_list_id
         });
         setIsTreatmentModalOpen(true);
@@ -251,6 +283,10 @@ export default function PatientDetails() {
             // Preserve empty-canal fallback for malformed historical data.
         }
 
+        const initialSurfaces = Array.isArray(item.surfaces)
+            ? item.surfaces
+            : (item.surface ? item.surface.split('').filter(Boolean) : []);
+
         setNewTreatment({
             id: item.id,
             patient_id: item.patient_id,
@@ -261,6 +297,9 @@ export default function PatientDetails() {
             cost: item.cost ?? '',
             discount: item.discount ?? '',
             tooth_number: item.tooth_number ? fdiToPalmer(item.tooth_number) : '',
+            surface: item.surface || initialSurfaces.join(''),
+            surfaces: initialSurfaces,
+            target_kind: item.target_kind || (initialSurfaces.length ? 'surface' : 'tooth'),
             canal_count: item.canal_count ?? '',
             canals,
             sessions: item.sessions || '',
