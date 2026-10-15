@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 import traceback
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -11,6 +12,12 @@ from backend.core.logging import get_trace_id
 from backend.services.alert_dispatch_service import dispatch_operational_alert
 
 logger = logging.getLogger(__name__)
+
+_STATE_CHANGING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+_PUBLIC_LOG_SUBMISSION_PATHS = frozenset(
+    {"/api/v1/system/logs", "/api/v1/admin/system/logs"}
+)
+_SAFE_TRACE_ID_PATTERN = re.compile(r"^[a-fA-F0-9]{8,64}$")
 
 
 def _get_error_log_timeout() -> float:
@@ -35,9 +42,22 @@ def _coerce_optional_int(value):
 
 def _get_request_identity(request: Request) -> tuple[int | None, int | None]:
     """Resolve audit identifiers from trusted request state or a verified JWT."""
+    identity = getattr(request.state, "error_log_identity", None)
+    if isinstance(identity, tuple) and len(identity) == 2:
+        user_id = _coerce_optional_int(identity[0])
+        tenant_id = _coerce_optional_int(identity[1])
+        if user_id is not None or tenant_id is not None:
+            return user_id, tenant_id
+
     current_user = getattr(request.state, "current_user", None)
-    user_id = _coerce_optional_int(getattr(current_user, "id", None))
-    tenant_id = _coerce_optional_int(getattr(current_user, "tenant_id", None))
+    try:
+        user_id = _coerce_optional_int(getattr(current_user, "id", None))
+        tenant_id = _coerce_optional_int(getattr(current_user, "tenant_id", None))
+    except Exception:
+        # Error logging must never turn a detached ORM identity into a new
+        # request failure. Fall back to the signed token below.
+        user_id = None
+        tenant_id = None
     if tenant_id is not None:
         return user_id, tenant_id
 
@@ -63,15 +83,17 @@ async def _persist_system_error(
     stack_trace: str,
     user_id: int | None,
     tenant_id: int | None,
+    level: ErrorLevel = ErrorLevel.ERROR,
 ) -> None:
     sanitized_msg = sanitize_text(error_msg, max_length=4000) or "Unknown error"
     sanitized_trace = sanitize_stack_trace(stack_trace, max_length=12000)
-    sanitized_path = sanitize_text(str(request.url), max_length=2048)
+    # Query strings can carry patient search terms or other sensitive input.
+    sanitized_path = sanitize_text(request.url.path, max_length=2048)
 
     async with system_session_scope() as db:
         db.add(
             SystemError(
-                level=ErrorLevel.ERROR,
+                level=level,
                 source=ErrorSource.BACKEND,
                 message=sanitized_msg,
                 stack_trace=sanitized_trace,
@@ -86,10 +108,61 @@ async def _persist_system_error(
         await db.commit()
 
 
+async def _persist_with_timeout(**kwargs) -> None:
+    try:
+        await asyncio.wait_for(
+            _persist_system_error(**kwargs),
+            timeout=ERROR_LOG_DB_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        logger.critical(
+            "Timed out after %.2fs while persisting system error; pool=%s",
+            ERROR_LOG_DB_TIMEOUT_SECONDS,
+            get_async_pool_status(),
+        )
+    except Exception as persist_exc:
+        logger.critical(
+            "Failed to persist system error: %s; pool=%s",
+            sanitize_text(str(persist_exc), max_length=1000),
+            get_async_pool_status(),
+        )
+
+
+async def persist_handled_response_error(request: Request, status_code: int) -> None:
+    """Persist safe metadata for rejected/failed writes without request content."""
+    method = request.method.upper()
+    if status_code < 400:
+        return
+    if status_code < 500 and method not in _STATE_CHANGING_METHODS:
+        return
+    if method == "POST" and request.url.path in _PUBLIC_LOG_SUBMISSION_PATHS:
+        return
+
+    user_id, tenant_id = _get_request_identity(request)
+    if status_code < 500 and user_id is None and tenant_id is None:
+        # Do not let anonymous validation/CSRF traffic become a database-backed
+        # log-flooding primitive. Authenticated user failures remain visible.
+        return
+
+    trace_id = get_trace_id()
+    message = f"HTTP {status_code} response"
+    if trace_id and _SAFE_TRACE_ID_PATTERN.fullmatch(trace_id):
+        message = f"{message}; trace_id={trace_id}"
+
+    await _persist_with_timeout(
+        request=request,
+        error_msg=message,
+        stack_trace="",
+        user_id=user_id,
+        tenant_id=tenant_id,
+        level=ErrorLevel.WARNING if status_code < 500 else ErrorLevel.ERROR,
+    )
+
+
 class ErrorLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         try:
-            return await call_next(request)
+            response = await call_next(request)
         except Exception as exc:
             error_msg = sanitize_text(str(exc), max_length=4000) or "Unknown error"
             stack_trace = sanitize_stack_trace(traceback.format_exc(), max_length=12000) or ""
@@ -105,29 +178,13 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
                 extra={"user_id": user_id, "tenant_id": tenant_id},
             )
 
-            try:
-                await asyncio.wait_for(
-                    _persist_system_error(
-                        request=request,
-                        error_msg=error_msg,
-                        stack_trace=stack_trace,
-                        user_id=user_id,
-                        tenant_id=tenant_id,
-                    ),
-                    timeout=ERROR_LOG_DB_TIMEOUT_SECONDS,
-                )
-            except asyncio.TimeoutError:
-                logger.critical(
-                    "Timed out after %.2fs while persisting system error; pool=%s",
-                    ERROR_LOG_DB_TIMEOUT_SECONDS,
-                    get_async_pool_status(),
-                )
-            except Exception as persist_exc:
-                logger.critical(
-                    "Failed to persist system error: %s; pool=%s",
-                    sanitize_text(str(persist_exc), max_length=1000),
-                    get_async_pool_status(),
-                )
+            await _persist_with_timeout(
+                request=request,
+                error_msg=error_msg,
+                stack_trace=stack_trace,
+                user_id=user_id,
+                tenant_id=tenant_id,
+            )
 
             try:
                 await dispatch_operational_alert(
@@ -142,3 +199,6 @@ class ErrorLoggingMiddleware(BaseHTTPMiddleware):
                 )
 
             raise
+
+        await persist_handled_response_error(request, response.status_code)
+        return response

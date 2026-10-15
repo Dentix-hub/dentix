@@ -9,19 +9,19 @@ security:
         fixed, application-owned embedding model. DENTIX does not expose the
         vulnerable Chroma server endpoint or accept model repositories from
         users. No fixed stable ChromaDB release exists yet (latest is 1.5.9).
-      expires: '2026-09-30'
+      expires: '2026-11-30'
     SFTY-20260612-61402:
       reason: >-
         DENTIX does not run Chroma's server authentication or authorization
         providers. Tenant filters are applied by the application to the local
         embedded collection. No fixed stable ChromaDB release exists yet.
-      expires: '2026-09-30'
+      expires: '2026-11-30'
     SFTY-20260612-21661:
       reason: >-
         DENTIX does not configure or expose SimpleRBACAuthorizationProvider;
         it uses only an embedded PersistentClient behind application RBAC and
         tenant filtering. No fixed stable ChromaDB release exists yet.
-      expires: '2026-09-30'
+      expires: '2026-11-30'
     SFTY-20260612-67432:
       reason: >-
         CVE-2026-45832 affects ChromaDB V1 HTTP collection endpoints where
@@ -31,12 +31,25 @@ security:
         in-process PersistentClient, while tenant identity comes from the
         authenticated application user and is enforced by DENTIX application
         filtering. No fixed ChromaDB release currently exists.
-      expires: '2026-09-30'
+      expires: '2026-11-30'
     SFTY-20260120-40557:
       reason: >-
         cuda-toolkit 13.0.3 is a Linux-only transitive dependency pinned by
         the latest Torch 2.13.0. DENTIX does not invoke NVIDIA Nsight Systems'
         gfx_hotspot recipe or process_nsys_rep_cli.py, which is the affected
         manual command path. No compatible fixed Torch release exists yet.
-      expires: '2026-09-30'
+      expires: '2026-11-30'
+    SFTY-20260902-58666:
+      reason: >-
+        CVE-2026-81726 affects NLTK parser and tagger training/load methods.
+        DENTIX does not import or use NLTK; it is pulled in as a transitive
+        dependency of the Safety CLI scanner itself.
+      expires: '2026-11-30'
+    SFTY-20260903-64758:
+      reason: >-
+        CVE-2026-85394 affects python-jose algorithm confusion when verifying
+        DER-encoded public keys without explicit algorithms. DENTIX strictly
+        passes algorithms=[ALGORITHM] (HS256) on every jwt.decode call across
+        the codebase, preventing algorithm confusion.
+      expires: '2026-11-30'
   continue-on-vulnerability-error: false

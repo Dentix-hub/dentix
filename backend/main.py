@@ -34,7 +34,10 @@ from backend.core import migrations, seeding
 from backend.cache import get_cache_stats, invalidate_cache
 from backend.middleware.security_headers import SecurityHeadersMiddleware
 from backend.middleware.tenant import TenantMiddleware
-from backend.middleware.error_logging import ErrorLoggingMiddleware
+from backend.middleware.error_logging import (
+    ErrorLoggingMiddleware,
+    persist_handled_response_error,
+)
 from backend.core.response import success_response
 
 # sentry_sdk removed.
@@ -330,6 +333,7 @@ async def csrf_protection_middleware(request: Request, call_next):
     # Validate CSRF token
     if not _validate_csrf(request):
         logger.warning(f"CSRF validation failed for {request.method} {path} from {request.client.host if request.client else 'unknown'}")
+        await persist_handled_response_error(request, 403)
         from fastapi.responses import JSONResponse
         return JSONResponse(
             status_code=403,

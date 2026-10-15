@@ -7,7 +7,7 @@ from backend import models, schemas, crud, auth
 from backend.database import get_async_db
 from backend.core.permissions import Role
 from backend.services.auth_service import AuthService
-from datetime import datetime, timezone
+from backend.services.entitlement_service import EntitlementService
 
 # OAuth Scheme (for Swagger UI / OpenAPI docs)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
@@ -148,6 +148,10 @@ async def get_current_user(
         logger.debug("User not found in DB for authenticated username: %s", token_data.username)
         raise credentials_exception
 
+    # Make verified audit identity available before any subsequent session,
+    # subscription, or RBAC rejection is converted into an HTTP response.
+    request.state.error_log_identity = (user.id, user.tenant_id)
+
     # Device-scoped session enforcement. A login on another device must not
     # invalidate this access token; only revoking this token's own sid (or a
     # security-wide revoke-all operation) should do that.
@@ -170,29 +174,15 @@ async def get_current_user(
                 detail="تم إيقاف حساب العيادة مؤقتاً. يرجى التواصل مع الدعم الفني.",
             )
 
-        sub_end = user.tenant.subscription_end_date
-        now = datetime.now(timezone.utc)
-
-        if sub_end:
-            if sub_end.tzinfo is None:
-                sub_end = sub_end.replace(tzinfo=timezone.utc)
-
-            if sub_end < now:
-                grace_end = user.tenant.grace_period_until
-                is_grace = False
-
-                if grace_end:
-                    if grace_end.tzinfo is None:
-                        grace_end = grace_end.replace(tzinfo=timezone.utc)
-                    if now <= grace_end:
-                        is_grace = True
-
-                if not is_grace:
-                    if request.method != "GET":
-                        raise HTTPException(
-                            status_code=status.HTTP_403_FORBIDDEN,
-                            detail="انتهت صلاحية الاشتراك. يرجى التجديد للتمكن من الإضافة أو التعديل.",
-                        )
+        entitlements = EntitlementService.evaluate_tenant_entitlements(user.tenant)
+        if (
+            request.method.upper() not in SAFE_IMPERSONATION_METHODS
+            and not entitlements.can_write_clinical
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="انتهت صلاحية الاشتراك. يرجى التجديد للتمكن من الإضافة أو التعديل.",
+            )
 
     from backend.core.tenancy import set_current_tenant_id, set_super_admin_bypass
 
@@ -212,9 +202,5 @@ async def get_current_user(
             detail="حسابك غير مربوط بعيادة. يرجى التواصل مع الإدارة لربط حسابك.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    # Make verified audit identity available to outer error middleware without
-    # repeating a database lookup while handling an exception.
-    request.state.current_user = user
 
     return user
