@@ -314,6 +314,8 @@ docs/build/
 # Local development
 .local/
 local/
+CONTEXT.md
+docs/dentix_fast_track_execution_plan.md
 
 # Deployment Artifacts
 frontend/frontend.zip
@@ -352,6 +354,7 @@ uploads/
 .bob/
 .claude/
 .codebuddy/
+.codex/
 .commandcode/
 .continue/
 .cortex/
