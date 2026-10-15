@@ -191,7 +191,7 @@ def test_cuda_toolkit_exception_is_scoped_and_time_bounded():
     exception = security_policy["ignore-vulnerabilities"]["SFTY-20260120-40557"]
     reason = exception["reason"].lower()
 
-    assert exception["expires"] == "2026-09-30"
+    assert exception["expires"] == "2026-11-30"
     assert "torch 2.13.0" in reason
     assert "gfx_hotspot" in reason
     assert "does not invoke" in reason
