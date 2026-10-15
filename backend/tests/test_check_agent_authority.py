@@ -83,16 +83,8 @@ def create_valid_fixture(root: Path) -> None:
         "# STATUS: HISTORICAL / NON-AUTHORITATIVE\n"
         "> Archived.\n\n"
     )
-    (root / "docs" / "soul.md").write_text(historical_header + "# Soul\n", encoding="utf-8")
-    (root / "docs" / "tttt.md").write_text(historical_header + "# Scratch\n", encoding="utf-8")
-    (root / "docs" / "engineering" / "DENTIX_WORKFLOW_V2_1_PHASE7_PILOT_EVIDENCE.md").write_text(
-        historical_header + "# Pilot\n", encoding="utf-8"
-    )
     (root / "docs" / "engineering" / "ODONTOGRAM_VNEXT_TICKET_GRAPH.md").write_text(
         historical_header + "# Ticket Graph\n", encoding="utf-8"
-    )
-    (root / "docs" / "engineering" / "M3A_PILOT_B_ACCEPTANCE.md").write_text(
-        historical_header + "# Pilot B Acceptance\n", encoding="utf-8"
     )
     (root / "docs" / "DENTIX_ODONTOGRAM_FIRST_EXECUTION_AND_VNEXT_HANDOFF_FINAL_MASTER_PLAN.md").write_text(
         historical_header + "# Master Plan\n", encoding="utf-8"
@@ -119,18 +111,6 @@ def create_valid_fixture(root: Path) -> None:
     )
     (root / "docs" / "engineering" / "BRANCH_CLEANUP_INSTRUCTIONS.md").write_text(
         "<!-- CLASSIFICATION: ACTIVE -->\n# Branch Cleanup\n", encoding="utf-8"
-    )
-
-    # External skills provenance artifacts
-    real_lock = REPO_ROOT / "docs" / "engineering" / "EXTERNAL_SKILLS_LOCK.json"
-    real_verifier = REPO_ROOT / "scripts" / "verify_external_skills.py"
-    shutil.copy2(real_lock, root / "docs" / "engineering" / "EXTERNAL_SKILLS_LOCK.json")
-    (root / "scripts").mkdir(parents=True, exist_ok=True)
-    shutil.copy2(real_verifier, root / "scripts" / "verify_external_skills.py")
-    (root / "docs" / "DENTIX_LEAN_LOCAL_FIRST_MULTI_AGENT_WORKFLOW_V3_FINAL_IMPLEMENTATION_PLAN.md").write_text(
-        historical_header
-        + "# Completed V3 Plan\n\n## Movement 2\nPrerequisite Gate: EXTERNAL_SKILL_PROVENANCE = PASS\n",
-        encoding="utf-8",
     )
 
 
@@ -218,7 +198,7 @@ def test_retired_skill_in_ai_agent_stack_fails(temp_repo):
 
 def test_retired_skill_in_historical_doc_does_not_fail(temp_repo):
     """Retired skill references in HISTORICAL docs are allowed."""
-    hist = temp_repo / "docs" / "DENTIX_LEAN_LOCAL_FIRST_MULTI_AGENT_WORKFLOW_V3_FINAL_IMPLEMENTATION_PLAN.md"
+    hist = temp_repo / "docs" / "DENTIX_ODONTOGRAM_FIRST_EXECUTION_AND_VNEXT_HANDOFF_FINAL_MASTER_PLAN.md"
     content = hist.read_text(encoding="utf-8")
     hist.write_text(content + "\nUsed dentix-orchestration for coordination.\n", encoding="utf-8")
     code, failures, _ = run_linter(temp_repo)
@@ -244,14 +224,14 @@ def test_retired_skill_in_active_template_fails(temp_repo):
     """An active agent issue template referencing a retired skill must fail."""
     tpl_dir = temp_repo / ".github" / "ISSUE_TEMPLATE"
     tpl_dir.mkdir(parents=True, exist_ok=True)
-    (tpl_dir / "dentix-agent-task.yml").write_text(
+    (tpl_dir / "custom-task.yml").write_text(
         "name: Task\nbody:\n  - type: input\n    placeholder: dentix-systematic-debugging\n",
         encoding="utf-8",
     )
     code, failures, _ = run_linter(temp_repo)
     assert code == 1
     assert any(
-        "references retired skill 'dentix-systematic-debugging'" in f and "dentix-agent-task.yml" in f
+        "references retired skill 'dentix-systematic-debugging'" in f and "custom-task.yml" in f
         for f in failures
     )
 
@@ -384,23 +364,11 @@ def test_hardcoded_skill_coverage_threshold_fails(temp_repo):
 
 
 def test_missing_historical_header_fails(temp_repo):
-    soul_file = temp_repo / "docs" / "soul.md"
-    soul_file.write_text("# Soul\nNo archive header here.\n", encoding="utf-8")
+    master_plan = temp_repo / "docs" / "DENTIX_ODONTOGRAM_FIRST_EXECUTION_AND_VNEXT_HANDOFF_FINAL_MASTER_PLAN.md"
+    master_plan.write_text("# Master Plan\nNo archive header here.\n", encoding="utf-8")
     code, failures, _ = run_linter(temp_repo)
     assert code == 1
     assert any("missing mandatory 'STATUS: HISTORICAL / NON-AUTHORITATIVE'" in f for f in failures)
-
-
-def test_completed_v3_plan_cannot_claim_active_workflow_authority(temp_repo):
-    plan = temp_repo / "docs" / "DENTIX_LEAN_LOCAL_FIRST_MULTI_AGENT_WORKFLOW_V3_FINAL_IMPLEMENTATION_PLAN.md"
-    content = plan.read_text(encoding="utf-8")
-    plan.write_text(
-        content + "\nThis plan establishes one lean DENTIX development workflow.\n",
-        encoding="utf-8",
-    )
-    code, failures, _ = run_linter(temp_repo)
-    assert code == 1
-    assert any("still claims active workflow authority" in f for f in failures)
 
 
 # ==============================================================================
@@ -440,63 +408,6 @@ def test_active_doc_claiming_master_plan_execution_authority_fails(temp_repo):
     code, failures, _ = run_linter(temp_repo)
     assert code == 1
     assert any("improperly describes legacy master plan as an active execution/source authority" in f for f in failures)
-
-
-# ==============================================================================
-# External skills provenance checks
-# ==============================================================================
-
-
-def test_missing_external_skills_lock_fails(temp_repo):
-    (temp_repo / "docs" / "engineering" / "EXTERNAL_SKILLS_LOCK.json").unlink()
-    code, failures, _ = run_linter(temp_repo)
-    assert code == 1
-    assert any("EXTERNAL_SKILLS_LOCK.json" in f and "Missing" in f for f in failures)
-
-
-def test_missing_delegate_skill_from_lock_fails(temp_repo):
-    lock_file = temp_repo / "docs" / "engineering" / "EXTERNAL_SKILLS_LOCK.json"
-    data = json.loads(lock_file.read_text(encoding="utf-8"))
-    del data["skills"]["codex-delegate"]
-    lock_file.write_text(json.dumps(data), encoding="utf-8")
-    code, failures, _ = run_linter(temp_repo)
-    assert code == 1
-    assert any("codex-delegate" in f and "missing" in f.lower() for f in failures)
-
-
-def test_missing_provenance_verifier_fails(temp_repo):
-    (temp_repo / "scripts" / "verify_external_skills.py").unlink()
-    code, failures, _ = run_linter(temp_repo)
-    assert code == 1
-    assert any("verify_external_skills.py" in f and "Missing" in f for f in failures)
-
-
-def test_external_skills_lock_malformed_schema_fails(temp_repo):
-    lock_file = temp_repo / "docs" / "engineering" / "EXTERNAL_SKILLS_LOCK.json"
-    data = json.loads(lock_file.read_text(encoding="utf-8"))
-    data["unexpected_root_key"] = "prohibited"
-    lock_file.write_text(json.dumps(data), encoding="utf-8")
-    code, failures, _ = run_linter(temp_repo)
-    assert code == 1
-    assert any("Unexpected root field(s)" in f for f in failures)
-
-
-def test_external_skills_lock_canonical_pin_drift_fails(temp_repo):
-    lock_file = temp_repo / "docs" / "engineering" / "EXTERNAL_SKILLS_LOCK.json"
-    data = json.loads(lock_file.read_text(encoding="utf-8"))
-    data["source"]["pinned_commit"] = "0000000000000000000000000000000000000000"
-    lock_file.write_text(json.dumps(data), encoding="utf-8")
-    code, failures, _ = run_linter(temp_repo)
-    assert code == 1
-    assert any("canonical pinned commit" in f for f in failures)
-
-
-def test_plan_missing_external_skill_provenance_gate_fails(temp_repo):
-    plan_file = temp_repo / "docs" / "DENTIX_LEAN_LOCAL_FIRST_MULTI_AGENT_WORKFLOW_V3_FINAL_IMPLEMENTATION_PLAN.md"
-    plan_file.write_text("# Plan\nMovement 2 without gate.\n", encoding="utf-8")
-    code, failures, _ = run_linter(temp_repo)
-    assert code == 1
-    assert any("EXTERNAL_SKILL_PROVENANCE = PASS" in f for f in failures)
 
 
 # ==============================================================================

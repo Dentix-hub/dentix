@@ -45,19 +45,14 @@ DELETE TEMPORARY BRANCHES
 
 ---
 
-## 3. Execution Rules
+## 3. Solo Slice Workflow
 
-1. **One Feature at a Time**: Work on one active feature or bugfix per working session.
-2. **Issue Discipline**:
-   * Small, self-contained fixes do not require a GitHub Issue.
-   * Large, multi-session, or product-significant work uses **one GitHub Issue containing a checklist**.
-   * Do not create one GitHub Issue per micro-task.
-3. **Checkout vs. Worktrees**:
-   * Normal serial development uses the primary checkout and a standard branch.
-   * Worktrees are not the default; use isolated worktrees only when executing genuinely concurrent, independent write operations.
-4. **Task Decomposition**:
-   * Keep task breakdown inside the working session or issue checklist.
-   * Implementers handle changes end-to-end rather than fragmenting across multiple handoff boundaries.
+1. **One Slice = One PR**: One slice of work corresponds directly to one PR targeting `staging`.
+2. **Staging Manual Verification Path**: Every PR must include a clear, numbered manual test path that Eslam can click through on staging in <= 15 min.
+3. **AI Promotion Boundary**: AI never merges or promotes. Production promotion occurs only after Eslam's OK on staging.
+4. **No GitHub Issues Required**: Direct PRs against staging are standard; GitHub issues are not required.
+5. **Database Migration Safety**: Migrations must be additive-only, tested on PostgreSQL, with a DB snapshot taken before prod deployment.
+6. **No Waves / Micro-Tickets**: No artificial waves or micro-tickets; work is delivered as lean, coherent slices.
 
 ---
 
