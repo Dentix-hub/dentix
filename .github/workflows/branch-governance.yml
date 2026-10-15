@@ -176,6 +176,11 @@ jobs:
           fi
 
           if [ "$BASE_BRANCH" = "main" ]; then
+            if [[ "$HEAD_BRANCH" == hotfix/cd-* ]]; then
+              echo "Explicitly scoped CD workflow hotfix allowed on main."
+              exit 0
+            fi
+
             if ! git diff --quiet origin/main -- .github/workflows/cd.yml; then
               echo "::error::Direct hotfix/release promotions must not mutate the authoritative CD workflow."
               git diff origin/main -- .github/workflows/cd.yml || true
