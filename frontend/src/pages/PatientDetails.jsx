@@ -207,7 +207,13 @@ export default function PatientDetails() {
             refetchPatient();
             toast.success(t('patients.update_success'));
         } catch (error) {
-            toast.error(`${t('common.error')}: ${error.response?.data?.detail || error.message}`);
+            const detail = error.response?.data?.detail;
+            const message = typeof detail === 'string'
+                ? detail
+                : (Array.isArray(detail)
+                    ? detail.map((item) => item.msg || item).join(', ')
+                    : (error.message || t('common.error')));
+            toast.error(`${t('common.error')}: ${message}`);
         }
     }, [id, refetchPatient, t]);
 
