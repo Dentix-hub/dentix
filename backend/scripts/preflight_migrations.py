@@ -56,12 +56,29 @@ BOOTSTRAP_MARKER = "_dentix_fresh_bootstrap"
 # the same ENABLE + FORCE + tenant-policy invariants. Fresh databases cannot
 # replay the historical chain from base, so this tuple is authoritative for
 # the explicit post-create_all RLS installation and health verification.
-#
 # `notifications` is intentionally outside this generic tuple. It is still a
 # FORCE-RLS table, but its valid visibility contract includes current-tenant
 # rows plus deliberately global rows (`is_global = true` or tenant_id NULL).
 # `_install_postgresql_rls()` installs that custom policy immediately after the
 # generic loop, and `run_migration_health_check()` verifies it explicitly.
+
+# Canonical Clinical VNext G1 additive core tables
+CLINICAL_G1_TABLES: tuple[str, ...] = (
+    "clinical_work_items",
+    "clinical_work_item_targets",
+    "clinical_treatment_plans",
+    "clinical_treatment_plan_phases",
+    "clinical_treatment_plan_items",
+    "care_sessions",
+    "care_session_steps",
+    "clinical_events",
+    "clinical_event_targets",
+    "care_observations",
+    "workflow_templates",
+    "next_visit_requests",
+    "clinical_attachment_links",
+)
+
 RLS_TABLES = (
     "users",
     "patients",
@@ -102,6 +119,8 @@ RLS_TABLES = (
     "security_events",
     "domain_events",
     "push_subscriptions",
+    *CLINICAL_G1_TABLES,
+    "clinical_projection_coverages",
 )
 
 CHILD_TENANT_RELATIONSHIPS = (
@@ -111,7 +130,75 @@ CHILD_TENANT_RELATIONSHIPS = (
     ("material_sessions", "stock_item_id", "stock_items", False),
     ("stock_movements", "stock_item_id", "stock_items", False),
     ("material_sessions", "patient_id", "patients", True),
+    # Phase G1: Clinical VNext Core Child Tenant Relationships
+    ("clinical_work_items", "patient_id", "patients", False),
+    ("clinical_work_items", "created_by_user_id", "users", True),
+    ("clinical_work_item_targets", "work_item_id", "clinical_work_items", False),
+    ("clinical_treatment_plans", "patient_id", "patients", False),
+    ("clinical_treatment_plans", "created_by_user_id", "users", True),
+    ("clinical_treatment_plan_phases", "plan_id", "clinical_treatment_plans", False),
+    ("clinical_treatment_plan_items", "phase_id", "clinical_treatment_plan_phases", False),
+    ("clinical_treatment_plan_items", "work_item_id", "clinical_work_items", False),
+    ("care_sessions", "patient_id", "patients", False),
+    ("care_sessions", "appointment_id", "appointments", True),
+    ("care_sessions", "provider_user_id", "users", True),
+    ("care_session_steps", "care_session_id", "care_sessions", False),
+    ("care_session_steps", "work_item_id", "clinical_work_items", True),
+    ("clinical_events", "patient_id", "patients", False),
+    ("clinical_events", "work_item_id", "clinical_work_items", True),
+    ("clinical_events", "care_session_id", "care_sessions", True),
+    ("clinical_events", "actor_user_id", "users", True),
+    ("clinical_event_targets", "event_id", "clinical_events", False),
+    ("care_observations", "patient_id", "patients", False),
+    ("care_observations", "care_session_id", "care_sessions", False),
+    ("care_observations", "step_id", "care_session_steps", True),
+    ("care_observations", "work_item_id", "clinical_work_items", True),
+    ("care_observations", "recorded_by_user_id", "users", True),
+    ("next_visit_requests", "patient_id", "patients", False),
+    ("next_visit_requests", "care_session_id", "care_sessions", True),
+    ("next_visit_requests", "work_item_id", "clinical_work_items", True),
+    ("next_visit_requests", "requested_by_user_id", "users", True),
+    ("clinical_attachment_links", "attachment_id", "attachments", False),
+    ("clinical_attachment_links", "patient_id", "patients", False),
+    ("clinical_attachment_links", "work_item_id", "clinical_work_items", True),
+    ("clinical_attachment_links", "care_session_id", "care_sessions", True),
+    ("clinical_attachment_links", "clinical_event_id", "clinical_events", True),
+    # Clinical Projection Coverage
+    ("clinical_projection_coverages", "patient_id", "patients", False),
 )
+
+CLINICAL_G1_DIRECT_PARENT_PATIENT_RELATIONSHIPS = (
+    ("clinical_attachment_links", "attachment_id", "attachments", False),
+    ("clinical_attachment_links", "work_item_id", "clinical_work_items", True),
+    ("clinical_attachment_links", "care_session_id", "care_sessions", True),
+    ("clinical_attachment_links", "clinical_event_id", "clinical_events", True),
+    ("care_sessions", "appointment_id", "appointments", True),
+    ("care_observations", "care_session_id", "care_sessions", False),
+    ("care_observations", "work_item_id", "clinical_work_items", True),
+    ("clinical_events", "work_item_id", "clinical_work_items", True),
+    ("clinical_events", "care_session_id", "care_sessions", True),
+    ("next_visit_requests", "care_session_id", "care_sessions", True),
+    ("next_visit_requests", "work_item_id", "clinical_work_items", True),
+)
+
+SPECIALIZED_G1_PATIENT_TRIGGERS = (
+    ("clinical_treatment_plan_items", "trg_ctpi_phase_work_item_patient"),
+    ("care_session_steps", "trg_css_session_work_item_patient"),
+    ("care_observations", "trg_co_step_care_session_match"),
+)
+
+
+def _child_patient_trigger_name(table: str, child_key: str) -> str:
+    return f"trg_{table}_{child_key}_parent_patient"
+
+
+def _get_all_g1_patient_triggers() -> set[str]:
+    names = {
+        _child_patient_trigger_name(table, child_key)
+        for table, child_key, _, _ in CLINICAL_G1_DIRECT_PARENT_PATIENT_RELATIONSHIPS
+    }
+    names.update(trg for _, trg in SPECIALIZED_G1_PATIENT_TRIGGERS)
+    return names
 
 
 def _database_url() -> str | None:
@@ -212,6 +299,14 @@ def _drop_postgresql_table_policies(connection, table: str) -> None:
         )
 
 
+def _child_tenant_trigger_name(table: str, child_key: str) -> str:
+    if table == "material_sessions" and child_key == "patient_id":
+        return "trg_material_sessions_patient_tenant"
+    if table in ("tooth_status", "prescriptions", "attachments", "material_sessions", "stock_movements") and child_key in ("patient_id", "stock_item_id"):
+        return f"trg_{table}_parent_tenant"
+    return f"trg_{table}_{child_key}_parent_tenant"
+
+
 def _install_postgresql_rls(connection) -> None:
     """Install the same strict RLS contract used by the historical migration."""
     if connection.dialect.name != "postgresql":
@@ -288,8 +383,7 @@ def _install_postgresql_rls(connection) -> None:
         )
     )
     for table, child_key, parent, allow_null in CHILD_TENANT_RELATIONSHIPS:
-        suffix = "patient_tenant" if table == "material_sessions" and child_key == "patient_id" else "parent_tenant"
-        trigger = f"trg_{table}_{suffix}"
+        trigger = _child_tenant_trigger_name(table, child_key)
         connection.execute(text(f'DROP TRIGGER IF EXISTS "{trigger}" ON "{table}"'))
         connection.execute(
             text(
@@ -300,6 +394,180 @@ def _install_postgresql_rls(connection) -> None:
                     )'''
             )
         )
+
+    # Cross-patient defense-in-depth: direct parent patient verification
+    connection.execute(
+        text(
+            """
+            CREATE OR REPLACE FUNCTION dentix_assert_parent_patient()
+            RETURNS trigger LANGUAGE plpgsql AS $$
+            DECLARE
+                child_parent_id integer;
+                parent_patient_id integer;
+                allow_null boolean := COALESCE(TG_ARGV[2], 'false')::boolean;
+            BEGIN
+                child_parent_id := NULLIF(to_jsonb(NEW) ->> TG_ARGV[1], '')::integer;
+                IF child_parent_id IS NULL AND allow_null THEN RETURN NEW; END IF;
+                IF child_parent_id IS NULL THEN
+                    RAISE EXCEPTION 'Missing required parent on % for %', TG_TABLE_NAME, TG_ARGV[1];
+                END IF;
+                EXECUTE format('SELECT patient_id FROM %I WHERE id = $1', TG_ARGV[0])
+                   INTO parent_patient_id USING child_parent_id;
+                IF parent_patient_id IS NULL THEN
+                    RAISE EXCEPTION 'Referenced parent % % not found for %', TG_ARGV[0], child_parent_id, TG_TABLE_NAME;
+                END IF;
+                IF NEW.patient_id IS DISTINCT FROM parent_patient_id THEN
+                    RAISE EXCEPTION 'Patient mismatch on %: row patient % != parent % patient %',
+                        TG_TABLE_NAME, NEW.patient_id, TG_ARGV[0], parent_patient_id;
+                END IF;
+                RETURN NEW;
+            END;
+            $$
+            """
+        )
+    )
+    for table, child_key, parent, allow_null in CLINICAL_G1_DIRECT_PARENT_PATIENT_RELATIONSHIPS:
+        trigger = _child_patient_trigger_name(table, child_key)
+        connection.execute(text(f'DROP TRIGGER IF EXISTS "{trigger}" ON "{table}"'))
+        connection.execute(
+            text(
+                f'''CREATE TRIGGER "{trigger}"
+                    BEFORE INSERT OR UPDATE OF patient_id, "{child_key}" ON "{table}"
+                    FOR EACH ROW EXECUTE FUNCTION dentix_assert_parent_patient(
+                        '{parent}', '{child_key}', '{str(allow_null).lower()}'
+                    )'''
+            )
+        )
+
+    # Specialized relational traversal cross-patient checks:
+    # 1. clinical_treatment_plan_items: phase plan patient == work_item patient
+    connection.execute(
+        text(
+            """
+            CREATE OR REPLACE FUNCTION dentix_assert_ctpi_patient()
+            RETURNS trigger LANGUAGE plpgsql AS $$
+            DECLARE
+                v_plan_patient_id integer;
+                v_work_item_patient_id integer;
+            BEGIN
+                SELECT p.patient_id INTO v_plan_patient_id
+                  FROM clinical_treatment_plan_phases ph
+                  JOIN clinical_treatment_plans p ON p.id = ph.plan_id
+                 WHERE ph.id = NEW.phase_id;
+                IF v_plan_patient_id IS NULL THEN
+                    RAISE EXCEPTION 'Referenced treatment plan phase % not found for clinical_treatment_plan_items', NEW.phase_id;
+                END IF;
+                SELECT patient_id INTO v_work_item_patient_id
+                  FROM clinical_work_items
+                 WHERE id = NEW.work_item_id;
+                IF v_work_item_patient_id IS NULL THEN
+                    RAISE EXCEPTION 'Referenced work item % not found for clinical_treatment_plan_items', NEW.work_item_id;
+                END IF;
+                IF v_plan_patient_id IS DISTINCT FROM v_work_item_patient_id THEN
+                    RAISE EXCEPTION 'Patient mismatch on clinical_treatment_plan_items: plan patient % != work item patient %',
+                        v_plan_patient_id, v_work_item_patient_id;
+                END IF;
+                RETURN NEW;
+            END;
+            $$
+            """
+        )
+    )
+    connection.execute(text('DROP TRIGGER IF EXISTS "trg_ctpi_phase_work_item_patient" ON "clinical_treatment_plan_items"'))
+    connection.execute(
+        text(
+            """
+            CREATE TRIGGER "trg_ctpi_phase_work_item_patient"
+            BEFORE INSERT OR UPDATE OF phase_id, work_item_id ON "clinical_treatment_plan_items"
+            FOR EACH ROW EXECUTE FUNCTION dentix_assert_ctpi_patient()
+            """
+        )
+    )
+
+    # 2. care_session_steps: session patient == work_item patient
+    connection.execute(
+        text(
+            """
+            CREATE OR REPLACE FUNCTION dentix_assert_css_patient()
+            RETURNS trigger LANGUAGE plpgsql AS $$
+            DECLARE
+                v_session_patient_id integer;
+                v_work_item_patient_id integer;
+            BEGIN
+                IF NEW.work_item_id IS NULL THEN
+                    RETURN NEW;
+                END IF;
+                SELECT patient_id INTO v_session_patient_id
+                  FROM care_sessions
+                 WHERE id = NEW.care_session_id;
+                IF v_session_patient_id IS NULL THEN
+                    RAISE EXCEPTION 'Referenced care session % not found for care_session_steps', NEW.care_session_id;
+                END IF;
+                SELECT patient_id INTO v_work_item_patient_id
+                  FROM clinical_work_items
+                 WHERE id = NEW.work_item_id;
+                IF v_work_item_patient_id IS NULL THEN
+                    RAISE EXCEPTION 'Referenced work item % not found for care_session_steps', NEW.work_item_id;
+                END IF;
+                IF v_session_patient_id IS DISTINCT FROM v_work_item_patient_id THEN
+                    RAISE EXCEPTION 'Patient mismatch on care_session_steps: session patient % != work item patient %',
+                        v_session_patient_id, v_work_item_patient_id;
+                END IF;
+                RETURN NEW;
+            END;
+            $$
+            """
+        )
+    )
+    connection.execute(text('DROP TRIGGER IF EXISTS "trg_css_session_work_item_patient" ON "care_session_steps"'))
+    connection.execute(
+        text(
+            """
+            CREATE TRIGGER "trg_css_session_work_item_patient"
+            BEFORE INSERT OR UPDATE OF care_session_id, work_item_id ON "care_session_steps"
+            FOR EACH ROW EXECUTE FUNCTION dentix_assert_css_patient()
+            """
+        )
+    )
+
+    # 3. care_observations: step care_session_id == observation care_session_id
+    connection.execute(
+        text(
+            """
+            CREATE OR REPLACE FUNCTION dentix_assert_co_step_session()
+            RETURNS trigger LANGUAGE plpgsql AS $$
+            DECLARE
+                v_step_session_id integer;
+            BEGIN
+                IF NEW.step_id IS NULL THEN
+                    RETURN NEW;
+                END IF;
+                SELECT care_session_id INTO v_step_session_id
+                  FROM care_session_steps
+                 WHERE id = NEW.step_id;
+                IF v_step_session_id IS NULL THEN
+                    RAISE EXCEPTION 'Referenced care session step % not found for care_observations', NEW.step_id;
+                END IF;
+                IF v_step_session_id IS DISTINCT FROM NEW.care_session_id THEN
+                    RAISE EXCEPTION 'Care session mismatch on care_observations: step % belongs to session %, not %',
+                        NEW.step_id, v_step_session_id, NEW.care_session_id;
+                END IF;
+                RETURN NEW;
+            END;
+            $$
+            """
+        )
+    )
+    connection.execute(text('DROP TRIGGER IF EXISTS "trg_co_step_care_session_match" ON "care_observations"'))
+    connection.execute(
+        text(
+            """
+            CREATE TRIGGER "trg_co_step_care_session_match"
+            BEFORE INSERT OR UPDATE OF care_session_id, step_id ON "care_observations"
+            FOR EACH ROW EXECUTE FUNCTION dentix_assert_co_step_session()
+            """
+        )
+    )
 
 
 def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
@@ -463,9 +731,26 @@ def _verify_postgresql_child_tenant_triggers(engine) -> list[str]:
     if engine.name != "postgresql":
         return []
     expected = {
-        f"trg_{table}_{'patient_tenant' if table == 'material_sessions' and key == 'patient_id' else 'parent_tenant'}"
+        _child_tenant_trigger_name(table, key)
         for table, key, _, _ in CHILD_TENANT_RELATIONSHIPS
     }
+    with engine.connect() as connection:
+        present = set(
+            connection.execute(
+                text(
+                    """SELECT tgname FROM pg_trigger
+                       WHERE NOT tgisinternal AND tgname = ANY(:names)"""
+                ),
+                {"names": list(expected)},
+            ).scalars()
+        )
+    return sorted(expected - present)
+
+
+def _verify_postgresql_child_patient_triggers(engine) -> list[str]:
+    if engine.name != "postgresql":
+        return []
+    expected = _get_all_g1_patient_triggers()
     with engine.connect() as connection:
         present = set(
             connection.execute(
@@ -509,6 +794,7 @@ def run_migration_health_check():
         ("material_sessions", "tenant_id"),
         ("stock_movements", "tenant_id"),
         ("subscription_renewal_requests", "tenant_id"),
+        *((table, "tenant_id") for table in CLINICAL_G1_TABLES),
     ]
 
     missing: list[str] = []
@@ -540,6 +826,7 @@ def run_migration_health_check():
             "material_sessions",
             "stock_movements",
             "subscription_renewal_requests",
+            *CLINICAL_G1_TABLES,
         }
         nullable = [
             table
@@ -566,6 +853,14 @@ def run_migration_health_check():
             logger.error(
                 "[PREFLIGHT] CRITICAL: child tenant triggers missing: %s",
                 trigger_failures,
+            )
+            return False
+
+        patient_trigger_failures = _verify_postgresql_child_patient_triggers(engine)
+        if patient_trigger_failures:
+            logger.error(
+                "[PREFLIGHT] CRITICAL: G1 child patient triggers missing: %s",
+                patient_trigger_failures,
             )
             return False
 

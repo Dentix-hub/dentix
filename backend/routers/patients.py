@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import crud, models, schemas
+from ..services.clinical_workspace_service import ClinicalWorkspaceService
 from ..services.invoice_service import InvoiceService
 from ..services.patient_service import patient_service
 from ..services.patient_search_service import PatientSearchService
@@ -211,6 +212,24 @@ async def delete_patient_permanently(
         entity_id=patient_id, details=f"PERMANENTLY deleted patient {patient_name} and all data",
     )
     return success_response(data=res, message="Patient hard-deleted successfully")
+
+
+@router.get(
+    "/{patient_id}/clinical-workspace",
+    response_model=StandardResponse[schemas.ClinicalWorkspaceSnapshot],
+    summary="Get patient clinical workspace snapshot",
+)
+async def get_patient_clinical_workspace(
+    patient_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(require_permission(Permission.CLINICAL_READ)),
+):
+    await _ensure_patient_visible(db, current_user, patient_id)
+    service = ClinicalWorkspaceService(db, current_user.tenant_id, current_user)
+    snapshot = await service.get_workspace_snapshot(patient_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return success_response(data=snapshot, message="Clinical workspace snapshot retrieved successfully")
 
 
 @router.get("/{patient_id}/tooth_status", response_model=StandardResponse[List[schemas.ToothStatus]])

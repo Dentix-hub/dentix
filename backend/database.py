@@ -413,6 +413,18 @@ class CustomAsyncRlsSession(AsyncRlsSession):
             with_for_update=with_for_update,
         )
 
+    async def get(self, *args, **kwargs):
+        # AsyncSession.get() delegates directly to the synchronous session and
+        # therefore bypasses AsyncRlsSession.execute(). Bind the current tenant
+        # before an identity lookup can reuse a pooled PostgreSQL connection.
+        await self._execute_set_statements()
+        return await super().get(*args, **kwargs)
+
+    async def get_one(self, *args, **kwargs):
+        # get_one() follows the same direct synchronous-session path as get().
+        await self._execute_set_statements()
+        return await super().get_one(*args, **kwargs)
+
     async def commit(self):
         # commit() performs an internal flush. Prime the connection with the
         # current tenant or bypass setting first so add()+commit() is safe even
