@@ -130,3 +130,37 @@ async def test_update_patient_success(patient_service, mock_db_session, mock_pol
     assert existing_patient.name == "Bob Updated"
     mock_db_session.commit.assert_called_once()
 
+
+def test_patient_update_empty_strings_coerced_to_none():
+    """Verify that empty strings for optional numeric and date fields are coerced to None."""
+    payload = {
+        "name": "Jane Doe",
+        "age": "",
+        "default_price_list_id": "",
+        "assigned_doctor_id": "",
+        "date_of_birth": "",
+    }
+    update = PatientUpdate.model_validate(payload)
+    dumped = update.model_dump(exclude_unset=True)
+    assert dumped["name"] == "Jane Doe"
+    assert dumped["age"] is None
+    assert dumped["default_price_list_id"] is None
+    assert dumped["assigned_doctor_id"] is None
+    assert dumped["date_of_birth"] is None
+
+
+def test_patient_create_empty_strings_coerced_to_none():
+    """Verify that empty strings for PatientCreate optional numeric fields are coerced to None."""
+    payload = {
+        "name": "Jane Create",
+        "age": "",
+        "default_price_list_id": "",
+        "assigned_doctor_id": "",
+        "date_of_birth": "",
+    }
+    created = PatientCreate.model_validate(payload)
+    assert created.age is None
+    assert created.default_price_list_id is None
+    assert created.assigned_doctor_id is None
+    assert created.date_of_birth is None
+

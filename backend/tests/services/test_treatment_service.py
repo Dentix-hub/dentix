@@ -573,3 +573,132 @@ class TestTreatmentMaterialUsagePersistence:
                     # Assert
                     # Verify that execute() was called on the session to run the delete statement
                     mock_db.execute.assert_called()
+
+
+# ============================================
+# SURFACE TARGETING & MULTI-PROCEDURE TESTS
+# ============================================
+
+
+class TestTreatmentSurfaceAndMultiProcedure:
+    """Tests for multi-procedure, surface-level targeting, and clinical sync."""
+
+    async def test_create_treatment_with_surfaces_syncs_work_item(
+        self, treatment_service, mock_db
+    ):
+        """Creating a treatment with MOD surfaces creates ClinicalWorkItem with surface targets."""
+        with patch("backend.crud") as mock_crud:
+            mock_crud.patient.get_patient = AsyncMock(return_value=MagicMock(id=1, default_price_list_id=None))
+            created_treatment = models.Treatment(
+                id=101,
+                patient_id=1,
+                tooth_number=16,
+                procedure="Composite Filling",
+                cost=500.0,
+                status="Done",
+                doctor_id=10,
+                tenant_id=1,
+            )
+            mock_crud.billing.create_treatment = AsyncMock(return_value=created_treatment)
+            with patch("backend.services.treatment_service.log_admin_action"):
+                data = schemas.TreatmentCreate(
+                    patient_id=1,
+                    tooth_number=16,
+                    procedure="Composite Filling",
+                    cost=500.0,
+                    surfaces=["M", "O", "D"],
+                    notes="MOD restoration",
+                )
+                res = await treatment_service.create_treatment(data)
+
+                # Assert surfaces are attached
+                assert res.surfaces == ["M", "O", "D"]
+                assert res.surface == "DMO" or res.surface == "MOD" or set(res.surface) == {"M", "O", "D"}
+
+                # Assert ClinicalWorkItem and targets were added to session
+                added_objs = [call.args[0] for call in mock_db.add.call_args_list]
+                work_items = [obj for obj in added_objs if isinstance(obj, models.ClinicalWorkItem)]
+                assert len(work_items) == 1
+                assert work_items[0].kind == "procedure"
+                assert work_items[0].status == "completed"
+
+                targets = [obj for obj in added_objs if isinstance(obj, models.ClinicalWorkItemTarget)]
+                assert len(targets) == 3
+                assert {t.surface_code for t in targets} == {"M", "O", "D"}
+                assert all(t.target_kind == "surface" for t in targets)
+                assert all(t.tooth_key == "16" for t in targets)
+
+    async def test_create_treatment_with_single_surface_string(
+        self, treatment_service, mock_db
+    ):
+        """Single surface string (e.g. 'O') maps to single surface target."""
+        with patch("backend.crud") as mock_crud:
+            mock_crud.patient.get_patient = AsyncMock(return_value=MagicMock(id=1, default_price_list_id=None))
+            created_treatment = models.Treatment(
+                id=102,
+                patient_id=1,
+                tooth_number=24,
+                procedure="Composite Filling",
+                cost=300.0,
+                status="Done",
+                doctor_id=10,
+                tenant_id=1,
+            )
+            mock_crud.billing.create_treatment = AsyncMock(return_value=created_treatment)
+            with patch("backend.services.treatment_service.log_admin_action"):
+                data = schemas.TreatmentCreate(
+                    patient_id=1,
+                    tooth_number=24,
+                    procedure="Composite Filling",
+                    cost=300.0,
+                    surface="O",
+                )
+                res = await treatment_service.create_treatment(data)
+                assert res.surface == "O"
+
+                added_objs = [call.args[0] for call in mock_db.add.call_args_list]
+                targets = [obj for obj in added_objs if isinstance(obj, models.ClinicalWorkItemTarget)]
+                assert len(targets) == 1
+                assert targets[0].surface_code == "O"
+                assert targets[0].target_kind == "surface"
+
+    async def test_create_multi_procedure_treatment_atomic(
+        self, treatment_service, mock_db
+    ):
+        """Recording multiple procedures on a single tooth creates treatments and returns response."""
+        with patch("backend.crud") as mock_crud:
+            mock_crud.patient.get_patient = AsyncMock(return_value=MagicMock(id=1, default_price_list_id=None))
+
+            t1 = models.Treatment(
+                id=201, patient_id=1, tooth_number=46, procedure="Root Canal Treatment", cost=1200.0, discount=0.0, status="Done", doctor_id=10, tenant_id=1
+            )
+            t2 = models.Treatment(
+                id=202, patient_id=1, tooth_number=46, procedure="Composite Filling", cost=400.0, discount=0.0, status="Done", doctor_id=10, tenant_id=1
+            )
+            mock_crud.billing.create_treatment = AsyncMock(side_effect=[t1, t2])
+
+            with patch("backend.services.treatment_service.log_admin_action"):
+                multi_payload = schemas.ToothMultiProcedureCreate(
+                    patient_id=1,
+                    tooth_number=46,
+                    procedures=[
+                        schemas.ToothProcedureItem(
+                            procedure="Root Canal Treatment",
+                            cost=1200.0,
+                            diagnosis="Pulpitis",
+                        ),
+                        schemas.ToothProcedureItem(
+                            procedure="Composite Filling",
+                            cost=400.0,
+                            surfaces=["M", "O"],
+                            diagnosis="Caries",
+                        ),
+                    ],
+                )
+
+                response = await treatment_service.create_multi_procedure_treatment(multi_payload)
+                assert response.patient_id == 1
+                assert response.tooth_number == 46
+                assert response.tooth_key == "46"
+                assert len(response.treatments) == 2
+                mock_db.commit.assert_called()

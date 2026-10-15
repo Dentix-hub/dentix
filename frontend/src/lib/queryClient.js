@@ -24,6 +24,7 @@ export const queryKeys = {
     patientSearch: (query) => ['patients', 'search', query],
     patient: (id) => ['patient', id],
     patientTeeth: (id) => ['patient', id, 'teeth'],
+    patientClinicalWorkspace: (id) => ['patient', id, 'clinical-workspace'],
     patientTreatments: (id) => ['patient', id, 'treatments'],
     patientPayments: (id) => ['patient', id, 'payments'],
     patientAttachments: (id) => ['patient', id, 'attachments'],

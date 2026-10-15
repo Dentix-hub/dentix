@@ -256,6 +256,7 @@ jobs:
           pytest backend/ci_tests/test_auth_bootstrap_rls_probe.py \
             backend/ci_tests/test_auth_cookie_flow_http.py \
             backend/ci_tests/test_child_tenant_rls_postgres.py \
+            backend/ci_tests/test_clinical_projection_coverage_rls_postgres.py \
             backend/ci_tests/test_cross_tenant_http_postgres.py \
             backend/ci_tests/test_upload_postgres_smoke.py \
             -v \
@@ -836,7 +837,7 @@ jobs:
 
       - name: Run production critical path
         working-directory: frontend
-        run: npx playwright test e2e/critical-path.spec.ts --config=playwright.config.ts --project=chromium --no-deps --max-failures=1 --retries=0
+        run: npx playwright test e2e/critical-path.spec.ts e2e/patient-details-chart.spec.ts --config=playwright.config.ts --project=chromium --no-deps --max-failures=1 --retries=0
 
       - name: Run UI visual regression
         working-directory: frontend

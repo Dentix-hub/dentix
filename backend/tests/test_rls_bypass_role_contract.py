@@ -1,7 +1,7 @@
 """Static fail-closed contract for application/system PostgreSQL role separation."""
 
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, sentinel
 
 import pytest
 from sqlalchemy import text
@@ -88,6 +88,24 @@ async def test_rls_session_rebinds_after_transaction_boundaries():
 
         await session.execute(text("SELECT 1"))
         assert session._rls_dirty is False
+
+        await session.rollback()
+        assert session._rls_dirty is True
+
+        # AsyncSession.get()/get_one() bypass execute(), so identity lookups
+        # must also bind the tenant before touching a pooled connection.
+        session.sync_session.get = Mock(return_value=sentinel.row)
+        assert await session.get(object, 7) is sentinel.row
+        assert session._rls_dirty is False
+        session.sync_session.get.assert_called_once()
+
+        await session.rollback()
+        assert session._rls_dirty is True
+
+        session.sync_session.get_one = Mock(return_value=sentinel.row)
+        assert await session.get_one(object, 7) is sentinel.row
+        assert session._rls_dirty is False
+        session.sync_session.get_one.assert_called_once()
 
         await session.rollback()
         assert session._rls_dirty is True

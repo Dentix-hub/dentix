@@ -186,12 +186,123 @@ class TreatmentService:
 
     # --- Treatment CRUD ---
 
+    async def _sync_clinical_work_item(
+        self,
+        treatment: models.Treatment,
+        surfaces: Optional[List[str]] = None,
+    ) -> Optional[models.ClinicalWorkItem]:
+        """
+        Synchronize created/updated treatment to ClinicalWorkItem and ClinicalEvent.
+        Provides zero-overhead integration with Odontogram renderer workspace projection.
+        """
+        if not treatment.tooth_number:
+            return None
+
+        tooth_key = str(treatment.tooth_number)
+        from backend.models.clinical_core import FDI_TOOTH_KEYS, SURFACE_CODES
+        if tooth_key not in FDI_TOOTH_KEYS:
+            return None
+
+        from backend.clinical.catalog import CANONICAL_PROCEDURE_CODES
+        from backend.clinical.legacy_mapping import LEGACY_PROCEDURE_ALLOWLIST
+
+        canonical_code = treatment.procedure
+        if canonical_code not in CANONICAL_PROCEDURE_CODES:
+            canonical_code = LEGACY_PROCEDURE_ALLOWLIST.get(treatment.procedure, treatment.procedure)
+
+        status_raw = (treatment.status or "Done").lower()
+        if status_raw in ("done", "completed"):
+            status = "completed"
+        elif status_raw in ("pending", "planned"):
+            status = "planned"
+        else:
+            status = "active"
+
+        work_item = models.ClinicalWorkItem(
+            tenant_id=self.tenant_id,
+            patient_id=treatment.patient_id,
+            kind="procedure",
+            code=canonical_code,
+            status=status,
+            notes=treatment.notes,
+            created_by_user_id=treatment.doctor_id or self.current_user.id,
+        )
+        self.db.add(work_item)
+        await self.db.flush()
+
+        surfs = surfaces or treatment.surfaces or []
+        valid_surfs = [s for s in surfs if s in SURFACE_CODES]
+        if valid_surfs:
+            for s in valid_surfs:
+                self.db.add(
+                    models.ClinicalWorkItemTarget(
+                        tenant_id=self.tenant_id,
+                        work_item_id=work_item.id,
+                        target_kind="surface",
+                        tooth_key=tooth_key,
+                        surface_code=s,
+                    )
+                )
+        else:
+            self.db.add(
+                models.ClinicalWorkItemTarget(
+                    tenant_id=self.tenant_id,
+                    work_item_id=work_item.id,
+                    target_kind="tooth",
+                    tooth_key=tooth_key,
+                )
+            )
+
+        # Append ClinicalEvent
+        event = models.ClinicalEvent(
+            tenant_id=self.tenant_id,
+            patient_id=treatment.patient_id,
+            work_item_id=work_item.id,
+            event_type="procedure_recorded",
+            occurred_at=treatment.date or datetime.now(timezone.utc).replace(tzinfo=None),
+            actor_user_id=treatment.doctor_id or self.current_user.id,
+            payload={
+                "kind": "procedure",
+                "canonical_code": canonical_code,
+                "treatment_id": treatment.id,
+                "surfaces": valid_surfs,
+            },
+            notes=treatment.notes,
+        )
+        self.db.add(event)
+        await self.db.flush()
+
+        if valid_surfs:
+            for s in valid_surfs:
+                self.db.add(
+                    models.clinical_core.ClinicalEventTarget(
+                        tenant_id=self.tenant_id,
+                        event_id=event.id,
+                        target_kind="surface",
+                        tooth_key=tooth_key,
+                        surface_code=s,
+                    )
+                )
+        else:
+            self.db.add(
+                models.clinical_core.ClinicalEventTarget(
+                    tenant_id=self.tenant_id,
+                    event_id=event.id,
+                    target_kind="tooth",
+                    tooth_key=tooth_key,
+                )
+            )
+
+        return work_item
+
     async def create_treatment(
         self,
         treatment_data: schemas.TreatmentCreate,
+        commit: bool = True,
     ) -> models.Treatment:
         """
         Create treatment with pricing, stock validation, and consumption.
+        Supports single or multi-surface procedure targeting.
         """
         from fastapi import HTTPException
         from backend import crud
@@ -205,6 +316,22 @@ class TreatmentService:
         patient = await crud.patient.get_patient(self.db, treatment_data.patient_id, self.tenant_id)
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
+
+        # 1.5. Embed surfaces in notes if provided
+        surfaces = getattr(treatment_data, "surfaces", None)
+        surface = getattr(treatment_data, "surface", None)
+        if surfaces:
+            surf_tag = f"[Surfaces: {', '.join(surfaces)}]"
+            if not treatment_data.notes:
+                treatment_data.notes = surf_tag
+            elif "[Surface" not in treatment_data.notes:
+                treatment_data.notes = f"{treatment_data.notes} {surf_tag}"
+        elif surface:
+            surf_tag = f"[Surface: {surface}]"
+            if not treatment_data.notes:
+                treatment_data.notes = surf_tag
+            elif "[Surface" not in treatment_data.notes:
+                treatment_data.notes = f"{treatment_data.notes} {surf_tag}"
 
         # 2. Validate stock (pre-check) — skip if requested
         skip_stock = getattr(treatment_data, 'skip_stock_check', False)
@@ -234,6 +361,9 @@ class TreatmentService:
             commit=False,
         )
 
+        # 5.5. Synchronize ClinicalWorkItem / ClinicalEvent for odontogram projection
+        await self._sync_clinical_work_item(created_treatment, surfaces=surfaces)
+
         # 6. Consume stock (post-creation) — skip if requested
         if not skip_stock:
             await self.consume_treatment_stock(
@@ -252,19 +382,27 @@ class TreatmentService:
         )
 
         # 7. Commit transaction
-        await self.db.commit()
-        await self.db.refresh(created_treatment)
-        from sqlalchemy.orm import selectinload
-        stmt = (
-            select(models.Treatment)
-            .where(models.Treatment.id == created_treatment.id)
-            .options(selectinload(models.Treatment.treatment_sessions))
-        )
-        result = await self.db.execute(stmt)
-        refreshed_treatment = result.scalars().first()
-        if refreshed_treatment is not None:
-            created_treatment = refreshed_treatment
+        if commit:
+            await self.db.commit()
+            await self.db.refresh(created_treatment)
+            from sqlalchemy.orm import selectinload
+            stmt = (
+                select(models.Treatment)
+                .where(models.Treatment.id == created_treatment.id)
+                .options(selectinload(models.Treatment.treatment_sessions))
+            )
+            result = await self.db.execute(stmt)
+            refreshed_treatment = result.scalars().first()
+            if refreshed_treatment is not None:
+                created_treatment = refreshed_treatment
+        else:
+            await self.db.flush()
+
         created_treatment.consumedMaterials = treatment_data.consumedMaterials or []
+        if surface:
+            created_treatment.surface = surface
+        if surfaces:
+            created_treatment.surfaces = surfaces
 
         # 8. Log admin action
         log_admin_action(
@@ -277,6 +415,76 @@ class TreatmentService:
         )
 
         return created_treatment
+
+    async def create_multi_procedure_treatment(
+        self,
+        multi_data: schemas.ToothMultiProcedureCreate,
+    ) -> schemas.ToothClinicalRecordResponse:
+        """
+        Record multiple procedures on a single tooth in an atomic tenant-scoped transaction.
+        Calculates pricing snapshots, validates stock, consumes inventory, creates treatments,
+        and links ClinicalWorkItems/ClinicalEvents for Odontogram projection.
+        """
+        from fastapi import HTTPException
+        from backend import crud
+
+        patient = await crud.patient.get_patient(self.db, multi_data.patient_id, self.tenant_id)
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+
+        # 1. Aggregate and validate all stock up-front
+        all_materials: List[schemas.clinical.ConsumedMaterialItem] = []
+        for proc in multi_data.procedures:
+            if not proc.skip_stock_check and proc.consumedMaterials:
+                all_materials.extend(proc.consumedMaterials)
+
+        if all_materials:
+            await self.validate_treatment_stock(all_materials)
+
+        created_treatments: List[models.Treatment] = []
+
+        # 2. Process each procedure
+        for proc in multi_data.procedures:
+            treatment_data = schemas.TreatmentCreate(
+                patient_id=multi_data.patient_id,
+                tooth_number=multi_data.tooth_number,
+                tooth_key=multi_data.tooth_key,
+                procedure=proc.procedure,
+                cost=proc.cost,
+                discount=proc.discount,
+                diagnosis=proc.diagnosis,
+                surface=proc.surface,
+                surfaces=proc.surfaces,
+                canal_count=proc.canal_count,
+                canal_lengths=proc.canal_lengths,
+                sessions=proc.sessions,
+                complications=proc.complications,
+                notes=proc.notes or multi_data.notes,
+                status=proc.status,
+                doctor_id=multi_data.doctor_id or self.current_user.id,
+                consumedMaterials=proc.consumedMaterials,
+                skip_stock_check=True,  # already validated
+                price_list_id=proc.price_list_id,
+            )
+
+            created = await self.create_treatment(treatment_data, commit=False)
+            created_treatments.append(created)
+
+        # 3. Commit all atomically
+        await self.db.commit()
+
+        # Refresh all created treatments
+        for t in created_treatments:
+            await self.db.refresh(t)
+
+        tooth_key = multi_data.tooth_key or str(multi_data.tooth_number)
+        return schemas.ToothClinicalRecordResponse(
+            patient_id=multi_data.patient_id,
+            tooth_number=multi_data.tooth_number,
+            tooth_key=tooth_key,
+            treatments=[schemas.Treatment.model_validate(t) for t in created_treatments],
+            message="Multi-procedure treatments recorded successfully",
+        )
 
     async def update_treatment(
         self,
@@ -292,6 +500,22 @@ class TreatmentService:
             raise HTTPException(status_code=422, detail="Treatment values cannot be negative")
         if treatment_data.discount > treatment_data.cost:
             raise HTTPException(status_code=422, detail="Discount cannot exceed treatment cost")
+
+        # Embed surfaces in notes if present
+        surfaces = getattr(treatment_data, "surfaces", None)
+        surface = getattr(treatment_data, "surface", None)
+        if surfaces:
+            surf_tag = f"[Surfaces: {', '.join(surfaces)}]"
+            if not treatment_data.notes:
+                treatment_data.notes = surf_tag
+            elif "[Surface" not in treatment_data.notes:
+                treatment_data.notes = f"{treatment_data.notes} {surf_tag}"
+        elif surface:
+            surf_tag = f"[Surface: {surface}]"
+            if not treatment_data.notes:
+                treatment_data.notes = surf_tag
+            elif "[Surface" not in treatment_data.notes:
+                treatment_data.notes = f"{treatment_data.notes} {surf_tag}"
 
         # 1. Reverse old stock movements for this treatment
         await inventory_service.reverse_stock_by_reference(
@@ -343,6 +567,10 @@ class TreatmentService:
         if refreshed_treatment is not None:
             updated_treatment = refreshed_treatment
         updated_treatment.consumedMaterials = treatment_data.consumedMaterials or []
+        if surfaces:
+            updated_treatment.surfaces = surfaces
+        if surface:
+            updated_treatment.surface = surface
 
         return updated_treatment
 

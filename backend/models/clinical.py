@@ -1,4 +1,6 @@
 from datetime import timezone
+import re
+from typing import Optional
 from .base import (
     Base,
     Column,
@@ -84,6 +86,62 @@ class ToothStatus(Base):
 
     patient = relationship("Patient", back_populates="tooth_statuses")
 
+    @property
+    def surfaces(self) -> list[str]:
+        """Extracted surface list from surface attribute or notes."""
+        if hasattr(self, "_surfaces") and self._surfaces is not None:
+            return self._surfaces
+        if self.notes:
+            match = re.search(r"\[Surfaces?:\s*([A-Za-z,\s]+)\]", self.notes)
+            if match:
+                raw = match.group(1).upper().replace(",", " ").split()
+                valid = [s for s in raw if s in {"M", "D", "O", "I", "B", "L", "P"}]
+                if valid:
+                    return valid
+        return []
+
+    @surfaces.setter
+    def surfaces(self, value: Optional[list[str]]):
+        self._surfaces = value
+
+    @property
+    def surface(self) -> Optional[str]:
+        """Canonical concatenated surface string (e.g. 'MOD')."""
+        if hasattr(self, "_surface") and self._surface is not None:
+            return self._surface
+        surfs = self.surfaces
+        return "".join(surfs) if surfs else None
+
+    @surface.setter
+    def surface(self, value: Optional[str]):
+        self._surface = value
+        if value and not getattr(self, "_surfaces", None):
+            self._surfaces = [c for c in value.upper() if c in {"M", "D", "O", "I", "B", "L", "P"}]
+
+    @property
+    def tooth_key(self) -> Optional[str]:
+        if self.tooth_number is not None:
+            return str(self.tooth_number)
+        return None
+
+    @tooth_key.setter
+    def tooth_key(self, value: Optional[str]):
+        if value:
+            try:
+                self.tooth_number = int(value)
+            except ValueError:
+                pass
+
+    @property
+    def target_kind(self) -> str:
+        if hasattr(self, "_target_kind") and self._target_kind:
+            return self._target_kind
+        return "surface" if self.surfaces else "tooth"
+
+    @target_kind.setter
+    def target_kind(self, value: Optional[str]):
+        self._target_kind = value
+
 
 class Treatment(Base):
     __tablename__ = "treatments"
@@ -137,6 +195,62 @@ class Treatment(Base):
 
     patient = relationship("Patient", back_populates="treatments")
     treatment_sessions = relationship("TreatmentSession", back_populates="treatment", cascade="all, delete-orphan")
+
+    @property
+    def surfaces(self) -> list[str]:
+        """Extracted surface list from surface attribute or notes."""
+        if hasattr(self, "_surfaces") and self._surfaces is not None:
+            return self._surfaces
+        if self.notes:
+            match = re.search(r"\[Surfaces?:\s*([A-Za-z,\s]+)\]", self.notes)
+            if match:
+                raw = match.group(1).upper().replace(",", " ").split()
+                valid = [s for s in raw if s in {"M", "D", "O", "I", "B", "L", "P"}]
+                if valid:
+                    return valid
+        return []
+
+    @surfaces.setter
+    def surfaces(self, value: Optional[list[str]]):
+        self._surfaces = value
+
+    @property
+    def surface(self) -> Optional[str]:
+        """Canonical concatenated surface string (e.g. 'MOD')."""
+        if hasattr(self, "_surface") and self._surface is not None:
+            return self._surface
+        surfs = self.surfaces
+        return "".join(surfs) if surfs else None
+
+    @surface.setter
+    def surface(self, value: Optional[str]):
+        self._surface = value
+        if value and not getattr(self, "_surfaces", None):
+            self._surfaces = [c for c in value.upper() if c in {"M", "D", "O", "I", "B", "L", "P"}]
+
+    @property
+    def tooth_key(self) -> Optional[str]:
+        if self.tooth_number is not None:
+            return str(self.tooth_number)
+        return None
+
+    @tooth_key.setter
+    def tooth_key(self, value: Optional[str]):
+        if value:
+            try:
+                self.tooth_number = int(value)
+            except ValueError:
+                pass
+
+    @property
+    def target_kind(self) -> str:
+        if hasattr(self, "_target_kind") and self._target_kind:
+            return self._target_kind
+        return "surface" if self.surfaces else "tooth"
+
+    @target_kind.setter
+    def target_kind(self, value: Optional[str]):
+        self._target_kind = value
 
 
 class TreatmentSession(Base):
