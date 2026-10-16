@@ -723,6 +723,7 @@ class TestTreatmentClinicalSyncUpdateDelete:
             code="REST_COMPOSITE",
             status="completed",
             notes="Initial filling",
+            created_by_user_id=5,
         )
         existing_ev = models.ClinicalEvent(
             id=80,
@@ -785,9 +786,10 @@ class TestTreatmentClinicalSyncUpdateDelete:
             assert res.procedure == "Crown"
             assert res.status == "Pending"
 
-            # 2. Assert existing ClinicalWorkItem code and status were updated
+            # 2. Assert existing ClinicalWorkItem code and status were updated, authorship unchanged
             assert existing_wi.code == "PROS_CROWN"
             assert existing_wi.status == "planned"
+            assert existing_wi.created_by_user_id == 5
 
             # 3. Assert new ClinicalWorkItemTargets were added for surfaces M, O
             added_objs = [call.args[0] for call in mock_db.add.call_args_list]
@@ -943,7 +945,7 @@ class TestTreatmentClinicalSyncUpdateDelete:
         patient_id = 1
 
         # Event belongs to tenant 99 (different from service.tenant_id = 1)
-        cross_tenant_ev = models.ClinicalEvent(
+        _cross_tenant_ev = models.ClinicalEvent(
             id=91,
             tenant_id=99,
             patient_id=patient_id,
@@ -972,8 +974,8 @@ class TestTreatmentClinicalSyncUpdateDelete:
         tooth_number = 46
 
         # Two treatments for the same tooth (multi-procedure)
-        t_endo = models.Treatment(id=301, patient_id=patient_id, tooth_number=tooth_number, procedure="Root Canal", tenant_id=1)
-        t_comp = models.Treatment(id=302, patient_id=patient_id, tooth_number=tooth_number, procedure="Composite Filling", tenant_id=1)
+        _t_endo = models.Treatment(id=301, patient_id=patient_id, tooth_number=tooth_number, procedure="Root Canal", tenant_id=1)
+        _t_comp = models.Treatment(id=302, patient_id=patient_id, tooth_number=tooth_number, procedure="Composite Filling", tenant_id=1)
 
         wi_endo = models.ClinicalWorkItem(id=71, tenant_id=1, patient_id=patient_id, kind="procedure", code="ENDO_RCT", status="completed")
         wi_comp = models.ClinicalWorkItem(id=72, tenant_id=1, patient_id=patient_id, kind="procedure", code="REST_COMPOSITE", status="completed")

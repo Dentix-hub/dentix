@@ -366,6 +366,7 @@ class TreatmentService:
 
         if mapping is None:
             work_item.status = "cancelled"
+            # new event type introduced in this PR, free-text, used with payload.action in {"deleted","unmapped"}.
             event = models.ClinicalEvent(
                 tenant_id=self.tenant_id,
                 patient_id=treatment.patient_id,
@@ -392,8 +393,6 @@ class TreatmentService:
         work_item.code = canonical_code
         work_item.status = status
         work_item.notes = treatment.notes
-        if treatment.doctor_id:
-            work_item.created_by_user_id = treatment.doctor_id
 
         # Replace targets with updated definitions
         stmt_del_targets = delete(models.ClinicalWorkItemTarget).where(
@@ -480,6 +479,7 @@ class TreatmentService:
 
         work_item.status = "cancelled"
 
+        # new event type introduced in this PR, free-text, used with payload.action in {"deleted","unmapped"}.
         event = models.ClinicalEvent(
             tenant_id=self.tenant_id,
             patient_id=treatment.patient_id,
