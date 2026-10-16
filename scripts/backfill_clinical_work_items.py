@@ -37,6 +37,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import models
+import backend.core.tenant_scope  # noqa: F401 - Registers ORM tenant loader criteria
+from backend.core.tenancy import clear_tenant_context, set_current_tenant_id
 from backend.database import AsyncSessionLocal, RlsContext
 from backend.models.clinical_core import FDI_TOOTH_KEYS
 from backend.services.treatment_service import TreatmentService
@@ -119,92 +121,104 @@ async def backfill_tenant(
 
     Reuses canonical mapping, lookup, and sync methods from TreatmentService.
     """
-    report = TenantBackfillReport(
-        tenant_id=tenant_id,
-        is_dry_run=not apply,
-        last_processed_id=after_id,
-    )
-
-    # Mock system user for service attribution (treatment.doctor_id takes precedence)
-    system_user = models.User(id=None, username="system_backfill", tenant_id=tenant_id)
-    service = TreatmentService(db, tenant_id=tenant_id, current_user=system_user)
-
-    current_after_id = after_id
-
-    while True:
-        stmt = (
-            select(models.Treatment)
-            .where(
-                models.Treatment.tenant_id == tenant_id,
-                models.Treatment.id > current_after_id,
-            )
-            .order_by(models.Treatment.id.asc())
-            .limit(batch_size)
+    token = set_current_tenant_id(tenant_id)
+    try:
+        report = TenantBackfillReport(
+            tenant_id=tenant_id,
+            is_dry_run=not apply,
+            last_processed_id=after_id,
         )
-        result = await db.execute(stmt)
-        batch = result.scalars().all()
 
-        if not batch:
-            break
+        # Mock system user for service attribution (treatment.doctor_id takes precedence)
+        system_user = models.User(id=None, username="system_backfill", tenant_id=tenant_id)
+        service = TreatmentService(db, tenant_id=tenant_id, current_user=system_user)
 
-        report.batch_count += 1
+        current_after_id = after_id
 
-        for treatment in batch:
-            report.scanned += 1
-            report.last_processed_id = treatment.id
-            current_after_id = treatment.id
-
-            # 1. Skip soft-deleted treatments
-            if getattr(treatment, "is_deleted", False):
-                report.skipped_soft_deleted += 1
-                continue
-
-            # 2. Skip treatments that are already synchronized (idempotency check)
-            existing_wi = await service.find_linked_clinical_work_item(
-                treatment_id=treatment.id, patient_id=treatment.patient_id
-            )
-            if existing_wi is not None:
-                report.already_synced += 1
-                continue
-
-            # 3. Check mapping feasibility and categorise skip reasons
-            if not treatment.tooth_number:
-                report.skipped_missing_tooth += 1
-                continue
-
-            tooth_key = str(treatment.tooth_number)
-            if tooth_key not in FDI_TOOTH_KEYS:
-                report.skipped_invalid_fdi += 1
-                continue
-
-            mapping = service.map_treatment_to_clinical(treatment)
-            if mapping is None:
-                report.skipped_unmapped += 1
-                continue
-
-            # 4. Valid candidate
-            if not apply:
-                report.created += 1  # In dry-run, count as "would create"
-            else:
-                await service.sync_legacy_treatment(
-                    treatment=treatment,
-                    surfaces=treatment.surfaces,
-                    provenance="backfill",
+        while True:
+            stmt = (
+                select(models.Treatment)
+                .where(
+                    models.Treatment.tenant_id == tenant_id,
+                    models.Treatment.id > current_after_id,
                 )
-                report.created += 1
+                .execution_options(include_deleted=True)
+                .order_by(models.Treatment.id.asc())
+                .limit(batch_size)
+            )
+            result = await db.execute(stmt)
+            batch = result.scalars().all()
 
-        if apply:
-            await db.commit()
+            if not batch:
+                break
 
-        if len(batch) < batch_size:
-            break
+            report.batch_count += 1
 
-    return report
+            for treatment in batch:
+                report.scanned += 1
+                report.last_processed_id = treatment.id
+                current_after_id = treatment.id
+
+                # 1. Skip soft-deleted treatments
+                if getattr(treatment, "is_deleted", False):
+                    report.skipped_soft_deleted += 1
+                    continue
+
+                # 2. Check mapping feasibility and categorise skip reasons before DB lookup
+                if not treatment.tooth_number:
+                    report.skipped_missing_tooth += 1
+                    continue
+
+                tooth_key = str(treatment.tooth_number)
+                if tooth_key not in FDI_TOOTH_KEYS:
+                    report.skipped_invalid_fdi += 1
+                    continue
+
+                mapping = service.map_treatment_to_clinical(treatment)
+                if mapping is None:
+                    report.skipped_unmapped += 1
+                    continue
+
+                # 3. Skip treatments that are already synchronized (idempotency check)
+                existing_wi = await service.find_linked_clinical_work_item(
+                    treatment_id=treatment.id, patient_id=treatment.patient_id
+                )
+                if existing_wi is not None and existing_wi.status != "cancelled":
+                    report.already_synced += 1
+                    continue
+
+                # 4. Valid candidate
+                if not apply:
+                    report.created += 1  # In dry-run, count as "would create"
+                else:
+                    await service.sync_legacy_treatment(
+                        treatment=treatment,
+                        surfaces=treatment.surfaces,
+                        provenance="backfill",
+                    )
+                    report.created += 1
+
+            if apply:
+                await db.commit()
+
+            if len(batch) < batch_size:
+                break
+
+        return report
+    finally:
+        clear_tenant_context(token)
 
 
 async def discover_active_tenants(db: AsyncSession) -> List[int]:
-    """Retrieve all tenant IDs for --all-tenants mode."""
-    stmt = select(models.Tenant.id).order_by(models.Tenant.id.asc())
+    """Retrieve all active, non-deleted tenant IDs for --all-tenants mode."""
+    stmt = (
+        select(models.Tenant.id)
+        .where(
+            models.Tenant.is_deleted.is_(False),
+            models.Tenant.is_active.is_(True),
+        )
+        .order_by(models.Tenant.id.asc())
+    )
     result = await db.execute(stmt)
     return list(result.scalars().all())
 

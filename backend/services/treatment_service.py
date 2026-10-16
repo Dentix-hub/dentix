@@ -193,9 +193,13 @@ class TreatmentService:
     ) -> Optional[tuple[str, str, str, list[str]]]:
         """
         Extract and map legacy treatment attributes to clinical core representations:
-        returns (canonical_code, status, tooth_key, valid_surfs) or None if tooth is missing/invalid.
+        returns (canonical_code, status, tooth_key, valid_surfs) or None if tooth/patient is
+        missing/invalid or procedure is not in the canonical catalog or legacy allowlist.
         """
-        if not treatment.tooth_number:
+        if not treatment.patient_id or not treatment.tooth_number:
+            return None
+
+        if not treatment.procedure or not str(treatment.procedure).strip():
             return None
 
         tooth_key = str(treatment.tooth_number)
@@ -206,9 +210,15 @@ class TreatmentService:
         from backend.clinical.catalog import CANONICAL_PROCEDURE_CODES
         from backend.clinical.legacy_mapping import LEGACY_PROCEDURE_ALLOWLIST
 
-        canonical_code = treatment.procedure
-        if canonical_code not in CANONICAL_PROCEDURE_CODES:
-            canonical_code = LEGACY_PROCEDURE_ALLOWLIST.get(treatment.procedure, treatment.procedure)
+        raw_proc = str(treatment.procedure).strip()
+        if raw_proc in CANONICAL_PROCEDURE_CODES:
+            canonical_code = raw_proc
+        elif raw_proc in LEGACY_PROCEDURE_ALLOWLIST:
+            canonical_code = LEGACY_PROCEDURE_ALLOWLIST[raw_proc]
+        elif treatment.procedure in LEGACY_PROCEDURE_ALLOWLIST:
+            canonical_code = LEGACY_PROCEDURE_ALLOWLIST[treatment.procedure]
+        else:
+            return None
 
         status_raw = (treatment.status or "Done").lower()
         if status_raw in ("done", "completed"):

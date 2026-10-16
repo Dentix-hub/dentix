@@ -19,7 +19,11 @@ import pytest
 from sqlalchemy import select, func
 
 from backend import models
-from scripts.backfill_clinical_work_items import backfill_tenant, TenantBackfillReport
+from scripts.backfill_clinical_work_items import (
+    backfill_tenant,
+    discover_active_tenants,
+    TenantBackfillReport,
+)
 
 
 @pytest.fixture
@@ -104,6 +108,17 @@ async def sample_clinical_data(async_db_session):
         cost=200.0,
         doctor_id=10,
     )
+    # 6. Unmapped procedure on valid FDI tooth (should be skipped as unmapped)
+    t1_unmapped = models.Treatment(
+        id=106,
+        tenant_id=1,
+        patient_id=1,
+        tooth_number=14,
+        procedure="Unmapped Custom Procedure",
+        status="Done",
+        cost=250.0,
+        doctor_id=10,
+    )
 
     # Treatment for Tenant 2
     t2_1 = models.Treatment(
@@ -117,11 +132,11 @@ async def sample_clinical_data(async_db_session):
         doctor_id=20,
     )
 
-    db.add_all([t1_1, t1_2, t1_deleted, t1_no_tooth, t1_invalid_fdi, t2_1])
+    db.add_all([t1_1, t1_2, t1_deleted, t1_no_tooth, t1_invalid_fdi, t1_unmapped, t2_1])
     await db.commit()
 
     return {
-        "tenant_1_treatments": [t1_1, t1_2, t1_deleted, t1_no_tooth, t1_invalid_fdi],
+        "tenant_1_treatments": [t1_1, t1_2, t1_deleted, t1_no_tooth, t1_invalid_fdi, t1_unmapped],
         "tenant_2_treatments": [t2_1],
     }
 
@@ -141,13 +156,14 @@ class TestClinicalBackfillCLI:
         )
 
         assert report.is_dry_run is True
-        assert report.scanned == 5
+        assert report.scanned == 6
         assert report.created == 2  # Would create 101, 102
         assert report.already_synced == 0
-        assert report.total_skipped == 3
+        assert report.total_skipped == 4
         assert report.skipped_soft_deleted == 1
         assert report.skipped_missing_tooth == 1
         assert report.skipped_invalid_fdi == 1
+        assert report.skipped_unmapped == 1
 
         # Assert no rows were created in ClinicalWorkItem or ClinicalEvent
         wi_count = (await db.execute(select(func.count(models.ClinicalWorkItem.id)))).scalar()
@@ -172,7 +188,7 @@ class TestClinicalBackfillCLI:
         )
 
         assert report.is_dry_run is False
-        assert report.scanned == 5
+        assert report.scanned == 6
         assert report.created == 2
         assert report.already_synced == 0
 
@@ -246,7 +262,7 @@ class TestClinicalBackfillCLI:
         report2 = await backfill_tenant(db=db, tenant_id=1, apply=True)
         assert report2.created == 0
         assert report2.already_synced == 2
-        assert report2.scanned == 5
+        assert report2.scanned == 6
 
         # Counts must be completely unchanged
         wi_count_2 = (await db.execute(select(func.count(models.ClinicalWorkItem.id)))).scalar()
@@ -305,12 +321,12 @@ class TestClinicalBackfillCLI:
 
         report = await backfill_tenant(db=db, tenant_id=1, apply=False)
 
-        assert report.scanned == 5
+        assert report.scanned == 6
         assert report.skipped_soft_deleted == 1  # Treatment 103 (is_deleted=True)
         assert report.skipped_missing_tooth == 1  # Treatment 104 (tooth_number=None)
         assert report.skipped_invalid_fdi == 1   # Treatment 105 (tooth_number=99)
-        assert report.skipped_unmapped == 0
-        assert report.total_skipped == 3
+        assert report.skipped_unmapped == 1      # Treatment 106 (procedure="Unmapped Custom Procedure")
+        assert report.total_skipped == 4
 
     async def test_batched_execution_and_resumability(
         self, async_db_session, sample_clinical_data
@@ -326,8 +342,8 @@ class TestClinicalBackfillCLI:
             batch_size=2,
             after_id=0,
         )
-        assert report.batch_count == 3  # 5 treatments across batch size 2 -> 2 + 2 + 1
-        assert report.scanned == 5
+        assert report.batch_count == 3  # 6 treatments across batch size 2 -> 2 + 2 + 2
+        assert report.scanned == 6
         assert report.created == 2
 
         # 2. Test after_id parameter: resuming after treatment 102
@@ -337,10 +353,10 @@ class TestClinicalBackfillCLI:
             apply=False,
             after_id=102,
         )
-        # Treatments > 102 are 103 (deleted), 104 (no tooth), 105 (invalid fdi)
-        assert report_resumed.scanned == 3
+        # Treatments > 102 are 103 (deleted), 104 (no tooth), 105 (invalid fdi), 106 (unmapped)
+        assert report_resumed.scanned == 4
         assert report_resumed.created == 0
-        assert report_resumed.total_skipped == 3
+        assert report_resumed.total_skipped == 4
 
     async def test_legacy_treatments_unmodified(
         self, async_db_session, sample_clinical_data
@@ -350,7 +366,10 @@ class TestClinicalBackfillCLI:
 
         # Read treatment snapshot before backfill
         before_res = await db.execute(
-            select(models.Treatment).where(models.Treatment.tenant_id == 1).order_by(models.Treatment.id.asc())
+            select(models.Treatment)
+            .where(models.Treatment.tenant_id == 1)
+            .execution_options(include_deleted=True)
+            .order_by(models.Treatment.id.asc())
         )
         treatments_before = [
             (t.id, t.procedure, t.status, t.cost, t.notes, t.tooth_number, t.is_deleted)
@@ -362,7 +381,10 @@ class TestClinicalBackfillCLI:
 
         # Read treatment snapshot after backfill
         after_res = await db.execute(
-            select(models.Treatment).where(models.Treatment.tenant_id == 1).order_by(models.Treatment.id.asc())
+            select(models.Treatment)
+            .where(models.Treatment.tenant_id == 1)
+            .execution_options(include_deleted=True)
+            .order_by(models.Treatment.id.asc())
         )
         treatments_after = [
             (t.id, t.procedure, t.status, t.cost, t.notes, t.tooth_number, t.is_deleted)
@@ -371,3 +393,17 @@ class TestClinicalBackfillCLI:
 
         # Exact match required
         assert treatments_after == treatments_before
+
+    async def test_discover_active_tenants_excludes_inactive_and_deleted(
+        self, async_db_session, sample_clinical_data
+    ):
+        """discover_active_tenants must return only active, non-deleted tenants."""
+        db = async_db_session
+        t_inactive = models.Tenant(id=3, name="Clinic Inactive", is_active=False)
+        t_deleted = models.Tenant(id=4, name="Clinic Deleted", is_active=True, is_deleted=True)
+        db.add_all([t_inactive, t_deleted])
+        await db.commit()
+
+        active_ids = await discover_active_tenants(db)
+        assert active_ids == [1, 2]
+
