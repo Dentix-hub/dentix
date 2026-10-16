@@ -54,4 +54,6 @@ export const addPatientClinicalPlanItem = (patientId, planId, phaseId, data) =>
     api.post(`/api/v1/patients/${patientId}/clinical-plans/${planId}/phases/${phaseId}/items`, data);
 export const removePatientClinicalPlanItem = (patientId, planId, phaseId, itemId) =>
     api.delete(`/api/v1/patients/${patientId}/clinical-plans/${planId}/phases/${phaseId}/items/${itemId}`);
+export const transitionPatientClinicalPlan = (patientId, planId, data) =>
+    api.post(`/api/v1/patients/${patientId}/clinical-plans/${planId}/transition`, data);
 

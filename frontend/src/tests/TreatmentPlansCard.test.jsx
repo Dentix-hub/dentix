@@ -12,11 +12,13 @@ const {
     mockUseAddPatientClinicalPlanPhase,
     mockUseAddPatientClinicalPlanItem,
     mockUseRemovePatientClinicalPlanItem,
+    mockUseTransitionPatientClinicalPlan,
     mockUseTenantFeatures,
     mockCreateMutateAsync,
     mockAddPhaseMutateAsync,
     mockAddItemMutateAsync,
     mockRemoveItemMutateAsync,
+    mockTransitionMutateAsync,
 } = vi.hoisted(() => ({
     mockUsePatientClinicalPlans: vi.fn(),
     mockUseCreatePatientClinicalPlan: vi.fn(),
@@ -24,11 +26,13 @@ const {
     mockUseAddPatientClinicalPlanPhase: vi.fn(),
     mockUseAddPatientClinicalPlanItem: vi.fn(),
     mockUseRemovePatientClinicalPlanItem: vi.fn(),
+    mockUseTransitionPatientClinicalPlan: vi.fn(),
     mockUseTenantFeatures: vi.fn(),
     mockCreateMutateAsync: vi.fn(),
     mockAddPhaseMutateAsync: vi.fn(),
     mockAddItemMutateAsync: vi.fn(),
     mockRemoveItemMutateAsync: vi.fn(),
+    mockTransitionMutateAsync: vi.fn(),
 }));
 
 vi.mock('react-i18next', () => ({
@@ -83,6 +87,7 @@ vi.mock('@/hooks/usePatientDetails', () => ({
     useAddPatientClinicalPlanPhase: () => mockUseAddPatientClinicalPlanPhase(),
     useAddPatientClinicalPlanItem: () => mockUseAddPatientClinicalPlanItem(),
     useRemovePatientClinicalPlanItem: () => mockUseRemovePatientClinicalPlanItem(),
+    useTransitionPatientClinicalPlan: () => mockUseTransitionPatientClinicalPlan(),
     useTenantFeatures: () => mockUseTenantFeatures(),
 }));
 
@@ -126,6 +131,10 @@ describe('TreatmentPlansCard & Feature Gating', () => {
         });
         mockUseRemovePatientClinicalPlanItem.mockReturnValue({
             mutateAsync: mockRemoveItemMutateAsync,
+            isPending: false,
+        });
+        mockUseTransitionPatientClinicalPlan.mockReturnValue({
+            mutateAsync: mockTransitionMutateAsync,
             isPending: false,
         });
         mockUsePatientClinicalPlanCandidates.mockReturnValue({
@@ -503,5 +512,121 @@ describe('TreatmentPlansCard & Feature Gating', () => {
                 itemId: 21,
             });
         });
+    });
+
+    it('renders status badges for each plan status', () => {
+        mockUsePatientClinicalPlans.mockReturnValue({
+            data: [
+                { id: 1, patient_id: 101, title: 'Plan Draft', status: 'draft', phases: [] },
+                { id: 2, patient_id: 101, title: 'Plan Proposed', status: 'proposed', phases: [] },
+                { id: 3, patient_id: 101, title: 'Plan Accepted', status: 'accepted', phases: [] },
+                { id: 4, patient_id: 101, title: 'Plan Completed', status: 'completed', phases: [] },
+                { id: 5, patient_id: 101, title: 'Plan Cancelled', status: 'cancelled', phases: [] },
+            ],
+            isLoading: false,
+            isError: false,
+        });
+
+        renderCard();
+
+        expect(screen.getByTestId('clinical-plan-status-1')).toHaveTextContent('draft');
+        expect(screen.getByTestId('clinical-plan-status-2')).toHaveTextContent('proposed');
+        expect(screen.getByTestId('clinical-plan-status-3')).toHaveTextContent('accepted');
+        expect(screen.getByTestId('clinical-plan-status-4')).toHaveTextContent('completed');
+        expect(screen.getByTestId('clinical-plan-status-5')).toHaveTextContent('cancelled');
+    });
+
+    it('shows allowed transition buttons per status and triggers transition mutation', async () => {
+        mockUsePatientClinicalPlans.mockReturnValue({
+            data: [
+                { id: 1, patient_id: 101, title: 'Draft Plan', status: 'draft', phases: [] },
+                { id: 2, patient_id: 101, title: 'Proposed Plan', status: 'proposed', phases: [] },
+                { id: 3, patient_id: 101, title: 'Accepted Plan', status: 'accepted', phases: [] },
+                { id: 4, patient_id: 101, title: 'Completed Plan', status: 'completed', phases: [] },
+            ],
+            isLoading: false,
+            isError: false,
+        });
+        mockTransitionMutateAsync.mockResolvedValueOnce({ id: 1, status: 'proposed' });
+
+        renderCard();
+
+        // Draft plan allows propose and cancel
+        expect(screen.getByTestId('plan-transition-proposed-1')).toBeInTheDocument();
+        expect(screen.getByTestId('plan-transition-cancelled-1')).toBeInTheDocument();
+
+        // Proposed plan allows accept and cancel
+        expect(screen.getByTestId('plan-transition-accepted-2')).toBeInTheDocument();
+        expect(screen.getByTestId('plan-transition-cancelled-2')).toBeInTheDocument();
+
+        // Accepted plan allows complete and cancel
+        expect(screen.getByTestId('plan-transition-completed-3')).toBeInTheDocument();
+        expect(screen.getByTestId('plan-transition-cancelled-3')).toBeInTheDocument();
+
+        // Completed plan has no transition buttons
+        expect(screen.queryByTestId('plan-transition-proposed-4')).toBeNull();
+        expect(screen.queryByTestId('plan-transition-accepted-4')).toBeNull();
+        expect(screen.queryByTestId('plan-transition-completed-4')).toBeNull();
+        expect(screen.queryByTestId('plan-transition-cancelled-4')).toBeNull();
+
+        // Click Propose on draft plan
+        fireEvent.click(screen.getByTestId('plan-transition-proposed-1'));
+
+        await waitFor(() => {
+            expect(mockTransitionMutateAsync).toHaveBeenCalledWith({
+                patientId: 101,
+                planId: 1,
+                data: { to_status: 'proposed' },
+            });
+        });
+    });
+
+    it('hides add phase, add procedure, and delete procedure controls when plan is in accepted, completed, or cancelled status', () => {
+        mockUsePatientClinicalPlans.mockReturnValue({
+            data: [
+                {
+                    id: 3,
+                    patient_id: 101,
+                    title: 'Accepted Plan',
+                    status: 'accepted',
+                    phases: [
+                        {
+                            id: 31,
+                            phase_order: 0,
+                            name: 'Phase 1',
+                            status: 'draft',
+                            items: [
+                                {
+                                    id: 301,
+                                    work_item_id: 501,
+                                    item_order: 0,
+                                    work_item: {
+                                        id: 501,
+                                        procedure_code: 'D2391',
+                                        display_name: 'Composite',
+                                        status: 'planned',
+                                        targets: [],
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            isLoading: false,
+            isError: false,
+        });
+
+        renderCard();
+
+        // In accepted plan, canModifyPlan is false
+        // + Add Phase button should be hidden
+        expect(screen.queryByTestId('add-phase-button-3')).toBeNull();
+
+        // + Add Procedure button should be hidden
+        expect(screen.queryByTestId('add-procedure-button-31')).toBeNull();
+
+        // Remove item button should be hidden
+        expect(screen.queryByTestId('remove-phase-item-301')).toBeNull();
     });
 });

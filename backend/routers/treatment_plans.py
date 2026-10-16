@@ -138,3 +138,24 @@ async def remove_patient_clinical_plan_item(
         data=None,
         message="Treatment plan item removed successfully",
     )
+
+
+@router.post(
+    "/{patient_id}/clinical-plans/{plan_id}/transition",
+    response_model=StandardResponse[schemas.ClinicalTreatmentPlanRead],
+    summary="Transition treatment plan status",
+    description="Transition clinical treatment plan status according to allowed lifecycle transitions.",
+)
+async def transition_clinical_plan(
+    patient_id: int,
+    plan_id: int,
+    payload: schemas.ClinicalTreatmentPlanTransition,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
+):
+    service = TreatmentPlanService(db, current_user.tenant_id, current_user)
+    plan = await service.transition_plan(patient_id, plan_id, payload.to_status.strip().lower())
+    return success_response(
+        data=schemas.ClinicalTreatmentPlanRead.model_validate(plan),
+        message="Treatment plan status updated successfully",
+    )

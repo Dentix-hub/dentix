@@ -63,6 +63,7 @@ from .treatment_plan import (
     ClinicalTreatmentPlanPhaseRead,
     ClinicalTreatmentPlanCreate,
     ClinicalTreatmentPlanRead,
+    ClinicalTreatmentPlanTransition,
 )
 
 # Clinical Workspace Snapshot (Issue #205)
@@ -349,5 +350,6 @@ __all__ = [
     "ClinicalTreatmentPlanPhaseRead",
     "ClinicalTreatmentPlanCreate",
     "ClinicalTreatmentPlanRead",
+    "ClinicalTreatmentPlanTransition",
 ]
 
