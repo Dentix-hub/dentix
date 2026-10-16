@@ -12,6 +12,10 @@ import {
     deletePayment,
     getPatientClinicalPlans,
     createPatientClinicalPlan,
+    getPatientClinicalPlanCandidates,
+    addPatientClinicalPlanPhase,
+    addPatientClinicalPlanItem,
+    removePatientClinicalPlanItem,
     getTenantFeatures,
 } from '@/api';
 
@@ -233,5 +237,74 @@ export function useTenantFeatures() {
         staleTime: 60 * 1000,
     });
 }
+
+/**
+ * Hook for patient clinical plan candidate work items
+ */
+export function usePatientClinicalPlanCandidates(patientId, planId, { enabled = true } = {}) {
+    return useQuery({
+        queryKey: queryKeys.patientClinicalPlanCandidates(patientId, planId),
+        queryFn: async () => {
+            const res = await getPatientClinicalPlanCandidates(patientId, planId);
+            return res.data || [];
+        },
+        enabled: !!patientId && !!planId && enabled,
+        staleTime: 10 * 1000,
+    });
+}
+
+/**
+ * Hook for adding a phase to a treatment plan
+ */
+export function useAddPatientClinicalPlanPhase() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, planId, data }) => addPatientClinicalPlanPhase(patientId, planId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlans(variables.patientId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for adding a procedure/work-item to a treatment plan phase
+ */
+export function useAddPatientClinicalPlanItem() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, planId, phaseId, data }) =>
+            addPatientClinicalPlanItem(patientId, planId, phaseId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlans(variables.patientId),
+            });
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlanCandidates(variables.patientId, variables.planId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for removing a procedure/work-item from a treatment plan phase
+ */
+export function useRemovePatientClinicalPlanItem() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, planId, phaseId, itemId }) =>
+            removePatientClinicalPlanItem(patientId, planId, phaseId, itemId),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlans(variables.patientId),
+            });
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlanCandidates(variables.patientId, variables.planId),
+            });
+        },
+    });
+}
+
 
 

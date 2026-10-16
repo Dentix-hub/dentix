@@ -8,18 +8,40 @@ import { MemoryRouter } from 'react-router-dom';
 const {
     mockUsePatientClinicalPlans,
     mockUseCreatePatientClinicalPlan,
+    mockUsePatientClinicalPlanCandidates,
+    mockUseAddPatientClinicalPlanPhase,
+    mockUseAddPatientClinicalPlanItem,
+    mockUseRemovePatientClinicalPlanItem,
     mockUseTenantFeatures,
-    mockMutateAsync,
+    mockCreateMutateAsync,
+    mockAddPhaseMutateAsync,
+    mockAddItemMutateAsync,
+    mockRemoveItemMutateAsync,
 } = vi.hoisted(() => ({
     mockUsePatientClinicalPlans: vi.fn(),
     mockUseCreatePatientClinicalPlan: vi.fn(),
+    mockUsePatientClinicalPlanCandidates: vi.fn(),
+    mockUseAddPatientClinicalPlanPhase: vi.fn(),
+    mockUseAddPatientClinicalPlanItem: vi.fn(),
+    mockUseRemovePatientClinicalPlanItem: vi.fn(),
     mockUseTenantFeatures: vi.fn(),
-    mockMutateAsync: vi.fn(),
+    mockCreateMutateAsync: vi.fn(),
+    mockAddPhaseMutateAsync: vi.fn(),
+    mockAddItemMutateAsync: vi.fn(),
+    mockRemoveItemMutateAsync: vi.fn(),
 }));
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
-        t: (key, fallback) => (typeof fallback === 'string' ? fallback : key),
+        t: (key, fallback, options) => {
+            if (options && options.n !== undefined) {
+                return (fallback || key).replace('{{n}}', options.n);
+            }
+            if (options && options.number !== undefined) {
+                return (fallback || key).replace('{{number}}', options.number);
+            }
+            return typeof fallback === 'string' ? fallback : key;
+        },
         i18n: { language: 'en' },
     }),
 }));
@@ -57,6 +79,10 @@ vi.mock('@/hooks/usePatientDetails', () => ({
     useDeletePayment: () => ({ mutate: vi.fn() }),
     usePatientClinicalPlans: (...args) => mockUsePatientClinicalPlans(...args),
     useCreatePatientClinicalPlan: () => mockUseCreatePatientClinicalPlan(),
+    usePatientClinicalPlanCandidates: (...args) => mockUsePatientClinicalPlanCandidates(...args),
+    useAddPatientClinicalPlanPhase: () => mockUseAddPatientClinicalPlanPhase(),
+    useAddPatientClinicalPlanItem: () => mockUseAddPatientClinicalPlanItem(),
+    useRemovePatientClinicalPlanItem: () => mockUseRemovePatientClinicalPlanItem(),
     useTenantFeatures: () => mockUseTenantFeatures(),
 }));
 
@@ -87,8 +113,24 @@ describe('TreatmentPlansCard & Feature Gating', () => {
             defaultOptions: { queries: { retry: false } },
         });
         mockUseCreatePatientClinicalPlan.mockReturnValue({
-            mutateAsync: mockMutateAsync,
+            mutateAsync: mockCreateMutateAsync,
             isPending: false,
+        });
+        mockUseAddPatientClinicalPlanPhase.mockReturnValue({
+            mutateAsync: mockAddPhaseMutateAsync,
+            isPending: false,
+        });
+        mockUseAddPatientClinicalPlanItem.mockReturnValue({
+            mutateAsync: mockAddItemMutateAsync,
+            isPending: false,
+        });
+        mockUseRemovePatientClinicalPlanItem.mockReturnValue({
+            mutateAsync: mockRemoveItemMutateAsync,
+            isPending: false,
+        });
+        mockUsePatientClinicalPlanCandidates.mockReturnValue({
+            data: [],
+            isLoading: false,
         });
     });
 
@@ -168,7 +210,7 @@ describe('TreatmentPlansCard & Feature Gating', () => {
                     version_id: 1,
                     created_at: '2026-10-16T10:00:00Z',
                     phases: [
-                        { id: 11, phase_order: 0, name: 'Phase 1', status: 'draft' },
+                        { id: 11, phase_order: 0, name: 'Phase 1', status: 'draft', items: [] },
                     ],
                 },
             ],
@@ -193,7 +235,7 @@ describe('TreatmentPlansCard & Feature Gating', () => {
             isLoading: false,
             isError: false,
         });
-        mockMutateAsync.mockResolvedValueOnce({
+        mockCreateMutateAsync.mockResolvedValueOnce({
             id: 2,
             title: 'Orthodontic Alignment',
             status: 'draft',
@@ -219,7 +261,7 @@ describe('TreatmentPlansCard & Feature Gating', () => {
         fireEvent.click(submitBtn);
 
         await waitFor(() => {
-            expect(mockMutateAsync).toHaveBeenCalledWith({
+            expect(mockCreateMutateAsync).toHaveBeenCalledWith({
                 patientId: 101,
                 data: {
                     title: 'Orthodontic Alignment',
@@ -249,5 +291,217 @@ describe('TreatmentPlansCard & Feature Gating', () => {
         // Expand
         fireEvent.click(toggleBtn);
         expect(screen.getByTestId('clinical-plans-empty')).toBeInTheDocument();
+    });
+
+    it('renders phases with items: displays phase order, phase name, items with targets and status', () => {
+        mockUsePatientClinicalPlans.mockReturnValue({
+            data: [
+                {
+                    id: 1,
+                    patient_id: 101,
+                    title: 'Comprehensive Plan',
+                    status: 'draft',
+                    phases: [
+                        {
+                            id: 11,
+                            phase_order: 0,
+                            name: 'Phase 1: Urgent',
+                            status: 'draft',
+                            items: [
+                                {
+                                    id: 21,
+                                    work_item_id: 501,
+                                    item_order: 0,
+                                    work_item: {
+                                        id: 501,
+                                        procedure_code: 'D2150',
+                                        display_name: 'Amalgam 2 Surfaces',
+                                        status: 'planned',
+                                        targets: [
+                                            { tooth_key: '16', surface: 'MO' },
+                                        ],
+                                    },
+                                },
+                            ],
+                        },
+                        {
+                            id: 12,
+                            phase_order: 1,
+                            name: 'Phase 2: Restorative',
+                            status: 'draft',
+                            items: [],
+                        },
+                    ],
+                },
+            ],
+            isLoading: false,
+            isError: false,
+        });
+
+        renderCard();
+
+        // Check phase 1 rendered
+        expect(screen.getByTestId('clinical-phase-item-11')).toBeInTheDocument();
+        expect(screen.getByText('Phase 1: Urgent')).toBeInTheDocument();
+        expect(screen.getByTestId('phase-item-21')).toBeInTheDocument();
+        expect(screen.getByText('Amalgam 2 Surfaces')).toBeInTheDocument();
+        expect(screen.getByText('16 (MO)')).toBeInTheDocument();
+
+        // Check phase 2 rendered with empty state
+        expect(screen.getByTestId('clinical-phase-item-12')).toBeInTheDocument();
+        expect(screen.getByText('Phase 2: Restorative')).toBeInTheDocument();
+        expect(screen.getByTestId('phase-empty-12')).toBeInTheDocument();
+    });
+
+    it('adding a phase: triggers mutation with auto-assigned localized phase name', async () => {
+        mockUsePatientClinicalPlans.mockReturnValue({
+            data: [
+                {
+                    id: 1,
+                    patient_id: 101,
+                    title: 'Plan A',
+                    status: 'draft',
+                    phases: [
+                        { id: 11, phase_order: 0, name: 'Phase 1', status: 'draft', items: [] },
+                    ],
+                },
+            ],
+            isLoading: false,
+            isError: false,
+        });
+        mockAddPhaseMutateAsync.mockResolvedValueOnce({
+            id: 12,
+            phase_order: 1,
+            name: 'Phase 2',
+            status: 'draft',
+            items: [],
+        });
+
+        renderCard();
+
+        const addPhaseBtn = screen.getByTestId('add-phase-button-1');
+        fireEvent.click(addPhaseBtn);
+
+        await waitFor(() => {
+            expect(mockAddPhaseMutateAsync).toHaveBeenCalledWith({
+                patientId: 101,
+                planId: 1,
+                data: { name: 'Phase 2' },
+            });
+        });
+    });
+
+    it('attaching an item to a phase: opens selector modal, selects candidate, triggers mutation', async () => {
+        mockUsePatientClinicalPlans.mockReturnValue({
+            data: [
+                {
+                    id: 1,
+                    patient_id: 101,
+                    title: 'Plan A',
+                    status: 'draft',
+                    phases: [
+                        { id: 11, phase_order: 0, name: 'Phase 1', status: 'draft', items: [] },
+                    ],
+                },
+            ],
+            isLoading: false,
+            isError: false,
+        });
+        mockUsePatientClinicalPlanCandidates.mockReturnValue({
+            data: [
+                {
+                    id: 501,
+                    procedure_code: 'D2391',
+                    display_name: 'Composite 1 Surface',
+                    status: 'planned',
+                    targets: [{ tooth_key: '24', surface: 'O' }],
+                },
+            ],
+            isLoading: false,
+        });
+        mockAddItemMutateAsync.mockResolvedValueOnce({
+            id: 31,
+            phase_id: 11,
+            work_item_id: 501,
+            item_order: 0,
+        });
+
+        renderCard();
+
+        // Open procedure modal on phase 11
+        const addProcBtn = screen.getByTestId('add-procedure-button-11');
+        fireEvent.click(addProcBtn);
+
+        // Dialog should be open
+        expect(screen.getByTestId('add-procedure-dialog')).toBeInTheDocument();
+
+        // Select candidate procedure
+        const select = screen.getByTestId('candidate-procedure-select');
+        fireEvent.change(select, { target: { value: '501' } });
+
+        // Submit form
+        const submitBtn = screen.getByTestId('submit-add-procedure');
+        fireEvent.click(submitBtn);
+
+        await waitFor(() => {
+            expect(mockAddItemMutateAsync).toHaveBeenCalledWith({
+                patientId: 101,
+                planId: 1,
+                phaseId: 11,
+                data: { work_item_id: 501 },
+            });
+        });
+    });
+
+    it('removing an item from a phase: triggers remove item mutation', async () => {
+        mockUsePatientClinicalPlans.mockReturnValue({
+            data: [
+                {
+                    id: 1,
+                    patient_id: 101,
+                    title: 'Plan A',
+                    status: 'draft',
+                    phases: [
+                        {
+                            id: 11,
+                            phase_order: 0,
+                            name: 'Phase 1',
+                            status: 'draft',
+                            items: [
+                                {
+                                    id: 21,
+                                    work_item_id: 501,
+                                    item_order: 0,
+                                    work_item: {
+                                        id: 501,
+                                        procedure_code: 'D2150',
+                                        display_name: 'Amalgam 2 Surfaces',
+                                        status: 'planned',
+                                        targets: [],
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            isLoading: false,
+            isError: false,
+        });
+        mockRemoveItemMutateAsync.mockResolvedValueOnce({});
+
+        renderCard();
+
+        const removeBtn = screen.getByTestId('remove-phase-item-21');
+        fireEvent.click(removeBtn);
+
+        await waitFor(() => {
+            expect(mockRemoveItemMutateAsync).toHaveBeenCalledWith({
+                patientId: 101,
+                planId: 1,
+                phaseId: 11,
+                itemId: 21,
+            });
+        });
     });
 });
