@@ -804,7 +804,74 @@
             "upload_fail": "فشل رفع الملف"
         }
     },
+    "clinical_plans": {
+        "title": "خطط العلاج",
+        "subtitle": "خطط العلاج والمراحل الخاصة بالمريض",
+        "new_plan": "خطة جديدة",
+        "empty_state": "لم يتم إنشاء خطط علاجية بعد.",
+        "empty_cta": "أنشئ الخطة العلاجية الأولى لهذا المريض",
+        "collapse": "طي خطط العلاج",
+        "expand": "توسيع خطط العلاج",
+        "default_phase": "المرحلة الأولى",
+        "phases_count": "مرحلة",
+        "phases_count_plural": "مراحل",
+        "phase_n": "المرحلة {{n}}",
+        "add_phase": "إضافة مرحلة",
+        "adding_phase": "جاري الإضافة...",
+        "add_procedure": "إضافة إجراء",
+        "no_procedures_in_phase": "لا توجد إجراءات مضافة لهذه المرحلة بعد.",
+        "no_candidate_procedures": "لا توجد إجراءات متاحة لهذا المريض.",
+        "select_procedure": "اختر إجراءً",
+        "remove_procedure": "إزالة الإجراء من المرحلة",
+        "status": {
+            "draft": "مسودة",
+            "proposed": "مقترحة",
+            "accepted": "مقبولة",
+            "completed": "مكتملة",
+            "cancelled": "ملغاة"
+        },
+        "actions": {
+            "propose": "تقديم المقترح",
+            "accept": "قبول الخطة",
+            "complete": "إكمال الخطة",
+            "cancel": "إلغاء الخطة"
+        },
+        "dialog": {
+            "title": "إنشاء خطة علاج",
+            "title_label": "عنوان الخطة",
+            "title_placeholder": "مثال: خطة إعادة تأهيل شاملة، علاج طارئ",
+            "notes_label": "ملاحظات (اختياري)",
+            "notes_placeholder": "ملاحظات سريرية، إستراتيجية العلاج، أو تفضيلات المريض...",
+            "submit": "إنشاء الخطة",
+            "cancel": "إلغاء",
+            "creating": "جاري الإنشاء..."
+        },
+        "add_procedure_dialog": {
+            "title": "إضافة إجراء إلى المرحلة",
+            "phase_label": "المرحلة المستهدفة",
+            "procedure_label": "اختر الإجراء",
+            "choose_placeholder": "-- اختر إجراءً --",
+            "submit": "إرفاق الإجراء",
+            "submitting": "جاري الإرفاق...",
+            "teeth": "الأسنان",
+            "surface": "السطح"
+        },
+        "alerts": {
+            "create_success": "تم إنشاء خطة العلاج بنجاح",
+            "create_error": "فشل إنشاء خطة العلاج",
+            "title_required": "عنوان الخطة مطلوب",
+            "add_phase_success": "تمت إضافة المرحلة بنجاح",
+            "add_phase_error": "فشل إضافة المرحلة",
+            "add_item_success": "تمت إضافة الإجراء إلى المرحلة بنجاح",
+            "add_item_error": "فشل إضافة الإجراء إلى المرحلة",
+            "remove_item_success": "تمت إزالة الإجراء من المرحلة بنجاح",
+            "remove_item_error": "فشل إزالة الإجراء من المرحلة",
+            "transition_success": "تم تحديث حالة خطة العلاج بنجاح",
+            "transition_error": "فشل تحديث حالة خطة العلاج"
+        }
+    },
     "inventory": {
+
         "title": "إدارة المخزون",
         "subtitle": "تتبع المواد، الكميات، وتواريخ الصلاحية داخل العيادة والمخزن الرئيسي",
         "tabs": {

@@ -797,7 +797,74 @@
             "upload_fail": "Failed to upload file"
         }
     },
+    "clinical_plans": {
+        "title": "Treatment Plans",
+        "subtitle": "Patient treatment plans and phases",
+        "new_plan": "New Plan",
+        "empty_state": "No treatment plans created yet.",
+        "empty_cta": "Create your first plan for this patient",
+        "collapse": "Collapse treatment plans",
+        "expand": "Expand treatment plans",
+        "default_phase": "Phase 1",
+        "phases_count": "Phase",
+        "phases_count_plural": "Phases",
+        "phase_n": "Phase {{n}}",
+        "add_phase": "Add Phase",
+        "adding_phase": "Adding...",
+        "add_procedure": "Add Procedure",
+        "no_procedures_in_phase": "No procedures attached to this phase yet.",
+        "no_candidate_procedures": "No available procedures found for this patient.",
+        "select_procedure": "Select a procedure",
+        "remove_procedure": "Remove procedure from phase",
+        "status": {
+            "draft": "Draft",
+            "proposed": "Proposed",
+            "accepted": "Accepted",
+            "completed": "Completed",
+            "cancelled": "Cancelled"
+        },
+        "actions": {
+            "propose": "Propose",
+            "accept": "Accept",
+            "complete": "Complete",
+            "cancel": "Cancel"
+        },
+        "dialog": {
+            "title": "Create Treatment Plan",
+            "title_label": "Plan Title",
+            "title_placeholder": "e.g. Comprehensive Rehabilitation, Urgent Care",
+            "notes_label": "Notes (optional)",
+            "notes_placeholder": "Clinical observations, strategy, or patient preferences...",
+            "submit": "Create Plan",
+            "cancel": "Cancel",
+            "creating": "Creating..."
+        },
+        "add_procedure_dialog": {
+            "title": "Add Procedure to Phase",
+            "phase_label": "Target Phase",
+            "procedure_label": "Select Procedure",
+            "choose_placeholder": "-- Select a procedure --",
+            "submit": "Attach Procedure",
+            "submitting": "Attaching...",
+            "teeth": "Teeth",
+            "surface": "Surface"
+        },
+        "alerts": {
+            "create_success": "Treatment plan created successfully",
+            "create_error": "Failed to create treatment plan",
+            "title_required": "Plan title is required",
+            "add_phase_success": "Phase added successfully",
+            "add_phase_error": "Failed to add phase",
+            "add_item_success": "Procedure added to phase successfully",
+            "add_item_error": "Failed to add procedure to phase",
+            "remove_item_success": "Procedure removed from phase",
+            "remove_item_error": "Failed to remove procedure from phase",
+            "transition_success": "Treatment plan status updated successfully",
+            "transition_error": "Failed to update treatment plan status"
+        }
+    },
     "inventory": {
+
         "title": "Inventory Management",
         "subtitle": "Track materials, quantities, and expiry dates within the clinic and warehouse",
         "tabs": {
