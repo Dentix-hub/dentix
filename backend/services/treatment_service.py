@@ -193,9 +193,13 @@ class TreatmentService:
     ) -> Optional[tuple[str, str, str, list[str]]]:
         """
         Extract and map legacy treatment attributes to clinical core representations:
-        returns (canonical_code, status, tooth_key, valid_surfs) or None if tooth is missing/invalid.
+        returns (canonical_code, status, tooth_key, valid_surfs) or None if tooth/patient is
+        missing/invalid or procedure is not in the canonical catalog or legacy allowlist.
         """
-        if not treatment.tooth_number:
+        if not treatment.patient_id or not treatment.tooth_number:
+            return None
+
+        if not treatment.procedure or not str(treatment.procedure).strip():
             return None
 
         tooth_key = str(treatment.tooth_number)
@@ -206,9 +210,15 @@ class TreatmentService:
         from backend.clinical.catalog import CANONICAL_PROCEDURE_CODES
         from backend.clinical.legacy_mapping import LEGACY_PROCEDURE_ALLOWLIST
 
-        canonical_code = treatment.procedure
-        if canonical_code not in CANONICAL_PROCEDURE_CODES:
-            canonical_code = LEGACY_PROCEDURE_ALLOWLIST.get(treatment.procedure, treatment.procedure)
+        raw_proc = str(treatment.procedure).strip()
+        if raw_proc in CANONICAL_PROCEDURE_CODES:
+            canonical_code = raw_proc
+        elif raw_proc in LEGACY_PROCEDURE_ALLOWLIST:
+            canonical_code = LEGACY_PROCEDURE_ALLOWLIST[raw_proc]
+        elif treatment.procedure in LEGACY_PROCEDURE_ALLOWLIST:
+            canonical_code = LEGACY_PROCEDURE_ALLOWLIST[treatment.procedure]
+        else:
+            return None
 
         status_raw = (treatment.status or "Done").lower()
         if status_raw in ("done", "completed"):
@@ -261,6 +271,7 @@ class TreatmentService:
         self,
         treatment: models.Treatment,
         surfaces: Optional[List[str]] = None,
+        provenance: Optional[str] = None,
     ) -> Optional[models.ClinicalWorkItem]:
         """
         Synchronize created treatment to ClinicalWorkItem and ClinicalEvent.
@@ -272,6 +283,8 @@ class TreatmentService:
 
         canonical_code, status, tooth_key, valid_surfs = mapping
 
+        created_by_user_id = treatment.doctor_id or (self.current_user.id if self.current_user else None)
+
         work_item = models.ClinicalWorkItem(
             tenant_id=self.tenant_id,
             patient_id=treatment.patient_id,
@@ -279,7 +292,7 @@ class TreatmentService:
             code=canonical_code,
             status=status,
             notes=treatment.notes,
-            created_by_user_id=treatment.doctor_id or self.current_user.id,
+            created_by_user_id=created_by_user_id,
         )
         self.db.add(work_item)
         await self.db.flush()
@@ -305,6 +318,17 @@ class TreatmentService:
                 )
             )
 
+        payload = {
+            "kind": "procedure",
+            "canonical_code": canonical_code,
+            "treatment_id": treatment.id,
+            "surfaces": valid_surfs,
+            "status": status,
+        }
+        if provenance:
+            payload["provenance"] = provenance
+            payload["source"] = "legacy_treatment"
+
         # Append ClinicalEvent
         event = models.ClinicalEvent(
             tenant_id=self.tenant_id,
@@ -312,13 +336,8 @@ class TreatmentService:
             work_item_id=work_item.id,
             event_type="procedure_recorded",
             occurred_at=treatment.date or datetime.now(timezone.utc).replace(tzinfo=None),
-            actor_user_id=treatment.doctor_id or self.current_user.id,
-            payload={
-                "kind": "procedure",
-                "canonical_code": canonical_code,
-                "treatment_id": treatment.id,
-                "surfaces": valid_surfs,
-            },
+            actor_user_id=treatment.doctor_id or (self.current_user.id if self.current_user else None),
+            payload=payload,
             notes=treatment.notes,
         )
         self.db.add(event)
@@ -500,6 +519,31 @@ class TreatmentService:
         self.db.add(event)
         await self.db.flush()
         return work_item
+
+    def map_treatment_to_clinical(
+        self,
+        treatment: models.Treatment,
+        surfaces: Optional[List[str]] = None,
+    ) -> Optional[tuple[str, str, str, list[str]]]:
+        """Public mapping helper returning (canonical_code, status, tooth_key, valid_surfs)."""
+        return self._map_treatment_to_clinical(treatment, surfaces=surfaces)
+
+    async def find_linked_clinical_work_item(
+        self, treatment_id: int, patient_id: int
+    ) -> Optional[models.ClinicalWorkItem]:
+        """Public lookup for ClinicalWorkItem linked to a treatment."""
+        return await self._find_linked_clinical_work_item(treatment_id, patient_id)
+
+    async def sync_legacy_treatment(
+        self,
+        treatment: models.Treatment,
+        surfaces: Optional[List[str]] = None,
+        provenance: Optional[str] = None,
+    ) -> Optional[models.ClinicalWorkItem]:
+        """Public entrypoint for backfill/synchronization of a legacy treatment."""
+        return await self._sync_clinical_work_item(
+            treatment, surfaces=surfaces, provenance=provenance
+        )
 
     async def create_treatment(
         self,
