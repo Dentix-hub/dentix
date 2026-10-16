@@ -46,3 +46,12 @@ export const deleteAttachment = (id) => api.delete(`/api/v1/attachments/${id}`);
 
 export const getPatientClinicalPlans = (patientId) => api.get(`/api/v1/patients/${patientId}/clinical-plans`);
 export const createPatientClinicalPlan = (patientId, data) => api.post(`/api/v1/patients/${patientId}/clinical-plans`, data);
+export const getPatientClinicalPlanCandidates = (patientId, planId) =>
+    api.get(`/api/v1/patients/${patientId}/clinical-plans/${planId}/candidate-work-items`);
+export const addPatientClinicalPlanPhase = (patientId, planId, data) =>
+    api.post(`/api/v1/patients/${patientId}/clinical-plans/${planId}/phases`, data);
+export const addPatientClinicalPlanItem = (patientId, planId, phaseId, data) =>
+    api.post(`/api/v1/patients/${patientId}/clinical-plans/${planId}/phases/${phaseId}/items`, data);
+export const removePatientClinicalPlanItem = (patientId, planId, phaseId, itemId) =>
+    api.delete(`/api/v1/patients/${patientId}/clinical-plans/${planId}/phases/${phaseId}/items/${itemId}`);
+

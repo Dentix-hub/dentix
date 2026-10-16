@@ -53,8 +53,13 @@ from .clinical import (
     ToothClinicalRecordResponse,
 )
 
-# Clinical Treatment Plans (Slice G9a)
+# Clinical Treatment Plans (Slice G9a & G9b)
 from .treatment_plan import (
+    ClinicalWorkItemTargetRead,
+    ClinicalWorkItemSummaryRead,
+    ClinicalTreatmentPlanItemCreate,
+    ClinicalTreatmentPlanItemRead,
+    ClinicalTreatmentPlanPhaseCreate,
     ClinicalTreatmentPlanPhaseRead,
     ClinicalTreatmentPlanCreate,
     ClinicalTreatmentPlanRead,
@@ -335,7 +340,12 @@ __all__ = [
     "WorkspaceToothSummary",
     "WorkspaceWorkItemSummary",
     "ClinicalWorkspaceSnapshot",
-    # Clinical Treatment Plans (Slice G9a)
+    # Clinical Treatment Plans (Slice G9a & G9b)
+    "ClinicalWorkItemTargetRead",
+    "ClinicalWorkItemSummaryRead",
+    "ClinicalTreatmentPlanItemCreate",
+    "ClinicalTreatmentPlanItemRead",
+    "ClinicalTreatmentPlanPhaseCreate",
     "ClinicalTreatmentPlanPhaseRead",
     "ClinicalTreatmentPlanCreate",
     "ClinicalTreatmentPlanRead",

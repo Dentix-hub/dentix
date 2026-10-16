@@ -10,11 +10,16 @@ import {
     Layers,
     FileText,
     Loader2,
+    Trash2,
 } from 'lucide-react';
 import { toast, DentixDialog } from '@/shared/ui';
 import {
     usePatientClinicalPlans,
     useCreatePatientClinicalPlan,
+    usePatientClinicalPlanCandidates,
+    useAddPatientClinicalPlanPhase,
+    useAddPatientClinicalPlanItem,
+    useRemovePatientClinicalPlanItem,
 } from '@/hooks/usePatientDetails';
 
 const TreatmentPlansCard = memo(({ patientId }) => {
@@ -26,6 +31,18 @@ const TreatmentPlansCard = memo(({ patientId }) => {
     const [title, setTitle] = useState('');
     const [notes, setNotes] = useState('');
 
+    // Accordion state per plan ID (default to expanded)
+    const [expandedPlans, setExpandedPlans] = useState({});
+
+    // Add Procedure Modal state
+    const [procedureModal, setProcedureModal] = useState({
+        open: false,
+        planId: null,
+        phaseId: null,
+        phaseName: '',
+    });
+    const [selectedWorkItemId, setSelectedWorkItemId] = useState('');
+
     const {
         data: plans = [],
         isLoading,
@@ -34,6 +51,31 @@ const TreatmentPlansCard = memo(({ patientId }) => {
     } = usePatientClinicalPlans(patientId, { enabled: !!patientId });
 
     const createPlanMutation = useCreatePatientClinicalPlan();
+    const addPhaseMutation = useAddPatientClinicalPlanPhase();
+    const addPlanItemMutation = useAddPatientClinicalPlanItem();
+    const removePlanItemMutation = useRemovePatientClinicalPlanItem();
+
+    const {
+        data: candidates = [],
+        isLoading: isCandidatesLoading,
+    } = usePatientClinicalPlanCandidates(patientId, procedureModal.planId, {
+        enabled: !!patientId && !!procedureModal.planId && procedureModal.open,
+    });
+
+    // Determine available candidates for the active phase
+    const activePlan = plans.find((p) => p.id === procedureModal.planId);
+    const activePhase = activePlan?.phases?.find((ph) => ph.id === procedureModal.phaseId);
+    const attachedWorkItemIds = new Set((activePhase?.items || []).map((it) => it.work_item_id));
+    const availableCandidates = candidates.filter((c) => !attachedWorkItemIds.has(c.id));
+
+    const isPlanExpanded = (planId) => expandedPlans[planId] ?? true;
+
+    const togglePlanExpanded = (planId) => {
+        setExpandedPlans((prev) => ({
+            ...prev,
+            [planId]: !(prev[planId] ?? true),
+        }));
+    };
 
     const handleOpenCreate = () => {
         setTitle('');
@@ -71,6 +113,81 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                 err?.response?.data?.detail ||
                 err?.message ||
                 t('clinical_plans.alerts.create_error', 'Failed to create treatment plan')
+            );
+        }
+    };
+
+    const handleAddPhase = async (plan) => {
+        const nextNumber = (plan.phases?.length || 0) + 1;
+        const defaultName = t('clinical_plans.phase_n', 'Phase {{n}}', { n: nextNumber });
+        try {
+            await addPhaseMutation.mutateAsync({
+                patientId,
+                planId: plan.id,
+                data: { name: defaultName },
+            });
+            toast.success(t('clinical_plans.alerts.add_phase_success', 'Phase added successfully'));
+        } catch (err) {
+            toast.error(
+                err?.response?.data?.detail ||
+                err?.message ||
+                t('clinical_plans.alerts.add_phase_error', 'Failed to add phase')
+            );
+        }
+    };
+
+    const handleOpenAddProcedure = (planId, phaseId, phaseName) => {
+        setSelectedWorkItemId('');
+        setProcedureModal({
+            open: true,
+            planId,
+            phaseId,
+            phaseName,
+        });
+    };
+
+    const handleCloseAddProcedure = () => {
+        if (addPlanItemMutation.isPending) return;
+        setProcedureModal({ open: false, planId: null, phaseId: null, phaseName: '' });
+        setSelectedWorkItemId('');
+    };
+
+    const handleSubmitAddProcedure = async (e) => {
+        e.preventDefault();
+        if (!selectedWorkItemId) return;
+
+        try {
+            await addPlanItemMutation.mutateAsync({
+                patientId,
+                planId: procedureModal.planId,
+                phaseId: procedureModal.phaseId,
+                data: { work_item_id: Number(selectedWorkItemId) },
+            });
+            toast.success(t('clinical_plans.alerts.add_item_success', 'Procedure added to phase successfully'));
+            handleCloseAddProcedure();
+        } catch (err) {
+            toast.error(
+                err?.response?.data?.detail ||
+                err?.message ||
+                t('clinical_plans.alerts.add_item_error', 'Failed to add procedure to phase')
+            );
+        }
+    };
+
+    const handleRemoveItem = async (planId, phaseId, itemId) => {
+        try {
+            await removePlanItemMutation.mutateAsync({
+                patientId,
+                planId,
+                phaseId,
+                itemId,
+            });
+            toast.success(t('clinical_plans.alerts.remove_item_success', 'Procedure removed from phase'));
+        } catch (err) {
+            toast.error(
+                err?.response?.data?.detail ||
+                err?.message ||
+                t('clinical_plans.alerts.remove_item_error', 'Failed to remove procedure from phase')
             );
         }
     };
@@ -176,9 +293,8 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                     ) : (
                         <div data-testid="clinical-plans-list" className="space-y-3">
                             {plans.map((plan) => {
-                                const phasesCount = plan.phases?.length || 1;
-                                const defaultPhaseName =
-                                    plan.phases?.[0]?.name || t('clinical_plans.default_phase', 'Phase 1');
+                                const phasesCount = plan.phases?.length || 0;
+                                const isExpanded = isPlanExpanded(plan.id);
                                 const formattedDate = plan.created_at
                                     ? new Date(plan.created_at).toLocaleDateString(i18n.language, {
                                           year: 'numeric',
@@ -208,18 +324,16 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                                                             plan.status === 'draft' ? 'Draft' : plan.status
                                                         )}
                                                     </span>
-
                                                 </div>
 
                                                 <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
                                                     <span className="inline-flex items-center gap-1">
                                                         <Layers size={14} className="text-slate-400" />
                                                         <span>
-                                                            {defaultPhaseName} ({phasesCount}{' '}
+                                                            {phasesCount}{' '}
                                                             {phasesCount === 1
                                                                 ? t('clinical_plans.phases_count', 'Phase')
                                                                 : t('clinical_plans.phases_count_plural', 'Phases')}
-                                                            )
                                                         </span>
                                                     </span>
 
@@ -238,7 +352,145 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                                                     </div>
                                                 )}
                                             </div>
+
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    data-testid={`add-phase-button-${plan.id}`}
+                                                    onClick={() => handleAddPhase(plan)}
+                                                    disabled={addPhaseMutation.isPending}
+                                                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                                >
+                                                    {addPhaseMutation.isPending ? (
+                                                        <Loader2 size={13} className="animate-spin" />
+                                                    ) : (
+                                                        <Plus size={13} />
+                                                    )}
+                                                    <span>{t('clinical_plans.add_phase', 'Add Phase')}</span>
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    data-testid={`toggle-plan-accordion-${plan.id}`}
+                                                    onClick={() => togglePlanExpanded(plan.id)}
+                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                                                    aria-label={isExpanded ? t('clinical_plans.collapse', 'Collapse') : t('clinical_plans.expand', 'Expand')}
+                                                >
+                                                    {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                                                </button>
+                                            </div>
                                         </div>
+
+                                        {/* Phases Accordion Content */}
+                                        {isExpanded && (
+                                            <div
+                                                data-testid={`plan-phases-accordion-${plan.id}`}
+                                                className="mt-4 space-y-3 border-t border-slate-100 pt-3 dark:border-slate-800/70"
+                                            >
+                                                {(plan.phases || []).map((phase) => (
+                                                    <div
+                                                        key={phase.id}
+                                                        data-testid={`clinical-phase-item-${phase.id}`}
+                                                        className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-3.5 dark:border-slate-800 dark:bg-slate-900/40"
+                                                    >
+                                                        {/* Phase Header */}
+                                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-100 text-xs font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                                                    {phase.phase_order + 1}
+                                                                </span>
+                                                                <h5 className="font-semibold text-slate-800 dark:text-slate-100">
+                                                                    {phase.name}
+                                                                </h5>
+                                                                <span
+                                                                    data-testid={`phase-status-${phase.id}`}
+                                                                    className="inline-flex items-center rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                                                >
+                                                                    {t(`clinical_plans.status.${phase.status}`, phase.status)}
+                                                                </span>
+                                                            </div>
+
+                                                            <button
+                                                                type="button"
+                                                                data-testid={`add-procedure-button-${phase.id}`}
+                                                                onClick={() => handleOpenAddProcedure(plan.id, phase.id, phase.name)}
+                                                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                                            >
+                                                                <Plus size={13} />
+                                                                <span>{t('clinical_plans.add_procedure', 'Add Procedure')}</span>
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Phase Items */}
+                                                        <div className="mt-3 space-y-1.5">
+                                                            {!phase.items || phase.items.length === 0 ? (
+                                                                <div
+                                                                    data-testid={`phase-empty-${phase.id}`}
+                                                                    className="py-2.5 text-center text-xs text-slate-400 dark:text-slate-500"
+                                                                >
+                                                                    {t(
+                                                                        'clinical_plans.no_procedures_in_phase',
+                                                                        'No procedures attached to this phase yet.'
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                phase.items.map((item) => {
+                                                                    const targetsDesc = (item.work_item?.targets || [])
+                                                                        .map((tg) =>
+                                                                            tg.tooth_key
+                                                                                ? `${tg.tooth_key}${tg.surface ? ` (${tg.surface})` : ''}`
+                                                                                : ''
+                                                                        )
+                                                                        .filter(Boolean)
+                                                                        .join(', ');
+
+                                                                    return (
+                                                                        <div
+                                                                            key={item.id}
+                                                                            data-testid={`phase-item-${item.id}`}
+                                                                            className="flex items-center justify-between rounded-lg border border-slate-200/70 bg-white px-3 py-2 text-xs shadow-xs dark:border-slate-800 dark:bg-slate-950/70"
+                                                                        >
+                                                                            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                                                                <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                                                                    {item.work_item?.display_name ||
+                                                                                        item.work_item?.procedure_code ||
+                                                                                        `Item #${item.id}`}
+                                                                                </span>
+                                                                                {targetsDesc && (
+                                                                                    <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                                                                                        {targetsDesc}
+                                                                                    </span>
+                                                                                )}
+                                                                                {item.work_item?.status && (
+                                                                                    <span className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+                                                                                        {t(
+                                                                                            `clinical_plans.status.${item.work_item.status}`,
+                                                                                            item.work_item.status
+                                                                                        )}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+
+                                                                            <button
+                                                                                type="button"
+                                                                                data-testid={`remove-phase-item-${item.id}`}
+                                                                                onClick={() => handleRemoveItem(plan.id, phase.id, item.id)}
+                                                                                disabled={removePlanItemMutation.isPending}
+                                                                                title={t('clinical_plans.remove_procedure', 'Remove procedure from phase')}
+                                                                                aria-label={t('clinical_plans.remove_procedure', 'Remove procedure from phase')}
+                                                                                className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                                                                            >
+                                                                                <Trash2 size={13} />
+                                                                            </button>
+                                                                        </div>
+                                                                    );
+                                                                })
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -332,6 +584,107 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                                 {createPlanMutation.isPending
                                     ? t('clinical_plans.dialog.creating', 'Creating...')
                                     : t('clinical_plans.dialog.submit', 'Create Plan')}
+                            </span>
+                        </button>
+                    </div>
+                </form>
+            </DentixDialog>
+
+            {/* Add Procedure Dialog */}
+            <DentixDialog
+                open={procedureModal.open}
+                onOpenChange={(open) => {
+                    if (!open) handleCloseAddProcedure();
+                }}
+                title={`${t('clinical_plans.add_procedure_dialog.title', 'Add Procedure to Phase')} — ${procedureModal.phaseName}`}
+                size="md"
+                closeLabel={t('common.close', 'Close')}
+                closeOnOutside={!addPlanItemMutation.isPending}
+            >
+                <form
+                    data-testid="add-procedure-dialog"
+                    onSubmit={handleSubmitAddProcedure}
+                    className="space-y-4"
+                    dir={isRtl ? 'rtl' : 'ltr'}
+                >
+                    {isCandidatesLoading ? (
+                        <div
+                            data-testid="candidates-loading"
+                            className="flex items-center justify-center py-6 text-sm text-slate-500"
+                        >
+                            <Loader2 size={18} className="animate-spin ltr:mr-2 rtl:ml-2" />
+                            <span>{t('common.loading', 'Loading...')}</span>
+                        </div>
+                    ) : availableCandidates.length === 0 ? (
+                        <div
+                            data-testid="no-candidates-message"
+                            className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400"
+                        >
+                            {t(
+                                'clinical_plans.no_candidate_procedures',
+                                'No available procedures found for this patient.'
+                            )}
+                        </div>
+                    ) : (
+                        <div>
+                            <label
+                                htmlFor="candidate-procedure-select"
+                                className="block text-xs font-semibold text-slate-700 dark:text-slate-300"
+                            >
+                                {t('clinical_plans.add_procedure_dialog.procedure_label', 'Select Procedure')}{' '}
+                                <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                                id="candidate-procedure-select"
+                                data-testid="candidate-procedure-select"
+                                required
+                                value={selectedWorkItemId}
+                                onChange={(e) => setSelectedWorkItemId(e.target.value)}
+                                className="mt-1.5 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                            >
+                                <option value="">
+                                    {t('clinical_plans.add_procedure_dialog.choose_placeholder', '-- Select a procedure --')}
+                                </option>
+                                {availableCandidates.map((candidate) => {
+                                    const targetStr = (candidate.targets || [])
+                                        .map((tg) => (tg.tooth_key ? `${tg.tooth_key}${tg.surface ? ` (${tg.surface})` : ''}` : ''))
+                                        .filter(Boolean)
+                                        .join(', ');
+                                    const label = `${candidate.display_name || candidate.procedure_code}${targetStr ? ` — [${targetStr}]` : ''} (${candidate.status})`;
+
+                                    return (
+                                        <option key={candidate.id} value={candidate.id}>
+                                            {label}
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                        </div>
+                    )}
+
+                    <div className="flex items-center justify-end gap-2 pt-2">
+                        <button
+                            type="button"
+                            data-testid="cancel-add-procedure"
+                            onClick={handleCloseAddProcedure}
+                            disabled={addPlanItemMutation.isPending}
+                            className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                        >
+                            {t('clinical_plans.dialog.cancel', 'Cancel')}
+                        </button>
+                        <button
+                            type="submit"
+                            data-testid="submit-add-procedure"
+                            disabled={!selectedWorkItemId || addPlanItemMutation.isPending || availableCandidates.length === 0}
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60"
+                        >
+                            {addPlanItemMutation.isPending && (
+                                <Loader2 size={14} className="animate-spin" />
+                            )}
+                            <span>
+                                {addPlanItemMutation.isPending
+                                    ? t('clinical_plans.add_procedure_dialog.submitting', 'Attaching...')
+                                    : t('clinical_plans.add_procedure_dialog.submit', 'Attach Procedure')}
                             </span>
                         </button>
                     </div>
