@@ -1,0 +1,421 @@
+<!-- CLASSIFICATION: ACTIVE -->
+# DENTIX Odontogram & Clinical VNext — Master Execution Queue
+
+**Authority Hierarchy:** `AGENTS.md` > `PROJECT_STANDARDS.md` & `docs/engineering/DEVELOPMENT_WORKFLOW.md` > `docs/product/ODONTOGRAM_VNEXT_PRODUCT_SPEC.md` & `docs/product/ODONTOGRAM_TRACEABILITY_MATRIX.md` > this document (`docs/product/ODONTOGRAM_EXECUTION_QUEUE.md`).  
+**Classification:** `ACTIVE`  
+**Baseline Commit (`origin/staging`):** `f9fcae4b3824850f0d6f0e261d0c55dc4a56cdd2`  
+**Purpose:** Complete architectural planning layer for Gemini Flash slice-by-slice execution. Flash must never invent architectural decisions, flags, routes, or schema changes; if real code contradicts a slice card, Flash must STOP and report.
+
+---
+
+## 1. Phase 1: Ground-Truth Coverage Table (`G4`, `G7`–`G16`)
+
+Every matrix ID below is verified against `origin/staging` (`f9fcae4b`) and `docs/product/ODONTOGRAM_TRACEABILITY_MATRIX.md:217-386`. Part I (`A0`–`A17`) and Part II foundations (`G0`–`G3`, `G5`, `G6`) are `DONE` in code (`PR #222`, `PR #226`, `PR #228`).
+
+> **Note on Prior Tracker Inaccuracies Corrected Here:**
+> - `docs/product/ODONTOGRAM_IMPLEMENTATION_STATUS.md:47` cited `test_clinical_backfill.py` (35 tests); the real file is `backend/tests/services/test_clinical_backfill.py` containing **8 async tests** (100% line coverage of the test module).
+> - `docs/product/ODONTOGRAM_IMPLEMENTATION_STATUS.md:48` cited `backend/routers/clinical_workspace.py`; that file does not exist. The real route is `GET /api/v1/patients/{patient_id}/clinical-workspace` in `backend/routers/patients.py:217-232`.
+> - `docs/product/ODONTOGRAM_IMPLEMENTATION_STATUS.md:60` cited `backend/config.py:120` (`clinical_vnext_rollout_mode`); neither `backend/config.py` nor `clinical_vnext_rollout_mode` exists. Config lives at `backend/core/config.py`, and rollout mode is resolved per tenant in `backend/services/clinical_workspace_service.py:997-1017`.
+
+### 1.1 Item-by-Item Coverage Ledger (154 Matrix Items)
+
+| Matrix ID | Exact Matrix Title | Status on `origin/staging` | Slice | Code / Test / PR Evidence (`file:line`) |
+|---|---|:---:|:---:|---|
+| `G4-M01` | Add dry-run mode | **DONE** | S01 (ops) | `scripts/backfill_clinical_work_items.py:255-260` (dry-run default), `backend/tests/services/test_clinical_backfill.py:147`, PR #227 |
+| `G4-M02` | Add tenant-scoped execution | **DONE** | S01 (ops) | `scripts/backfill_clinical_work_items.py:112-125,244-252`, `backend/tests/services/test_clinical_backfill.py:276`, PR #227 |
+| `G4-M03` | Add batch processing | **DONE** | S01 (ops) | `scripts/backfill_clinical_work_items.py:138-156,261-265`, `backend/tests/services/test_clinical_backfill.py:331`, PR #227 |
+| `G4-M04` | Add resume checkpointing | **DONE** | S01 (ops) | `scripts/backfill_clinical_work_items.py:136-160,267-271` (`--after-id`), `backend/tests/services/test_clinical_backfill.py:349`, PR #227 |
+| `G4-M05` | Backfill treatments | **DONE** | S01 (ops) | `scripts/backfill_clinical_work_items.py:157-200` (`sync_legacy_treatment`), `backend/tests/services/test_clinical_backfill.py:177`, PR #227 |
+| `G4-M06` | Backfill tooth-status events | **NOT_STARTED** | **S03** | Mapper `map_legacy_tooth_status` exists at `backend/clinical/legacy_mapping.py:872`, but CLI `scripts/backfill_clinical_work_items.py:140` only scans `models.Treatment`. |
+| `G4-M07` | Backfill legacy care sessions | **NOT_STARTED** | **S03** | Mapper `map_legacy_treatment_session` exists at `backend/clinical/legacy_mapping.py:995`, but CLI does not scan `models.TreatmentSession`. |
+| `G4-M08` | Backfill exact lab relationships | **NOT_STARTED** | **S27** | Resolver `resolve_exact_lab_link` exists at `backend/clinical/legacy_mapping.py:1109`; blocked on `lab_orders.work_item_id` FK migration in S27. |
+| `G4-M09` | Backfill deterministic attachment links only | **NOT_STARTED** | **S23** | `ClinicalAttachmentLink` exists at `backend/models/clinical_core.py:582`; CLI does not backfill links yet. Paired with `G15-M09`. |
+| `G4-M10` | Verify record counts | **DONE** | S01 (ops) | `TenantBackfillReport` in `scripts/backfill_clinical_work_items.py:50-109`, `backend/tests/services/test_clinical_backfill.py:318`, PR #227 |
+| `G4-M11` | Verify old data unchanged | **DONE** | S01 (ops) | `backend/tests/services/test_clinical_backfill.py:361` (`test_legacy_treatments_unmodified`), PR #227 |
+| `G4-M12` | Verify inventory unchanged | **PARTIAL** | **S03** | CLI does not touch inventory tables, but `backend/tests/services/test_clinical_backfill.py` lacks explicit `StockMovement`/`TreatmentMaterialUsage` count assertions. |
+| `G4-M13` | Verify payments unchanged | **PARTIAL** | **S03** | CLI does not touch `models.Payment`, but `backend/tests/services/test_clinical_backfill.py` lacks explicit `Payment` count assertions. |
+| `G4-M14` | Generate backfill report | **DONE** | S01 (ops) | `TenantBackfillReport.to_dict`/`format_text` and `--json` in `scripts/backfill_clinical_work_items.py:73-109,273-277`, PR #227 |
+| `G7-M01` | Create command service | **PARTIAL** | **S04** | Legacy sync helpers exist in `backend/services/treatment_service.py:270-521` and `backend/services/clinical_service.py:132-222`; standalone native `ClinicalCommandService` not yet created. |
+| `G7-M02` | Add work item create API | **NOT_STARTED** | **S04** | No standalone `POST /api/v1/patients/{patient_id}/clinical-work-items` endpoint exists. |
+| `G7-M03` | Add work item update API | **PARTIAL** | **S04** | Legacy update syncs via `_sync_clinical_work_item_update` (`backend/services/treatment_service.py:369-486`, PR #226); no standalone `PATCH` work-item route exists. |
+| `G7-M04` | Add finding create API | **PARTIAL** | **S05** | `POST /api/v1/treatments/finding` (`backend/routers/treatments.py:120-150`, `backend/services/clinical_service.py:343-394`, PR #220/#221) exists without `clinical_vnext_native_writes` gate or patient-scoped route. |
+| `G7-M05` | Add bulk finding API | **PARTIAL** | **S05** | `POST /api/v1/treatments/finding` accepts multiple findings on one tooth (`backend/routers/treatments.py:125-150`), not multi-tooth bulk findings. |
+| `G7-M06` | Add procedure create API | **PARTIAL** | **S05** | `POST /api/v1/treatments` creates legacy `Treatment` + shadow work item (`backend/services/treatment_service.py:548-667`); no standalone native procedure endpoint. |
+| `G7-M07` | Add bulk procedure API | **PARTIAL** | **S05** | `POST /api/v1/treatments/multi-procedure` (`backend/routers/treatments.py:103-117`, `backend/services/treatment_service.py:669-736`, PR #220/#221) is single-tooth legacy-backed. |
+| `G7-M08` | Add event correction API | **NOT_STARTED** | **S06** | `ClinicalWorkspaceService` reduces `supersedes_event_id` and `entered_in_error` (`backend/services/clinical_workspace_service.py:219-330`), but no write API exists. |
+| `G7-M09` | Add workspace read API | **DONE** | — | `GET /api/v1/patients/{patient_id}/clinical-workspace` in `backend/routers/patients.py:217-232`, `backend/services/clinical_workspace_service.py:129-995`, `backend/tests/test_clinical_workspace_service.py`, PR #222 |
+| `G7-M10` | Add tooth detail API | **PARTIAL** | **S06** | `GET /api/v1/treatments/tooth/{patient_id}/{tooth_str}` (`backend/routers/treatments.py:179-195`, `backend/services/clinical_service.py:415-507`); lacks full event/observation detail and patient-scoped path. |
+| `G7-M11` | Add history API | **NOT_STARTED** | **S06** | No patient-scoped clinical event history endpoint (`GET /api/v1/patients/{patient_id}/clinical-events`) exists. |
+| `G7-M12` | Add permission enforcement | **PARTIAL** | **S04** | Enforced on workspace (`backend/routers/patients.py:225`) and plans (`backend/routers/treatment_plans.py:29,48`); must be enforced on all new G7 command/query endpoints. |
+| `G7-M13` | Add tenant security tests | **PARTIAL** | **S07** | Covered for workspace & plans; required for all standalone G7 command/query endpoints. |
+| `G7-M14` | Add API contract tests | **PARTIAL** | **S07** | Covered for workspace & plans; required for all standalone G7 command/query endpoints. |
+| `G7-M15` | Add idempotency keys | **NOT_STARTED** | **S07** | No idempotency key header/payload handling exists on clinical command endpoints. |
+| `G7-M16` | Add optimistic concurrency handling | **PARTIAL** | **S07** | `version_id` exists on `ClinicalWorkItem` (`backend/models/clinical_core.py:115,128-130`) and `StaleDataError` -> 409 is in `TreatmentPlanService` (`backend/services/treatment_plan_service.py:477-481`, PR #232); needed on work-item mutations. |
+| `G8-M01` | Add tooth selection state | **PARTIAL** | **S08** | Exists in standalone `frontend/src/features/clinical-chart/ClinicalChartWorkspace.jsx:35-65`, but `frontend/src/pages/PatientDetails.jsx:103-140,590` opens `TreatmentModal` immediately on click. |
+| `G8-M02` | Add quick action launcher | **NOT_STARTED** | **S09** | Not started in `frontend/src/pages/PatientDetails.jsx` or `frontend/src/features/clinical-chart/`. |
+| `G8-M03` | Add tooth-first flow | **PARTIAL** | **S10** | `PatientDetails.jsx:103-120` pre-fills tooth in `TreatmentModal`; needs chairside quick-launcher flow without giant modal. |
+| `G8-M04` | Add procedure-first flow | **PARTIAL** | **S10** | `PatientDetails.jsx:501-507,667-693` opens tooth-select modal (`ClinicalChartRenderer`, PR #228) then `TreatmentModal`; needs procedure-first tool selection. |
+| `G8-M05` | Add sticky tool mode | **NOT_STARTED** | **S10** | Not started. |
+| `G8-M06` | Add multi-select | **NOT_STARTED** | **S08** | No multi-tooth selection state in `PatientDetails.jsx`. |
+| `G8-M07` | Add direct surface interaction | **PARTIAL** | **S08** | `DentalChartSVG.jsx:320-380` & `PatientDetails.jsx:122-140,161-163` support surface click -> `TreatmentModal` (PR #220/#221); needs inline surface target selection. |
+| `G8-M08` | Add favorites | **NOT_STARTED** | **S09** | Not started. |
+| `G8-M09` | Add recents | **NOT_STARTED** | **S09** | Not started. |
+| `G8-M10` | Add search | **NOT_STARTED** | **S09** | Not started. |
+| `G8-M11` | Add smart defaults | **NOT_STARTED** | **S09** | Not started. |
+| `G8-M12` | Add undo stack | **DROPPED** | **S00** | Approved DROP by Eslam; reclassified in S00. |
+| `G8-M13` | Add consequence-aware remove | **NOT_STARTED** | **S11** | Not started. |
+| `G8-M14` | Measure click budget | **NOT_STARTED** | **S11** | Not started. |
+| `G8-M15` | De-emphasize old giant modal | **NOT_STARTED** | **S11** | `TreatmentModal` (`frontend/src/pages/PatientDetails.jsx:644-653`) is still opened on every tooth/surface click. |
+| `G9-M01` | Create treatment plan service | **DONE** | — | `backend/services/treatment_plan_service.py:51-508`, `backend/tests/services/test_treatment_plan_service.py` (26 tests), PR #230/#231/#232 |
+| `G9-M02` | Add plan create API | **DONE** | — | `POST /api/v1/patients/{patient_id}/clinical-plans` & `GET` in `backend/routers/treatment_plans.py:19-56`, PR #230 |
+| `G9-M03` | Add phase CRUD/reorder | **PARTIAL** | **S12** | `add_phase` (`POST .../phases`, `backend/routers/treatment_plans.py:78-96`, PR #231) is DONE; phase update/reorder/delete endpoints & UI remain. |
+| `G9-M04` | Add work item membership API | **DONE** | — | `POST .../phases/{phase_id}/items` & `DELETE .../items/{item_id}` in `backend/routers/treatment_plans.py:99-140`, PR #231 |
+| `G9-M05` | Support shared work items across plans | **DONE** | — | `uq_ctpi_phase_work_item` in `backend/models/clinical_core.py:274`, `backend/tests/services/test_treatment_plan_service.py`, PR #231 |
+| `G9-M06` | Add plan lifecycle states | **DONE** | — | `ALLOWED_PLAN_TRANSITIONS` in `backend/services/treatment_plan_service.py:33-39`, `POST .../transition` in `backend/routers/treatment_plans.py:143-161`, PR #232 |
+| `G9-M07` | Add accept-plan flow | **DONE** | — | `TreatmentPlanService.transition_plan` (`backend/services/treatment_plan_service.py:435-492`), `TreatmentPlansCard.jsx`, PR #232 |
+| `G9-M08` | Preserve alternatives | **DONE** | — | Verified in `backend/tests/services/test_treatment_plan_service.py`, `TreatmentPlansCard.jsx`, PR #232 |
+| `G9-M09` | Add plan overlay to chart | **NOT_STARTED** | **S12** | Not started. |
+| `G9-M10` | Add estimate projection | **NOT_STARTED** | **S13** | Not started (D2: dynamic estimate from catalog/price list, no DB snapshot). |
+| `G9-M11` | Add plan comparison UX | **NOT_STARTED** | **S14** | Not started. |
+| `G9-M12` | Add legacy safety rules | **NOT_STARTED** | **S15** | Transitions verified in G9c; full plan/phase/estimate non-interference guardrails & tests assigned to S15 (HIGH_RISK). |
+| `G9-M13` | Add concurrency tests | **PARTIAL** | **S16** | `StaleDataError` -> 409 and `IntegrityError` retry tested in `backend/tests/services/test_treatment_plan_service.py`; phase reorder & multi-actor contention tests in S16. |
+| `G9-M14` | Add E2E scenario | **NOT_STARTED** | **S17** | End-to-end treatment plan workflow scenario test assigned to S17. |
+| `G10-M01` | Create care session service | **NOT_STARTED** | **S18** | Table `care_sessions` exists at `backend/models/clinical_core.py:383-431`; service not started. |
+| `G10-M02` | Add start-session command | **NOT_STARTED** | **S18** | Not started. |
+| `G10-M03` | Add finish-session command | **NOT_STARTED** | **S18** | Not started. |
+| `G10-M04` | Add step add/update API | **NOT_STARTED** | **S19** | Table `care_session_steps` exists at `backend/models/clinical_core.py:434-476`; API not started. |
+| `G10-M05` | Add partial-step support | **NOT_STARTED** | **S19** | Not started. |
+| `G10-M06` | Add repeatable-step support | **DROPPED** | **S00** | Approved DROP by Eslam; reclassified in S00. |
+| `G10-M07` | Add observation API | **NOT_STARTED** | **S19** | Table `care_observations` exists at `backend/models/clinical_core.py:479-520`; API not started. |
+| `G10-M08` | Build minimal RCT structured UI | **NOT_STARTED** | **S20** | Not started. |
+| `G10-M09` | Add canal-target UI | **NOT_STARTED** | **S20** | Target kind `'canal'` with `root_id`/`canal_id` exists in `backend/models/clinical_core.py:82,143-186`; UI not started. |
+| `G10-M10` | Add working-length structured entry | **NOT_STARTED** | **S20** | Not started. |
+| `G10-M11` | Add compact finish-session sheet | **NOT_STARTED** | **S20** | Not started. |
+| `G10-M12` | Build resume engine | **NOT_STARTED** | **S21** | Not started. |
+| `G10-M13` | Add continue-treatment card | **NOT_STARTED** | **S21** | Not started. |
+| `G10-M14` | Add clinical summary generation | **NOT_STARTED** | **S21** | Not started. |
+| `G10-M15` | Preserve free notes | **NOT_STARTED** | **S19** | `care_sessions.notes` & `care_session_steps.notes` exist in `backend/models/clinical_core.py:399,452`. |
+| `G10-M16` | Add template deviation support | **DROPPED** | **S00** | Approved DROP by Eslam; reclassified in S00. |
+| `G10-M17` | Add finalization audit trail | **NOT_STARTED** | **S19** | Not started. |
+| `G10-M18` | Add concurrent session protection | **NOT_STARTED** | **S18** | D3: strictly one active (`in_progress`) care session per patient. |
+| `G10-M19` | Migrate new writes away from free-text-only session model | **NOT_STARTED** | **S21** | Gated behind `clinical_vnext_native_writes`. |
+| `G10-M20` | Add RCT scenario integration test | **NOT_STARTED** | **S21** | Not started. |
+| `G11-M01` | Link session to appointment | **NOT_STARTED** | **S22** | Column `care_sessions.appointment_id` FK (`appointments.id`) already exists at `backend/models/clinical_core.py:394`; service/API not started. |
+| `G11-M02` | Add next-visit request creation | **NOT_STARTED** | **S22** | Table `next_visit_requests` exists at `backend/models/clinical_core.py:542-580`; service/API not started. |
+| `G11-M03` | Add auto-suggestion from workflow template | **DROPPED** | **S00** | Approved DROP by Eslam; reclassified in S00. |
+| `G11-M04` | Add reception queue | **NOT_STARTED** | **S25** | Not started. |
+| `G11-M05` | Convert request to appointment | **NOT_STARTED** | **S25** |Note: `next_visit_requests` (`backend/models/clinical_core.py:551-565`) and `appointments` (`backend/models/clinical.py:21-60`) have no FK between them; status/note conversion needs no migration, or optional FK in migration group. |
+| `G11-M06` | Populate appointment reason | **NOT_STARTED** | **S22** | `next_visit_requests.reason` exists at `backend/models/clinical_core.py:557`. |
+| `G11-M07` | Suggest duration | **NOT_STARTED** | **S22** | `next_visit_requests.suggested_duration_minutes` exists at `backend/models/clinical_core.py:558`. |
+| `G11-M08` | Prevent auto-booking without user action | **NOT_STARTED** | **S22** | Hard invariant (`ODONTOGRAM_VNEXT_PRODUCT_SPEC.md:40`). |
+| `G11-M09` | Handle appointment cancellation safely | **NOT_STARTED** | **S25** | Not started. |
+| `G11-M10` | Handle appointment completion safely | **NOT_STARTED** | **S25** | Not started. |
+| `G11-M11` | Add integration tests | **NOT_STARTED** | **S25** | Not started. |
+| `G11-M12` | Add idempotency/race tests | **NOT_STARTED** | **S25** | Not started. |
+| `G12-M01` | Add real FK from lab order to work item | **NOT_STARTED** | **S27** | **NEEDS_MIGRATION**: `models.LabOrder` (`backend/models/clinical.py:326-360`) has no `work_item_id` column. |
+| `G12-M02` | Add exact legacy migration support | **NOT_STARTED** | **S27** | Uses `resolve_exact_lab_link` (`backend/clinical/legacy_mapping.py:1109`). |
+| `G12-M03` | Stop using note-string linkage for new data | **NOT_STARTED** | **S27** | Not started. |
+| `G12-M04` | Create lab requirement definition | **NOT_STARTED** | **S28** | Not started. |
+| `G12-M05` | Add lab-ready trigger | **NOT_STARTED** | **S28** | Not started. |
+| `G12-M06` | Add one-tap lab handoff sheet | **NOT_STARTED** | **S28** | Not started. |
+| `G12-M07` | Allow missing optional lab data | **NOT_STARTED** | **S27** | `shade`/`material`/`tooth_number` are nullable on `models.LabOrder` (`backend/models/clinical.py:349-351`). |
+| `G12-M08` | Create lab order without creating duplicate treatment | **NOT_STARTED** | **S28** | Not started. |
+| `G12-M09` | Decouple lab price from synthetic treatment creation | **NOT_STARTED** | **S28** | Not started. |
+| `G12-M10` | Add lab status mapping | **NOT_STARTED** | **S29** | Not started. |
+| `G12-M11` | Reflect lab state in work item | **NOT_STARTED** | **S29** | D4: badge/notification only; must NOT auto-change work item status. |
+| `G12-M12` | Prevent auto-complete when lab is ready | **NOT_STARTED** | **S29** | Enforced by D4. |
+| `G12-M13` | Add shade/material sync rules | **NOT_STARTED** | **S29** | Not started. |
+| `G12-M14` | Support bridge semantics | **DROPPED** | **S00** | Approved DROP by Eslam; reclassified in S00. |
+| `G12-M15` | Add duplicate-billing regression test | **NOT_STARTED** | **S29** | Not started. |
+| `G12-M16` | Add handoff idempotency | **NOT_STARTED** | **S28** | Not started. |
+| `G13-M01` | Distinguish material session from care session | **NOT_STARTED** | **S26** | `MaterialSession` (`backend/models/inventory.py:139`) vs `CareSession` (`backend/models/clinical_core.py:383`). |
+| `G13-M02` | Add `care_session_id` to new usage model | **NOT_STARTED** | **S26** | **NEEDS_MIGRATION**: `TreatmentMaterialUsage` (`backend/models/inventory.py:289-326`) has `treatment_id` (NOT NULL) and `session_id` (`material_sessions.id`), no `care_session_id`. |
+| `G13-M03` | Preserve old usage data | **NOT_STARTED** | **S26** | Additive nullable `care_session_id` preserves all existing `treatment_material_usages` rows. |
+| `G13-M04` | Create material suggestion service | **NOT_STARTED** | **S30** | Not started. |
+| `G13-M05` | Prevent stock deduction at plan creation | **NOT_STARTED** | **S30** | Not started. |
+| `G13-M06` | Deduct at actual use point | **NOT_STARTED** | **S30** | Not started. |
+| `G13-M07` | Support different materials per session | **NOT_STARTED** | **S30** | Not started. |
+| `G13-M08` | Preserve divisible-material logic | **NOT_STARTED** | **S30** | Existing divisible logic in `backend/models/inventory.py:34,60,314`. |
+| `G13-M09` | Aggregate work-item material cost | **NOT_STARTED** | **S30** | Not started. |
+| `G13-M10` | Add migration invariance test | **NOT_STARTED** | **S31** | Not started. |
+| `G13-M11` | Add endo material scenario test | **NOT_STARTED** | **S31** | Not started. |
+| `G14-M01` | Define billing policy model | **NOT_STARTED** | **S32** | D1: completing work creates a `PENDING` clinical charge; reception creates the invoice. |
+| `G14-M02` | Keep old finance source authoritative during shadow mode | **NOT_STARTED** | **S33** | Legacy `Treatment` remains authoritative until finance parity is proven. |
+| `G14-M03` | Add work-item billing projection | **NOT_STARTED** | **S33** | Not started. |
+| `G14-M04` | Design `clinical_charges` | **NOT_STARTED** | **S32** | **NEEDS_MIGRATION**: `clinical_charges` table does not exist in `backend/models/`. |
+| `G14-M05` | Preserve payments unchanged | **NOT_STARTED** | **S33** | `models.Payment` (`backend/models/financial.py:21-57`) remains untouched. |
+| `G14-M06` | Create shadow calculator | **NOT_STARTED** | **S34** | Scheduled after `clinical_charges` slices S32–S33. |
+| `G14-M07` | Run per-patient parity | **NOT_STARTED** | **S34** | Scheduled after S32–S33. |
+| `G14-M08` | Run per-tenant parity | **NOT_STARTED** | **S34** | Scheduled after S32–S33. |
+| `G14-M09` | Detect legacy lab double-charge cases | **NOT_STARTED** | **S35** | Not started. |
+| `G14-M10` | Add deterministic remediation workflow | **NOT_STARTED** | **S35** | Not started. |
+| `G14-M11` | Add doctor-share compatibility tests | **NOT_STARTED** | **S35** | Must verify `backend/routers/accounting.py` & `backend/routers/accounting_decimal.py` compatibility. |
+| `G14-M12` | Cut finance reads only behind flag | **NOT_STARTED** | **S33** | Gated behind dedicated finance flag (default OFF). |
+| `G14-M13` | Keep payments stable | **NOT_STARTED** | **S35** | Regression verification on `models.Payment`. |
+| `G14-M14` | Add financial regression suite | **NOT_STARTED** | **S35** | Comprehensive finance regression suite. |
+| `G15-M01` | Keep attachment storage unchanged | **NOT_STARTED** | **S23** | `models.Attachment` (`backend/routers/upload.py`, `backend/routers/attachments.py`) storage untouched. |
+| `G15-M02` | Add context links only | **NOT_STARTED** | **S23** | Uses `models.ClinicalAttachmentLink` (`backend/models/clinical_core.py:582-630`). |
+| `G15-M03` | Link images to tooth | **NOT_STARTED** | **S24** | `clinical_attachment_links.tooth_key` (`backend/models/clinical_core.py:599,606`). |
+| `G15-M04` | Link images to work item | **NOT_STARTED** | **S24** | `clinical_attachment_links.work_item_id` (`backend/models/clinical_core.py:596`). |
+| `G15-M05` | Link images to care session | **NOT_STARTED** | **S24** | `clinical_attachment_links.care_session_id` (`backend/models/clinical_core.py:597`). |
+| `G15-M06` | Add purpose codes | **NOT_STARTED** | **S23** | `clinical_attachment_links.purpose_code` (`backend/models/clinical_core.py:600,605`). |
+| `G15-M07` | Show relevant images in tooth inspector | **NOT_STARTED** | **S24** | Not started. |
+| `G15-M08` | Show relevant images in session view | **NOT_STARTED** | **S24** | Not started. |
+| `G15-M09` | Add deterministic legacy link migration only | **NOT_STARTED** | **S23** | Paired with `G4-M09`. |
+| `G16-M01` | Enable internal tenant only | **PARTIAL** | **S36** | Per-tenant override exists in `backend/services/feature_service.py:83-105`; verified in S01 & S36. |
+| `G16-M02` | Roll out read-only VNext | **PARTIAL** | **S36** | `clinical_vnext_primary` with `clinical_vnext_native_writes=False` in `backend/services/clinical_workspace_service.py:160-185`. |
+| `G16-M03` | Enable internal writes | **OUT_OF_RELEASE** | Cutover | Deferred until charges (`S32`–`S35`) and parity soak pass. |
+| `G16-M04` | Monitor errors | **NOT_STARTED** | **S02** | Placed early in S02 (Clinical Drift & Error Observer) so soak runs during build. |
+| `G16-M05` | Monitor parity | **NOT_STARTED** | **S02** | Placed early in S02 (read-only clinical drift observer per tenant). |
+| `G16-M06` | Pilot clinic | **OUT_OF_RELEASE** | Cutover | Deferred to post-soak Cutover phase. |
+| `G16-M07` | Small rollout percentage | **OUT_OF_RELEASE** | Cutover | `FeatureFlag.rollout_percentage` exists (`backend/services/feature_service.py:37-42`); activation deferred to Cutover. |
+| `G16-M08` | Add tenant rollback toggle | **PARTIAL** | **S36** | Disabling `clinical_vnext_primary`/`clinical_vnext_shadow` via `set_tenant_override` reverts immediately to `LEGACY_ONLY`; verified in S36. |
+| `G16-M09` | Expand rollout gradually | **OUT_OF_RELEASE** | Cutover | Deferred to Cutover phase. |
+| `G16-M10` | Keep legacy compatibility during rollout | **PARTIAL** | **S36** | Fallback logic in `backend/services/clinical_workspace_service.py:160-185,710-960`; regression-tested in S36. |
+| `G16-M11` | Observe stability window | **OUT_OF_RELEASE** | Cutover | Operational soak gate before stopping legacy writes. |
+| `G16-M12` | Stop legacy writes only after evidence | **OUT_OF_RELEASE** | Cutover | Deferred to Cutover phase (see Section 7 blast radius). |
+| `G16-M13` | Retire dead code only after stability | **OUT_OF_RELEASE** | Cutover | Deferred to Cutover phase. |
+
+### 1.2 Coverage Count Summary (154 Total Items Across `G4`, `G7`–`G16`)
+
+| Phase | Total Matrix Items | `DONE` in Code | `PARTIAL` (Assigned to Slice) | `NOT_STARTED` (Assigned to Slice) | `DROPPED` (S00) | `OUT_OF_RELEASE` (Cutover) | Orphan / Unassigned IDs |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **G4** | 14 | 8 (ops in S01) | 2 | 4 | 0 | 0 | **0** |
+| **G7** | 16 | 1 (`G7-M09`) | 10 | 5 | 0 | 0 | **0** |
+| **G8** | 15 | 0 | 4 | 10 | 1 (`G8-M12`) | 0 | **0** |
+| **G9** | 14 | 7 (`M01,M02,M04..M08`) | 2 | 5 | 0 | 0 | **0** |
+| **G10** | 20 | 0 | 0 | 18 | 2 (`G10-M06,M16`) | 0 | **0** |
+| **G11** | 12 | 0 | 0 | 11 | 1 (`G11-M03`) | 0 | **0** |
+| **G12** | 16 | 0 | 0 | 15 | 1 (`G12-M14`) | 0 | **0** |
+| **G13** | 11 | 0 | 0 | 11 | 0 | 0 | **0** |
+| **G14** | 14 | 0 | 0 | 14 | 0 | 0 | **0** |
+| **G15** | 9 | 0 | 0 | 9 | 0 | 0 | **0** |
+| **G16** | 13 | 0 | 4 | 2 | 0 | 7 (`M03,M06,M07,M09,M11..M13`) | **0** |
+| **Total** | **154** | **16** | **22** | **104** | **5** | **7** | **0** |
+
+---
+
+## 2. Phase 2: Adversarial Architecture & Risk Review
+
+### 2.1 Risk Register
+
+| Risk ID | Area | Severity | Adversarial Failure Mode (Code-Verified) | Mitigation & Architectural Rule | Owning Slice (Earliest Retirement) |
+|---|---|:---:|---|---|:---:|
+| **R01** | Native Writes vs. Legacy Billing / Inventory / Reports | **H** | Creating native `ClinicalWorkItem` (`kind='procedure'`) without a legacy `models.Treatment` row makes that work invisible to `backend/crud/billing.py:80,102,505`, `backend/crud/reporting.py:35,128`, `backend/routers/dashboard.py`, `backend/routers/accounting.py`, and `backend/models/inventory.py:309` (`TreatmentMaterialUsage.treatment_id` NOT NULL FK) — causing silent revenue, commission, and stock loss. | **Hard Gate:** Every endpoint that mutates native `ClinicalWorkItem`, `ClinicalEvent`, `CareSession`, or `ClinicalCharge` MUST call `FeatureFlagService.is_feature_enabled(db, "clinical_vnext_native_writes", tenant_id)` first and fail-closed (`404`) when disabled. Keep `clinical_vnext_native_writes` **OFF** on all real clinic tenants until `clinical_charges` + parity slices (`S32`–`S35`) pass soak. Fix existing `POST /api/v1/treatments/finding` & `/symptom` in **S05** to enforce this gate or route via legacy-compatible path. | **S04** (retired at entry; verified through **S35**) |
+| **R02** | RLS, Tenant Isolation & Doctor Visibility (`ensure_patient_visible`) | **H** | Querying by primary key alone or omitting `ensure_patient_visible(db, current_user, patient_id)` (`backend/services/patient_access_service.py:11-21`) allows a restricted doctor (`PatientVisibilityMode.ALL_ASSIGNED` / `APPOINTMENTS_ONLY` in `backend/core/permissions.py:27-35`) to read/mutate another doctor's patient within the same tenant, or leaks existence via `403` vs `404`. | Every patient-scoped service method must: (1) check feature gate first (`404` when off), (2) call `await ensure_patient_visible(self.db, user, patient_id)` (`404` on cross-tenant or restricted doctor), (3) filter every `select()` explicitly by `tenant_id == self.tenant_id` AND `patient_id == patient_id` in addition to ORM `tenant_scope.py` and PostgreSQL RLS. Cross-tenant and cross-patient mismatches must uniformly return `404`. | **S02** & **S04** (enforced in all slices; **S23**–**S24** for files) |
+| **R03** | Migration & Preflight Contract Drift (`preflight_migrations.py`) | **H** | Adding a table (`clinical_charges`) or child FK (`lab_orders.work_item_id`, `treatment_material_usages.care_session_id`) in Alembic without updating `backend/scripts/preflight_migrations.py` (`RLS_TABLES` at line 82, `CHILD_TENANT_RELATIONSHIPS` at line 126, `CLINICAL_G1_DIRECT_PARENT_PATIENT_RELATIONSHIPS` at line 170) breaks fresh DB bootstrap and fails `backend/tests/test_clinical_core_schema.py:717` & `backend/tests/test_preflight_postgres_contract.py`. Also, `treatment_material_usages.treatment_id` (`backend/models/inventory.py:309`) is currently `nullable=False`, blocking care-session-only material usage unless made nullable with a check constraint `treatment_id IS NOT NULL OR care_session_id IS NOT NULL`. | Group all schema migrations into consecutive rehearsal slices (**S26**, **S27**, **S32**). Every migration slice MUST: (1) be strictly additive, (2) install PostgreSQL `ENABLE/FORCE ROW LEVEL SECURITY` + `dentix_assert_parent_tenant` triggers + parent-patient triggers, (3) update `backend/scripts/preflight_migrations.py` in lockstep, and (4) pass `test_clinical_core_schema.py` and `test_preflight_postgres_contract.py`. | **S26**, **S27**, **S32** |
+| **R04** | AsyncSession Rollback Expiration & `MissingGreenlet` | **H** | In SQLAlchemy async (`AsyncSession`), calling `await self.db.rollback()` inside an `IntegrityError` retry block expires all loaded ORM objects (including `self.current_user` and parent entities). Accessing `self.current_user.id` or `plan.id` after `rollback()` triggers `MissingGreenlet` or detached-instance errors (seen and fixed in `backend/services/treatment_plan_service.py:63-75`, PR #232). Also, `datetime.utcnow()` (naive) on timezone-aware columns causes PostgreSQL asyncpg errors (`backend/services/clinical_service.py:193`). | Cache primitive IDs (`self.current_user_id`, `patient_id`, `plan_id`) in `__init__` before any DB transaction; re-fetch `current_user` via `_get_active_current_user()` after rollback (`backend/services/treatment_plan_service.py:63-75`); always use `datetime.now(timezone.utc)` for `DateTime(timezone=True)` columns; test every retry path with a real `async_db_session` fixture. | **S04** (shared base pattern for all services) |
+| **R05** | Concurrency Races Across Sessions, Plans, and Charges | **M** | Two tabs starting an active `CareSession` for the same patient simultaneously violate D3 (one active session per patient); concurrent updates to a work item or plan overwrite state; double-clicking "Finish Session" creates duplicate `clinical_charges`. | (1) Add a partial unique index or service-level lock + `IntegrityError` -> `409` so at most one `care_sessions` row per `(tenant_id, patient_id)` has `status = 'in_progress'`. (2) Map SQLAlchemy `StaleDataError` (`version_id` on `ClinicalWorkItem`, `ClinicalTreatmentPlan`, `CareSession`, `CareSessionStep`) to `409 Conflict`. (3) Enforce unique idempotency constraint on `clinical_charges(tenant_id, work_item_id, care_session_id)` for non-voided charges. | **S07** (work items), **S16** (plans), **S18** (sessions), **S32** (charges) |
+| **R06** | Finance Double-Billing (Legacy Treatment + Lab + Clinical Charge) | **H** | In legacy workflows, doctors sometimes created a synthetic `Treatment` row to charge the patient for a `LabOrder` (`LabOrder.price_to_patient` in `backend/models/clinical.py:353`). If backfill or native handoff creates both a `ClinicalCharge` from the work item AND bills the legacy `Treatment` or `LabOrder`, the patient balance doubles. | (1) `SHADOW` and `VNEXT_PRIMARY` read modes never mutate billing; legacy `Treatment` + `Payment` remain 100% authoritative (`G14-M02`). (2) `S28` prohibits creating synthetic `Treatment` rows on lab handoff. (3) `S34` & `S35` run per-patient/per-tenant parity and detect legacy lab double-charge anomalies before any finance flag is enabled. | **S28**, **S32**–**S35** |
+| **R07** | Dual Representation Drift During Coexistence | **H** | While legacy writes (`POST /api/v1/treatments`) remain active and `SHADOW` mode only returns legacy data (`backend/services/clinical_workspace_service.py:210-213,711-715`), bugs in `_sync_clinical_work_item` / `_sync_clinical_work_item_update` / `_sync_clinical_work_item_delete` (`backend/services/treatment_service.py:270-521`) would silently corrupt native tables without anyone noticing in the UI. | Build the **Read-Only Clinical Drift Observer (`S02`)** immediately after `S01` so Eslam can compare legacy `Treatment`/`ToothStatus` projections against native `ClinicalWorkItem`/`ClinicalEvent` projections per tenant throughout the entire build. | **S02** |
+| **R08** | Late Re-Design Traps (Surface / Root Target Semantics & Chairside UX) | **M** | Building quick-launcher/sticky-tool UX (`G8`) or RCT canal entry (`G10`) against ad-hoc payloads instead of `ClinicalCommandService` (`G7`) and canonical codes (`backend/clinical/catalog.py`) would force a rewrite of frontend + backend when sessions (`G10`) and plans (`G9`) connect. | Strict dependency ordering: `G7` standalone command/query APIs (`S04`–`S07`) ship before `G8` chairside UX (`S08`–`S11`) and `G10` care sessions (`S18`–`S21`). All codes must validate against `CANONICAL_FINDING_CODES` and `CANONICAL_PROCEDURE_CODES` (`backend/clinical/catalog.py:24-27`). | **S04**–**S08** |
+
+### 2.2 Additional Candidate Items to Drop or Defer (Proposed Only — NOT Applied)
+
+| Matrix ID | Exact Matrix Title | Recommendation | Reasoning for Solo-Developer Clinic Product |
+|---|---|:---:|---|
+| `G5-M09` / `G5-M10` | Add projection caching / Add performance benchmark | **Keep Closed / No Further Work** | Marked `DONE` under Phase G5 in `ODONTOGRAM_IMPLEMENTATION_STATUS.md:48`; single-patient workspace queries (< 100 rows per patient, indexed by `(tenant_id, patient_id)`) execute in < 10 ms on PostgreSQL without Redis cache invalidation complexity. |
+| `G10-M14` | Add clinical summary generation | **Candidate Defer / Simplify** | A deterministic template string formatter (`"{procedure_code} on Tooth {tooth_key}: {completed_steps}"`) satisfies the requirement in 20 lines of Python; avoid LLM/AI summary generation inside the transactional session finish path. |
+| `G14-M10` | Add deterministic remediation workflow | **Candidate Simplify** | Instead of an automated mutation workflow that rewrites historical double-billed treatments, emit a read-only admin CSV/JSON report flagging candidate rows so Eslam/clinic admin can adjust them via standard treatment edit/delete. |
+
+### 2.3 Pending Decisions Log (Ordered Just-In-Time by First Slice Needed)
+
+> **Already Decided by Eslam (Applied Across Queue — Do Not Re-Ask):**
+> - **D1 (Billing Trigger):** Completing clinical work creates a `PENDING` row in `clinical_charges`; reception creates/approves the invoice (`S32`–`S34`).
+> - **D2 (Plan Estimates):** Estimates are computed dynamically from current procedure catalog / price list and labeled `"Estimate"` (no DB snapshot column; zero migrations in `S13`).
+> - **D3 (Session Concurrency):** Strictly one active (`in_progress`) `CareSession` per patient at any time (`S18`).
+> - **D4 (Lab Delivery Sync):** Lab order delivery must **NOT** auto-change `ClinicalWorkItem.status`; it shows a visual badge/notification only (`S29`).
+> - **D5 (Sticky-Tool Target Behavior):** Decided just-in-time at the quick-launcher slice (`S09`/`S10`).
+> - **Approved Drops:** `G8-M12`, `G10-M06`, `G10-M16`, `G11-M03`, `G12-M14` (executed in `S00`).
+> - **Cutover Scope:** Stopping legacy writes (`G16-M03`, `G16-M06..M07`, `G16-M09`, `G16-M11..M13`) is **OUT OF FIRST RELEASE**.
+
+| ID | First Slice Needed | Timing | Question for Eslam | Recommended Default (Used by Flash unless Eslam overrides) | Consequence of Option A (Default) vs. Option B |
+|---|:---:|:---:|---|---|---|
+| **PD01** | **S01** | **NOW (Ops)** | Confirm the staging test `tenant_id` (e.g. `1`) to use for the S01 backfill rehearsal and `clinical_vnext_shadow` toggle. | Use staging test clinic `tenant_id = 1` (never enable on real clinic tenants). | **A:** Isolated rehearsal on test tenant. **B:** Any other test tenant ID works identically via `--tenant-id <id>`. |
+| **PD02** | **S04** | **Before S04** | Keep `clinical_vnext_native_writes` **OFF** on all real clinics until `S35` (charges + finance parity) finishes, and return `404` when OFF? | **Yes:** Gate all native write endpoints behind `clinical_vnext_native_writes` (default OFF -> `404`, matching `TreatmentPlanService.ensure_enabled` in `backend/services/treatment_plan_service.py:92-98`). | **A:** Zero risk of silent billing/inventory loss on real clinics. **B:** Enabling native writes early creates procedures without `Treatment` rows, hiding revenue from billing/reports. |
+| **PD03** | **S05** | **Before S05** | Existing `POST /api/v1/treatments/finding` and `/symptom` (`backend/routers/treatments.py:120-177`) currently write `ClinicalWorkItem` (`kind='finding'`) without checking `clinical_vnext_native_writes`. Should S05 gate them behind `clinical_vnext_native_writes` or keep findings allowed whenever `clinical_vnext_shadow`/`clinical_vnext_primary` is active? | Gate all new `/api/v1/patients/{patient_id}/clinical-findings` routes behind `clinical_vnext_native_writes`, and add the same gate to `/treatments/finding` & `/symptom` (since findings have zero billing impact, test tenants with `clinical_vnext_native_writes=True` can test them safely). | **A:** Uniform native-write gate across all `clinical_work_items` mutations. **B:** Allowing findings without the gate writes native rows on tenants where native writes are supposedly off. |
+| **PD04** | **S09** (D5) | **Before S09** | **Decision D5 (Sticky-Tool & Quick-Launcher Target Behavior):** When a doctor clicks a tooth with a sticky tool active, should it apply immediately or prompt for surfaces? | Whole-tooth/root procedures (`EXTRACTION_SIMPLE`, `PROS_CROWN`, `ENDO_RCT`) apply in 1 click; surface procedures (`REST_COMPOSITE`, `CARIES`) open an inline 1-click surface pill popover on the clicked tooth. | **A:** Preserves <= 2-click budget while preventing surface-code check constraint errors (`ck_cwit_target_shape_valid`). **B:** Defaulting to `"O"` surface automatically could record inaccurate clinical surfaces on anterior teeth (`"I"`). |
+| **PD05** | **S13** | **Before S13** | For dynamic plan estimates (`G9-M10`), which price source should `TreatmentPlanService` query when a patient has `default_price_list_id` set vs. unset? | Resolve fee from patient's `default_price_list_id` (`PriceListItem` in `backend/models/price_list.py`) first, falling back to `models.Procedure.cost` (`backend/models/clinical.py`) matching `TreatmentService._calculate_price_and_snapshot` (`backend/services/treatment_service.py:42-90`); return `0.00` with `"unpriced": true` if no match. | **A:** Exact 1:1 fee consistency with legacy `TreatmentService`. **B:** Using only base `Procedure.cost` ignores insurance/custom price lists. |
+| **PD06** | **S23** | **Before S23** | What canonical `purpose_code` values should `ClinicalAttachmentLink` (`backend/models/clinical_core.py:600`) accept? | Enforce enum allowlist: `PRE_OP_XRAY`, `POST_OP_XRAY`, `WORKING_LENGTH_XRAY`, `INTRAORAL_PHOTO`, `EXTRAORAL_PHOTO`, `LAB_SCAN`, `CONSENT_DOC`, `OTHER`. | **A:** Deterministic filtering in tooth inspector (`S24`) and session view. **B:** Free-text purpose codes make UI filtering unreliable. |
+| **PD07** | **S25** | **Before S25** | When reception converts a `NextVisitRequest` into an `Appointment` (`G11-M05`), should we keep it zero-migration (`status='scheduled'` + appointment ID in `notes`) or add an optional `fulfilled_appointment_id` FK column in the migration group? | **Zero-migration:** Set `NextVisitRequest.status = 'scheduled'` and store structured reference in `notes` (since `care_sessions.appointment_id` already provides the DB FK once the visit starts). | **A:** Avoids an extra schema migration on `next_visit_requests` + `preflight_migrations.py`. **B:** Adding `fulfilled_appointment_id` requires an Alembic revision + trigger updates. |
+| **PD08** | **S26** | **Before S26** | In `S26` (`treatment_material_usages.care_session_id` migration), `treatment_id` (`backend/models/inventory.py:309`) is currently `NOT NULL`. Should the migration make `treatment_id` nullable with `CHECK (treatment_id IS NOT NULL OR care_session_id IS NOT NULL)`? | **Yes:** Alter `treatment_id` to `nullable=True`, add `care_session_id INTEGER REFERENCES care_sessions(id)`, and add `ck_tmu_treatment_or_care_session_required`. | **A:** Allows native care sessions to record material usage without creating fake legacy `Treatment` rows (`G13-M02`). **B:** Keeping `treatment_id NOT NULL` forces synthetic `Treatment` creation. |
+
+---
+
+## 3. Phase 3: The Master Slice Queue (`S00`–`S36`)
+
+### 3.1 Queue Ordering & Structural Invariants
+1. **Max 6 matrix items per slice**; every slice is sized **S** or **M** (zero **L** slices).
+2. **S00** (Flash docs/test-only) reclassifies the 5 Eslam-approved drops first.
+3. **S01** is Eslam's **Staging Ops Runbook** (not an agent code slice).
+4. **S02** builds the **Read-Only Clinical Drift Observer** early (`G16-M04`, `G16-M05`) so legacy-vs-native drift soak runs across the entire build.
+5. **Migration slices (`S26`, `S27`, `S32`)** are grouped and labeled `[MIGRATION k/3]` with mandatory production-snapshot rehearsal notes and `backend/scripts/preflight_migrations.py` lockstep updates.
+6. **Finance parity (`S34`: `G14-M06..M08`)** runs strictly after the `clinical_charges` slices (`S32`–`S33`).
+7. **Every native-write slice** is server-side gated by `clinical_vnext_native_writes` (default OFF -> `404`).
+
+### 3.2 Master Queue Table
+
+| ID | Slice Name (Matching Exact Matrix Titles) | Exact Matrix IDs & Titles (<= 6) | Deps | Size | NEEDS_MIGRATION (Tables / Columns) | Risk Class | Native-Write Gated? | Staging Test Path (<= 15 min) | Decisions Applied & Rollback Note |
+|---|---|---|---|:---:|---|:---:|:---:|---|---|
+| **S00** | Reclassify 5 Approved Drop Items in Traceability Matrix & Test | `G8-M12`: Add undo stack<br>`G10-M06`: Add repeatable-step support<br>`G10-M16`: Add template deviation support<br>`G11-M03`: Add auto-suggestion from workflow template<br>`G12-M14`: Support bridge semantics | None | **S** | No | NORMAL | n/a | Not visible in UI. Verify `pytest backend/tests/test_odontogram_traceability.py -q` passes with 327 items accounted for. | Applies Eslam's 5 approved drops. Rollback: `git revert` commit. |
+| **S01** | **[OPS RUNBOOK — ESLAM]** Staging DB Snapshot, Backfill & `SHADOW` Enablement | Executes `G4-M01`..`G4-M05`, `G4-M10`, `G4-M11`, `G4-M14` on staging test tenant | S00 | **S** | No | NORMAL | n/a | Eslam runs CLI & admin API on staging (Section 3.3); opens Patient Chart -> sees `SHADOW` badge (`data-testid="clinical-workspace-read-mode"`). | Applies PD01. Rollback: `POST /api/v1/admin/features/override` (`is_enabled: false`) or restore DB dump. |
+| **S02** | Early Read-Only Clinical Drift & Error Observer (`G16-M04`, `G16-M05`) | `G16-M04`: Monitor errors<br>`G16-M05`: Monitor parity | S01 | **M** | No | **HIGH_RISK** | n/a (read-only) | Call `GET /api/v1/admin/clinical-drift/{tenant_id}` as super-admin; returns JSON diff of legacy `Treatment`/`ToothStatus` vs native `ClinicalWorkItem`/`ClinicalEvent` projections. Not visible in clinic UI. | Read-only observer; zero writes. Rollback: `git revert` PR. |
+| **S03** | Backfill Tooth-Status Events, Legacy Care Sessions & Invariance Assertions | `G4-M06`: Backfill tooth-status events<br>`G4-M07`: Backfill legacy care sessions<br>`G4-M12`: Verify inventory unchanged<br>`G4-M13`: Verify payments unchanged | S02 | **M** | No | **HIGH_RISK** | n/a (CLI `--apply` gated) | Run `python scripts/backfill_clinical_work_items.py --tenant-id <id>` (dry-run) on staging; verify tooth-status & session counts and 0 payment/inventory delta. Not visible in UI. | Extends CLI using `map_legacy_tooth_status` & `map_legacy_treatment_session`. Rollback: `git revert` PR. |
+| **S04** | Command Service, Work Item Create/Update APIs & Permission Enforcement | `G7-M01`: Create command service<br>`G7-M02`: Add work item create API<br>`G7-M03`: Add work item update API<br>`G7-M12`: Add permission enforcement | S02 | **M** | No | **HIGH_RISK** | **Yes** (`clinical_vnext_native_writes` -> 404 when off) | Enable `clinical_vnext_native_writes` on staging test tenant -> `POST /api/v1/patients/{id}/clinical-work-items` & `PATCH .../{wi_id}`; verify 404 when flag off. Not visible in UI yet. | Applies PD02, R01, R02, R04. Rollback: disable flag or `git revert`. |
+| **S05** | Finding & Procedure Single/Bulk Command APIs | `G7-M04`: Add finding create API<br>`G7-M05`: Add bulk finding API<br>`G7-M06`: Add procedure create API<br>`G7-M07`: Add bulk procedure API | S04 | **M** | No | **HIGH_RISK** | **Yes** (`clinical_vnext_native_writes` -> 404 when off) | With flag ON for test tenant, call `POST /api/v1/patients/{id}/clinical-findings/bulk` and `/clinical-procedures/bulk`; inspect in `GET .../clinical-workspace` under `VNEXT_PRIMARY`. | Applies PD02, PD03. Rollback: disable flag or `git revert`. |
+| **S06** | Event Correction, Tooth Detail & Clinical History APIs | `G7-M08`: Add event correction API<br>`G7-M10`: Add tooth detail API<br>`G7-M11`: Add history API | S04 | **M** | No | **HIGH_RISK** | **Yes** (corrections gated; GETs require `CLINICAL_READ`) | `POST /api/v1/patients/{id}/clinical-events/{ev_id}/correct` marks `entered_in_error` / `supersedes_event_id`; `GET .../teeth/{tooth_key}` & `GET .../clinical-events` return updated state. | Append-only event invariant (`clinical_workspace_service.py:219-330`). Rollback: `git revert`. |
+| **S07** | Command Layer Tenant Security, Contract, Idempotency & Concurrency | `G7-M13`: Add tenant security tests<br>`G7-M14`: Add API contract tests<br>`G7-M15`: Add idempotency keys<br>`G7-M16`: Add optimistic concurrency handling | S05, S06 | **M** | No | **HIGH_RISK** | **Yes** | Send duplicate `POST` with same `Idempotency-Key` header -> returns identical work item without duplicate row; send stale `version_id` on `PATCH` -> returns `409`. | Applies R04, R05. Rollback: `git revert`. |
+| **S08** | Chart Tooth Selection State, Multi-Select & Direct Surface Interaction | `G8-M01`: Add tooth selection state<br>`G8-M06`: Add multi-select<br>`G8-M07`: Add direct surface interaction | S07 | **M** | No | NORMAL | No (UI state + inspector) | Open Patient Chart -> click Tooth 16 -> inline inspector highlights Tooth 16 & toggles surfaces M/O/D; Shift/multi-select selects Teeth 16, 17, 18 without opening giant modal. | Preserves mobile & RTL (`A15`). Rollback: `git revert`. |
+| **S09** | Chart Quick Action Launcher, Favorites, Recents, Search & Smart Defaults | `G8-M02`: Add quick action launcher<br>`G8-M08`: Add favorites<br>`G8-M09`: Add recents<br>`G8-M10`: Add search<br>`G8-M11`: Add smart defaults | S08 | **M** | No | NORMAL | **Yes** (uses native write when flag ON, legacy fallback when OFF) | Select Tooth 16 on chart -> quick launcher bar appears -> search or click favorite (`REST_COMPOSITE`) -> smart default pre-selects surface/status. | Applies D5 / PD04. Rollback: `git revert`. |
+| **S10** | Tooth-First Flow, Procedure-First Flow & Sticky Tool Mode | `G8-M03`: Add tooth-first flow<br>`G8-M04`: Add procedure-first flow<br>`G8-M05`: Add sticky tool mode | S09 | **M** | No | NORMAL | **Yes** (dual-path per tenant flag) | Activate "Sticky Caries" in quick launcher -> click Teeth 16, 26, 36 sequentially -> 3 findings recorded in 3 clicks; press `Esc` to exit sticky mode. | Applies D5 / PD04. Rollback: `git revert`. |
+| **S11** | Consequence-Aware Remove, Click-Budget Telemetry & Giant Modal De-emphasis | `G8-M13`: Add consequence-aware remove<br>`G8-M14`: Measure click budget<br>`G8-M15`: De-emphasize old giant modal | S10 | **M** | No | NORMAL | **Yes** | Remove a finding/procedure from tooth inspector -> confirmation warns if linked to a plan phase; primary chairside charting completes in <= 3 clicks; `TreatmentModal` moved to secondary "Classic Entry" button. | Retires `G8` click-budget acceptance. Rollback: `git revert`. |
+| **S12** | Treatment Plan Phase Reorder/Edit & Chart Plan Overlay | `G9-M03`: Add phase CRUD/reorder<br>`G9-M09`: Add plan overlay to chart | S08 | **M** | No | NORMAL | Gate: `clinical_treatment_plans` | In `TreatmentPlansCard`, reorder/rename draft phases; toggle "Show on Chart" on Plan A -> chart highlights planned teeth by phase order. | Uses existing `clinical_treatment_plans` gate (`backend/services/treatment_plan_service.py:31`). Rollback: `git revert`. |
+| **S13** | Treatment Plan Dynamic Estimate Projection (`G9-M10`) | `G9-M10`: Add estimate projection | S12 | **M** | **No** (D2: dynamic on-the-fly estimate; snapshot would require migration) | **HIGH_RISK** | Gate: `clinical_treatment_plans` | Open `TreatmentPlansCard` -> each phase and plan header displays dynamic fee subtotal/total badge explicitly labeled `"Estimate / تقديري"`. | Applies D2 & PD05. Zero DB writes to finance tables. Rollback: `git revert`. |
+| **S14** | Treatment Plan Comparison UX (`G9-M11`) | `G9-M11`: Add plan comparison UX | S12, S13 | **M** | No | NORMAL | Gate: `clinical_treatment_plans` | Patient with 2+ plans -> click "Compare Plans" in `TreatmentPlansCard` -> side-by-side modal compares phases, teeth, statuses, and dynamic estimates (AR/EN). | Read-only comparison UI. Rollback: `git revert`. |
+| **S15** | Treatment Plan Legacy Safety Rules (`G9-M12`) | `G9-M12`: Add legacy safety rules | S13 | **M** | No | **HIGH_RISK** | Gate: `clinical_treatment_plans` | Automated verification & service guards proving plan create/reorder/estimate/accept/cancel never mutates `treatments`, `payments`, `stock_movements`, or `treatment_material_usages`. Not visible in UI. | Enforces zero legacy finance/inventory side effects. Rollback: `git revert`. |
+| **S16** | Treatment Plan Concurrency Hardening (`G9-M13`) | `G9-M13`: Add concurrency tests | S12, S13 | **S** | No | NORMAL | Gate: `clinical_treatment_plans` | Automated async concurrency test suite covering simultaneous phase reorder, item attachment, and status transition (`StaleDataError` -> `409`). Not visible in UI. | Extends `backend/tests/services/test_treatment_plan_service.py`. Rollback: `git revert`. |
+| **S17** | Treatment Plan E2E Acceptance Scenario (`G9-M14`) | `G9-M14`: Add E2E scenario | S14, S15, S16 | **S** | No | NORMAL | Gate: `clinical_treatment_plans` | Run full treatment-plan E2E scenario: create 2 alternative plans -> add phases & shared work items -> overlay on chart -> compare estimates -> accept Plan A -> verify Plan B preserved. | Closes Phase `G9`. Rollback: `git revert`. |
+| **S18** | Care Session Service, Start/Finish Commands & Concurrency Lock | `G10-M01`: Create care session service<br>`G10-M02`: Add start-session command<br>`G10-M03`: Add finish-session command<br>`G10-M18`: Add concurrent session protection | S07 | **M** | No (`care_sessions` exists at `clinical_core.py:383`) | **HIGH_RISK** | **Yes** (`clinical_vnext_native_writes` -> 404 when off) | With flag ON, `POST /api/v1/patients/{id}/care-sessions` starts session; second `POST` while `in_progress` returns `409` (D3); `POST .../{cs_id}/finish` completes session. | Applies D3 (1 active session per patient). Rollback: disable flag or `git revert`. |
+| **S19** | Care Session Steps, Observations, Free Notes & Finalization Audit | `G10-M04`: Add step add/update API<br>`G10-M05`: Add partial-step support<br>`G10-M07`: Add observation API<br>`G10-M15`: Preserve free notes<br>`G10-M17`: Add finalization audit trail | S18 | **M** | No (`care_session_steps`, `care_observations` exist) | **HIGH_RISK** | **Yes** (`clinical_vnext_native_writes`) | Add steps (`pending` -> `in_progress` -> `partial` / `completed`), record `CareObservation` and free notes, finish session -> verify audit log entry via `log_admin_action`. | Uses existing `log_admin_action` (`backend/utils/audit_logger.py`). Rollback: `git revert`. |
+| **S20** | Chairside RCT Structured UI, Canal Targets, Working Lengths & Finish Sheet | `G10-M08`: Build minimal RCT structured UI<br>`G10-M09`: Add canal-target UI<br>`G10-M10`: Add working-length structured entry<br>`G10-M11`: Add compact finish-session sheet | S19 | **M** | No | **HIGH_RISK** | **Yes** (`clinical_vnext_native_writes`) | In Patient Chart (flag ON) -> start RCT session on Tooth 46 -> select canals (`MB`, `ML`, `D`), enter working lengths (mm) -> click "Finish Session" compact drawer. | Validates `target_kind='canal'` (`clinical_core.py:82`). Rollback: `git revert`. |
+| **S21** | Care Session Resume Engine, Continue-Treatment Card, Summary & RCT E2E | `G10-M12`: Build resume engine<br>`G10-M13`: Add continue-treatment card<br>`G10-M14`: Add clinical summary generation<br>`G10-M19`: Migrate new writes away from free-text-only session model<br>`G10-M20`: Add RCT scenario integration test | S20 | **M** | No | **HIGH_RISK** | **Yes** (`clinical_vnext_native_writes`) | Pause/finish partial RCT session on Tooth 46 -> reload Patient Chart -> "Continue Treatment" card shows completed vs remaining steps & canal lengths -> 1-click resumes in new session. | Closes Phase `G10`. Rollback: disable flag or `git revert`. |
+| **S22** | Session-to-Appointment Link & Chairside Next-Visit Request Creation | `G11-M01`: Link session to appointment<br>`G11-M02`: Add next-visit request creation<br>`G11-M06`: Populate appointment reason<br>`G11-M07`: Suggest duration<br>`G11-M08`: Prevent auto-booking without user action | S18, S20 | **M** | No (`care_sessions.appointment_id` & `next_visit_requests` exist) | NORMAL | **Yes** (`clinical_vnext_native_writes`) | In finish-session sheet -> toggle "Request Next Visit" (reason + 45 min duration) -> creates `NextVisitRequest` (`status='requested'`) and verifies 0 appointments auto-created. | Enforces `G11-M08` no-auto-booking invariant. Rollback: `git revert`. |
+| **S23** | Attachment Context Link Service, Purpose Codes & Legacy Link Backfill | `G15-M01`: Keep attachment storage unchanged<br>`G15-M02`: Add context links only<br>`G15-M06`: Add purpose codes<br>`G15-M09`: Add deterministic legacy link migration only<br>`G4-M09`: Backfill deterministic attachment links only | S07, S18 | **M** | No (`clinical_attachment_links` exists at `clinical_core.py:582`) | **HIGH_RISK** | **Yes** (`clinical_vnext_native_writes`) | `POST /api/v1/patients/{id}/clinical-attachment-links` links existing `Attachment` to Tooth 16 / work item with `purpose_code='PRE_OP_XRAY'`; cross-tenant/cross-patient attachment returns `404`. | Applies PD06. Enforces `trg_clinical_attachment_links_*_parent_patient`. Rollback: `git revert`. |
+| **S24** | Tooth Inspector & Care Session Diagnostic Image Viewers (`G15-M03..M05`, `M07..M08`) | `G15-M03`: Link images to tooth<br>`G15-M04`: Link images to work item<br>`G15-M05`: Link images to care session<br>`G15-M07`: Show relevant images in tooth inspector<br>`G15-M08`: Show relevant images in session view | S20, S23 | **M** | No | **HIGH_RISK** | **Yes** | Link X-ray in Files tab to Tooth 16 & active session -> open Chart -> click Tooth 16 -> tooth inspector & active session drawer render linked X-ray thumbnail. | Closes Phase `G15`. Rollback: `git revert`. |
+| **S25** | Reception Next-Visit Queue, Conversion to Appointment & Safety Lifecycle | `G11-M04`: Add reception queue<br>`G11-M05`: Convert request to appointment<br>`G11-M09`: Handle appointment cancellation safely<br>`G11-M10`: Handle appointment completion safely<br>`G11-M11`: Add integration tests<br>`G11-M12`: Add idempotency/race tests | S22 | **M** | No (uses `status` + structured note per PD07) | NORMAL | **Yes** | Open Appointments page -> "Next-Visit Requests" queue shows pending request -> click "Book Appointment" -> opens booking modal pre-filled with patient, reason, duration; confirm booking marks request `scheduled`. | Applies PD07. Cancelling appointment re-opens request safely. Closes `G11`. Rollback: `git revert`. |
+| **S26** | **[MIGRATION 1/3]** Inventory Usage `care_session_id` Schema & History Preservation | `G13-M01`: Distinguish material session from care session<br>`G13-M02`: Add `care_session_id` to new usage model<br>`G13-M03`: Preserve old usage data | S18 | **M** | **YES**: `treatment_material_usages`: add nullable `care_session_id` FK (`care_sessions.id`), make `treatment_id` nullable with check constraint, add parent-tenant/patient triggers in Alembic & `preflight_migrations.py` | **HIGH_RISK** | n/a (schema + model) | Rehearse on staging DB snapshot; run `python -m backend.scripts.preflight_migrations` and `pytest backend/tests/test_clinical_core_schema.py backend/tests/test_preflight_postgres_contract.py -q`. Not visible in UI. | Applies PD08, R03. **Rehearsal required on DB dump before merge.** Rollback: `alembic downgrade -1`. |
+| **S27** | **[MIGRATION 2/3]** Lab Order `work_item_id` FK, Legacy Link Backfill & Optional Data | `G12-M01`: Add real FK from lab order to work item<br>`G12-M02`: Add exact legacy migration support<br>`G12-M03`: Stop using note-string linkage for new data<br>`G12-M07`: Allow missing optional lab data<br>`G4-M08`: Backfill exact lab relationships | S26 | **M** | **YES**: `lab_orders`: add nullable `work_item_id` FK (`clinical_work_items.id`), index `ix_lab_orders_tenant_work_item`, triggers in Alembic & `preflight_migrations.py` | **HIGH_RISK** | **Yes** | Rehearse migration on staging DB snapshot; run backfill `--tenant-id <id>` to populate exact `[LAB_ORDER:<id>]` links; verify `preflight_migrations.py` health check passes. | Applies R03. **Rehearsal required on DB dump.** Rollback: `alembic downgrade -1`. |
+| **S28** | Lab Requirement Definition, Ready Trigger, One-Tap Handoff & Non-Duplicating Billing | `G12-M04`: Create lab requirement definition<br>`G12-M05`: Add lab-ready trigger<br>`G12-M06`: Add one-tap lab handoff sheet<br>`G12-M08`: Create lab order without creating duplicate treatment<br>`G12-M09`: Decouple lab price from synthetic treatment creation<br>`G12-M16`: Add handoff idempotency | S20, S27 | **M** | No | **HIGH_RISK** | **Yes** (`clinical_vnext_native_writes`) | Record crown prep step on Tooth 21 -> "Send to Lab" 1-tap sheet opens -> submit creates `LabOrder` with `work_item_id` and creates **0** synthetic `Treatment` rows; duplicate submit is idempotent. | Applies R06. Rollback: `git revert`. |
+| **S29** | Lab Status Mapping, Work-Item Badge Notification & Duplicate-Billing Regression | `G12-M10`: Add lab status mapping<br>`G12-M11`: Reflect lab state in work item<br>`G12-M12`: Prevent auto-complete when lab is ready<br>`G12-M13`: Add shade/material sync rules<br>`G12-M15`: Add duplicate-billing regression test | S28 | **M** | No | NORMAL | **Yes** | In Labs tab -> mark linked lab order `"Received"` / `"Ready"` -> Patient Chart Tooth 21 shows "Lab Ready" badge; verify `ClinicalWorkItem.status` remains `in_progress` (not `completed`). | Applies D4 (`G12-M11`/`M12`). Closes Phase `G12`. Rollback: `git revert`. |
+| **S30** | Point-of-Care Material Suggestion, Session Deduction & Cost Aggregation | `G13-M04`: Create material suggestion service<br>`G13-M05`: Prevent stock deduction at plan creation<br>`G13-M06`: Deduct at actual use point<br>`G13-M07`: Support different materials per session<br>`G13-M08`: Preserve divisible-material logic<br>`G13-M09`: Aggregate work-item material cost | S20, S26 | **M** | No | **HIGH_RISK** | **Yes** (`clinical_vnext_native_writes`) | Create plan -> verify 0 stock deducted; start session -> select suggested material -> finish session -> `TreatmentMaterialUsage` recorded with `care_session_id` and stock deducted once. | Preserves divisible material weights (`backend/models/inventory.py:313-315`). Rollback: `git revert`. |
+| **S31** | Inventory Migration Invariance & Multi-Visit Endo Material Scenario Tests | `G13-M10`: Add migration invariance test<br>`G13-M11`: Add endo material scenario test | S30 | **S** | No | NORMAL | n/a (tests) | Run pytest suite verifying legacy `TreatmentMaterialUsage` rows and costs are 100% invariant and multi-session RCT deducts irrigants/obturation materials per session. Not visible in UI. | Closes Phase `G13`. Rollback: `git revert`. |
+| **S32** | **[MIGRATION 3/3]** Billing Policy Model & `clinical_charges` Ledger Table | `G14-M01`: Define billing policy model<br>`G14-M04`: Design `clinical_charges` | S27 | **M** | **YES**: New table `clinical_charges` (`id`, `tenant_id`, `patient_id`, `work_item_id`, `care_session_id`, `doctor_id`, `amount`, `discount`, `status`, `notes`, `version_id`, `created_at`, `updated_at`), RLS + triggers in Alembic & `preflight_migrations.py` | **HIGH_RISK** | **Yes** (`clinical_vnext_native_writes`) | Rehearse migration on staging DB snapshot; run `preflight_migrations.py` & schema contract tests. Not visible in UI yet. | Applies D1 (`status` defaults to `'pending'`). **Rehearsal required on DB dump.** Rollback: `alembic downgrade -1`. |
+| **S33** | Pending Clinical Charge Projection, Reception Invoice Action & Flagged Finance Read | `G14-M02`: Keep old finance source authoritative during shadow mode<br>`G14-M03`: Add work-item billing projection<br>`G14-M05`: Preserve payments unchanged<br>`G14-M12`: Cut finance reads only behind flag | S32 | **M** | No | **HIGH_RISK** | **Yes** (`clinical_vnext_native_writes` + finance read flag) | Complete procedure in session (flag ON) -> `clinical_charges` row created as `pending`; Billing tab shows "Pending Clinical Charges" queue for reception; legacy balance & `payments` unchanged while finance read flag is OFF. | Applies D1. Legacy `Treatment` remains authoritative by default (`G14-M02`). Rollback: disable flag or `git revert`. |
+| **S34** | Shadow Finance Calculator & Per-Patient / Per-Tenant Financial Parity (`G14-M06..M08`) | `G14-M06`: Create shadow calculator<br>`G14-M07`: Run per-patient parity<br>`G14-M08`: Run per-tenant parity | S02, S33 | **M** | No | **HIGH_RISK** | n/a (read-only calculator) | Call `GET /api/v1/admin/finance-parity/{tenant_id}` (and per-patient endpoint); compares legacy `SUM(Treatment.cost - discount)` against shadow `clinical_charges` + work-item projection. Not visible in clinic UI. | Strictly read-only parity engine after `S32`–`S33`. Rollback: `git revert`. |
+| **S35** | Legacy Lab Double-Charge Detector, Doctor-Share Compatibility & Finance Regression Suite | `G14-M09`: Detect legacy lab double-charge cases<br>`G14-M10`: Add deterministic remediation workflow<br>`G14-M11`: Add doctor-share compatibility tests<br>`G14-M13`: Keep payments stable<br>`G14-M14`: Add financial regression suite | S29, S34 | **M** | No | **HIGH_RISK** | **Yes** | Run `GET /api/v1/admin/finance-parity/{tenant_id}/lab-anomalies` and execute full financial + doctor-commission regression test suite (`accounting.py`, `accounting_decimal.py`, `payments.py`). | Closes Phase `G14`. Rollback: `git revert`. |
+| **S36** | Controlled Rollout Toggle, Read-Only VNext Mode & Legacy Compatibility Hardening | `G16-M01`: Enable internal tenant only<br>`G16-M02`: Roll out read-only VNext<br>`G16-M08`: Add tenant rollback toggle<br>`G16-M10`: Keep legacy compatibility during rollout | S21, S24, S25, S31, S35 | **S** | No | **HIGH_RISK** | **Yes** | On staging test tenant: toggle `clinical_vnext_primary=True` (with `clinical_vnext_native_writes=False` then `True`), verify chart & compatibility fallback, then toggle OFF and verify instant rollback to `LEGACY_ONLY`. | Closes in-release `G16` scope. Rollback: `set_tenant_override(..., is_enabled=False)`. |
+
+### 3.3 S01 Staging Ops Runbook (Performed by Eslam — Not an Agent Code Slice)
+
+1. **Take Staging Database Snapshot (Eslam):**
+   ```bash
+   pg_dump --format=custom --no-owner --no-acl "$DATABASE_URL" -f dentix_staging_pre_s01_$(date +%Y%m%d_%H%M%S).dump
+   ```
+2. **Run G4 Backfill CLI in Default Dry-Run Mode (Eslam):**
+   ```bash
+   python scripts/backfill_clinical_work_items.py --tenant-id 1 --json
+   ```
+   - *Expected Output:* JSON report with `"mode": "DRY_RUN"`, `"scanned": <N>`, `"created": <M>` (would-create count), and **0** database writes.
+3. **Execute G4 Backfill Apply on Staging Test Tenant Only (Eslam):**
+   ```bash
+   python scripts/backfill_clinical_work_items.py --tenant-id 1 --apply --json
+   ```
+   - *Expected Output:* `"mode": "APPLY"`, `"created": <M>`, `"already_synced": 0`.
+4. **Re-Run Apply Immediately to Verify Idempotency (Eslam):**
+   ```bash
+   python scripts/backfill_clinical_work_items.py --tenant-id 1 --apply --json
+   ```
+   - *Expected Output:* `"created": 0`, `"already_synced": <M>` (proves zero duplicate work items or events).
+5. **Create `clinical_vnext_shadow` Flag (if not yet in `feature_flags`) & Enable Override for Test Tenant 1 (Eslam):**
+   - Via Super-Admin API (`backend/routers/admin_features.py:37-55`, mounted at `/api/v1/admin/features` in `backend/main.py:498`):
+     ```http
+     POST /api/v1/admin/features
+     {"key": "clinical_vnext_shadow", "description": "Clinical VNext Shadow Mode", "is_global_enabled": false, "rollout_percentage": 0}
+
+     POST /api/v1/admin/features/override
+     {"tenant_id": 1, "feature_key": "clinical_vnext_shadow", "is_enabled": true}
+     ```
+   - *(Note: `FeatureFlagService.set_tenant_override` at `backend/services/feature_service.py:85-88` returns `404 Feature flag not found` if the flag key does not exist in `feature_flags` first).*
+6. **Verify in Staging UI (< 5 min, Eslam):**
+   - Log into staging test tenant `1` -> open any patient -> **Chart** tab (`frontend/src/pages/PatientDetails.jsx:476-486`).
+   - Confirm badge displays `SHADOW` (`amber` pill) and warning banner shows `[FALLBACK_DATA_ACTIVE] Clinical workspace is operating in shadow rollout mode; user-visible projection reflects legacy data.` (`backend/services/clinical_workspace_service.py:965-971`).
+   - Confirm all other tenants remain in `LEGACY_ONLY`.
+
+### 3.4 Queue Summary Metrics
+
+| Metric | Count | Slice Breakdown |
+|---|:---:|---|
+| **Total Slices in Queue** | **37** (`S00`–`S36`) | 1 Docs/Test Drop Slice (`S00`) + 1 Eslam Ops Runbook (`S01`) + 35 Agent Execution Slices (`S02`–`S36`) |
+| **Size Distribution** | 6 **S**, 31 **M**, **0 L** | **S:** `S00`, `S01`, `S16`, `S17`, `S31`, `S36` · **M:** `S02`–`S15`, `S18`–`S30`, `S32`–`S35` |
+| **Risk Classification** | 23 **HIGH_RISK**, 14 **NORMAL** | **HIGH_RISK:** `S02`–`S07`, `S13`, `S15`, `S18`–`S21`, `S23`, `S24`, `S26`–`S28`, `S30`, `S32`–`S36` · **NORMAL:** `S00`, `S01`, `S08`–`S12`, `S14`, `S16`, `S17`, `S22`, `S25`, `S29`, `S31` |
+| **Migration Slices** | **3** (Grouped: `S26`–`S27`, `S32`) | `S26` (`treatment_material_usages.care_session_id`), `S27` (`lab_orders.work_item_id`), `S32` (`clinical_charges` table) |
+
+---
+
+## 4. Definition of Done (Whole Plan)
+
+The Odontogram & Clinical VNext plan is **DONE** and ready for a single promotion PR from `staging` -> `main` when all of the following hold with real command exit codes and staging evidence:
+1. **100% Matrix Accounting:** All 327 items in `docs/product/ODONTOGRAM_TRACEABILITY_MATRIX.md` pass `pytest backend/tests/test_odontogram_traceability.py -q` (with the 5 approved drops reclassified in `S00` and the 7 cutover items explicitly tracked for the post-soak Cutover release).
+2. **Governance & Design Guardrails Green:**
+   - `.\.venv\Scripts\python.exe .github/scripts/check_agent_authority.py` exits `0`.
+   - `.\.venv\Scripts\python.exe -m pytest backend/tests/test_check_agent_authority.py backend/tests/test_ci_classifier.py backend/tests/test_odontogram_traceability.py -q` exits `0`.
+   - `.\.venv\Scripts\python.exe -m ruff check --config ruff.toml backend` exits `0`.
+   - `npm.cmd --prefix frontend run lint` and `npm.cmd --prefix frontend run build` exit `0`.
+   - `node frontend/scripts/check-design-system-guardrails.mjs --diff-base=origin/main` exits `0`.
+3. **Migration & Preflight Parity:** All 3 additive migrations (`S26`, `S27`, `S32`) apply cleanly via `python -m backend.scripts.preflight_migrations` on a restored production-schema PostgreSQL snapshot, and `pytest backend/tests/test_clinical_core_schema.py backend/tests/test_preflight_postgres_contract.py -q` exits `0`.
+4. **Fail-Closed Flag Defaults for Production:**
+   - `CLINICAL_TREATMENT_PLANS_ENABLED` defaults to `"false"` (`backend/core/config.py:147-150`).
+   - `clinical_treatment_plans`, `clinical_vnext_shadow`, `clinical_vnext_primary`, and `clinical_vnext_native_writes` are **disabled (`False`) by default** for all tenants unless explicitly enabled via `TenantFeature` override.
+5. **Zero Clinical or Financial Drift on Staging Soak:**
+   - `S02` Clinical Drift Observer reports `0` unexplained projection mismatches on the staging soak tenant.
+   - `S34` Finance Parity Calculator reports `0.00` balance delta between legacy `Treatment` totals and shadow `ClinicalCharge` projections on the staging soak tenant.
+
+---
+
+## 5. Final Release Rehearsal Checklist (Before Promoting `staging` -> `main`)
+
+Eslam performs this rehearsal once on a scratch PostgreSQL database before merging the final promotion PR to `main`:
+
+| Step | Command / Action | Pass Criterion |
+|---|---|---|
+| **1. Restore Prod Snapshot to Scratch DB** | `pg_restore --clean --no-owner --no-acl -d "$SCRATCH_DATABASE_URL" prod_snapshot.dump` | Restore completes with exit code `0`. |
+| **2. Run Preflight Migrations** | `DATABASE_URL="$SCRATCH_DATABASE_URL" .\.venv\Scripts\python.exe -m backend.scripts.preflight_migrations` | `alembic upgrade head` applies `S26`, `S27`, `S32` migrations; PostgreSQL RLS & trigger health check exits `0`. |
+| **3. Run Backfill Dry-Run Across All Tenants** | `DATABASE_URL="$SCRATCH_DATABASE_URL" .\.venv\Scripts\python.exe scripts/backfill_clinical_work_items.py --all-tenants --json` | Exits `0`; inspect skip reasons (`unmapped`, `invalid_fdi`); confirm `0` DB writes. |
+| **4. Run Backfill Apply on Scratch DB** | `DATABASE_URL="$SCRATCH_DATABASE_URL" .\.venv\Scripts\python.exe scripts/backfill_clinical_work_items.py --all-tenants --apply --json` | Exits `0`; re-running immediately reports `created: 0` across all tenants. |
+| **5. Verify Production Flag Defaults** | Query `SELECT key, is_global_enabled, rollout_percentage FROM feature_flags WHERE key LIKE 'clinical_%';` and `SELECT * FROM tenant_features WHERE feature_key LIKE 'clinical_%';` | All global flags `is_global_enabled = false`, `rollout_percentage = 0`; no production tenant has `clinical_vnext_native_writes = true`. |
+| **6. Verify Parity Observer & Finance Parity on Scratch DB** | Run `S02` clinical drift check and `S34` finance parity check against scratch DB tenants | `0` clinical projection errors; `0.00` legacy patient balance / payment / stock movement mutation. |
+| **7. Post-Deploy Smoke Checklist (<= 15 min)** | Login -> open patient -> Chart renders roots/surfaces in `LEGACY_ONLY` -> add/edit/delete legacy treatment -> verify Billing balance, Payments, Lab orders, Inventory deduction, Dashboard KPIs -> confirm Treatment Plans card is hidden for default tenants | All checks pass with `0` console or server errors. |
+| **8. Pre-Promotion Production Backup & Rollback Path** | Take production `pg_dump` snapshot immediately before merging promotion PR | If rollback is needed: redeploy previous container SHA; additive columns/tables (`lab_orders.work_item_id`, `treatment_material_usages.care_session_id`, `clinical_charges`) are backward-compatible with previous code without running destructive `downgrade`. |
+
+---
+
+## 6. Cutover Appendix (Out of First Release — Legacy `models.Treatment` Blast Radius)
+
+Retiring legacy `models.Treatment` writes (`G16-M03`, `G16-M06..M07`, `G16-M09`, `G16-M11..M13`) is **strictly out of the first release**. Every module below reads or writes `models.Treatment` (`treatments` table at `backend/models/clinical.py:146-215`) on `origin/staging` (`f9fcae4b`):
+
+| Subsystem | Verified File Paths (`origin/staging`) | Exact `models.Treatment` Read / Write Coupling |
+|---|---|---|
+| **Treatment CRUD, Pricing & Inventory Sync** | `backend/services/treatment_service.py:42-1024`<br>`backend/routers/treatments.py:32-215`<br>`backend/services/clinical_service.py:17-47,224-341,428-486` | Primary write path (`POST/PUT/DELETE /api/v1/treatments`, `/multi-procedure`, `/{id}/sessions`, `/{id}/materials`); computes price snapshots, deducts stock, and syncs shadow `ClinicalWorkItem` rows. |
+| **Patient Billing, Receivables & Invoices** | `backend/crud/billing.py:44-273,505-525`<br>`backend/services/billing_service.py`<br>`backend/services/billing_service_legacy.py`<br>`backend/services/invoice_service.py`<br>`backend/routers/payments.py` | Computes patient charges and balances directly from `func.sum(models.Treatment.cost - models.Treatment.discount)` (`backend/crud/billing.py:80,505-510`) and allocates payments against treatment doctors (`backend/crud/billing.py:268-273`). |
+| **Financial Reports & Summaries** | `backend/crud/reporting.py:35-147`<br>`backend/crud/reporting_legacy.py:48-203`<br>`backend/services/finance_report_service.py`<br>`backend/services/finance_summary_service.py`<br>`backend/routers/financials.py` | Aggregates clinic revenue, discounts, and receivables from `models.Treatment.cost` and `models.Treatment.discount` filtered by `models.Treatment.date` and `is_deleted == False`. |
+| **Finance CSV / Excel Exports** | `backend/routers/finance_exports.py`<br>`backend/services/export_service.py` | Exports treatment rows, costs, discounts, and doctor attributions for external accounting. |
+| **Executive Dashboard & Metrics** | `backend/routers/dashboard.py`<br>`backend/routers/metrics.py`<br>`backend/routers/metrics_decimal.py`<br>`backend/routers/metrics_legacy.py` | Computes daily/monthly clinic revenue KPIs and procedure counts from `models.Treatment`. |
+| **Accounting & Doctor Revenue Share / Payroll** | `backend/routers/accounting.py`<br>`backend/routers/accounting_decimal.py`<br>`backend/routers/accounting_legacy.py`<br>`backend/routers/accounting_pre_cancelled_filter.py`<br>`backend/services/cost_engine.py` | Calculates doctor commission/compensation and net clinic profit from `models.Treatment` grouped by `doctor_id` minus material/lab costs. |
+| **Inventory Material Usage & Learning** | `backend/models/inventory.py:289-326`<br>`backend/routers/inventory.py`<br>`backend/routers/inventory_smart.py`<br>`backend/services/inventory_service.py`<br>`backend/services/inventory_learning_service.py` | `TreatmentMaterialUsage.treatment_id` (`backend/models/inventory.py:309`) is a `ForeignKey("treatments.id")` used to back-calculate divisible material consumption and procedure cost weights. |
+| **Insurance Claims & Pre-Authorizations** | `backend/routers/insurance.py` | Links insurance claim line items and copay calculations to `models.Treatment` records. |
+| **AI Clinical Assistant & Scribe** | `backend/routers/ai_assist.py`<br>`backend/routers/ai.py`<br>`backend/routers/analytics_ai_v2.py`<br>`backend/services/scribe_service.py` | Reads patient `models.Treatment` history for clinical summarization and chairside AI tools (`ClinicalService.add_treatment` at `backend/services/clinical_service.py:224`). |
+| **Clinical Workspace Projection Fallback** | `backend/services/clinical_workspace_service.py:136-995`<br>`backend/crud/clinical_workspace.py:22,152-180` | Loads `models.Treatment` rows to drive chart projection in `LEGACY_ONLY` and `SHADOW` modes and fallback domains in `VNEXT_PRIMARY` mode. |
+
+---
+
+## 7. Verified Identifiers Appendix (Flash Must Reuse — Never Invent)
+
+Every identifier below was verified directly from `origin/staging` (`f9fcae4b3824850f0d6f0e261d0c55dc4a56cdd2`):
+
+| Category | Exact Identifier | Verified Location (`file:line`) | Usage Contract for Flash |
+|---|---|---|---|
+| **Feature Flag Keys** | `FEATURE_FLAG_CLINICAL_SHADOW = "clinical_vnext_shadow"`<br>`FEATURE_FLAG_CLINICAL_PRIMARY = "clinical_vnext_primary"`<br>`FEATURE_FLAG_CLINICAL_NATIVE_WRITES = "clinical_vnext_native_writes"` | `backend/services/clinical_workspace_service.py:42-44` | Check via `await FeatureFlagService.is_feature_enabled(db, key, tenant_id)` (`backend/services/feature_service.py:9-48`). |
+| **Treatment Plans Flag** | `FEATURE_KEY_TREATMENT_PLANS = "clinical_treatment_plans"`<br>`is_clinical_treatment_plans_enabled()` (`CLINICAL_TREATMENT_PLANS_ENABLED`) | `backend/services/treatment_plan_service.py:31,77-98`<br>`backend/core/config.py:147-150` | Enforced via `await self.ensure_enabled()` -> raises `HTTPException(404, detail="Treatment plans feature is disabled")`. |
+| **Tenant Flag Override API** | `POST /api/v1/admin/features` (`schemas.FeatureFlagCreate`)<br>`POST /api/v1/admin/features/override` (`schemas.TenantFeatureOverride`: `{tenant_id, feature_key, is_enabled}`)<br>`POST /api/v1/admin/tenants/{tenant_id}/features` | `backend/routers/admin_features.py:37-55`<br>`backend/schemas/system.py:84-89,106-110`<br>`backend/routers/admin_tenants.py:267-309` | Requires `get_super_admin` (`Permission.SYSTEM_CONFIG` + `Role.SUPER_ADMIN` or tenantless `Role.ADMIN`). Persists to `models.TenantFeature` (`tenant_features` table at `backend/models/system.py:164`). |
+| **Rollout Modes** | `Literal["LEGACY_ONLY", "SHADOW", "VNEXT_PRIMARY"]` | `backend/services/clinical_workspace_service.py:997-1017` | Resolved per tenant by `_resolve_rollout_mode()`. Precedence: `SHADOW` -> `VNEXT_PRIMARY` -> `LEGACY_ONLY`. |
+| **RBAC Permissions** | `Permission.CLINICAL_READ = "clinical:read"`<br>`Permission.CLINICAL_WRITE = "clinical:write"`<br>`Permission.TREATMENT_PLAN_WRITE = "treatment:write"`<br>`Permission.SYSTEM_CONFIG = "system:config"`<br>`Permission.FINANCE_OVERVIEW_READ = "finance:overview:read"`<br>`Permission.RECEIVABLE_READ = "finance:receivable:read"`<br>`Permission.PAYMENT_CREATE = "finance:payment:create"` | `backend/core/permissions.py:52-88,229-262` | Enforce via `current_user: models.User = Depends(require_permission(Permission.<PERM>))`. |
+| **Patient Visibility Guard** | `await ensure_patient_visible(db, current_user, patient_id)` | `backend/services/patient_access_service.py:11-21` | Raises `HTTPException(status_code=404, detail="Patient not found")` when patient is missing, belongs to another tenant, or is hidden from current doctor. |
+| **Audit Logger** | `log_admin_action(db=..., admin_user=..., action=..., entity_type=..., entity_id=..., details=...)` | `backend/utils/audit_logger.py:25-70`<br>`backend/services/treatment_plan_service.py:29,483-490` | Synchronous helper that adds an `AuditLog` row to `db` session before `await db.commit()`. |
+| **Clinical Core Models (G1)** | `ClinicalWorkItem` (`clinical_work_items`)<br>`ClinicalWorkItemTarget` (`clinical_work_item_targets`)<br>`ClinicalTreatmentPlan` (`clinical_treatment_plans`)<br>`ClinicalTreatmentPlanPhase` (`clinical_treatment_plan_phases`)<br>`ClinicalTreatmentPlanItem` (`clinical_treatment_plan_items`)<br>`ClinicalEvent` (`clinical_events`)<br>`ClinicalEventTarget` (`clinical_event_targets`)<br>`CareSession` (`care_sessions`)<br>`CareSessionStep` (`care_session_steps`)<br>`CareObservation` (`care_observations`)<br>`WorkflowTemplate` (`workflow_templates`)<br>`NextVisitRequest` (`next_visit_requests`)<br>`ClinicalAttachmentLink` (`clinical_attachment_links`)<br>`ClinicalProjectionCoverage` (`clinical_projection_coverages`) | `backend/models/clinical_core.py:97-695`<br>`backend/alembic/versions/f4a5b6c7d8e9_clinical_vnext_core_schema.py`<br>`backend/alembic/versions/1a2b3c4d5e6f_add_clinical_projection_coverages.py` | Current Alembic head revision on `origin/staging` is `1a2b3c4d5e6f` (revises `f4a5b6c7d8e9`). `FDI_TOOTH_KEYS` (52 keys) and `SURFACE_CODES = ("M", "D", "O", "I", "B", "L", "P")` are at `backend/models/clinical_core.py:45-60`. |
+| **Canonical Clinical Catalog** | `FindingCode`, `ProcedureCode`, `ToothLifecycleCode`, `CANONICAL_FINDING_CODES`, `CANONICAL_PROCEDURE_CODES`, `CANONICAL_TOOTH_LIFECYCLE_CODES`, `FROZEN_RENDERER_PROCEDURE_CODES` | `backend/clinical/catalog.py:24-120` | Validate all native finding/procedure codes against these constants. |
+| **Legacy Mapping Engine** | `map_legacy_treatment`, `map_legacy_tooth_status`, `map_legacy_treatment_session`, `resolve_exact_lab_link`, `map_legacy_clinical_batch` | `backend/clinical/legacy_mapping.py:662,872,995,1109,1391` | Reuse in `S02` (Drift Observer), `S03` (Backfill extensions), and `S27` (Lab link backfill). |
+| **Backfill CLI & Tests** | `scripts/backfill_clinical_work_items.py` (`backfill_tenant`, `TenantBackfillReport`)<br>`backend/tests/services/test_clinical_backfill.py` | `scripts/backfill_clinical_work_items.py:50-366`<br>`backend/tests/services/test_clinical_backfill.py:1-410` | Flags: `--tenant-id <int>` \| `--all-tenants`, `--apply` (dry-run is default), `--batch-size <int>`, `--after-id <int>`, `--json`. |
+| **Preflight & Schema Tests** | `backend/scripts/preflight_migrations.py` (`RLS_TABLES`, `CHILD_TENANT_RELATIONSHIPS`, `CLINICAL_G1_DIRECT_PARENT_PATIENT_RELATIONSHIPS`)<br>`backend/tests/test_clinical_core_schema.py`<br>`backend/tests/test_preflight_postgres_contract.py` | `backend/scripts/preflight_migrations.py:66-202`<br>`backend/tests/test_clinical_core_schema.py:1-740` | Any migration adding a table or child FK must update `preflight_migrations.py` in lockstep. |
+| **Traceability Test Constants** | `EXPECTED_COUNTS`, `HISTORICAL_IDS`, `ARCHITECTURE_IDS`, `EVIDENCE_IDS`, `DESTINATIONS` | `backend/tests/test_odontogram_traceability.py:61-115` | Used in `S00` to reclassify approved drops without weakening test assertions. |
+| **Existing Clinical Routes** | `GET /api/v1/patients/{patient_id}/clinical-workspace`<br>`POST/GET /api/v1/patients/{patient_id}/clinical-plans` (+ `/candidate-work-items`, `/phases`, `/phases/{phase_id}/items`, `/transition`)<br>`POST /api/v1/treatments`, `PUT/DELETE /api/v1/treatments/{treatment_id}`, `POST /api/v1/treatments/multi-procedure`, `POST /api/v1/treatments/finding`, `POST /api/v1/treatments/symptom`, `GET /api/v1/treatments/tooth/{patient_id}/{tooth_str}` | `backend/routers/patients.py:217-232`<br>`backend/routers/treatment_plans.py:16-162`<br>`backend/routers/treatments.py:32-195` | All new patient-scoped clinical routes should mount under `/patients/{patient_id}/...` (included with `prefix=API_V1_STR` in `backend/main.py:475-476`). |
+| **Frontend Clinical Entrypoints** | `frontend/src/pages/PatientDetails.jsx`<br>`frontend/src/features/clinical-chart/components/ClinicalChartRenderer.jsx`<br>`frontend/src/features/clinical-chart/adapters/workspaceSnapshotAdapter.js`<br>`frontend/src/features/clinical-plans/TreatmentPlansCard.jsx`<br>`frontend/src/hooks/usePatientDetails.js` | `frontend/src/pages/PatientDetails.jsx:3-26,90-183,468-597`<br>`frontend/src/features/clinical-plans/TreatmentPlansCard.jsx:1-420` | `useTenantFeatures()` (`PatientDetails.jsx:97-98`) checks enabled feature keys for the current tenant (`GET /api/v1/settings` returns `enabled_features` from `backend/routers/settings.py:410-415`). |
