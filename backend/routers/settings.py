@@ -45,6 +45,9 @@ from ..services.secret_service import (
     encrypt_secret,
 )
 from .auth import get_async_db
+from backend.routers.auth.dependencies import get_current_user
+from backend.services.feature_service import FeatureFlagService
+from backend.core.config import is_clinical_treatment_plans_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -397,21 +400,28 @@ async def get_tenant_settings(
 @router.get("/features", response_model=StandardResponse[dict])
 async def get_tenant_features(
     db: AsyncSession = Depends(get_async_db),
-    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+    current_user: models.User = Depends(get_current_user),
 ):
     """Get active feature keys for the current clinic."""
-    if not current_user.tenant:
+    tenant_id = current_user.tenant_id if current_user else None
+    if not tenant_id:
         return success_response(data={"features": []})
 
     stmt_features = select(models.TenantFeature).filter(
-        models.TenantFeature.tenant_id == current_user.tenant.id,
+        models.TenantFeature.tenant_id == tenant_id,
         models.TenantFeature.is_enabled == True,  # noqa: E712
     )
     res_features = await db.execute(stmt_features)
     tenant_features = res_features.scalars().all()
 
-    feature_keys = [f.feature_key for f in tenant_features]
-    return success_response(data={"features": feature_keys})
+    feature_keys = set(f.feature_key for f in tenant_features)
+    if is_clinical_treatment_plans_enabled() or await FeatureFlagService.is_feature_enabled(
+        db, "clinical_treatment_plans", tenant_id
+    ):
+        feature_keys.add("clinical_treatment_plans")
+
+    return success_response(data={"features": sorted(list(feature_keys))})
+
 
 
 @router.put("/tenant", response_model=StandardResponse[schemas.Tenant])

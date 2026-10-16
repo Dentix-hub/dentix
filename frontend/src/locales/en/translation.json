@@ -797,7 +797,38 @@
             "upload_fail": "Failed to upload file"
         }
     },
+    "clinical_plans": {
+        "title": "Treatment Plans",
+        "subtitle": "Patient treatment plans and phases",
+        "new_plan": "New Plan",
+        "empty_state": "No treatment plans created yet.",
+        "empty_cta": "Create your first plan for this patient",
+        "collapse": "Collapse treatment plans",
+        "expand": "Expand treatment plans",
+        "default_phase": "Phase 1",
+        "phases_count": "Phase",
+        "phases_count_plural": "Phases",
+        "status": {
+            "draft": "Draft"
+        },
+        "dialog": {
+            "title": "Create Treatment Plan",
+            "title_label": "Plan Title",
+            "title_placeholder": "e.g. Comprehensive Rehabilitation, Urgent Care",
+            "notes_label": "Notes (optional)",
+            "notes_placeholder": "Clinical observations, strategy, or patient preferences...",
+            "submit": "Create Plan",
+            "cancel": "Cancel",
+            "creating": "Creating..."
+        },
+        "alerts": {
+            "create_success": "Treatment plan created successfully",
+            "create_error": "Failed to create treatment plan",
+            "title_required": "Plan title is required"
+        }
+    },
     "inventory": {
+
         "title": "Inventory Management",
         "subtitle": "Track materials, quantities, and expiry dates within the clinic and warehouse",
         "tabs": {

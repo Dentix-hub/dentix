@@ -19,10 +19,13 @@ import {
     usePatientPayments,
     usePatientAttachments,
     useCreatePayment,
-    useDeletePayment
+    useDeletePayment,
+    useTenantFeatures,
 } from '@/hooks/usePatientDetails';
+import TreatmentPlansCard from '@/features/clinical-plans/TreatmentPlansCard';
 import { useTreatmentOperations } from '@/features/patients/hooks/useTreatmentOperations';
 import { Baby } from 'lucide-react';
+
 import { toothToNumber, fdiToPalmer, getTodayStr, universalToPalmer } from '../utils/toothUtils';
 import {
     updatePatient,
@@ -91,7 +94,11 @@ export default function PatientDetails() {
         refetch: refetchWorkspace,
     } = usePatientClinicalWorkspace(id, { enabled: activeTab === 'chart' || isToothSelectModalOpen });
 
+    const { data: tenantFeatures = [] } = useTenantFeatures();
+    const isTreatmentPlansEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_treatment_plans');
+
     const effectiveTeethStatusRef = useRef({});
+
 
     const handleToothClick = useCallback((number, notation = 'universal') => {
         const isFdiKey = notation === 'fdi';
@@ -582,8 +589,13 @@ export default function PatientDetails() {
                                 ) : (
                                     <ClinicalChartRenderer input={adaptedChart.rendererInput} />
                                 )}
+
+                                {isTreatmentPlansEnabled && (
+                                    <TreatmentPlansCard patientId={id} />
+                                )}
                             </div>
                         )}
+
 
                         {activeTab === 'timeline' && <PatientTimeline history={history} payments={payments} t={t} />}
 

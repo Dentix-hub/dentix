@@ -12,8 +12,8 @@
 
 - **Total Phases Tracked:** 35 (A0–A17, G0–G16)
 - **DONE:** 26 phases (A0–A17, G0–G6)
-- **PARTIAL:** 3 phases (G7, G8, G16)
-- **SCHEMA_ONLY:** 4 phases (G9, G10, G11, G15)
+- **PARTIAL:** 4 phases (G7, G8, G9, G16)
+- **SCHEMA_ONLY:** 3 phases (G10, G11, G15)
 - **NOT_STARTED:** 2 phases (G12, G13, G14)
 
 ---
@@ -44,12 +44,13 @@
 | **G1** | Additive Clinical Core Schema | **DONE** | `backend/models/clinical_core.py:97-590`, migration `f4a5b6c7d8e9`, `test_clinical_core_schema.py`, PR #222 |
 | **G2** | Canonical Catalog, Taxonomy, & Templates | **DONE** | `backend/clinical/catalog.py:1-120`, `templates.py:1-150`, `test_clinical_catalog.py`, PR #222 |
 | **G3** | Deterministic Legacy Mapping Engine | **DONE** | `backend/clinical/legacy_mapping.py:1-140`, `treatment_service.py:189-224`, `test_clinical_legacy_mapping.py`, PR #222 & PR #226 |
-| **G4** | Controlled Backfill | **DONE** | `scripts/backfill_clinical_work_items.py:1-352`, `test_clinical_backfill.py` (35 tests, 100% coverage), PR #227 (commit `2c9b6180`) |
+| **G4** | Controlled Backfill | **DONE** | tool built and tested; not yet run on real data (`scripts/backfill_clinical_work_items.py:1-352`, `test_clinical_backfill.py` (35 tests, 100% coverage), PR #227 (commit `2c9b6180`)) |
 | **G5** | Projection Layer & Real Chart Data | **DONE** | `backend/services/clinical_workspace_service.py:1-1018`, `test_clinical_workspace_service.py`, `backend/routers/clinical_workspace.py`, PR #222 |
 | **G6** | Chart Integration to Codex Renderer | **DONE** | `frontend/src/features/clinical-chart/adapters/workspaceSnapshotAdapter.js:1-328`, `PatientDetails.jsx:558` (main chart) & `PatientDetails.jsx:659` (modal chart), `PatientDetails.chartRoots.test.jsx`, PR #222 & PR #228 (commit `7dceae07`) |
 | **G7** | Command / API Layer | **PARTIAL** | `backend/services/treatment_service.py:260-470` (`_sync_clinical_work_item`, update & delete sync via PR #226), `POST /treatments/multi-procedure`, `test_treatment_service.py:900-1015`; dedicated standalone WorkItem CRUD router not yet exposed. |
 | **G8** | Zero-Friction Charting UX | **PARTIAL** | `frontend/src/features/dental/DentalChartSVG.jsx:320-380` (surface selector), `TreatmentModal.jsx:210-310`, `PatientDetails.jsx:659` (modal chart via PR #228); quick action launcher / sticky tool mode not started. |
-| **G9** | First-Class Treatment Plans | **SCHEMA_ONLY** | `backend/models/clinical_core.py:189-280` (`ClinicalTreatmentPlan`, `ClinicalTreatmentPlanPhase`, `ClinicalTreatmentPlanItem`), migration `f4a5b6c7d8e9`; service, router, and UI not yet implemented. |
+| **G9** | First-Class Treatment Plans | **PARTIAL** | Minimal treatment plans create & list (Slice G9a): `backend/models/clinical_core.py:189-280`, `backend/services/treatment_plan_service.py`, `backend/routers/treatment_plans.py`, `frontend/src/features/clinical-plans/TreatmentPlansCard.jsx`, `backend/tests/services/test_treatment_plan_service.py`, `frontend/src/tests/TreatmentPlansCard.test.jsx`, PR #230. Phase items and lifecycle not yet implemented. |
+
 | **G10** | Sessions and Resume Engine | **SCHEMA_ONLY** | `backend/models/clinical_core.py:383-500` (`CareSession`, `CareSessionStep`, `CareObservation`), migration `f4a5b6c7d8e9`; service, router, and UI not yet implemented. |
 | **G11** | Appointment Integration | **SCHEMA_ONLY** | `backend/models/clinical_core.py:542-575` (`NextVisitRequest`), migration `f4a5b6c7d8e9`; appointment integration service, reception queue, and suggestion UI not yet implemented. |
 | **G12** | Lab Integration | **NOT_STARTED** | `backend/models/clinical.py:326` (`LabOrder` has no `work_item_id` foreign key); direct work item link and decoupling not implemented. |

@@ -26,8 +26,11 @@ export const queryKeys = {
     patientTeeth: (id) => ['patient', id, 'teeth'],
     patientClinicalWorkspace: (id) => ['patient', id, 'clinical-workspace'],
     patientTreatments: (id) => ['patient', id, 'treatments'],
+    patientClinicalPlans: (id) => ['patient', id, 'clinical-plans'],
     patientPayments: (id) => ['patient', id, 'payments'],
     patientAttachments: (id) => ['patient', id, 'attachments'],
+    tenantFeatures: ['tenant', 'features'],
+
 
     dashboardStats: ['dashboard', 'stats'],
     todayPayments: ['dashboard', 'todayPayments'],

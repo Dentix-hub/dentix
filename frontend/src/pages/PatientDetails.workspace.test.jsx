@@ -86,7 +86,10 @@ vi.mock('@/hooks/usePatientDetails', () => ({
     }),
     useCreatePayment: () => ({ mutate: vi.fn() }),
     useDeletePayment: () => ({ mutate: vi.fn() }),
+    useTenantFeatures: () => ({ data: [], isLoading: false }),
+    usePatientClinicalPlans: () => ({ data: [], isLoading: false }),
 }));
+
 
 const renderPatientDetails = () => {
     const queryClient = new QueryClient({

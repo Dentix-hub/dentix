@@ -75,7 +75,10 @@ vi.mock('@/hooks/usePatientDetails', () => ({
     }),
     useCreatePayment: () => ({ mutate: vi.fn() }),
     useDeletePayment: () => ({ mutate: vi.fn() }),
+    useTenantFeatures: () => ({ data: [], isLoading: false }),
+    usePatientClinicalPlans: () => ({ data: [], isLoading: false }),
 }));
+
 
 vi.mock('@/features/patients/hooks/useTreatmentOperations', () => ({
     useTreatmentOperations: () => ({

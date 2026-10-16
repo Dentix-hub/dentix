@@ -9,8 +9,12 @@ import {
     getPatientPayments,
     getAttachments,
     createPayment,
-    deletePayment
+    deletePayment,
+    getPatientClinicalPlans,
+    createPatientClinicalPlan,
+    getTenantFeatures,
 } from '@/api';
+
 
 /**
  * Hook for patient core data (basic info) - loads immediately
@@ -185,4 +189,49 @@ export function useInvalidatePatientData() {
         }
     }, [queryClient]);
 }
+
+/**
+ * Hook for patient clinical treatment plans - loads when chart tab is active and feature enabled
+ */
+export function usePatientClinicalPlans(patientId, { enabled = true } = {}) {
+    return useQuery({
+        queryKey: queryKeys.patientClinicalPlans(patientId),
+        queryFn: async () => {
+            const res = await getPatientClinicalPlans(patientId);
+            return res.data || [];
+        },
+        enabled: !!patientId && enabled,
+        staleTime: 30 * 1000,
+    });
+}
+
+/**
+ * Hook for creating a patient clinical treatment plan
+ */
+export function useCreatePatientClinicalPlan() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, data }) => createPatientClinicalPlan(patientId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlans(variables.patientId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for tenant feature flags
+ */
+export function useTenantFeatures() {
+    return useQuery({
+        queryKey: queryKeys.tenantFeatures,
+        queryFn: async () => {
+            const res = await getTenantFeatures();
+            return res.data?.features || [];
+        },
+        staleTime: 60 * 1000,
+    });
+}
+
 
