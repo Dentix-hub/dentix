@@ -15,7 +15,7 @@ from decimal import Decimal
 from datetime import date, datetime, timezone
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy import or_, select, delete
 
 from fastapi import HTTPException
@@ -186,14 +186,14 @@ class TreatmentService:
 
     # --- Treatment CRUD ---
 
-    async def _sync_clinical_work_item(
+    def _map_treatment_to_clinical(
         self,
         treatment: models.Treatment,
         surfaces: Optional[List[str]] = None,
-    ) -> Optional[models.ClinicalWorkItem]:
+    ) -> Optional[tuple[str, str, str, list[str]]]:
         """
-        Synchronize created/updated treatment to ClinicalWorkItem and ClinicalEvent.
-        Provides zero-overhead integration with Odontogram renderer workspace projection.
+        Extract and map legacy treatment attributes to clinical core representations:
+        returns (canonical_code, status, tooth_key, valid_surfs) or None if tooth is missing/invalid.
         """
         if not treatment.tooth_number:
             return None
@@ -218,6 +218,60 @@ class TreatmentService:
         else:
             status = "active"
 
+        surfs = surfaces or treatment.surfaces or []
+        valid_surfs = [s for s in surfs if s in SURFACE_CODES]
+
+        return canonical_code, status, tooth_key, valid_surfs
+
+    async def _find_linked_clinical_work_item(
+        self, treatment_id: int, patient_id: int
+    ) -> Optional[models.ClinicalWorkItem]:
+        """
+        Locate the ClinicalWorkItem linked to a legacy treatment within the current tenant.
+        Queries ClinicalEvents matching tenant_id, patient_id, and payload treatment_id.
+        """
+        stmt = (
+            select(models.ClinicalEvent)
+            .where(
+                models.ClinicalEvent.tenant_id == self.tenant_id,
+                models.ClinicalEvent.patient_id == patient_id,
+                models.ClinicalEvent.work_item_id.is_not(None),
+            )
+            .order_by(models.ClinicalEvent.id.desc())
+        )
+        result = await self.db.execute(stmt)
+        events = result.scalars().all()
+        for ev in events:
+            if isinstance(ev.payload, dict) and ev.payload.get("treatment_id") == treatment_id:
+                wi_stmt = (
+                    select(models.ClinicalWorkItem)
+                    .options(selectinload(models.ClinicalWorkItem.targets))
+                    .where(
+                        models.ClinicalWorkItem.id == ev.work_item_id,
+                        models.ClinicalWorkItem.tenant_id == self.tenant_id,
+                    )
+                )
+                wi_res = await self.db.execute(wi_stmt)
+                work_item = wi_res.scalars().first()
+                if work_item:
+                    return work_item
+        return None
+
+    async def _sync_clinical_work_item(
+        self,
+        treatment: models.Treatment,
+        surfaces: Optional[List[str]] = None,
+    ) -> Optional[models.ClinicalWorkItem]:
+        """
+        Synchronize created treatment to ClinicalWorkItem and ClinicalEvent.
+        Provides zero-overhead integration with Odontogram renderer workspace projection.
+        """
+        mapping = self._map_treatment_to_clinical(treatment, surfaces=surfaces)
+        if mapping is None:
+            return None
+
+        canonical_code, status, tooth_key, valid_surfs = mapping
+
         work_item = models.ClinicalWorkItem(
             tenant_id=self.tenant_id,
             patient_id=treatment.patient_id,
@@ -230,8 +284,6 @@ class TreatmentService:
         self.db.add(work_item)
         await self.db.flush()
 
-        surfs = surfaces or treatment.surfaces or []
-        valid_surfs = [s for s in surfs if s in SURFACE_CODES]
         if valid_surfs:
             for s in valid_surfs:
                 self.db.add(
@@ -293,6 +345,160 @@ class TreatmentService:
                 )
             )
 
+        return work_item
+
+    async def _sync_clinical_work_item_update(
+        self,
+        treatment: models.Treatment,
+        surfaces: Optional[List[str]] = None,
+    ) -> Optional[models.ClinicalWorkItem]:
+        """
+        Synchronize updated treatment to ClinicalWorkItem and ClinicalEvent.
+        Updates tooth, surfaces, procedure (canonical code), and status using the same mapping logic.
+        """
+        work_item = await self._find_linked_clinical_work_item(treatment.id, treatment.patient_id)
+        mapping = self._map_treatment_to_clinical(treatment, surfaces=surfaces)
+
+        if not work_item:
+            if mapping is not None:
+                return await self._sync_clinical_work_item(treatment, surfaces=surfaces)
+            return None
+
+        if mapping is None:
+            work_item.status = "cancelled"
+            # new event type introduced in this PR, free-text, used with payload.action in {"deleted","unmapped"}.
+            event = models.ClinicalEvent(
+                tenant_id=self.tenant_id,
+                patient_id=treatment.patient_id,
+                work_item_id=work_item.id,
+                event_type="procedure_cancelled",
+                occurred_at=treatment.date or datetime.now(timezone.utc).replace(tzinfo=None),
+                actor_user_id=treatment.doctor_id or self.current_user.id,
+                payload={
+                    "kind": "procedure",
+                    "canonical_code": work_item.code,
+                    "treatment_id": treatment.id,
+                    "status": "cancelled",
+                    "superseded": True,
+                    "action": "unmapped",
+                },
+                notes=treatment.notes,
+            )
+            self.db.add(event)
+            await self.db.flush()
+            return work_item
+
+        canonical_code, status, tooth_key, valid_surfs = mapping
+
+        work_item.code = canonical_code
+        work_item.status = status
+        work_item.notes = treatment.notes
+
+        # Replace targets with updated definitions
+        stmt_del_targets = delete(models.ClinicalWorkItemTarget).where(
+            models.ClinicalWorkItemTarget.work_item_id == work_item.id,
+            models.ClinicalWorkItemTarget.tenant_id == self.tenant_id,
+        )
+        await self.db.execute(stmt_del_targets)
+
+        if valid_surfs:
+            for s in valid_surfs:
+                self.db.add(
+                    models.ClinicalWorkItemTarget(
+                        tenant_id=self.tenant_id,
+                        work_item_id=work_item.id,
+                        target_kind="surface",
+                        tooth_key=tooth_key,
+                        surface_code=s,
+                    )
+                )
+        else:
+            self.db.add(
+                models.ClinicalWorkItemTarget(
+                    tenant_id=self.tenant_id,
+                    work_item_id=work_item.id,
+                    target_kind="tooth",
+                    tooth_key=tooth_key,
+                )
+            )
+
+        # Append ClinicalEvent for the update
+        event = models.ClinicalEvent(
+            tenant_id=self.tenant_id,
+            patient_id=treatment.patient_id,
+            work_item_id=work_item.id,
+            event_type="procedure_recorded",
+            occurred_at=treatment.date or datetime.now(timezone.utc).replace(tzinfo=None),
+            actor_user_id=treatment.doctor_id or self.current_user.id,
+            payload={
+                "kind": "procedure",
+                "canonical_code": canonical_code,
+                "treatment_id": treatment.id,
+                "surfaces": valid_surfs,
+                "status": status,
+                "action": "updated",
+            },
+            notes=treatment.notes,
+        )
+        self.db.add(event)
+        await self.db.flush()
+
+        if valid_surfs:
+            for s in valid_surfs:
+                self.db.add(
+                    models.clinical_core.ClinicalEventTarget(
+                        tenant_id=self.tenant_id,
+                        event_id=event.id,
+                        target_kind="surface",
+                        tooth_key=tooth_key,
+                        surface_code=s,
+                    )
+                )
+        else:
+            self.db.add(
+                models.clinical_core.ClinicalEventTarget(
+                    tenant_id=self.tenant_id,
+                    event_id=event.id,
+                    target_kind="tooth",
+                    tooth_key=tooth_key,
+                )
+            )
+
+        return work_item
+
+    async def _sync_clinical_work_item_delete(
+        self, treatment: models.Treatment
+    ) -> Optional[models.ClinicalWorkItem]:
+        """
+        Void/cancel ClinicalWorkItem associated with deleted treatment.
+        Appends a procedure_cancelled ClinicalEvent; preserves all historical events.
+        """
+        work_item = await self._find_linked_clinical_work_item(treatment.id, treatment.patient_id)
+        if not work_item:
+            return None
+
+        work_item.status = "cancelled"
+
+        # new event type introduced in this PR, free-text, used with payload.action in {"deleted","unmapped"}.
+        event = models.ClinicalEvent(
+            tenant_id=self.tenant_id,
+            patient_id=treatment.patient_id,
+            work_item_id=work_item.id,
+            event_type="procedure_cancelled",
+            occurred_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            actor_user_id=self.current_user.id,
+            payload={
+                "kind": "procedure",
+                "canonical_code": work_item.code,
+                "treatment_id": treatment.id,
+                "status": "cancelled",
+                "superseded": True,
+                "action": "deleted",
+            },
+            notes=f"Treatment #{treatment.id} deleted",
+        )
+        self.db.add(event)
+        await self.db.flush()
         return work_item
 
     async def create_treatment(
@@ -553,6 +759,11 @@ class TreatmentService:
             doctor_id=updated_treatment.doctor_id or self.current_user.id
         )
 
+        # 4.6. Synchronize updated treatment with shadow ClinicalWorkItem / ClinicalEvent
+        await self._sync_clinical_work_item_update(
+            updated_treatment, surfaces=surfaces
+        )
+
         # 5. Commit transaction
         await self.db.commit()
         await self.db.refresh(updated_treatment)
@@ -579,6 +790,13 @@ class TreatmentService:
         from backend import crud
         from backend.models import inventory as inv_models
 
+        # 0. Find treatment for clinical work item sync BEFORE it is deleted
+        stmt_t = select(models.Treatment).where(
+            models.Treatment.id == treatment_id,
+            models.Treatment.tenant_id == self.tenant_id,
+        )
+        treatment = (await self.db.execute(stmt_t)).scalars().first()
+
         # 1. Reverse stock movements for this treatment
         await inventory_service.reverse_stock_by_reference(
             reference_id=f"TREATMENT:{treatment_id}",
@@ -592,6 +810,10 @@ class TreatmentService:
             inv_models.TreatmentMaterialUsage.tenant_id == self.tenant_id,
         )
         await self.db.execute(stmt_del)
+
+        # 1.6. Void/cancel shadowed ClinicalWorkItem and record ClinicalEvent
+        if treatment:
+            await self._sync_clinical_work_item_delete(treatment)
 
         # 2. Log the action
         log_admin_action(
