@@ -16,6 +16,7 @@ import {
     addPatientClinicalPlanPhase,
     addPatientClinicalPlanItem,
     removePatientClinicalPlanItem,
+    transitionPatientClinicalPlan,
     getTenantFeatures,
 } from '@/api';
 
@@ -301,6 +302,22 @@ export function useRemovePatientClinicalPlanItem() {
             });
             queryClient.invalidateQueries({
                 queryKey: queryKeys.patientClinicalPlanCandidates(variables.patientId, variables.planId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for transitioning treatment plan status
+ */
+export function useTransitionPatientClinicalPlan() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, planId, data }) =>
+            transitionPatientClinicalPlan(patientId, planId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlans(variables.patientId),
             });
         },
     });

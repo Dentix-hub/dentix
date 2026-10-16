@@ -825,8 +825,16 @@
         "remove_procedure": "إزالة الإجراء من المرحلة",
         "status": {
             "draft": "مسودة",
-            "in_progress": "قيد التنفيذ",
-            "completed": "مكتمل"
+            "proposed": "مقترحة",
+            "accepted": "مقبولة",
+            "completed": "مكتملة",
+            "cancelled": "ملغاة"
+        },
+        "actions": {
+            "propose": "تقديم المقترح",
+            "accept": "قبول الخطة",
+            "complete": "إكمال الخطة",
+            "cancel": "إلغاء الخطة"
         },
         "dialog": {
             "title": "إنشاء خطة علاج",
@@ -857,7 +865,9 @@
             "add_item_success": "تمت إضافة الإجراء إلى المرحلة بنجاح",
             "add_item_error": "فشل إضافة الإجراء إلى المرحلة",
             "remove_item_success": "تمت إزالة الإجراء من المرحلة بنجاح",
-            "remove_item_error": "فشل إزالة الإجراء من المرحلة"
+            "remove_item_error": "فشل إزالة الإجراء من المرحلة",
+            "transition_success": "تم تحديث حالة خطة العلاج بنجاح",
+            "transition_error": "فشل تحديث حالة خطة العلاج"
         }
     },
     "inventory": {

@@ -11,6 +11,9 @@ import {
     FileText,
     Loader2,
     Trash2,
+    CheckCircle2,
+    XCircle,
+    Send,
 } from 'lucide-react';
 import { toast, DentixDialog } from '@/shared/ui';
 import {
@@ -20,7 +23,24 @@ import {
     useAddPatientClinicalPlanPhase,
     useAddPatientClinicalPlanItem,
     useRemovePatientClinicalPlanItem,
+    useTransitionPatientClinicalPlan,
 } from '@/hooks/usePatientDetails';
+
+const getStatusBadgeClass = (status) => {
+    switch (status) {
+        case 'proposed':
+            return 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300';
+        case 'accepted':
+            return 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300';
+        case 'completed':
+            return 'border-purple-200 bg-purple-50 text-purple-800 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-300';
+        case 'cancelled':
+            return 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300';
+        case 'draft':
+        default:
+            return 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300';
+    }
+};
 
 const TreatmentPlansCard = memo(({ patientId }) => {
     const { t, i18n } = useTranslation();
@@ -54,6 +74,7 @@ const TreatmentPlansCard = memo(({ patientId }) => {
     const addPhaseMutation = useAddPatientClinicalPlanPhase();
     const addPlanItemMutation = useAddPatientClinicalPlanItem();
     const removePlanItemMutation = useRemovePatientClinicalPlanItem();
+    const transitionPlanMutation = useTransitionPatientClinicalPlan();
 
     const {
         data: candidates = [],
@@ -192,6 +213,23 @@ const TreatmentPlansCard = memo(({ patientId }) => {
         }
     };
 
+    const handleTransitionPlan = async (plan, toStatus) => {
+        try {
+            await transitionPlanMutation.mutateAsync({
+                patientId,
+                planId: plan.id,
+                data: { to_status: toStatus },
+            });
+            toast.success(t('clinical_plans.alerts.transition_success', 'Treatment plan status updated successfully'));
+        } catch (err) {
+            toast.error(
+                err?.response?.data?.detail ||
+                err?.message ||
+                t('clinical_plans.alerts.transition_error', 'Failed to update treatment plan status')
+            );
+        }
+    };
+
     return (
         <section
             data-testid="clinical-treatment-plans-card"
@@ -295,6 +333,7 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                             {plans.map((plan) => {
                                 const phasesCount = plan.phases?.length || 0;
                                 const isExpanded = isPlanExpanded(plan.id);
+                                const canModifyPlan = plan.status === 'draft' || plan.status === 'proposed';
                                 const formattedDate = plan.created_at
                                     ? new Date(plan.created_at).toLocaleDateString(i18n.language, {
                                           year: 'numeric',
@@ -309,7 +348,7 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                                         data-testid={`clinical-plan-item-${plan.id}`}
                                         className="group rounded-xl border border-slate-200/90 bg-white p-4 transition-all hover:border-emerald-200 hover:shadow-sm dark:border-slate-800 dark:bg-slate-950/40 dark:hover:border-slate-700"
                                     >
-                                        <div className="flex flex-wrap items-start justify-between gap-2">
+                                        <div className="flex flex-wrap items-start justify-between gap-3">
                                             <div className="min-w-0">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <h4 className="font-bold text-slate-800 dark:text-white">
@@ -317,11 +356,13 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                                                     </h4>
                                                     <span
                                                         data-testid={`clinical-plan-status-${plan.id}`}
-                                                        className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300"
+                                                        className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold ${getStatusBadgeClass(
+                                                            plan.status
+                                                        )}`}
                                                     >
                                                         {t(
                                                             `clinical_plans.status.${plan.status}`,
-                                                            plan.status === 'draft' ? 'Draft' : plan.status
+                                                            plan.status
                                                         )}
                                                     </span>
                                                 </div>
@@ -353,21 +394,100 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                                                 )}
                                             </div>
 
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    type="button"
-                                                    data-testid={`add-phase-button-${plan.id}`}
-                                                    onClick={() => handleAddPhase(plan)}
-                                                    disabled={addPhaseMutation.isPending}
-                                                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                                                >
-                                                    {addPhaseMutation.isPending ? (
-                                                        <Loader2 size={13} className="animate-spin" />
-                                                    ) : (
-                                                        <Plus size={13} />
-                                                    )}
-                                                    <span>{t('clinical_plans.add_phase', 'Add Phase')}</span>
-                                                </button>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                {/* Transition buttons based on allowed transitions (Decision 1) */}
+                                                {plan.status === 'draft' && (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            data-testid={`plan-transition-proposed-${plan.id}`}
+                                                            onClick={() => handleTransitionPlan(plan, 'proposed')}
+                                                            disabled={transitionPlanMutation.isPending}
+                                                            className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 shadow-sm transition-colors hover:bg-blue-100 disabled:opacity-50 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50"
+                                                        >
+                                                            <Send size={13} />
+                                                            <span>{t('clinical_plans.actions.propose', 'Propose')}</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            data-testid={`plan-transition-cancelled-${plan.id}`}
+                                                            onClick={() => handleTransitionPlan(plan, 'cancelled')}
+                                                            disabled={transitionPlanMutation.isPending}
+                                                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-500 shadow-sm transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                                                        >
+                                                            <XCircle size={13} />
+                                                            <span>{t('clinical_plans.actions.cancel', 'Cancel')}</span>
+                                                        </button>
+                                                    </>
+                                                )}
+
+                                                {plan.status === 'proposed' && (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            data-testid={`plan-transition-accepted-${plan.id}`}
+                                                            onClick={() => handleTransitionPlan(plan, 'accepted')}
+                                                            disabled={transitionPlanMutation.isPending}
+                                                            className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+                                                        >
+                                                            <CheckCircle2 size={13} />
+                                                            <span>{t('clinical_plans.actions.accept', 'Accept')}</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            data-testid={`plan-transition-cancelled-${plan.id}`}
+                                                            onClick={() => handleTransitionPlan(plan, 'cancelled')}
+                                                            disabled={transitionPlanMutation.isPending}
+                                                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-500 shadow-sm transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                                                        >
+                                                            <XCircle size={13} />
+                                                            <span>{t('clinical_plans.actions.cancel', 'Cancel')}</span>
+                                                        </button>
+                                                    </>
+                                                )}
+
+                                                {plan.status === 'accepted' && (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            data-testid={`plan-transition-completed-${plan.id}`}
+                                                            onClick={() => handleTransitionPlan(plan, 'completed')}
+                                                            disabled={transitionPlanMutation.isPending}
+                                                            className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1.5 text-xs font-semibold text-purple-700 shadow-sm transition-colors hover:bg-purple-100 disabled:opacity-50 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-300 dark:hover:bg-purple-900/50"
+                                                        >
+                                                            <CheckCircle2 size={13} />
+                                                            <span>{t('clinical_plans.actions.complete', 'Complete')}</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            data-testid={`plan-transition-cancelled-${plan.id}`}
+                                                            onClick={() => handleTransitionPlan(plan, 'cancelled')}
+                                                            disabled={transitionPlanMutation.isPending}
+                                                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-500 shadow-sm transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                                                        >
+                                                            <XCircle size={13} />
+                                                            <span>{t('clinical_plans.actions.cancel', 'Cancel')}</span>
+                                                        </button>
+                                                    </>
+                                                )}
+
+                                                {/* Add Phase button - only visible if plan is draft or proposed (Decision 4) */}
+                                                {canModifyPlan && (
+                                                    <button
+                                                        type="button"
+                                                        data-testid={`add-phase-button-${plan.id}`}
+                                                        onClick={() => handleAddPhase(plan)}
+                                                        disabled={addPhaseMutation.isPending}
+                                                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                                    >
+                                                        {addPhaseMutation.isPending ? (
+                                                            <Loader2 size={13} className="animate-spin" />
+                                                        ) : (
+                                                            <Plus size={13} />
+                                                        )}
+                                                        <span>{t('clinical_plans.add_phase', 'Add Phase')}</span>
+                                                    </button>
+                                                )}
 
                                                 <button
                                                     type="button"
@@ -410,15 +530,18 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                                                                 </span>
                                                             </div>
 
-                                                            <button
-                                                                type="button"
-                                                                data-testid={`add-procedure-button-${phase.id}`}
-                                                                onClick={() => handleOpenAddProcedure(plan.id, phase.id, phase.name)}
-                                                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                                                            >
-                                                                <Plus size={13} />
-                                                                <span>{t('clinical_plans.add_procedure', 'Add Procedure')}</span>
-                                                            </button>
+                                                            {/* Add Procedure button - only visible if plan is draft or proposed (Decision 4) */}
+                                                            {canModifyPlan && (
+                                                                <button
+                                                                    type="button"
+                                                                    data-testid={`add-procedure-button-${phase.id}`}
+                                                                    onClick={() => handleOpenAddProcedure(plan.id, phase.id, phase.name)}
+                                                                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                                                >
+                                                                    <Plus size={13} />
+                                                                    <span>{t('clinical_plans.add_procedure', 'Add Procedure')}</span>
+                                                                </button>
+                                                            )}
                                                         </div>
 
                                                         {/* Phase Items */}
@@ -471,17 +594,20 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                                                                                 )}
                                                                             </div>
 
-                                                                            <button
-                                                                                type="button"
-                                                                                data-testid={`remove-phase-item-${item.id}`}
-                                                                                onClick={() => handleRemoveItem(plan.id, phase.id, item.id)}
-                                                                                disabled={removePlanItemMutation.isPending}
-                                                                                title={t('clinical_plans.remove_procedure', 'Remove procedure from phase')}
-                                                                                aria-label={t('clinical_plans.remove_procedure', 'Remove procedure from phase')}
-                                                                                className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400"
-                                                                            >
-                                                                                <Trash2 size={13} />
-                                                                            </button>
+                                                                            {/* Remove Procedure button - only visible if plan is draft or proposed (Decision 4) */}
+                                                                            {canModifyPlan && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    data-testid={`remove-phase-item-${item.id}`}
+                                                                                    onClick={() => handleRemoveItem(plan.id, phase.id, item.id)}
+                                                                                    disabled={removePlanItemMutation.isPending}
+                                                                                    title={t('clinical_plans.remove_procedure', 'Remove procedure from phase')}
+                                                                                    aria-label={t('clinical_plans.remove_procedure', 'Remove procedure from phase')}
+                                                                                    className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                                                                                >
+                                                                                    <Trash2 size={13} />
+                                                                                </button>
+                                                                            )}
                                                                         </div>
                                                                     );
                                                                 })

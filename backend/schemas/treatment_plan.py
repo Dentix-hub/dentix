@@ -95,3 +95,9 @@ class ClinicalTreatmentPlanRead(BaseModel):
     phases: List[ClinicalTreatmentPlanPhaseRead] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ClinicalTreatmentPlanTransition(BaseModel):
+    to_status: str = Field(..., min_length=1, max_length=32, description="Target status for treatment plan")
+
+    model_config = ConfigDict(extra="forbid")

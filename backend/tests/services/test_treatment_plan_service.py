@@ -15,7 +15,9 @@ Tests required:
 import pytest
 from datetime import datetime, timezone
 from fastapi import HTTPException
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm.exc import StaleDataError
 
 from backend import models, schemas
 from backend.services.treatment_plan_service import TreatmentPlanService
@@ -889,3 +891,587 @@ async def test_http_endpoints_g9b_phases_and_items(client, seed_data, async_db_s
         f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/phases/{phase_2_id}/items/{item_id}",
         headers=doc_headers,
     ).status_code == 404
+
+
+# ==============================================================================
+# SLICE G9c TESTS: Lifecycle, Concurrency, Hardening, and Guardrails
+# ==============================================================================
+
+@pytest.mark.asyncio
+async def test_plan_transition_valid_lifecycle_and_audit(seed_data, async_db_session, monkeypatch):
+    """
+    Decision 1 & 7: Test valid transitions: draft -> proposed -> accepted -> completed.
+    Verify audit log records who, when, old status, and new status for each step.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+
+    service = TreatmentPlanService(db=async_db_session, tenant_id=tenant_1.id, current_user=doctor_1)
+    plan = await service.create_plan(
+        patient_1.id,
+        schemas.ClinicalTreatmentPlanCreate(title="Lifecycle Plan"),
+    )
+    assert plan.status == "draft"
+
+    # 1. draft -> proposed
+    p1 = await service.transition_plan(patient_1.id, plan.id, "proposed")
+    assert p1.status == "proposed"
+
+    # 2. proposed -> accepted
+    p2 = await service.transition_plan(patient_1.id, plan.id, "accepted")
+    assert p2.status == "accepted"
+
+    # 3. accepted -> completed
+    p3 = await service.transition_plan(patient_1.id, plan.id, "completed")
+    assert p3.status == "completed"
+
+    # Verify AuditLog entries (Decision 7)
+    stmt_audit = (
+        select(models.AuditLog)
+        .where(
+            models.AuditLog.tenant_id == tenant_1.id,
+            models.AuditLog.entity_type == "clinical_treatment_plan",
+            models.AuditLog.entity_id == plan.id,
+        )
+        .order_by(models.AuditLog.id.asc())
+    )
+    audit_logs = (await async_db_session.execute(stmt_audit)).scalars().all()
+    assert len(audit_logs) == 3
+
+    assert audit_logs[0].action == "transition_proposed"
+    assert '"draft"' in audit_logs[0].old_value
+    assert '"proposed"' in audit_logs[0].new_value
+    assert audit_logs[0].performed_by_id == doctor_1.id
+
+    assert audit_logs[1].action == "transition_accepted"
+    assert '"proposed"' in audit_logs[1].old_value
+    assert '"accepted"' in audit_logs[1].new_value
+
+    assert audit_logs[2].action == "transition_completed"
+    assert '"accepted"' in audit_logs[2].old_value
+    assert '"completed"' in audit_logs[2].new_value
+
+
+@pytest.mark.asyncio
+async def test_plan_transition_cancellation_from_any_active_state(seed_data, async_db_session, monkeypatch):
+    """
+    Decision 1: Test cancellation allowed from any non-completed state:
+    - draft -> cancelled
+    - proposed -> cancelled
+    - accepted -> cancelled
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    service = TreatmentPlanService(db=async_db_session, tenant_id=tenant_1.id, current_user=doctor_1)
+
+    # 1. From draft -> cancelled
+    plan1 = await service.create_plan(patient_1.id, schemas.ClinicalTreatmentPlanCreate(title="Cancel from Draft"))
+    c1 = await service.transition_plan(patient_1.id, plan1.id, "cancelled")
+    assert c1.status == "cancelled"
+
+    # 2. From proposed -> cancelled
+    plan2 = await service.create_plan(patient_1.id, schemas.ClinicalTreatmentPlanCreate(title="Cancel from Proposed"))
+    await service.transition_plan(patient_1.id, plan2.id, "proposed")
+    c2 = await service.transition_plan(patient_1.id, plan2.id, "cancelled")
+    assert c2.status == "cancelled"
+
+    # 3. From accepted -> cancelled
+    plan3 = await service.create_plan(patient_1.id, schemas.ClinicalTreatmentPlanCreate(title="Cancel from Accepted"))
+    await service.transition_plan(patient_1.id, plan3.id, "proposed")
+    await service.transition_plan(patient_1.id, plan3.id, "accepted")
+    c3 = await service.transition_plan(patient_1.id, plan3.id, "cancelled")
+    assert c3.status == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_plan_transition_invalid_transitions_return_409(seed_data, async_db_session, monkeypatch):
+    """
+    Decision 1: Invalid transitions raise HTTP 409 Conflict:
+    - Skipping states (draft -> accepted, draft -> completed, proposed -> completed)
+    - Moving backwards (proposed -> draft, accepted -> draft, accepted -> proposed)
+    - Moving from terminal states (completed -> anything, cancelled -> anything)
+    - Same status or unknown status
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    service = TreatmentPlanService(db=async_db_session, tenant_id=tenant_1.id, current_user=doctor_1)
+
+    plan = await service.create_plan(patient_1.id, schemas.ClinicalTreatmentPlanCreate(title="Invalid Transition Test"))
+
+    # Draft: invalid transitions
+    for invalid in ("accepted", "completed", "draft", "unknown_status"):
+        with pytest.raises(HTTPException) as exc:
+            await service.transition_plan(patient_1.id, plan.id, invalid)
+        assert exc.value.status_code == 409
+
+    # Advance to proposed
+    await service.transition_plan(patient_1.id, plan.id, "proposed")
+    for invalid in ("draft", "completed", "proposed", "invalid_xyz"):
+        with pytest.raises(HTTPException) as exc:
+            await service.transition_plan(patient_1.id, plan.id, invalid)
+        assert exc.value.status_code == 409
+
+    # Advance to accepted
+    await service.transition_plan(patient_1.id, plan.id, "accepted")
+    for invalid in ("draft", "proposed", "accepted"):
+        with pytest.raises(HTTPException) as exc:
+            await service.transition_plan(patient_1.id, plan.id, invalid)
+        assert exc.value.status_code == 409
+
+    # Advance to completed (terminal)
+    await service.transition_plan(patient_1.id, plan.id, "completed")
+    for invalid in ("draft", "proposed", "accepted", "completed", "cancelled"):
+        with pytest.raises(HTTPException) as exc:
+            await service.transition_plan(patient_1.id, plan.id, invalid)
+        assert exc.value.status_code == 409
+
+    # Cancelled (terminal)
+    plan_c = await service.create_plan(patient_1.id, schemas.ClinicalTreatmentPlanCreate(title="Cancelled Plan"))
+    await service.transition_plan(patient_1.id, plan_c.id, "cancelled")
+    for invalid in ("draft", "proposed", "accepted", "completed", "cancelled"):
+        with pytest.raises(HTTPException) as exc:
+            await service.transition_plan(patient_1.id, plan_c.id, invalid)
+        assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_plan_transition_plan_level_only_count_assertions(seed_data, async_db_session, monkeypatch):
+    """
+    Decision 2: Transitions are plan-level ONLY.
+    They must NOT change work item status, create treatments, invoices, payments, inventory movements, or ClinicalEvents.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    service = TreatmentPlanService(db=async_db_session, tenant_id=tenant_1.id, current_user=doctor_1)
+
+    # 1. Setup plan with item
+    plan = await service.create_plan(patient_1.id, schemas.ClinicalTreatmentPlanCreate(title="Plan-level Isolation Test"))
+    phase = plan.phases[0]
+
+    wi = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="D2391",
+        status="planned",
+        created_by_user_id=doctor_1.id,
+    )
+    async_db_session.add(wi)
+    await async_db_session.commit()
+
+    await service.add_work_item_to_phase(
+        patient_1.id,
+        plan.id,
+        phase.id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi.id),
+    )
+
+    # Record baseline counts across related domains
+    count_wi_before = (await async_db_session.execute(select(func.count(models.ClinicalWorkItem.id)))).scalar()
+    count_events_before = (await async_db_session.execute(select(func.count(models.ClinicalEvent.id)))).scalar()
+    count_treatments_before = (await async_db_session.execute(select(func.count(models.Treatment.id)))).scalar()
+    count_stock_mov_before = (await async_db_session.execute(select(func.count(models.StockMovement.id)))).scalar()
+    count_payments_before = (await async_db_session.execute(select(func.count(models.Payment.id)))).scalar()
+
+    # 2. Transition plan: draft -> proposed -> accepted
+    await service.transition_plan(patient_1.id, plan.id, "proposed")
+    await service.transition_plan(patient_1.id, plan.id, "accepted")
+
+    # 3. Assert counts are completely identical (zero side effects)
+    count_wi_after = (await async_db_session.execute(select(func.count(models.ClinicalWorkItem.id)))).scalar()
+    count_events_after = (await async_db_session.execute(select(func.count(models.ClinicalEvent.id)))).scalar()
+    count_treatments_after = (await async_db_session.execute(select(func.count(models.Treatment.id)))).scalar()
+    count_stock_mov_after = (await async_db_session.execute(select(func.count(models.StockMovement.id)))).scalar()
+    count_payments_after = (await async_db_session.execute(select(func.count(models.Payment.id)))).scalar()
+
+    assert count_wi_after == count_wi_before
+    assert count_events_after == count_events_before
+    assert count_treatments_after == count_treatments_before
+    assert count_stock_mov_after == count_stock_mov_before
+    assert count_payments_after == count_payments_before
+
+    # 4. Assert underlying work item status was NOT modified
+    wi_reloaded = (
+        await async_db_session.execute(select(models.ClinicalWorkItem).where(models.ClinicalWorkItem.id == wi.id))
+    ).scalar_one()
+    assert wi_reloaded.status == "planned"
+
+
+@pytest.mark.asyncio
+async def test_plan_alternatives_preserved_on_accept(seed_data, async_db_session, monkeypatch):
+    """
+    Decision 3: Alternatives: a patient may have several plans.
+    Accepting plan A does NOT auto-cancel plan B.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    service = TreatmentPlanService(db=async_db_session, tenant_id=tenant_1.id, current_user=doctor_1)
+
+    plan_a = await service.create_plan(patient_1.id, schemas.ClinicalTreatmentPlanCreate(title="Plan A (Implants)"))
+    plan_b = await service.create_plan(patient_1.id, schemas.ClinicalTreatmentPlanCreate(title="Plan B (Bridge)"))
+
+    assert plan_a.status == "draft"
+    assert plan_b.status == "draft"
+
+    # Propose and accept Plan A
+    await service.transition_plan(patient_1.id, plan_a.id, "proposed")
+    await service.transition_plan(patient_1.id, plan_a.id, "accepted")
+
+    # Reload Plan B and verify it remains in draft
+    reloaded_b = await service._get_plan_and_verify(patient_1.id, plan_b.id)
+    assert reloaded_b.status == "draft"
+
+
+@pytest.mark.asyncio
+async def test_plan_mutations_blocked_in_non_draft_proposed_statuses(seed_data, async_db_session, monkeypatch):
+    """
+    Decision 4: Phases and items can be added or removed ONLY while the plan is draft or proposed.
+    In accepted, completed, or cancelled plans, add_phase, add_work_item_to_phase, and remove_work_item_from_phase return 409.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    service = TreatmentPlanService(db=async_db_session, tenant_id=tenant_1.id, current_user=doctor_1)
+
+    # Setup plan with phase and item in draft
+    plan = await service.create_plan(patient_1.id, schemas.ClinicalTreatmentPlanCreate(title="Mutation Lockdown Plan"))
+    phase = plan.phases[0]
+
+    wi = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="D1110",
+        status="planned",
+    )
+    async_db_session.add(wi)
+    await async_db_session.commit()
+
+    item = await service.add_work_item_to_phase(
+        patient_1.id,
+        plan.id,
+        phase.id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi.id),
+    )
+
+    # 1. Propose plan -> mutations still allowed in proposed
+    await service.transition_plan(patient_1.id, plan.id, "proposed")
+    phase2 = await service.add_phase(patient_1.id, plan.id, schemas.ClinicalTreatmentPlanPhaseCreate(name="Phase 2"))
+    assert phase2.name == "Phase 2"
+
+    # 2. Accept plan -> mutations blocked (409)
+    await service.transition_plan(patient_1.id, plan.id, "accepted")
+
+    with pytest.raises(HTTPException) as exc_add_phase:
+        await service.add_phase(patient_1.id, plan.id, schemas.ClinicalTreatmentPlanPhaseCreate(name="Phase 3"))
+    assert exc_add_phase.value.status_code == 409
+
+    with pytest.raises(HTTPException) as exc_add_item:
+        await service.add_work_item_to_phase(
+            patient_1.id,
+            plan.id,
+            phase.id,
+            schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi.id),
+        )
+    assert exc_add_item.value.status_code == 409
+
+    with pytest.raises(HTTPException) as exc_del_item:
+        await service.remove_work_item_from_phase(patient_1.id, plan.id, phase.id, item.id)
+    assert exc_del_item.value.status_code == 409
+
+    # 3. Complete plan -> mutations blocked (409)
+    await service.transition_plan(patient_1.id, plan.id, "completed")
+    with pytest.raises(HTTPException) as exc_comp_phase:
+        await service.add_phase(patient_1.id, plan.id, schemas.ClinicalTreatmentPlanPhaseCreate(name="Phase 4"))
+    assert exc_comp_phase.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_plan_transition_stale_data_concurrency_409(seed_data, async_db_session, monkeypatch):
+    """
+    Decision 6: Plan uses version_id; map SQLAlchemy StaleDataError to HTTP 409 Conflict.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    service = TreatmentPlanService(db=async_db_session, tenant_id=tenant_1.id, current_user=doctor_1)
+
+    plan = await service.create_plan(patient_1.id, schemas.ClinicalTreatmentPlanCreate(title="Concurrency Plan"))
+    assert plan.version_id == 1
+
+    orig_commit = async_db_session.commit
+
+    async def commit_with_stale_data():
+        raise StaleDataError(models.ClinicalTreatmentPlan, "Optimistic locking conflict")
+
+    async_db_session.commit = commit_with_stale_data
+    try:
+        with pytest.raises(HTTPException) as exc:
+            await service.transition_plan(patient_1.id, plan.id, "proposed")
+        assert exc.value.status_code == 409
+        assert "concurrently" in exc.value.detail.lower()
+    finally:
+        async_db_session.commit = orig_commit
+
+
+@pytest.mark.asyncio
+async def test_finding_work_item_rejected_422_and_excluded_from_candidates(seed_data, async_db_session, monkeypatch):
+    """
+    Fix A: Candidate list and add_work_item_to_phase: only kind == 'procedure' allowed;
+    a finding returns 422 on attach and is excluded from the candidate list.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    service = TreatmentPlanService(db=async_db_session, tenant_id=tenant_1.id, current_user=doctor_1)
+
+    plan = await service.create_plan(patient_1.id, schemas.ClinicalTreatmentPlanCreate(title="Findings Exclusion Plan"))
+    phase = plan.phases[0]
+
+    # Create one procedure and one finding
+    proc = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="D2140",
+        status="planned",
+    )
+    finding = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="finding",
+        code="CARIES",
+        status="planned",
+    )
+    async_db_session.add_all([proc, finding])
+    await async_db_session.commit()
+
+    # 1. Candidate list includes procedure, but excludes finding
+    candidates = await service.get_candidate_work_items(patient_1.id, plan.id)
+    candidate_ids = [c.id for c in candidates]
+    assert proc.id in candidate_ids
+    assert finding.id not in candidate_ids
+
+    # 2. Attempting to add finding to phase raises HTTP 422
+    with pytest.raises(HTTPException) as exc:
+        await service.add_work_item_to_phase(
+            patient_1.id,
+            plan.id,
+            phase.id,
+            schemas.ClinicalTreatmentPlanItemCreate(work_item_id=finding.id),
+        )
+    assert exc.value.status_code == 422
+    assert "finding" in exc.value.detail.lower()
+
+
+@pytest.mark.asyncio
+async def test_add_phase_integrity_error_retry_and_missing_greenlet_safety(seed_data, async_db_session, monkeypatch):
+    """
+    Fix B: Verify add_phase retry path handles rollback cleanly without MissingGreenlet/expired-attribute errors,
+    and returns 409 on persistent conflict.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    service = TreatmentPlanService(db=async_db_session, tenant_id=tenant_1.id, current_user=doctor_1)
+
+    plan = await service.create_plan(patient_1.id, schemas.ClinicalTreatmentPlanCreate(title="Phase Retry Plan"))
+    patient_1_id = patient_1.id
+    plan_id = plan.id
+
+    orig_commit = async_db_session.commit
+    fail_once_counter = 0
+
+    async def commit_fail_once():
+        nonlocal fail_once_counter
+        fail_once_counter += 1
+        if fail_once_counter == 1:
+            raise IntegrityError("mock unique constraint", orig=Exception("race condition"), params={})
+        await orig_commit()
+
+    # 1. Retry recovers on first failure
+    async_db_session.commit = commit_fail_once
+    new_phase = await service.add_phase(
+        patient_1_id,
+        plan_id,
+        schemas.ClinicalTreatmentPlanPhaseCreate(name="Phase Retry Success"),
+    )
+    assert new_phase.name == "Phase Retry Success"
+    assert fail_once_counter >= 2
+
+    # 2. Both attempts fail -> clean 409
+    async def commit_fail_always():
+        raise IntegrityError("mock unique constraint", orig=Exception("persistent race"), params={})
+
+    async_db_session.commit = commit_fail_always
+    with pytest.raises(HTTPException) as exc:
+        await service.add_phase(
+            patient_1_id,
+            plan_id,
+            schemas.ClinicalTreatmentPlanPhaseCreate(name="Phase Failing Double"),
+        )
+    assert exc.value.status_code == 409
+    assert "conflict" in exc.value.detail.lower()
+
+    # Restore original commit
+    async_db_session.commit = orig_commit
+
+
+@pytest.mark.asyncio
+async def test_add_work_item_integrity_error_retry_and_missing_greenlet_safety(seed_data, async_db_session, monkeypatch):
+    """
+    Fix B: Verify add_work_item_to_phase retry path handles rollback cleanly without MissingGreenlet errors,
+    and returns 409 on persistent conflict.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    service = TreatmentPlanService(db=async_db_session, tenant_id=tenant_1.id, current_user=doctor_1)
+
+    plan = await service.create_plan(patient_1.id, schemas.ClinicalTreatmentPlanCreate(title="Item Retry Plan"))
+    phase = plan.phases[0]
+
+    wi = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="D0120",
+        status="planned",
+    )
+    async_db_session.add(wi)
+    await async_db_session.commit()
+
+    tenant_1_id = tenant_1.id
+    patient_1_id = patient_1.id
+    plan_id = plan.id
+    phase_id = phase.id
+    wi_id = wi.id
+
+    orig_commit = async_db_session.commit
+    fail_once_counter = 0
+
+    async def commit_fail_once():
+        nonlocal fail_once_counter
+        fail_once_counter += 1
+        if fail_once_counter == 1:
+            raise IntegrityError("mock unique constraint", orig=Exception("race condition"), params={})
+        await orig_commit()
+
+    # 1. Retry recovers on first failure
+    async_db_session.commit = commit_fail_once
+    item = await service.add_work_item_to_phase(
+        patient_1_id,
+        plan_id,
+        phase_id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_id),
+    )
+    assert item.work_item_id == wi_id
+    assert fail_once_counter >= 2
+
+    # 2. Both attempts fail -> clean 409
+    wi2 = models.ClinicalWorkItem(
+        tenant_id=tenant_1_id,
+        patient_id=patient_1_id,
+        kind="procedure",
+        code="D0140",
+        status="planned",
+    )
+    async_db_session.add(wi2)
+    await orig_commit()
+    wi2_id = wi2.id
+
+    async def commit_fail_always():
+        raise IntegrityError("mock unique constraint", orig=Exception("persistent race"), params={})
+
+    async_db_session.commit = commit_fail_always
+    with pytest.raises(HTTPException) as exc:
+        await service.add_work_item_to_phase(
+            patient_1_id,
+            plan_id,
+            phase_id,
+            schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi2_id),
+        )
+    assert exc.value.status_code == 409
+
+    # Restore original commit
+    async_db_session.commit = orig_commit
+
+
+@pytest.mark.asyncio
+async def test_transition_router_endpoint_rbac_and_gates(client, seed_data, async_db_session, monkeypatch):
+    """
+    Decision 5: Router endpoint POST /patients/{pid}/clinical-plans/{plan_id}/transition
+    - Requires TREATMENT_PLAN_WRITE (doctor: 200, receptionist: 403)
+    - Tenant and patient scoped (cross-tenant / patient mismatch: 404)
+    - Gate fail-closed (flag-off: 404)
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    receptionist_1 = seed_data["receptionist_1"]
+    patient_1 = seed_data["patient_1"]
+    patient_2 = seed_data["patient_2"]
+
+    doc_token = create_access_token(data={"sub": doctor_1.username, "tenant_id": tenant_1.id})
+    doc_headers = {"Authorization": f"Bearer {doc_token}"}
+
+    recep_token = create_access_token(data={"sub": receptionist_1.username, "tenant_id": tenant_1.id})
+    recep_headers = {"Authorization": f"Bearer {recep_token}"}
+
+    # 1. Create a plan
+    res_create = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans",
+        headers=doc_headers,
+        json={"title": "Endpoint Lifecycle Plan"},
+    )
+    assert res_create.status_code == 200
+    plan_id = res_create.json()["data"]["id"]
+
+    # 2. Receptionist without TREATMENT_PLAN_WRITE gets 403
+    res_recep = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/transition",
+        headers=recep_headers,
+        json={"to_status": "proposed"},
+    )
+    assert res_recep.status_code == 403
+
+    # 3. Doctor with TREATMENT_PLAN_WRITE succeeds -> proposed
+    res_prop = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/transition",
+        headers=doc_headers,
+        json={"to_status": "proposed"},
+    )
+    assert res_prop.status_code == 200
+    assert res_prop.json()["data"]["status"] == "proposed"
+
+    # 4. Patient mismatch / cross-tenant gets uniform 404
+    res_mismatch = client.post(
+        f"/api/v1/patients/{patient_2.id}/clinical-plans/{plan_id}/transition",
+        headers=doc_headers,
+        json={"to_status": "accepted"},
+    )
+    assert res_mismatch.status_code == 404
+
+    # 5. Flag-off returns 404
+    monkeypatch.delenv("CLINICAL_TREATMENT_PLANS_ENABLED", raising=False)
+    res_flag_off = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/transition",
+        headers=doc_headers,
+        json={"to_status": "accepted"},
+    )
+    assert res_flag_off.status_code == 404

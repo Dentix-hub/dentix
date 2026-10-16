@@ -16,17 +16,27 @@ Enforces:
 
 from typing import List, Optional, Tuple
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, inspect, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.exc import StaleDataError
 
 from backend import models, schemas
 from backend.core.config import is_clinical_treatment_plans_enabled
 from backend.services.feature_service import FeatureFlagService
 from backend.services.patient_access_service import ensure_patient_visible
+from backend.utils.audit_logger import log_admin_action
 
 FEATURE_KEY_TREATMENT_PLANS = "clinical_treatment_plans"
+
+ALLOWED_PLAN_TRANSITIONS = {
+    "draft": {"proposed", "cancelled"},
+    "proposed": {"accepted", "cancelled"},
+    "accepted": {"completed", "cancelled"},
+    "completed": set(),
+    "cancelled": set(),
+}
 
 
 def _eager_plan_options():
@@ -48,6 +58,21 @@ class TreatmentPlanService:
         self.db = db
         self.tenant_id = tenant_id
         self.current_user = current_user
+        self.current_user_id = getattr(current_user, "id", None)
+
+    async def _get_active_current_user(self) -> Optional[models.User]:
+        if not self.current_user or not self.current_user_id:
+            return self.current_user
+        state = inspect(self.current_user, raiseerr=False)
+        if state and (state.expired or state.detached or bool(state.expired_attributes)):
+            stmt = select(models.User).where(
+                models.User.id == self.current_user_id,
+                models.User.tenant_id == self.tenant_id,
+            )
+            reloaded = (await self.db.execute(stmt)).scalar_one_or_none()
+            if reloaded:
+                self.current_user = reloaded
+        return self.current_user
 
     async def is_enabled(self) -> bool:
         """
@@ -74,8 +99,9 @@ class TreatmentPlanService:
 
     async def _verify_patient(self, patient_id: int) -> None:
         """Validate patient exists within tenant and is visible to current user."""
-        if self.current_user:
-            await ensure_patient_visible(self.db, self.current_user, patient_id)
+        user = await self._get_active_current_user()
+        if user:
+            await ensure_patient_visible(self.db, user, patient_id)
         else:
             stmt = select(models.Patient).where(
                 models.Patient.id == patient_id,
@@ -140,7 +166,7 @@ class TreatmentPlanService:
             title=clean_title,
             status="draft",
             notes=clean_notes,
-            created_by_user_id=self.current_user.id if self.current_user else None,
+            created_by_user_id=self.current_user_id,
         )
         self.db.add(plan)
         await self.db.flush()
@@ -207,6 +233,7 @@ class TreatmentPlanService:
             .where(
                 models.ClinicalWorkItem.tenant_id == self.tenant_id,
                 models.ClinicalWorkItem.patient_id == patient_id,
+                models.ClinicalWorkItem.kind == "procedure",
                 models.ClinicalWorkItem.status != "cancelled",
             )
             .options(selectinload(models.ClinicalWorkItem.targets))
@@ -226,10 +253,17 @@ class TreatmentPlanService:
     ) -> models.ClinicalTreatmentPlanPhase:
         """
         Add a new phase to the plan.
-        Auto-assigns next phase_order, validates name, retries on ordering race.
+        Allowed only in 'draft' or 'proposed' status (Decision 4).
+        Auto-assigns next phase_order, validates name, retries on ordering race without expired-attribute errors.
         """
         plan = await self._get_plan_and_verify(patient_id, plan_id)
+        if plan.status not in ("draft", "proposed"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Phases cannot be added to a plan in '{plan.status}' status",
+            )
 
+        plan_id_val = plan.id
         clean_name = data.name.strip()
         if not clean_name:
             raise HTTPException(status_code=422, detail="Phase name cannot be empty")
@@ -240,14 +274,14 @@ class TreatmentPlanService:
         async def _attempt_insert() -> models.ClinicalTreatmentPlanPhase:
             max_order_stmt = select(func.max(models.ClinicalTreatmentPlanPhase.phase_order)).where(
                 models.ClinicalTreatmentPlanPhase.tenant_id == self.tenant_id,
-                models.ClinicalTreatmentPlanPhase.plan_id == plan.id,
+                models.ClinicalTreatmentPlanPhase.plan_id == plan_id_val,
             )
             max_order = (await self.db.execute(max_order_stmt)).scalar()
             next_order = (max_order + 1) if max_order is not None else 0
 
             phase = models.ClinicalTreatmentPlanPhase(
                 tenant_id=self.tenant_id,
-                plan_id=plan.id,
+                plan_id=plan_id_val,
                 phase_order=next_order,
                 name=clean_name,
                 status="draft",
@@ -255,7 +289,6 @@ class TreatmentPlanService:
             )
             self.db.add(phase)
             await self.db.commit()
-            self.db.expire(plan, ["phases"])
 
             stmt_reload = (
                 select(models.ClinicalTreatmentPlanPhase)
@@ -290,11 +323,19 @@ class TreatmentPlanService:
     ) -> models.ClinicalTreatmentPlanItem:
         """
         Amendment B & C: Link existing ClinicalWorkItem into a treatment plan phase.
-        Validates work item belongs to same tenant & patient, status != 'cancelled'.
+        Allowed only in 'draft' or 'proposed' status (Decision 4).
+        Validates work item belongs to same tenant & patient, status != 'cancelled', kind == 'procedure' (Fix A).
         Duplicate work item in same phase -> 409.
         Multi-plan sharing allowed (same work item in multiple plans).
         """
         plan, phase = await self._get_phase_and_verify(patient_id, plan_id, phase_id)
+        if plan.status not in ("draft", "proposed"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Procedures cannot be added to a plan in '{plan.status}' status",
+            )
+
+        phase_id_val = phase.id
 
         stmt_wi = (
             select(models.ClinicalWorkItem)
@@ -312,11 +353,18 @@ class TreatmentPlanService:
                 status_code=422,
                 detail="Cancelled work item cannot be added to a treatment plan phase",
             )
+        if getattr(work_item, "kind", None) != "procedure":
+            raise HTTPException(
+                status_code=422,
+                detail="Only procedure work items can be added to a treatment plan phase; findings are not allowed",
+            )
+
+        work_item_id_val = work_item.id
 
         stmt_dup = select(models.ClinicalTreatmentPlanItem).where(
             models.ClinicalTreatmentPlanItem.tenant_id == self.tenant_id,
-            models.ClinicalTreatmentPlanItem.phase_id == phase.id,
-            models.ClinicalTreatmentPlanItem.work_item_id == work_item.id,
+            models.ClinicalTreatmentPlanItem.phase_id == phase_id_val,
+            models.ClinicalTreatmentPlanItem.work_item_id == work_item_id_val,
         )
         if (await self.db.execute(stmt_dup)).scalar_one_or_none():
             raise HTTPException(status_code=409, detail="Work item is already attached to this phase")
@@ -326,22 +374,21 @@ class TreatmentPlanService:
         async def _attempt_insert() -> models.ClinicalTreatmentPlanItem:
             max_order_stmt = select(func.max(models.ClinicalTreatmentPlanItem.item_order)).where(
                 models.ClinicalTreatmentPlanItem.tenant_id == self.tenant_id,
-                models.ClinicalTreatmentPlanItem.phase_id == phase.id,
+                models.ClinicalTreatmentPlanItem.phase_id == phase_id_val,
             )
             max_order = (await self.db.execute(max_order_stmt)).scalar()
             next_order = (max_order + 1) if max_order is not None else 0
 
             item = models.ClinicalTreatmentPlanItem(
                 tenant_id=self.tenant_id,
-                phase_id=phase.id,
-                work_item_id=work_item.id,
+                phase_id=phase_id_val,
+                work_item_id=work_item_id_val,
                 item_order=next_order,
                 status="planned",
                 notes=clean_notes,
             )
             self.db.add(item)
             await self.db.commit()
-            self.db.expire(phase, ["items"])
 
             stmt_reload = (
                 select(models.ClinicalTreatmentPlanItem)
@@ -379,9 +426,15 @@ class TreatmentPlanService:
     ) -> None:
         """
         Unlink item from phase. Removes ClinicalTreatmentPlanItem row.
+        Allowed only in 'draft' or 'proposed' status (Decision 4).
         Underlying ClinicalWorkItem is untouched.
         """
         plan, phase = await self._get_phase_and_verify(patient_id, plan_id, phase_id)
+        if plan.status not in ("draft", "proposed"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Procedures cannot be removed from a plan in '{plan.status}' status",
+            )
 
         stmt_item = select(models.ClinicalTreatmentPlanItem).where(
             models.ClinicalTreatmentPlanItem.id == item_id,
@@ -394,4 +447,61 @@ class TreatmentPlanService:
 
         await self.db.delete(item)
         await self.db.commit()
-        self.db.expire(phase, ["items"])
+
+    async def transition_plan(
+        self,
+        patient_id: int,
+        plan_id: int,
+        to_status: str,
+    ) -> models.ClinicalTreatmentPlan:
+        """
+        Transition clinical treatment plan status according to ALLOWED_PLAN_TRANSITIONS.
+        Plan-level ONLY (does NOT alter work items, events, invoices, or treatments).
+        Logs audit trail via log_admin_action (Decision 7).
+        Maps StaleDataError to HTTP 409 (Decision 6).
+        """
+        plan = await self._get_plan_and_verify(patient_id, plan_id)
+
+        current_status = plan.status
+        allowed = ALLOWED_PLAN_TRANSITIONS.get(current_status, set())
+        if to_status not in allowed:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Invalid transition from '{current_status}' to '{to_status}'",
+            )
+
+        old_status = plan.status
+        plan.status = to_status
+
+        active_user = await self._get_active_current_user()
+        log_admin_action(
+            db=self.db,
+            admin_user=active_user,
+            action=f"transition_{to_status}",
+            entity_type="clinical_treatment_plan",
+            entity_id=plan.id,
+            old_value={"status": old_status},
+            new_value={"status": to_status},
+            details=f"Treatment plan #{plan.id} status transitioned from '{old_status}' to '{to_status}'",
+            tenant_id=self.tenant_id,
+        )
+
+        try:
+            await self.db.commit()
+        except StaleDataError:
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Treatment plan was modified concurrently by another user",
+            )
+
+        stmt = (
+            select(models.ClinicalTreatmentPlan)
+            .where(
+                models.ClinicalTreatmentPlan.id == plan.id,
+                models.ClinicalTreatmentPlan.tenant_id == self.tenant_id,
+            )
+            .options(_eager_plan_options())
+            .execution_options(populate_existing=True)
+        )
+        return (await self.db.execute(stmt)).scalar_one()

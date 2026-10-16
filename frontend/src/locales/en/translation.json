@@ -818,8 +818,16 @@
         "remove_procedure": "Remove procedure from phase",
         "status": {
             "draft": "Draft",
-            "in_progress": "In Progress",
-            "completed": "Completed"
+            "proposed": "Proposed",
+            "accepted": "Accepted",
+            "completed": "Completed",
+            "cancelled": "Cancelled"
+        },
+        "actions": {
+            "propose": "Propose",
+            "accept": "Accept",
+            "complete": "Complete",
+            "cancel": "Cancel"
         },
         "dialog": {
             "title": "Create Treatment Plan",
@@ -850,7 +858,9 @@
             "add_item_success": "Procedure added to phase successfully",
             "add_item_error": "Failed to add procedure to phase",
             "remove_item_success": "Procedure removed from phase",
-            "remove_item_error": "Failed to remove procedure from phase"
+            "remove_item_error": "Failed to remove procedure from phase",
+            "transition_success": "Treatment plan status updated successfully",
+            "transition_error": "Failed to update treatment plan status"
         }
     },
     "inventory": {
