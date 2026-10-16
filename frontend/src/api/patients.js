@@ -43,3 +43,6 @@ export const uploadAttachment = (patientId, file) => {
     });
 };
 export const deleteAttachment = (id) => api.delete(`/api/v1/attachments/${id}`);
+
+export const getPatientClinicalPlans = (patientId) => api.get(`/api/v1/patients/${patientId}/clinical-plans`);
+export const createPatientClinicalPlan = (patientId, data) => api.post(`/api/v1/patients/${patientId}/clinical-plans`, data);

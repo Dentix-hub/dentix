@@ -53,6 +53,13 @@ from .clinical import (
     ToothClinicalRecordResponse,
 )
 
+# Clinical Treatment Plans (Slice G9a)
+from .treatment_plan import (
+    ClinicalTreatmentPlanPhaseRead,
+    ClinicalTreatmentPlanCreate,
+    ClinicalTreatmentPlanRead,
+)
+
 # Clinical Workspace Snapshot (Issue #205)
 from .clinical_workspace import (
     ClinicalWorkspaceWarning,
@@ -62,6 +69,7 @@ from .clinical_workspace import (
     WorkspaceWorkItemSummary,
     ClinicalWorkspaceSnapshot,
 )
+
 
 # Billing
 from .billing import (
@@ -327,4 +335,9 @@ __all__ = [
     "WorkspaceToothSummary",
     "WorkspaceWorkItemSummary",
     "ClinicalWorkspaceSnapshot",
+    # Clinical Treatment Plans (Slice G9a)
+    "ClinicalTreatmentPlanPhaseRead",
+    "ClinicalTreatmentPlanCreate",
+    "ClinicalTreatmentPlanRead",
 ]
+
