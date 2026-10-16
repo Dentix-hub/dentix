@@ -29,7 +29,7 @@ Forensic Verdict: **`DOCUMENTED, NOT RECONCILED`**
 
 The single active and canonical clinical chart implementation in DENTIX is:
 
-* **Location**: `frontend/src/features/odontogram/` and `frontend/src/pages/PatientDetails.jsx`
+* **Location**: `frontend/src/features/clinical-chart/`, `frontend/src/features/dental/`, and `frontend/src/pages/PatientDetails.jsx`
 * **Baseline Commit**: `65be3b70f51d8ed203f72e7daa8a1b2838b73724` (merged into `staging`)
 * **Key Features**:
   - Restores approved dental crowns and outlines with phase 1 roots anatomy.
@@ -64,10 +64,10 @@ The experimental iterations have been preserved and quarantined so that no intel
    - **External Safety Archive**: External local recovery bundle
    - **Status**: Quarantined prototype; not active in product.
 
-2. **`vnext` Worktree**:
-   - **Location**: `.worktrees/vnext` (relative to repository root)
+2. **`vnext` Prototype Branch**:
+   - **Historical Worktree**: `.worktrees/vnext` (detached/cleaned up; working tree clean)
    - **Branch**: `feature/unified-clinical-workflow-vnext` (commit `01280dc9`)
-   - **Status**: Preserved as reference prototype for future clinical workflow designs; not reconciled.
+   - **Status**: Preserved as local reference branch for future clinical workflow designs; not reconciled.
 
 ---
 

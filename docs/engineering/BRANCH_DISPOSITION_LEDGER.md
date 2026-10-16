@@ -23,16 +23,17 @@ To prevent branch sprawl and ensure that no unmerged clinical or infrastructure 
 
 ## 2. Audit Snapshot
 
-* **Snapshot Timestamp:** 2026-09-04T08:50:00Z
-* **Baseline Staging SHA:** `65be3b70f51d8ed203f72e7daa8a1b2838b73724`
-* **Baseline Main SHA:** `86fbf612c0290f2534eb6e191af78ce2eaa7df26`
-* **Local Workspace HEAD:** `d2f5a18b7d537acf903e842495cc334c13cff8e7` (`chore/workflow-v3-movement-0`)
+* **Snapshot Timestamp:** 2026-10-16T08:30:00Z
+* **Baseline Staging SHA:** `7dceae07a590ea2847dfdc96a757db7d805520bd`
+* **Baseline Main SHA:** `129df8a13d6d1cf43293b7bb9331cdf47ae52cec`
+* **Local Workspace HEAD:** `7dceae07a590ea2847dfdc96a757db7d805520bd` (`docs/odontogram-status`)
+* **Worktree Status:** Zero secondary worktrees active; `.worktrees/vnext` and `.worktrees/dtx-debate-review` pruned/detached; branch refs preserved intact.
 
 | Branch Name | Snapshot SHA | Category | Ahead vs Staging | Behind vs Staging | Staging Ancestor? |
 |---|---|---|---:|---:|:---:|
-| `staging` | `65be3b70` | Canonical Baseline | 0 | 0 | YES |
-| `main` | `46584940` | Canonical Production | 0 | 174 | YES |
-| `chore/workflow-v3-movement-0` | `d2f5a18b` | Active Work | 1 | 0 | NO (ahead) |
+| `staging` | `7dceae07` | Canonical Baseline | 0 | 0 | YES |
+| `main` | `129df8a1` | Canonical Production | 0 | 128 | YES |
+| `chore/workflow-v3-movement-0` | `d2f5a18b` | Historical Movement | 1 | 0 | NO (ahead) |
 | `fix/odontogram-approved-crowns-plus-roots` | `3aa54273` | Clinical Baseline Source | 0 | 1 | YES |
 | `fix/odontogram-live-anatomy-integration` | `347d0f06` | Clinical Merged | 0 | 7 | YES |
 | `fix/odontogram-phase1-reconciliation` | `72ea5c3b` | Clinical Merged | 0 | 28 | YES |
@@ -45,8 +46,8 @@ To prevent branch sprawl and ensure that no unmerged clinical or infrastructure 
 | `feat/odontogram-approval-slice` | `885a1738` | Clinical Prototype | 5 | 174 | NO |
 | `feature/odontogram-foundation-codex` | `9b2c28f9` | Clinical Prototype | 22 | 120 | NO |
 | `codex/odg-part1-final-local` | `b67e29b0` | Clinical Prototype | 3 | 52 | NO |
-| `feature/unified-clinical-workflow-vnext` | `01280dc9` | Clinical Worktree | 5 | 174 | NO |
-| `chore/dtx-debate-review-integration` | `585f9b17` | Infrastructure Worktree | 2 | 94 | NO |
+| `feature/unified-clinical-workflow-vnext` | `01280dc9` | Clinical Prototype (Worktree Detached) | 5 | 174 | NO |
+| `chore/dtx-debate-review-integration` | `585f9b17` | Infrastructure Prototype (Worktree Detached) | 2 | 94 | NO |
 | `develop` | `c2d904e5` | Legacy Branch | 133 | 981 | NO |
 | `chore/agent-stack-normalization` | `8340a279` | Legacy Infrastructure | 4 | 697 | NO |
 
@@ -58,7 +59,7 @@ To prevent branch sprawl and ensure that no unmerged clinical or infrastructure 
 |---|---|---|---|
 | `staging` | **CANONICAL_ACTIVE_BASELINE** | **FINAL** | Integration baseline for all feature development. Protected branch. |
 | `main` | **CANONICAL_PRODUCTION** | **FINAL** | Production release branch. Protected branch. Promotion target only. |
-| `chore/workflow-v3-movement-0` | **ACTIVE_WORK** | **UNRESOLVED** | Active local development branch for Workflow V3 Movement 0. Remains local until qualification. |
+| `chore/workflow-v3-movement-0` | **HISTORICAL_WORK** | **FINAL** | Historical local development branch for Workflow V3 Movement 0. Retained for provenance. |
 | `fix/odontogram-approved-crowns-plus-roots` | **MERGED_BASELINE_SOURCE** | **FINAL** | Canonical odontogram anatomy baseline merged into staging. Safe for pruning post-qualification. |
 | `fix/odontogram-live-anatomy-integration` | **MERGED_TO_STAGING** | **FINAL** | Fully merged into staging. Retain until remote qualification; safe for cleanup post-qualification. |
 | `fix/odontogram-phase1-reconciliation` | **MERGED_TO_STAGING** | **FINAL** | Fully merged into staging. Retain until remote qualification; safe for cleanup post-qualification. |
@@ -71,8 +72,8 @@ To prevent branch sprawl and ensure that no unmerged clinical or infrastructure 
 | `feat/odontogram-approval-slice` | **SUPERSEDED** | **FINAL** | Architecture superseded by approved crowns plus roots. Measured geometry preserved for salvage evaluation (tracked in Issue #144). |
 | `feature/odontogram-foundation-codex` | **SALVAGE_CANDIDATE** | **UNRESOLVED** | Contains foundational odontogram SVG assets. Preserved for surgical salvage review. DO NOT DELETE. |
 | `codex/odg-part1-final-local` | **SALVAGE_CANDIDATE** | **UNRESOLVED** | Contains Part 1 local odontogram work. Preserved for surgical salvage review. DO NOT DELETE. |
-| `feature/unified-clinical-workflow-vnext` | **UNRESOLVED / PRESERVATION_ONLY** | **UNRESOLVED** | Attached to worktree `.worktrees/vnext`. Contains clinical vNext prototypes. Preserved; not yet reconciled. |
-| `chore/dtx-debate-review-integration` | **ACTIVE_WORKTREE** | **UNRESOLVED** | Attached to worktree `.worktrees/dtx-debate-review`. Preserved for review integration. |
+| `feature/unified-clinical-workflow-vnext` | **UNRESOLVED / PRESERVATION_ONLY** | **UNRESOLVED** | Historical `.worktrees/vnext` detached; branch preserved locally. Contains clinical vNext prototypes. Preserved; not yet reconciled. |
+| `chore/dtx-debate-review-integration` | **PRESERVATION_ONLY** | **UNRESOLVED** | Historical `.worktrees/dtx-debate-review` detached; branch preserved locally. Preserved for review integration. |
 | `develop` | **UNRESOLVED / PRESERVATION_ONLY** | **UNRESOLVED** | Legacy develop branch. Preserved locally; not reconciled. |
 | `chore/agent-stack-normalization` | **UNRESOLVED / PRESERVATION_ONLY** | **UNRESOLVED** | Legacy normalization branch superseded by Workflow V3. Preserved locally. |
 
