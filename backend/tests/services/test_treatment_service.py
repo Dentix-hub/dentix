@@ -702,3 +702,323 @@ class TestTreatmentSurfaceAndMultiProcedure:
                 assert response.tooth_key == "46"
                 assert len(response.treatments) == 2
                 mock_db.commit.assert_called()
+
+
+class TestTreatmentClinicalSyncUpdateDelete:
+    """Tests for Slice 1: Synchronizing ClinicalWorkItems on treatment update and delete."""
+
+    async def test_update_treatment_reflects_code_status_surfaces_and_event(
+        self, treatment_service, mock_db
+    ):
+        """Updating treatment updates ClinicalWorkItem fields, replaces targets, and appends ClinicalEvent."""
+        treatment_id = 101
+        patient_id = 1
+
+        # Existing linked work item and event
+        existing_wi = models.ClinicalWorkItem(
+            id=50,
+            tenant_id=1,
+            patient_id=patient_id,
+            kind="procedure",
+            code="REST_COMPOSITE",
+            status="completed",
+            notes="Initial filling",
+            created_by_user_id=5,
+        )
+        existing_ev = models.ClinicalEvent(
+            id=80,
+            tenant_id=1,
+            patient_id=patient_id,
+            work_item_id=50,
+            event_type="procedure_recorded",
+            payload={"kind": "procedure", "canonical_code": "REST_COMPOSITE", "treatment_id": treatment_id},
+        )
+
+        updated_treatment = models.Treatment(
+            id=treatment_id,
+            patient_id=patient_id,
+            tooth_number=16,
+            procedure="Crown",
+            status="Pending",
+            cost=1500.0,
+            discount=0.0,
+            doctor_id=10,
+            tenant_id=1,
+            notes="Upgraded to crown [Surfaces: M, O]",
+        )
+
+        def mock_exec(stmt):
+            mock_res = MagicMock()
+            s = str(stmt).lower()
+            if "clinical_events" in s:
+                mock_res.scalars.return_value.all.return_value = [existing_ev]
+            elif "clinical_work_items" in s:
+                mock_res.scalars.return_value.first.return_value = existing_wi
+            elif "treatments" in s:
+                mock_res.scalars.return_value.first.return_value = updated_treatment
+            else:
+                mock_res.scalars.return_value.all.return_value = []
+                mock_res.scalars.return_value.first.return_value = None
+            return mock_res
+
+        mock_db.execute = AsyncMock(side_effect=mock_exec)
+
+        with patch("backend.services.treatment_service.inventory_service") as mock_inv, \
+             patch("backend.crud") as mock_crud:
+            mock_inv.reverse_stock_by_reference = AsyncMock()
+            mock_crud.billing.update_treatment = AsyncMock(return_value=updated_treatment)
+
+            update_data = schemas.TreatmentCreate(
+                patient_id=patient_id,
+                tooth_number=16,
+                procedure="Crown",
+                status="Pending",
+                cost=1500.0,
+                surfaces=["M", "O"],
+                notes="Upgraded to crown",
+                skip_stock_check=True,
+            )
+
+            res = await treatment_service.update_treatment(treatment_id, update_data)
+
+            # 1. Assert legacy contract is preserved
+            assert res.id == treatment_id
+            assert res.procedure == "Crown"
+            assert res.status == "Pending"
+
+            # 2. Assert existing ClinicalWorkItem code and status were updated, authorship unchanged
+            assert existing_wi.code == "PROS_CROWN"
+            assert existing_wi.status == "planned"
+            assert existing_wi.created_by_user_id == 5
+
+            # 3. Assert new ClinicalWorkItemTargets were added for surfaces M, O
+            added_objs = [call.args[0] for call in mock_db.add.call_args_list]
+            targets = [obj for obj in added_objs if isinstance(obj, models.ClinicalWorkItemTarget)]
+            assert len(targets) == 2
+            assert {t.surface_code for t in targets} == {"M", "O"}
+            assert all(t.target_kind == "surface" for t in targets)
+            assert all(t.tooth_key == "16" for t in targets)
+
+            # 4. Assert ClinicalEvent was appended with action="updated" and status="planned"
+            events = [obj for obj in added_objs if isinstance(obj, models.ClinicalEvent)]
+            assert len(events) == 1
+            assert events[0].event_type == "procedure_recorded"
+            assert events[0].payload.get("action") == "updated"
+            assert events[0].payload.get("status") == "planned"
+            assert events[0].payload.get("canonical_code") == "PROS_CROWN"
+            assert events[0].payload.get("treatment_id") == treatment_id
+
+    async def test_update_treatment_creates_work_item_if_previously_unlinked(
+        self, treatment_service, mock_db
+    ):
+        """Updating a treatment that had no prior work item creates one if tooth is valid."""
+        treatment_id = 102
+        patient_id = 1
+
+        updated_treatment = models.Treatment(
+            id=treatment_id,
+            patient_id=patient_id,
+            tooth_number=21,
+            procedure="Composite Filling",
+            status="Done",
+            cost=400.0,
+            doctor_id=10,
+            tenant_id=1,
+        )
+
+        def mock_exec(stmt):
+            mock_res = MagicMock()
+            s = str(stmt).lower()
+            if "treatments" in s:
+                mock_res.scalars.return_value.first.return_value = updated_treatment
+            else:
+                mock_res.scalars.return_value.all.return_value = []
+                mock_res.scalars.return_value.first.return_value = None
+            return mock_res
+
+        mock_db.execute = AsyncMock(side_effect=mock_exec)
+
+        with patch("backend.services.treatment_service.inventory_service") as mock_inv, \
+             patch("backend.crud") as mock_crud:
+            mock_inv.reverse_stock_by_reference = AsyncMock()
+            mock_crud.billing.update_treatment = AsyncMock(return_value=updated_treatment)
+
+            update_data = schemas.TreatmentCreate(
+                patient_id=patient_id,
+                tooth_number=21,
+                procedure="Composite Filling",
+                cost=400.0,
+                skip_stock_check=True,
+            )
+
+            res = await treatment_service.update_treatment(treatment_id, update_data)
+            assert res.id == treatment_id
+
+            # Work item created
+            added_objs = [call.args[0] for call in mock_db.add.call_args_list]
+            work_items = [obj for obj in added_objs if isinstance(obj, models.ClinicalWorkItem)]
+            assert len(work_items) == 1
+            assert work_items[0].code == "REST_COMPOSITE"
+            assert work_items[0].status == "completed"
+
+    async def test_delete_treatment_voids_work_item_and_appends_cancellation_event(
+        self, treatment_service, mock_db
+    ):
+        """Deleting a treatment marks its ClinicalWorkItem as cancelled and appends procedure_cancelled event."""
+        treatment_id = 103
+        patient_id = 1
+
+        existing_treatment = models.Treatment(
+            id=treatment_id,
+            patient_id=patient_id,
+            tooth_number=36,
+            procedure="Root Canal",
+            tenant_id=1,
+            doctor_id=10,
+        )
+        existing_wi = models.ClinicalWorkItem(
+            id=60,
+            tenant_id=1,
+            patient_id=patient_id,
+            kind="procedure",
+            code="ENDO_RCT",
+            status="completed",
+        )
+        existing_ev = models.ClinicalEvent(
+            id=90,
+            tenant_id=1,
+            patient_id=patient_id,
+            work_item_id=60,
+            event_type="procedure_recorded",
+            payload={"kind": "procedure", "canonical_code": "ENDO_RCT", "treatment_id": treatment_id},
+        )
+
+        def mock_exec(stmt):
+            mock_res = MagicMock()
+            s = str(stmt).lower()
+            if "clinical_events" in s:
+                mock_res.scalars.return_value.all.return_value = [existing_ev]
+            elif "clinical_work_items" in s:
+                mock_res.scalars.return_value.first.return_value = existing_wi
+            elif "treatments" in s:
+                mock_res.scalars.return_value.first.return_value = existing_treatment
+            else:
+                mock_res.scalars.return_value.all.return_value = []
+                mock_res.scalars.return_value.first.return_value = None
+            return mock_res
+
+        mock_db.execute = AsyncMock(side_effect=mock_exec)
+
+        with patch("backend.services.treatment_service.inventory_service") as mock_inv, \
+             patch("backend.crud") as mock_crud, \
+             patch("backend.services.treatment_service.log_admin_action"):
+            mock_inv.reverse_stock_by_reference = AsyncMock()
+            mock_crud.billing.delete_treatment = AsyncMock(return_value={"id": treatment_id, "deleted": True})
+
+            res = await treatment_service.delete_treatment(treatment_id)
+            assert res == {"id": treatment_id, "deleted": True}
+
+            # 1. Assert ClinicalWorkItem status was voided to "cancelled"
+            assert existing_wi.status == "cancelled"
+
+            # 2. Assert a procedure_cancelled ClinicalEvent was appended
+            added_objs = [call.args[0] for call in mock_db.add.call_args_list]
+            events = [obj for obj in added_objs if isinstance(obj, models.ClinicalEvent)]
+            assert len(events) == 1
+            cancel_ev = events[0]
+            assert cancel_ev.event_type == "procedure_cancelled"
+            assert cancel_ev.work_item_id == 60
+            assert cancel_ev.payload.get("status") == "cancelled"
+            assert cancel_ev.payload.get("action") == "deleted"
+            assert cancel_ev.payload.get("superseded") is True
+            assert cancel_ev.payload.get("treatment_id") == treatment_id
+
+            # 3. Assert historical events were NEVER deleted
+            deleted_objs = [call.args[0] for call in mock_db.delete.call_args_list] if mock_db.delete.called else []
+            assert not any(isinstance(obj, models.ClinicalEvent) for obj in deleted_objs)
+
+    async def test_tenant_isolation_on_work_item_lookup(
+        self, treatment_service, mock_db
+    ):
+        """Cross-tenant events are excluded from work item lookup."""
+        treatment_id = 104
+        patient_id = 1
+
+        # Event belongs to tenant 99 (different from service.tenant_id = 1)
+        _cross_tenant_ev = models.ClinicalEvent(
+            id=91,
+            tenant_id=99,
+            patient_id=patient_id,
+            work_item_id=70,
+            event_type="procedure_recorded",
+            payload={"kind": "procedure", "canonical_code": "ENDO_RCT", "treatment_id": treatment_id},
+        )
+
+        # Mock execute returning empty because SQL filters by tenant_id == 1
+        mock_res = MagicMock()
+        mock_res.scalars.return_value.all.return_value = []
+        mock_db.execute = AsyncMock(return_value=mock_res)
+
+        wi = await treatment_service._find_linked_clinical_work_item(treatment_id, patient_id)
+        assert wi is None
+
+        # Verify that the query included tenant_id == 1
+        called_stmt = mock_db.execute.call_args[0][0]
+        assert "tenant_id =" in str(called_stmt) or "clinical_events.tenant_id" in str(called_stmt)
+
+    async def test_multi_procedure_independent_update_and_delete(
+        self, treatment_service, mock_db
+    ):
+        """In a multi-procedure tooth, updating procedure A and deleting procedure B affect distinct work items."""
+        patient_id = 1
+        tooth_number = 46
+
+        # Two treatments for the same tooth (multi-procedure)
+        _t_endo = models.Treatment(id=301, patient_id=patient_id, tooth_number=tooth_number, procedure="Root Canal", tenant_id=1)
+        _t_comp = models.Treatment(id=302, patient_id=patient_id, tooth_number=tooth_number, procedure="Composite Filling", tenant_id=1)
+
+        wi_endo = models.ClinicalWorkItem(id=71, tenant_id=1, patient_id=patient_id, kind="procedure", code="ENDO_RCT", status="completed")
+        wi_comp = models.ClinicalWorkItem(id=72, tenant_id=1, patient_id=patient_id, kind="procedure", code="REST_COMPOSITE", status="completed")
+
+        ev_endo = models.ClinicalEvent(id=101, tenant_id=1, patient_id=patient_id, work_item_id=71, event_type="procedure_recorded", payload={"treatment_id": 301})
+        ev_comp = models.ClinicalEvent(id=102, tenant_id=1, patient_id=patient_id, work_item_id=72, event_type="procedure_recorded", payload={"treatment_id": 302})
+
+        # Test finding linked work items individually
+        def mock_exec_for_find(stmt):
+            mock_res = MagicMock()
+            s = str(stmt).lower()
+            if "clinical_events" in s:
+                mock_res.scalars.return_value.all.return_value = [ev_endo, ev_comp]
+            elif "clinical_work_items" in s:
+                target_id = None
+                for c in getattr(stmt, "_where_criteria", ()):
+                    if hasattr(c, "right") and hasattr(c.right, "value"):
+                        target_id = c.right.value
+                        break
+                if target_id == 71:
+                    mock_res.scalars.return_value.first.return_value = wi_endo
+                elif target_id == 72:
+                    mock_res.scalars.return_value.first.return_value = wi_comp
+                else:
+                    try:
+                        compiled = str(stmt.compile(compile_kwargs={"literal_binds": True}))
+                        if "71" in compiled:
+                            mock_res.scalars.return_value.first.return_value = wi_endo
+                        elif "72" in compiled:
+                            mock_res.scalars.return_value.first.return_value = wi_comp
+                        else:
+                            mock_res.scalars.return_value.first.return_value = None
+                    except Exception:
+                        mock_res.scalars.return_value.first.return_value = None
+            else:
+                mock_res.scalars.return_value.first.return_value = None
+            return mock_res
+
+        mock_db.execute = AsyncMock(side_effect=mock_exec_for_find)
+
+        found_wi_1 = await treatment_service._find_linked_clinical_work_item(301, patient_id)
+        found_wi_2 = await treatment_service._find_linked_clinical_work_item(302, patient_id)
+
+        assert found_wi_1.id == 71
+        assert found_wi_2.id == 72
+        assert found_wi_1 != found_wi_2

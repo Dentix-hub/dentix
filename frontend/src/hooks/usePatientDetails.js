@@ -9,8 +9,17 @@ import {
     getPatientPayments,
     getAttachments,
     createPayment,
-    deletePayment
+    deletePayment,
+    getPatientClinicalPlans,
+    createPatientClinicalPlan,
+    getPatientClinicalPlanCandidates,
+    addPatientClinicalPlanPhase,
+    addPatientClinicalPlanItem,
+    removePatientClinicalPlanItem,
+    transitionPatientClinicalPlan,
+    getTenantFeatures,
 } from '@/api';
+
 
 /**
  * Hook for patient core data (basic info) - loads immediately
@@ -185,4 +194,134 @@ export function useInvalidatePatientData() {
         }
     }, [queryClient]);
 }
+
+/**
+ * Hook for patient clinical treatment plans - loads when chart tab is active and feature enabled
+ */
+export function usePatientClinicalPlans(patientId, { enabled = true } = {}) {
+    return useQuery({
+        queryKey: queryKeys.patientClinicalPlans(patientId),
+        queryFn: async () => {
+            const res = await getPatientClinicalPlans(patientId);
+            return res.data || [];
+        },
+        enabled: !!patientId && enabled,
+        staleTime: 30 * 1000,
+    });
+}
+
+/**
+ * Hook for creating a patient clinical treatment plan
+ */
+export function useCreatePatientClinicalPlan() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, data }) => createPatientClinicalPlan(patientId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlans(variables.patientId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for tenant feature flags
+ */
+export function useTenantFeatures() {
+    return useQuery({
+        queryKey: queryKeys.tenantFeatures,
+        queryFn: async () => {
+            const res = await getTenantFeatures();
+            return res.data?.features || [];
+        },
+        staleTime: 60 * 1000,
+    });
+}
+
+/**
+ * Hook for patient clinical plan candidate work items
+ */
+export function usePatientClinicalPlanCandidates(patientId, planId, { enabled = true } = {}) {
+    return useQuery({
+        queryKey: queryKeys.patientClinicalPlanCandidates(patientId, planId),
+        queryFn: async () => {
+            const res = await getPatientClinicalPlanCandidates(patientId, planId);
+            return res.data || [];
+        },
+        enabled: !!patientId && !!planId && enabled,
+        staleTime: 10 * 1000,
+    });
+}
+
+/**
+ * Hook for adding a phase to a treatment plan
+ */
+export function useAddPatientClinicalPlanPhase() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, planId, data }) => addPatientClinicalPlanPhase(patientId, planId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlans(variables.patientId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for adding a procedure/work-item to a treatment plan phase
+ */
+export function useAddPatientClinicalPlanItem() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, planId, phaseId, data }) =>
+            addPatientClinicalPlanItem(patientId, planId, phaseId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlans(variables.patientId),
+            });
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlanCandidates(variables.patientId, variables.planId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for removing a procedure/work-item from a treatment plan phase
+ */
+export function useRemovePatientClinicalPlanItem() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, planId, phaseId, itemId }) =>
+            removePatientClinicalPlanItem(patientId, planId, phaseId, itemId),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlans(variables.patientId),
+            });
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlanCandidates(variables.patientId, variables.planId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for transitioning treatment plan status
+ */
+export function useTransitionPatientClinicalPlan() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, planId, data }) =>
+            transitionPatientClinicalPlan(patientId, planId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlans(variables.patientId),
+            });
+        },
+    });
+}
+
+
 
