@@ -18,7 +18,7 @@
 
 ---
 
-### CARD S00 — Reclassify 5 Approved Drop Items in Traceability Matrix & Test
+### CARD S00 — Reclassify 5 Proposed Drop Items in Traceability Matrix & Test (PD00)
 - **Branch:** `chore/odontogram-drop-reclassifications`
 - **Delivery:** One PR -> `staging`, then STOP. **DO NOT MERGE.**
 - **Rule 0:** Read the real files on `origin/staging` first (`docs/product/ODONTOGRAM_TRACEABILITY_MATRIX.md` and `backend/tests/test_odontogram_traceability.py`). If they contradict this card, **STOP and report**.
@@ -76,7 +76,7 @@
 #### QUEUE STATE BLOCK (Append at End of Final Response)
 ```text
 === QUEUE STATE ===
-Slice: S00 - Reclassify 5 Approved Drop Items
+Slice: S00 - Reclassify 5 Proposed Drop Items (PD00)
 Status: DONE | PARTIAL | BLOCKED
 PR: <URL>
 Next Slice: S01 (Eslam Staging Ops Runbook), then S02
@@ -256,7 +256,7 @@ Next Slice: S04
 6. **RBAC (`G7-M12` & Pending Decision `PD02a`) & Work-Item List Filtering:**
    - `POST /api/v1/patients/{patient_id}/clinical-work-items`: requires `Permission.CLINICAL_WRITE` or `Permission.TREATMENT_PLAN_WRITE` (`require_permission(Permission.CLINICAL_WRITE, Permission.TREATMENT_PLAN_WRITE)`).
    - `PATCH /api/v1/patients/{patient_id}/clinical-work-items/{work_item_id}`: requires `Permission.CLINICAL_WRITE` or `Permission.TREATMENT_PLAN_WRITE`.
-   - **Procedure RBAC Note (`PD02a`):** ANY-of `Permission.CLINICAL_WRITE | Permission.TREATMENT_PLAN_WRITE` admits every role holding `CLINICAL_WRITE` (`backend/core/permissions.py:143,171`, which includes DOCTOR, NURSE, and ADMIN). Eslam decides doctor-only vs explicit allowance before S04. Write no test expecting nurse 201 or 403.
+   - **Procedure RBAC Note (`PD02a`):** ANY-of `Permission.CLINICAL_WRITE | Permission.TREATMENT_PLAN_WRITE` admits every role holding `CLINICAL_WRITE` (`backend/core/permissions.py:143,171`, which includes DOCTOR and NURSE). Eslam decides doctor-only vs explicit allowance before S04. Write no test expecting nurse 201 or 403.
    - `GET /api/v1/patients/{patient_id}/clinical-work-items`: requires `Permission.CLINICAL_READ` (gated by `clinical_vnext_shadow` OR `clinical_vnext_primary` OR `clinical_vnext_native_writes`). Excludes corrected work items (`status NOT IN ('superseded', 'entered_in_error')`) by default; accepts optional query parameter `include_corrected: bool = False` to return them for audit/diagnostic callers.
 
 #### SCOPE
@@ -342,7 +342,7 @@ Next Slice: S05
    - `POST /api/v1/patients/{patient_id}/clinical-findings/bulk` (`G7-M05`, requires `Permission.CLINICAL_WRITE`)
    - `POST /api/v1/patients/{patient_id}/clinical-procedures` (`G7-M06`, requires `Permission.TREATMENT_PLAN_WRITE` or `Permission.CLINICAL_WRITE`)
    - `POST /api/v1/patients/{patient_id}/clinical-procedures/bulk` (`G7-M07`, requires `Permission.TREATMENT_PLAN_WRITE` or `Permission.CLINICAL_WRITE`)
-   - **Procedure RBAC Note (`PD02a`):** ANY-of `Permission.CLINICAL_WRITE | Permission.TREATMENT_PLAN_WRITE` admits every role holding `CLINICAL_WRITE` (`backend/core/permissions.py:143,171`, including DOCTOR, NURSE, and ADMIN). Eslam decides doctor-only vs explicit allowance before S05. Write no test expecting nurse 201 or 403.
+   - **Procedure RBAC Note (`PD02a`):** ANY-of `Permission.CLINICAL_WRITE | Permission.TREATMENT_PLAN_WRITE` admits every role holding `CLINICAL_WRITE` (`backend/core/permissions.py:143,171`, including DOCTOR and NURSE). Eslam decides doctor-only vs explicit allowance before S05. Write no test expecting nurse 201 or 403.
 2. **All-or-Nothing Atomicity:** Bulk endpoints accept `items: List[...]` (1 to 50 items across one or more teeth/surfaces/roots/canals) and execute in a single database transaction. If any item fails validation, zero rows are persisted (`422`).
 3. **Native-Write Gate (`PD02` & Settled `D6`):** All **4 new patient-scoped endpoints** require `clinical_vnext_native_writes` enabled for the tenant (default OFF -> `404`). Do **NOT** gate existing `POST /api/v1/treatments/finding` or `POST /api/v1/treatments/symptom` (`backend/routers/treatments.py:120-177`) — they also write legacy `ToothStatus` (`Decayed`/`Fractured`) via `ClinicalService.update_tooth_status` and are the deliberate legacy->shadow sync path; leave their behaviour and permissions unchanged, and **only** replace naive `datetime.utcnow()` with `datetime.now(timezone.utc)` in `backend/services/clinical_service.py:193`.
 
@@ -705,7 +705,7 @@ Next Slice: S09
 #### STEP 0 — ASSUMPTIONS TO VERIFY
 - Inspect `useProcedures()` (`frontend/src/pages/PatientDetails.jsx:6,77`) and `useTreatmentOperations` (`frontend/src/features/patients/hooks/useTreatmentOperations.js`) to see how procedures and treatment saves are invoked in `PatientDetails.jsx`.
 - Verify `ProcedureDefinition.allowed_target_kinds` and `FindingDefinition.allowed_target_kinds` in `backend/clinical/catalog.py:242-396`.
-- Verify `useTenantFeatures()` in `frontend/src/pages/PatientDetails.jsx`: it calls `GET /api/v1/settings/features` (authenticated by `get_current_user`, returning `data.features` per PR #230 in `backend/routers/settings.py:400-424`). Note: this endpoint returns enabled tenant overrides (+ special-case `clinical_treatment_plans`), not the full `FeatureFlagService.is_feature_enabled` resolution; backend gating stays authoritative. Flag the `get_current_user` auth level for promotion review.
+- Verify `useTenantFeatures()` in `frontend/src/hooks/usePatientDetails.js:231-240` (used in `PatientDetails.jsx:97`): it calls `getTenantFeatures()` (`GET /api/v1/settings/features` in `frontend/src/api/settings.js:5`) and unwraps `res.data?.features || []` (authenticated by `get_current_user` in `backend/routers/settings.py:400-424`, updated in PR #230 commit `212f8558`). Note: this endpoint returns enabled tenant overrides (+ special-case `clinical_treatment_plans`), not the full `FeatureFlagService.is_feature_enabled` resolution; backend gating stays authoritative. Flag the `get_current_user` auth level for promotion review.
 
 #### TESTS REQUIRED
 - Rendering favorites and recents when a tooth is selected.
