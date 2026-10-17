@@ -95,15 +95,15 @@ Next Slice: S01 (Eslam Staging Ops Runbook), then S02
 
 #### DECISIONS
 1. Build a strictly **read-only**, super-admin-gated clinical drift and mapping-error observer service (`ClinicalDriftObserverService`) and endpoint (`GET /api/v1/admin/clinical-drift/{tenant_id}`) so Eslam can monitor legacy-vs-native parity during the `SHADOW` soak starting right after `S01`.
-2. **Zero database writes:** The observer must never insert, update, or delete any row in any table.
-3. Reuse `ClinicalWorkspaceService` (`backend/services/clinical_workspace_service.py`) and `map_legacy_clinical_batch` (`backend/clinical/legacy_mapping.py:1391`) to compare, per patient in a tenant:
-   - Legacy `models.Treatment` (non-deleted, valid FDI tooth) count vs native `models.ClinicalWorkItem` (`kind='procedure'`, non-cancelled) count.
-   - Legacy `models.ToothStatus` conditions vs native tooth lifecycle / finding projections.
-   - Mapping issues / ambiguities returned by `map_legacy_clinical_batch` (`G16-M04` error monitoring).
+2. **Zero database writes:** The observer must never insert, update, or delete any row in any table. Strictly zero writes includes `ClinicalProjectionCoverage` (`clinical_projection_coverages` at `backend/models/clinical_core.py:656`), which must not be written by the observer.
+3. Compare independently read, tenant-scoped native rows (`models.ClinicalWorkItem`, `models.ClinicalEvent`, `models.ClinicalWorkItemTarget`, `models.ClinicalEventTarget`) against legacy expectations (`models.Treatment`, `models.ToothStatus`, `map_legacy_clinical_batch` in `backend/clinical/legacy_mapping.py:1391`). `SHADOW` projection is legacy-only, so it is **not** a comparison source; never toggle feature flags to compare.
+   - Compare legacy `models.Treatment` (non-deleted, valid FDI tooth) count vs native `models.ClinicalWorkItem` (`kind='procedure'`, non-cancelled, non-corrected) count.
+   - Before `S03` (which backfills `ToothStatus` events), missing `ToothStatus`-derived native events are an expected gap: report them in a separate category (`tooth_status_unbackfilled_count`); the aggregate policy (whether tooth-status drift is counted towards `patients_with_drift` vs tracked as a separate gap) is an OPEN decision for Eslam before `S02` (`PD01b`). Do not invent a policy; do not force a zero-drift headline.
+   - Track mapping issues / ambiguities returned by `map_legacy_clinical_batch` (`G16-M04` error monitoring).
 4. Auth/RBAC: Reuse `get_super_admin` (`Permission.SYSTEM_CONFIG` + `Role.SUPER_ADMIN` or tenantless `Role.ADMIN`) from `backend/routers/admin_features.py:19-27`. Non-super-admin users receive `403`. Missing tenant returns `404`.
 
 #### SCOPE
-- **Schemas (`backend/schemas/clinical_workspace.py` or `backend/schemas/system.py`):** `PatientClinicalDriftItem`, `TenantClinicalDriftReport` (`tenant_id`, `patients_scanned`, `patients_with_drift`, `legacy_procedure_count`, `native_procedure_count`, `missing_in_native_treatment_ids`, `unmapped_issue_count`, `patient_drifts`).
+- **Schemas (`backend/schemas/clinical_workspace.py` or `backend/schemas/system.py`):** `PatientClinicalDriftItem`, `TenantClinicalDriftReport` (`tenant_id`, `patients_scanned`, `patients_with_drift`, `legacy_procedure_count`, `native_procedure_count`, `missing_in_native_treatment_ids`, `unmapped_issue_count`, `tooth_status_unbackfilled_count`, `patient_drifts`).
 - **Service (`backend/services/clinical_drift_observer_service.py` (new)):** `ClinicalDriftObserverService.compute_tenant_drift(tenant_id: int, limit_patients: int = 500, after_patient_id: int = 0) -> TenantClinicalDriftReport`. Sets `set_current_tenant_id(tenant_id)` in a `try/finally` with `clear_tenant_context(token)` (`backend/core/tenancy.py`).
 - **Router (`backend/routers/admin_features.py` or `backend/routers/admin_system.py`):** `GET /admin/clinical-drift/{tenant_id}` (mounted under `/api/v1`).
 - **Status Doc:** Update `G16` row in `docs/product/ODONTOGRAM_IMPLEMENTATION_STATUS.md` with `G16-M04`/`G16-M05` evidence.
@@ -126,13 +126,13 @@ Next Slice: S01 (Eslam Staging Ops Runbook), then S02
 - Verify `set_current_tenant_id` / `clear_tenant_context` in `backend/core/tenancy.py`.
 
 #### TESTS REQUIRED
-- Super-admin `200` on backfilled tenant -> `patients_with_drift == 0`.
-- Tenant with un-backfilled treatment -> accurately reports `missing_in_native_treatment_ids` and `patients_with_drift == 1`.
+- Super-admin `200` on backfilled tenant: zero-drift assertion requires complete relevant fixtures (both treatments and tooth-status events present) or explicitly scoped treatment coverage (`treatments_with_drift == 0`).
+- Tenant with un-backfilled treatment -> accurately reports `missing_in_native_treatment_ids` and `patients_with_drift >= 1`.
 - Tenant with unmapped procedure / invalid FDI -> increments `unmapped_issue_count` (`G16-M04`).
 - Tenant isolation: scanning Tenant 1 never reads or reports Tenant 2 patients.
 - Non-super-admin (`Role.DOCTOR`, `Role.ADMIN` with `tenant_id=1`) -> `403`.
 - Non-existent `tenant_id` -> `404`.
-- Zero-mutation proof: count of `Treatment`, `ClinicalWorkItem`, `ClinicalEvent`, `Payment` before == after.
+- Zero-mutation proof: count of `Treatment`, `ClinicalWorkItem`, `ClinicalEvent`, `Payment`, and `ClinicalProjectionCoverage` before == after.
 
 #### VERIFICATION COMMANDS (Real Exit Codes Required)
 - `.\.venv\Scripts\python.exe -m pytest backend/tests/services/test_clinical_drift_observer.py -q` (new)
@@ -248,7 +248,7 @@ Next Slice: S04
 4. **Canonical Validation & Status Rules:**
    - `kind == "finding"` -> `code` must be in `CANONICAL_FINDING_CODES` (`backend/clinical/catalog.py:59`), otherwise `422`.
    - `kind == "procedure"` -> `code` must be in `CANONICAL_PROCEDURE_CODES` (`backend/clinical/catalog.py:88`), otherwise `422`.
-   - Validate `status` against `CANONICAL_TREATMENT_LIFECYCLE_CODES` imported from `backend/clinical/catalog.py:97-105` (`("proposed", "planned", "active", "completed", "cancelled")` — never a hardcoded set), otherwise `422`.
+   - Validate `status` against `CANONICAL_TREATMENT_LIFECYCLE_CODES` imported from `backend/clinical/catalog.py:97-105` (`("proposed", "planned", "active", "completed", "cancelled")` — never a hardcoded set), otherwise `422`. `validate_treatment_status` (`backend/clinical/catalog.py:101-105`) has no production callers; S04 must wire it into `POST /api/v1/patients/{patient_id}/clinical-work-items` and `PATCH .../{work_item_id}`.
    - `PATCH` may **not** set `superseded` or `entered_in_error` (`422`; only `/correct` in `S06` can set those statuses).
    - `completed` and `cancelled` are **terminal**: any status change away from `completed` or `cancelled` on `PATCH` returns `409 Conflict`.
    - Targets (`ClinicalWorkItemTarget`) must validate `tooth_key in FDI_TOOTH_KEYS`, `target_kind in {"tooth", "surface", "root", "canal"}`, and shape rules matching `TARGET_SHAPE_CONSTRAINT` (`ck_cwit_shape` / `ck_cet_shape` in `backend/models/clinical_core.py:77-84,172,366`) before DB flush (returning `422` on invalid shape).
@@ -291,7 +291,7 @@ Next Slice: S04
 - Flag OFF (`clinical_vnext_native_writes` disabled) -> `POST` and `PATCH` return `404`.
 - Flag ON -> `POST` creates `ClinicalWorkItem`, `ClinicalWorkItemTarget`, `ClinicalEvent`, `ClinicalEventTarget` for `tooth`, `surface`, `root`, and `canal` target kinds.
 - `PATCH` updates `status` (`proposed -> planned -> active -> completed`), `notes`, `targets`, increments `version_id`, and appends `*_updated` event.
-- `PATCH` attempting to set `status="superseded"` or `status="entered_in_error"` -> `422` (only `/correct` can set correction statuses).
+- `validate_treatment_status` wiring tests: PATCH `status="superseded"` -> `422`; PATCH `status="entered_in_error"` -> `422`; PATCH `status="in_progress"` -> `422` (proving `validate_treatment_status` rejects non-lifecycle and correction statuses on standard work item mutation endpoints).
 - `PATCH` attempting to transition `status` away from terminal `completed` or `cancelled` (e.g. `completed -> active` or `cancelled -> planned`) -> `409 Conflict`.
 - Invalid `code`, invalid `status` (e.g. `"in_progress"` or `"existing"`), invalid FDI `tooth_key`, or invalid target shape (e.g. `target_kind='surface'` with `surface_code=None`) -> `422`.
 - Cross-tenant `patient_id` or `work_item_id` -> `404`; mismatched `patient_id` for `work_item_id` -> `404`; restricted doctor visibility -> `404`.
@@ -427,10 +427,11 @@ Next Slice: S06
        - For `mode == "entered_in_error"`: `event_type = "entered_in_error"`, `work_item_id = work_item.id`, `payload = {"mode": "entered_in_error", "work_item_id": work_item.id, "reason": reason}`.
      - **Never delete or update any existing `ClinicalEvent` row.**
    - Where Status is Validated:
-     - Request validation: `mode` is validated via Pydantic schema `ClinicalWorkItemCorrectionCreate.mode: Literal["entered_in_error", "supersede"]` (`backend/schemas/clinical_commands.py` (new)).
-     - Service validation: `ClinicalCommandService.correct_work_item` sets `status = CORRECTION_STATUS_ENTERED_IN_ERROR` or `status = CORRECTION_STATUS_SUPERSEDED` directly; these terminal correction statuses are **NOT** passed to `validate_treatment_status` (which only checks standard writable lifecycle codes `proposed, planned, active, completed, cancelled` in `CANONICAL_TREATMENT_LIFECYCLE_CODES`).
-     - Database model validation: `ClinicalWorkItem.status` (`backend/models/clinical_core.py:112,122`) is `Column(String(32))` constrained only by `CheckConstraint("length(trim(status)) > 0", name="ck_clinical_work_items_status_not_empty")`; there are no Enums or CheckConstraints rejecting `"entered_in_error"` or `"superseded"`.
-     - Workspace reducer validation: `ClinicalWorkspaceService._build_state_delta` (`backend/services/clinical_workspace_service.py:221-253`) explicitly filters out `status_lower in ("superseded", "entered-in-error", "entered_in_error")`.
+     - Request validation (planned): `mode` is validated via Pydantic schema `ClinicalWorkItemCorrectionCreate.mode: Literal["entered_in_error", "supersede"]` (`backend/schemas/clinical_commands.py` (planned)).
+     - Service validation (planned): `ClinicalCommandService.correct_work_item` sets `status = CORRECTION_STATUS_ENTERED_IN_ERROR` or `status = CORRECTION_STATUS_SUPERSEDED` directly; these terminal correction statuses are **NOT** passed to `validate_treatment_status` (which only checks standard writable lifecycle codes `proposed, planned, active, completed, cancelled` in `CANONICAL_TREATMENT_LIFECYCLE_CODES`).
+     - Database model validation (existing): `ClinicalWorkItem.status` (`backend/models/clinical_core.py:112,122`) is `Column(String(32))` constrained only by `CheckConstraint("length(trim(status)) > 0", name="ck_clinical_work_items_status_not_empty")`; there are no Enums or CheckConstraints rejecting `"entered_in_error"` or `"superseded"`.
+     - Workspace reducer validation (existing): `ClinicalWorkspaceService._build_state_delta` (`backend/services/clinical_workspace_service.py:221-253`) explicitly filters out `status_lower in ("superseded", "entered-in-error", "entered_in_error")`.
+   - **Clinical-Only Correction Scope:** Correction is clinical-only: legacy `models.Treatment`, `models.Payment`, and `models.StockMovement` are completely untouched; reversing billing, payments, or inventory for a corrected procedure happens exclusively through the existing legacy clinical/billing flow during coexistence.
    - Concurrency & status guards: return `409 Conflict` when the work item is already `superseded` or `entered_in_error` (explicit status check) or on `expected_version_id` mismatch / SQLAlchemy `StaleDataError` (`version_id`). Return `404` for cross-tenant, cross-patient, or restricted-doctor visibility.
    - Events without a `work_item_id` (e.g. backfilled tooth-status events) are **NOT** correctable via work-item correction: if a caller passes a missing/unlinked reference or attempts to correct an unlinked event, return `422` with a clear message (`"Standalone events without a clinical work item cannot be corrected via work-item correction"`).
 2. **Tooth Detail API (`G7-M10`):** `GET /api/v1/patients/{patient_id}/clinical-teeth/{tooth_key}` (requires `Permission.CLINICAL_READ`):
@@ -474,7 +475,7 @@ Next Slice: S06
 - Double-correcting an already `entered_in_error` or `superseded` work item -> `409 Conflict`.
 - Stale `expected_version_id` / `StaleDataError` -> `409 Conflict`.
 - Workspace snapshot in `VNEXT_PRIMARY` (`GET /api/v1/patients/{patient_id}/clinical-workspace`) automatically excludes the corrected work item (and includes the replacement work item for `supersede`).
-- Reducer exclusion set test: assert that `CANONICAL_CORRECTION_STATUSES` members are all present in the reducer's exclusion set in `backend/services/clinical_workspace_service.py:225`.
+- Reducer exclusion snapshot test: for each status in `CANONICAL_CORRECTION_STATUSES`, create a `ClinicalWorkItem` with that status and assert the workspace snapshot excludes it (since the reducer exclusion tuple `("superseded", "entered-in-error", "entered_in_error")` at `backend/services/clinical_workspace_service.py:225` is inline and cannot be imported directly; existing test covers only `entered_in_error`).
 - History API (`GET /api/v1/patients/{patient_id}/clinical-events`): reads raw `ClinicalEvent` rows from DB; default (`include_entered_in_error=False`) excludes events of corrected work items; `include_entered_in_error=True` returns raw events including correction events with `original_work_item_id` and `replacement_work_item_id` in the payload.
 - Zero `ClinicalEvent` rows deleted or updated; zero `Treatment`, `Payment`, or `StockMovement` delta.
 - `GET .../clinical-teeth/16` returns tooth summary, work items, and events for Tooth `16` only; invalid FDI `99` returns `422`.
