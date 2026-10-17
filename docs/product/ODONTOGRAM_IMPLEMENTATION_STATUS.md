@@ -69,11 +69,11 @@
 
 ---
 
-## 4. Dropped Scope (Confirmed Drops — Reclassification Executes in Slice `S00`)
+## 4. Dropped Scope (Confirmed Drops — Reclassified in Slice `S00`)
 
-The following 5 matrix items are confirmed drops (per decision PD00 decided by Eslam on 2026-10-17) for removal from active clinic runtime scope and will be reclassified in `docs/product/ODONTOGRAM_TRACEABILITY_MATRIX.md` and `backend/tests/test_odontogram_traceability.py` during slice `S00` (note: `docs/product/ODONTOGRAM_VNEXT_PRODUCT_SPEC.md` still enumerates them because `test_product_spec_phases_exact_positive_equality` in `backend/tests/test_odontogram_traceability.py:461-510` forbids editing it):
+The following 5 matrix items are confirmed drops (per decision PD00 decided by Eslam on 2026-10-17) for removal from active clinic runtime scope and have been reclassified to `HISTORICAL_EXECUTION_MECHANIC` in `docs/product/ODONTOGRAM_TRACEABILITY_MATRIX.md` and `backend/tests/test_odontogram_traceability.py` in slice `S00` (note: `docs/product/ODONTOGRAM_VNEXT_PRODUCT_SPEC.md` still enumerates them because `test_product_spec_phases_exact_positive_equality` in `backend/tests/test_odontogram_traceability.py:461-510` forbids editing it):
 
-| Matrix ID | Matrix Title | New Classification (`S00`) | Destination Document |
+| Matrix ID | Matrix Title | Classification (`S00`) | Destination Document |
 |---|---|---|---|
 | `G8-M12` | Add undo stack | `HISTORICAL_EXECUTION_MECHANIC` | `docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md` |
 | `G10-M06` | Add repeatable-step support | `HISTORICAL_EXECUTION_MECHANIC` | `docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md` |
@@ -81,5 +81,5 @@ The following 5 matrix items are confirmed drops (per decision PD00 decided by E
 | `G11-M03` | Add auto-suggestion from workflow template | `HISTORICAL_EXECUTION_MECHANIC` | `docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md` |
 | `G12-M14` | Support bridge semantics | `HISTORICAL_EXECUTION_MECHANIC` | `docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md` |
 
-*(Note: Per PD00 decided by Eslam on 2026-10-17, all 5 confirmed drop items are reclassified to `HISTORICAL_EXECUTION_MECHANIC` targeting `docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md` (no edits to `PROJECT_STANDARDS.md`). S00 recomputes the matrix summary to: ACTIVE 254 / ARCHITECTURE 21 / HISTORICAL 16 / EVIDENCE 36 = 327. Note: no special bridge semantics — a bridge is recorded as one work item with multiple tooth targets via S08 multi-select; revisit if lab/billing needs it. S00 reclassification executes in S00 — NOT yet executed; do NOT edit matrix or tests now).*
+*(Note: Per PD00 decided by Eslam on 2026-10-17, all 5 confirmed drop items are reclassified to `HISTORICAL_EXECUTION_MECHANIC` targeting `docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md` (no edits to `PROJECT_STANDARDS.md`). S00 recomputes the matrix summary to: ACTIVE 254 / ARCHITECTURE 21 / HISTORICAL 16 / EVIDENCE 36 = 327. Note: no special bridge semantics — a bridge is recorded as one work item with multiple tooth targets via S08 multi-select; revisit if lab/billing needs it).*
 
