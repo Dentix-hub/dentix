@@ -66,6 +66,16 @@ from .treatment_plan import (
     ClinicalTreatmentPlanTransition,
 )
 
+# Clinical Commands (Slice S04)
+from .clinical_commands import (
+    ClinicalTargetInput,
+    ClinicalTargetRead,
+    ClinicalWorkItemCreate,
+    ClinicalWorkItemUpdate,
+    ClinicalWorkItemRead,
+)
+
+
 # Clinical Workspace Snapshot (Issue #205)
 from .clinical_workspace import (
     ClinicalWorkspaceWarning,
@@ -353,5 +363,11 @@ __all__ = [
     "ClinicalTreatmentPlanCreate",
     "ClinicalTreatmentPlanRead",
     "ClinicalTreatmentPlanTransition",
+    # Clinical Commands (Slice S04)
+    "ClinicalTargetInput",
+    "ClinicalTargetRead",
+    "ClinicalWorkItemCreate",
+    "ClinicalWorkItemUpdate",
+    "ClinicalWorkItemRead",
 ]
 
