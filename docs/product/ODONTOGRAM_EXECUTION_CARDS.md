@@ -252,10 +252,10 @@ Next Slice: S04
    - `completed` and `cancelled` are **terminal**: any status change away from `completed` or `cancelled` on `PATCH` returns `409 Conflict`.
    - Targets (`ClinicalWorkItemTarget`) must validate `tooth_key in FDI_TOOTH_KEYS`, `target_kind in {"tooth", "surface", "root", "canal"}`, and shape rules matching `TARGET_SHAPE_CONSTRAINT` (`ck_cwit_shape` / `ck_cet_shape` in `backend/models/clinical_core.py:77-84,172,366`) before DB flush (returning `422` on invalid shape).
 5. Creating or updating a `ClinicalWorkItem` atomically appends a corresponding `ClinicalEvent` (`event_type = f"{kind}_recorded"` on create, `f"{kind}_updated"` on update) + `ClinicalEventTarget` rows in the same transaction (`occurred_at = datetime.now(timezone.utc)`).
-6. **RBAC (`G7-M12`):**
+6. **RBAC (`G7-M12`) & Work-Item List Filtering:**
    - `POST /api/v1/patients/{patient_id}/clinical-work-items`: requires `Permission.CLINICAL_WRITE` or `Permission.TREATMENT_PLAN_WRITE` (`require_permission(Permission.CLINICAL_WRITE, Permission.TREATMENT_PLAN_WRITE)`).
    - `PATCH /api/v1/patients/{patient_id}/clinical-work-items/{work_item_id}`: requires `Permission.CLINICAL_WRITE` or `Permission.TREATMENT_PLAN_WRITE`.
-   - `GET /api/v1/patients/{patient_id}/clinical-work-items`: requires `Permission.CLINICAL_READ` (gated by `clinical_vnext_shadow` OR `clinical_vnext_primary` OR `clinical_vnext_native_writes`).
+   - `GET /api/v1/patients/{patient_id}/clinical-work-items`: requires `Permission.CLINICAL_READ` (gated by `clinical_vnext_shadow` OR `clinical_vnext_primary` OR `clinical_vnext_native_writes`). Excludes corrected work items (`status NOT IN ('superseded', 'entered_in_error')`) by default; accepts optional query parameter `include_corrected: bool = False` to return them for audit/diagnostic callers.
 
 #### SCOPE
 - **Schemas (`backend/schemas/clinical_commands.py` (new) + export in `backend/schemas/__init__.py`):** `ClinicalTargetInput`, `ClinicalWorkItemCreate`, `ClinicalWorkItemUpdate` (optional `status`, `notes`, `targets`, `expected_version_id`), `ClinicalWorkItemRead`.
@@ -413,19 +413,30 @@ Next Slice: S06
 #### DECISIONS
 1. **Work-Item Level Correction + Correction Event (`G7-M08` / Settled `D7` — Zero Migration, Zero Event Mutation):**
    - Real model facts (`backend/models/clinical_core.py:301-340`): `ClinicalEvent` has only `id`, `tenant_id`, `patient_id`, `work_item_id`, `care_session_id`, `event_type`, `occurred_at`, `actor_user_id`, `payload`, `notes`, `created_at` (no `entered_in_error` or self-FK columns), while `ClinicalWorkspaceService` (`backend/services/clinical_workspace_service.py:221-253`) already excludes work items whose `status` is `superseded` / `entered_in_error` / `entered-in-error`, as well as any `ClinicalEvent` attached to those `superseded_work_item_ids` or whose `event_type` is `superseded` / `entered_in_error`. The workspace reducer is **NOT** altered in this slice.
+   - Define canonical correction constants in `backend/clinical/catalog.py`: `CORRECTION_STATUS_ENTERED_IN_ERROR: str = "entered_in_error"`, `CORRECTION_STATUS_SUPERSEDED: str = "superseded"`, and `CANONICAL_CORRECTION_STATUSES: tuple[str, ...] = (CORRECTION_STATUS_ENTERED_IN_ERROR, CORRECTION_STATUS_SUPERSEDED)` (exported in `backend/clinical/__init__.py`).
    - Endpoint: `POST /api/v1/patients/{patient_id}/clinical-work-items/{work_item_id}/correct` (gated by `clinical_vnext_native_writes` -> `404` when OFF; requires `Permission.CLINICAL_WRITE`).
    - Request body: `{mode: "entered_in_error" | "supersede", reason: str (required, max 500), replacement: ClinicalWorkItemCreate (required only for supersede), expected_version_id: int (optional)}`.
-   - Modes:
-     - `mode = "entered_in_error"`: set target `ClinicalWorkItem.status = "entered_in_error"`.
-     - `mode = "supersede"`: set old `ClinicalWorkItem.status = "superseded"` and create the `replacement` `ClinicalWorkItem` with its `ClinicalWorkItemTarget` rows in the same transaction.
-     - In **both** modes, append **ONE** new `ClinicalEvent` (`event_type = "entered_in_error"` or `"superseded"`, `work_item_id = work_item.id`, `payload` containing `{"work_item_id": work_item.id, "reason": reason, ...}` and for `supersede` `"replacement_work_item_id": new_item.id`) in the same transaction. **Never delete or update any existing `ClinicalEvent` row.**
+   - Modes & Status Strings Written:
+     - `mode = "entered_in_error"`: writes exact status string `ClinicalWorkItem.status = CORRECTION_STATUS_ENTERED_IN_ERROR` (`"entered_in_error"`).
+     - `mode = "supersede"`: writes exact status string `ClinicalWorkItem.status = CORRECTION_STATUS_SUPERSEDED` (`"superseded"`) and creates the `replacement` `ClinicalWorkItem` (with canonical lifecycle status `proposed` or `planned`, validated via `validate_treatment_status`) with its `ClinicalWorkItemTarget` rows in the same transaction.
+     - In **both** modes, append **ONE** new `ClinicalEvent` with deterministic named payload keys:
+       - For `mode == "supersede"`: `event_type = "superseded"`, `work_item_id = work_item.id`, `payload = {"mode": "supersede", "original_work_item_id": work_item.id, "replacement_work_item_id": new_item.id, "reason": reason}`.
+       - For `mode == "entered_in_error"`: `event_type = "entered_in_error"`, `work_item_id = work_item.id`, `payload = {"mode": "entered_in_error", "work_item_id": work_item.id, "reason": reason}`.
+     - **Never delete or update any existing `ClinicalEvent` row.**
+   - Where Status is Validated:
+     - Request validation: `mode` is validated via Pydantic schema `ClinicalWorkItemCorrectionCreate.mode: Literal["entered_in_error", "supersede"]` (`backend/schemas/clinical_commands.py` (new)).
+     - Service validation: `ClinicalCommandService.correct_work_item` sets `status = CORRECTION_STATUS_ENTERED_IN_ERROR` or `status = CORRECTION_STATUS_SUPERSEDED` directly; these terminal correction statuses are **NOT** passed to `validate_treatment_status` (which only checks standard writable lifecycle codes `proposed, planned, active, completed, cancelled` in `CANONICAL_TREATMENT_LIFECYCLE_CODES`).
+     - Database model validation: `ClinicalWorkItem.status` (`backend/models/clinical_core.py:112,122`) is `Column(String(32))` constrained only by `CheckConstraint("length(trim(status)) > 0", name="ck_clinical_work_items_status_not_empty")`; there are no Enums or CheckConstraints rejecting `"entered_in_error"` or `"superseded"`.
+     - Workspace reducer validation: `ClinicalWorkspaceService._build_state_delta` (`backend/services/clinical_workspace_service.py:221-253`) explicitly filters out `status_lower in ("superseded", "entered-in-error", "entered_in_error")`.
    - Concurrency & status guards: return `409 Conflict` when the work item is already `superseded` or `entered_in_error` (explicit status check) or on `expected_version_id` mismatch / SQLAlchemy `StaleDataError` (`version_id`). Return `404` for cross-tenant, cross-patient, or restricted-doctor visibility.
    - Events without a `work_item_id` (e.g. backfilled tooth-status events) are **NOT** correctable via work-item correction: if a caller passes a missing/unlinked reference or attempts to correct an unlinked event, return `422` with a clear message (`"Standalone events without a clinical work item cannot be corrected via work-item correction"`).
 2. **Tooth Detail API (`G7-M10`):** `GET /api/v1/patients/{patient_id}/clinical-teeth/{tooth_key}` (requires `Permission.CLINICAL_READ`):
    - Validates `tooth_key in FDI_TOOTH_KEYS` (`422` otherwise).
    - Returns projected tooth summary (from `ClinicalWorkspaceService`), active & historical `ClinicalWorkItem`s targeting `tooth_key`, `ClinicalEvent` timeline targeting `tooth_key`, and legacy `Treatment` / `ToothStatus` records for that tooth.
 3. **Patient Clinical History API (`G7-M11`):** `GET /api/v1/patients/{patient_id}/clinical-events` (requires `Permission.CLINICAL_READ`):
-   - Returns paginated chronological clinical event log (`occurred_at DESC, id DESC`) for the patient. Query parameter `include_entered_in_error: bool = False` means **"include events of corrected (`entered_in_error` / `superseded`) work items and correction events"** (excluded when `False`, returned when `True`).
+   - **Data Source:** Reads **raw `ClinicalEvent` rows directly from the database** (joined with `ClinicalWorkItem` only to evaluate work-item status when filtering), **never** through `ClinicalWorkspaceService` or the filtered visual snapshot reducer.
+   - **Filtering:** Default (`include_entered_in_error = False`) excludes events where `event.event_type in CANONICAL_CORRECTION_STATUSES` or attached `work_item.status in CANONICAL_CORRECTION_STATUSES`.
+   - **Audit Mode:** Query parameter `include_entered_in_error = True` returns all raw `ClinicalEvent` rows in chronological order (`occurred_at DESC, id DESC`), specifically including original events, correction events (`event_type="entered_in_error"` / `"superseded"`), and the named supersede links (`original_work_item_id`, `replacement_work_item_id`) so full medical history is auditable without deletion.
 
 #### SCOPE
 - **Schemas (`backend/schemas/clinical_commands.py` (new)):** `ClinicalWorkItemCorrectionCreate`, `ClinicalWorkItemCorrectionResponse`, `ClinicalEventRead`, `ClinicalToothDetailRead`.
@@ -434,6 +445,7 @@ Next Slice: S06
   - `POST /patients/{patient_id}/clinical-work-items/{work_item_id}/correct`
   - `GET /patients/{patient_id}/clinical-teeth/{tooth_key}`
   - `GET /patients/{patient_id}/clinical-events`
+- **Catalog Constants (`backend/clinical/catalog.py` & `backend/clinical/__init__.py`):** Add `CORRECTION_STATUS_ENTERED_IN_ERROR`, `CORRECTION_STATUS_SUPERSEDED`, and `CANONICAL_CORRECTION_STATUSES`.
 - **Status Doc:** Update `G7` row in `docs/product/ODONTOGRAM_IMPLEMENTATION_STATUS.md`.
 
 #### EXCLUDE
@@ -442,6 +454,8 @@ Next Slice: S06
 - Frontend UI changes (`S08`–`S11`) or any schema migration.
 
 #### FILES LIKELY TOUCHED
+- `backend/clinical/catalog.py`
+- `backend/clinical/__init__.py`
 - `backend/schemas/clinical_commands.py` (new)
 - `backend/schemas/__init__.py`
 - `backend/services/clinical_command_service.py` (new)
@@ -453,11 +467,12 @@ Next Slice: S06
 - Inspect `ClinicalEvent` in `backend/models/clinical_core.py:301-340` (confirm columns: `id`, `tenant_id`, `patient_id`, `work_item_id`, `care_session_id`, `event_type`, `occurred_at`, `actor_user_id`, `payload`, `notes`, `created_at`) and confirm `ClinicalWorkspaceService` reduction in `backend/services/clinical_workspace_service.py:221-253` excludes work items with `status` in `("superseded", "entered-in-error", "entered_in_error")` and their attached events.
 
 #### TESTS REQUIRED
-- Both correction modes (`mode="entered_in_error"` sets `status="entered_in_error"` + appends `entered_in_error` event; `mode="supersede"` sets old item `status="superseded"`, creates replacement work item + targets, and appends `superseded` event with `replacement_work_item_id`).
+- Both correction modes (`mode="entered_in_error"` sets `status="entered_in_error"` + appends `entered_in_error` event; `mode="supersede"` sets old item `status="superseded"`, creates replacement work item + targets, and appends `superseded` event with `original_work_item_id` and `replacement_work_item_id` in payload).
 - Double-correcting an already `entered_in_error` or `superseded` work item -> `409 Conflict`.
 - Stale `expected_version_id` / `StaleDataError` -> `409 Conflict`.
 - Workspace snapshot in `VNEXT_PRIMARY` (`GET /api/v1/patients/{patient_id}/clinical-workspace`) automatically excludes the corrected work item (and includes the replacement work item for `supersede`).
-- History API (`GET /api/v1/patients/{patient_id}/clinical-events`): default (`include_entered_in_error=False`) excludes events of corrected work items; `include_entered_in_error=True` returns the original events and the correction event.
+- Reducer exclusion set test: assert that `CANONICAL_CORRECTION_STATUSES` members are all present in the reducer's exclusion set in `backend/services/clinical_workspace_service.py:225`.
+- History API (`GET /api/v1/patients/{patient_id}/clinical-events`): reads raw `ClinicalEvent` rows from DB; default (`include_entered_in_error=False`) excludes events of corrected work items; `include_entered_in_error=True` returns raw events including correction events with `original_work_item_id` and `replacement_work_item_id` in the payload.
 - Zero `ClinicalEvent` rows deleted or updated; zero `Treatment`, `Payment`, or `StockMovement` delta.
 - `GET .../clinical-teeth/16` returns tooth summary, work items, and events for Tooth `16` only; invalid FDI `99` returns `422`.
 - Cross-tenant, cross-patient, and restricted-doctor visibility -> `404`; flag OFF on `POST .../correct` -> `404`.
@@ -663,6 +678,7 @@ Next Slice: S09
      - When `'surface'` is in `allowed_target_kinds` (`REST_COMPOSITE` where `allowed_target_kinds == ('surface',)` at `catalog.py:276`, or `CARIES`/`FRACTURE` where `allowed_target_kinds == ('tooth', 'surface')` at `catalog.py:379,385`), if the user already clicked surfaces on the tooth (`S08`), reuse those surfaces (`target_kind='surface'`); if no surface was clicked yet, open an inline 1-click surface pill popover pre-selecting `'O'` on posterior teeth (`4`–`8`) and `'I'` on anterior teeth (`1`–`3`) so `ck_cwit_shape` (`TARGET_SHAPE_CONSTRAINT` at `backend/models/clinical_core.py:77-84,172`) is always satisfied.
 5. **Safe Write Routing (Respecting Coexistence & Flags):**
    - When `clinical_vnext_native_writes` is enabled in `useTenantFeatures()`, findings and native procedures can dispatch to the `G7` endpoints (`S05`); when `clinical_vnext_native_writes` is OFF (the default for all clinics today), selecting a procedure from the quick launcher either dispatches through `POST /api/v1/treatments` / `POST /api/v1/treatments/multi-procedure` with smart defaults (using the clinic's `procedures` catalog fee) or opens `TreatmentModal` pre-filled with the chosen procedure, tooth, surfaces, and default price so **legacy billing and inventory remain 100% intact**.
+6. **Work-Item Filtering:** Any work-item queries or active/recent item lookups consumed by the launcher strictly exclude corrected work items (`status NOT IN ('superseded', 'entered_in_error')`).
 
 #### SCOPE
 - `frontend/src/features/clinical-chart/components/ChartQuickActionLauncher.jsx` (new)
@@ -732,7 +748,7 @@ Each brief below locks the architectural boundaries, exact matrix items, depende
 ### S10 — Tooth-First Flow, Procedure-First Flow & Sticky Tool Mode (`EXPAND JUST-IN-TIME`)
 - **Branch:** `feat/chart-sticky-tool-flows` · **Deps:** `S09` · **Size:** `M` · **Risk:** `NORMAL` · **Migration:** `No`
 - **Exact Matrix Items (3):** `G8-M03` (Add tooth-first flow), `G8-M04` (Add procedure-first flow), `G8-M05` (Add sticky tool mode).
-- **Goal & Decisions:** Support both (1) **Tooth-First Flow** (select tooth/surfaces -> click launcher action -> applies immediately) and (2) **Procedure-First & Sticky Tool Flow** (select procedure/finding in launcher -> toggle `"Sticky Mode / وضع التكرار"` -> click multiple teeth sequentially on `ClinicalChartRenderer` to apply or queue batch items; `Esc` or toggle button exits sticky mode). Applies `D5`/`PD03` (surface vs whole-tooth behaviour derived from `ProcedureDefinition.allowed_target_kinds` / `FindingDefinition.allowed_target_kinds` in `backend/clinical/catalog.py:247,364`). Translations in `frontend/src/locales/ar/translation.json` and `frontend/src/locales/en/translation.json`.
+- **Goal & Decisions:** Support both (1) **Tooth-First Flow** (select tooth/surfaces -> click launcher action -> applies immediately) and (2) **Procedure-First & Sticky Tool Flow** (select procedure/finding in launcher -> toggle `"Sticky Mode / وضع التكرار"` -> click multiple teeth sequentially on `ClinicalChartRenderer` to apply or queue batch items; `Esc` or toggle button exits sticky mode). Work-item filtering: Batch queues and multi-tooth actions operate only on active/non-corrected items, strictly excluding `status IN ('superseded', 'entered_in_error')`. Applies `D5`/`PD03` (surface vs whole-tooth behaviour derived from `ProcedureDefinition.allowed_target_kinds` / `FindingDefinition.allowed_target_kinds` in `backend/clinical/catalog.py:247,364`). Translations in `frontend/src/locales/ar/translation.json` and `frontend/src/locales/en/translation.json`.
 - **Gotchas:** Ensure sticky mode displays a prominent active-tool banner above the chart and does not accidentally fire when scrolling on mobile touch screens.
 
 ### S11 — Consequence-Aware Remove, Click-Budget Telemetry & Giant Modal De-emphasis (`EXPAND JUST-IN-TIME`)
