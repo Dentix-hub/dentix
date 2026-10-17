@@ -62,3 +62,24 @@ async def update_flag(
     current_user: models.User = Depends(get_super_admin),
 ):
     return await FeatureFlagService.update_flag(db, key, update_data)
+
+
+@router.get(
+    "/clinical-drift/{tenant_id}",
+    response_model=schemas.TenantClinicalDriftReport,
+    summary="Clinical Drift and Mapping Error Observer",
+)
+async def get_clinical_drift_features_alias(
+    tenant_id: int,
+    limit_patients: int = 500,
+    after_patient_id: int = 0,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(get_super_admin),
+):
+    from backend.services.clinical_drift_observer_service import ClinicalDriftObserverService
+    service = ClinicalDriftObserverService(db)
+    return await service.compute_tenant_drift(
+        tenant_id=tenant_id,
+        limit_patients=limit_patients,
+        after_patient_id=after_patient_id,
+    )

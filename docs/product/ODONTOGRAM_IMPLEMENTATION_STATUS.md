@@ -56,7 +56,7 @@
 | **G13** | Inventory Integration | **NOT_STARTED** | `backend/models/inventory.py:289` (`TreatmentMaterialUsage` references `material_sessions.id`, not `care_sessions.id`). |
 | **G14** | Finance Integration and Parity | **NOT_STARTED** | `clinical_charges` table does not exist in schema, models, or migrations (`git grep clinical_charges` returns 0). |
 | **G15** | Files and Clinical Context | **SCHEMA_ONLY** | `backend/models/clinical_core.py:582-615` (`ClinicalAttachmentLink`), migration `f4a5b6c7d8e9`; link API and attachment context UI not yet implemented. |
-| **G16** | Rollout and Controlled Cutover | **PARTIAL** | `backend/services/clinical_workspace_service.py:42-44,997-1017` (supports `LEGACY_ONLY`, `SHADOW`, `VNEXT_PRIMARY` via `FeatureFlagService`), `PatientDetails.jsx:446-456`; default is `LEGACY_ONLY`. |
+| **G16** | Rollout and Controlled Cutover | **PARTIAL** | `backend/services/clinical_workspace_service.py:42-44,997-1017` (supports `LEGACY_ONLY`, `SHADOW`, `VNEXT_PRIMARY` via `FeatureFlagService`), `PatientDetails.jsx:446-456`; read-only clinical drift & error observer implemented (`G16-M04`, `G16-M05`: `backend/services/clinical_drift_observer_service.py`, `GET /api/v1/admin/clinical-drift/{tenant_id}`, `backend/tests/services/test_clinical_drift_observer.py`). |
 
 ---
 

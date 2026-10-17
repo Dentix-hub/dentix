@@ -74,6 +74,8 @@ from .clinical_workspace import (
     WorkspaceToothSummary,
     WorkspaceWorkItemSummary,
     ClinicalWorkspaceSnapshot,
+    PatientClinicalDriftItem,
+    TenantClinicalDriftReport,
 )
 
 
