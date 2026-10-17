@@ -19,6 +19,7 @@ import pytest
 from sqlalchemy import select, func
 
 from backend import models
+from backend.services.clinical_drift_observer_service import ClinicalDriftObserverService
 from scripts.backfill_clinical_work_items import (
     backfill_tenant,
     discover_active_tenants,
@@ -406,4 +407,408 @@ class TestClinicalBackfillCLI:
 
         active_ids = await discover_active_tenants(db)
         assert active_ids == [1, 2]
+
+    async def test_dry_run_tooth_statuses_and_sessions_writes_nothing(
+        self, async_db_session, sample_clinical_extended_data
+    ):
+        """Dry-run must report would-create counts for tooth statuses and sessions without writing any rows."""
+        db = async_db_session
+
+        report = await backfill_tenant(
+            db=db,
+            tenant_id=1,
+            apply=False,
+            batch_size=10,
+        )
+
+        assert report.is_dry_run is True
+        # ToothStatus accounting
+        assert report.tooth_statuses_scanned == 4
+        assert report.tooth_statuses_created == 2  # ts1 (11), ts2 (12)
+        assert report.tooth_statuses_already_synced == 0
+        assert report.tooth_statuses_skipped == 2  # ts_invalid_fdi (99), ts_unmapped (14)
+
+        # Session accounting
+        assert report.sessions_scanned == 3
+        assert report.sessions_created == 2  # sess1 (t101), sess2 (t102)
+        assert report.sessions_already_synced == 0
+        assert report.sessions_skipped == 1  # sess_deleted (t103 is_deleted=True)
+
+        # Assert no rows were created in ClinicalEvent or CareSession
+        ev_ts_count = (
+            await db.execute(
+                select(func.count(models.ClinicalEvent.id)).where(
+                    models.ClinicalEvent.tenant_id == 1
+                )
+            )
+        ).scalar()
+        cs_count = (
+            await db.execute(
+                select(func.count(models.CareSession.id)).where(
+                    models.CareSession.tenant_id == 1
+                )
+            )
+        ).scalar()
+
+        assert ev_ts_count == 0
+        assert cs_count == 0
+
+    async def test_apply_persists_tooth_status_events_and_care_sessions_with_provenance(
+        self, async_db_session, sample_clinical_extended_data
+    ):
+        """Apply mode persists ClinicalEvent + ClinicalEventTarget and CareSession with provenance (G4-M06, G4-M07)."""
+        db = async_db_session
+
+        report = await backfill_tenant(
+            db=db,
+            tenant_id=1,
+            apply=True,
+            batch_size=10,
+        )
+
+        assert report.is_dry_run is False
+        assert report.tooth_statuses_created == 2
+        assert report.tooth_statuses_already_synced == 0
+        assert report.sessions_created == 2
+        assert report.sessions_already_synced == 0
+
+        # Check ClinicalEvents created for legacy tooth statuses (G4-M06)
+        ev_res = await db.execute(
+            select(models.ClinicalEvent)
+            .where(
+                models.ClinicalEvent.tenant_id == 1,
+                models.ClinicalEvent.work_item_id.is_(None),
+            )
+            .order_by(models.ClinicalEvent.id.asc())
+        )
+        ts_events = ev_res.scalars().all()
+        assert len(ts_events) == 2
+
+        for ev in ts_events:
+            assert ev.event_type in {"finding_recorded", "tooth_lifecycle_changed"}
+            assert isinstance(ev.payload, dict)
+            assert ev.payload.get("provenance") == "backfill"
+            assert ev.payload.get("source") == "legacy_tooth_status"
+            assert ev.payload.get("tooth_status_id") in {501, 502}
+            assert ev.payload.get("legacy_tooth_status_id") in {501, 502}
+
+        # Check targets for tooth status events
+        target_res = await db.execute(
+            select(models.clinical_core.ClinicalEventTarget)
+            .where(models.clinical_core.ClinicalEventTarget.tenant_id == 1)
+            .order_by(models.clinical_core.ClinicalEventTarget.tooth_key.asc())
+        )
+        targets = target_res.scalars().all()
+        # 2 targets for treatment 101 (surfaces M, O) + 1 target for treatment 102 (tooth 21) + 2 targets for tooth status events (11, 12) = 5
+        ts_targets = [t for t in targets if t.tooth_key in {"11", "12"}]
+        assert len(ts_targets) == 2
+        assert {t.tooth_key for t in ts_targets} == {"11", "12"}
+        assert all(t.target_kind == "tooth" for t in ts_targets)
+
+        # Check CareSessions created for legacy treatment sessions (G4-M07)
+        cs_res = await db.execute(
+            select(models.CareSession)
+            .where(models.CareSession.tenant_id == 1)
+            .order_by(models.CareSession.id.asc())
+        )
+        care_sessions = cs_res.scalars().all()
+        assert len(care_sessions) == 2
+
+        assert care_sessions[0].status == "completed"
+        assert "[LEGACY_TREATMENT_SESSION:601]" in care_sessions[0].notes
+        assert "Session 1 prep" in care_sessions[0].notes
+        assert care_sessions[0].provider_user_id == 10
+
+        assert care_sessions[1].status == "completed"
+        assert "[LEGACY_TREATMENT_SESSION:602]" in care_sessions[1].notes
+        assert "Session 2 delivery" in care_sessions[1].notes
+        assert care_sessions[1].provider_user_id == 10
+
+    async def test_idempotent_apply_twice_creates_no_duplicates_for_ts_and_sessions(
+        self, async_db_session, sample_clinical_extended_data
+    ):
+        """Second apply run produces 0 new tooth status events or care sessions and increments already_synced."""
+        db = async_db_session
+
+        # Run 1
+        report1 = await backfill_tenant(db=db, tenant_id=1, apply=True)
+        assert report1.tooth_statuses_created == 2
+        assert report1.tooth_statuses_already_synced == 0
+        assert report1.sessions_created == 2
+        assert report1.sessions_already_synced == 0
+
+        ev_count_1 = (await db.execute(select(func.count(models.ClinicalEvent.id)))).scalar()
+        cs_count_1 = (await db.execute(select(func.count(models.CareSession.id)))).scalar()
+
+        # Run 2
+        report2 = await backfill_tenant(db=db, tenant_id=1, apply=True)
+        assert report2.tooth_statuses_created == 0
+        assert report2.tooth_statuses_already_synced == 2
+        assert report2.sessions_created == 0
+        assert report2.sessions_already_synced == 2
+
+        ev_count_2 = (await db.execute(select(func.count(models.ClinicalEvent.id)))).scalar()
+        cs_count_2 = (await db.execute(select(func.count(models.CareSession.id)))).scalar()
+
+        assert ev_count_2 == ev_count_1
+        assert cs_count_2 == cs_count_1
+
+    async def test_tenant_isolation_tooth_statuses_and_sessions(
+        self, async_db_session, sample_clinical_extended_data
+    ):
+        """Backfilling Tenant 1 never creates tooth status events or care sessions for Tenant 2."""
+        db = async_db_session
+
+        # Backfill Tenant 1
+        await backfill_tenant(db=db, tenant_id=1, apply=True)
+
+        # Verify Tenant 2 has zero events and zero care sessions
+        t2_ev_count = (
+            await db.execute(
+                select(func.count(models.ClinicalEvent.id)).where(
+                    models.ClinicalEvent.tenant_id == 2
+                )
+            )
+        ).scalar()
+        t2_cs_count = (
+            await db.execute(
+                select(func.count(models.CareSession.id)).where(
+                    models.CareSession.tenant_id == 2
+                )
+            )
+        ).scalar()
+
+        assert t2_ev_count == 0
+        assert t2_cs_count == 0
+
+        # Backfill Tenant 2
+        report_t2 = await backfill_tenant(db=db, tenant_id=2, apply=True)
+        assert report_t2.tooth_statuses_scanned == 1
+        assert report_t2.tooth_statuses_created == 1
+        assert report_t2.sessions_scanned == 1
+        assert report_t2.sessions_created == 1
+
+        t2_cs_after = (
+            await db.execute(
+                select(func.count(models.CareSession.id)).where(
+                    models.CareSession.tenant_id == 2
+                )
+            )
+        ).scalar()
+        assert t2_cs_after == 1
+
+    async def test_inventory_and_payment_invariance_g4_m12_g4_m13(
+        self, async_db_session, sample_clinical_extended_data
+    ):
+        """Proves G4-M12 (inventory unchanged) and G4-M13 (payments unchanged) across backfill execution."""
+        db = async_db_session
+
+        # Snapshot inventory tables before backfill
+        stock_items_before = (
+            await db.execute(
+                select(models.StockItem.id, models.StockItem.quantity).order_by(models.StockItem.id)
+            )
+        ).all()
+        stock_movements_before = (
+            await db.execute(
+                select(models.StockMovement.id, models.StockMovement.change_amount).order_by(models.StockMovement.id)
+            )
+        ).all()
+        material_usages_before = (
+            await db.execute(
+                select(models.TreatmentMaterialUsage.id, models.TreatmentMaterialUsage.quantity_used).order_by(models.TreatmentMaterialUsage.id)
+            )
+        ).all()
+
+        # Snapshot payment table before backfill
+        payments_count_before = (await db.execute(select(func.count(models.Payment.id)))).scalar()
+        payments_sum_before = (await db.execute(select(func.sum(models.Payment.amount)))).scalar()
+        payments_rows_before = (
+            await db.execute(
+                select(models.Payment.id, models.Payment.amount, models.Payment.notes).order_by(models.Payment.id)
+            )
+        ).all()
+
+        # Execute backfill with --apply
+        await backfill_tenant(db=db, tenant_id=1, apply=True)
+
+        # Snapshot inventory tables after backfill
+        stock_items_after = (
+            await db.execute(
+                select(models.StockItem.id, models.StockItem.quantity).order_by(models.StockItem.id)
+            )
+        ).all()
+        stock_movements_after = (
+            await db.execute(
+                select(models.StockMovement.id, models.StockMovement.change_amount).order_by(models.StockMovement.id)
+            )
+        ).all()
+        material_usages_after = (
+            await db.execute(
+                select(models.TreatmentMaterialUsage.id, models.TreatmentMaterialUsage.quantity_used).order_by(models.TreatmentMaterialUsage.id)
+            )
+        ).all()
+
+        # Snapshot payment table after backfill
+        payments_count_after = (await db.execute(select(func.count(models.Payment.id)))).scalar()
+        payments_sum_after = (await db.execute(select(func.sum(models.Payment.amount)))).scalar()
+        payments_rows_after = (
+            await db.execute(
+                select(models.Payment.id, models.Payment.amount, models.Payment.notes).order_by(models.Payment.id)
+            )
+        ).all()
+
+        # G4-M12: Inventory tables 100% identical
+        assert stock_items_after == stock_items_before
+        assert stock_movements_after == stock_movements_before
+        assert material_usages_after == material_usages_before
+
+        # G4-M13: Payments rows and sum 100% identical
+        assert payments_count_after == payments_count_before
+        assert payments_sum_after == payments_sum_before
+        assert payments_rows_after == payments_rows_before
+
+    async def test_tooth_status_unbackfilled_count_zero_after_apply(
+        self, async_db_session
+    ):
+        """Proves PD01b invariant: tooth_status_unbackfilled_count == 0 on a tenant whose ToothStatus rows all map."""
+        db = async_db_session
+
+        # Seed isolated tenant 3 with all-mappable tooth statuses
+        t3 = models.Tenant(id=3, name="Clinic Gamma", is_active=True)
+        p3 = models.Patient(
+            id=30,
+            name="Patient Gamma",
+            age=40,
+            phone="0111111111",
+            medical_history="None",
+            notes="",
+            tenant_id=3,
+        )
+        ts3_1 = models.ToothStatus(
+            id=701, tenant_id=3, patient_id=30, tooth_number=11, condition="Caries", notes="Caries"
+        )
+        ts3_2 = models.ToothStatus(
+            id=702, tenant_id=3, patient_id=30, tooth_number=21, condition="Missing", notes="Missing"
+        )
+        db.add_all([t3, p3, ts3_1, ts3_2])
+        await db.commit()
+
+        # Observer before backfill reports unbackfilled tooth statuses > 0
+        observer = ClinicalDriftObserverService(db)
+        drift_before = await observer.compute_tenant_drift(tenant_id=3)
+        assert drift_before.tooth_status_unbackfilled_count == 2
+
+        # Run backfill with apply
+        report = await backfill_tenant(db=db, tenant_id=3, apply=True)
+        assert report.tooth_statuses_created == 2
+
+        # Observer after backfill asserts tooth_status_unbackfilled_count == 0
+        drift_after = await observer.compute_tenant_drift(tenant_id=3)
+        assert drift_after.tooth_status_unbackfilled_count == 0
+
+
+@pytest.fixture
+async def sample_clinical_extended_data(async_db_session, sample_clinical_data):
+    """Seed additional tooth statuses, sessions, inventory, and payment records."""
+    db = async_db_session
+
+    # ToothStatus for Tenant 1
+    ts1 = models.ToothStatus(
+        id=501,
+        tenant_id=1,
+        patient_id=1,
+        tooth_number=11,
+        condition="Caries",
+        notes="Class III Caries",
+    )
+    ts2 = models.ToothStatus(
+        id=502,
+        tenant_id=1,
+        patient_id=1,
+        tooth_number=12,
+        condition="Missing",
+        notes="Extracted tooth",
+    )
+    ts_invalid_fdi = models.ToothStatus(
+        id=504,
+        tenant_id=1,
+        patient_id=1,
+        tooth_number=99,
+        condition="Caries",
+        notes="Invalid tooth 99",
+    )
+    ts_unmapped = models.ToothStatus(
+        id=505,
+        tenant_id=1,
+        patient_id=1,
+        tooth_number=14,
+        condition="UnknownCondXYZ",
+        notes="Unmapped condition",
+    )
+    # ToothStatus for Tenant 2
+    ts_t2 = models.ToothStatus(
+        id=506,
+        tenant_id=2,
+        patient_id=2,
+        tooth_number=21,
+        condition="Caries",
+        notes="Tenant 2 Caries",
+    )
+
+    # TreatmentSession for Tenant 1
+    sess1 = models.TreatmentSession(
+        id=601,
+        tenant_id=1,
+        treatment_id=101,
+        session_date=datetime(2026, 1, 15, 10, 0, tzinfo=timezone.utc),
+        notes="Session 1 prep",
+    )
+    sess2 = models.TreatmentSession(
+        id=602,
+        tenant_id=1,
+        treatment_id=102,
+        session_date=datetime(2026, 1, 20, 11, 0, tzinfo=timezone.utc),
+        notes="Session 2 delivery",
+    )
+    sess_deleted = models.TreatmentSession(
+        id=603,
+        tenant_id=1,
+        treatment_id=103,  # Treatment 103 is_deleted=True
+        session_date=datetime(2026, 1, 22, 10, 0, tzinfo=timezone.utc),
+        notes="Session on deleted treatment 103",
+    )
+    # TreatmentSession for Tenant 2
+    sess_t2 = models.TreatmentSession(
+        id=604,
+        tenant_id=2,
+        treatment_id=201,
+        session_date=datetime(2026, 1, 25, 10, 0, tzinfo=timezone.utc),
+        notes="Tenant 2 session",
+    )
+
+    # Inventory & Financial data for Tenant 1 (G4-M12, G4-M13 invariance testing)
+    wh1 = models.Warehouse(id=701, tenant_id=1, name="Main Storage")
+    mat1 = models.Material(id=801, tenant_id=1, name="Composite A2", type="DIVISIBLE", base_unit="g")
+    batch1 = models.Batch(id=901, tenant_id=1, material_id=801, batch_number="B-100", expiry_date=datetime(2028, 1, 1).date())
+    stock1 = models.StockItem(id=1001, tenant_id=1, warehouse_id=701, batch_id=901, quantity=150.0)
+    mov1 = models.StockMovement(id=1101, tenant_id=1, stock_item_id=1001, change_amount=-5.0, reason="USAGE")
+    usage1 = models.TreatmentMaterialUsage(id=1201, tenant_id=1, treatment_id=101, material_id=801, weight_score=1.0, quantity_used=2.5)
+
+    pay1 = models.Payment(id=1301, tenant_id=1, patient_id=1, amount=300.0, notes="Cash")
+    pay2 = models.Payment(id=1302, tenant_id=1, patient_id=1, amount=200.0, notes="Card")
+
+    db.add_all([
+        ts1, ts2, ts_invalid_fdi, ts_unmapped, ts_t2,
+        sess1, sess2, sess_deleted, sess_t2,
+        wh1, mat1, batch1, stock1, mov1, usage1,
+        pay1, pay2,
+    ])
+    await db.commit()
+
+    return {
+        **sample_clinical_data,
+        "tooth_statuses": [ts1, ts2, ts_invalid_fdi, ts_unmapped, ts_t2],
+        "sessions": [sess1, sess2, sess_deleted, sess_t2],
+    }
 
