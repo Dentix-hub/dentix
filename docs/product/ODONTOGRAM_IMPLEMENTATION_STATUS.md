@@ -71,7 +71,7 @@
 
 ## 4. Dropped Scope (Planned for Reclassification in Slice `S00`)
 
-The following 5 matrix items are approved for removal from active clinic runtime scope and will be reclassified in `docs/product/ODONTOGRAM_TRACEABILITY_MATRIX.md` and `backend/tests/test_odontogram_traceability.py` during slice `S00` (note: `docs/product/ODONTOGRAM_VNEXT_PRODUCT_SPEC.md` still enumerates them because `test_product_spec_phases_exact_positive_equality` in `backend/tests/test_odontogram_traceability.py:461-510` forbids editing it):
+The following 5 matrix items are proposed drops (pending Eslam's decision before S00) for removal from active clinic runtime scope and will be reclassified in `docs/product/ODONTOGRAM_TRACEABILITY_MATRIX.md` and `backend/tests/test_odontogram_traceability.py` during slice `S00` (note: `docs/product/ODONTOGRAM_VNEXT_PRODUCT_SPEC.md` still enumerates them because `test_product_spec_phases_exact_positive_equality` in `backend/tests/test_odontogram_traceability.py:461-510` forbids editing it):
 
 | Matrix ID | Matrix Title | New Classification (`S00`) | Destination Document |
 |---|---|---|---|
@@ -80,4 +80,6 @@ The following 5 matrix items are approved for removal from active clinic runtime
 | `G10-M16` | Add template deviation support | `ARCHITECTURE_CONSTRAINT` | `PROJECT_STANDARDS.md` |
 | `G11-M03` | Add auto-suggestion from workflow template | `HISTORICAL_EXECUTION_MECHANIC` | `docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md` |
 | `G12-M14` | Support bridge semantics | `ARCHITECTURE_CONSTRAINT` | `PROJECT_STANDARDS.md` |
+
+*(Note: `PROJECT_STANDARDS.md` currently does not mention `G10-M16`/`G12-M14`, so Eslam must confirm the split or move them to `HISTORICAL_EXECUTION_MECHANIC` before S00; S00 must recompute the matrix summary: split => ACTIVE 254 / ARCHITECTURE 23 / HISTORICAL 14 / EVIDENCE 36 = 327; all-historical => 254 / 21 / 16 / 36).*
 
