@@ -80,3 +80,92 @@ async def update_patient_clinical_work_item(
         data=schemas.ClinicalWorkItemRead.model_validate(work_item),
         message="Clinical work item updated successfully",
     )
+
+
+@router.post(
+    "/{patient_id}/clinical-findings",
+    response_model=StandardResponse[schemas.ClinicalWorkItemRead],
+    status_code=status.HTTP_201_CREATED,
+    summary="Create clinical finding",
+    description="Create a dedicated clinical finding on one or more teeth/surfaces.",
+)
+async def create_patient_clinical_finding(
+    patient_id: int,
+    payload: schemas.ClinicalFindingCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = ClinicalCommandService(db, current_user.tenant_id, current_user)
+    work_item = await service.create_finding(patient_id, payload)
+    return success_response(
+        data=schemas.ClinicalWorkItemRead.model_validate(work_item),
+        message="Clinical finding created successfully",
+        status_code=status.HTTP_201_CREATED,
+    )
+
+
+@router.post(
+    "/{patient_id}/clinical-findings/bulk",
+    response_model=StandardResponse[schemas.ClinicalBulkWorkItemResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Bulk create clinical findings",
+    description="Atomic multi-tooth bulk creation of clinical findings (1 to 50 items).",
+)
+async def create_patient_clinical_findings_bulk(
+    patient_id: int,
+    payload: schemas.ClinicalFindingBulkCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = ClinicalCommandService(db, current_user.tenant_id, current_user)
+    result = await service.create_findings_bulk(patient_id, payload)
+    return success_response(
+        data=result,
+        message=f"{result.count} clinical findings created successfully",
+        status_code=status.HTTP_201_CREATED,
+    )
+
+
+@router.post(
+    "/{patient_id}/clinical-procedures",
+    response_model=StandardResponse[schemas.ClinicalWorkItemRead],
+    status_code=status.HTTP_201_CREATED,
+    summary="Create clinical procedure",
+    description="Create a dedicated clinical procedure on one or more teeth/surfaces.",
+)
+async def create_patient_clinical_procedure(
+    patient_id: int,
+    payload: schemas.ClinicalProcedureCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
+):
+    service = ClinicalCommandService(db, current_user.tenant_id, current_user)
+    work_item = await service.create_procedure(patient_id, payload)
+    return success_response(
+        data=schemas.ClinicalWorkItemRead.model_validate(work_item),
+        message="Clinical procedure created successfully",
+        status_code=status.HTTP_201_CREATED,
+    )
+
+
+@router.post(
+    "/{patient_id}/clinical-procedures/bulk",
+    response_model=StandardResponse[schemas.ClinicalBulkWorkItemResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Bulk create clinical procedures",
+    description="Atomic multi-tooth bulk creation of clinical procedures (1 to 50 items).",
+)
+async def create_patient_clinical_procedures_bulk(
+    patient_id: int,
+    payload: schemas.ClinicalProcedureBulkCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
+):
+    service = ClinicalCommandService(db, current_user.tenant_id, current_user)
+    result = await service.create_procedures_bulk(patient_id, payload)
+    return success_response(
+        data=result,
+        message=f"{result.count} clinical procedures created successfully",
+        status_code=status.HTTP_201_CREATED,
+    )
+
