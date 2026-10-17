@@ -21,9 +21,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 import json
 import logging
 import os
+import re
 import sys
 from typing import List, Optional, Sequence
 
@@ -41,6 +43,11 @@ import backend.core.tenant_scope  # noqa: F401 - Registers ORM tenant loader cri
 from backend.core.tenancy import clear_tenant_context, set_current_tenant_id
 from backend.database import AsyncSessionLocal, RlsContext
 from backend.models.clinical_core import FDI_TOOTH_KEYS
+from backend.clinical.legacy_mapping import (
+    map_legacy_tooth_status,
+    map_legacy_treatment_session,
+    VerifiedPatientContext,
+)
 from backend.services.treatment_service import TreatmentService
 
 logger = logging.getLogger("backfill_clinical_work_items")
@@ -51,6 +58,7 @@ class TenantBackfillReport:
     """Detailed accounting report for a single tenant backfill execution."""
     tenant_id: int
     is_dry_run: bool
+    # Treatment backfill counters (backward-compatible)
     scanned: int = 0
     created: int = 0  # In dry-run: "would create"; in apply: "created"
     already_synced: int = 0
@@ -60,6 +68,18 @@ class TenantBackfillReport:
     skipped_unmapped: int = 0
     batch_count: int = 0
     last_processed_id: int = 0
+
+    # ToothStatus backfill counters (G4-M06)
+    tooth_statuses_scanned: int = 0
+    tooth_statuses_created: int = 0
+    tooth_statuses_already_synced: int = 0
+    tooth_statuses_skipped: int = 0
+
+    # TreatmentSession backfill counters (G4-M07)
+    sessions_scanned: int = 0
+    sessions_created: int = 0
+    sessions_already_synced: int = 0
+    sessions_skipped: int = 0
 
     @property
     def total_skipped(self) -> int:
@@ -84,6 +104,14 @@ class TenantBackfillReport:
                 "invalid_fdi": self.skipped_invalid_fdi,
                 "unmapped": self.skipped_unmapped,
             },
+            "tooth_statuses_scanned": self.tooth_statuses_scanned,
+            "tooth_statuses_created": self.tooth_statuses_created,
+            "tooth_statuses_already_synced": self.tooth_statuses_already_synced,
+            "tooth_statuses_skipped": self.tooth_statuses_skipped,
+            "sessions_scanned": self.sessions_scanned,
+            "sessions_created": self.sessions_created,
+            "sessions_already_synced": self.sessions_already_synced,
+            "sessions_skipped": self.sessions_skipped,
             "batch_count": self.batch_count,
             "last_processed_id": self.last_processed_id,
         }
@@ -103,6 +131,8 @@ class TenantBackfillReport:
             f"  - missing_tooth:   {self.skipped_missing_tooth}\n"
             f"  - invalid_fdi:     {self.skipped_invalid_fdi}\n"
             f"  - unmapped:        {self.skipped_unmapped}\n"
+            f"Tooth Statuses:      scanned={self.tooth_statuses_scanned}, {created_label.strip().lower()}={self.tooth_statuses_created}, synced={self.tooth_statuses_already_synced}, skipped={self.tooth_statuses_skipped}\n"
+            f"Sessions:            scanned={self.sessions_scanned}, {created_label.strip().lower()}={self.sessions_created}, synced={self.sessions_already_synced}, skipped={self.sessions_skipped}\n"
             f"Batches Processed:   {self.batch_count}\n"
             f"Last Treatment ID:   {self.last_processed_id}\n"
             f"------------------------------------------------------------"
@@ -202,6 +232,212 @@ async def backfill_tenant(
                 await db.commit()
 
             if len(batch) < batch_size:
+                break
+
+        # -------------------------------------------------------------
+        # Phase 2: ToothStatus -> ClinicalEvent & ClinicalEventTarget (G4-M06)
+        # -------------------------------------------------------------
+        current_after_ts_id = 0
+        while True:
+            stmt_ts = (
+                select(models.ToothStatus)
+                .where(
+                    models.ToothStatus.tenant_id == tenant_id,
+                    models.ToothStatus.id > current_after_ts_id,
+                )
+                .order_by(models.ToothStatus.id.asc())
+                .limit(batch_size)
+            )
+            result_ts = await db.execute(stmt_ts)
+            ts_batch = result_ts.scalars().all()
+
+            if not ts_batch:
+                break
+
+            ts_patient_ids = {ts.patient_id for ts in ts_batch if ts.patient_id}
+
+            synced_ts_ids = set()
+            if ts_patient_ids:
+                ev_stmt = select(models.ClinicalEvent).where(
+                    models.ClinicalEvent.tenant_id == tenant_id,
+                    models.ClinicalEvent.patient_id.in_(ts_patient_ids),
+                )
+                ev_res = await db.execute(ev_stmt)
+                for ev in ev_res.scalars().all():
+                    if isinstance(ev.payload, dict):
+                        tid = ev.payload.get("tooth_status_id") or ev.payload.get("legacy_tooth_status_id")
+                        if tid is not None:
+                            synced_ts_ids.add(tid)
+
+            for ts in ts_batch:
+                report.tooth_statuses_scanned += 1
+                current_after_ts_id = ts.id
+
+                if getattr(ts, "is_deleted", False) or not ts.patient_id:
+                    report.tooth_statuses_skipped += 1
+                    continue
+
+                verified_ctx = VerifiedPatientContext(
+                    patient_id=ts.patient_id, tenant_id=tenant_id
+                )
+                draft, issues = map_legacy_tooth_status(ts, verified_ctx)
+                if draft is None:
+                    report.tooth_statuses_skipped += 1
+                    continue
+
+                if ts.id in synced_ts_ids:
+                    report.tooth_statuses_already_synced += 1
+                    continue
+
+                if not apply:
+                    report.tooth_statuses_created += 1
+                else:
+                    payload = dict(draft.payload)
+                    payload["provenance"] = "backfill"
+                    payload["source"] = "legacy_tooth_status"
+                    payload["tooth_status_id"] = ts.id
+                    payload["legacy_tooth_status_id"] = ts.id
+
+                    occurred_at = datetime.now(timezone.utc)
+                    event = models.ClinicalEvent(
+                        tenant_id=tenant_id,
+                        patient_id=ts.patient_id,
+                        work_item_id=None,
+                        care_session_id=None,
+                        event_type=draft.event_type,
+                        occurred_at=occurred_at,
+                        actor_user_id=None,
+                        payload=payload,
+                        notes=ts.notes,
+                    )
+                    for t in draft.targets:
+                        target = models.clinical_core.ClinicalEventTarget(
+                            tenant_id=tenant_id,
+                            target_kind=t.target_kind,
+                            tooth_key=t.tooth_key,
+                            surface_code=t.surface_code,
+                            root_id=t.root_id,
+                            canal_id=t.canal_id,
+                        )
+                        event.targets.append(target)
+                    db.add(event)
+                    report.tooth_statuses_created += 1
+                    synced_ts_ids.add(ts.id)
+
+            if apply:
+                await db.commit()
+
+            if len(ts_batch) < batch_size:
+                break
+
+        # -------------------------------------------------------------
+        # Phase 3: TreatmentSession -> CareSession (G4-M07)
+        # -------------------------------------------------------------
+        current_after_sess_id = 0
+        while True:
+            stmt_sess = (
+                select(models.TreatmentSession, models.Treatment)
+                .outerjoin(
+                    models.Treatment,
+                    models.TreatmentSession.treatment_id == models.Treatment.id,
+                )
+                .where(
+                    (models.TreatmentSession.tenant_id == tenant_id)
+                    | (
+                        models.TreatmentSession.tenant_id.is_(None)
+                        & (models.Treatment.tenant_id == tenant_id)
+                    ),
+                    models.TreatmentSession.id > current_after_sess_id,
+                )
+                .execution_options(include_deleted=True)
+                .order_by(models.TreatmentSession.id.asc())
+                .limit(batch_size)
+            )
+            result_sess = await db.execute(stmt_sess)
+            sess_batch = result_sess.all()
+
+            if not sess_batch:
+                break
+
+            sess_patient_ids = {
+                t.patient_id for _, t in sess_batch if t is not None and t.patient_id
+            }
+
+            synced_sess_ids = set()
+            if sess_patient_ids:
+                cs_stmt = select(models.CareSession).where(
+                    models.CareSession.tenant_id == tenant_id,
+                    models.CareSession.patient_id.in_(sess_patient_ids),
+                )
+                cs_res = await db.execute(cs_stmt)
+                for cs in cs_res.scalars().all():
+                    if cs.notes and "[LEGACY_TREATMENT_SESSION:" in cs.notes:
+                        matches = re.findall(r"\[LEGACY_TREATMENT_SESSION:(\d+)\]", cs.notes)
+                        for m in matches:
+                            synced_sess_ids.add(int(m))
+
+            for session, parent_treatment in sess_batch:
+                report.sessions_scanned += 1
+                current_after_sess_id = session.id
+
+                if parent_treatment is None or getattr(parent_treatment, "is_deleted", False):
+                    report.sessions_skipped += 1
+                    continue
+
+                if not parent_treatment.patient_id:
+                    report.sessions_skipped += 1
+                    continue
+
+                verified_ctx = VerifiedPatientContext(
+                    patient_id=parent_treatment.patient_id, tenant_id=tenant_id
+                )
+                draft, issues = map_legacy_treatment_session(
+                    session=session,
+                    verified_patient=verified_ctx,
+                    parent_treatment=parent_treatment,
+                )
+                if draft is None:
+                    report.sessions_skipped += 1
+                    continue
+
+                if session.id in synced_sess_ids:
+                    report.sessions_already_synced += 1
+                    continue
+
+                if not apply:
+                    report.sessions_created += 1
+                else:
+                    provenance_marker = f"[LEGACY_TREATMENT_SESSION:{session.id}]"
+                    session_notes = draft.notes.strip() if draft.notes else ""
+                    final_notes = (
+                        f"{session_notes}\n{provenance_marker}".strip()
+                        if session_notes
+                        else provenance_marker
+                    )
+
+                    sess_date = draft.session_date
+                    if sess_date is not None and sess_date.tzinfo is None:
+                        sess_date = sess_date.replace(tzinfo=timezone.utc)
+                    elif sess_date is None:
+                        sess_date = datetime.now(timezone.utc)
+
+                    care_session = models.CareSession(
+                        tenant_id=tenant_id,
+                        patient_id=draft.patient_id,
+                        status="completed",
+                        started_at=sess_date,
+                        finished_at=sess_date,
+                        provider_user_id=parent_treatment.doctor_id,
+                        notes=final_notes,
+                    )
+                    db.add(care_session)
+                    report.sessions_created += 1
+                    synced_sess_ids.add(session.id)
+
+            if apply:
+                await db.commit()
+
+            if len(sess_batch) < batch_size:
                 break
 
         return report
@@ -338,6 +574,14 @@ async def async_main(cli_args: Optional[Sequence[str]] = None) -> int:
                 "total_created": sum(r.created for r in reports),
                 "total_already_synced": sum(r.already_synced for r in reports),
                 "total_skipped": sum(r.total_skipped for r in reports),
+                "total_tooth_statuses_scanned": sum(r.tooth_statuses_scanned for r in reports),
+                "total_tooth_statuses_created": sum(r.tooth_statuses_created for r in reports),
+                "total_tooth_statuses_already_synced": sum(r.tooth_statuses_already_synced for r in reports),
+                "total_tooth_statuses_skipped": sum(r.tooth_statuses_skipped for r in reports),
+                "total_sessions_scanned": sum(r.sessions_scanned for r in reports),
+                "total_sessions_created": sum(r.sessions_created for r in reports),
+                "total_sessions_already_synced": sum(r.sessions_already_synced for r in reports),
+                "total_sessions_skipped": sum(r.sessions_skipped for r in reports),
             },
             "tenants": [r.to_dict() for r in reports],
         }
@@ -346,11 +590,19 @@ async def async_main(cli_args: Optional[Sequence[str]] = None) -> int:
         print("=" * 60)
         status_word = "Applied" if args.apply else "Would Create"
         print("Backfill Complete:")
-        print(f"  Tenants processed:   {len(reports)}")
-        print(f"  Total Scanned:       {sum(r.scanned for r in reports)}")
-        print(f"  Total {status_word}: {sum(r.created for r in reports)}")
-        print(f"  Total Already Synced:{sum(r.already_synced for r in reports)}")
-        print(f"  Total Skipped:       {sum(r.total_skipped for r in reports)}")
+        print(f"  Tenants processed:           {len(reports)}")
+        print(f"  Treatments Scanned:          {sum(r.scanned for r in reports)}")
+        print(f"  Treatments {status_word}:     {sum(r.created for r in reports)}")
+        print(f"  Treatments Already Synced:   {sum(r.already_synced for r in reports)}")
+        print(f"  Treatments Skipped:          {sum(r.total_skipped for r in reports)}")
+        print(f"  Tooth Statuses Scanned:      {sum(r.tooth_statuses_scanned for r in reports)}")
+        print(f"  Tooth Statuses {status_word}: {sum(r.tooth_statuses_created for r in reports)}")
+        print(f"  Tooth Statuses Synced:       {sum(r.tooth_statuses_already_synced for r in reports)}")
+        print(f"  Tooth Statuses Skipped:      {sum(r.tooth_statuses_skipped for r in reports)}")
+        print(f"  Sessions Scanned:            {sum(r.sessions_scanned for r in reports)}")
+        print(f"  Sessions {status_word}:       {sum(r.sessions_created for r in reports)}")
+        print(f"  Sessions Synced:             {sum(r.sessions_already_synced for r in reports)}")
+        print(f"  Sessions Skipped:            {sum(r.sessions_skipped for r in reports)}")
         print("=" * 60)
 
     return 0
