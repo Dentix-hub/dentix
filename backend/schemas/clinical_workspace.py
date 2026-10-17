@@ -85,3 +85,27 @@ class ClinicalWorkspaceSnapshot(BaseModel):
     warnings: List[ClinicalWorkspaceWarning] = Field(default_factory=list)
     teeth: Dict[str, WorkspaceToothSummary] = Field(default_factory=dict)
     work_items: List[WorkspaceWorkItemSummary] = Field(default_factory=list)
+
+
+class PatientClinicalDriftItem(BaseModel):
+    """Drift and mapping error diagnostic for an individual patient."""
+    patient_id: int
+    legacy_procedure_count: int = 0
+    native_procedure_count: int = 0
+    missing_treatment_ids: List[int] = Field(default_factory=list)
+    unmapped_issue_count: int = 0
+    tooth_status_unbackfilled_count: int = 0
+    has_drift: bool = False
+
+
+class TenantClinicalDriftReport(BaseModel):
+    """Tenant-scoped clinical drift and error observer report (G16-M04, G16-M05)."""
+    tenant_id: int
+    patients_scanned: int = 0
+    patients_with_drift: int = 0
+    legacy_procedure_count: int = 0
+    native_procedure_count: int = 0
+    missing_in_native_treatment_ids: List[int] = Field(default_factory=list)
+    unmapped_issue_count: int = 0
+    tooth_status_unbackfilled_count: int = 0
+    patient_drifts: List[PatientClinicalDriftItem] = Field(default_factory=list)
