@@ -1,6 +1,6 @@
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from backend import models, schemas, crud
@@ -190,7 +190,7 @@ class ClinicalService:
             patient_id=patient_id,
             work_item_id=work_item.id,
             event_type=event_type,
-            occurred_at=datetime.utcnow(),
+            occurred_at=datetime.now(timezone.utc),
             actor_user_id=self.user_id,
             payload=event_payload,
             notes=notes,

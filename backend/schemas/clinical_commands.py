@@ -111,3 +111,108 @@ class ClinicalWorkItemRead(BaseModel):
     targets: List[ClinicalTargetRead] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ClinicalFindingCreate(BaseModel):
+    code: str
+    status: str = "proposed"
+    notes: Optional[str] = None
+    targets: List[ClinicalTargetInput] = Field(default_factory=list)
+    tooth_key: Optional[str] = None
+    surfaces: Optional[List[str]] = None
+    surface: Optional[str] = None
+    surface_code: Optional[str] = None
+    severity: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def populate_targets(self) -> "ClinicalFindingCreate":
+        if not self.targets and self.tooth_key:
+            surfs = []
+            if self.surfaces:
+                surfs = [s.strip().upper() for s in self.surfaces if s.strip()]
+            elif self.surface:
+                surfs = [c.upper() for c in self.surface.replace(",", "").replace(" ", "").strip() if c.strip()]
+            elif self.surface_code:
+                surfs = [self.surface_code.strip().upper()]
+
+            if surfs:
+                for s in surfs:
+                    self.targets.append(
+                        ClinicalTargetInput(
+                            target_kind="surface",
+                            tooth_key=str(self.tooth_key),
+                            surface_code=s,
+                        )
+                    )
+            else:
+                self.targets.append(
+                    ClinicalTargetInput(
+                        target_kind="tooth",
+                        tooth_key=str(self.tooth_key),
+                    )
+                )
+        return self
+
+
+class ClinicalFindingBulkCreate(BaseModel):
+    items: List[ClinicalFindingCreate] = Field(..., min_length=1, max_length=50)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ClinicalProcedureCreate(BaseModel):
+    code: str
+    status: str = "proposed"
+    notes: Optional[str] = None
+    targets: List[ClinicalTargetInput] = Field(default_factory=list)
+    tooth_key: Optional[str] = None
+    surfaces: Optional[List[str]] = None
+    surface: Optional[str] = None
+    surface_code: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def populate_targets(self) -> "ClinicalProcedureCreate":
+        if not self.targets and self.tooth_key:
+            surfs = []
+            if self.surfaces:
+                surfs = [s.strip().upper() for s in self.surfaces if s.strip()]
+            elif self.surface:
+                surfs = [c.upper() for c in self.surface.replace(",", "").replace(" ", "").strip() if c.strip()]
+            elif self.surface_code:
+                surfs = [self.surface_code.strip().upper()]
+
+            if surfs:
+                for s in surfs:
+                    self.targets.append(
+                        ClinicalTargetInput(
+                            target_kind="surface",
+                            tooth_key=str(self.tooth_key),
+                            surface_code=s,
+                        )
+                    )
+            else:
+                self.targets.append(
+                    ClinicalTargetInput(
+                        target_kind="tooth",
+                        tooth_key=str(self.tooth_key),
+                    )
+                )
+        return self
+
+
+class ClinicalProcedureBulkCreate(BaseModel):
+    items: List[ClinicalProcedureCreate] = Field(..., min_length=1, max_length=50)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ClinicalBulkWorkItemResponse(BaseModel):
+    items: List[ClinicalWorkItemRead]
+    count: int
+
+    model_config = ConfigDict(from_attributes=True)
+

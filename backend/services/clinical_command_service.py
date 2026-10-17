@@ -102,15 +102,14 @@ class ClinicalCommandService:
             raise HTTPException(status_code=401, detail="Authentication required")
         await ensure_patient_visible(self.db, user, patient_id)
 
-    async def create_work_item(
+    async def _create_work_item_internal(
         self,
         patient_id: int,
         payload: schemas.ClinicalWorkItemCreate,
+        now: datetime,
+        payload_extra: Optional[dict] = None,
     ) -> models.ClinicalWorkItem:
-        """Create a clinical work item and atomically append a recorded event."""
-        await self.ensure_native_writes_enabled()
-        await self._ensure_patient_access(patient_id)
-
+        """Internal helper to build, validate and stage ClinicalWorkItem + ClinicalEvent without commit."""
         user = await self._get_active_current_user()
         user_role = getattr(user, "role", "guest")
 
@@ -147,6 +146,12 @@ class ClinicalCommandService:
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
 
+        if payload.status in ("superseded", "entered_in_error"):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Status '{payload.status}' cannot be set directly on creation",
+            )
+
         # Shape validation on targets
         for t in payload.targets:
             try:
@@ -160,7 +165,6 @@ class ClinicalCommandService:
             except ValueError as e:
                 raise HTTPException(status_code=422, detail=str(e))
 
-        now = datetime.now(timezone.utc)
         work_item = models.ClinicalWorkItem(
             tenant_id=self.tenant_id,
             patient_id=patient_id,
@@ -189,6 +193,14 @@ class ClinicalCommandService:
         await self.db.flush()
 
         # Atomically append corresponding recorded clinical event
+        event_payload = {
+            "kind": work_item.kind,
+            "code": work_item.code,
+            "status": work_item.status,
+        }
+        if payload_extra:
+            event_payload.update(payload_extra)
+
         event = models.ClinicalEvent(
             tenant_id=self.tenant_id,
             patient_id=patient_id,
@@ -196,11 +208,7 @@ class ClinicalCommandService:
             event_type=f"{work_item.kind}_recorded",
             occurred_at=now,
             actor_user_id=self.current_user_id,
-            payload={
-                "kind": work_item.kind,
-                "code": work_item.code,
-                "status": work_item.status,
-            },
+            payload=event_payload,
             notes=work_item.notes,
             created_at=now,
         )
@@ -217,18 +225,200 @@ class ClinicalCommandService:
                 )
             )
         self.db.add(event)
+        await self.db.flush()
+        return work_item
+
+    async def create_work_item(
+        self,
+        patient_id: int,
+        payload: schemas.ClinicalWorkItemCreate,
+    ) -> models.ClinicalWorkItem:
+        """Create a clinical work item and atomically append a recorded event."""
+        await self.ensure_native_writes_enabled()
+        await self._ensure_patient_access(patient_id)
+        now = datetime.now(timezone.utc)
+        work_item = await self._create_work_item_internal(patient_id, payload, now=now)
+        work_item_id = work_item.id
         await self.db.commit()
 
         stmt = (
             select(models.ClinicalWorkItem)
             .options(selectinload(models.ClinicalWorkItem.targets))
             .where(
-                models.ClinicalWorkItem.id == work_item.id,
+                models.ClinicalWorkItem.id == work_item_id,
                 models.ClinicalWorkItem.tenant_id == self.tenant_id,
             )
         )
         reloaded = (await self.db.execute(stmt)).scalar_one()
         return reloaded
+
+    async def create_finding(
+        self,
+        patient_id: int,
+        payload: schemas.ClinicalFindingCreate,
+    ) -> models.ClinicalWorkItem:
+        """Create a single dedicated clinical finding."""
+        await self.ensure_native_writes_enabled()
+        await self._ensure_patient_access(patient_id)
+        now = datetime.now(timezone.utc)
+        wi_create = schemas.ClinicalWorkItemCreate(
+            kind="finding",
+            code=payload.code,
+            status=payload.status,
+            notes=payload.notes,
+            targets=payload.targets,
+        )
+        payload_extra = {"severity": payload.severity} if payload.severity else None
+        work_item = await self._create_work_item_internal(
+            patient_id, wi_create, now=now, payload_extra=payload_extra
+        )
+        work_item_id = work_item.id
+        await self.db.commit()
+
+        stmt = (
+            select(models.ClinicalWorkItem)
+            .options(selectinload(models.ClinicalWorkItem.targets))
+            .where(
+                models.ClinicalWorkItem.id == work_item_id,
+                models.ClinicalWorkItem.tenant_id == self.tenant_id,
+            )
+        )
+        reloaded = (await self.db.execute(stmt)).scalar_one()
+        return reloaded
+
+    async def create_findings_bulk(
+        self,
+        patient_id: int,
+        payload: schemas.ClinicalFindingBulkCreate,
+    ) -> schemas.ClinicalBulkWorkItemResponse:
+        """Bulk create clinical findings in an atomic transaction (1 to 50 items)."""
+        await self.ensure_native_writes_enabled()
+        await self._ensure_patient_access(patient_id)
+
+        user = await self._get_active_current_user()
+        user_role = getattr(user, "role", "guest")
+        if not has_permission(user_role, Permission.CLINICAL_WRITE):
+            raise HTTPException(
+                status_code=403,
+                detail="Permission denied. Required: clinical:write for findings",
+            )
+
+        now = datetime.now(timezone.utc)
+        created_ids: List[int] = []
+        try:
+            for item in payload.items:
+                wi_create = schemas.ClinicalWorkItemCreate(
+                    kind="finding",
+                    code=item.code,
+                    status=item.status,
+                    notes=item.notes,
+                    targets=item.targets,
+                )
+                payload_extra = {"severity": item.severity} if item.severity else None
+                wi = await self._create_work_item_internal(
+                    patient_id, wi_create, now=now, payload_extra=payload_extra
+                )
+                created_ids.append(wi.id)
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            raise
+
+        stmt = (
+            select(models.ClinicalWorkItem)
+            .options(selectinload(models.ClinicalWorkItem.targets))
+            .where(
+                models.ClinicalWorkItem.id.in_(created_ids),
+                models.ClinicalWorkItem.tenant_id == self.tenant_id,
+            )
+            .order_by(models.ClinicalWorkItem.id.asc())
+        )
+        reloaded = (await self.db.execute(stmt)).scalars().all()
+        return schemas.ClinicalBulkWorkItemResponse(
+            items=[schemas.ClinicalWorkItemRead.model_validate(item) for item in reloaded],
+            count=len(reloaded),
+        )
+
+    async def create_procedure(
+        self,
+        patient_id: int,
+        payload: schemas.ClinicalProcedureCreate,
+    ) -> models.ClinicalWorkItem:
+        """Create a single dedicated clinical procedure."""
+        await self.ensure_native_writes_enabled()
+        await self._ensure_patient_access(patient_id)
+        now = datetime.now(timezone.utc)
+        wi_create = schemas.ClinicalWorkItemCreate(
+            kind="procedure",
+            code=payload.code,
+            status=payload.status,
+            notes=payload.notes,
+            targets=payload.targets,
+        )
+        work_item = await self._create_work_item_internal(patient_id, wi_create, now=now)
+        work_item_id = work_item.id
+        await self.db.commit()
+
+        stmt = (
+            select(models.ClinicalWorkItem)
+            .options(selectinload(models.ClinicalWorkItem.targets))
+            .where(
+                models.ClinicalWorkItem.id == work_item_id,
+                models.ClinicalWorkItem.tenant_id == self.tenant_id,
+            )
+        )
+        reloaded = (await self.db.execute(stmt)).scalar_one()
+        return reloaded
+
+    async def create_procedures_bulk(
+        self,
+        patient_id: int,
+        payload: schemas.ClinicalProcedureBulkCreate,
+    ) -> schemas.ClinicalBulkWorkItemResponse:
+        """Bulk create clinical procedures in an atomic transaction (1 to 50 items)."""
+        await self.ensure_native_writes_enabled()
+        await self._ensure_patient_access(patient_id)
+
+        user = await self._get_active_current_user()
+        user_role = getattr(user, "role", "guest")
+        if not has_permission(user_role, Permission.TREATMENT_PLAN_WRITE):
+            raise HTTPException(
+                status_code=403,
+                detail="Permission denied. Required: treatment_plan:write for procedures",
+            )
+
+        now = datetime.now(timezone.utc)
+        created_ids: List[int] = []
+        try:
+            for item in payload.items:
+                wi_create = schemas.ClinicalWorkItemCreate(
+                    kind="procedure",
+                    code=item.code,
+                    status=item.status,
+                    notes=item.notes,
+                    targets=item.targets,
+                )
+                wi = await self._create_work_item_internal(patient_id, wi_create, now=now)
+                created_ids.append(wi.id)
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            raise
+
+        stmt = (
+            select(models.ClinicalWorkItem)
+            .options(selectinload(models.ClinicalWorkItem.targets))
+            .where(
+                models.ClinicalWorkItem.id.in_(created_ids),
+                models.ClinicalWorkItem.tenant_id == self.tenant_id,
+            )
+            .order_by(models.ClinicalWorkItem.id.asc())
+        )
+        reloaded = (await self.db.execute(stmt)).scalars().all()
+        return schemas.ClinicalBulkWorkItemResponse(
+            items=[schemas.ClinicalWorkItemRead.model_validate(item) for item in reloaded],
+            count=len(reloaded),
+        )
 
     async def update_work_item(
         self,
