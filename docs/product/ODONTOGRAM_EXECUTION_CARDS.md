@@ -18,7 +18,7 @@
 
 ---
 
-### CARD S00 — Reclassify 5 Proposed Drop Items in Traceability Matrix & Test (PD00)
+### CARD S00 — Reclassify 5 Confirmed Drop Items in Traceability Matrix & Test (PD00)
 - **Branch:** `chore/odontogram-drop-reclassifications`
 - **Delivery:** One PR -> `staging`, then STOP. **DO NOT MERGE.**
 - **Rule 0:** Read the real files on `origin/staging` first (`docs/product/ODONTOGRAM_TRACEABILITY_MATRIX.md` and `backend/tests/test_odontogram_traceability.py`). If they contradict this card, **STOP and report**.
@@ -29,25 +29,26 @@
   - `G11-M03`: Add auto-suggestion from workflow template
   - `G12-M14`: Support bridge semantics
 
-#### DECISIONS (Proposed Drops — Pending Eslam's Confirmation Before S00)
+#### DECISIONS (Confirmed Drops — PD00 Decided 2026-10-17)
 1. Drop `G8-M12`, `G10-M06`, `G10-M16`, `G11-M03`, and `G12-M14` from active clinic runtime implementation scope while preserving 100% lossless 327-item accounting in `docs/product/ODONTOGRAM_TRACEABILITY_MATRIX.md` and `backend/tests/test_odontogram_traceability.py`.
-2. Reclassify `G8-M12`, `G10-M06`, and `G11-M03` to `HISTORICAL_EXECUTION_MECHANIC` -> destination `docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md`.
-3. Reclassify `G10-M16` and `G12-M14` to `ARCHITECTURE_CONSTRAINT` -> destination `PROJECT_STANDARDS.md`.
-4. Do **NOT** delete any rows from `docs/product/ODONTOGRAM_TRACEABILITY_MATRIX.md` (`EXPECTED_COUNTS` total = 327 must remain intact), and do **NOT** edit `docs/product/ODONTOGRAM_VNEXT_PRODUCT_SPEC.md` (because `test_product_spec_phases_exact_positive_equality` at `backend/tests/test_odontogram_traceability.py:461-510` enforces exact phase scope string parity with the historical source).
-5. **Pending S00 Confirmation:** `PROJECT_STANDARDS.md` does not mention `G10-M16`/`G12-M14`, so Eslam must confirm the split (3 `HISTORICAL` / 2 `ARCHITECTURE`) or move all 5 to `HISTORICAL` before S00; S00 must recompute the matrix summary (split => ACTIVE 254 / ARCHITECTURE 23 / HISTORICAL 14 / EVIDENCE 36 = 327; all-historical => 254 / 21 / 16 / 36). Do NOT edit the matrix or tests now.
+2. Per decision PD00 decided by Eslam on 2026-10-17, all 5 confirmed drop items are reclassified to `HISTORICAL_EXECUTION_MECHANIC` targeting `docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md`. `PROJECT_STANDARDS.md` is NOT edited.
+3. Note on bridge semantics: no special bridge semantics — a bridge is recorded as one work item with multiple tooth targets via S08 multi-select; revisit if lab/billing needs it.
+4. Matrix summary after S00: ACTIVE 254 / ARCHITECTURE 21 / HISTORICAL 16 / EVIDENCE 36 = 327.
+5. Reclassification executes in S00 — NOT yet executed; do NOT edit matrix or tests now.
+6. Do **NOT** delete any rows from `docs/product/ODONTOGRAM_TRACEABILITY_MATRIX.md` (`EXPECTED_COUNTS` total = 327 must remain intact), and do **NOT** edit `docs/product/ODONTOGRAM_VNEXT_PRODUCT_SPEC.md` (because `test_product_spec_phases_exact_positive_equality` at `backend/tests/test_odontogram_traceability.py:461-510` enforces exact phase scope string parity with the historical source).
 
 #### SCOPE
 1. In `docs/product/ODONTOGRAM_TRACEABILITY_MATRIX.md`:
    - Line `274` (`G8-M12`): Change classification column from `` `ACTIVE_PRODUCT_REQUIREMENT` `` to `` `HISTORICAL_EXECUTION_MECHANIC` `` and destination column from `` `docs/product/ODONTOGRAM_VNEXT_PRODUCT_SPEC.md` `` to `` `docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md` ``.
    - Line `297` (`G10-M06`): Change classification to `` `HISTORICAL_EXECUTION_MECHANIC` `` and destination to `` `docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md` ``.
-   - Line `307` (`G10-M16`): Change classification to `` `ARCHITECTURE_CONSTRAINT` `` and destination to `` `PROJECT_STANDARDS.md` ``.
+   - Line `307` (`G10-M16`): Change classification to `` `HISTORICAL_EXECUTION_MECHANIC` `` and destination to `` `docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md` ``.
    - Line `314` (`G11-M03`): Change classification to `` `HISTORICAL_EXECUTION_MECHANIC` `` and destination to `` `docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md` ``.
-   - Line `337` (`G12-M14`): Change classification to `` `ARCHITECTURE_CONSTRAINT` `` and destination to `` `PROJECT_STANDARDS.md` ``.
+   - Line `337` (`G12-M14`): Change classification to `` `HISTORICAL_EXECUTION_MECHANIC` `` and destination to `` `docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md` ``.
 2. In `backend/tests/test_odontogram_traceability.py`:
-   - Add `"G8-M12"`, `"G10-M06"`, `"G11-M03"` to `HISTORICAL_IDS` (`lines 78-81`).
-   - Add `"G10-M16"`, `"G12-M14"` to `ARCHITECTURE_IDS` (`lines 83-87`).
+   - Add `"G8-M12"`, `"G10-M06"`, `"G10-M16"`, `"G11-M03"`, `"G12-M14"` to `HISTORICAL_IDS` (`lines 78-81`).
+   - `ARCHITECTURE_IDS` remains unchanged (`lines 83-87`).
 3. In `docs/product/ODONTOGRAM_IMPLEMENTATION_STATUS.md`:
-   - Ensure the `"Dropped Scope"` section lists the 5 dropped IDs (`G8-M12`, `G10-M06`, `G10-M16`, `G11-M03`, `G12-M14`), their new classification (`HISTORICAL_EXECUTION_MECHANIC` or `ARCHITECTURE_CONSTRAINT`), and states that `docs/product/ODONTOGRAM_VNEXT_PRODUCT_SPEC.md` still enumerates them because `test_product_spec_phases_exact_positive_equality` forbids editing it.
+   - Ensure the `"Dropped Scope"` section lists the 5 confirmed drop IDs (`G8-M12`, `G10-M06`, `G10-M16`, `G11-M03`, `G12-M14`), their classification (`HISTORICAL_EXECUTION_MECHANIC`), and the recomputed matrix summary (ACTIVE 254 / ARCHITECTURE 21 / HISTORICAL 16 / EVIDENCE 36 = 327).
 
 #### EXCLUDE
 - Any edit to `docs/product/ODONTOGRAM_VNEXT_PRODUCT_SPEC.md`, `PROJECT_STANDARDS.md`, or `docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md`.
@@ -59,7 +60,7 @@
 - `docs/product/ODONTOGRAM_IMPLEMENTATION_STATUS.md`
 
 #### STEP 0 — ASSUMPTIONS TO VERIFY BEFORE EDITING
-- Inspect `backend/tests/test_odontogram_traceability.py:70-115` and `432-511`. Confirm `get_expected_classification()` maps `HISTORICAL_IDS` -> `HISTORICAL_EXECUTION_MECHANIC` (`docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md`) and `ARCHITECTURE_IDS` -> `ARCHITECTURE_CONSTRAINT` (`PROJECT_STANDARDS.md`), and confirm no other test function hardcodes the old classifications for those 5 IDs.
+- Inspect `backend/tests/test_odontogram_traceability.py:70-115` and `432-511`. Confirm `get_expected_classification()` maps `HISTORICAL_IDS` -> `HISTORICAL_EXECUTION_MECHANIC` (`docs/engineering/ODONTOGRAM_VNEXT_TICKET_GRAPH.md`) and confirm no other test function hardcodes the old classifications for those 5 IDs.
 
 #### TESTS & VERIFICATION COMMANDS (Real Exit Codes Required)
 - `.\.venv\Scripts\python.exe -m pytest backend/tests/test_odontogram_traceability.py backend/tests/test_check_agent_authority.py backend/tests/test_ci_classifier.py -q`
@@ -76,7 +77,7 @@
 #### QUEUE STATE BLOCK (Append at End of Final Response)
 ```text
 === QUEUE STATE ===
-Slice: S00 - Reclassify 5 Proposed Drop Items (PD00)
+Slice: S00 - Reclassify 5 Confirmed Drop Items (PD00)
 Status: DONE | PARTIAL | BLOCKED
 PR: <URL>
 Next Slice: S01 (Eslam Staging Ops Runbook), then S02
@@ -98,7 +99,7 @@ Next Slice: S01 (Eslam Staging Ops Runbook), then S02
 2. **Zero database writes:** The observer must never insert, update, or delete any row in any table. Strictly zero writes includes `ClinicalProjectionCoverage` (`clinical_projection_coverages` at `backend/models/clinical_core.py:656`), which must not be written by the observer.
 3. Compare independently read, tenant-scoped native rows (`models.ClinicalWorkItem`, `models.ClinicalEvent`, `models.ClinicalWorkItemTarget`, `models.ClinicalEventTarget`) against legacy expectations (`models.Treatment`, `models.ToothStatus`, `map_legacy_clinical_batch` in `backend/clinical/legacy_mapping.py:1391`). `SHADOW` projection is legacy-only, so it is **not** a comparison source; never toggle feature flags to compare.
    - Compare legacy `models.Treatment` (non-deleted, valid FDI tooth) count vs native `models.ClinicalWorkItem` (`kind='procedure'`, non-cancelled, non-corrected) count.
-   - Before `S03` (which backfills `ToothStatus` events), missing `ToothStatus`-derived native events are an expected gap: report them in a separate category (`tooth_status_unbackfilled_count`); the aggregate policy (whether tooth-status drift is counted towards `patients_with_drift` vs tracked as a separate gap) is an OPEN decision for Eslam before `S02` (`PD01b`). Do not invent a policy; do not force a zero-drift headline.
+   - Per decision PD01b (decided 2026-10-17), missing `ToothStatus`-derived native events before `S03` are tracked in a separate category (`tooth_status_unbackfilled_count`). `TenantClinicalDriftReport.patients_with_drift` counts treatment drift only. S03 PR must assert `tooth_status_unbackfilled_count == 0` for the backfilled tenant.
    - Track mapping issues / ambiguities returned by `map_legacy_clinical_batch` (`G16-M04` error monitoring).
 4. Auth/RBAC: Reuse `get_super_admin` (`Permission.SYSTEM_CONFIG` + `Role.SUPER_ADMIN` or tenantless `Role.ADMIN`) from `backend/routers/admin_features.py:19-27`. Non-super-admin users receive `403`. Missing tenant returns `404`.
 
@@ -126,7 +127,7 @@ Next Slice: S01 (Eslam Staging Ops Runbook), then S02
 - Verify `set_current_tenant_id` / `clear_tenant_context` in `backend/core/tenancy.py`.
 
 #### TESTS REQUIRED
-- Super-admin `200` on backfilled tenant: zero-drift assertion requires complete relevant fixtures (both treatments and tooth-status events present) or explicitly scoped treatment coverage (`treatments_with_drift == 0`).
+- Super-admin `200` on backfilled tenant: asserts `len(missing_in_native_treatment_ids) == 0` and verifies `tooth_status_unbackfilled_count` is reported separately (PD01b).
 - Tenant with un-backfilled treatment -> accurately reports `missing_in_native_treatment_ids` and `patients_with_drift >= 1`.
 - Tenant with unmapped procedure / invalid FDI -> increments `unmapped_issue_count` (`G16-M04`).
 - Tenant isolation: scanning Tenant 1 never reads or reports Tenant 2 patients.
@@ -143,7 +144,7 @@ Next Slice: S01 (Eslam Staging Ops Runbook), then S02
 - **Top Line:** `RBAC touches: Super-admin only (get_super_admin / Permission.SYSTEM_CONFIG) on GET /api/v1/admin/clinical-drift/{tenant_id} | Native-write flag status: N/A (read-only) | Migrations: NONE`
 - **How to test on staging (<= 15 min):**
   1. Authenticate as super_admin and call `GET /api/v1/admin/clinical-drift/<TEST_TENANT_ID>` (where `<TEST_TENANT_ID>` is the staging test tenant chosen by Eslam per PD01; never a real clinic).
-  2. Confirm `patients_with_drift: 0` for the tenant backfilled in `S01`, and `patients_with_drift > 0` for an un-backfilled tenant.
+  2. Confirm `missing_in_native_treatment_ids` is empty for the tenant backfilled in `S01` and `tooth_status_unbackfilled_count` is reported separately (expected > 0 until S03 per PD01b); confirm `patients_with_drift > 0` for an un-backfilled tenant.
   3. Confirm not visible in clinic UI and zero DB writes.
 
 #### STOP CONDITIONS
@@ -203,6 +204,7 @@ Next Slice: S03
 - Re-running `--apply` creates `0` duplicates (`already_synced` increments).
 - Tenant 1 backfill leaves Tenant 2 untouched.
 - Inventory (`StockItem.quantity`, `StockMovement` count, `TreatmentMaterialUsage` count) and `Payment` (count and `SUM(amount)`) are 100% identical before and after `--apply`.
+- Assert `tooth_status_unbackfilled_count == 0` on the backfilled tenant (PD01b).
 
 #### VERIFICATION COMMANDS (Real Exit Codes Required)
 - `.\.venv\Scripts\python.exe -m pytest backend/tests/services/test_clinical_backfill.py -q`
@@ -214,7 +216,8 @@ Next Slice: S03
 - **How to test on staging (<= 15 min):**
   1. Run `python scripts/backfill_clinical_work_items.py --tenant-id <TEST_TENANT_ID> --json` (dry-run).
   2. Run `python scripts/backfill_clinical_work_items.py --tenant-id <TEST_TENANT_ID> --apply --json` twice; confirm second run reports `0` created across treatments, tooth statuses, and sessions (where `<TEST_TENANT_ID>` is the staging test tenant chosen by Eslam per PD01; never a real clinic).
-  3. Confirm not visible in UI (unless tenant is switched to `VNEXT_PRIMARY`).
+  3. Confirm `tooth_status_unbackfilled_count == 0` when calling `GET /api/v1/admin/clinical-drift/<TEST_TENANT_ID>` on the backfilled tenant (PD01b).
+  4. Confirm not visible in UI (unless tenant is switched to `VNEXT_PRIMARY`).
 
 #### STOP CONDITIONS
 - Stop if `models.CareSession` or `models.ClinicalEvent` check constraints reject mapped values; report exact constraint name.
@@ -248,15 +251,16 @@ Next Slice: S04
 4. **Canonical Validation & Status Rules:**
    - `kind == "finding"` -> `code` must be in `CANONICAL_FINDING_CODES` (`backend/clinical/catalog.py:59`), otherwise `422`.
    - `kind == "procedure"` -> `code` must be in `CANONICAL_PROCEDURE_CODES` (`backend/clinical/catalog.py:88`), otherwise `422`.
-   - Validate `status` against `CANONICAL_TREATMENT_LIFECYCLE_CODES` imported from `backend/clinical/catalog.py:97-105` (`("proposed", "planned", "active", "completed", "cancelled")` — never a hardcoded set), otherwise `422`. `validate_treatment_status` (`backend/clinical/catalog.py:101-105`) has no production callers; S04 must wire it into `POST /api/v1/patients/{patient_id}/clinical-work-items` and `PATCH .../{work_item_id}`.
-   - `PATCH` may **not** set `superseded` or `entered_in_error` (`422`; only `/correct` in `S06` can set those statuses).
-   - `completed` and `cancelled` are **terminal**: any status change away from `completed` or `cancelled` on `PATCH` returns `409 Conflict`.
-   - Targets (`ClinicalWorkItemTarget`) must validate `tooth_key in FDI_TOOTH_KEYS`, `target_kind in {"tooth", "surface", "root", "canal"}`, and shape rules matching `TARGET_SHAPE_CONSTRAINT` (`ck_cwit_shape` / `ck_cet_shape` in `backend/models/clinical_core.py:77-84,172,366`) before DB flush (returning `422` on invalid shape).
+    - Validate `status` against `CANONICAL_TREATMENT_LIFECYCLE_CODES` imported from `backend/clinical/catalog.py:97-105` (`("proposed", "planned", "active", "completed", "cancelled")` — never a hardcoded set), otherwise `422`. `validate_treatment_status` (`backend/clinical/catalog.py:527`) has no production callers; S04 must wire it into `POST /api/v1/patients/{patient_id}/clinical-work-items` and `PATCH .../{work_item_id}`.
+    - `PATCH` may **not** set `superseded` or `entered_in_error` (`422`; only `/correct` in `S06` can set those statuses).
+    - `completed` and `cancelled` are **terminal**: any status change away from `completed` or `cancelled` on `PATCH` returns `409 Conflict`.
+    - Targets (`ClinicalWorkItemTarget`) must validate `tooth_key in FDI_TOOTH_KEYS`, `target_kind in {"tooth", "surface", "root", "canal"}`, and shape rules matching `TARGET_SHAPE_CONSTRAINT` (`ck_cwit_shape` / `ck_cet_shape` in `backend/models/clinical_core.py:77-84,172,366`) before DB flush (returning `422` on invalid shape).
 5. Creating or updating a `ClinicalWorkItem` atomically appends a corresponding `ClinicalEvent` (`event_type = f"{kind}_recorded"` on create, `f"{kind}_updated"` on update) + `ClinicalEventTarget` rows in the same transaction (`occurred_at = datetime.now(timezone.utc)`).
-6. **RBAC (`G7-M12` & Pending Decision `PD02a`) & Work-Item List Filtering:**
-   - `POST /api/v1/patients/{patient_id}/clinical-work-items`: requires `Permission.CLINICAL_WRITE` or `Permission.TREATMENT_PLAN_WRITE` (`require_permission(Permission.CLINICAL_WRITE, Permission.TREATMENT_PLAN_WRITE)`).
-   - `PATCH /api/v1/patients/{patient_id}/clinical-work-items/{work_item_id}`: requires `Permission.CLINICAL_WRITE` or `Permission.TREATMENT_PLAN_WRITE`.
-   - **Procedure RBAC Note (`PD02a`):** ANY-of `Permission.CLINICAL_WRITE | Permission.TREATMENT_PLAN_WRITE` admits every role holding `CLINICAL_WRITE` (`backend/core/permissions.py:143,171`, which includes DOCTOR and NURSE). Eslam decides doctor-only vs explicit allowance before S04. Write no test expecting nurse 201 or 403.
+6. **RBAC (`G7-M12` & Decided `PD02a`) & Work-Item List Filtering:**
+   - Per decision PD02a (decided 2026-10-17), procedures require `Permission.TREATMENT_PLAN_WRITE` only (`Role.DOCTOR`, `Role.ADMIN`, `Role.SUPER_ADMIN`), while findings require `Permission.CLINICAL_WRITE` (`Role.DOCTOR`, `Role.NURSE`, `Role.ADMIN`, `Role.SUPER_ADMIN`). Native endpoints are never broader than legacy parity.
+   - Generic S04 endpoints enforce permission based on `kind`:
+     - `POST /api/v1/patients/{patient_id}/clinical-work-items`: router enforces `Permission.CLINICAL_WRITE` or `Permission.TREATMENT_PLAN_WRITE` via `require_permission(Permission.CLINICAL_WRITE, Permission.TREATMENT_PLAN_WRITE)`; domain service checks that if `kind == "procedure"`, caller must hold `Permission.TREATMENT_PLAN_WRITE` (`403` if only `CLINICAL_WRITE`, e.g. nurses).
+     - `PATCH /api/v1/patients/{patient_id}/clinical-work-items/{work_item_id}`: router enforces `require_permission(Permission.CLINICAL_WRITE, Permission.TREATMENT_PLAN_WRITE)`; domain service looks up stored work item's `kind`: if `stored_item.kind == "procedure"`, caller must hold `Permission.TREATMENT_PLAN_WRITE` (`403` if only `CLINICAL_WRITE`).
    - `GET /api/v1/patients/{patient_id}/clinical-work-items`: requires `Permission.CLINICAL_READ` (gated by `clinical_vnext_shadow` OR `clinical_vnext_primary` OR `clinical_vnext_native_writes`). Excludes corrected work items (`status NOT IN ('superseded', 'entered_in_error')`) by default; accepts optional query parameter `include_corrected: bool = False` to return them for audit/diagnostic callers.
 
 #### SCOPE
@@ -295,7 +299,7 @@ Next Slice: S04
 - `PATCH` attempting to transition `status` away from terminal `completed` or `cancelled` (e.g. `completed -> active` or `cancelled -> planned`) -> `409 Conflict`.
 - Invalid `code`, invalid `status` (e.g. `"in_progress"` or `"existing"`), invalid FDI `tooth_key`, or invalid target shape (e.g. `target_kind='surface'` with `surface_code=None`) -> `422`.
 - Cross-tenant `patient_id` or `work_item_id` -> `404`; mismatched `patient_id` for `work_item_id` -> `404`; restricted doctor visibility -> `404`.
-- RBAC: `Role.RECEPTIONIST` (`CLINICAL_READ` only) gets `403` on `POST`/`PATCH` and `200` on `GET`; `Role.DOCTOR` succeeds (write no test expecting nurse 201 or 403 pending `PD02a`).
+- RBAC (PD02a): `Role.DOCTOR` succeeds on both procedure and finding POST/PATCH; `Role.NURSE` (`CLINICAL_WRITE` only) succeeds (201/200) on findings, gets `403` on procedure POST and procedure PATCH; `Role.RECEPTIONIST` gets `403` on all POST/PATCH and `200` on GET.
 - Legacy invariance: `Treatment`, `Payment`, `StockMovement` counts are `0` before and after.
 
 #### VERIFICATION COMMANDS (Real Exit Codes Required)
@@ -304,7 +308,7 @@ Next Slice: S04
 - `.\.venv\Scripts\python.exe .github/scripts/check_agent_authority.py`
 
 #### PR BODY REQUIREMENTS
-- **Top Line:** `RBAC touches: POST/PATCH /api/v1/patients/{patient_id}/clinical-work-items require CLINICAL_WRITE or TREATMENT_PLAN_WRITE; GET requires CLINICAL_READ | Native-write flag status: Gated by clinical_vnext_native_writes (default OFF -> 404) | Migrations: NONE`
+- **Top Line:** `RBAC touches: POST/PATCH /api/v1/patients/{patient_id}/clinical-work-items (procedures require TREATMENT_PLAN_WRITE only; findings require CLINICAL_WRITE per PD02a); GET requires CLINICAL_READ | Native-write flag status: Gated by clinical_vnext_native_writes (default OFF -> 404) | Migrations: NONE`
 - **How to test on staging (<= 15 min):**
   1. Call `POST /api/v1/patients/1/clinical-work-items` with flag OFF -> confirm `404`.
   2. Enable `clinical_vnext_native_writes` for test tenant `1` via `/api/v1/admin/features/override`.
@@ -340,9 +344,9 @@ Next Slice: S05
 1. Expose dedicated patient-scoped single and multi-tooth bulk endpoints on `backend/routers/clinical_commands.py` (new) delegating to `ClinicalCommandService`:
    - `POST /api/v1/patients/{patient_id}/clinical-findings` (`G7-M04`, requires `Permission.CLINICAL_WRITE`)
    - `POST /api/v1/patients/{patient_id}/clinical-findings/bulk` (`G7-M05`, requires `Permission.CLINICAL_WRITE`)
-   - `POST /api/v1/patients/{patient_id}/clinical-procedures` (`G7-M06`, requires `Permission.TREATMENT_PLAN_WRITE` or `Permission.CLINICAL_WRITE`)
-   - `POST /api/v1/patients/{patient_id}/clinical-procedures/bulk` (`G7-M07`, requires `Permission.TREATMENT_PLAN_WRITE` or `Permission.CLINICAL_WRITE`)
-   - **Procedure RBAC Note (`PD02a`):** ANY-of `Permission.CLINICAL_WRITE | Permission.TREATMENT_PLAN_WRITE` admits every role holding `CLINICAL_WRITE` (`backend/core/permissions.py:143,171`, including DOCTOR and NURSE). Eslam decides doctor-only vs explicit allowance before S05. Write no test expecting nurse 201 or 403.
+   - `POST /api/v1/patients/{patient_id}/clinical-procedures` (`G7-M06`, requires `Permission.TREATMENT_PLAN_WRITE` only)
+   - `POST /api/v1/patients/{patient_id}/clinical-procedures/bulk` (`G7-M07`, requires `Permission.TREATMENT_PLAN_WRITE` only)
+   - **Procedure & Finding RBAC (Decided `PD02a`):** Finding routes require `Permission.CLINICAL_WRITE` (`Role.DOCTOR`, `Role.NURSE`, `Role.ADMIN`, `Role.SUPER_ADMIN`). Procedure routes require `Permission.TREATMENT_PLAN_WRITE` only (`Role.DOCTOR`, `Role.ADMIN`, `Role.SUPER_ADMIN`). Native endpoints are never broader than legacy parity.
 2. **All-or-Nothing Atomicity:** Bulk endpoints accept `items: List[...]` (1 to 50 items across one or more teeth/surfaces/roots/canals) and execute in a single database transaction. If any item fails validation, zero rows are persisted (`422`).
 3. **Native-Write Gate (`PD02` & Settled `D6`):** All **4 new patient-scoped endpoints** require `clinical_vnext_native_writes` enabled for the tenant (default OFF -> `404`). Do **NOT** gate existing `POST /api/v1/treatments/finding` or `POST /api/v1/treatments/symptom` (`backend/routers/treatments.py:120-177`) — they also write legacy `ToothStatus` (`Decayed`/`Fractured`) via `ClinicalService.update_tooth_status` and are the deliberate legacy->shadow sync path; leave their behaviour and permissions unchanged, and **only** replace naive `datetime.utcnow()` with `datetime.now(timezone.utc)` in `backend/services/clinical_service.py:193`.
 
@@ -373,7 +377,7 @@ Next Slice: S05
 - Single and bulk finding creation across 3 teeth (`11`, `16`, `46`) in one request.
 - Single and bulk procedure creation across multiple teeth/surfaces.
 - Atomic rollback when item #3 of 3 in a bulk request has an invalid FDI tooth key (`99`) -> `422` and `0` rows in DB.
-- Flag-off `404` on the 4 new patient-scoped routes; cross-tenant `404`, restricted doctor `404`, receptionist `403`; `Role.DOCTOR` succeeds (write no test expecting nurse 201 or 403 pending `PD02a`).
+- Flag-off `404` on the 4 new patient-scoped routes; cross-tenant `404`, restricted doctor `404`, receptionist `403`; RBAC (PD02a): `Role.DOCTOR` succeeds on findings and procedures; `Role.NURSE` (`CLINICAL_WRITE` only) succeeds (201) on findings/bulk, gets `403` on procedures/bulk.
 - Legacy `/api/v1/treatments/finding` & `/symptom` remain un-gated and record timezone-aware `ClinicalEvent.occurred_at`.
 - Legacy `Treatment` count == `0` for calls to the 4 new native routes.
 
@@ -383,7 +387,7 @@ Next Slice: S05
 - `.\.venv\Scripts\python.exe .github/scripts/check_agent_authority.py`
 
 #### PR BODY REQUIREMENTS
-- **Top Line:** `RBAC touches: POST /api/v1/patients/{patient_id}/clinical-findings[/bulk] (CLINICAL_WRITE), /clinical-procedures[/bulk] (TREATMENT_PLAN_WRITE or CLINICAL_WRITE); legacy /treatments/finding & /symptom unchanged | Native-write flag status: 4 new routes gated by clinical_vnext_native_writes (default OFF -> 404) | Migrations: NONE`
+- **Top Line:** `RBAC touches: POST /api/v1/patients/{patient_id}/clinical-findings[/bulk] (CLINICAL_WRITE), /clinical-procedures[/bulk] (TREATMENT_PLAN_WRITE only per PD02a); legacy /treatments/finding & /symptom unchanged | Native-write flag status: 4 new routes gated by clinical_vnext_native_writes (default OFF -> 404) | Migrations: NONE`
 - **How to test on staging (<= 15 min):**
   1. With `clinical_vnext_native_writes` ON for tenant `1`, `POST /api/v1/patients/1/clinical-findings/bulk` with 2 findings on teeth `16` (`M,O`) and `26` (`O`).
   2. Call `GET /api/v1/patients/1/clinical-work-items` and confirm both items + targets exist.
@@ -417,30 +421,30 @@ Next Slice: S06
 1. **Work-Item Level Correction + Correction Event (`G7-M08` / Settled `D7` — Zero Migration, Zero Event Mutation):**
    - Real model facts (`backend/models/clinical_core.py:301-340`): `ClinicalEvent` has only `id`, `tenant_id`, `patient_id`, `work_item_id`, `care_session_id`, `event_type`, `occurred_at`, `actor_user_id`, `payload`, `notes`, `created_at` (no `entered_in_error` or self-FK columns), while `ClinicalWorkspaceService` (`backend/services/clinical_workspace_service.py:221-253`) already excludes work items whose `status` is `superseded` / `entered_in_error` / `entered-in-error`, as well as any `ClinicalEvent` attached to those `superseded_work_item_ids` or whose `event_type` is `superseded` / `entered_in_error`. The workspace reducer is **NOT** altered in this slice.
    - Define canonical correction constants in `backend/clinical/catalog.py`: `CORRECTION_STATUS_ENTERED_IN_ERROR: str = "entered_in_error"`, `CORRECTION_STATUS_SUPERSEDED: str = "superseded"`, and `CANONICAL_CORRECTION_STATUSES: tuple[str, ...] = (CORRECTION_STATUS_ENTERED_IN_ERROR, CORRECTION_STATUS_SUPERSEDED)` (exported in `backend/clinical/__init__.py`).
-   - Endpoint: `POST /api/v1/patients/{patient_id}/clinical-work-items/{work_item_id}/correct` (gated by `clinical_vnext_native_writes` -> `404` when OFF; permission is **PENDING RBAC decision** per `PD02b` — do not hard-code `CLINICAL_WRITE`).
-   - Request body: `{mode: "entered_in_error" | "supersede", reason: str (required, max 500), replacement: ClinicalWorkItemCreate (required only for supersede), expected_version_id: int (optional)}`.
-   - Modes & Status Strings Written:
-     - `mode = "entered_in_error"`: writes exact status string `ClinicalWorkItem.status = CORRECTION_STATUS_ENTERED_IN_ERROR` (`"entered_in_error"`).
-     - `mode = "supersede"`: writes exact status string `ClinicalWorkItem.status = CORRECTION_STATUS_SUPERSEDED` (`"superseded"`) and creates the `replacement` `ClinicalWorkItem` (with canonical lifecycle status `proposed` or `planned`, validated via `validate_treatment_status`) with its `ClinicalWorkItemTarget` rows in the same transaction.
-     - In **both** modes, append **ONE** new `ClinicalEvent` with deterministic named payload keys:
-       - For `mode == "supersede"`: `event_type = "superseded"`, `work_item_id = work_item.id`, `payload = {"mode": "supersede", "original_work_item_id": work_item.id, "replacement_work_item_id": new_item.id, "reason": reason}`.
-       - For `mode == "entered_in_error"`: `event_type = "entered_in_error"`, `work_item_id = work_item.id`, `payload = {"mode": "entered_in_error", "work_item_id": work_item.id, "reason": reason}`.
-     - **Never delete or update any existing `ClinicalEvent` row.**
-   - Where Status is Validated:
-     - Request validation (planned): `mode` is validated via Pydantic schema `ClinicalWorkItemCorrectionCreate.mode: Literal["entered_in_error", "supersede"]` (`backend/schemas/clinical_commands.py` (planned)).
-     - Service validation (planned): `ClinicalCommandService.correct_work_item` sets `status = CORRECTION_STATUS_ENTERED_IN_ERROR` or `status = CORRECTION_STATUS_SUPERSEDED` directly; these terminal correction statuses are **NOT** passed to `validate_treatment_status` (which only checks standard writable lifecycle codes `proposed, planned, active, completed, cancelled` in `CANONICAL_TREATMENT_LIFECYCLE_CODES`).
-     - Database model validation (existing): `ClinicalWorkItem.status` (`backend/models/clinical_core.py:112,122`) is `Column(String(32))` constrained only by `CheckConstraint("length(trim(status)) > 0", name="ck_clinical_work_items_status_not_empty")`; there are no Enums or CheckConstraints rejecting `"entered_in_error"` or `"superseded"`.
-     - Workspace reducer validation (existing): `ClinicalWorkspaceService._build_state_delta` (`backend/services/clinical_workspace_service.py:221-253`) explicitly filters out `status_lower in ("superseded", "entered-in-error", "entered_in_error")`.
-   - **Clinical-Only Correction Scope:** Correction is clinical-only: legacy `models.Treatment`, `models.Payment`, and `models.StockMovement` are completely untouched; reversing billing, payments, or inventory for a corrected procedure happens exclusively through the existing legacy clinical/billing flow during coexistence.
-   - Concurrency & status guards: return `409 Conflict` when the work item is already `superseded` or `entered_in_error` (explicit status check) or on `expected_version_id` mismatch / SQLAlchemy `StaleDataError` (`version_id`). Return `404` for cross-tenant, cross-patient, or restricted-doctor visibility.
-   - Events without a `work_item_id` (e.g. backfilled tooth-status events) are **NOT** correctable via work-item correction: if a caller passes a missing/unlinked reference or attempts to correct an unlinked event, return `422` with a clear message (`"Standalone events without a clinical work item cannot be corrected via work-item correction"`).
+    - Endpoint: `POST /api/v1/patients/{patient_id}/clinical-work-items/{work_item_id}/correct` (gated by `clinical_vnext_native_writes` -> `404` when OFF; requires `Permission.TREATMENT_PLAN_WRITE` only per decision `PD02b` decided 2026-10-17 — admitting `Role.DOCTOR`, `Role.ADMIN`, `Role.SUPER_ADMIN`).
+    - Request body: `{mode: "entered_in_error" | "supersede", reason: str (required, max 500), replacement: ClinicalWorkItemCreate (required only for supersede), expected_version_id: int (optional)}`.
+    - Modes & Status Strings Written:
+      - `mode = "entered_in_error"`: writes exact status string `ClinicalWorkItem.status = CORRECTION_STATUS_ENTERED_IN_ERROR` (`"entered_in_error"`).
+      - `mode = "supersede"`: writes exact status string `ClinicalWorkItem.status = CORRECTION_STATUS_SUPERSEDED` (`"superseded"`) and creates the `replacement` `ClinicalWorkItem` (with canonical lifecycle status `proposed` or `planned`, validated via `validate_treatment_status`) with its `ClinicalWorkItemTarget` rows in the same transaction.
+      - In **both** modes, append **ONE** new `ClinicalEvent` with deterministic named payload keys:
+        - For `mode == "supersede"`: `event_type = "superseded"`, `work_item_id = work_item.id`, `payload = {"mode": "supersede", "original_work_item_id": work_item.id, "replacement_work_item_id": new_item.id, "reason": reason}`.
+        - For `mode == "entered_in_error"`: `event_type = "entered_in_error", `work_item_id = work_item.id`, `payload = {"mode": "entered_in_error", "work_item_id": work_item.id, "reason": reason}`.
+      - **Never delete or update any existing `ClinicalEvent` row.**
+    - Where Status is Validated:
+      - Request validation (planned): `mode` is validated via Pydantic schema `ClinicalWorkItemCorrectionCreate.mode: Literal["entered_in_error", "supersede"]` (`backend/schemas/clinical_commands.py` (planned)).
+      - Service validation (planned): `ClinicalCommandService.correct_work_item` sets `status = CORRECTION_STATUS_ENTERED_IN_ERROR` or `status = CORRECTION_STATUS_SUPERSEDED` directly; these terminal correction statuses are **NOT** passed to `validate_treatment_status` (which only checks standard writable lifecycle codes `proposed, planned, active, completed, cancelled` in `CANONICAL_TREATMENT_LIFECYCLE_CODES`).
+      - Database model validation (existing): `ClinicalWorkItem.status` (`backend/models/clinical_core.py:112,122`) is `Column(String(32))` constrained only by `CheckConstraint("length(trim(status)) > 0", name="ck_clinical_work_items_status_not_empty")`; there are no Enums or CheckConstraints rejecting `"entered_in_error"` or `"superseded"`.
+      - Workspace reducer validation (existing): `ClinicalWorkspaceService._build_state_delta` (`backend/services/clinical_workspace_service.py:221-253`) explicitly filters out `status_lower in ("superseded", "entered-in-error", "entered_in_error")`.
+    - **Clinical-Only Correction Scope:** Correction is clinical-only: legacy `models.Treatment`, `models.Payment`, and `models.StockMovement` are completely untouched; reversing billing, payments, or inventory for a corrected procedure happens exclusively through the existing legacy clinical/billing flow during coexistence.
+    - Concurrency & status guards: return `409 Conflict` when the work item is already `superseded` or `entered_in_error` (explicit status check) or on `expected_version_id` mismatch / SQLAlchemy `StaleDataError` (`version_id`). Return `404` for cross-tenant, cross-patient, or restricted-doctor visibility.
+    - Events without a `work_item_id` (e.g. backfilled tooth-status events) are **NOT** correctable via work-item correction: if a caller passes a missing/unlinked reference or attempts to correct an unlinked event, return `422` with a clear message (`"Standalone events without a clinical work item cannot be corrected via work-item correction"`).
 2. **Tooth Detail API (`G7-M10`):** `GET /api/v1/patients/{patient_id}/clinical-teeth/{tooth_key}` (requires `Permission.CLINICAL_READ`):
-   - Validates `tooth_key in FDI_TOOTH_KEYS` (`422` otherwise).
-   - Returns projected tooth summary (from `ClinicalWorkspaceService`), active & historical `ClinicalWorkItem`s targeting `tooth_key`, `ClinicalEvent` timeline targeting `tooth_key`, and legacy `Treatment` / `ToothStatus` records for that tooth.
+    - Validates `tooth_key in FDI_TOOTH_KEYS` (`422` otherwise).
+    - Returns projected tooth summary (from `ClinicalWorkspaceService`), active & historical `ClinicalWorkItem`s targeting `tooth_key`, `ClinicalEvent` timeline targeting `tooth_key`, and legacy `Treatment` / `ToothStatus` records for that tooth.
 3. **Patient Clinical History API (`G7-M11`):** `GET /api/v1/patients/{patient_id}/clinical-events` (requires `Permission.CLINICAL_READ`):
-   - **Data Source:** Reads **raw `ClinicalEvent` rows directly from the database** (joined with `ClinicalWorkItem` only to evaluate work-item status when filtering), **never** through `ClinicalWorkspaceService` or the filtered visual snapshot reducer.
-   - **Filtering:** Default (`include_entered_in_error = False`) excludes events where `event.event_type in CANONICAL_CORRECTION_STATUSES` or attached `work_item.status in CANONICAL_CORRECTION_STATUSES`.
-   - **Audit Mode:** Query parameter `include_entered_in_error = True` returns all raw `ClinicalEvent` rows in chronological order (`occurred_at DESC, id DESC`), specifically including original events, correction events (`event_type="entered_in_error"` / `"superseded"`), and the named supersede links (`original_work_item_id`, `replacement_work_item_id`) so full medical history is auditable without deletion.
+    - **Data Source:** Reads **raw `ClinicalEvent` rows directly from the database** (joined with `ClinicalWorkItem` only to evaluate work-item status when filtering), **never** through `ClinicalWorkspaceService` or the filtered visual snapshot reducer.
+    - **Filtering:** Default (`include_entered_in_error = False`) excludes events where `event.event_type in CANONICAL_CORRECTION_STATUSES` or attached `work_item.status in CANONICAL_CORRECTION_STATUSES`.
+    - **Audit Mode:** Query parameter `include_entered_in_error = True` returns all raw `ClinicalEvent` rows in chronological order (`occurred_at DESC, id DESC`), specifically including original events, correction events (`event_type="entered_in_error"` / `"superseded"`), and the named supersede links (`original_work_item_id`, `replacement_work_item_id`) so full medical history is auditable without deletion.
 
 #### SCOPE
 - **Schemas (`backend/schemas/clinical_commands.py` (new)):** `ClinicalWorkItemCorrectionCreate`, `ClinicalWorkItemCorrectionResponse`, `ClinicalEventRead`, `ClinicalToothDetailRead`.
@@ -479,7 +483,7 @@ Next Slice: S06
 - History API (`GET /api/v1/patients/{patient_id}/clinical-events`): reads raw `ClinicalEvent` rows from DB; default (`include_entered_in_error=False`) excludes events of corrected work items; `include_entered_in_error=True` returns raw events including correction events with `original_work_item_id` and `replacement_work_item_id` in the payload.
 - Zero `ClinicalEvent` rows deleted or updated; zero `Treatment`, `Payment`, or `StockMovement` delta.
 - `GET .../clinical-teeth/16` returns tooth summary, work items, and events for Tooth `16` only; invalid FDI `99` returns `422`.
-- Cross-tenant, cross-patient, and restricted-doctor visibility -> `404`; flag OFF on `POST .../correct` -> `404`; `Role.RECEPTIONIST` gets `403`; `Role.DOCTOR` succeeds (write no test expecting nurse 201 or 403 pending `PD02b`).
+- Cross-tenant, cross-patient, and restricted-doctor visibility -> `404`; flag OFF on `POST .../correct` -> `404`; RBAC (PD02b): `Role.DOCTOR` succeeds on correction; `Role.NURSE` (`CLINICAL_WRITE` only) gets `403`; `Role.RECEPTIONIST` gets `403`.
 
 #### VERIFICATION COMMANDS (Real Exit Codes Required)
 - `.\.venv\Scripts\python.exe -m pytest backend/tests/services/test_clinical_command_service.py backend/tests/test_clinical_workspace_snapshot.py -q` (new)
@@ -487,7 +491,7 @@ Next Slice: S06
 - `.\.venv\Scripts\python.exe .github/scripts/check_agent_authority.py`
 
 #### PR BODY REQUIREMENTS
-- **Top Line:** `RBAC touches: POST /api/v1/patients/{patient_id}/clinical-work-items/{work_item_id}/correct (PENDING RBAC decision); GET /clinical-teeth/{tooth_key} & /clinical-events (CLINICAL_READ) | Native-write flag status: POST gated by clinical_vnext_native_writes (default OFF -> 404) | Migrations: NONE`
+- **Top Line:** `RBAC touches: POST /api/v1/patients/{patient_id}/clinical-work-items/{work_item_id}/correct (TREATMENT_PLAN_WRITE only per PD02b); GET /clinical-teeth/{tooth_key} & /clinical-events (CLINICAL_READ) | Native-write flag status: POST gated by clinical_vnext_native_writes (default OFF -> 404) | Migrations: NONE`
 - **How to test on staging (<= 15 min):**
   1. Call `GET /api/v1/patients/1/clinical-teeth/16` and `GET /api/v1/patients/1/clinical-events`.
   2. With `clinical_vnext_native_writes` ON for tenant `1`, create a finding work item, then call `POST .../clinical-work-items/{wi_id}/correct` with `mode="entered_in_error"`; confirm correction event is returned in history with `include_entered_in_error=true` and work item is excluded from active workspace projection.
