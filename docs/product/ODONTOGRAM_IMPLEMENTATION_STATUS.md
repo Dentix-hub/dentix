@@ -11,8 +11,8 @@
 ## 1. Status Summary
 
 - **Total Phases Tracked:** 35 (A0–A17, G0–G16)
-- **DONE:** 24 phases (A0–A17, G0–G3, G5–G6)
-- **PARTIAL:** 5 phases (G4, G7, G8, G9, G16)
+- **DONE:** 25 phases (A0–A17, G0–G3, G5–G7)
+- **PARTIAL:** 4 phases (G4, G8, G9, G16)
 - **SCHEMA_ONLY:** 3 phases (G10, G11, G15)
 - **NOT_STARTED:** 3 phases (G12, G13, G14)
 
@@ -46,7 +46,7 @@
 | **G3** | Deterministic Legacy Mapping Engine | **DONE** | `backend/clinical/legacy_mapping.py:1-140`, `treatment_service.py:189-224`, `test_clinical_legacy_mapping.py`, PR #222 & PR #226 |
 | **G4** | Controlled Backfill | **PARTIAL** | Treatment, tooth-status, and session backfill tool extended and tested (`scripts/backfill_clinical_work_items.py:1-617`, `backend/tests/services/test_clinical_backfill.py` (14 tests), PR #227 & PR #237); tooth-status (`G4-M06`), care session (`G4-M07`), inventory invariance (`G4-M12`), and payment invariance (`G4-M13`) implemented in S03; lab (`G4-M08` in S27) and attachment link (`G4-M09` in S23) backfill slices pending. |
 | **G5** | Projection Layer & Real Chart Data | **DONE** | `backend/services/clinical_workspace_service.py:1-1017`, `backend/tests/test_clinical_workspace_snapshot.py`, `backend/routers/patients.py:217-232`, PR #222 |
-| **G7** | Command / API Layer | **PARTIAL** | Command service, work item mutation APIs, single/bulk finding & procedure APIs, work-item correction (`G7-M08`), tooth detail (`G7-M10`), history APIs (`G7-M11`), and RBAC permission enforcement implemented (`G7-M01`..`G7-M08`, `G7-M10`..`G7-M12`: `backend/services/clinical_command_service.py`, `backend/routers/clinical_commands.py`, `backend/services/clinical_service.py:193`, `backend/tests/services/test_clinical_command_service.py`, PR #238, PR #239, & S06); legacy treatment sync via `backend/services/treatment_service.py:260-470`; idempotency and concurrency (`S07`) pending. |
+| **G7** | Command / API Layer | **DONE** | Command service, work item mutation APIs, single/bulk finding & procedure APIs, work-item correction (`G7-M08`), tooth detail (`G7-M10`), history APIs (`G7-M11`), RBAC permission enforcement (`G7-M12`), tenant security tests (`G7-M13`), API contract tests (`G7-M14`), race-safe idempotency keys (`G7-M15`), and optimistic concurrency handling (`G7-M16`) implemented and verified (`G7-M01`..`G7-M16`: `backend/services/clinical_command_service.py`, `backend/routers/clinical_commands.py`, `backend/schemas/clinical_commands.py`, `backend/services/clinical_service.py:193`, `backend/services/treatment_service.py:260-470`, `backend/tests/services/test_clinical_command_service.py`, `backend/tests/services/test_clinical_command_security_and_contracts.py`, PR #238, PR #239, PR #240, S07). |
 | **G8** | Zero-Friction Charting UX | **PARTIAL** | `frontend/src/features/dental/DentalChartSVG.jsx:320-380` (surface selector), `TreatmentModal.jsx:210-310`, `PatientDetails.jsx:659` (modal chart via PR #228); quick action launcher / sticky tool mode not started. |
 | **G9** | First-Class Treatment Plans | **PARTIAL** | Minimal treatment plans create & list (Slice G9a, PR #230), phases & procedure membership (Slice G9b), and lifecycle transitions & hardening (Slice G9c: M06 lifecycle states, M07 accept flow with zero side effects, M08 alternative plan preservation): `backend/models/clinical_core.py:189-280`, `backend/services/treatment_plan_service.py:33-40,240-300,435-492`, `backend/routers/treatment_plans.py:133-161`, `frontend/src/features/clinical-plans/TreatmentPlansCard.jsx`, `backend/tests/services/test_treatment_plan_service.py` (26 tests, 94% coverage), `frontend/src/tests/TreatmentPlansCard.test.jsx` (13 tests). Pricing/estimates calculation and chart canvas overlay remain pending. |
 | **G10** | Sessions and Resume Engine | **SCHEMA_ONLY** | `backend/models/clinical_core.py:383-500` (`CareSession`, `CareSessionStep`, `CareObservation`), migration `f4a5b6c7d8e9`; service, router, and UI not yet implemented. |
