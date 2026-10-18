@@ -84,6 +84,7 @@ class ClinicalWorkItemCreate(BaseModel):
     status: str = "proposed"
     notes: Optional[str] = None
     targets: List[ClinicalTargetInput] = Field(default_factory=list)
+    idempotency_key: Optional[str] = Field(None, max_length=128)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -125,6 +126,7 @@ class ClinicalFindingCreate(BaseModel):
     surface: Optional[str] = None
     surface_code: Optional[str] = None
     severity: Optional[str] = None
+    idempotency_key: Optional[str] = Field(None, max_length=128)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -160,6 +162,7 @@ class ClinicalFindingCreate(BaseModel):
 
 class ClinicalFindingBulkCreate(BaseModel):
     items: List[ClinicalFindingCreate] = Field(..., min_length=1, max_length=50)
+    idempotency_key: Optional[str] = Field(None, max_length=128)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -173,6 +176,7 @@ class ClinicalProcedureCreate(BaseModel):
     surfaces: Optional[List[str]] = None
     surface: Optional[str] = None
     surface_code: Optional[str] = None
+    idempotency_key: Optional[str] = Field(None, max_length=128)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -208,6 +212,7 @@ class ClinicalProcedureCreate(BaseModel):
 
 class ClinicalProcedureBulkCreate(BaseModel):
     items: List[ClinicalProcedureCreate] = Field(..., min_length=1, max_length=50)
+    idempotency_key: Optional[str] = Field(None, max_length=128)
 
     model_config = ConfigDict(extra="forbid")
 
@@ -229,6 +234,7 @@ class ClinicalWorkItemCorrectionCreate(BaseModel):
     reason: str = Field(..., min_length=1, max_length=500)
     replacement: Optional[ClinicalWorkItemCreate] = None
     expected_version_id: Optional[int] = None
+    idempotency_key: Optional[str] = Field(None, max_length=128)
 
     model_config = ConfigDict(extra="forbid")
 

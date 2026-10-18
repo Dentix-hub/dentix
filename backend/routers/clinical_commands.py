@@ -3,8 +3,8 @@ Clinical Commands Router (Slice S04).
 HTTP boundary for native ClinicalWorkItem and ClinicalEvent commands and queries.
 """
 
-from typing import List
-from fastapi import APIRouter, Depends, Query, status
+from typing import List, Optional
+from fastapi import APIRouter, Depends, Header, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import models, schemas
@@ -26,13 +26,14 @@ router = APIRouter(prefix="/patients", tags=["Clinical Commands"])
 async def create_patient_clinical_work_item(
     patient_id: int,
     payload: schemas.ClinicalWorkItemCreate,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(
         require_permission(Permission.CLINICAL_WRITE, Permission.TREATMENT_PLAN_WRITE)
     ),
 ):
     service = ClinicalCommandService(db, current_user.tenant_id, current_user)
-    work_item = await service.create_work_item(patient_id, payload)
+    work_item = await service.create_work_item(patient_id, payload, idempotency_key=idempotency_key)
     return success_response(
         data=schemas.ClinicalWorkItemRead.model_validate(work_item),
         message="Clinical work item created successfully",
@@ -92,11 +93,12 @@ async def update_patient_clinical_work_item(
 async def create_patient_clinical_finding(
     patient_id: int,
     payload: schemas.ClinicalFindingCreate,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     service = ClinicalCommandService(db, current_user.tenant_id, current_user)
-    work_item = await service.create_finding(patient_id, payload)
+    work_item = await service.create_finding(patient_id, payload, idempotency_key=idempotency_key)
     return success_response(
         data=schemas.ClinicalWorkItemRead.model_validate(work_item),
         message="Clinical finding created successfully",
@@ -114,11 +116,12 @@ async def create_patient_clinical_finding(
 async def create_patient_clinical_findings_bulk(
     patient_id: int,
     payload: schemas.ClinicalFindingBulkCreate,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     service = ClinicalCommandService(db, current_user.tenant_id, current_user)
-    result = await service.create_findings_bulk(patient_id, payload)
+    result = await service.create_findings_bulk(patient_id, payload, idempotency_key=idempotency_key)
     return success_response(
         data=result,
         message=f"{result.count} clinical findings created successfully",
@@ -136,11 +139,12 @@ async def create_patient_clinical_findings_bulk(
 async def create_patient_clinical_procedure(
     patient_id: int,
     payload: schemas.ClinicalProcedureCreate,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
 ):
     service = ClinicalCommandService(db, current_user.tenant_id, current_user)
-    work_item = await service.create_procedure(patient_id, payload)
+    work_item = await service.create_procedure(patient_id, payload, idempotency_key=idempotency_key)
     return success_response(
         data=schemas.ClinicalWorkItemRead.model_validate(work_item),
         message="Clinical procedure created successfully",
@@ -158,11 +162,12 @@ async def create_patient_clinical_procedure(
 async def create_patient_clinical_procedures_bulk(
     patient_id: int,
     payload: schemas.ClinicalProcedureBulkCreate,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
 ):
     service = ClinicalCommandService(db, current_user.tenant_id, current_user)
-    result = await service.create_procedures_bulk(patient_id, payload)
+    result = await service.create_procedures_bulk(patient_id, payload, idempotency_key=idempotency_key)
     return success_response(
         data=result,
         message=f"{result.count} clinical procedures created successfully",
@@ -185,13 +190,16 @@ async def correct_patient_clinical_work_item(
     patient_id: int,
     work_item_id: int,
     payload: schemas.ClinicalWorkItemCorrectionCreate,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(
         require_permission(Permission.TREATMENT_PLAN_WRITE)
     ),
 ):
     service = ClinicalCommandService(db, current_user.tenant_id, current_user)
-    result = await service.correct_work_item(patient_id, work_item_id, payload)
+    result = await service.correct_work_item(
+        patient_id, work_item_id, payload, idempotency_key=idempotency_key
+    )
     return success_response(
         data=result,
         message=f"Clinical work item corrected successfully ({payload.mode})",

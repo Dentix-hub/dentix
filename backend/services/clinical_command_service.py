@@ -4,14 +4,33 @@ Domain service for native ClinicalWorkItem and ClinicalEvent mutations and queri
 """
 
 from datetime import datetime, timezone
+import hashlib
+import json
 from typing import List, Optional
 from fastapi import HTTPException
-from sqlalchemy import inspect, select
+from sqlalchemy import inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.exc import StaleDataError
 
+
 from backend import models, schemas
+
+
+def compute_request_fingerprint(data: dict) -> str:
+    """Deterministic SHA256 digest of request parameters."""
+    canonical = json.dumps(data, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _normalize_target(t: schemas.ClinicalTargetInput) -> dict:
+    return {
+        "target_kind": t.target_kind,
+        "tooth_key": str(t.tooth_key),
+        "surface_code": t.surface_code,
+        "root_id": t.root_id,
+        "canal_id": t.canal_id,
+    }
 from backend.clinical.catalog import (
     CANONICAL_CORRECTION_STATUSES,
     CANONICAL_FINDING_CODES,
@@ -106,6 +125,71 @@ class ClinicalCommandService:
         if not user:
             raise HTTPException(status_code=401, detail="Authentication required")
         await ensure_patient_visible(self.db, user, patient_id)
+
+    def _validate_idempotency_key(self, key: Optional[str]) -> Optional[str]:
+        if key is None:
+            return None
+        if len(key) > 128:
+            raise HTTPException(
+                status_code=422,
+                detail="Idempotency key exceeds maximum length of 128 characters",
+            )
+        if len(key.strip()) == 0:
+            raise HTTPException(
+                status_code=422,
+                detail="Idempotency key cannot be empty",
+            )
+        return key.strip()
+
+    async def _acquire_advisory_lock(self, key: str) -> None:
+        """
+        Acquire PostgreSQL transaction-level advisory lock (R05).
+        Serializes concurrent requests with the same (tenant_id, key).
+        No-op on SQLite.
+        """
+        bind = getattr(self.db, "bind", None)
+        if bind is None and hasattr(self.db, "get_bind"):
+            try:
+                bind = self.db.get_bind()
+            except Exception:
+                bind = None
+        dialect_name = getattr(getattr(bind, "dialect", None), "name", None)
+        if dialect_name == "postgresql":
+            lock_key = f"{self.tenant_id}:{key}"
+            await self.db.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:lock_key, 0))"),
+                {"lock_key": lock_key},
+            )
+
+    async def _find_idempotent_event(
+        self, patient_id: int, idempotency_key: str, fingerprint: str
+    ) -> Optional[models.ClinicalEvent]:
+        """
+        Locate existing event with matching idempotency key for this patient and tenant.
+        Raises 409 Conflict if key matches but fingerprint differs.
+        Returns matching ClinicalEvent if found, None otherwise.
+        Uses portable Python-level inspection matching TreatmentService._find_linked_clinical_work_item.
+        """
+        stmt = (
+            select(models.ClinicalEvent)
+            .where(
+                models.ClinicalEvent.tenant_id == self.tenant_id,
+                models.ClinicalEvent.patient_id == patient_id,
+            )
+            .order_by(models.ClinicalEvent.id.desc())
+        )
+        result = await self.db.execute(stmt)
+        events = result.scalars().all()
+        for ev in events:
+            if isinstance(ev.payload, dict) and ev.payload.get("idempotency_key") == idempotency_key:
+                stored_fp = ev.payload.get("request_fingerprint")
+                if stored_fp != fingerprint:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Idempotency key already used with different parameters",
+                    )
+                return ev
+        return None
 
     async def _create_work_item_internal(
         self,
@@ -237,12 +321,48 @@ class ClinicalCommandService:
         self,
         patient_id: int,
         payload: schemas.ClinicalWorkItemCreate,
+        idempotency_key: Optional[str] = None,
     ) -> models.ClinicalWorkItem:
         """Create a clinical work item and atomically append a recorded event."""
         await self.ensure_native_writes_enabled()
         await self._ensure_patient_access(patient_id)
+
+        key = self._validate_idempotency_key(idempotency_key or getattr(payload, "idempotency_key", None))
+        fingerprint = None
+        if key:
+            await self._acquire_advisory_lock(key)
+            fp_data = {
+                "action": "create_work_item",
+                "kind": payload.kind,
+                "code": payload.code,
+                "status": payload.status,
+                "notes": payload.notes or "",
+                "targets": sorted(
+                    [_normalize_target(t) for t in payload.targets],
+                    key=lambda x: (x["target_kind"], x["tooth_key"], x["surface_code"] or "", x["root_id"] or "", x["canal_id"] or ""),
+                ),
+            }
+            fingerprint = compute_request_fingerprint(fp_data)
+            existing_ev = await self._find_idempotent_event(patient_id, key, fingerprint)
+            if existing_ev:
+                stmt = (
+                    select(models.ClinicalWorkItem)
+                    .options(selectinload(models.ClinicalWorkItem.targets))
+                    .where(
+                        models.ClinicalWorkItem.id == existing_ev.work_item_id,
+                        models.ClinicalWorkItem.tenant_id == self.tenant_id,
+                    )
+                )
+                return (await self.db.execute(stmt)).scalar_one()
+
         now = datetime.now(timezone.utc)
-        work_item = await self._create_work_item_internal(patient_id, payload, now=now)
+        payload_extra = None
+        if key and fingerprint:
+            payload_extra = {"idempotency_key": key, "request_fingerprint": fingerprint}
+
+        work_item = await self._create_work_item_internal(
+            patient_id, payload, now=now, payload_extra=payload_extra
+        )
         work_item_id = work_item.id
         await self.db.commit()
 
@@ -261,10 +381,40 @@ class ClinicalCommandService:
         self,
         patient_id: int,
         payload: schemas.ClinicalFindingCreate,
+        idempotency_key: Optional[str] = None,
     ) -> models.ClinicalWorkItem:
         """Create a single dedicated clinical finding."""
         await self.ensure_native_writes_enabled()
         await self._ensure_patient_access(patient_id)
+
+        key = self._validate_idempotency_key(idempotency_key or getattr(payload, "idempotency_key", None))
+        fingerprint = None
+        if key:
+            await self._acquire_advisory_lock(key)
+            fp_data = {
+                "action": "create_finding",
+                "code": payload.code,
+                "status": payload.status,
+                "notes": payload.notes or "",
+                "severity": payload.severity,
+                "targets": sorted(
+                    [_normalize_target(t) for t in payload.targets],
+                    key=lambda x: (x["target_kind"], x["tooth_key"], x["surface_code"] or "", x["root_id"] or "", x["canal_id"] or ""),
+                ),
+            }
+            fingerprint = compute_request_fingerprint(fp_data)
+            existing_ev = await self._find_idempotent_event(patient_id, key, fingerprint)
+            if existing_ev:
+                stmt = (
+                    select(models.ClinicalWorkItem)
+                    .options(selectinload(models.ClinicalWorkItem.targets))
+                    .where(
+                        models.ClinicalWorkItem.id == existing_ev.work_item_id,
+                        models.ClinicalWorkItem.tenant_id == self.tenant_id,
+                    )
+                )
+                return (await self.db.execute(stmt)).scalar_one()
+
         now = datetime.now(timezone.utc)
         wi_create = schemas.ClinicalWorkItemCreate(
             kind="finding",
@@ -273,9 +423,15 @@ class ClinicalCommandService:
             notes=payload.notes,
             targets=payload.targets,
         )
-        payload_extra = {"severity": payload.severity} if payload.severity else None
+        payload_extra = {}
+        if payload.severity:
+            payload_extra["severity"] = payload.severity
+        if key and fingerprint:
+            payload_extra["idempotency_key"] = key
+            payload_extra["request_fingerprint"] = fingerprint
+
         work_item = await self._create_work_item_internal(
-            patient_id, wi_create, now=now, payload_extra=payload_extra
+            patient_id, wi_create, now=now, payload_extra=payload_extra or None
         )
         work_item_id = work_item.id
         await self.db.commit()
@@ -295,6 +451,7 @@ class ClinicalCommandService:
         self,
         patient_id: int,
         payload: schemas.ClinicalFindingBulkCreate,
+        idempotency_key: Optional[str] = None,
     ) -> schemas.ClinicalBulkWorkItemResponse:
         """Bulk create clinical findings in an atomic transaction (1 to 50 items)."""
         await self.ensure_native_writes_enabled()
@@ -307,6 +464,45 @@ class ClinicalCommandService:
                 status_code=403,
                 detail="Permission denied. Required: clinical:write for findings",
             )
+
+        key = self._validate_idempotency_key(idempotency_key or getattr(payload, "idempotency_key", None))
+        fingerprint = None
+        if key:
+            await self._acquire_advisory_lock(key)
+            fp_data = {
+                "action": "create_findings_bulk",
+                "items": [
+                    {
+                        "code": item.code,
+                        "status": item.status,
+                        "notes": item.notes or "",
+                        "severity": item.severity,
+                        "targets": sorted(
+                            [_normalize_target(t) for t in item.targets],
+                            key=lambda x: (x["target_kind"], x["tooth_key"], x["surface_code"] or "", x["root_id"] or "", x["canal_id"] or ""),
+                        ),
+                    }
+                    for item in payload.items
+                ],
+            }
+            fingerprint = compute_request_fingerprint(fp_data)
+            existing_ev = await self._find_idempotent_event(patient_id, key, fingerprint)
+            if existing_ev:
+                bulk_ids = existing_ev.payload.get("bulk_work_item_ids", [existing_ev.work_item_id])
+                stmt = (
+                    select(models.ClinicalWorkItem)
+                    .options(selectinload(models.ClinicalWorkItem.targets))
+                    .where(
+                        models.ClinicalWorkItem.id.in_(bulk_ids),
+                        models.ClinicalWorkItem.tenant_id == self.tenant_id,
+                    )
+                    .order_by(models.ClinicalWorkItem.id.asc())
+                )
+                reloaded = (await self.db.execute(stmt)).scalars().all()
+                return schemas.ClinicalBulkWorkItemResponse(
+                    items=[schemas.ClinicalWorkItemRead.model_validate(item) for item in reloaded],
+                    count=len(reloaded),
+                )
 
         now = datetime.now(timezone.utc)
         created_ids: List[int] = []
@@ -324,6 +520,20 @@ class ClinicalCommandService:
                     patient_id, wi_create, now=now, payload_extra=payload_extra
                 )
                 created_ids.append(wi.id)
+
+            if key and fingerprint:
+                stmt_evs = select(models.ClinicalEvent).where(
+                    models.ClinicalEvent.work_item_id.in_(created_ids),
+                    models.ClinicalEvent.tenant_id == self.tenant_id,
+                )
+                evs = (await self.db.execute(stmt_evs)).scalars().all()
+                for ev in evs:
+                    p = dict(ev.payload or {})
+                    p["idempotency_key"] = key
+                    p["request_fingerprint"] = fingerprint
+                    p["bulk_work_item_ids"] = created_ids
+                    ev.payload = p
+
             await self.db.commit()
         except Exception:
             await self.db.rollback()
@@ -348,10 +558,39 @@ class ClinicalCommandService:
         self,
         patient_id: int,
         payload: schemas.ClinicalProcedureCreate,
+        idempotency_key: Optional[str] = None,
     ) -> models.ClinicalWorkItem:
         """Create a single dedicated clinical procedure."""
         await self.ensure_native_writes_enabled()
         await self._ensure_patient_access(patient_id)
+
+        key = self._validate_idempotency_key(idempotency_key or getattr(payload, "idempotency_key", None))
+        fingerprint = None
+        if key:
+            await self._acquire_advisory_lock(key)
+            fp_data = {
+                "action": "create_procedure",
+                "code": payload.code,
+                "status": payload.status,
+                "notes": payload.notes or "",
+                "targets": sorted(
+                    [_normalize_target(t) for t in payload.targets],
+                    key=lambda x: (x["target_kind"], x["tooth_key"], x["surface_code"] or "", x["root_id"] or "", x["canal_id"] or ""),
+                ),
+            }
+            fingerprint = compute_request_fingerprint(fp_data)
+            existing_ev = await self._find_idempotent_event(patient_id, key, fingerprint)
+            if existing_ev:
+                stmt = (
+                    select(models.ClinicalWorkItem)
+                    .options(selectinload(models.ClinicalWorkItem.targets))
+                    .where(
+                        models.ClinicalWorkItem.id == existing_ev.work_item_id,
+                        models.ClinicalWorkItem.tenant_id == self.tenant_id,
+                    )
+                )
+                return (await self.db.execute(stmt)).scalar_one()
+
         now = datetime.now(timezone.utc)
         wi_create = schemas.ClinicalWorkItemCreate(
             kind="procedure",
@@ -360,7 +599,13 @@ class ClinicalCommandService:
             notes=payload.notes,
             targets=payload.targets,
         )
-        work_item = await self._create_work_item_internal(patient_id, wi_create, now=now)
+        payload_extra = None
+        if key and fingerprint:
+            payload_extra = {"idempotency_key": key, "request_fingerprint": fingerprint}
+
+        work_item = await self._create_work_item_internal(
+            patient_id, wi_create, now=now, payload_extra=payload_extra
+        )
         work_item_id = work_item.id
         await self.db.commit()
 
@@ -379,6 +624,7 @@ class ClinicalCommandService:
         self,
         patient_id: int,
         payload: schemas.ClinicalProcedureBulkCreate,
+        idempotency_key: Optional[str] = None,
     ) -> schemas.ClinicalBulkWorkItemResponse:
         """Bulk create clinical procedures in an atomic transaction (1 to 50 items)."""
         await self.ensure_native_writes_enabled()
@@ -391,6 +637,44 @@ class ClinicalCommandService:
                 status_code=403,
                 detail="Permission denied. Required: treatment_plan:write for procedures",
             )
+
+        key = self._validate_idempotency_key(idempotency_key or getattr(payload, "idempotency_key", None))
+        fingerprint = None
+        if key:
+            await self._acquire_advisory_lock(key)
+            fp_data = {
+                "action": "create_procedures_bulk",
+                "items": [
+                    {
+                        "code": item.code,
+                        "status": item.status,
+                        "notes": item.notes or "",
+                        "targets": sorted(
+                            [_normalize_target(t) for t in item.targets],
+                            key=lambda x: (x["target_kind"], x["tooth_key"], x["surface_code"] or "", x["root_id"] or "", x["canal_id"] or ""),
+                        ),
+                    }
+                    for item in payload.items
+                ],
+            }
+            fingerprint = compute_request_fingerprint(fp_data)
+            existing_ev = await self._find_idempotent_event(patient_id, key, fingerprint)
+            if existing_ev:
+                bulk_ids = existing_ev.payload.get("bulk_work_item_ids", [existing_ev.work_item_id])
+                stmt = (
+                    select(models.ClinicalWorkItem)
+                    .options(selectinload(models.ClinicalWorkItem.targets))
+                    .where(
+                        models.ClinicalWorkItem.id.in_(bulk_ids),
+                        models.ClinicalWorkItem.tenant_id == self.tenant_id,
+                    )
+                    .order_by(models.ClinicalWorkItem.id.asc())
+                )
+                reloaded = (await self.db.execute(stmt)).scalars().all()
+                return schemas.ClinicalBulkWorkItemResponse(
+                    items=[schemas.ClinicalWorkItemRead.model_validate(item) for item in reloaded],
+                    count=len(reloaded),
+                )
 
         now = datetime.now(timezone.utc)
         created_ids: List[int] = []
@@ -405,6 +689,20 @@ class ClinicalCommandService:
                 )
                 wi = await self._create_work_item_internal(patient_id, wi_create, now=now)
                 created_ids.append(wi.id)
+
+            if key and fingerprint:
+                stmt_evs = select(models.ClinicalEvent).where(
+                    models.ClinicalEvent.work_item_id.in_(created_ids),
+                    models.ClinicalEvent.tenant_id == self.tenant_id,
+                )
+                evs = (await self.db.execute(stmt_evs)).scalars().all()
+                for ev in evs:
+                    p = dict(ev.payload or {})
+                    p["idempotency_key"] = key
+                    p["request_fingerprint"] = fingerprint
+                    p["bulk_work_item_ids"] = created_ids
+                    ev.payload = p
+
             await self.db.commit()
         except Exception:
             await self.db.rollback()
@@ -614,6 +912,7 @@ class ClinicalCommandService:
         patient_id: int,
         work_item_id: int,
         payload: schemas.ClinicalWorkItemCorrectionCreate,
+        idempotency_key: Optional[str] = None,
     ) -> schemas.ClinicalWorkItemCorrectionResponse:
         """
         Correct a clinical work item via entered_in_error or supersede mode (Slice S06 / G7-M08).
@@ -637,6 +936,60 @@ class ClinicalCommandService:
                 status_code=422,
                 detail="Standalone events without a clinical work item cannot be corrected via work-item correction",
             )
+
+        key = self._validate_idempotency_key(idempotency_key or getattr(payload, "idempotency_key", None))
+        fingerprint = None
+        if key:
+            await self._acquire_advisory_lock(key)
+            fp_data = {
+                "action": "correct_work_item",
+                "work_item_id": work_item_id,
+                "mode": payload.mode,
+                "reason": payload.reason,
+                "expected_version_id": payload.expected_version_id,
+                "replacement": {
+                    "kind": payload.replacement.kind,
+                    "code": payload.replacement.code,
+                    "status": payload.replacement.status,
+                    "notes": payload.replacement.notes or "",
+                    "targets": sorted(
+                        [_normalize_target(t) for t in payload.replacement.targets],
+                        key=lambda x: (x["target_kind"], x["tooth_key"], x["surface_code"] or "", x["root_id"] or "", x["canal_id"] or ""),
+                    ),
+                } if payload.replacement else None,
+            }
+            fingerprint = compute_request_fingerprint(fp_data)
+            existing_ev = await self._find_idempotent_event(patient_id, key, fingerprint)
+            if existing_ev:
+                stmt_orig = (
+                    select(models.ClinicalWorkItem)
+                    .options(selectinload(models.ClinicalWorkItem.targets))
+                    .where(
+                        models.ClinicalWorkItem.id == work_item_id,
+                        models.ClinicalWorkItem.tenant_id == self.tenant_id,
+                    )
+                )
+                reloaded_orig = (await self.db.execute(stmt_orig)).scalar_one()
+                reloaded_repl = None
+                repl_id = existing_ev.payload.get("replacement_work_item_id")
+                if repl_id:
+                    stmt_repl = (
+                        select(models.ClinicalWorkItem)
+                        .options(selectinload(models.ClinicalWorkItem.targets))
+                        .where(
+                            models.ClinicalWorkItem.id == repl_id,
+                            models.ClinicalWorkItem.tenant_id == self.tenant_id,
+                        )
+                    )
+                    reloaded_repl = (await self.db.execute(stmt_repl)).scalar_one_or_none()
+
+                return schemas.ClinicalWorkItemCorrectionResponse(
+                    original_work_item=schemas.ClinicalWorkItemRead.model_validate(reloaded_orig),
+                    replacement_work_item=schemas.ClinicalWorkItemRead.model_validate(reloaded_repl) if reloaded_repl else None,
+                    correction_event_id=existing_ev.id,
+                    mode=existing_ev.payload.get("mode", payload.mode),
+                    reason=existing_ev.payload.get("reason", payload.reason),
+                )
 
         stmt = (
             select(models.ClinicalWorkItem)
@@ -687,6 +1040,15 @@ class ClinicalCommandService:
         if payload.mode == "entered_in_error":
             work_item.status = CORRECTION_STATUS_ENTERED_IN_ERROR
             work_item.updated_at = now
+            ev_payload = {
+                "mode": "entered_in_error",
+                "work_item_id": work_item.id,
+                "reason": payload.reason,
+            }
+            if key and fingerprint:
+                ev_payload["idempotency_key"] = key
+                ev_payload["request_fingerprint"] = fingerprint
+
             correction_event = models.ClinicalEvent(
                 tenant_id=self.tenant_id,
                 patient_id=patient_id,
@@ -694,11 +1056,7 @@ class ClinicalCommandService:
                 event_type="entered_in_error",
                 occurred_at=now,
                 actor_user_id=self.current_user_id,
-                payload={
-                    "mode": "entered_in_error",
-                    "work_item_id": work_item.id,
-                    "reason": payload.reason,
-                },
+                payload=ev_payload,
                 notes=payload.reason,
                 created_at=now,
             )
@@ -735,6 +1093,16 @@ class ClinicalCommandService:
                 patient_id, payload.replacement, now=now
             )
 
+            ev_payload = {
+                "mode": "supersede",
+                "original_work_item_id": work_item.id,
+                "replacement_work_item_id": replacement_work_item.id,
+                "reason": payload.reason,
+            }
+            if key and fingerprint:
+                ev_payload["idempotency_key"] = key
+                ev_payload["request_fingerprint"] = fingerprint
+
             correction_event = models.ClinicalEvent(
                 tenant_id=self.tenant_id,
                 patient_id=patient_id,
@@ -742,12 +1110,7 @@ class ClinicalCommandService:
                 event_type="superseded",
                 occurred_at=now,
                 actor_user_id=self.current_user_id,
-                payload={
-                    "mode": "supersede",
-                    "original_work_item_id": work_item.id,
-                    "replacement_work_item_id": replacement_work_item.id,
-                    "reason": payload.reason,
-                },
+                payload=ev_payload,
                 notes=payload.reason,
                 created_at=now,
             )
