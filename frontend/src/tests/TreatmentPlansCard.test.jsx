@@ -912,4 +912,138 @@ describe('TreatmentPlansCard & Feature Gating', () => {
             });
         });
     });
+
+    describe('Treatment Plan Dynamic Estimate Projection (G9-M10 / S13)', () => {
+        const mockPlanWithEstimates = {
+            id: 201,
+            patient_id: 101,
+            title: 'Rehabilitation Estimate Plan',
+            status: 'draft',
+            notes: 'Estimate test plan',
+            version_id: 1,
+            created_at: '2026-10-18T10:00:00Z',
+            plan_estimated_total: 2500.0,
+            unpriced_items_count: 1,
+            phases: [
+                {
+                    id: 211,
+                    phase_order: 0,
+                    name: 'Phase 1 - Endo',
+                    status: 'draft',
+                    notes: null,
+                    phase_estimated_total: 2500.0,
+                    unpriced_items_count: 0,
+                    items: [
+                        {
+                            id: 301,
+                            phase_id: 211,
+                            work_item_id: 401,
+                            item_order: 0,
+                            estimated_fee: 2500.0,
+                            unpriced: false,
+                            work_item: {
+                                id: 401,
+                                procedure_code: 'ENDO_RCT',
+                                display_name: 'Root Canal Treatment',
+                                status: 'active',
+                                targets: [{ tooth_key: '16', surface: null }],
+                            },
+                        },
+                    ],
+                },
+                {
+                    id: 212,
+                    phase_order: 1,
+                    name: 'Phase 2 - Consult',
+                    status: 'draft',
+                    notes: null,
+                    phase_estimated_total: 0.0,
+                    unpriced_items_count: 1,
+                    items: [
+                        {
+                            id: 302,
+                            phase_id: 212,
+                            work_item_id: 402,
+                            item_order: 0,
+                            estimated_fee: 0.0,
+                            unpriced: true,
+                            work_item: {
+                                id: 402,
+                                procedure_code: 'DIAG_CONSULT',
+                                display_name: 'Consultation',
+                                status: 'active',
+                                targets: [],
+                            },
+                        },
+                    ],
+                },
+            ],
+        };
+
+        it('renders plan estimate badge with formatted currency and unpriced indicator when items are unpriced', () => {
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [mockPlanWithEstimates],
+                isLoading: false,
+                isError: false,
+            });
+
+            renderCard();
+
+            const planBadge = screen.getByTestId('plan-estimate-badge-201');
+            expect(planBadge).toBeInTheDocument();
+            expect(planBadge).toHaveTextContent('Estimate:');
+            expect(planBadge).toHaveTextContent('2,500 EGP');
+
+            const unpricedIndicator = screen.getByTestId('plan-unpriced-indicator-201');
+            expect(unpricedIndicator).toBeInTheDocument();
+            expect(unpricedIndicator).toHaveTextContent('*');
+        });
+
+        it('renders phase estimate badges and phase unpriced indicators appropriately', () => {
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [mockPlanWithEstimates],
+                isLoading: false,
+                isError: false,
+            });
+
+            renderCard();
+
+            // Phase 1: priced
+            const phase1Badge = screen.getByTestId('phase-estimate-badge-211');
+            expect(phase1Badge).toHaveTextContent('Estimate:');
+            expect(phase1Badge).toHaveTextContent('2,500 EGP');
+            expect(screen.queryByTestId('phase-unpriced-indicator-211')).toBeNull();
+
+            // Phase 2: has unpriced item
+            const phase2Badge = screen.getByTestId('phase-estimate-badge-212');
+            expect(phase2Badge).toHaveTextContent('Estimate:');
+            expect(phase2Badge).toHaveTextContent('0 EGP');
+            const phase2Indicator = screen.getByTestId('phase-unpriced-indicator-212');
+            expect(phase2Indicator).toBeInTheDocument();
+            expect(phase2Indicator).toHaveTextContent('*');
+        });
+
+        it('renders item estimate fee for priced items and unpriced badge for unpriced items', () => {
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [mockPlanWithEstimates],
+                isLoading: false,
+                isError: false,
+            });
+
+            renderCard();
+
+            // Item 301 is priced
+            const item301Estimate = screen.getByTestId('item-estimate-301');
+            expect(item301Estimate).toBeInTheDocument();
+            expect(item301Estimate).toHaveTextContent('Est:');
+            expect(item301Estimate).toHaveTextContent('2,500 EGP');
+            expect(screen.queryByTestId('item-unpriced-badge-301')).toBeNull();
+
+            // Item 302 is unpriced
+            const item302Unpriced = screen.getByTestId('item-unpriced-badge-302');
+            expect(item302Unpriced).toBeInTheDocument();
+            expect(item302Unpriced).toHaveTextContent('Unpriced');
+            expect(screen.queryByTestId('item-estimate-302')).toBeNull();
+        });
+    });
 });

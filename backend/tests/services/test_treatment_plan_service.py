@@ -1774,3 +1774,348 @@ def test_phase_endpoints_router_integration(client, seed_data, monkeypatch):
         json={"name": "Will fail"},
     )
     assert res_flag_off.status_code == 404
+
+
+# ===========================================================================
+# Slice S13: Treatment Plan Dynamic Estimate Projection (G9-M10, D2, PD04)
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+async def test_dynamic_estimates_priority_price_lists_and_unpriced(async_db_session, seed_data, monkeypatch):
+    """
+    Test dynamic estimate projection:
+    - Priority 1: Patient default price list (PriceListItem)
+    - Priority 2: Clinic default price list (PriceListItem)
+    - Priority 3: Base Procedure price (Procedure.price)
+    - Priority 4: Unpriced procedure fallback (fee=0.00, unpriced=True)
+    - Phase subtotal and plan total aggregations (G9-M10, Decision D2 & PD04).
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    patient_1 = seed_data["patient_1"]
+    doctor_1 = seed_data["doctor_1"]
+    tenant_1 = seed_data["tenant_1"]
+
+    service = TreatmentPlanService(async_db_session, tenant_1.id, doctor_1)
+
+    # 1. Create Price Lists
+    vip_price_list = models.PriceList(
+        tenant_id=tenant_1.id,
+        name="VIP Price List",
+        is_default=False,
+        is_active=True,
+    )
+    clinic_default_list = models.PriceList(
+        tenant_id=tenant_1.id,
+        name="Standard Cash List",
+        is_default=True,
+        is_active=True,
+    )
+    async_db_session.add_all([vip_price_list, clinic_default_list])
+    await async_db_session.flush()
+
+    # Assign patient_1 to VIP Price List
+    patient_1.default_price_list_id = vip_price_list.id
+    await async_db_session.flush()
+
+    # 2. Create Procedures
+    # Proc 1: in VIP list, in default list, has base price
+    proc_1 = models.Procedure(tenant_id=tenant_1.id, name="Proc VIP", price=500.0)
+    # Proc 2: NOT in VIP list, in default list, has base price
+    proc_2 = models.Procedure(tenant_id=tenant_1.id, name="Proc Standard", price=300.0)
+    # Proc 3: NOT in any price list, has base price
+    proc_3 = models.Procedure(tenant_id=tenant_1.id, name="Proc BaseOnly", price=150.0)
+    async_db_session.add_all([proc_1, proc_2, proc_3])
+    await async_db_session.flush()
+
+    # PriceListItems
+    pli_vip = models.PriceListItem(
+        price_list_id=vip_price_list.id,
+        procedure_id=proc_1.id,
+        price=400.0,
+    )
+    pli_def_1 = models.PriceListItem(
+        price_list_id=clinic_default_list.id,
+        procedure_id=proc_1.id,
+        price=450.0,
+    )
+    pli_def_2 = models.PriceListItem(
+        price_list_id=clinic_default_list.id,
+        procedure_id=proc_2.id,
+        price=250.0,
+    )
+    async_db_session.add_all([pli_vip, pli_def_1, pli_def_2])
+    await async_db_session.flush()
+
+    # 3. Create Work Items
+    wi_1 = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="Proc VIP",
+        status="planned",
+    )
+    wi_2 = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="Proc Standard",
+        status="planned",
+    )
+    wi_3 = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="Proc BaseOnly",
+        status="planned",
+    )
+    wi_unpriced = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="UNKNOWN_CUSTOM_PROC",
+        status="planned",
+    )
+    async_db_session.add_all([wi_1, wi_2, wi_3, wi_unpriced])
+    await async_db_session.flush()
+
+    # 4. Create Plan with 2 phases
+    plan = await service.create_plan(
+        patient_1.id,
+        schemas.ClinicalTreatmentPlanCreate(title="Estimated Multi-Phase Plan"),
+    )
+    phase_0 = plan.phases[0]
+
+    phase_1 = await service.add_phase(
+        patient_1.id,
+        plan.id,
+        schemas.ClinicalTreatmentPlanPhaseCreate(name="Phase 2: Complex"),
+    )
+
+    # Attach to Phase 0: Item 1 & Item 2
+    await service.add_work_item_to_phase(
+        patient_1.id,
+        plan.id,
+        phase_0.id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_1.id),
+    )
+    await service.add_work_item_to_phase(
+        patient_1.id,
+        plan.id,
+        phase_0.id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_2.id),
+    )
+
+    # Attach to Phase 1: Item 3 & Unpriced Item
+    await service.add_work_item_to_phase(
+        patient_1.id,
+        plan.id,
+        phase_1.id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_3.id),
+    )
+    await service.add_work_item_to_phase(
+        patient_1.id,
+        plan.id,
+        phase_1.id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_unpriced.id),
+    )
+
+    # 5. Fetch plan and verify dynamic estimates
+    fetched_plan = await service.get_plan(patient_1.id, plan.id)
+    phases = fetched_plan.phases
+    assert len(phases) == 2
+
+    # Phase 0 items
+    p0 = phases[0]
+    assert p0.phase_order == 0
+    p0_items = {it.work_item_id: it for it in p0.items}
+
+    # Item 1: from patient's VIP list -> 400.0
+    assert p0_items[wi_1.id].estimated_fee == 400.0
+    assert p0_items[wi_1.id].unpriced is False
+
+    # Item 2: not in VIP list, falls back to clinic default list -> 250.0
+    assert p0_items[wi_2.id].estimated_fee == 250.0
+    assert p0_items[wi_2.id].unpriced is False
+
+    # Phase 0 subtotal
+    assert p0.phase_estimated_total == 650.0
+    assert p0.unpriced_items_count == 0
+
+    # Phase 1 items
+    p1 = phases[1]
+    assert p1.phase_order == 1
+    p1_items = {it.work_item_id: it for it in p1.items}
+
+    # Item 3: not in any price list, falls back to Procedure.price -> 150.0
+    assert p1_items[wi_3.id].estimated_fee == 150.0
+    assert p1_items[wi_3.id].unpriced is False
+
+    # Item 4: unpriced procedure -> 0.00, unpriced=True
+    assert p1_items[wi_unpriced.id].estimated_fee == 0.0
+    assert p1_items[wi_unpriced.id].unpriced is True
+
+    # Phase 1 subtotal
+    assert p1.phase_estimated_total == 150.0
+    assert p1.unpriced_items_count == 1
+
+    # Plan total
+    assert fetched_plan.plan_estimated_total == 800.0
+    assert fetched_plan.unpriced_items_count == 1
+
+    # 6. Test dedicated get_plan_estimate method
+    estimate_read = await service.get_plan_estimate(patient_1.id, plan.id)
+    assert estimate_read.plan_id == plan.id
+    assert estimate_read.plan_estimated_total == 800.0
+    assert estimate_read.unpriced_items_count == 1
+    assert estimate_read.price_list_id == vip_price_list.id
+    assert len(estimate_read.phases) == 2
+    assert estimate_read.phases[0].phase_estimated_total == 650.0
+    assert estimate_read.phases[1].phase_estimated_total == 150.0
+
+
+@pytest.mark.asyncio
+async def test_dynamic_estimates_zero_database_side_effects(async_db_session, seed_data, monkeypatch):
+    """
+    Verify Decision D2 & PD04 invariant:
+    Computing and viewing dynamic estimates must NEVER write to finance tables or alter legacy data:
+    - 0 treatments created
+    - 0 payments created
+    - 0 stock movements created
+    - 0 material usages created
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    patient_1 = seed_data["patient_1"]
+    doctor_1 = seed_data["doctor_1"]
+    tenant_1 = seed_data["tenant_1"]
+
+    service = TreatmentPlanService(async_db_session, tenant_1.id, doctor_1)
+
+    # Record baseline counts of finance / clinical legacy tables
+    count_treatments_before = (
+        await async_db_session.execute(select(func.count(models.Treatment.id)))
+    ).scalar_one()
+    count_payments_before = (
+        await async_db_session.execute(select(func.count(models.Payment.id)))
+    ).scalar_one()
+    count_stock_before = (
+        await async_db_session.execute(select(func.count(models.StockMovement.id)))
+    ).scalar_one()
+    count_usages_before = (
+        await async_db_session.execute(select(func.count(models.TreatmentMaterialUsage.id)))
+    ).scalar_one()
+
+    # Perform multiple estimate queries
+    plans = await service.list_plans(patient_1.id)
+    if plans:
+        await service.get_plan_estimate(patient_1.id, plans[0].id)
+
+    # Verify counts remain 100% invariant
+    count_treatments_after = (
+        await async_db_session.execute(select(func.count(models.Treatment.id)))
+    ).scalar_one()
+    count_payments_after = (
+        await async_db_session.execute(select(func.count(models.Payment.id)))
+    ).scalar_one()
+    count_stock_after = (
+        await async_db_session.execute(select(func.count(models.StockMovement.id)))
+    ).scalar_one()
+    count_usages_after = (
+        await async_db_session.execute(select(func.count(models.TreatmentMaterialUsage.id)))
+    ).scalar_one()
+
+    assert count_treatments_after == count_treatments_before
+    assert count_payments_after == count_payments_before
+    assert count_stock_after == count_stock_before
+    assert count_usages_after == count_usages_before
+
+
+@pytest.mark.asyncio
+async def test_http_endpoints_estimate_projection(client, seed_data, async_db_session, monkeypatch):
+    """
+    Test HTTP GET endpoints for estimate projection:
+    - GET /api/v1/patients/{patient_id}/clinical-plans/{plan_id}
+    - GET /api/v1/patients/{patient_id}/clinical-plans/{plan_id}/estimate
+    - Read permissions (CLINICAL_READ)
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    patient_1 = seed_data["patient_1"]
+    doctor_1 = seed_data["doctor_1"]
+    tenant_1 = seed_data["tenant_1"]
+
+    doc_token = create_access_token(
+        data={"sub": doctor_1.username, "tenant_id": doctor_1.tenant_id, "role": "doctor"}
+    )
+    doc_headers = {"Authorization": f"Bearer {doc_token}"}
+
+    # Setup procedure and work item
+    proc = models.Procedure(tenant_id=tenant_1.id, name="Proc Extraction", price=120.0)
+    async_db_session.add(proc)
+    await async_db_session.flush()
+
+    wi = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="Proc Extraction",
+        status="planned",
+    )
+    async_db_session.add(wi)
+    await async_db_session.flush()
+
+    # Create plan via HTTP
+    res_plan = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans",
+        headers=doc_headers,
+        json={"title": "Estimate HTTP Plan"},
+    )
+    assert res_plan.status_code == 200
+    plan_data = res_plan.json()["data"]
+    plan_id = plan_data["id"]
+    phase_id = plan_data["phases"][0]["id"]
+
+    # Attach item
+    res_add_item = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/phases/{phase_id}/items",
+        headers=doc_headers,
+        json={"work_item_id": wi.id},
+    )
+    assert res_add_item.status_code == 200
+
+    # 1. GET single plan with estimates
+    res_get_plan = client.get(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}",
+        headers=doc_headers,
+    )
+    assert res_get_plan.status_code == 200
+    data_plan = res_get_plan.json()["data"]
+    assert data_plan["plan_estimated_total"] == 120.0
+    assert data_plan["unpriced_items_count"] == 0
+    assert data_plan["phases"][0]["phase_estimated_total"] == 120.0
+    assert data_plan["phases"][0]["items"][0]["estimated_fee"] == 120.0
+    assert data_plan["phases"][0]["items"][0]["unpriced"] is False
+
+    # 2. GET dedicated plan estimate projection
+    res_estimate = client.get(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/estimate",
+        headers=doc_headers,
+    )
+    assert res_estimate.status_code == 200
+    data_est = res_estimate.json()["data"]
+    assert data_est["plan_id"] == plan_id
+    assert data_est["plan_estimated_total"] == 120.0
+    assert data_est["unpriced_items_count"] == 0
+    assert len(data_est["phases"]) == 1
+    assert data_est["phases"][0]["phase_estimated_total"] == 120.0
+    assert data_est["phases"][0]["items"][0]["estimated_fee"] == 120.0
+
+    # 3. GET all plans list includes plan_estimated_total
+    res_list = client.get(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans",
+        headers=doc_headers,
+    )
+    assert res_list.status_code == 200
+    plans_list = res_list.json()["data"]
+    matched = [p for p in plans_list if p["id"] == plan_id]
+    assert len(matched) == 1
+    assert matched[0]["plan_estimated_total"] == 120.0

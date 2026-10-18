@@ -14,9 +14,9 @@ Enforces:
 - Unlink item leaves underlying ClinicalWorkItem untouched.
 """
 
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 from fastapi import HTTPException
-from sqlalchemy import func, inspect, select
+from sqlalchemy import func, inspect, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -145,6 +145,203 @@ class TreatmentPlanService:
             raise HTTPException(status_code=404, detail="Treatment plan phase not found")
         return plan, phase
 
+    async def _attach_dynamic_estimates(
+        self,
+        patient_id: int,
+        plans: Union[models.ClinicalTreatmentPlan, List[models.ClinicalTreatmentPlan]],
+    ) -> None:
+        """
+        Dynamically calculate and attach on-the-fly fee estimates per item, phase, and plan (Decision D2 & PD04).
+        Zero database writes: Never modifies database or creates treatment/payment/charge rows.
+        Resolution Order per procedure (PD04):
+        1. Patient default price list (PriceListItem)
+        2. Clinic default price list (PriceListItem)
+        3. Procedure base price (Procedure.price)
+        4. If not found or procedure unpriced, fee=0.00 and unpriced=True.
+        """
+        if not plans:
+            return
+
+        plan_list = plans if isinstance(plans, list) else [plans]
+
+        # 1. Look up patient's default_price_list_id
+        stmt_patient = select(models.Patient.default_price_list_id).where(
+            models.Patient.id == patient_id,
+            models.Patient.tenant_id == self.tenant_id,
+        )
+        patient_price_list_id = (await self.db.execute(stmt_patient)).scalar_one_or_none()
+
+        # 2. Look up clinic default price list
+        stmt_def_list = select(models.PriceList).where(
+            models.PriceList.tenant_id == self.tenant_id,
+            models.PriceList.is_default == True,
+            models.PriceList.is_active == True,
+        )
+        def_list = (await self.db.execute(stmt_def_list)).scalars().first()
+        clinic_default_price_list_id = def_list.id if def_list else None
+
+        # 3. Load all available procedures for this tenant + globals
+        stmt_procs = select(models.Procedure).where(
+            or_(
+                models.Procedure.tenant_id == self.tenant_id,
+                models.Procedure.tenant_id.is_(None),
+            )
+        )
+        procs = (await self.db.execute(stmt_procs)).scalars().all()
+
+        from backend.clinical.legacy_mapping import LEGACY_PROCEDURE_ALLOWLIST
+
+        proc_by_key: Dict[str, models.Procedure] = {}
+        for p in procs:
+            if not p.name:
+                continue
+            name_clean = p.name.strip()
+            proc_by_key[name_clean] = p
+            proc_by_key[name_clean.lower()] = p
+            if name_clean in LEGACY_PROCEDURE_ALLOWLIST:
+                canon = LEGACY_PROCEDURE_ALLOWLIST[name_clean]
+                if canon not in proc_by_key:
+                    proc_by_key[canon] = p
+                    proc_by_key[canon.lower()] = p
+
+        # 4. Load price list items for patient's price list and clinic default price list
+        patient_prices: Dict[int, float] = {}
+        if patient_price_list_id:
+            stmt_pli = select(models.PriceListItem).where(
+                models.PriceListItem.price_list_id == patient_price_list_id
+            )
+            for pli in (await self.db.execute(stmt_pli)).scalars().all():
+                if pli.final_price is not None:
+                    patient_prices[pli.procedure_id] = float(pli.final_price)
+
+        clinic_default_prices: Dict[int, float] = {}
+        if clinic_default_price_list_id and clinic_default_price_list_id != patient_price_list_id:
+            stmt_def_pli = select(models.PriceListItem).where(
+                models.PriceListItem.price_list_id == clinic_default_price_list_id
+            )
+            for pli in (await self.db.execute(stmt_def_pli)).scalars().all():
+                if pli.final_price is not None:
+                    clinic_default_prices[pli.procedure_id] = float(pli.final_price)
+
+        # 5. Calculate and attach estimates
+        for plan in plan_list:
+            plan_total = 0.0
+            plan_unpriced_count = 0
+
+            for phase in getattr(plan, "phases", []) or []:
+                phase_total = 0.0
+                phase_unpriced_count = 0
+
+                for item in getattr(phase, "items", []) or []:
+                    work_item = getattr(item, "work_item", None)
+                    code = getattr(work_item, "code", "") if work_item else ""
+                    clean_code = str(code).strip() if code else ""
+
+                    # Find matching Procedure
+                    matching_proc = (
+                        proc_by_key.get(clean_code)
+                        or proc_by_key.get(clean_code.lower())
+                    )
+
+                    fee = 0.0
+                    is_unpriced = True
+
+                    if matching_proc:
+                        # Priority 1: Patient default price list
+                        if matching_proc.id in patient_prices:
+                            fee = patient_prices[matching_proc.id]
+                            is_unpriced = False
+                        # Priority 2: Clinic default price list
+                        elif matching_proc.id in clinic_default_prices:
+                            fee = clinic_default_prices[matching_proc.id]
+                            is_unpriced = False
+                        # Priority 3: Base Procedure price
+                        elif matching_proc.price is not None:
+                            fee = float(matching_proc.price)
+                            is_unpriced = False
+
+                    item.estimated_fee = round(fee, 2)
+                    item.unpriced = is_unpriced
+
+                    phase_total += item.estimated_fee
+                    if is_unpriced:
+                        phase_unpriced_count += 1
+
+                phase.phase_estimated_total = round(phase_total, 2)
+                phase.unpriced_items_count = phase_unpriced_count
+
+                plan_total += phase.phase_estimated_total
+                plan_unpriced_count += phase.unpriced_items_count
+
+            plan.plan_estimated_total = round(plan_total, 2)
+            plan.unpriced_items_count = plan_unpriced_count
+
+    async def get_plan(
+        self,
+        patient_id: int,
+        plan_id: int,
+    ) -> models.ClinicalTreatmentPlan:
+        """Get single treatment plan with dynamic fee estimates attached."""
+        await self.ensure_enabled()
+        await self._verify_patient(patient_id)
+
+        stmt = (
+            select(models.ClinicalTreatmentPlan)
+            .where(
+                models.ClinicalTreatmentPlan.id == plan_id,
+                models.ClinicalTreatmentPlan.tenant_id == self.tenant_id,
+                models.ClinicalTreatmentPlan.patient_id == patient_id,
+            )
+            .options(_eager_plan_options())
+            .execution_options(populate_existing=True)
+        )
+        plan = (await self.db.execute(stmt)).scalar_one_or_none()
+        if not plan:
+            raise HTTPException(status_code=404, detail="Treatment plan not found")
+        await self._attach_dynamic_estimates(patient_id, plan)
+        return plan
+
+    async def get_plan_estimate(
+        self,
+        patient_id: int,
+        plan_id: int,
+    ) -> schemas.ClinicalTreatmentPlanEstimateRead:
+        """Project dynamic on-the-fly fee estimate for a treatment plan (G9-M10)."""
+        await self.ensure_enabled()
+        await self._verify_patient(patient_id)
+
+        plan = await self.get_plan(patient_id, plan_id)
+
+        stmt_patient = select(models.Patient.default_price_list_id).where(
+            models.Patient.id == patient_id,
+            models.Patient.tenant_id == self.tenant_id,
+        )
+        patient_price_list_id = (await self.db.execute(stmt_patient)).scalar_one_or_none()
+
+        phase_estimates = [
+            schemas.ClinicalTreatmentPlanPhaseEstimateRead(
+                phase_id=ph.id,
+                phase_order=ph.phase_order,
+                phase_name=ph.name,
+                phase_estimated_total=getattr(ph, "phase_estimated_total", 0.0),
+                unpriced_items_count=getattr(ph, "unpriced_items_count", 0),
+                items=[schemas.ClinicalTreatmentPlanItemRead.model_validate(it) for it in ph.items],
+            )
+            for ph in sorted(plan.phases or [], key=lambda p: p.phase_order)
+        ]
+
+        return schemas.ClinicalTreatmentPlanEstimateRead(
+            plan_id=plan.id,
+            patient_id=plan.patient_id,
+            plan_title=plan.title,
+            plan_status=plan.status,
+            plan_estimated_total=getattr(plan, "plan_estimated_total", 0.0),
+            unpriced_items_count=getattr(plan, "unpriced_items_count", 0),
+            currency="EGP",
+            price_list_id=patient_price_list_id,
+            phases=phase_estimates,
+        )
+
     async def create_plan(
         self,
         patient_id: int,
@@ -192,7 +389,9 @@ class TreatmentPlanService:
             )
             .options(_eager_plan_options())
         )
-        return (await self.db.execute(stmt)).scalar_one()
+        reloaded_plan = (await self.db.execute(stmt)).scalar_one()
+        await self._attach_dynamic_estimates(patient_id, reloaded_plan)
+        return reloaded_plan
 
     async def list_plans(
         self,
@@ -215,7 +414,9 @@ class TreatmentPlanService:
             )
         )
         res = await self.db.execute(stmt)
-        return list(res.scalars().all())
+        plans = list(res.scalars().all())
+        await self._attach_dynamic_estimates(patient_id, plans)
+        return plans
 
     async def get_candidate_work_items(
         self,
@@ -302,7 +503,10 @@ class TreatmentPlanService:
                     .selectinload(models.ClinicalWorkItem.targets)
                 )
             )
-            return (await self.db.execute(stmt_reload)).scalar_one()
+            phase_obj = (await self.db.execute(stmt_reload)).scalar_one()
+            phase_obj.phase_estimated_total = 0.0
+            phase_obj.unpriced_items_count = 0
+            return phase_obj
 
         try:
             return await _attempt_insert()
@@ -357,7 +561,14 @@ class TreatmentPlanService:
                 .selectinload(models.ClinicalWorkItem.targets)
             )
         )
-        return (await self.db.execute(stmt)).scalar_one()
+        updated_phase = (await self.db.execute(stmt)).scalar_one()
+        plan_reloaded = await self.get_plan(patient_id, plan_id)
+        for ph in plan_reloaded.phases:
+            if ph.id == updated_phase.id:
+                return ph
+        updated_phase.phase_estimated_total = 0.0
+        updated_phase.unpriced_items_count = 0
+        return updated_phase
 
     async def reorder_phases(
         self,
@@ -409,20 +620,8 @@ class TreatmentPlanService:
             existing_by_id[pid].phase_order = idx
         await self.db.commit()
 
-        stmt_reload = (
-            select(models.ClinicalTreatmentPlanPhase)
-            .where(
-                models.ClinicalTreatmentPlanPhase.tenant_id == self.tenant_id,
-                models.ClinicalTreatmentPlanPhase.plan_id == plan.id,
-            )
-            .options(
-                selectinload(models.ClinicalTreatmentPlanPhase.items)
-                .selectinload(models.ClinicalTreatmentPlanItem.work_item)
-                .selectinload(models.ClinicalWorkItem.targets)
-            )
-            .order_by(models.ClinicalTreatmentPlanPhase.phase_order.asc())
-        )
-        return list((await self.db.execute(stmt_reload)).scalars().all())
+        plan_reloaded = await self.get_plan(patient_id, plan_id)
+        return plan_reloaded.phases
 
     async def delete_phase(
         self,
@@ -552,7 +751,16 @@ class TreatmentPlanService:
                     .selectinload(models.ClinicalWorkItem.targets)
                 )
             )
-            return (await self.db.execute(stmt_reload)).scalar_one()
+            inserted_item = (await self.db.execute(stmt_reload)).scalar_one()
+            plan_reloaded = await self.get_plan(patient_id, plan_id)
+            for ph in plan_reloaded.phases:
+                if ph.id == phase_id:
+                    for it in ph.items:
+                        if it.id == inserted_item.id:
+                            return it
+            inserted_item.estimated_fee = 0.0
+            inserted_item.unpriced = True
+            return inserted_item
 
         try:
             return await _attempt_insert()
@@ -655,4 +863,6 @@ class TreatmentPlanService:
             .options(_eager_plan_options())
             .execution_options(populate_existing=True)
         )
-        return (await self.db.execute(stmt)).scalar_one()
+        transitioned_plan = (await self.db.execute(stmt)).scalar_one()
+        await self._attach_dynamic_estimates(patient_id, transitioned_plan)
+        return transitioned_plan
