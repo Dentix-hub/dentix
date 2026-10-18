@@ -143,6 +143,8 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
         showRoots = true,
         showSurfaces = false,
         selection = null,
+        selectedToothKeys = null,
+        selectedSurfacesByTooth = null,
         onToothClick,
         onSurfaceClick,
     } = options;
@@ -203,6 +205,10 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
         ))
         : null;
 
+    const activeSelectedToothKeys = Array.isArray(selectedToothKeys)
+        ? selectedToothKeys.map(String)
+        : (selection?.toothKey ? [String(selection.toothKey)] : []);
+
     toothOrder.forEach((toothKey) => {
         const raw = rawTeeth[toothKey] || {};
         const rawLifecycle = String(raw.lifecycle || 'PRESENT').toUpperCase();
@@ -226,10 +232,20 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
             reportInvalidTarget,
         );
 
-        const isSelected = selection?.toothKey === toothKey;
-        const selectionTargets = isSelected && mappedSelection && mappedSelection.kind !== 'tooth'
-            ? [mappedSelection]
-            : [];
+        const isSelected = activeSelectedToothKeys.includes(toothKey);
+        const surfacesForTooth = selectedSurfacesByTooth?.[toothKey] || [];
+        const mappedSurfaces = surfacesForTooth.map((code) => mapTarget(
+            { kind: 'surface', tooth_key: toothKey, surface_code: code },
+            toothKey,
+            reportInvalidTarget,
+        )).filter(Boolean);
+
+        const selectionTargets = [
+            ...mappedSurfaces,
+            ...(selection?.toothKey === toothKey && mappedSelection && mappedSelection.kind !== 'tooth' && !surfacesForTooth.includes(mappedSelection.surfaceCode)
+                ? [mappedSelection]
+                : []),
+        ];
 
         teeth[toothKey] = {
             toothKey,
@@ -277,6 +293,8 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
             ...projection,
             teeth: projection.teeth,
             selection: projection.selection,
+            selectedToothKeys: activeSelectedToothKeys,
+            selectedSurfacesByTooth,
         },
         notationMode,
         interactionMode: isReadOnly ? CHART_INTERACTION_MODES.READ_ONLY : CHART_INTERACTION_MODES.EDIT,

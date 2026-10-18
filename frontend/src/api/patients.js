@@ -57,3 +57,14 @@ export const removePatientClinicalPlanItem = (patientId, planId, phaseId, itemId
 export const transitionPatientClinicalPlan = (patientId, planId, data) =>
     api.post(`/api/v1/patients/${patientId}/clinical-plans/${planId}/transition`, data);
 
+export const getPatientClinicalWorkItems = (patientId, { includeCorrected = false } = {}) =>
+    api.get(`/api/v1/patients/${patientId}/clinical-work-items`, { params: { include_corrected: includeCorrected } });
+export const createPatientClinicalFinding = (patientId, data, headers = {}) =>
+    api.post(`/api/v1/patients/${patientId}/clinical-findings`, data, { headers });
+export const createPatientClinicalFindingsBulk = (patientId, data, headers = {}) =>
+    api.post(`/api/v1/patients/${patientId}/clinical-findings/bulk`, data, { headers });
+export const createPatientClinicalProcedure = (patientId, data, headers = {}) =>
+    api.post(`/api/v1/patients/${patientId}/clinical-procedures`, data, { headers });
+export const createPatientClinicalProceduresBulk = (patientId, data, headers = {}) =>
+    api.post(`/api/v1/patients/${patientId}/clinical-procedures/bulk`, data, { headers });
+

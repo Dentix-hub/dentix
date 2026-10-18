@@ -1,6 +1,9 @@
-import { lazy, memo, Suspense, useCallback, useMemo, useRef, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import ClinicalChartRenderer from '@/features/clinical-chart/components/ClinicalChartRenderer';
+import ClinicalChartInspector from '@/features/clinical-chart/components/ClinicalChartInspector';
+import ChartQuickActionLauncher from '@/features/clinical-chart/components/ChartQuickActionLauncher';
+import { CLINICAL_CHART_COPY } from '@/features/clinical-chart/components/clinicalChartWorkspaceCopy';
 import { adaptWorkspaceSnapshotToRenderer } from '@/features/clinical-chart/adapters/workspaceSnapshotAdapter';
 import PatientInfoCard from '@/features/patients/PatientInfoCard';
 import { useProcedures } from '@/shared/context/ProceduresContext';
@@ -32,7 +35,12 @@ import {
     deleteTreatment,
     uploadAttachment,
     deleteAttachment,
-    createPrescription
+    createPrescription,
+    createPatientClinicalFinding,
+    createPatientClinicalFindingsBulk,
+    createPatientClinicalProcedure,
+    createPatientClinicalProceduresBulk,
+    updateToothStatus,
 } from '../api';
 
 const TreatmentHistory = lazy(() => import('@/features/patients/PatientTabs/TreatmentHistory'));
@@ -62,7 +70,7 @@ const PatientInfoSkeleton = memo(() => (
 PatientInfoSkeleton.displayName = 'PatientInfoSkeleton';
 
 export default function PatientDetails() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const { id } = useParams();
     const [searchParams, setSearchParams] = useSearchParams();
@@ -77,6 +85,34 @@ export default function PatientDetails() {
     const { procedures } = useProcedures();
     const [isPediatric, setIsPediatric] = useState(false);
     const [isToothSelectModalOpen, setIsToothSelectModalOpen] = useState(false);
+
+    const [selectedTeeth, setSelectedTeeth] = useState([]);
+    const [selectedSurfacesByTooth, setSelectedSurfacesByTooth] = useState({});
+    const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+    const [activeToothKey, setActiveToothKey] = useState(null);
+    const [isModifierKeyDown, setIsModifierKeyDown] = useState(false);
+
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.shiftKey || e.ctrlKey || e.metaKey || e.key === 'Shift' || e.key === 'Control' || e.key === 'Meta') {
+                setIsModifierKeyDown(true);
+            }
+        };
+        const handleKeyUp = (e) => {
+            if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+                setIsModifierKeyDown(false);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, []);
+
+    const resolvedActiveTooth = activeToothKey || selectedTeeth[selectedTeeth.length - 1] || null;
+    const activeSurfaces = (resolvedActiveTooth && selectedSurfacesByTooth[resolvedActiveTooth]) || [];
 
     const {
         data: patient,
@@ -96,11 +132,11 @@ export default function PatientDetails() {
 
     const { data: tenantFeatures = [] } = useTenantFeatures();
     const isTreatmentPlansEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_treatment_plans');
+    const isNativeWritesEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_vnext_native_writes');
 
     const effectiveTeethStatusRef = useRef({});
 
-
-    const handleToothClick = useCallback((number, notation = 'universal') => {
+    const handleModalToothSelect = useCallback((number, notation = 'universal') => {
         const isFdiKey = notation === 'fdi';
         const fdi = isFdiKey ? Number.parseInt(number, 10) : toothToNumber(number);
         const current = effectiveTeethStatusRef.current[fdi]?.condition || 'Healthy';
@@ -114,30 +150,113 @@ export default function PatientDetails() {
             surface: '',
             surfaces: [],
             target_kind: 'tooth',
-            default_price_list_id: patient?.default_price_list_id
+            default_price_list_id: patient?.default_price_list_id,
         });
         setIsTreatmentModalOpen(true);
     }, [isPediatric, patient]);
 
+    const handleToothClick = useCallback((number, notation = 'universal') => {
+        const isFdiKey = notation === 'fdi';
+        const fdi = isFdiKey ? Number.parseInt(number, 10) : toothToNumber(number);
+        const toothKey = String(fdi);
+        const current = effectiveTeethStatusRef.current[fdi]?.condition || 'Healthy';
+        setSelectedToothCondition(current);
+
+        const isMulti = isMultiSelectMode || isModifierKeyDown;
+
+        if (isMulti) {
+            setSelectedTeeth(prev => {
+                if (prev.includes(toothKey)) {
+                    return prev.filter(k => k !== toothKey);
+                }
+                return [...prev, toothKey];
+            });
+            setActiveToothKey(toothKey);
+        } else {
+            setSelectedTeeth([toothKey]);
+            setActiveToothKey(toothKey);
+        }
+    }, [isMultiSelectMode, isModifierKeyDown]);
+
     const handleSurfaceClick = useCallback((target) => {
         if (!target) return;
         const toothKey = String(target.toothKey || target.tooth_key || '');
-        const surfaceCode = target.surfaceCode || target.surface_code || '';
+        const surfaceCode = String(target.surfaceCode || target.surface_code || '').toUpperCase();
+        if (!toothKey) return;
+
         const fdi = Number.parseInt(toothKey, 10);
         const current = effectiveTeethStatusRef.current[fdi]?.condition || 'Healthy';
         setSelectedToothCondition(current);
+
+        setSelectedTeeth(prev => {
+            if (prev.includes(toothKey)) return prev;
+            return isMultiSelectMode ? [...prev, toothKey] : [toothKey];
+        });
+        setActiveToothKey(toothKey);
+
+        if (surfaceCode) {
+            setSelectedSurfacesByTooth(prev => {
+                const currentSurfaces = prev[toothKey] || [];
+                const nextSurfaces = currentSurfaces.includes(surfaceCode)
+                    ? currentSurfaces.filter(s => s !== surfaceCode)
+                    : [...currentSurfaces, surfaceCode];
+                return {
+                    ...prev,
+                    [toothKey]: nextSurfaces,
+                };
+            });
+        }
+    }, [isMultiSelectMode]);
+
+    const handleToggleSurface = useCallback((surfaceCode) => {
+        if (!resolvedActiveTooth) return;
+        const surfaceUpper = String(surfaceCode).toUpperCase();
+        setSelectedSurfacesByTooth(prev => {
+            const currentSurfaces = prev[resolvedActiveTooth] || [];
+            const nextSurfaces = currentSurfaces.includes(surfaceUpper)
+                ? currentSurfaces.filter(s => s !== surfaceUpper)
+                : [...currentSurfaces, surfaceUpper];
+            return {
+                ...prev,
+                [resolvedActiveTooth]: nextSurfaces,
+            };
+        });
+    }, [resolvedActiveTooth]);
+
+    const handleRecordTreatmentFromSelection = useCallback(() => {
+        const toothKey = resolvedActiveTooth || selectedTeeth[0];
+        if (!toothKey) return;
+        const fdi = Number.parseInt(toothKey, 10);
         const palmerPrefix = fdiToPalmer(fdi);
-        const surfaceUpper = surfaceCode ? String(surfaceCode).toUpperCase() : '';
+        const surfaces = selectedSurfacesByTooth[toothKey] || [];
+        const surfaceUpper = surfaces.join('');
+
         setNewTreatment({
             ...getInitialTreatment(),
             tooth_number: palmerPrefix,
             surface: surfaceUpper,
-            surfaces: surfaceUpper ? [surfaceUpper] : [],
-            target_kind: 'surface',
+            surfaces: [...surfaces],
+            target_kind: surfaces.length > 0 ? 'surface' : 'tooth',
             default_price_list_id: patient?.default_price_list_id,
         });
         setIsTreatmentModalOpen(true);
-    }, [patient]);
+    }, [resolvedActiveTooth, selectedTeeth, selectedSurfacesByTooth, patient]);
+
+    const handleClearSelection = useCallback(() => {
+        setSelectedTeeth([]);
+        setSelectedSurfacesByTooth({});
+        setActiveToothKey(null);
+    }, []);
+
+    const handleRemoveToothFromSelection = useCallback((toothKey) => {
+        setSelectedTeeth(prev => prev.filter(k => k !== toothKey));
+        setSelectedSurfacesByTooth(prev => {
+            const copy = { ...prev };
+            delete copy[toothKey];
+            return copy;
+        });
+        setActiveToothKey(prev => (prev === toothKey ? null : prev));
+    }, []);
 
     const effectiveSnapshot = useMemo(() => {
         if (workspaceSnapshot) return workspaceSnapshot;
@@ -159,10 +278,12 @@ export default function PatientDetails() {
             showRoots: true,
             showSurfaces: true,
             enableSurfaceSelection: true,
+            selectedToothKeys: selectedTeeth,
+            selectedSurfacesByTooth,
             onToothClick: handleToothClick,
             onSurfaceClick: handleSurfaceClick,
         });
-    }, [effectiveSnapshot, id, isPediatric, handleToothClick, handleSurfaceClick]);
+    }, [effectiveSnapshot, id, isPediatric, selectedTeeth, selectedSurfacesByTooth, handleToothClick, handleSurfaceClick]);
 
     const adaptedModalChart = useMemo(() => {
         return adaptWorkspaceSnapshotToRenderer(effectiveSnapshot, {
@@ -171,11 +292,11 @@ export default function PatientDetails() {
             showRoots: false,
             showSurfaces: false,
             onToothClick: (toothKey, notation) => {
-                handleToothClick(toothKey, notation);
+                handleModalToothSelect(toothKey, notation);
                 setIsToothSelectModalOpen(false);
             },
         });
-    }, [effectiveSnapshot, id, isPediatric, handleToothClick]);
+    }, [effectiveSnapshot, id, isPediatric, handleModalToothSelect]);
 
     const [localTeethStatus] = useState(null);
     const effectiveTeethStatus = localTeethStatus ?? (workspaceSnapshot ? adaptedChart.teethStatus : teethStatus);
@@ -355,6 +476,96 @@ export default function PatientDetails() {
         }
     }, [refetchHistory, refetchWorkspace, t]);
 
+    const handleQuickLauncherAction = useCallback(async (actionData) => {
+        const { item, toothKeys, targetKind, surfaces, defaultPrice } = actionData;
+        const primaryTooth = toothKeys[0] || resolvedActiveTooth;
+        if (!primaryTooth) return;
+
+        // Flow A: When clinical_vnext_native_writes is enabled, dispatch to G7 endpoints
+        if (isNativeWritesEnabled) {
+            try {
+                const isFinding = item.kind === 'finding';
+                if (isFinding) {
+                    if (toothKeys.length > 1) {
+                        const items = toothKeys.map((tk) => ({
+                            code: item.code,
+                            targets: targetKind === 'surface' && surfaces.length > 0
+                                ? surfaces.map((s) => ({ tooth_key: tk, target_kind: 'surface', surface_code: s }))
+                                : [{ tooth_key: tk, target_kind: 'tooth' }],
+                        }));
+                        await createPatientClinicalFindingsBulk(id, { items });
+                    } else {
+                        const targets = targetKind === 'surface' && surfaces.length > 0
+                            ? surfaces.map((s) => ({ tooth_key: primaryTooth, target_kind: 'surface', surface_code: s }))
+                            : [{ tooth_key: primaryTooth, target_kind: 'tooth' }];
+                        await createPatientClinicalFinding(id, { code: item.code, targets });
+                    }
+                } else {
+                    // Procedure
+                    if (toothKeys.length > 1) {
+                        const items = toothKeys.map((tk) => ({
+                            code: item.code,
+                            targets: targetKind === 'surface' && surfaces.length > 0
+                                ? surfaces.map((s) => ({ tooth_key: tk, target_kind: 'surface', surface_code: s }))
+                                : [{ tooth_key: tk, target_kind: 'tooth' }],
+                        }));
+                        await createPatientClinicalProceduresBulk(id, { items });
+                    } else {
+                        const targets = targetKind === 'surface' && surfaces.length > 0
+                            ? surfaces.map((s) => ({ tooth_key: primaryTooth, target_kind: 'surface', surface_code: s }))
+                            : [{ tooth_key: primaryTooth, target_kind: 'tooth' }];
+                        await createPatientClinicalProcedure(id, { code: item.code, targets });
+                    }
+                }
+                await Promise.all([refetchWorkspace?.(), refetchTeeth?.(), refetchHistory?.()]);
+                toast.success(t('patient_details.alerts.treatment_save_success', 'Action recorded successfully'));
+            } catch (err) {
+                toast.error(err.response?.data?.detail || t('patient_details.alerts.treatment_save_fail'));
+            }
+            return;
+        }
+
+        // Flow B: Safe legacy path when native writes are OFF (preserves 100% billing and inventory)
+        if (item.kind === 'finding') {
+            try {
+                const fdiNum = Number.parseInt(primaryTooth, 10);
+                const conditionMap = {
+                    CARIES: 'Decayed',
+                    FRACTURE: 'Fractured',
+                    PAIN: 'Decayed',
+                };
+                const condition = conditionMap[item.code] || 'Decayed';
+                await updateToothStatus({
+                    patient_id: parseInt(id, 10),
+                    tooth_number: fdiNum,
+                    condition,
+                });
+                await Promise.all([refetchTeeth?.(), refetchWorkspace?.()]);
+                toast.success(t('patient_details.alerts.treatment_save_success', 'Finding recorded successfully'));
+            } catch (err) {
+                toast.error(t('patient_details.alerts.tooth_update_fail'));
+            }
+            return;
+        }
+
+        // For procedures: open TreatmentModal pre-populated
+        const fdi = Number.parseInt(primaryTooth, 10);
+        const palmerPrefix = fdiToPalmer(fdi);
+        const surfaceStr = Array.isArray(surfaces) ? surfaces.join('') : (surfaces || '');
+
+        setNewTreatment({
+            ...getInitialTreatment(),
+            tooth_number: palmerPrefix,
+            procedure_name: item.name,
+            cost: defaultPrice || 0,
+            surface: surfaceStr,
+            surfaces: Array.isArray(surfaces) ? [...surfaces] : [],
+            target_kind: targetKind || (surfaceStr ? 'surface' : 'tooth'),
+            default_price_list_id: patient?.default_price_list_id,
+        });
+        setIsTreatmentModalOpen(true);
+    }, [id, resolvedActiveTooth, isNativeWritesEnabled, patient, refetchWorkspace, refetchTeeth, refetchHistory, t]);
+
     const handleDeletePayment = useCallback(async (paymentId) => {
         if (!window.confirm(t('patient_details.alerts.delete_payment_confirm'))) return;
         try {
@@ -399,6 +610,38 @@ export default function PatientDetails() {
         event.preventDefault();
         setIsEditPatientOpen(true);
     });
+
+    useHotkeys('/', (event) => {
+        if (activeTab === 'chart') {
+            const target = event.target;
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+                return;
+            }
+            event.preventDefault();
+            if (selectedTeeth.length === 0) {
+                setSelectedTeeth(['16']);
+                setActiveToothKey('16');
+            }
+            setTimeout(() => {
+                const searchInput = document.querySelector('[data-testid="chart-quick-action-search"]');
+                searchInput?.focus();
+            }, 50);
+        }
+    }, [activeTab, selectedTeeth]);
+
+    useHotkeys('alt+k', (event) => {
+        if (activeTab === 'chart') {
+            event.preventDefault();
+            if (selectedTeeth.length === 0) {
+                setSelectedTeeth(['16']);
+                setActiveToothKey('16');
+            }
+            setTimeout(() => {
+                const searchInput = document.querySelector('[data-testid="chart-quick-action-search"]');
+                searchInput?.focus();
+            }, 50);
+        }
+    }, [activeTab, selectedTeeth]);
 
     return (
         <div className="min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-10">
@@ -488,7 +731,7 @@ export default function PatientDetails() {
                                         </div>
                                         <p className="mt-1 break-words text-xs text-slate-500 dark:text-slate-400">{t('patient_details.chart.subtitle')}</p>
                                     </div>
-                                    <div className="grid w-full grid-cols-1 gap-2 min-[400px]:grid-cols-2 md:w-auto">
+                                    <div className="flex flex-wrap items-center gap-2 md:w-auto">
                                         <button
                                             type="button"
                                             onClick={() => setIsPediatric(value => !value)}
@@ -500,8 +743,17 @@ export default function PatientDetails() {
                                         </button>
                                         <button
                                             type="button"
+                                            onClick={() => setIsMultiSelectMode(value => !value)}
+                                            aria-pressed={isMultiSelectMode}
+                                            data-testid="chart-multi-select-toggle"
+                                            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition-colors ${isMultiSelectMode ? 'border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300 ring-2 ring-blue-500' : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}
+                                        >
+                                            <span>{t('patient_details.chart.multi_select', 'Multi-Select')}</span>
+                                        </button>
+                                        <button
+                                            type="button"
                                             onClick={() => setIsToothSelectModalOpen(true)}
-                                            className="min-h-11 rounded-xl bg-emerald-500 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-emerald-600"
+                                            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-500 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-emerald-600"
                                         >
                                             {t('patient_details.chart.new_treatment')}
                                         </button>
@@ -587,7 +839,130 @@ export default function PatientDetails() {
                                         </button>
                                     </section>
                                 ) : (
-                                    <ClinicalChartRenderer input={adaptedChart.rendererInput} />
+                                    <>
+                                        <ClinicalChartRenderer input={adaptedChart.rendererInput} />
+                                        {selectedTeeth.length > 0 && (
+                                            <div
+                                                data-testid="chairside-selection-bar"
+                                                className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                                            >
+                                                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3 dark:border-slate-800">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                                                            {t('patient_details.chart.selected_teeth', 'Selected Teeth')}:
+                                                        </span>
+                                                        <div className="flex flex-wrap items-center gap-1.5" data-testid="selected-teeth-badges">
+                                                            {selectedTeeth.map((toothKey) => {
+                                                                const fdi = Number.parseInt(toothKey, 10);
+                                                                const palmer = fdiToPalmer(fdi);
+                                                                const isActive = toothKey === resolvedActiveTooth;
+                                                                return (
+                                                                    <button
+                                                                        key={toothKey}
+                                                                        type="button"
+                                                                        onClick={() => setActiveToothKey(toothKey)}
+                                                                        className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
+                                                                            isActive
+                                                                                ? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-500 ring-offset-1'
+                                                                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                                                                        }`}
+                                                                        data-testid={`selected-tooth-badge-${toothKey}`}
+                                                                    >
+                                                                        <span>{toothKey} ({palmer})</span>
+                                                                        {isMultiSelectMode && (
+                                                                            <span
+                                                                                role="button"
+                                                                                tabIndex={0}
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handleRemoveToothFromSelection(toothKey);
+                                                                                }}
+                                                                                onKeyDown={(e) => {
+                                                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                                                        e.stopPropagation();
+                                                                                        handleRemoveToothFromSelection(toothKey);
+                                                                                    }
+                                                                                }}
+                                                                                aria-label={`Remove tooth ${toothKey}`}
+                                                                                className="inline-flex h-4 w-4 items-center justify-center rounded-full text-xs hover:bg-black/20"
+                                                                            >
+                                                                                ×
+                                                                            </span>
+                                                                        )}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleClearSelection}
+                                                            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                                                            data-testid="clear-selection-button"
+                                                        >
+                                                            {t('patient_details.chart.clear_selection', 'Clear Selection')}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleRecordTreatmentFromSelection}
+                                                            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-700"
+                                                            data-testid="record-treatment-button"
+                                                        >
+                                                            {t('patient_details.chart.record_treatment', 'Record Treatment')}
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {resolvedActiveTooth && (
+                                                    <div className="flex flex-wrap items-center gap-2 pt-1" data-testid="surface-pill-bar">
+                                                        <span className="me-1 text-xs font-bold text-slate-500 dark:text-slate-400">
+                                                            {t('patient_details.chart.surfaces', 'Surfaces')} ({resolvedActiveTooth}):
+                                                        </span>
+                                                        {['M', 'D', 'O', 'I', 'B', 'L', 'P'].map((code) => {
+                                                            const isSelected = activeSurfaces.includes(code);
+                                                            return (
+                                                                <button
+                                                                    key={code}
+                                                                    type="button"
+                                                                    onClick={() => handleToggleSurface(code)}
+                                                                    aria-pressed={isSelected}
+                                                                    data-testid={`surface-pill-${code}`}
+                                                                    className={`min-h-11 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${
+                                                                        isSelected
+                                                                            ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                                                                            : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                                                                    }`}
+                                                                >
+                                                                    {code}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+
+                                                <ChartQuickActionLauncher
+                                                    selectedTeeth={selectedTeeth}
+                                                    selectedSurfacesByTooth={selectedSurfacesByTooth}
+                                                    onAction={handleQuickLauncherAction}
+                                                    clinicProcedures={procedures}
+                                                    onClose={handleClearSelection}
+                                                />
+
+                                                <ClinicalChartInspector
+                                                    copy={CLINICAL_CHART_COPY[i18n?.language?.startsWith('ar') ? 'ar' : 'en'] || CLINICAL_CHART_COPY.en}
+                                                    title={t('patient_details.chart.title')}
+                                                    selection={{
+                                                        toothKey: resolvedActiveTooth,
+                                                        surfaceCode: activeSurfaces[0] || null,
+                                                        surfaceCodes: activeSurfaces,
+                                                    }}
+                                                    toothState={adaptedChart.projection?.teeth?.[resolvedActiveTooth]}
+                                                />
+                                            </div>
+                                        )}
+                                    </>
                                 )}
 
                                 {isTreatmentPlansEnabled && (
