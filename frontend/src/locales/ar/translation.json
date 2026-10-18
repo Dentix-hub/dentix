@@ -807,7 +807,18 @@
             "exit_sticky": "إنهاء وضع التكرار",
             "activate_sticky": "تفعيل الأداة بشكل متكرر",
             "sticky_mode_toggle": "أداة متكررة",
-            "quick_tools": "إجراءات سريعة"
+            "quick_tools": "إجراءات سريعة",
+            "advanced_entry": "إدخال متقدم",
+            "advanced_entry_tooltip": "فتح نافذة تسجيل العلاج الكلاسيكية",
+            "active_items": "العناصر النشطة",
+            "no_items_on_tooth": "لا توجد حالات أو إجراءات نشطة على هذا السن.",
+            "remove_item": "حذف",
+            "consequence_warning_title": "تحذير: تبعات الحذف",
+            "consequence_warning_lead": "سيؤدي حذف هذا العنصر إلى التأثير على السجلات التالية:",
+            "consequence_plan_warning": "مرتبط بخطة علاجية نشطة",
+            "consequence_payment_warning": "يوجد جلسات مكتملة أو مدفوعات مسجلة",
+            "consequence_confirm_prompt": "هل أنت متأكد من رغبتك في المتابعة؟ لا يمكن التراجع عن هذا الإجراء.",
+            "confirm_removal": "تأكيد الحذف"
         },
         "edit_modal": {
             "title": "تعديل بيانات المريض",

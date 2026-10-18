@@ -800,7 +800,18 @@
             "exit_sticky": "Exit Sticky Mode",
             "activate_sticky": "Activate sticky mode",
             "sticky_mode_toggle": "Sticky Tool",
-            "quick_tools": "Quick Tools"
+            "quick_tools": "Quick Tools",
+            "advanced_entry": "Advanced Entry",
+            "advanced_entry_tooltip": "Open classic treatment entry modal",
+            "active_items": "Active Findings & Procedures",
+            "no_items_on_tooth": "No active findings or procedures on this tooth.",
+            "remove_item": "Remove",
+            "consequence_warning_title": "Warning: Removal Consequences",
+            "consequence_warning_lead": "Removing this item will affect existing clinic records:",
+            "consequence_plan_warning": "Attached to Treatment Plan",
+            "consequence_payment_warning": "Completed Sessions or Payments Recorded",
+            "consequence_confirm_prompt": "Are you sure you want to proceed with removal? This action cannot be undone.",
+            "confirm_removal": "Confirm Removal"
         },
         "edit_modal": {
             "title": "Edit Patient Details",

@@ -26,6 +26,7 @@ import {
     useCreatePayment,
     useDeletePayment,
     useTenantFeatures,
+    usePatientClinicalPlans,
 } from '@/hooks/usePatientDetails';
 import TreatmentPlansCard from '@/features/clinical-plans/TreatmentPlansCard';
 import { useTreatmentOperations } from '@/features/patients/hooks/useTreatmentOperations';
@@ -42,6 +43,7 @@ import {
     createPatientClinicalFindingsBulk,
     createPatientClinicalProcedure,
     createPatientClinicalProceduresBulk,
+    updatePatientClinicalWorkItem,
     updateToothStatus,
 } from '../api';
 
@@ -410,12 +412,15 @@ export default function PatientDetails() {
 
     const { data: history = [], refetch: refetchHistory } = usePatientTreatments(
         id,
-        activeTab === 'history' || activeTab === 'billing' || activeTab === 'timeline'
+        activeTab === 'chart' || activeTab === 'history' || activeTab === 'billing' || activeTab === 'timeline'
     );
     const { data: payments = [] } = usePatientPayments(
         id,
-        activeTab === 'billing' || activeTab === 'timeline'
+        activeTab === 'chart' || activeTab === 'billing' || activeTab === 'timeline'
     );
+    const { data: treatmentPlans = [] } = usePatientClinicalPlans(id, {
+        enabled: isTreatmentPlansEnabled && !!id,
+    });
     const {
         data: attachments = [],
         isLoading: attachmentsLoading,
@@ -581,6 +586,25 @@ export default function PatientDetails() {
             toast.error(error.response?.data?.detail || t('patient_details.alerts.delete_treatment_fail'));
         }
     }, [refetchHistory, refetchWorkspace, t]);
+
+    const handleRemoveWorkItemOrTreatment = useCallback(async (item) => {
+        try {
+            if (item.sourceType === 'treatment' || (!item.sourceType && item.treatment_id)) {
+                await deleteTreatment(item.id);
+                await Promise.all([refetchHistory(), refetchWorkspace()]);
+                toast.success(t('common.delete_success', 'تم الحذف بنجاح'));
+            } else {
+                const workItemId = item.id;
+                if (workItemId && !String(workItemId).startsWith('ve-')) {
+                    await updatePatientClinicalWorkItem(id, workItemId, { status: 'cancelled' });
+                }
+                await refetchWorkspace();
+                toast.success(t('common.delete_success', 'تم الحذف بنجاح'));
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.detail || t('patient_details.alerts.delete_treatment_fail', 'Failed to remove item'));
+        }
+    }, [id, refetchHistory, refetchWorkspace, t]);
 
     const executeClinicalAction = useCallback(async (actionData) => {
         const { item, toothKeys, targetKind, surfaces, defaultPrice } = actionData;
@@ -876,9 +900,12 @@ export default function PatientDetails() {
                                         <button
                                             type="button"
                                             onClick={() => setIsToothSelectModalOpen(true)}
-                                            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-500 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-emerald-600"
+                                            data-testid="header-advanced-entry-button"
+                                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                            title={t('patient_details.chart.advanced_entry_tooltip', 'Open classic treatment entry modal')}
                                         >
-                                            {t('patient_details.chart.new_treatment')}
+                                            <span>{t('patient_details.chart.advanced_entry', 'Advanced Entry')}</span>
+                                            <span className="sr-only">{t('patient_details.chart.new_treatment')}</span>
                                         </button>
                                     </div>
                                 </div>
@@ -1074,10 +1101,11 @@ export default function PatientDetails() {
                                                         <button
                                                             type="button"
                                                             onClick={handleRecordTreatmentFromSelection}
-                                                            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-700"
+                                                            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                                                             data-testid="record-treatment-button"
+                                                            title={t('patient_details.chart.advanced_entry_tooltip', 'Open classic treatment entry modal')}
                                                         >
-                                                            {t('patient_details.chart.record_treatment', 'Record Treatment')}
+                                                            {t('patient_details.chart.advanced_entry', 'Advanced Entry')}
                                                         </button>
                                                     </div>
                                                 </div>
@@ -1130,6 +1158,11 @@ export default function PatientDetails() {
                                                         surfaceCodes: activeSurfaces,
                                                     }}
                                                     toothState={adaptedChart.projection?.teeth?.[resolvedActiveTooth]}
+                                                    workItems={workspaceSnapshot?.work_items || []}
+                                                    treatments={history || []}
+                                                    treatmentPlans={treatmentPlans || []}
+                                                    payments={payments || []}
+                                                    onRemoveItem={handleRemoveWorkItemOrTreatment}
                                                 />
                                             </div>
                                         )}
