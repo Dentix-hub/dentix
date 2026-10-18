@@ -67,4 +67,8 @@ export const createPatientClinicalProcedure = (patientId, data, headers = {}) =>
     api.post(`/api/v1/patients/${patientId}/clinical-procedures`, data, { headers });
 export const createPatientClinicalProceduresBulk = (patientId, data, headers = {}) =>
     api.post(`/api/v1/patients/${patientId}/clinical-procedures/bulk`, data, { headers });
+export const updatePatientClinicalWorkItem = (patientId, workItemId, data) =>
+    api.patch(`/api/v1/patients/${patientId}/clinical-work-items/${workItemId}`, data);
+export const correctPatientClinicalWorkItem = (patientId, workItemId, data, headers = {}) =>
+    api.post(`/api/v1/patients/${patientId}/clinical-work-items/${workItemId}/correct`, data, { headers });
 
