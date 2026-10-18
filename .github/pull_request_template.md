@@ -1,44 +1,22 @@
 ## Summary
 
-<!-- Concise description of the change and user/developer-facing outcome -->
+<!-- Concise description of change and user/developer-facing outcome -->
 
-## Source / Issue
+## How to test on staging (<= 15 min)
 
-Closes #
-<!-- Link to approved plan or spec section if applicable -->
-
-## Scope
-
--
-
-## Non-Goals
-
--
-
-## Changes
-
--
+1. Open staging app at ...
+2. Navigate to ...
+3. Verify that ...
 
 ## Verification
 
-- **Targeted tests**:
-- **Subsystem tests**:
+- **Automated tests**:
 - **Lint / Typecheck**:
-- **Production build**:
-- **Visual evidence (if UI change)**: N/A
 
 ## Sensitive Change Review
 
-- [ ] Not required (standard product, UI, test, or documentation change)
-- [ ] Independent review required and completed
-
-*Reason / Surface (if applicable)*:
-
-## Safety & Compatibility
-
-- Tenant isolation: Preserved
-- RBAC / Permissions: Preserved
-- API contracts / DB schemas: Preserved
+- [ ] Touches tenant isolation / RBAC / finance / migrations / clinical (independent review required)
+- [ ] Standard non-sensitive change
 
 ## Known Limitations
 
