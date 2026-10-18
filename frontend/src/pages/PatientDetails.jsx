@@ -3,6 +3,8 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import ClinicalChartRenderer from '@/features/clinical-chart/components/ClinicalChartRenderer';
 import ClinicalChartInspector from '@/features/clinical-chart/components/ClinicalChartInspector';
 import ChartQuickActionLauncher from '@/features/clinical-chart/components/ChartQuickActionLauncher';
+import ChartStickyToolBanner from '@/features/clinical-chart/components/ChartStickyToolBanner';
+import { getSmartTargetKindAndSurfaces } from '@/features/clinical-chart/domain/catalogDefinitions';
 import { CLINICAL_CHART_COPY } from '@/features/clinical-chart/components/clinicalChartWorkspaceCopy';
 import { adaptWorkspaceSnapshotToRenderer } from '@/features/clinical-chart/adapters/workspaceSnapshotAdapter';
 import PatientInfoCard from '@/features/patients/PatientInfoCard';
@@ -27,7 +29,7 @@ import {
 } from '@/hooks/usePatientDetails';
 import TreatmentPlansCard from '@/features/clinical-plans/TreatmentPlansCard';
 import { useTreatmentOperations } from '@/features/patients/hooks/useTreatmentOperations';
-import { Baby } from 'lucide-react';
+import { Baby, Sparkles } from 'lucide-react';
 
 import { toothToNumber, fdiToPalmer, getTodayStr, universalToPalmer } from '../utils/toothUtils';
 import {
@@ -91,6 +93,57 @@ export default function PatientDetails() {
     const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
     const [activeToothKey, setActiveToothKey] = useState(null);
     const [isModifierKeyDown, setIsModifierKeyDown] = useState(false);
+
+    // Sticky tool mode states
+    const [activeStickyTool, setActiveStickyTool] = useState(null);
+    const [stickyAppliedCount, setStickyAppliedCount] = useState(0);
+    const [isQuickLauncherOpen, setIsQuickLauncherOpen] = useState(false);
+    const executeClinicalActionRef = useRef(null);
+
+    // Mobile touch scroll safety guard
+    const touchStartPosRef = useRef({ x: 0, y: 0, time: 0 });
+    const isTouchScrollingRef = useRef(false);
+
+    const handleTouchStart = useCallback((e) => {
+        if (e.touches && e.touches.length > 0) {
+            touchStartPosRef.current = {
+                x: e.touches[0].clientX,
+                y: e.touches[0].clientY,
+                time: Date.now(),
+            };
+            isTouchScrollingRef.current = false;
+        }
+    }, []);
+
+    const handleTouchMove = useCallback((e) => {
+        if (e.touches && e.touches.length > 0) {
+            const dx = e.touches[0].clientX - touchStartPosRef.current.x;
+            const dy = e.touches[0].clientY - touchStartPosRef.current.y;
+            if (Math.hypot(dx, dy) > 8) {
+                isTouchScrollingRef.current = true;
+            }
+        }
+    }, []);
+
+    const handleTouchEnd = useCallback(() => {
+        if (isTouchScrollingRef.current) {
+            setTimeout(() => {
+                isTouchScrollingRef.current = false;
+            }, 250);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!activeStickyTool) return;
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                setActiveStickyTool(null);
+                setStickyAppliedCount(0);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [activeStickyTool]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -156,11 +209,42 @@ export default function PatientDetails() {
     }, [isPediatric, patient]);
 
     const handleToothClick = useCallback((number, notation = 'universal') => {
+        if (isTouchScrollingRef.current) {
+            return;
+        }
+
         const isFdiKey = notation === 'fdi';
         const fdi = isFdiKey ? Number.parseInt(number, 10) : toothToNumber(number);
         const toothKey = String(fdi);
         const current = effectiveTeethStatusRef.current[fdi]?.condition || 'Healthy';
         setSelectedToothCondition(current);
+
+        // Sticky Tool Mode handling
+        if (activeStickyTool && activeStickyTool.item) {
+            const { item, targetKind, surfaces } = activeStickyTool;
+            let effectiveTargetKind = targetKind;
+            let effectiveSurfaces = surfaces || [];
+
+            if (effectiveTargetKind === 'surface' && effectiveSurfaces.length === 0) {
+                const smart = getSmartTargetKindAndSurfaces(item, toothKey, []);
+                effectiveSurfaces = smart.surfaces.length > 0 ? smart.surfaces : [smart.defaultSurface || 'O'];
+            }
+
+            executeClinicalActionRef.current?.({
+                item,
+                toothKeys: [toothKey],
+                targetKind: effectiveTargetKind,
+                surfaces: effectiveSurfaces,
+                defaultPrice: item.defaultPrice || 0,
+            })?.then((success) => {
+                if (success) {
+                    setStickyAppliedCount((prev) => prev + 1);
+                }
+            });
+
+            setActiveToothKey(toothKey);
+            return;
+        }
 
         const isMulti = isMultiSelectMode || isModifierKeyDown;
 
@@ -176,9 +260,12 @@ export default function PatientDetails() {
             setSelectedTeeth([toothKey]);
             setActiveToothKey(toothKey);
         }
-    }, [isMultiSelectMode, isModifierKeyDown]);
+    }, [isMultiSelectMode, isModifierKeyDown, activeStickyTool]);
 
     const handleSurfaceClick = useCallback((target) => {
+        if (isTouchScrollingRef.current) {
+            return;
+        }
         if (!target) return;
         const toothKey = String(target.toothKey || target.tooth_key || '');
         const surfaceCode = String(target.surfaceCode || target.surface_code || '').toUpperCase();
@@ -187,6 +274,25 @@ export default function PatientDetails() {
         const fdi = Number.parseInt(toothKey, 10);
         const current = effectiveTeethStatusRef.current[fdi]?.condition || 'Healthy';
         setSelectedToothCondition(current);
+
+        // Sticky Tool Mode handling on surface
+        if (activeStickyTool && activeStickyTool.item) {
+            const { item } = activeStickyTool;
+            executeClinicalActionRef.current?.({
+                item,
+                toothKeys: [toothKey],
+                targetKind: 'surface',
+                surfaces: [surfaceCode],
+                defaultPrice: item.defaultPrice || 0,
+            })?.then((success) => {
+                if (success) {
+                    setStickyAppliedCount((prev) => prev + 1);
+                }
+            });
+
+            setActiveToothKey(toothKey);
+            return;
+        }
 
         setSelectedTeeth(prev => {
             if (prev.includes(toothKey)) return prev;
@@ -206,7 +312,7 @@ export default function PatientDetails() {
                 };
             });
         }
-    }, [isMultiSelectMode]);
+    }, [isMultiSelectMode, activeStickyTool]);
 
     const handleToggleSurface = useCallback((surfaceCode) => {
         if (!resolvedActiveTooth) return;
@@ -476,42 +582,42 @@ export default function PatientDetails() {
         }
     }, [refetchHistory, refetchWorkspace, t]);
 
-    const handleQuickLauncherAction = useCallback(async (actionData) => {
+    const executeClinicalAction = useCallback(async (actionData) => {
         const { item, toothKeys, targetKind, surfaces, defaultPrice } = actionData;
-        const primaryTooth = toothKeys[0] || resolvedActiveTooth;
-        if (!primaryTooth) return;
+        const primaryTooth = toothKeys?.[0] || resolvedActiveTooth;
+        if (!primaryTooth) return false;
 
         // Flow A: When clinical_vnext_native_writes is enabled, dispatch to G7 endpoints
         if (isNativeWritesEnabled) {
             try {
                 const isFinding = item.kind === 'finding';
                 if (isFinding) {
-                    if (toothKeys.length > 1) {
+                    if (toothKeys && toothKeys.length > 1) {
                         const items = toothKeys.map((tk) => ({
                             code: item.code,
-                            targets: targetKind === 'surface' && surfaces.length > 0
+                            targets: targetKind === 'surface' && surfaces && surfaces.length > 0
                                 ? surfaces.map((s) => ({ tooth_key: tk, target_kind: 'surface', surface_code: s }))
                                 : [{ tooth_key: tk, target_kind: 'tooth' }],
                         }));
                         await createPatientClinicalFindingsBulk(id, { items });
                     } else {
-                        const targets = targetKind === 'surface' && surfaces.length > 0
+                        const targets = targetKind === 'surface' && surfaces && surfaces.length > 0
                             ? surfaces.map((s) => ({ tooth_key: primaryTooth, target_kind: 'surface', surface_code: s }))
                             : [{ tooth_key: primaryTooth, target_kind: 'tooth' }];
                         await createPatientClinicalFinding(id, { code: item.code, targets });
                     }
                 } else {
                     // Procedure
-                    if (toothKeys.length > 1) {
+                    if (toothKeys && toothKeys.length > 1) {
                         const items = toothKeys.map((tk) => ({
                             code: item.code,
-                            targets: targetKind === 'surface' && surfaces.length > 0
+                            targets: targetKind === 'surface' && surfaces && surfaces.length > 0
                                 ? surfaces.map((s) => ({ tooth_key: tk, target_kind: 'surface', surface_code: s }))
                                 : [{ tooth_key: tk, target_kind: 'tooth' }],
                         }));
                         await createPatientClinicalProceduresBulk(id, { items });
                     } else {
-                        const targets = targetKind === 'surface' && surfaces.length > 0
+                        const targets = targetKind === 'surface' && surfaces && surfaces.length > 0
                             ? surfaces.map((s) => ({ tooth_key: primaryTooth, target_kind: 'surface', surface_code: s }))
                             : [{ tooth_key: primaryTooth, target_kind: 'tooth' }];
                         await createPatientClinicalProcedure(id, { code: item.code, targets });
@@ -519,10 +625,11 @@ export default function PatientDetails() {
                 }
                 await Promise.all([refetchWorkspace?.(), refetchTeeth?.(), refetchHistory?.()]);
                 toast.success(t('patient_details.alerts.treatment_save_success', 'Action recorded successfully'));
+                return true;
             } catch (err) {
                 toast.error(err.response?.data?.detail || t('patient_details.alerts.treatment_save_fail'));
+                return false;
             }
-            return;
         }
 
         // Flow B: Safe legacy path when native writes are OFF (preserves 100% billing and inventory)
@@ -542,10 +649,11 @@ export default function PatientDetails() {
                 });
                 await Promise.all([refetchTeeth?.(), refetchWorkspace?.()]);
                 toast.success(t('patient_details.alerts.treatment_save_success', 'Finding recorded successfully'));
+                return true;
             } catch (err) {
                 toast.error(t('patient_details.alerts.tooth_update_fail'));
+                return false;
             }
-            return;
         }
 
         // For procedures: open TreatmentModal pre-populated
@@ -564,7 +672,11 @@ export default function PatientDetails() {
             default_price_list_id: patient?.default_price_list_id,
         });
         setIsTreatmentModalOpen(true);
+        return true;
     }, [id, resolvedActiveTooth, isNativeWritesEnabled, patient, refetchWorkspace, refetchTeeth, refetchHistory, t]);
+
+    executeClinicalActionRef.current = executeClinicalAction;
+    const handleQuickLauncherAction = executeClinicalAction;
 
     const handleDeletePayment = useCallback(async (paymentId) => {
         if (!window.confirm(t('patient_details.alerts.delete_payment_confirm'))) return;
@@ -752,6 +864,17 @@ export default function PatientDetails() {
                                         </button>
                                         <button
                                             type="button"
+                                            onClick={() => setIsQuickLauncherOpen(value => !value)}
+                                            aria-pressed={isQuickLauncherOpen || !!activeStickyTool}
+                                            data-testid="chart-quick-tool-toggle"
+                                            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition-colors ${isQuickLauncherOpen || activeStickyTool ? 'border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300 ring-2 ring-blue-500' : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}
+                                            title={t('patient_details.chart.quick_tools', 'Quick Tools')}
+                                        >
+                                            <Sparkles size={16} className="shrink-0 text-amber-500" aria-hidden="true" />
+                                            <span>{t('patient_details.chart.quick_tools', 'Quick Tools')}</span>
+                                        </button>
+                                        <button
+                                            type="button"
                                             onClick={() => setIsToothSelectModalOpen(true)}
                                             className="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-500 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-emerald-600"
                                         >
@@ -840,7 +963,51 @@ export default function PatientDetails() {
                                     </section>
                                 ) : (
                                     <>
-                                        <ClinicalChartRenderer input={adaptedChart.rendererInput} />
+                                        <div
+                                            onTouchStart={handleTouchStart}
+                                            onTouchMove={handleTouchMove}
+                                            onTouchEnd={handleTouchEnd}
+                                            onTouchCancel={handleTouchEnd}
+                                            className="space-y-3"
+                                        >
+                                            {activeStickyTool && (
+                                                <ChartStickyToolBanner
+                                                    activeTool={activeStickyTool}
+                                                    appliedCount={stickyAppliedCount}
+                                                    onExit={() => {
+                                                        setActiveStickyTool(null);
+                                                        setStickyAppliedCount(0);
+                                                    }}
+                                                    onSurfaceToggle={(surf) => {
+                                                        setActiveStickyTool((prev) => {
+                                                            if (!prev) return null;
+                                                            const exists = prev.surfaces?.includes(surf);
+                                                            const nextSurfaces = exists
+                                                                ? prev.surfaces.filter((s) => s !== surf)
+                                                                : [...(prev.surfaces || []), surf];
+                                                            return { ...prev, surfaces: nextSurfaces };
+                                                        });
+                                                    }}
+                                                />
+                                            )}
+                                            <ClinicalChartRenderer input={adaptedChart.rendererInput} />
+                                        </div>
+
+                                        {isQuickLauncherOpen && selectedTeeth.length === 0 && (
+                                            <div className="mt-3">
+                                                <ChartQuickActionLauncher
+                                                    selectedTeeth={[]}
+                                                    selectedSurfacesByTooth={{}}
+                                                    onAction={handleQuickLauncherAction}
+                                                    onActivateStickyTool={(tool) => {
+                                                        setActiveStickyTool(tool);
+                                                        setStickyAppliedCount(0);
+                                                    }}
+                                                    clinicProcedures={procedures}
+                                                    onClose={() => setIsQuickLauncherOpen(false)}
+                                                />
+                                            </div>
+                                        )}
                                         {selectedTeeth.length > 0 && (
                                             <div
                                                 data-testid="chairside-selection-bar"
@@ -946,6 +1113,10 @@ export default function PatientDetails() {
                                                     selectedTeeth={selectedTeeth}
                                                     selectedSurfacesByTooth={selectedSurfacesByTooth}
                                                     onAction={handleQuickLauncherAction}
+                                                    onActivateStickyTool={(tool) => {
+                                                        setActiveStickyTool(tool);
+                                                        setStickyAppliedCount(0);
+                                                    }}
                                                     clinicProcedures={procedures}
                                                     onClose={handleClearSelection}
                                                 />

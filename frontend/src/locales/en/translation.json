@@ -793,7 +793,14 @@
             "smart_default_hint": "Smart default surface pre-selected based on anatomy",
             "finding_badge": "Finding",
             "procedure_badge": "Procedure",
-            "apply": "Apply"
+            "apply": "Apply",
+            "sticky_tool_active": "Sticky Tool Active",
+            "sticky_instructions": "Click teeth on the chart to apply. Press Esc or click Exit when done.",
+            "sticky_applied": "Applied: {{count}}",
+            "exit_sticky": "Exit Sticky Mode",
+            "activate_sticky": "Activate sticky mode",
+            "sticky_mode_toggle": "Sticky Tool",
+            "quick_tools": "Quick Tools"
         },
         "edit_modal": {
             "title": "Edit Patient Details",

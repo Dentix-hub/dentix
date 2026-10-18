@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
-import { Search, Star, X, Check, Clock, Sparkles } from 'lucide-react';
+import { Search, Star, X, Check, Clock, Sparkles, MousePointerClick } from 'lucide-react';
 import { useAuthStore } from '@/store/auth.store';
 import {
     ALL_CANONICAL_ACTIONS,
@@ -13,6 +13,7 @@ export default function ChartQuickActionLauncher({
     selectedTeeth = [],
     selectedSurfacesByTooth = {},
     onAction,
+    onActivateStickyTool,
     clinicProcedures = [],
     onClose: _onClose,
 }) {
@@ -126,8 +127,31 @@ export default function ChartQuickActionLauncher({
         });
     }, [combinedActions, searchQuery]);
 
+    const handleActivateSticky = (item, e) => {
+        if (e) e.stopPropagation();
+        pushToRecents(item.code);
+        if (onActivateStickyTool) {
+            const isSurfaceCapable = item.allowed_target_kinds?.includes('surface');
+            const targetKind = isSurfaceCapable ? 'surface' : 'tooth';
+            const defaultSurfaces = isSurfaceCapable
+                ? (existingSurfaces.length > 0 ? existingSurfaces : ['O'])
+                : [];
+            onActivateStickyTool({
+                item,
+                targetKind,
+                surfaces: defaultSurfaces,
+            });
+        }
+    };
+
     // Handle clicking an action
     const handleActionClick = (item) => {
+        if (selectedTeeth.length === 0) {
+            // Procedure-first flow: activate tool for placement on chart
+            handleActivateSticky(item);
+            return;
+        }
+
         const smart = getSmartTargetKindAndSurfaces(item, activeToothKey, existingSurfaces);
 
         // If surfaces are required and no surface was selected yet, prompt with smart default pre-selected
@@ -326,6 +350,7 @@ export default function ChartQuickActionLauncher({
                                     item={item}
                                     isFavorite={favorites.includes(item.code)}
                                     onToggleFavorite={(e) => toggleFavorite(item.code, e)}
+                                    onActivateSticky={(e) => handleActivateSticky(item, e)}
                                     onClick={() => handleActionClick(item)}
                                     isRtl={isRtl}
                                     t={t}
@@ -350,6 +375,7 @@ export default function ChartQuickActionLauncher({
                                     item={item}
                                     isFavorite={true}
                                     onToggleFavorite={(e) => toggleFavorite(item.code, e)}
+                                    onActivateSticky={(e) => handleActivateSticky(item, e)}
                                     onClick={() => handleActionClick(item)}
                                     isRtl={isRtl}
                                     t={t}
@@ -372,6 +398,7 @@ export default function ChartQuickActionLauncher({
                                         item={item}
                                         isFavorite={favorites.includes(item.code)}
                                         onToggleFavorite={(e) => toggleFavorite(item.code, e)}
+                                        onActivateSticky={(e) => handleActivateSticky(item, e)}
                                         onClick={() => handleActionClick(item)}
                                         isRtl={isRtl}
                                         t={t}
@@ -391,6 +418,7 @@ function ActionCard({
     item,
     isFavorite,
     onToggleFavorite,
+    onActivateSticky,
     onClick,
     isRtl,
     t,
@@ -435,23 +463,40 @@ function ActionCard({
                 </span>
             </div>
 
-            <button
-                type="button"
-                onClick={onToggleFavorite}
-                data-testid={`favorite-toggle-${item.code}`}
-                aria-label={
-                    isFavorite
-                        ? t('patient_details.chart.unstar_favorite', 'Remove from favorites')
-                        : t('patient_details.chart.star_favorite', 'Add to favorites')
-                }
-                className="ms-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:text-amber-500"
-            >
-                <Star
-                    className={`h-4 w-4 ${
-                        isFavorite ? 'fill-amber-400 text-amber-500' : 'text-slate-400'
-                    }`}
-                />
-            </button>
+            <div className="ms-2 flex items-center gap-1 shrink-0">
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (onActivateSticky) {
+                            onActivateSticky(e);
+                        }
+                    }}
+                    data-testid={`sticky-toggle-${item.code}`}
+                    aria-label={t('patient_details.chart.activate_sticky', 'Activate sticky mode')}
+                    title={t('patient_details.chart.activate_sticky', 'Activate sticky mode')}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/40 dark:hover:text-blue-300"
+                >
+                    <MousePointerClick className="h-4 w-4" />
+                </button>
+                <button
+                    type="button"
+                    onClick={onToggleFavorite}
+                    data-testid={`favorite-toggle-${item.code}`}
+                    aria-label={
+                        isFavorite
+                            ? t('patient_details.chart.unstar_favorite', 'Remove from favorites')
+                            : t('patient_details.chart.star_favorite', 'Add to favorites')
+                    }
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:text-amber-500"
+                >
+                    <Star
+                        className={`h-4 w-4 ${
+                            isFavorite ? 'fill-amber-400 text-amber-500' : 'text-slate-400'
+                        }`}
+                    />
+                </button>
+            </div>
         </div>
     );
 }
@@ -460,6 +505,7 @@ ChartQuickActionLauncher.propTypes = {
     selectedTeeth: PropTypes.arrayOf(PropTypes.string),
     selectedSurfacesByTooth: PropTypes.object,
     onAction: PropTypes.func,
+    onActivateStickyTool: PropTypes.func,
     clinicProcedures: PropTypes.array,
     onClose: PropTypes.func,
 };
@@ -468,7 +514,9 @@ ActionCard.propTypes = {
     item: PropTypes.object.isRequired,
     isFavorite: PropTypes.bool.isRequired,
     onToggleFavorite: PropTypes.func.isRequired,
+    onActivateSticky: PropTypes.func,
     onClick: PropTypes.func.isRequired,
     isRtl: PropTypes.bool,
     t: PropTypes.func.isRequired,
+    testIdPrefix: PropTypes.string,
 };
