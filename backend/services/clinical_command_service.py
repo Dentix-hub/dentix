@@ -13,16 +13,21 @@ from sqlalchemy.orm.exc import StaleDataError
 
 from backend import models, schemas
 from backend.clinical.catalog import (
+    CANONICAL_CORRECTION_STATUSES,
     CANONICAL_FINDING_CODES,
     CANONICAL_PROCEDURE_CODES,
+    CORRECTION_STATUS_ENTERED_IN_ERROR,
+    CORRECTION_STATUS_SUPERSEDED,
     validate_treatment_status,
 )
 from backend.core.permissions import Permission, has_permission
+from backend.models.clinical_core import FDI_TOOTH_KEYS
 from backend.schemas.clinical_commands import validate_target_shape
 from backend.services.clinical_workspace_service import (
     FEATURE_FLAG_CLINICAL_NATIVE_WRITES,
     FEATURE_FLAG_CLINICAL_PRIMARY,
     FEATURE_FLAG_CLINICAL_SHADOW,
+    ClinicalWorkspaceService as ClinicalWorkspaceSnapshotService,
 )
 from backend.services.feature_service import FeatureFlagService
 from backend.services.patient_access_service import ensure_patient_visible
@@ -603,3 +608,356 @@ class ClinicalCommandService:
         stmt = stmt.order_by(models.ClinicalWorkItem.id.asc())
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
+
+    async def correct_work_item(
+        self,
+        patient_id: int,
+        work_item_id: int,
+        payload: schemas.ClinicalWorkItemCorrectionCreate,
+    ) -> schemas.ClinicalWorkItemCorrectionResponse:
+        """
+        Correct a clinical work item via entered_in_error or supersede mode (Slice S06 / G7-M08).
+        Enforces native writes feature gating, doctor patient visibility, RBAC (TREATMENT_PLAN_WRITE only per PD02b),
+        status guards (409 if already corrected), optimistic concurrency (409 on version mismatch or StaleDataError),
+        and atomicity (zero clinical event mutation or deletion).
+        """
+        await self.ensure_native_writes_enabled()
+        await self._ensure_patient_access(patient_id)
+
+        user = await self._get_active_current_user()
+        user_role = getattr(user, "role", "guest")
+        if not has_permission(user_role, Permission.TREATMENT_PLAN_WRITE):
+            raise HTTPException(
+                status_code=403,
+                detail="Permission denied. Required: treatment_plan:write for work item correction",
+            )
+
+        if not work_item_id or work_item_id <= 0:
+            raise HTTPException(
+                status_code=422,
+                detail="Standalone events without a clinical work item cannot be corrected via work-item correction",
+            )
+
+        stmt = (
+            select(models.ClinicalWorkItem)
+            .options(selectinload(models.ClinicalWorkItem.targets))
+            .where(
+                models.ClinicalWorkItem.id == work_item_id,
+                models.ClinicalWorkItem.tenant_id == self.tenant_id,
+            )
+        )
+        res = await self.db.execute(stmt)
+        work_item = res.scalar_one_or_none()
+        if not work_item or work_item.patient_id != patient_id:
+            # Check if caller passed an event ID for an unlinked standalone event
+            ev_stmt = select(models.ClinicalEvent).where(
+                models.ClinicalEvent.id == work_item_id,
+                models.ClinicalEvent.tenant_id == self.tenant_id,
+                models.ClinicalEvent.patient_id == patient_id,
+            )
+            ev = (await self.db.execute(ev_stmt)).scalar_one_or_none()
+            if ev and ev.work_item_id is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Standalone events without a clinical work item cannot be corrected via work-item correction",
+                )
+            raise HTTPException(status_code=404, detail="Clinical work item not found")
+
+        # Double correction guard: 409 if already entered_in_error or superseded
+        if work_item.status in (
+            CORRECTION_STATUS_ENTERED_IN_ERROR,
+            CORRECTION_STATUS_SUPERSEDED,
+            "entered-in-error",
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Work item is already corrected (status: '{work_item.status}')",
+            )
+
+        # Stale version check (G7-M16 / R04)
+        if payload.expected_version_id is not None and work_item.version_id != payload.expected_version_id:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Stale version: expected {payload.expected_version_id}, found {work_item.version_id}",
+            )
+
+        now = datetime.now(timezone.utc)
+        replacement_work_item: Optional[models.ClinicalWorkItem] = None
+
+        if payload.mode == "entered_in_error":
+            work_item.status = CORRECTION_STATUS_ENTERED_IN_ERROR
+            work_item.updated_at = now
+            correction_event = models.ClinicalEvent(
+                tenant_id=self.tenant_id,
+                patient_id=patient_id,
+                work_item_id=work_item.id,
+                event_type="entered_in_error",
+                occurred_at=now,
+                actor_user_id=self.current_user_id,
+                payload={
+                    "mode": "entered_in_error",
+                    "work_item_id": work_item.id,
+                    "reason": payload.reason,
+                },
+                notes=payload.reason,
+                created_at=now,
+            )
+            for t in work_item.targets:
+                correction_event.targets.append(
+                    models.ClinicalEventTarget(
+                        tenant_id=self.tenant_id,
+                        target_kind=t.target_kind,
+                        tooth_key=t.tooth_key,
+                        surface_code=t.surface_code,
+                        root_id=t.root_id,
+                        canal_id=t.canal_id,
+                        created_at=now,
+                    )
+                )
+            self.db.add(correction_event)
+
+        elif payload.mode == "supersede":
+            if not payload.replacement:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Replacement work item is required when mode is 'supersede'",
+                )
+            if payload.replacement.status not in ("proposed", "planned"):
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Replacement work item status must be 'proposed' or 'planned', got '{payload.replacement.status}'",
+                )
+
+            work_item.status = CORRECTION_STATUS_SUPERSEDED
+            work_item.updated_at = now
+
+            replacement_work_item = await self._create_work_item_internal(
+                patient_id, payload.replacement, now=now
+            )
+
+            correction_event = models.ClinicalEvent(
+                tenant_id=self.tenant_id,
+                patient_id=patient_id,
+                work_item_id=work_item.id,
+                event_type="superseded",
+                occurred_at=now,
+                actor_user_id=self.current_user_id,
+                payload={
+                    "mode": "supersede",
+                    "original_work_item_id": work_item.id,
+                    "replacement_work_item_id": replacement_work_item.id,
+                    "reason": payload.reason,
+                },
+                notes=payload.reason,
+                created_at=now,
+            )
+            for t in work_item.targets:
+                correction_event.targets.append(
+                    models.ClinicalEventTarget(
+                        tenant_id=self.tenant_id,
+                        target_kind=t.target_kind,
+                        tooth_key=t.tooth_key,
+                        surface_code=t.surface_code,
+                        root_id=t.root_id,
+                        canal_id=t.canal_id,
+                        created_at=now,
+                    )
+                )
+            self.db.add(correction_event)
+        else:
+            raise HTTPException(status_code=422, detail=f"Invalid correction mode: '{payload.mode}'")
+
+        try:
+            await self.db.commit()
+        except StaleDataError:
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Concurrent modification detected (stale version)",
+            )
+
+        # Reload original and replacement work items
+        stmt_reload_orig = (
+            select(models.ClinicalWorkItem)
+            .options(selectinload(models.ClinicalWorkItem.targets))
+            .where(
+                models.ClinicalWorkItem.id == work_item.id,
+                models.ClinicalWorkItem.tenant_id == self.tenant_id,
+            )
+        )
+        reloaded_orig = (await self.db.execute(stmt_reload_orig)).scalar_one()
+
+        reloaded_repl: Optional[models.ClinicalWorkItem] = None
+        if replacement_work_item:
+            stmt_reload_repl = (
+                select(models.ClinicalWorkItem)
+                .options(selectinload(models.ClinicalWorkItem.targets))
+                .where(
+                    models.ClinicalWorkItem.id == replacement_work_item.id,
+                    models.ClinicalWorkItem.tenant_id == self.tenant_id,
+                )
+            )
+            reloaded_repl = (await self.db.execute(stmt_reload_repl)).scalar_one()
+
+        return schemas.ClinicalWorkItemCorrectionResponse(
+            original_work_item=schemas.ClinicalWorkItemRead.model_validate(reloaded_orig),
+            replacement_work_item=schemas.ClinicalWorkItemRead.model_validate(reloaded_repl) if reloaded_repl else None,
+            correction_event_id=correction_event.id,
+            mode=payload.mode,
+            reason=payload.reason,
+        )
+
+    async def get_tooth_detail(
+        self,
+        patient_id: int,
+        tooth_key: str,
+    ) -> schemas.ClinicalToothDetailRead:
+        """
+        Get tooth detail (Slice S06 / G7-M10).
+        Validates tooth_key in FDI_TOOTH_KEYS (422 otherwise).
+        Returns workspace projection tooth summary, work items targeting tooth,
+        clinical events targeting tooth, and legacy treatments/tooth-statuses.
+        """
+        await self.ensure_read_access_enabled()
+        await self._ensure_patient_access(patient_id)
+
+        user = await self._get_active_current_user()
+        user_role = getattr(user, "role", "guest")
+        if not has_permission(user_role, Permission.CLINICAL_READ):
+            raise HTTPException(
+                status_code=403,
+                detail="Permission denied. Required: clinical:read",
+            )
+
+        if tooth_key not in FDI_TOOTH_KEYS:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid tooth_key '{tooth_key}'. Must be a valid FDI 2-digit tooth key.",
+            )
+
+        # 1. Summary from workspace snapshot
+        ws_service = ClinicalWorkspaceSnapshotService(self.db, self.tenant_id, user)
+        snapshot = await ws_service.get_workspace_snapshot(patient_id)
+        summary: Optional[schemas.WorkspaceToothSummary] = None
+        if snapshot and snapshot.teeth and tooth_key in snapshot.teeth:
+            summary = snapshot.teeth[tooth_key]
+
+        # 2. Active & historical work items targeting tooth_key
+        wi_stmt = (
+            select(models.ClinicalWorkItem)
+            .join(models.ClinicalWorkItem.targets)
+            .options(selectinload(models.ClinicalWorkItem.targets))
+            .where(
+                models.ClinicalWorkItem.tenant_id == self.tenant_id,
+                models.ClinicalWorkItem.patient_id == patient_id,
+                models.ClinicalWorkItemTarget.tooth_key == tooth_key,
+            )
+            .distinct()
+            .order_by(models.ClinicalWorkItem.id.asc())
+        )
+        wi_rows = (await self.db.execute(wi_stmt)).scalars().all()
+        work_items = [schemas.ClinicalWorkItemRead.model_validate(wi) for wi in wi_rows]
+
+        # 3. Clinical events targeting tooth_key
+        ev_stmt = (
+            select(models.ClinicalEvent)
+            .join(models.ClinicalEvent.targets)
+            .options(selectinload(models.ClinicalEvent.targets))
+            .where(
+                models.ClinicalEvent.tenant_id == self.tenant_id,
+                models.ClinicalEvent.patient_id == patient_id,
+                models.ClinicalEventTarget.tooth_key == tooth_key,
+            )
+            .distinct()
+            .order_by(models.ClinicalEvent.occurred_at.desc(), models.ClinicalEvent.id.desc())
+        )
+        ev_rows = (await self.db.execute(ev_stmt)).scalars().all()
+        events = [schemas.ClinicalEventRead.model_validate(ev) for ev in ev_rows]
+
+        # 4. Legacy records for tooth_key
+        tooth_num = int(tooth_key) if tooth_key.isdigit() else None
+        legacy_treatments: List[schemas.Treatment] = []
+        legacy_tooth_statuses: List[schemas.ToothStatus] = []
+
+        if tooth_num is not None:
+            t_stmt = (
+                select(models.Treatment)
+                .options(selectinload(models.Treatment.treatment_sessions))
+                .where(
+                    models.Treatment.tenant_id == self.tenant_id,
+                    models.Treatment.patient_id == patient_id,
+                    models.Treatment.tooth_number == tooth_num,
+                )
+                .order_by(models.Treatment.id.asc())
+            )
+            t_rows = (await self.db.execute(t_stmt)).scalars().all()
+            legacy_treatments = [schemas.Treatment.model_validate(t) for t in t_rows]
+
+            ts_stmt = (
+                select(models.ToothStatus)
+                .where(
+                    models.ToothStatus.tenant_id == self.tenant_id,
+                    models.ToothStatus.patient_id == patient_id,
+                    models.ToothStatus.tooth_number == tooth_num,
+                )
+                .order_by(models.ToothStatus.id.asc())
+            )
+            ts_rows = (await self.db.execute(ts_stmt)).scalars().all()
+            legacy_tooth_statuses = [schemas.ToothStatus.model_validate(ts) for ts in ts_rows]
+
+        return schemas.ClinicalToothDetailRead(
+            tooth_key=tooth_key,
+            summary=summary,
+            work_items=work_items,
+            events=events,
+            legacy_treatments=legacy_treatments,
+            legacy_tooth_statuses=legacy_tooth_statuses,
+        )
+
+    async def list_patient_events(
+        self,
+        patient_id: int,
+        include_entered_in_error: bool = False,
+    ) -> List[schemas.ClinicalEventRead]:
+        """
+        List raw patient clinical events (Slice S06 / G7-M11).
+        Reads raw ClinicalEvent rows directly from database.
+        Default (include_entered_in_error=False) excludes events where event_type is
+        in CANONICAL_CORRECTION_STATUSES or attached work_item.status is in CANONICAL_CORRECTION_STATUSES.
+        When include_entered_in_error=True, returns all raw events ordered by occurred_at DESC, id DESC.
+        """
+        await self.ensure_read_access_enabled()
+        await self._ensure_patient_access(patient_id)
+
+        user = await self._get_active_current_user()
+        user_role = getattr(user, "role", "guest")
+        if not has_permission(user_role, Permission.CLINICAL_READ):
+            raise HTTPException(
+                status_code=403,
+                detail="Permission denied. Required: clinical:read",
+            )
+
+        stmt = (
+            select(models.ClinicalEvent)
+            .outerjoin(models.ClinicalWorkItem, models.ClinicalEvent.work_item_id == models.ClinicalWorkItem.id)
+            .options(selectinload(models.ClinicalEvent.targets))
+            .where(
+                models.ClinicalEvent.tenant_id == self.tenant_id,
+                models.ClinicalEvent.patient_id == patient_id,
+            )
+        )
+        if not include_entered_in_error:
+            corr_statuses = (
+                CORRECTION_STATUS_ENTERED_IN_ERROR,
+                CORRECTION_STATUS_SUPERSEDED,
+                "entered-in-error",
+            )
+            stmt = stmt.where(
+                models.ClinicalEvent.event_type.not_in(corr_statuses),
+                (models.ClinicalEvent.work_item_id.is_(None))
+                | (models.ClinicalWorkItem.status.not_in(corr_statuses)),
+            )
+
+        stmt = stmt.order_by(models.ClinicalEvent.occurred_at.desc(), models.ClinicalEvent.id.desc())
+        ev_rows = (await self.db.execute(stmt)).scalars().all()
+        return [schemas.ClinicalEventRead.model_validate(ev) for ev in ev_rows]

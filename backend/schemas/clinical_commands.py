@@ -4,7 +4,7 @@ Defines request/response models for native clinical work item mutations and quer
 """
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from backend.clinical.catalog import (
@@ -18,6 +18,8 @@ from backend.models.clinical_core import (
     SURFACE_CODES,
     TARGET_KINDS,
 )
+from backend.schemas.clinical import ToothStatus, Treatment
+from backend.schemas.clinical_workspace import WorkspaceToothSummary
 
 
 def validate_target_shape(
@@ -213,6 +215,66 @@ class ClinicalProcedureBulkCreate(BaseModel):
 class ClinicalBulkWorkItemResponse(BaseModel):
     items: List[ClinicalWorkItemRead]
     count: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ---------------------------------------------------------------------------
+# Slice S06: Correction, History & Tooth Detail Schemas (G7-M08, G7-M10, G7-M11)
+# ---------------------------------------------------------------------------
+
+
+class ClinicalWorkItemCorrectionCreate(BaseModel):
+    mode: Literal["entered_in_error", "supersede"]
+    reason: str = Field(..., min_length=1, max_length=500)
+    replacement: Optional[ClinicalWorkItemCreate] = None
+    expected_version_id: Optional[int] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def validate_mode_and_replacement(self) -> "ClinicalWorkItemCorrectionCreate":
+        if self.mode == "supersede" and self.replacement is None:
+            raise ValueError("Replacement work item is required when mode is 'supersede'")
+        if self.mode == "entered_in_error" and self.replacement is not None:
+            raise ValueError("Replacement work item must not be provided when mode is 'entered_in_error'")
+        return self
+
+
+class ClinicalWorkItemCorrectionResponse(BaseModel):
+    original_work_item: ClinicalWorkItemRead
+    replacement_work_item: Optional[ClinicalWorkItemRead] = None
+    correction_event_id: int
+    mode: str
+    reason: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ClinicalEventRead(BaseModel):
+    id: int
+    tenant_id: int
+    patient_id: int
+    work_item_id: Optional[int] = None
+    care_session_id: Optional[int] = None
+    event_type: str
+    occurred_at: datetime
+    actor_user_id: Optional[int] = None
+    payload: dict = Field(default_factory=dict)
+    notes: Optional[str] = None
+    created_at: datetime
+    targets: List[ClinicalTargetRead] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ClinicalToothDetailRead(BaseModel):
+    tooth_key: str
+    summary: Optional[WorkspaceToothSummary] = None
+    work_items: List[ClinicalWorkItemRead] = Field(default_factory=list)
+    events: List[ClinicalEventRead] = Field(default_factory=list)
+    legacy_treatments: List[Treatment] = Field(default_factory=list)
+    legacy_tooth_statuses: List[ToothStatus] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 

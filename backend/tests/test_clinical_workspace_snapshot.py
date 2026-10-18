@@ -44,7 +44,7 @@ from backend.models import (
     User,
 )
 from backend.auth import create_access_token
-from backend.clinical.catalog import FindingCode, ProcedureCode
+from backend.clinical.catalog import CANONICAL_CORRECTION_STATUSES, FindingCode, ProcedureCode
 from backend.services.clinical_workspace_service import (
     ClinicalWorkspaceService,
     _normalized_datetime,
@@ -257,6 +257,44 @@ async def test_snapshot_excludes_superseded_and_entered_in_error(workspace_test_
         # Work item 20 should NOT be in active work items
         active_ids = {wi.id for wi in snapshot.work_items}
         assert 20 not in active_ids
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status_val", CANONICAL_CORRECTION_STATUSES)
+async def test_snapshot_excludes_each_canonical_correction_status(
+    workspace_test_engine, status_val
+):
+    """Verify that every status in CANONICAL_CORRECTION_STATUSES is excluded from the workspace snapshot (S06)."""
+    with Session(workspace_test_engine) as session:
+        _enable_vnext_primary(session, tenant_id=1)
+        wi = ClinicalWorkItem(
+            id=250 + (1 if status_val == "entered_in_error" else 2),
+            tenant_id=1,
+            patient_id=101,
+            kind="finding",
+            code="CARIES",
+            status=status_val,
+            created_at=datetime.now(timezone.utc),
+        )
+        target = ClinicalWorkItemTarget(
+            tenant_id=1,
+            work_item_id=wi.id,
+            target_kind="tooth",
+            tooth_key="21",
+        )
+        session.add_all([wi, target])
+        session.commit()
+
+        wrapped_db = AsyncSessionWrapper(session)
+        service = ClinicalWorkspaceService(wrapped_db, tenant_id=1)
+        snapshot = await service.get_workspace_snapshot(101)
+
+        t21 = snapshot.teeth["21"]
+        caries_entries = [f for f in t21.findings if f.code == "CARIES"]
+        assert len(caries_entries) == 0
+
+        active_ids = {item.id for item in snapshot.work_items}
+        assert wi.id not in active_ids
 
 
 @pytest.mark.asyncio

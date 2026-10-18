@@ -24,10 +24,19 @@ from sqlalchemy.orm.exc import StaleDataError
 
 from backend import models, schemas
 from backend.auth import create_access_token
-from backend.clinical.catalog import FindingCode, ProcedureCode
+from backend.clinical.catalog import (
+    CANONICAL_CORRECTION_STATUSES,
+    CORRECTION_STATUS_ENTERED_IN_ERROR,
+    CORRECTION_STATUS_SUPERSEDED,
+    FindingCode,
+    ProcedureCode,
+)
 from backend.models.inventory import StockMovement
 from backend.services.clinical_command_service import ClinicalCommandService
-from backend.services.clinical_workspace_service import FEATURE_FLAG_CLINICAL_NATIVE_WRITES
+from backend.services.clinical_workspace_service import (
+    FEATURE_FLAG_CLINICAL_NATIVE_WRITES,
+    FEATURE_FLAG_CLINICAL_PRIMARY,
+)
 from backend.services.feature_service import FeatureFlagService
 
 
@@ -1089,5 +1098,459 @@ async def test_legacy_treatment_count_invariance_on_native_routes(client, seed_d
 
     final_treatments = await async_db_session.scalar(stmt_count)
     assert final_treatments == initial_treatments
+
+
+# ===========================================================================
+# S06 Tests: Work-Item Correction, Tooth Detail, and History APIs
+# (G7-M08, G7-M10, G7-M11)
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+async def test_correct_work_item_entered_in_error(client, seed_data, async_db_session):
+    """mode='entered_in_error' sets status='entered_in_error' and appends entered_in_error event."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    # 1. Create finding work item
+    create_res = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-findings",
+        headers=headers,
+        json={"code": FindingCode.CARIES.value, "tooth_key": "16", "notes": "Initial finding"},
+    )
+    assert create_res.status_code == 201
+    wi_id = create_res.json()["data"]["id"]
+
+    # 2. Correct via entered_in_error
+    correct_res = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-work-items/{wi_id}/correct",
+        headers=headers,
+        json={"mode": "entered_in_error", "reason": "Accidental clinical entry"},
+    )
+    assert correct_res.status_code == 200
+    data = correct_res.json()["data"]
+    assert data["mode"] == "entered_in_error"
+    assert data["reason"] == "Accidental clinical entry"
+    assert data["original_work_item"]["id"] == wi_id
+    assert data["original_work_item"]["status"] == "entered_in_error"
+    assert data["replacement_work_item"] is None
+    assert data["correction_event_id"] is not None
+
+    # 3. Verify event recorded in DB
+    ev_stmt = (
+        select(models.ClinicalEvent)
+        .options(selectinload(models.ClinicalEvent.targets))
+        .where(models.ClinicalEvent.id == data["correction_event_id"])
+    )
+    event = (await async_db_session.execute(ev_stmt)).scalar_one()
+    assert event.event_type == "entered_in_error"
+    assert event.payload["mode"] == "entered_in_error"
+    assert event.payload["work_item_id"] == wi_id
+    assert event.payload["reason"] == "Accidental clinical entry"
+    assert len(event.targets) == 1
+    assert event.targets[0].tooth_key == "16"
+
+
+@pytest.mark.asyncio
+async def test_correct_work_item_supersede(client, seed_data, async_db_session):
+    """mode='supersede' sets status='superseded', creates replacement, and records link event."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    # 1. Create initial procedure work item on tooth 16 surface O
+    create_res = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-procedures",
+        headers=headers,
+        json={
+            "code": ProcedureCode.REST_COMPOSITE.value,
+            "tooth_key": "16",
+            "surfaces": ["O"],
+            "notes": "Initial composite",
+        },
+    )
+    assert create_res.status_code == 201
+    orig_wi_id = create_res.json()["data"]["id"]
+
+    # 2. Correct via supersede with replacement on tooth 16 surfaces M and O
+    correct_res = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-work-items/{orig_wi_id}/correct",
+        headers=headers,
+        json={
+            "mode": "supersede",
+            "reason": "Expanded prep to MO",
+            "replacement": {
+                "kind": "procedure",
+                "code": ProcedureCode.REST_COMPOSITE.value,
+                "status": "planned",
+                "notes": "Replacement MO composite",
+                "targets": [
+                    {"target_kind": "surface", "tooth_key": "16", "surface_code": "M"},
+                    {"target_kind": "surface", "tooth_key": "16", "surface_code": "O"},
+                ],
+            },
+        },
+    )
+    assert correct_res.status_code == 200
+    data = correct_res.json()["data"]
+    assert data["mode"] == "supersede"
+    assert data["reason"] == "Expanded prep to MO"
+    assert data["original_work_item"]["id"] == orig_wi_id
+    assert data["original_work_item"]["status"] == "superseded"
+    assert data["replacement_work_item"] is not None
+    repl_wi_id = data["replacement_work_item"]["id"]
+    assert repl_wi_id != orig_wi_id
+    assert data["replacement_work_item"]["status"] == "planned"
+    assert len(data["replacement_work_item"]["targets"]) == 2
+
+    # 3. Verify event recorded in DB
+    ev_stmt = (
+        select(models.ClinicalEvent)
+        .options(selectinload(models.ClinicalEvent.targets))
+        .where(models.ClinicalEvent.id == data["correction_event_id"])
+    )
+    event = (await async_db_session.execute(ev_stmt)).scalar_one()
+    assert event.event_type == "superseded"
+    assert event.payload["mode"] == "supersede"
+    assert event.payload["original_work_item_id"] == orig_wi_id
+    assert event.payload["replacement_work_item_id"] == repl_wi_id
+    assert event.payload["reason"] == "Expanded prep to MO"
+
+
+@pytest.mark.asyncio
+async def test_double_correction_conflict_409(client, seed_data, async_db_session):
+    """Correcting an already corrected work item returns 409 Conflict."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    create_res = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-findings",
+        headers=headers,
+        json={"code": FindingCode.CARIES.value, "tooth_key": "16"},
+    )
+    wi_id = create_res.json()["data"]["id"]
+
+    # First correction succeeds
+    res_1 = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-work-items/{wi_id}/correct",
+        headers=headers,
+        json={"mode": "entered_in_error", "reason": "First correction"},
+    )
+    assert res_1.status_code == 200
+
+    # Second correction fails with 409
+    res_2 = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-work-items/{wi_id}/correct",
+        headers=headers,
+        json={"mode": "entered_in_error", "reason": "Second correction attempt"},
+    )
+    assert res_2.status_code == 409
+    assert "already corrected" in res_2.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_correction_stale_version_409(client, seed_data, async_db_session):
+    """Passing stale expected_version_id to /correct returns 409 Conflict."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    create_res = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-findings",
+        headers=headers,
+        json={"code": FindingCode.CARIES.value, "tooth_key": "16"},
+    )
+    wi_id = create_res.json()["data"]["id"]
+
+    # Stale version
+    res = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-work-items/{wi_id}/correct",
+        headers=headers,
+        json={"mode": "entered_in_error", "reason": "Stale version test", "expected_version_id": 999},
+    )
+    assert res.status_code == 409
+    assert "stale version" in res.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_correction_standalone_event_unlinked_422(client, seed_data, async_db_session):
+    """Attempting to correct an unlinked standalone event returns 422 Unprocessable Entity."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    # Insert a standalone event without work_item_id
+    standalone_ev = models.ClinicalEvent(
+        tenant_id=doctor_1.tenant_id,
+        patient_id=patient_1.id,
+        work_item_id=None,
+        event_type="tooth_status_recorded",
+        payload={"tooth_key": "16", "status": "Sound"},
+        notes="Backfilled status event",
+    )
+    async_db_session.add(standalone_ev)
+    await async_db_session.commit()
+
+    # Attempt to correct via work-item correction using the standalone event ID
+    res = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-work-items/{standalone_ev.id}/correct",
+        headers=headers,
+        json={"mode": "entered_in_error", "reason": "Attempting to correct standalone event"},
+    )
+    assert res.status_code == 422
+    assert "Standalone events without a clinical work item cannot be corrected via work-item correction" in res.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_correction_rbac_and_gates(client, seed_data, async_db_session):
+    """RBAC per PD02b: Doctor 200, Admin 200, Nurse 403, Receptionist 403. Flag OFF -> 404."""
+    doctor_1 = seed_data["doctor_1"]
+    nurse_1 = seed_data["nurse_1"]
+    receptionist_1 = seed_data["receptionist_1"]
+    admin_1 = seed_data["admin_1"]
+    doctor_2 = seed_data["doctor_2"]
+    patient_1 = seed_data["patient_1"]
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    create_res = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-findings",
+        headers=make_headers(doctor_1),
+        json={"code": FindingCode.CARIES.value, "tooth_key": "16"},
+    )
+    wi_id = create_res.json()["data"]["id"]
+
+    # Nurse (CLINICAL_WRITE only, lacks TREATMENT_PLAN_WRITE) -> 403
+    res_nurse = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-work-items/{wi_id}/correct",
+        headers=make_headers(nurse_1),
+        json={"mode": "entered_in_error", "reason": "Nurse attempt"},
+    )
+    assert res_nurse.status_code == 403
+
+    # Receptionist -> 403
+    res_rec = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-work-items/{wi_id}/correct",
+        headers=make_headers(receptionist_1),
+        json={"mode": "entered_in_error", "reason": "Receptionist attempt"},
+    )
+    assert res_rec.status_code == 403
+
+    # Cross-tenant (Doctor 2 on Tenant 1) -> 404
+    res_cross = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-work-items/{wi_id}/correct",
+        headers=make_headers(doctor_2),
+        json={"mode": "entered_in_error", "reason": "Cross-tenant attempt"},
+    )
+    assert res_cross.status_code == 404
+
+    # Admin (has TREATMENT_PLAN_WRITE) -> 200
+    res_admin = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-work-items/{wi_id}/correct",
+        headers=make_headers(admin_1),
+        json={"mode": "entered_in_error", "reason": "Admin correction"},
+    )
+    assert res_admin.status_code == 200
+
+    # Another work item with flag OFF -> 404
+    create_res2 = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-findings",
+        headers=make_headers(doctor_1),
+        json={"code": FindingCode.CARIES.value, "tooth_key": "17"},
+    )
+    wi_id2 = create_res2.json()["data"]["id"]
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, False)
+    res_flag_off = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-work-items/{wi_id2}/correct",
+        headers=make_headers(doctor_1),
+        json={"mode": "entered_in_error", "reason": "Flag off test"},
+    )
+    assert res_flag_off.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_tooth_detail_api(client, seed_data, async_db_session):
+    """GET /clinical-teeth/{tooth_key} returns summary, work items, events, and legacy records."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    # 1. Native work item and event on tooth 16
+    client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-findings",
+        headers=headers,
+        json={"code": FindingCode.CARIES.value, "tooth_key": "16"},
+    )
+
+    # 2. Legacy treatment and tooth status on tooth 16
+    treatment = models.Treatment(
+        tenant_id=doctor_1.tenant_id,
+        patient_id=patient_1.id,
+        tooth_number=16,
+        procedure="Composite Filling",
+        cost=100.0,
+        status="Done",
+    )
+    status_row = models.ToothStatus(
+        tenant_id=doctor_1.tenant_id,
+        patient_id=patient_1.id,
+        tooth_number=16,
+        condition="Caries",
+    )
+    async_db_session.add_all([treatment, status_row])
+    await async_db_session.commit()
+
+    # 3. Call tooth detail API for tooth 16
+    res = client.get(
+        f"/api/v1/patients/{patient_1.id}/clinical-teeth/16",
+        headers=headers,
+    )
+    assert res.status_code == 200
+    data = res.json()["data"]
+    assert data["tooth_key"] == "16"
+    assert len(data["work_items"]) >= 1
+    assert len(data["events"]) >= 1
+    assert len(data["legacy_treatments"]) >= 1
+    assert len(data["legacy_tooth_statuses"]) >= 1
+
+    # 4. Invalid FDI tooth key -> 422
+    res_invalid = client.get(
+        f"/api/v1/patients/{patient_1.id}/clinical-teeth/99",
+        headers=headers,
+    )
+    assert res_invalid.status_code == 422
+    assert "Invalid tooth_key" in res_invalid.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_history_api_raw_and_filtering(client, seed_data, async_db_session):
+    """History API returns raw DB events; default excludes corrected items, audit mode includes all."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    # Create work item 1 (active)
+    res_1 = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-findings",
+        headers=headers,
+        json={"code": FindingCode.CARIES.value, "tooth_key": "16", "notes": "Active finding"},
+    )
+    wi_1_id = res_1.json()["data"]["id"]
+
+    # Create work item 2 (to be corrected)
+    res_2 = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-findings",
+        headers=headers,
+        json={"code": FindingCode.FRACTURE.value, "tooth_key": "17", "notes": "Will be corrected"},
+    )
+    wi_2_id = res_2.json()["data"]["id"]
+
+    # Correct work item 2
+    client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-work-items/{wi_2_id}/correct",
+        headers=headers,
+        json={"mode": "entered_in_error", "reason": "Mistaken tooth 17 fracture"},
+    )
+
+    # 1. Default call (include_entered_in_error=False)
+    res_default = client.get(
+        f"/api/v1/patients/{patient_1.id}/clinical-events",
+        headers=headers,
+    )
+    assert res_default.status_code == 200
+    events_default = res_default.json()["data"]
+    work_item_ids_default = [e["work_item_id"] for e in events_default]
+    assert wi_1_id in work_item_ids_default
+    assert wi_2_id not in work_item_ids_default
+    assert not any(e["event_type"] in CANONICAL_CORRECTION_STATUSES for e in events_default)
+
+    # 2. Audit call (include_entered_in_error=True)
+    res_audit = client.get(
+        f"/api/v1/patients/{patient_1.id}/clinical-events?include_entered_in_error=true",
+        headers=headers,
+    )
+    assert res_audit.status_code == 200
+    events_audit = res_audit.json()["data"]
+    work_item_ids_audit = [e["work_item_id"] for e in events_audit]
+    assert wi_1_id in work_item_ids_audit
+    assert wi_2_id in work_item_ids_audit
+    assert any(e["event_type"] == "entered_in_error" for e in events_audit)
+
+
+@pytest.mark.asyncio
+async def test_zero_event_mutation_and_financial_invariance_on_correction(client, seed_data, async_db_session):
+    """Correcting work items NEVER mutates existing ClinicalEvent rows and has zero financial delta."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    # Create work item
+    res_create = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-findings",
+        headers=headers,
+        json={"code": FindingCode.CARIES.value, "tooth_key": "16"},
+    )
+    wi_id = res_create.json()["data"]["id"]
+
+    # Record pre-correction snapshots
+    stmt_events = select(models.ClinicalEvent).where(models.ClinicalEvent.patient_id == patient_1.id)
+    pre_events = (await async_db_session.execute(stmt_events)).scalars().all()
+    pre_event_map = {e.id: (e.event_type, e.occurred_at, dict(e.payload), e.notes) for e in pre_events}
+    pre_event_count = len(pre_events)
+
+    pre_treatment_count = await async_db_session.scalar(select(func.count(models.Treatment.id)))
+    pre_payment_count = await async_db_session.scalar(select(func.count(models.Payment.id)))
+    pre_stock_count = await async_db_session.scalar(select(func.count(StockMovement.id)))
+
+    # Execute correction
+    correct_res = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-work-items/{wi_id}/correct",
+        headers=headers,
+        json={"mode": "entered_in_error", "reason": "Zero-mutation test"},
+    )
+    assert correct_res.status_code == 200
+
+    # Post-correction verification
+    post_events = (await async_db_session.execute(stmt_events)).scalars().all()
+    post_event_count = len(post_events)
+    # Exactly ONE new event appended
+    assert post_event_count == pre_event_count + 1
+
+    # Every pre-existing event is 100% untouched
+    for e in post_events:
+        if e.id in pre_event_map:
+            orig_type, orig_occurred, orig_payload, orig_notes = pre_event_map[e.id]
+            assert e.event_type == orig_type
+            assert e.occurred_at == orig_occurred
+            assert e.payload == orig_payload
+            assert e.notes == orig_notes
+
+    # Financial / legacy tables completely unchanged
+    post_treatment_count = await async_db_session.scalar(select(func.count(models.Treatment.id)))
+    post_payment_count = await async_db_session.scalar(select(func.count(models.Payment.id)))
+    post_stock_count = await async_db_session.scalar(select(func.count(StockMovement.id)))
+
+    assert post_treatment_count == pre_treatment_count
+    assert post_payment_count == pre_payment_count
+    assert post_stock_count == pre_stock_count
 
 

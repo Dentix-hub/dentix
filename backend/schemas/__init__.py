@@ -66,7 +66,7 @@ from .treatment_plan import (
     ClinicalTreatmentPlanTransition,
 )
 
-# Clinical Commands (Slice S04 & S05)
+# Clinical Commands (Slice S04, S05, S06)
 from .clinical_commands import (
     ClinicalTargetInput,
     ClinicalTargetRead,
@@ -78,6 +78,10 @@ from .clinical_commands import (
     ClinicalProcedureCreate,
     ClinicalProcedureBulkCreate,
     ClinicalBulkWorkItemResponse,
+    ClinicalWorkItemCorrectionCreate,
+    ClinicalWorkItemCorrectionResponse,
+    ClinicalEventRead,
+    ClinicalToothDetailRead,
 )
 
 
@@ -368,7 +372,7 @@ __all__ = [
     "ClinicalTreatmentPlanCreate",
     "ClinicalTreatmentPlanRead",
     "ClinicalTreatmentPlanTransition",
-    # Clinical Commands (Slice S04 & S05)
+    # Clinical Commands (Slice S04, S05, S06)
     "ClinicalTargetInput",
     "ClinicalTargetRead",
     "ClinicalWorkItemCreate",
@@ -379,5 +383,9 @@ __all__ = [
     "ClinicalProcedureCreate",
     "ClinicalProcedureBulkCreate",
     "ClinicalBulkWorkItemResponse",
+    "ClinicalWorkItemCorrectionCreate",
+    "ClinicalWorkItemCorrectionResponse",
+    "ClinicalEventRead",
+    "ClinicalToothDetailRead",
 ]
 
