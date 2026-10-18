@@ -448,6 +448,8 @@ from backend.routers import (
     financials,  # Smart Costing & Financials
     metrics,  # Metrics & Profitability
     push,  # PWA Web Push subscriptions (plan §12)
+    treatment_plans,  # Clinical Treatment Plans (Slice G9a)
+    clinical_commands,  # Clinical Commands (Slice S04)
 )
 
 # --- Register Exception Handlers ---
@@ -472,7 +474,12 @@ async def get_session_direct_root(
 app.include_router(treatments.router, prefix=API_V1_STR)
 
 app.include_router(patients.router, prefix=API_V1_STR)
+app.include_router(treatment_plans.router, prefix=API_V1_STR)
+app.include_router(treatment_plans.router)
+app.include_router(clinical_commands.router, prefix=API_V1_STR)
+app.include_router(clinical_commands.router)
 app.include_router(auth.router, prefix=f"{API_V1_STR}/auth")
+
 app.include_router(password_reset.router, prefix=f"{API_V1_STR}/auth")
 app.include_router(appointments.router, prefix=API_V1_STR)
 app.include_router(users.router, prefix=API_V1_STR)

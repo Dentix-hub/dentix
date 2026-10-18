@@ -1,6 +1,5 @@
 import { lazy, memo, Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import DentalChartSVG from '@/features/dental/DentalChartSVG';
 import ClinicalChartRenderer from '@/features/clinical-chart/components/ClinicalChartRenderer';
 import { adaptWorkspaceSnapshotToRenderer } from '@/features/clinical-chart/adapters/workspaceSnapshotAdapter';
 import PatientInfoCard from '@/features/patients/PatientInfoCard';
@@ -20,10 +19,13 @@ import {
     usePatientPayments,
     usePatientAttachments,
     useCreatePayment,
-    useDeletePayment
+    useDeletePayment,
+    useTenantFeatures,
 } from '@/hooks/usePatientDetails';
+import TreatmentPlansCard from '@/features/clinical-plans/TreatmentPlansCard';
 import { useTreatmentOperations } from '@/features/patients/hooks/useTreatmentOperations';
 import { Baby } from 'lucide-react';
+
 import { toothToNumber, fdiToPalmer, getTodayStr, universalToPalmer } from '../utils/toothUtils';
 import {
     updatePatient,
@@ -74,6 +76,7 @@ export default function PatientDetails() {
 
     const { procedures } = useProcedures();
     const [isPediatric, setIsPediatric] = useState(false);
+    const [isToothSelectModalOpen, setIsToothSelectModalOpen] = useState(false);
 
     const {
         data: patient,
@@ -89,9 +92,13 @@ export default function PatientDetails() {
         isError: workspaceIsError,
         error: workspaceError,
         refetch: refetchWorkspace,
-    } = usePatientClinicalWorkspace(id, { enabled: activeTab === 'chart' });
+    } = usePatientClinicalWorkspace(id, { enabled: activeTab === 'chart' || isToothSelectModalOpen });
+
+    const { data: tenantFeatures = [] } = useTenantFeatures();
+    const isTreatmentPlansEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_treatment_plans');
 
     const effectiveTeethStatusRef = useRef({});
+
 
     const handleToothClick = useCallback((number, notation = 'universal') => {
         const isFdiKey = notation === 'fdi';
@@ -132,8 +139,21 @@ export default function PatientDetails() {
         setIsTreatmentModalOpen(true);
     }, [patient]);
 
+    const effectiveSnapshot = useMemo(() => {
+        if (workspaceSnapshot) return workspaceSnapshot;
+        if (!teethStatus || Object.keys(teethStatus).length === 0) return null;
+        const teeth = {};
+        Object.entries(teethStatus).forEach(([num, item]) => {
+            teeth[String(num)] = {
+                condition: item?.condition,
+                notes: item?.notes,
+            };
+        });
+        return { teeth };
+    }, [workspaceSnapshot, teethStatus]);
+
     const adaptedChart = useMemo(() => {
-        return adaptWorkspaceSnapshotToRenderer(workspaceSnapshot, {
+        return adaptWorkspaceSnapshotToRenderer(effectiveSnapshot, {
             chartId: `patient-chart-${id}`,
             isPediatric,
             showRoots: true,
@@ -142,7 +162,20 @@ export default function PatientDetails() {
             onToothClick: handleToothClick,
             onSurfaceClick: handleSurfaceClick,
         });
-    }, [workspaceSnapshot, id, isPediatric, handleToothClick, handleSurfaceClick]);
+    }, [effectiveSnapshot, id, isPediatric, handleToothClick, handleSurfaceClick]);
+
+    const adaptedModalChart = useMemo(() => {
+        return adaptWorkspaceSnapshotToRenderer(effectiveSnapshot, {
+            chartId: `patient-modal-chart-${id}`,
+            isPediatric,
+            showRoots: false,
+            showSurfaces: false,
+            onToothClick: (toothKey, notation) => {
+                handleToothClick(toothKey, notation);
+                setIsToothSelectModalOpen(false);
+            },
+        });
+    }, [effectiveSnapshot, id, isPediatric, handleToothClick]);
 
     const [localTeethStatus] = useState(null);
     const effectiveTeethStatus = localTeethStatus ?? (workspaceSnapshot ? adaptedChart.teethStatus : teethStatus);
@@ -166,7 +199,6 @@ export default function PatientDetails() {
     const [isRxModalOpen, setIsRxModalOpen] = useState(false);
     const [isTreatmentModalOpen, setIsTreatmentModalOpen] = useState(false);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-    const [isToothSelectModalOpen, setIsToothSelectModalOpen] = useState(false);
 
     const getInitialTreatment = () => ({
         date: getTodayStr(),
@@ -557,8 +589,13 @@ export default function PatientDetails() {
                                 ) : (
                                     <ClinicalChartRenderer input={adaptedChart.rendererInput} />
                                 )}
+
+                                {isTreatmentPlansEnabled && (
+                                    <TreatmentPlansCard patientId={id} />
+                                )}
                             </div>
                         )}
+
 
                         {activeTab === 'timeline' && <PatientTimeline history={history} payments={payments} t={t} />}
 
@@ -634,14 +671,7 @@ export default function PatientDetails() {
                 size="lg"
             >
                 <div className="min-w-0 space-y-4">
-                    <DentalChartSVG
-                        teethStatus={effectiveTeethStatus}
-                        onToothClick={(number) => {
-                            handleToothClick(number);
-                            setIsToothSelectModalOpen(false);
-                        }}
-                        isPediatric={isPediatric}
-                    />
+                    <ClinicalChartRenderer input={adaptedModalChart.rendererInput} />
                     <div className="sticky bottom-0 z-10 -mx-3 border-t border-border bg-surface-elevated px-3 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-3 sm:-mx-4 sm:px-4">
                         <button
                             type="button"
