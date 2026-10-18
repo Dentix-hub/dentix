@@ -48,6 +48,8 @@ class ClinicalTreatmentPlanItemRead(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     work_item: Optional[ClinicalWorkItemSummaryRead] = None
+    estimated_fee: float = 0.0
+    unpriced: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -83,6 +85,8 @@ class ClinicalTreatmentPlanPhaseRead(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     items: List[ClinicalTreatmentPlanItemRead] = []
+    phase_estimated_total: float = 0.0
+    unpriced_items_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -106,6 +110,8 @@ class ClinicalTreatmentPlanRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     phases: List[ClinicalTreatmentPlanPhaseRead] = []
+    plan_estimated_total: float = 0.0
+    unpriced_items_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -114,3 +120,28 @@ class ClinicalTreatmentPlanTransition(BaseModel):
     to_status: str = Field(..., min_length=1, max_length=32, description="Target status for treatment plan")
 
     model_config = ConfigDict(extra="forbid")
+
+
+class ClinicalTreatmentPlanPhaseEstimateRead(BaseModel):
+    phase_id: int
+    phase_order: int
+    phase_name: str
+    phase_estimated_total: float = 0.0
+    unpriced_items_count: int = 0
+    items: List[ClinicalTreatmentPlanItemRead] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ClinicalTreatmentPlanEstimateRead(BaseModel):
+    plan_id: int
+    patient_id: int
+    plan_title: str
+    plan_status: str
+    plan_estimated_total: float = 0.0
+    unpriced_items_count: int = 0
+    currency: str = "EGP"
+    price_list_id: Optional[int] = None
+    phases: List[ClinicalTreatmentPlanPhaseEstimateRead] = []
+
+    model_config = ConfigDict(from_attributes=True)

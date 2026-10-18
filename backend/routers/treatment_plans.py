@@ -56,6 +56,46 @@ async def list_patient_clinical_plans(
 
 
 @router.get(
+    "/{patient_id}/clinical-plans/{plan_id}",
+    response_model=StandardResponse[schemas.ClinicalTreatmentPlanRead],
+    summary="Get patient clinical treatment plan",
+    description="Retrieve a single treatment plan with its phases, procedures, and dynamic fee estimates.",
+)
+async def get_patient_clinical_plan(
+    patient_id: int,
+    plan_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
+):
+    service = TreatmentPlanService(db, current_user.tenant_id, current_user)
+    plan = await service.get_plan(patient_id, plan_id)
+    return success_response(
+        data=schemas.ClinicalTreatmentPlanRead.model_validate(plan),
+        message="Treatment plan retrieved successfully",
+    )
+
+
+@router.get(
+    "/{patient_id}/clinical-plans/{plan_id}/estimate",
+    response_model=StandardResponse[schemas.ClinicalTreatmentPlanEstimateRead],
+    summary="Get treatment plan estimate projection",
+    description="Calculate and project dynamic on-the-fly fee estimate for a treatment plan without persisting financial records.",
+)
+async def get_patient_clinical_plan_estimate(
+    patient_id: int,
+    plan_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
+):
+    service = TreatmentPlanService(db, current_user.tenant_id, current_user)
+    estimate = await service.get_plan_estimate(patient_id, plan_id)
+    return success_response(
+        data=estimate,
+        message="Treatment plan estimate projected successfully",
+    )
+
+
+@router.get(
     "/{patient_id}/clinical-plans/{plan_id}/candidate-work-items",
     response_model=StandardResponse[List[schemas.ClinicalWorkItemSummaryRead]],
     summary="List candidate work items for treatment plan",

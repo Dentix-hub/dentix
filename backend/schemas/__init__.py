@@ -66,6 +66,8 @@ from .treatment_plan import (
     ClinicalTreatmentPlanCreate,
     ClinicalTreatmentPlanRead,
     ClinicalTreatmentPlanTransition,
+    ClinicalTreatmentPlanPhaseEstimateRead,
+    ClinicalTreatmentPlanEstimateRead,
 )
 
 # Clinical Commands (Slice S04, S05, S06)
