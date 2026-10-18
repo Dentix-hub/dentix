@@ -2,6 +2,7 @@ import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import ClinicalChartRenderer from '@/features/clinical-chart/components/ClinicalChartRenderer';
 import ClinicalChartInspector from '@/features/clinical-chart/components/ClinicalChartInspector';
+import ChartQuickActionLauncher from '@/features/clinical-chart/components/ChartQuickActionLauncher';
 import { CLINICAL_CHART_COPY } from '@/features/clinical-chart/components/clinicalChartWorkspaceCopy';
 import { adaptWorkspaceSnapshotToRenderer } from '@/features/clinical-chart/adapters/workspaceSnapshotAdapter';
 import PatientInfoCard from '@/features/patients/PatientInfoCard';
@@ -34,7 +35,12 @@ import {
     deleteTreatment,
     uploadAttachment,
     deleteAttachment,
-    createPrescription
+    createPrescription,
+    createPatientClinicalFinding,
+    createPatientClinicalFindingsBulk,
+    createPatientClinicalProcedure,
+    createPatientClinicalProceduresBulk,
+    updateToothStatus,
 } from '../api';
 
 const TreatmentHistory = lazy(() => import('@/features/patients/PatientTabs/TreatmentHistory'));
@@ -126,6 +132,7 @@ export default function PatientDetails() {
 
     const { data: tenantFeatures = [] } = useTenantFeatures();
     const isTreatmentPlansEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_treatment_plans');
+    const isNativeWritesEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_vnext_native_writes');
 
     const effectiveTeethStatusRef = useRef({});
 
@@ -469,6 +476,96 @@ export default function PatientDetails() {
         }
     }, [refetchHistory, refetchWorkspace, t]);
 
+    const handleQuickLauncherAction = useCallback(async (actionData) => {
+        const { item, toothKeys, targetKind, surfaces, defaultPrice } = actionData;
+        const primaryTooth = toothKeys[0] || resolvedActiveTooth;
+        if (!primaryTooth) return;
+
+        // Flow A: When clinical_vnext_native_writes is enabled, dispatch to G7 endpoints
+        if (isNativeWritesEnabled) {
+            try {
+                const isFinding = item.kind === 'finding';
+                if (isFinding) {
+                    if (toothKeys.length > 1) {
+                        const items = toothKeys.map((tk) => ({
+                            code: item.code,
+                            targets: targetKind === 'surface' && surfaces.length > 0
+                                ? surfaces.map((s) => ({ tooth_key: tk, target_kind: 'surface', surface_code: s }))
+                                : [{ tooth_key: tk, target_kind: 'tooth' }],
+                        }));
+                        await createPatientClinicalFindingsBulk(id, { items });
+                    } else {
+                        const targets = targetKind === 'surface' && surfaces.length > 0
+                            ? surfaces.map((s) => ({ tooth_key: primaryTooth, target_kind: 'surface', surface_code: s }))
+                            : [{ tooth_key: primaryTooth, target_kind: 'tooth' }];
+                        await createPatientClinicalFinding(id, { code: item.code, targets });
+                    }
+                } else {
+                    // Procedure
+                    if (toothKeys.length > 1) {
+                        const items = toothKeys.map((tk) => ({
+                            code: item.code,
+                            targets: targetKind === 'surface' && surfaces.length > 0
+                                ? surfaces.map((s) => ({ tooth_key: tk, target_kind: 'surface', surface_code: s }))
+                                : [{ tooth_key: tk, target_kind: 'tooth' }],
+                        }));
+                        await createPatientClinicalProceduresBulk(id, { items });
+                    } else {
+                        const targets = targetKind === 'surface' && surfaces.length > 0
+                            ? surfaces.map((s) => ({ tooth_key: primaryTooth, target_kind: 'surface', surface_code: s }))
+                            : [{ tooth_key: primaryTooth, target_kind: 'tooth' }];
+                        await createPatientClinicalProcedure(id, { code: item.code, targets });
+                    }
+                }
+                await Promise.all([refetchWorkspace?.(), refetchTeeth?.(), refetchHistory?.()]);
+                toast.success(t('patient_details.alerts.treatment_save_success', 'Action recorded successfully'));
+            } catch (err) {
+                toast.error(err.response?.data?.detail || t('patient_details.alerts.treatment_save_fail'));
+            }
+            return;
+        }
+
+        // Flow B: Safe legacy path when native writes are OFF (preserves 100% billing and inventory)
+        if (item.kind === 'finding') {
+            try {
+                const fdiNum = Number.parseInt(primaryTooth, 10);
+                const conditionMap = {
+                    CARIES: 'Decayed',
+                    FRACTURE: 'Fractured',
+                    PAIN: 'Decayed',
+                };
+                const condition = conditionMap[item.code] || 'Decayed';
+                await updateToothStatus({
+                    patient_id: parseInt(id, 10),
+                    tooth_number: fdiNum,
+                    condition,
+                });
+                await Promise.all([refetchTeeth?.(), refetchWorkspace?.()]);
+                toast.success(t('patient_details.alerts.treatment_save_success', 'Finding recorded successfully'));
+            } catch (err) {
+                toast.error(t('patient_details.alerts.tooth_update_fail'));
+            }
+            return;
+        }
+
+        // For procedures: open TreatmentModal pre-populated
+        const fdi = Number.parseInt(primaryTooth, 10);
+        const palmerPrefix = fdiToPalmer(fdi);
+        const surfaceStr = Array.isArray(surfaces) ? surfaces.join('') : (surfaces || '');
+
+        setNewTreatment({
+            ...getInitialTreatment(),
+            tooth_number: palmerPrefix,
+            procedure_name: item.name,
+            cost: defaultPrice || 0,
+            surface: surfaceStr,
+            surfaces: Array.isArray(surfaces) ? [...surfaces] : [],
+            target_kind: targetKind || (surfaceStr ? 'surface' : 'tooth'),
+            default_price_list_id: patient?.default_price_list_id,
+        });
+        setIsTreatmentModalOpen(true);
+    }, [id, resolvedActiveTooth, isNativeWritesEnabled, patient, refetchWorkspace, refetchTeeth, refetchHistory, t]);
+
     const handleDeletePayment = useCallback(async (paymentId) => {
         if (!window.confirm(t('patient_details.alerts.delete_payment_confirm'))) return;
         try {
@@ -513,6 +610,38 @@ export default function PatientDetails() {
         event.preventDefault();
         setIsEditPatientOpen(true);
     });
+
+    useHotkeys('/', (event) => {
+        if (activeTab === 'chart') {
+            const target = event.target;
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+                return;
+            }
+            event.preventDefault();
+            if (selectedTeeth.length === 0) {
+                setSelectedTeeth(['16']);
+                setActiveToothKey('16');
+            }
+            setTimeout(() => {
+                const searchInput = document.querySelector('[data-testid="chart-quick-action-search"]');
+                searchInput?.focus();
+            }, 50);
+        }
+    }, [activeTab, selectedTeeth]);
+
+    useHotkeys('alt+k', (event) => {
+        if (activeTab === 'chart') {
+            event.preventDefault();
+            if (selectedTeeth.length === 0) {
+                setSelectedTeeth(['16']);
+                setActiveToothKey('16');
+            }
+            setTimeout(() => {
+                const searchInput = document.querySelector('[data-testid="chart-quick-action-search"]');
+                searchInput?.focus();
+            }, 50);
+        }
+    }, [activeTab, selectedTeeth]);
 
     return (
         <div className="min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-10">
@@ -812,6 +941,14 @@ export default function PatientDetails() {
                                                         })}
                                                     </div>
                                                 )}
+
+                                                <ChartQuickActionLauncher
+                                                    selectedTeeth={selectedTeeth}
+                                                    selectedSurfacesByTooth={selectedSurfacesByTooth}
+                                                    onAction={handleQuickLauncherAction}
+                                                    clinicProcedures={procedures}
+                                                    onClose={handleClearSelection}
+                                                />
 
                                                 <ClinicalChartInspector
                                                     copy={CLINICAL_CHART_COPY[i18n?.language?.startsWith('ar') ? 'ar' : 'en'] || CLINICAL_CHART_COPY.en}
