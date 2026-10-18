@@ -169,3 +169,67 @@ async def create_patient_clinical_procedures_bulk(
         status_code=status.HTTP_201_CREATED,
     )
 
+
+# ---------------------------------------------------------------------------
+# Slice S06: Correction, Tooth Detail & History Endpoints (G7-M08, G7-M10, G7-M11)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{patient_id}/clinical-work-items/{work_item_id}/correct",
+    response_model=StandardResponse[schemas.ClinicalWorkItemCorrectionResponse],
+    summary="Correct clinical work item",
+    description="Correct a clinical work item via entered_in_error or supersede mode. Clinical only.",
+)
+async def correct_patient_clinical_work_item(
+    patient_id: int,
+    work_item_id: int,
+    payload: schemas.ClinicalWorkItemCorrectionCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(
+        require_permission(Permission.TREATMENT_PLAN_WRITE)
+    ),
+):
+    service = ClinicalCommandService(db, current_user.tenant_id, current_user)
+    result = await service.correct_work_item(patient_id, work_item_id, payload)
+    return success_response(
+        data=result,
+        message=f"Clinical work item corrected successfully ({payload.mode})",
+    )
+
+
+@router.get(
+    "/{patient_id}/clinical-teeth/{tooth_key}",
+    response_model=StandardResponse[schemas.ClinicalToothDetailRead],
+    summary="Get clinical tooth detail",
+    description="Get tooth summary, work items, events, and legacy treatments for a single tooth.",
+)
+async def get_patient_clinical_tooth_detail(
+    patient_id: int,
+    tooth_key: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
+):
+    service = ClinicalCommandService(db, current_user.tenant_id, current_user)
+    result = await service.get_tooth_detail(patient_id, tooth_key)
+    return success_response(data=result)
+
+
+@router.get(
+    "/{patient_id}/clinical-events",
+    response_model=StandardResponse[List[schemas.ClinicalEventRead]],
+    summary="List patient clinical events",
+    description="List raw clinical event audit log for a patient. Excludes corrected items by default.",
+)
+async def list_patient_clinical_events(
+    patient_id: int,
+    include_entered_in_error: bool = Query(default=False),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
+):
+    service = ClinicalCommandService(db, current_user.tenant_id, current_user)
+    items = await service.list_patient_events(
+        patient_id, include_entered_in_error=include_entered_in_error
+    )
+    return success_response(data=items)
+

@@ -106,6 +106,20 @@ CANONICAL_TREATMENT_LIFECYCLE_CODES: tuple[str, ...] = tuple(c.value for c in Tr
 
 
 # ---------------------------------------------------------------------------
+# G7-M08: Work-Item Correction Statuses (Slice S06)
+# Terminal statuses set exclusively via work-item correction endpoint
+# ---------------------------------------------------------------------------
+
+CORRECTION_STATUS_ENTERED_IN_ERROR: str = "entered_in_error"
+CORRECTION_STATUS_SUPERSEDED: str = "superseded"
+CANONICAL_CORRECTION_STATUSES: tuple[str, ...] = (
+    CORRECTION_STATUS_ENTERED_IN_ERROR,
+    CORRECTION_STATUS_SUPERSEDED,
+)
+
+
+
+# ---------------------------------------------------------------------------
 # Target Kinds (Exact parity with PROJECTION_TARGET_KINDS)
 # Exactly: tooth, surface, root, canal
 # ---------------------------------------------------------------------------
