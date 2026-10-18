@@ -379,6 +379,81 @@ export default function PatientDetails() {
         return { teeth };
     }, [workspaceSnapshot, teethStatus]);
 
+    const [activeOverlayPlanId, setActiveOverlayPlanId] = useState(null);
+    const [activeOverlayPhaseId, setActiveOverlayPhaseId] = useState(null);
+
+    const { data: treatmentPlans = [] } = usePatientClinicalPlans(id, {
+        enabled: isTreatmentPlansEnabled && !!id,
+    });
+
+    const handleTogglePlanOverlay = useCallback((planId, phaseId = null) => {
+        setActiveOverlayPlanId((prevPlanId) => {
+            if (prevPlanId === planId && (phaseId === null || activeOverlayPhaseId === phaseId)) {
+                setActiveOverlayPhaseId(null);
+                return null;
+            }
+            setActiveOverlayPhaseId(phaseId);
+            return planId;
+        });
+    }, [activeOverlayPhaseId]);
+
+    const planOverlay = useMemo(() => {
+        if (!activeOverlayPlanId || !treatmentPlans || treatmentPlans.length === 0) return null;
+        const plan = treatmentPlans.find((p) => p.id === activeOverlayPlanId);
+        if (!plan) return null;
+
+        const PHASE_COLORS = [
+            { border: '#3b82f6', bg: '#eff6ff', text: '#1d4ed8', badgeBg: '#2563eb', label: 'Phase 1' },
+            { border: '#10b981', bg: '#ecfdf5', text: '#047857', badgeBg: '#059669', label: 'Phase 2' },
+            { border: '#f59e0b', bg: '#fffbeb', text: '#b45309', badgeBg: '#d97706', label: 'Phase 3' },
+            { border: '#8b5cf6', bg: '#f5f3ff', text: '#6d28d9', badgeBg: '#7c3aed', label: 'Phase 4' },
+            { border: '#ec4899', bg: '#fdf2f8', text: '#be185d', badgeBg: '#db2777', label: 'Phase 5' },
+        ];
+
+        const teethMap = {};
+        (plan.phases || []).forEach((ph, pIdx) => {
+            if (activeOverlayPhaseId && ph.id !== activeOverlayPhaseId) return;
+            const colorConfig = PHASE_COLORS[pIdx % PHASE_COLORS.length];
+            (ph.items || []).forEach((item) => {
+                const targets = item.work_item?.targets || [];
+                targets.forEach((target) => {
+                    if (target.tooth_key) {
+                        const tk = String(target.tooth_key);
+                        if (!teethMap[tk]) {
+                            teethMap[tk] = {
+                                phaseId: ph.id,
+                                phaseOrder: ph.phase_order,
+                                phaseName: ph.name,
+                                phaseIndex: pIdx,
+                                color: colorConfig.badgeBg,
+                                borderColor: colorConfig.border,
+                                bgColor: colorConfig.bg,
+                                badge: `P${pIdx + 1}`,
+                                procedureCodes: [item.work_item?.code].filter(Boolean),
+                            };
+                        } else {
+                            if (item.work_item?.code && !teethMap[tk].procedureCodes.includes(item.work_item.code)) {
+                                teethMap[tk].procedureCodes.push(item.work_item.code);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+
+        return {
+            planId: plan.id,
+            planTitle: plan.title,
+            phaseId: activeOverlayPhaseId,
+            teeth: teethMap,
+            phases: (plan.phases || []).map((ph, idx) => ({
+                id: ph.id,
+                name: ph.name,
+                colorConfig: PHASE_COLORS[idx % PHASE_COLORS.length],
+            })),
+        };
+    }, [activeOverlayPlanId, activeOverlayPhaseId, treatmentPlans]);
+
     const adaptedChart = useMemo(() => {
         return adaptWorkspaceSnapshotToRenderer(effectiveSnapshot, {
             chartId: `patient-chart-${id}`,
@@ -388,10 +463,11 @@ export default function PatientDetails() {
             enableSurfaceSelection: true,
             selectedToothKeys: selectedTeeth,
             selectedSurfacesByTooth,
+            planOverlay,
             onToothClick: handleToothClick,
             onSurfaceClick: handleSurfaceClick,
         });
-    }, [effectiveSnapshot, id, isPediatric, selectedTeeth, selectedSurfacesByTooth, handleToothClick, handleSurfaceClick]);
+    }, [effectiveSnapshot, id, isPediatric, selectedTeeth, selectedSurfacesByTooth, planOverlay, handleToothClick, handleSurfaceClick]);
 
     const adaptedModalChart = useMemo(() => {
         return adaptWorkspaceSnapshotToRenderer(effectiveSnapshot, {
@@ -418,9 +494,6 @@ export default function PatientDetails() {
         id,
         activeTab === 'chart' || activeTab === 'billing' || activeTab === 'timeline'
     );
-    const { data: treatmentPlans = [] } = usePatientClinicalPlans(id, {
-        enabled: isTreatmentPlansEnabled && !!id,
-    });
     const {
         data: attachments = [],
         isLoading: attachmentsLoading,
@@ -1017,6 +1090,52 @@ export default function PatientDetails() {
                                                     }}
                                                 />
                                             )}
+                                            {planOverlay && (
+                                                <div
+                                                    data-testid="plan-overlay-active-banner"
+                                                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50/80 p-3 shadow-sm dark:border-blue-900/60 dark:bg-blue-950/40"
+                                                >
+                                                    <div className="flex flex-wrap items-center gap-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="flex h-2.5 w-2.5 rounded-full bg-blue-600 animate-pulse" />
+                                                            <span className="text-xs font-bold text-blue-900 dark:text-blue-200">
+                                                                {t('clinical_plans.overlay.active_banner', 'Plan Overlay Active')}:
+                                                            </span>
+                                                            <span className="text-xs font-extrabold text-blue-700 dark:text-blue-300">
+                                                                {planOverlay.planTitle}
+                                                                {planOverlay.phaseId && ` (${planOverlay.phases.find((p) => p.id === planOverlay.phaseId)?.name || ''})`}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex flex-wrap items-center gap-2 border-s border-blue-200 ps-3 dark:border-blue-800">
+                                                            {planOverlay.phases.map((ph, idx) => (
+                                                                <span
+                                                                    key={ph.id}
+                                                                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                                                                    style={{
+                                                                        backgroundColor: ph.colorConfig.bg,
+                                                                        color: ph.colorConfig.text,
+                                                                        border: `1px solid ${ph.colorConfig.border}`,
+                                                                    }}
+                                                                >
+                                                                    <span
+                                                                        className="inline-block h-1.5 w-1.5 rounded-full"
+                                                                        style={{ backgroundColor: ph.colorConfig.badgeBg }}
+                                                                    />
+                                                                    {ph.name} (P{idx + 1})
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleTogglePlanOverlay(planOverlay.planId, planOverlay.phaseId)}
+                                                        className="inline-flex min-h-11 items-center justify-center rounded-xl border border-blue-300 bg-white px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:bg-slate-900 dark:text-blue-300 dark:hover:bg-slate-800"
+                                                        data-testid="clear-plan-overlay-button"
+                                                    >
+                                                        {t('clinical_plans.overlay.clear_overlay', 'Clear Overlay')}
+                                                    </button>
+                                                </div>
+                                            )}
                                             <ClinicalChartRenderer input={adaptedChart.rendererInput} />
                                         </div>
 
@@ -1170,7 +1289,12 @@ export default function PatientDetails() {
                                 )}
 
                                 {isTreatmentPlansEnabled && (
-                                    <TreatmentPlansCard patientId={id} />
+                                    <TreatmentPlansCard
+                                        patientId={id}
+                                        activeOverlayPlanId={activeOverlayPlanId}
+                                        activeOverlayPhaseId={activeOverlayPhaseId}
+                                        onToggleOverlay={handleTogglePlanOverlay}
+                                    />
                                 )}
                             </div>
                         )}

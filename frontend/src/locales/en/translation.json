@@ -866,7 +866,19 @@
             "propose": "Propose",
             "accept": "Accept",
             "complete": "Complete",
-            "cancel": "Cancel"
+            "cancel": "Cancel",
+            "move_up": "Move Up",
+            "move_down": "Move Down",
+            "edit_phase": "Edit Phase",
+            "delete_phase": "Delete Phase"
+        },
+        "overlay": {
+            "show": "Show on Chart",
+            "hide": "Hide from Chart",
+            "phase_btn": "Overlay Phase",
+            "phase_tooltip": "Highlight only this phase on chart",
+            "active_banner": "Plan Overlay Active",
+            "clear_overlay": "Clear Overlay"
         },
         "dialog": {
             "title": "Create Treatment Plan",
@@ -876,7 +888,14 @@
             "notes_placeholder": "Clinical observations, strategy, or patient preferences...",
             "submit": "Create Plan",
             "cancel": "Cancel",
-            "creating": "Creating..."
+            "creating": "Creating...",
+            "edit_phase_title": "Edit Treatment Plan Phase",
+            "phase_name_label": "Phase Name",
+            "phase_name_placeholder": "e.g., Phase 1 - Preparatory",
+            "phase_notes_label": "Notes (Optional)",
+            "phase_notes_placeholder": "Optional clinical instructions for this phase...",
+            "delete_phase_title": "Delete Phase",
+            "delete_phase_confirm": "Are you sure you want to delete this phase? Any linked procedures will be detached from this phase, but the underlying work items will remain intact."
         },
         "add_procedure_dialog": {
             "title": "Add Procedure to Phase",
@@ -894,6 +913,13 @@
             "title_required": "Plan title is required",
             "add_phase_success": "Phase added successfully",
             "add_phase_error": "Failed to add phase",
+            "reorder_success": "Phases reordered successfully",
+            "reorder_error": "Failed to reorder phases",
+            "update_phase_success": "Phase updated successfully",
+            "update_phase_error": "Failed to update phase",
+            "delete_phase_success": "Phase deleted successfully",
+            "delete_phase_error": "Failed to delete phase",
+            "phase_name_required": "Phase name is required",
             "add_item_success": "Procedure added to phase successfully",
             "add_item_error": "Failed to add procedure to phase",
             "remove_item_success": "Procedure removed from phase",

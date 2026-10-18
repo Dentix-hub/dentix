@@ -59,6 +59,19 @@ class ClinicalTreatmentPlanPhaseCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class ClinicalTreatmentPlanPhaseUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    notes: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ClinicalTreatmentPlanPhaseReorder(BaseModel):
+    phase_ids: List[int] = Field(..., min_length=1, description="List of phase IDs in desired sequential order")
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class ClinicalTreatmentPlanPhaseRead(BaseModel):
     id: int
     tenant_id: int

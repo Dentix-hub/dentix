@@ -247,6 +247,7 @@ export const createClinicalChartRendererAdapter = (input) => {
             onSurfaceClick: isReadOnly ? undefined : surfaceSelected,
             readOnly: isReadOnly,
             notationMode: normalizedInput.notationMode,
+            planOverlay: normalizedInput.visualState.planOverlay || null,
         }),
         intents: Object.freeze({
             toothSelected,

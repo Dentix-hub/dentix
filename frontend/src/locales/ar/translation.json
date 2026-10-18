@@ -873,7 +873,19 @@
             "propose": "تقديم المقترح",
             "accept": "قبول الخطة",
             "complete": "إكمال الخطة",
-            "cancel": "إلغاء الخطة"
+            "cancel": "إلغاء الخطة",
+            "move_up": "تحريك لأعلى",
+            "move_down": "تحريك لأسفل",
+            "edit_phase": "تعديل المرحلة",
+            "delete_phase": "حذف المرحلة"
+        },
+        "overlay": {
+            "show": "عرض على المخطط",
+            "hide": "إخفاء من المخطط",
+            "phase_btn": "عرض المرحلة",
+            "phase_tooltip": "تمييز أسنان هذه المرحلة فقط على المخطط",
+            "active_banner": "مخطط الخطة العلاجية مفعّل",
+            "clear_overlay": "إلغاء العرض"
         },
         "dialog": {
             "title": "إنشاء خطة علاج",
@@ -883,7 +895,14 @@
             "notes_placeholder": "ملاحظات سريرية، إستراتيجية العلاج، أو تفضيلات المريض...",
             "submit": "إنشاء الخطة",
             "cancel": "إلغاء",
-            "creating": "جاري الإنشاء..."
+            "creating": "جاري الإنشاء...",
+            "edit_phase_title": "تعديل مرحلة الخطة العلاجية",
+            "phase_name_label": "اسم المرحلة",
+            "phase_name_placeholder": "مثال: المرحلة 1 - علاج تحضيري",
+            "phase_notes_label": "ملاحظات (اختياري)",
+            "phase_notes_placeholder": "تعليمات سريرية اختيارية لهذه المرحلة...",
+            "delete_phase_title": "حذف المرحلة",
+            "delete_phase_confirm": "هل أنت متأكد من حذف هذه المرحلة؟ سيتم فك ارتباط أي إجراءات مضافة بها، مع بقاء بنود العمل الأصلية دون تعديل."
         },
         "add_procedure_dialog": {
             "title": "إضافة إجراء إلى المرحلة",
@@ -901,6 +920,13 @@
             "title_required": "عنوان الخطة مطلوب",
             "add_phase_success": "تمت إضافة المرحلة بنجاح",
             "add_phase_error": "فشل إضافة المرحلة",
+            "reorder_success": "تمت إعادة ترتيب المراحل بنجاح",
+            "reorder_error": "فشل إعادة ترتيب المراحل",
+            "update_phase_success": "تم تحديث المرحلة بنجاح",
+            "update_phase_error": "فشل تحديث المرحلة",
+            "delete_phase_success": "تم حذف المرحلة بنجاح",
+            "delete_phase_error": "فشل حذف المرحلة",
+            "phase_name_required": "اسم المرحلة مطلوب",
             "add_item_success": "تمت إضافة الإجراء إلى المرحلة بنجاح",
             "add_item_error": "فشل إضافة الإجراء إلى المرحلة",
             "remove_item_success": "تمت إزالة الإجراء من المرحلة بنجاح",

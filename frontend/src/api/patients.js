@@ -50,6 +50,12 @@ export const getPatientClinicalPlanCandidates = (patientId, planId) =>
     api.get(`/api/v1/patients/${patientId}/clinical-plans/${planId}/candidate-work-items`);
 export const addPatientClinicalPlanPhase = (patientId, planId, data) =>
     api.post(`/api/v1/patients/${patientId}/clinical-plans/${planId}/phases`, data);
+export const updatePatientClinicalPlanPhase = (patientId, planId, phaseId, data) =>
+    api.patch(`/api/v1/patients/${patientId}/clinical-plans/${planId}/phases/${phaseId}`, data);
+export const reorderPatientClinicalPlanPhases = (patientId, planId, phaseIds) =>
+    api.post(`/api/v1/patients/${patientId}/clinical-plans/${planId}/phases/reorder`, { phase_ids: phaseIds });
+export const deletePatientClinicalPlanPhase = (patientId, planId, phaseId) =>
+    api.delete(`/api/v1/patients/${patientId}/clinical-plans/${planId}/phases/${phaseId}`);
 export const addPatientClinicalPlanItem = (patientId, planId, phaseId, data) =>
     api.post(`/api/v1/patients/${patientId}/clinical-plans/${planId}/phases/${phaseId}/items`, data);
 export const removePatientClinicalPlanItem = (patientId, planId, phaseId, itemId) =>
