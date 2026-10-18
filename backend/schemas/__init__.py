@@ -66,13 +66,18 @@ from .treatment_plan import (
     ClinicalTreatmentPlanTransition,
 )
 
-# Clinical Commands (Slice S04)
+# Clinical Commands (Slice S04 & S05)
 from .clinical_commands import (
     ClinicalTargetInput,
     ClinicalTargetRead,
     ClinicalWorkItemCreate,
     ClinicalWorkItemUpdate,
     ClinicalWorkItemRead,
+    ClinicalFindingCreate,
+    ClinicalFindingBulkCreate,
+    ClinicalProcedureCreate,
+    ClinicalProcedureBulkCreate,
+    ClinicalBulkWorkItemResponse,
 )
 
 
@@ -363,11 +368,16 @@ __all__ = [
     "ClinicalTreatmentPlanCreate",
     "ClinicalTreatmentPlanRead",
     "ClinicalTreatmentPlanTransition",
-    # Clinical Commands (Slice S04)
+    # Clinical Commands (Slice S04 & S05)
     "ClinicalTargetInput",
     "ClinicalTargetRead",
     "ClinicalWorkItemCreate",
     "ClinicalWorkItemUpdate",
     "ClinicalWorkItemRead",
+    "ClinicalFindingCreate",
+    "ClinicalFindingBulkCreate",
+    "ClinicalProcedureCreate",
+    "ClinicalProcedureBulkCreate",
+    "ClinicalBulkWorkItemResponse",
 ]
 

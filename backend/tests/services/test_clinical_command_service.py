@@ -15,6 +15,7 @@ Covers:
 - Legacy invariance (Treatment, Payment, StockMovement counts remain 0)
 """
 
+from datetime import timezone
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import func, select
@@ -714,4 +715,379 @@ async def test_unversioned_fallback_route(client, seed_data, async_db_session):
         headers=headers,
     )
     assert res.status_code == 200
+
+
+# ==============================================================================
+# S05 — Finding & Procedure Single/Bulk Command APIs (G7-M04..G7-M07)
+# ==============================================================================
+
+
+@pytest.mark.asyncio
+async def test_single_and_bulk_finding_creation(client, seed_data, async_db_session):
+    """G7-M04 & G7-M05: Single and bulk finding creation across teeth 11, 16, 46."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    # 1. Single finding across 3 teeth (11, 16, 46) in one request
+    res_single = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-findings",
+        headers=headers,
+        json={
+            "code": FindingCode.FRACTURE.value,
+            "status": "proposed",
+            "targets": [
+                {"target_kind": "tooth", "tooth_key": "11"},
+                {"target_kind": "surface", "tooth_key": "16", "surface_code": "O"},
+                {"target_kind": "tooth", "tooth_key": "46"},
+            ],
+            "notes": "Fractures noted",
+        },
+    )
+    assert res_single.status_code == 201
+    single_data = res_single.json()["data"]
+    assert single_data["kind"] == "finding"
+    assert single_data["code"] == FindingCode.FRACTURE.value
+    assert len(single_data["targets"]) == 3
+
+    # 2. Bulk finding creation across 3 teeth (11, 16, 46)
+    res_bulk = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-findings/bulk",
+        headers=headers,
+        json={
+            "items": [
+                {"code": FindingCode.CARIES.value, "tooth_key": "11"},
+                {"code": FindingCode.CARIES.value, "tooth_key": "16", "surfaces": ["M", "O"]},
+                {"code": FindingCode.CARIES.value, "tooth_key": "46", "surfaces": ["O"]},
+            ]
+        },
+    )
+    assert res_bulk.status_code == 201
+    bulk_data = res_bulk.json()["data"]
+    assert bulk_data["count"] == 3
+    assert len(bulk_data["items"]) == 3
+    assert bulk_data["items"][0]["targets"][0]["tooth_key"] == "11"
+    assert len(bulk_data["items"][1]["targets"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_single_and_bulk_procedure_creation(client, seed_data, async_db_session):
+    """G7-M06 & G7-M07: Single and bulk procedure creation across multiple teeth/surfaces."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    # 1. Single procedure on tooth 16 surface O
+    res_single = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-procedures",
+        headers=headers,
+        json={
+            "code": ProcedureCode.REST_COMPOSITE.value,
+            "status": "planned",
+            "tooth_key": "16",
+            "surfaces": ["O"],
+            "notes": "Single composite",
+        },
+    )
+    assert res_single.status_code == 201
+    single_data = res_single.json()["data"]
+    assert single_data["kind"] == "procedure"
+    assert single_data["code"] == ProcedureCode.REST_COMPOSITE.value
+    assert len(single_data["targets"]) == 1
+    assert single_data["targets"][0]["surface_code"] == "O"
+
+    # 2. Bulk procedure creation on teeth 16 and 26
+    res_bulk = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-procedures/bulk",
+        headers=headers,
+        json={
+            "items": [
+                {
+                    "code": ProcedureCode.REST_COMPOSITE.value,
+                    "status": "planned",
+                    "tooth_key": "16",
+                    "surfaces": ["M", "O"],
+                },
+                {
+                    "code": ProcedureCode.REST_COMPOSITE.value,
+                    "status": "planned",
+                    "tooth_key": "26",
+                    "surfaces": ["O"],
+                },
+            ]
+        },
+    )
+    assert res_bulk.status_code == 201
+    bulk_data = res_bulk.json()["data"]
+    assert bulk_data["count"] == 2
+    assert len(bulk_data["items"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_bulk_atomic_rollback_on_invalid_tooth_key(client, seed_data, async_db_session):
+    """Atomic rollback: when item #3 of 3 has an invalid FDI tooth key (99), 422 returned and 0 rows persisted."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    # Initial count of work items for patient_1
+    stmt_count = select(func.count(models.ClinicalWorkItem.id)).where(
+        models.ClinicalWorkItem.patient_id == patient_1.id
+    )
+    initial_count = await async_db_session.scalar(stmt_count)
+
+    # Bulk findings where item #3 has invalid FDI tooth key '99'
+    res = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-findings/bulk",
+        headers=headers,
+        json={
+            "items": [
+                {"code": FindingCode.CARIES.value, "tooth_key": "11"},
+                {"code": FindingCode.CARIES.value, "tooth_key": "16", "surfaces": ["O"]},
+                {"code": FindingCode.CARIES.value, "tooth_key": "99"},  # Invalid FDI!
+            ]
+        },
+    )
+    assert res.status_code == 422
+    assert "fdi" in res.json()["detail"].lower() or "tooth_key" in res.json()["detail"].lower()
+
+    # Verify zero rows persisted (atomic rollback)
+    count_after = await async_db_session.scalar(stmt_count)
+    assert count_after == initial_count
+
+    # Bulk procedures where item #2 has invalid FDI tooth key '99'
+    res_proc = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-procedures/bulk",
+        headers=headers,
+        json={
+            "items": [
+                {"code": ProcedureCode.REST_COMPOSITE.value, "tooth_key": "16", "surfaces": ["O"]},
+                {"code": ProcedureCode.REST_COMPOSITE.value, "tooth_key": "99"},  # Invalid FDI!
+            ]
+        },
+    )
+    assert res_proc.status_code == 422
+
+    count_after_proc = await async_db_session.scalar(stmt_count)
+    assert count_after_proc == initial_count
+
+
+@pytest.mark.asyncio
+async def test_flag_off_404_new_patient_scoped_routes(client, seed_data, async_db_session):
+    """When clinical_vnext_native_writes is OFF, all 4 new routes return 404."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, False)
+
+    finding_payload = {"code": FindingCode.CARIES.value, "tooth_key": "16"}
+    proc_payload = {"code": ProcedureCode.REST_COMPOSITE.value, "tooth_key": "16", "surfaces": ["O"]}
+
+    r1 = client.post(f"/api/v1/patients/{patient_1.id}/clinical-findings", headers=headers, json=finding_payload)
+    assert r1.status_code == 404
+    assert "native writes are disabled" in r1.json()["detail"].lower()
+
+    r2 = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-findings/bulk",
+        headers=headers,
+        json={"items": [finding_payload]},
+    )
+    assert r2.status_code == 404
+
+    r3 = client.post(f"/api/v1/patients/{patient_1.id}/clinical-procedures", headers=headers, json=proc_payload)
+    assert r3.status_code == 404
+
+    r4 = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-procedures/bulk",
+        headers=headers,
+        json={"items": [proc_payload]},
+    )
+    assert r4.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_tenant_isolation_and_doctor_visibility_new_routes(client, seed_data, async_db_session):
+    """Cross-tenant patient access and restricted doctor visibility return 404 on all 4 new routes."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_2 = seed_data["patient_2"]  # Tenant 2
+    headers = make_headers(doctor_1)
+
+    patient_unassigned = models.Patient(
+        tenant_id=doctor_1.tenant_id,
+        name="Unassigned Patient",
+        age=45,
+        phone="+1234567899",
+        medical_history="None",
+        notes="Unassigned",
+        assigned_doctor_id=None,
+        is_deleted=False,
+    )
+    async_db_session.add(patient_unassigned)
+    await async_db_session.commit()
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    finding_payload = {"code": FindingCode.CARIES.value, "tooth_key": "16"}
+    proc_payload = {"code": ProcedureCode.REST_COMPOSITE.value, "tooth_key": "16", "surfaces": ["O"]}
+
+    # Cross-tenant (Tenant 1 doctor -> Tenant 2 patient) -> 404
+    assert client.post(f"/api/v1/patients/{patient_2.id}/clinical-findings", headers=headers, json=finding_payload).status_code == 404
+    assert client.post(f"/api/v1/patients/{patient_2.id}/clinical-findings/bulk", headers=headers, json={"items": [finding_payload]}).status_code == 404
+    assert client.post(f"/api/v1/patients/{patient_2.id}/clinical-procedures", headers=headers, json=proc_payload).status_code == 404
+    assert client.post(f"/api/v1/patients/{patient_2.id}/clinical-procedures/bulk", headers=headers, json={"items": [proc_payload]}).status_code == 404
+
+    # Restricted doctor visibility (unassigned patient) -> 404
+    assert client.post(f"/api/v1/patients/{patient_unassigned.id}/clinical-findings", headers=headers, json=finding_payload).status_code == 404
+    assert client.post(f"/api/v1/patients/{patient_unassigned.id}/clinical-findings/bulk", headers=headers, json={"items": [finding_payload]}).status_code == 404
+    assert client.post(f"/api/v1/patients/{patient_unassigned.id}/clinical-procedures", headers=headers, json=proc_payload).status_code == 404
+    assert client.post(f"/api/v1/patients/{patient_unassigned.id}/clinical-procedures/bulk", headers=headers, json={"items": [proc_payload]}).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_rbac_for_findings_and_procedures(client, seed_data, async_db_session):
+    """RBAC per PD02a: Doctor succeeds on both; Nurse succeeds on findings/bulk and gets 403 on procedures/bulk; Receptionist gets 403 on all."""
+    doctor_1 = seed_data["doctor_1"]
+    nurse_1 = seed_data["nurse_1"]
+    receptionist_1 = seed_data["receptionist_1"]
+    patient_1 = seed_data["patient_1"]
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    doc_headers = make_headers(doctor_1)
+    nurse_headers = make_headers(nurse_1)
+    recep_headers = make_headers(receptionist_1)
+
+    finding_payload = {"code": FindingCode.CARIES.value, "tooth_key": "16"}
+    proc_payload = {"code": ProcedureCode.REST_COMPOSITE.value, "tooth_key": "16", "surfaces": ["O"]}
+
+    # 1. Doctor succeeds on all 4 endpoints
+    assert client.post(f"/api/v1/patients/{patient_1.id}/clinical-findings", headers=doc_headers, json=finding_payload).status_code == 201
+    assert client.post(f"/api/v1/patients/{patient_1.id}/clinical-findings/bulk", headers=doc_headers, json={"items": [finding_payload]}).status_code == 201
+    assert client.post(f"/api/v1/patients/{patient_1.id}/clinical-procedures", headers=doc_headers, json=proc_payload).status_code == 201
+    assert client.post(f"/api/v1/patients/{patient_1.id}/clinical-procedures/bulk", headers=doc_headers, json={"items": [proc_payload]}).status_code == 201
+
+    # 2. Nurse (CLINICAL_WRITE only) succeeds on findings, gets 403 on procedures
+    assert client.post(f"/api/v1/patients/{patient_1.id}/clinical-findings", headers=nurse_headers, json=finding_payload).status_code == 201
+    assert client.post(f"/api/v1/patients/{patient_1.id}/clinical-findings/bulk", headers=nurse_headers, json={"items": [finding_payload]}).status_code == 201
+    assert client.post(f"/api/v1/patients/{patient_1.id}/clinical-procedures", headers=nurse_headers, json=proc_payload).status_code == 403
+    assert client.post(f"/api/v1/patients/{patient_1.id}/clinical-procedures/bulk", headers=nurse_headers, json={"items": [proc_payload]}).status_code == 403
+
+    # 3. Receptionist gets 403 on all 4 mutation endpoints
+    assert client.post(f"/api/v1/patients/{patient_1.id}/clinical-findings", headers=recep_headers, json=finding_payload).status_code == 403
+    assert client.post(f"/api/v1/patients/{patient_1.id}/clinical-findings/bulk", headers=recep_headers, json={"items": [finding_payload]}).status_code == 403
+    assert client.post(f"/api/v1/patients/{patient_1.id}/clinical-procedures", headers=recep_headers, json=proc_payload).status_code == 403
+    assert client.post(f"/api/v1/patients/{patient_1.id}/clinical-procedures/bulk", headers=recep_headers, json={"items": [proc_payload]}).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_legacy_endpoints_ungated_and_timezone_aware(client, seed_data, async_db_session, monkeypatch):
+    """Legacy /api/v1/treatments/finding & /symptom remain un-gated (work with flag OFF) and record timezone-aware occurred_at."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    captured_occurred_at = []
+    original_init = models.ClinicalEvent.__init__
+
+    def spying_init(self, *args, **kwargs):
+        if "occurred_at" in kwargs:
+            captured_occurred_at.append(kwargs["occurred_at"])
+        original_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(models.ClinicalEvent, "__init__", spying_init)
+
+    # Ensure native writes flag is explicitly OFF
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, False)
+
+    # 1. Legacy finding route
+    res_finding = client.post(
+        "/api/v1/treatments/finding",
+        headers=headers,
+        json={
+            "patient_id": patient_1.id,
+            "tooth_number": 16,
+            "findings": [{"finding_code": "CARIES", "surfaces": ["O"]}],
+            "notes": "Legacy caries finding",
+        },
+    )
+    assert res_finding.status_code == 200
+    assert len(captured_occurred_at) >= 1
+    assert captured_occurred_at[-1].tzinfo is not None
+    assert captured_occurred_at[-1].tzinfo == timezone.utc
+
+    # Query event created by legacy finding route
+    stmt_event = (
+        select(models.ClinicalEvent)
+        .where(
+            models.ClinicalEvent.patient_id == patient_1.id,
+            models.ClinicalEvent.event_type == "finding_recorded",
+        )
+        .order_by(models.ClinicalEvent.id.desc())
+        .limit(1)
+    )
+    event_finding = (await async_db_session.execute(stmt_event)).scalar_one_or_none()
+    assert event_finding is not None
+    assert event_finding.occurred_at is not None
+
+    # 2. Legacy symptom route
+    res_symptom = client.post(
+        "/api/v1/treatments/symptom",
+        headers=headers,
+        json={
+            "patient_id": patient_1.id,
+            "tooth_number": 16,
+            "symptom": "pain",
+            "severity": "severe",
+            "notes": "Sharp throbbing pain",
+        },
+    )
+    assert res_symptom.status_code == 200
+    assert len(captured_occurred_at) >= 2
+    assert captured_occurred_at[-1].tzinfo is not None
+    assert captured_occurred_at[-1].tzinfo == timezone.utc
+
+    stmt_symptom = (
+        select(models.ClinicalEvent)
+        .where(
+            models.ClinicalEvent.patient_id == patient_1.id,
+            models.ClinicalEvent.notes.like("%Sharp throbbing pain%"),
+        )
+        .order_by(models.ClinicalEvent.id.desc())
+        .limit(1)
+    )
+    event_symptom = (await async_db_session.execute(stmt_symptom)).scalar_one_or_none()
+    assert event_symptom is not None
+    assert event_symptom.occurred_at is not None
+
+
+@pytest.mark.asyncio
+async def test_legacy_treatment_count_invariance_on_native_routes(client, seed_data, async_db_session):
+    """Legacy Treatment count remains 0 before and after calling the 4 new native routes."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    stmt_count = select(func.count(models.Treatment.id))
+    initial_treatments = await async_db_session.scalar(stmt_count)
+
+    finding_payload = {"code": FindingCode.CARIES.value, "tooth_key": "16"}
+    proc_payload = {"code": ProcedureCode.REST_COMPOSITE.value, "tooth_key": "16", "surfaces": ["O"]}
+
+    client.post(f"/api/v1/patients/{patient_1.id}/clinical-findings", headers=headers, json=finding_payload)
+    client.post(f"/api/v1/patients/{patient_1.id}/clinical-findings/bulk", headers=headers, json={"items": [finding_payload]})
+    client.post(f"/api/v1/patients/{patient_1.id}/clinical-procedures", headers=headers, json=proc_payload)
+    client.post(f"/api/v1/patients/{patient_1.id}/clinical-procedures/bulk", headers=headers, json={"items": [proc_payload]})
+
+    final_treatments = await async_db_session.scalar(stmt_count)
+    assert final_treatments == initial_treatments
+
 
