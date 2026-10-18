@@ -21,7 +21,9 @@ export default function ClinicalChartInspector({ copy, title, selection, toothSt
                 <div>
                     <dt className="text-xs text-slate-500">{copy.selectedSurface}</dt>
                     <dd className="mt-1 font-bold text-slate-900">
-                        {selection?.surfaceCode ? copy.surfaces[selection.surfaceCode] : copy.none}
+                        {selection?.surfaceCodes && selection.surfaceCodes.length > 0
+                            ? selection.surfaceCodes.map(code => copy.surfaces?.[code] || code).join(', ')
+                            : (selection?.surfaceCode ? (copy.surfaces?.[selection.surfaceCode] || selection.surfaceCode) : copy.none)}
                     </dd>
                 </div>
                 <div>

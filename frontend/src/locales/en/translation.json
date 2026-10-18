@@ -772,7 +772,14 @@
             "new_treatment": "+ New Treatment",
             "tooth_modal_title": "Select Tooth",
             "continue_no_tooth": "Continue without tooth",
-            "voice_unsupported": "Voice Recognition Not Supported"
+            "voice_unsupported": "Voice Recognition Not Supported",
+            "multi_select": "Multi-Select",
+            "selected_teeth": "Selected Teeth",
+            "active_tooth": "Active Tooth",
+            "record_treatment": "Record Treatment",
+            "clear_selection": "Clear Selection",
+            "surfaces": "Surfaces",
+            "chairside_bar_title": "Chairside Selection"
         },
         "edit_modal": {
             "title": "Edit Patient Details",

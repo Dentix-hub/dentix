@@ -192,6 +192,7 @@ const ToothSurfaceLayer = memo(function ToothSurfaceLayer({
     toothLabel,
     clipPathId,
     selectedSurfaceCode,
+    selectedSurfaceCodes = [],
     onSurfaceClick,
     disabled,
 }) {
@@ -213,12 +214,14 @@ const ToothSurfaceLayer = memo(function ToothSurfaceLayer({
             data-surface-model={geometry.model}
         >
             {geometry.surfaces.map((surface) => {
-                const isSelected = selectedSurfaceCode === surface.surfaceCode;
+                const isSelected = (Array.isArray(selectedSurfaceCodes) && selectedSurfaceCodes.includes(surface.surfaceCode))
+                    || selectedSurfaceCode === surface.surfaceCode;
                 return (
                     <path
                         aria-label={`Tooth ${toothLabel} — ${surface.label} (${surface.surfaceCode})`}
                         aria-disabled={disabled}
                         aria-pressed={isSelected}
+                        data-selected={isSelected ? 'true' : 'false'}
                         className={disabled
                             ? 'cursor-not-allowed fill-slate-100 stroke-slate-300 outline-none'
                             : (isSelected
@@ -254,6 +257,8 @@ const SVGTooth = memo(function SVGTooth({
     arch,
     enableSurfaceSelection,
     selectedSurface,
+    selectedToothKeys = [],
+    selectedSurfacesByTooth = {},
     onSurfaceClick,
     readOnly,
     toothVisual,
@@ -270,14 +275,27 @@ const SVGTooth = memo(function SVGTooth({
         notationMode,
     });
     const toothLabel = notation.label;
+    const isSelected = Boolean(
+        status?.selection?.isSelected
+        || (Array.isArray(selectedToothKeys) && selectedToothKeys.includes(toothKey))
+        || selectedSurface?.toothKey === toothKey,
+    );
+    const surfaceTargets = Array.isArray(status?.selection?.targets)
+        ? status.selection.targets.filter((t) => t.kind === 'surface').map((t) => t.surfaceCode)
+        : [];
+    const directSurfaces = selectedSurfacesByTooth?.[toothKey] || [];
+    const legacySingle = selectedSurface?.toothKey === toothKey && selectedSurface.surfaceCode ? [selectedSurface.surfaceCode] : [];
+    const toothSelectedSurfaces = Array.from(new Set([...surfaceTargets, ...directSurfaces, ...legacySingle]));
     const crownClipId = `dentix-crown-${reactId.replace(/:/g, '')}`;
     const crownBaseOpacity = getBaseAnatomyOpacity(toothVisual);
     const needsCrownClip = enableSurfaceSelection || (toothVisual?.instructions.length ?? 0) > 0;
     const crownSvg = (
         <svg
             aria-hidden={enableSurfaceSelection ? undefined : true}
+            aria-pressed={isSelected}
             className={`${showRoots ? `absolute ${arch === 'upper' ? 'bottom-0' : 'top-0'}` : ''} transform transition-transform duration-200 group-hover:scale-105 group-focus-visible:scale-105`}
             data-layer="crown"
+            data-selected={isSelected ? 'true' : 'false'}
             data-tooth-key={toothKey}
             height="60"
             viewBox="0 0 50 60"
@@ -322,6 +340,7 @@ const SVGTooth = memo(function SVGTooth({
                             toothLabel={toothLabel}
                             clipPathId={crownClipId}
                             selectedSurfaceCode={selectedSurface?.toothKey === toothKey ? selectedSurface.surfaceCode : null}
+                            selectedSurfaceCodes={toothSelectedSurfaces}
                             onSurfaceClick={onSurfaceClick}
                             disabled={disabled}
                         />
@@ -360,9 +379,12 @@ const SVGTooth = memo(function SVGTooth({
     if (enableSurfaceSelection) {
         return (
             <div
-                className={`${toothClassName} cursor-default`}
+                className={`${toothClassName} cursor-pointer ${isSelected ? 'ring-2 ring-blue-500 rounded-lg bg-blue-50/50 dark:bg-blue-950/30' : ''}`}
                 role="group"
                 aria-disabled={disabled}
+                aria-pressed={isSelected}
+                data-selected={isSelected ? 'true' : 'false'}
+                data-tooth-key={toothKey}
                 aria-label={`Tooth ${toothLabel} surfaces`}
                 onClick={() => onClick?.(number)}
             >
@@ -385,9 +407,12 @@ const SVGTooth = memo(function SVGTooth({
     return (
         <button
             type="button"
-            className={`${toothClassName} cursor-pointer`}
+            className={`${toothClassName} cursor-pointer ${isSelected ? 'ring-2 ring-blue-500 rounded-lg bg-blue-50/50 dark:bg-blue-950/30' : ''}`}
             disabled={disabled}
             onClick={() => onClick(number)}
+            aria-pressed={isSelected}
+            data-selected={isSelected ? 'true' : 'false'}
+            data-tooth-key={toothKey}
             aria-label={condition ? `Tooth ${toothLabel} — ${condition}` : `Tooth ${toothLabel}`}
         >
             {toothContent}
@@ -404,6 +429,8 @@ export default memo(function DentalChartSVG({
     showRoots = false,
     enableSurfaceSelection = false,
     selectedSurface = null,
+    selectedToothKeys = [],
+    selectedSurfacesByTooth = {},
     onSurfaceClick,
     readOnly = false,
     notationMode = DEFAULT_CHART_NOTATION_MODE,
@@ -432,6 +459,8 @@ export default memo(function DentalChartSVG({
             onSurfaceClick={onSurfaceClick}
             readOnly={readOnly}
             selectedSurface={selectedSurface}
+            selectedToothKeys={selectedToothKeys}
+            selectedSurfacesByTooth={selectedSurfacesByTooth}
             showRoots={showRoots}
             status={teethStatus[tooth.toothKey]}
             toothKey={tooth.toothKey}

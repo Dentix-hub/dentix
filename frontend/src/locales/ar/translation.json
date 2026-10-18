@@ -779,7 +779,14 @@
             "adult": "بالغ",
             "new_treatment": "+ علاج جديد",
             "tooth_modal_title": "اختر السن",
-            "continue_no_tooth": "متابعة بدون تحديد سن"
+            "continue_no_tooth": "متابعة بدون تحديد سن",
+            "multi_select": "تحديد متعدد",
+            "selected_teeth": "الأسنان المحددة",
+            "active_tooth": "السن النشط",
+            "record_treatment": "تسجيل علاج",
+            "clear_selection": "مسح التحديد",
+            "surfaces": "الأسطح",
+            "chairside_bar_title": "شريط التحديد الفوري"
         },
         "edit_modal": {
             "title": "تعديل بيانات المريض",
