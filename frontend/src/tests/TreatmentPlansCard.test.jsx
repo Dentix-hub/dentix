@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TreatmentPlansCard from '@/features/clinical-plans/TreatmentPlansCard';
 import PatientDetails from '@/pages/PatientDetails';
@@ -10,12 +10,18 @@ const {
     mockUseCreatePatientClinicalPlan,
     mockUsePatientClinicalPlanCandidates,
     mockUseAddPatientClinicalPlanPhase,
+    mockUseUpdatePatientClinicalPlanPhase,
+    mockUseReorderPatientClinicalPlanPhases,
+    mockUseDeletePatientClinicalPlanPhase,
     mockUseAddPatientClinicalPlanItem,
     mockUseRemovePatientClinicalPlanItem,
     mockUseTransitionPatientClinicalPlan,
     mockUseTenantFeatures,
     mockCreateMutateAsync,
     mockAddPhaseMutateAsync,
+    mockUpdatePhaseMutateAsync,
+    mockReorderPhasesMutateAsync,
+    mockDeletePhaseMutateAsync,
     mockAddItemMutateAsync,
     mockRemoveItemMutateAsync,
     mockTransitionMutateAsync,
@@ -24,12 +30,18 @@ const {
     mockUseCreatePatientClinicalPlan: vi.fn(),
     mockUsePatientClinicalPlanCandidates: vi.fn(),
     mockUseAddPatientClinicalPlanPhase: vi.fn(),
+    mockUseUpdatePatientClinicalPlanPhase: vi.fn(),
+    mockUseReorderPatientClinicalPlanPhases: vi.fn(),
+    mockUseDeletePatientClinicalPlanPhase: vi.fn(),
     mockUseAddPatientClinicalPlanItem: vi.fn(),
     mockUseRemovePatientClinicalPlanItem: vi.fn(),
     mockUseTransitionPatientClinicalPlan: vi.fn(),
     mockUseTenantFeatures: vi.fn(),
     mockCreateMutateAsync: vi.fn(),
     mockAddPhaseMutateAsync: vi.fn(),
+    mockUpdatePhaseMutateAsync: vi.fn(),
+    mockReorderPhasesMutateAsync: vi.fn(),
+    mockDeletePhaseMutateAsync: vi.fn(),
     mockAddItemMutateAsync: vi.fn(),
     mockRemoveItemMutateAsync: vi.fn(),
     mockTransitionMutateAsync: vi.fn(),
@@ -85,6 +97,9 @@ vi.mock('@/hooks/usePatientDetails', () => ({
     useCreatePatientClinicalPlan: () => mockUseCreatePatientClinicalPlan(),
     usePatientClinicalPlanCandidates: (...args) => mockUsePatientClinicalPlanCandidates(...args),
     useAddPatientClinicalPlanPhase: () => mockUseAddPatientClinicalPlanPhase(),
+    useUpdatePatientClinicalPlanPhase: () => mockUseUpdatePatientClinicalPlanPhase(),
+    useReorderPatientClinicalPlanPhases: () => mockUseReorderPatientClinicalPlanPhases(),
+    useDeletePatientClinicalPlanPhase: () => mockUseDeletePatientClinicalPlanPhase(),
     useAddPatientClinicalPlanItem: () => mockUseAddPatientClinicalPlanItem(),
     useRemovePatientClinicalPlanItem: () => mockUseRemovePatientClinicalPlanItem(),
     useTransitionPatientClinicalPlan: () => mockUseTransitionPatientClinicalPlan(),
@@ -125,6 +140,18 @@ describe('TreatmentPlansCard & Feature Gating', () => {
             mutateAsync: mockAddPhaseMutateAsync,
             isPending: false,
         });
+        mockUseUpdatePatientClinicalPlanPhase.mockReturnValue({
+            mutateAsync: mockUpdatePhaseMutateAsync,
+            isPending: false,
+        });
+        mockUseReorderPatientClinicalPlanPhases.mockReturnValue({
+            mutateAsync: mockReorderPhasesMutateAsync,
+            isPending: false,
+        });
+        mockUseDeletePatientClinicalPlanPhase.mockReturnValue({
+            mutateAsync: mockDeletePhaseMutateAsync,
+            isPending: false,
+        });
         mockUseAddPatientClinicalPlanItem.mockReturnValue({
             mutateAsync: mockAddItemMutateAsync,
             isPending: false,
@@ -143,10 +170,10 @@ describe('TreatmentPlansCard & Feature Gating', () => {
         });
     });
 
-    const renderCard = (patientId = 101) => {
+    const renderCard = (patientId = 101, props = {}) => {
         return render(
             <QueryClientProvider client={queryClient}>
-                <TreatmentPlansCard patientId={patientId} />
+                <TreatmentPlansCard patientId={patientId} {...props} />
             </QueryClientProvider>
         );
     };
@@ -628,5 +655,261 @@ describe('TreatmentPlansCard & Feature Gating', () => {
 
         // Remove item button should be hidden
         expect(screen.queryByTestId('remove-phase-item-301')).toBeNull();
+    });
+
+    describe('CARD S12: Phase Reorder, Edit, Delete, and Chart Plan Overlay', () => {
+        const mockPlanWithPhases = {
+            id: 1,
+            patient_id: 101,
+            title: 'Multi-Phase Plan',
+            status: 'draft',
+            phases: [
+                {
+                    id: 11,
+                    phase_order: 0,
+                    name: 'Phase 1 - Endo',
+                    notes: 'Root canal treatment',
+                    items: [
+                        {
+                            id: 101,
+                            work_item_id: 201,
+                            item_order: 0,
+                            work_item: {
+                                id: 201,
+                                procedure_code: 'D3310',
+                                display_name: 'Root Canal',
+                                status: 'planned',
+                                targets: [{ tooth_key: '16' }],
+                            },
+                        },
+                    ],
+                },
+                {
+                    id: 12,
+                    phase_order: 1,
+                    name: 'Phase 2 - Crown',
+                    notes: 'Porcelain crown',
+                    items: [
+                        {
+                            id: 102,
+                            work_item_id: 202,
+                            item_order: 0,
+                            work_item: {
+                                id: 202,
+                                procedure_code: 'D2740',
+                                display_name: 'Crown',
+                                status: 'planned',
+                                targets: [{ tooth_key: '16' }],
+                            },
+                        },
+                    ],
+                },
+            ],
+        };
+
+        it('disables Move Up on first phase and Move Down on last phase, and triggers reorder on click', async () => {
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [mockPlanWithPhases],
+                isLoading: false,
+                isError: false,
+            });
+            mockReorderPhasesMutateAsync.mockResolvedValueOnce({
+                ...mockPlanWithPhases,
+                phases: [mockPlanWithPhases.phases[1], mockPlanWithPhases.phases[0]],
+            });
+
+            renderCard();
+
+            const moveUpFirst = screen.getByTestId('move-up-phase-11');
+            const moveDownFirst = screen.getByTestId('move-down-phase-11');
+            const moveUpSecond = screen.getByTestId('move-up-phase-12');
+            const moveDownSecond = screen.getByTestId('move-down-phase-12');
+
+            // Boundary constraints: first phase cannot move up, last phase cannot move down
+            expect(moveUpFirst).toBeDisabled();
+            expect(moveDownFirst).not.toBeDisabled();
+            expect(moveUpSecond).not.toBeDisabled();
+            expect(moveDownSecond).toBeDisabled();
+
+            // Click move down on first phase
+            fireEvent.click(moveDownFirst);
+
+            await waitFor(() => {
+                expect(mockReorderPhasesMutateAsync).toHaveBeenCalledWith({
+                    patientId: 101,
+                    planId: 1,
+                    phaseIds: [12, 11],
+                });
+            });
+        });
+
+        it('opens edit phase dialog, allows renaming and updating notes, and submits update mutation', async () => {
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [mockPlanWithPhases],
+                isLoading: false,
+                isError: false,
+            });
+            mockUpdatePhaseMutateAsync.mockResolvedValueOnce({
+                id: 11,
+                name: 'Phase 1 - Revised',
+                notes: 'Updated clinical notes',
+            });
+
+            renderCard();
+
+            // Click Edit Phase button
+            fireEvent.click(screen.getByTestId('edit-phase-button-11'));
+
+            // Dialog should be open with current values
+            expect(screen.getByTestId('edit-phase-dialog')).toBeInTheDocument();
+            const nameInput = screen.getByTestId('edit-phase-name-input');
+            const notesInput = screen.getByTestId('edit-phase-notes-input');
+
+            expect(nameInput).toHaveValue('Phase 1 - Endo');
+            expect(notesInput).toHaveValue('Root canal treatment');
+
+            // Change values
+            fireEvent.change(nameInput, { target: { value: 'Phase 1 - Revised' } });
+            fireEvent.change(notesInput, { target: { value: 'Updated clinical notes' } });
+
+            // Submit
+            fireEvent.click(screen.getByTestId('submit-edit-phase-button'));
+
+            await waitFor(() => {
+                expect(mockUpdatePhaseMutateAsync).toHaveBeenCalledWith({
+                    patientId: 101,
+                    planId: 1,
+                    phaseId: 11,
+                    data: {
+                        name: 'Phase 1 - Revised',
+                        notes: 'Updated clinical notes',
+                    },
+                });
+            });
+        });
+
+        it('opens delete phase dialog and submits delete mutation when confirmed', async () => {
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [mockPlanWithPhases],
+                isLoading: false,
+                isError: false,
+            });
+            mockDeletePhaseMutateAsync.mockResolvedValueOnce({ success: true });
+
+            renderCard();
+
+            // Click Delete Phase button
+            fireEvent.click(screen.getByTestId('delete-phase-button-11'));
+
+            // Delete confirmation dialog is open
+            const dialog = screen.getByTestId('delete-phase-dialog');
+            expect(dialog).toBeInTheDocument();
+            expect(within(dialog).getByText('Phase 1 - Endo')).toBeInTheDocument();
+
+            // Confirm delete
+            fireEvent.click(screen.getByTestId('confirm-delete-phase-button'));
+
+            await waitFor(() => {
+                expect(mockDeletePhaseMutateAsync).toHaveBeenCalledWith({
+                    patientId: 101,
+                    planId: 1,
+                    phaseId: 11,
+                });
+            });
+        });
+
+        it('calls onToggleOverlay callback with correct plan and phase arguments and reflects active state', () => {
+            const onToggleOverlay = vi.fn();
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [mockPlanWithPhases],
+                isLoading: false,
+                isError: false,
+            });
+
+            const { rerender } = render(
+                <QueryClientProvider client={queryClient}>
+                    <TreatmentPlansCard
+                        patientId={101}
+                        activeOverlayPlanId={null}
+                        activeOverlayPhaseId={null}
+                        onToggleOverlay={onToggleOverlay}
+                    />
+                </QueryClientProvider>
+            );
+
+            // Toggle whole plan overlay
+            const planOverlayBtn = screen.getByTestId('overlay-plan-button-1');
+            expect(planOverlayBtn).toHaveAttribute('aria-pressed', 'false');
+            fireEvent.click(planOverlayBtn);
+            expect(onToggleOverlay).toHaveBeenCalledWith(1, null);
+
+            // Toggle specific phase overlay
+            const phaseOverlayBtn = screen.getByTestId('overlay-phase-button-11');
+            expect(phaseOverlayBtn).toHaveAttribute('aria-pressed', 'false');
+            fireEvent.click(phaseOverlayBtn);
+            expect(onToggleOverlay).toHaveBeenCalledWith(1, 11);
+
+            // Rerender with active plan overlay
+            rerender(
+                <QueryClientProvider client={queryClient}>
+                    <TreatmentPlansCard
+                        patientId={101}
+                        activeOverlayPlanId={1}
+                        activeOverlayPhaseId={null}
+                        onToggleOverlay={onToggleOverlay}
+                    />
+                </QueryClientProvider>
+            );
+            expect(screen.getByTestId('overlay-plan-button-1')).toHaveAttribute('aria-pressed', 'true');
+
+            // Rerender with active phase overlay
+            rerender(
+                <QueryClientProvider client={queryClient}>
+                    <TreatmentPlansCard
+                        patientId={101}
+                        activeOverlayPlanId={1}
+                        activeOverlayPhaseId={11}
+                        onToggleOverlay={onToggleOverlay}
+                    />
+                </QueryClientProvider>
+            );
+            expect(screen.getByTestId('overlay-phase-button-11')).toHaveAttribute('aria-pressed', 'true');
+        });
+
+        it('shows overlay active banner on PatientDetails when plan overlay is toggled and clears on click', async () => {
+            mockUseTenantFeatures.mockReturnValue({
+                data: ['clinical_treatment_plans'],
+                isLoading: false,
+            });
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [mockPlanWithPhases],
+                isLoading: false,
+                isError: false,
+            });
+
+            renderPatientDetails();
+
+            // Initially no overlay active banner
+            expect(screen.queryByTestId('plan-overlay-active-banner')).toBeNull();
+
+            // Click plan overlay button in TreatmentPlansCard
+            const planOverlayBtn = screen.getByTestId('overlay-plan-button-1');
+            fireEvent.click(planOverlayBtn);
+
+            // Now banner should appear above chart
+            await waitFor(() => {
+                expect(screen.getByTestId('plan-overlay-active-banner')).toBeInTheDocument();
+            });
+            const banner = screen.getByTestId('plan-overlay-active-banner');
+            expect(within(banner).getByText('Multi-Phase Plan')).toBeInTheDocument();
+
+            // Clear overlay
+            const clearBtn = screen.getByTestId('clear-plan-overlay-button');
+            fireEvent.click(clearBtn);
+
+            await waitFor(() => {
+                expect(screen.queryByTestId('plan-overlay-active-banner')).toBeNull();
+            });
+        });
     });
 });

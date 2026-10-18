@@ -14,6 +14,9 @@ import {
     createPatientClinicalPlan,
     getPatientClinicalPlanCandidates,
     addPatientClinicalPlanPhase,
+    updatePatientClinicalPlanPhase,
+    reorderPatientClinicalPlanPhases,
+    deletePatientClinicalPlanPhase,
     addPatientClinicalPlanItem,
     removePatientClinicalPlanItem,
     transitionPatientClinicalPlan,
@@ -261,6 +264,54 @@ export function useAddPatientClinicalPlanPhase() {
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: ({ patientId, planId, data }) => addPatientClinicalPlanPhase(patientId, planId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlans(variables.patientId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for updating a phase (rename / notes) in a treatment plan
+ */
+export function useUpdatePatientClinicalPlanPhase() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, planId, phaseId, data }) =>
+            updatePatientClinicalPlanPhase(patientId, planId, phaseId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlans(variables.patientId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for atomically reordering phases in a treatment plan
+ */
+export function useReorderPatientClinicalPlanPhases() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, planId, phaseIds }) =>
+            reorderPatientClinicalPlanPhases(patientId, planId, phaseIds),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalPlans(variables.patientId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for deleting a phase from a treatment plan
+ */
+export function useDeletePatientClinicalPlanPhase() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, planId, phaseId }) =>
+            deletePatientClinicalPlanPhase(patientId, planId, phaseId),
         onSuccess: (_data, variables) => {
             queryClient.invalidateQueries({
                 queryKey: queryKeys.patientClinicalPlans(variables.patientId),

@@ -14,6 +14,7 @@ import {
     CheckCircle2,
     XCircle,
     Send,
+    Pencil,
 } from 'lucide-react';
 import { toast, DentixDialog } from '@/shared/ui';
 import {
@@ -21,6 +22,9 @@ import {
     useCreatePatientClinicalPlan,
     usePatientClinicalPlanCandidates,
     useAddPatientClinicalPlanPhase,
+    useUpdatePatientClinicalPlanPhase,
+    useReorderPatientClinicalPlanPhases,
+    useDeletePatientClinicalPlanPhase,
     useAddPatientClinicalPlanItem,
     useRemovePatientClinicalPlanItem,
     useTransitionPatientClinicalPlan,
@@ -42,7 +46,12 @@ const getStatusBadgeClass = (status) => {
     }
 };
 
-const TreatmentPlansCard = memo(({ patientId }) => {
+const TreatmentPlansCard = memo(({
+    patientId,
+    activeOverlayPlanId = null,
+    activeOverlayPhaseId = null,
+    onToggleOverlay,
+}) => {
     const { t, i18n } = useTranslation();
     const isRtl = i18n.language === 'ar' || document.documentElement.dir === 'rtl';
 
@@ -63,6 +72,10 @@ const TreatmentPlansCard = memo(({ patientId }) => {
     });
     const [selectedWorkItemId, setSelectedWorkItemId] = useState('');
 
+    // Phase Edit and Delete states
+    const [editingPhase, setEditingPhase] = useState(null); // { planId, phaseId, name, notes }
+    const [deletingPhase, setDeletingPhase] = useState(null); // { planId, phaseId, name }
+
     const {
         data: plans = [],
         isLoading,
@@ -72,6 +85,9 @@ const TreatmentPlansCard = memo(({ patientId }) => {
 
     const createPlanMutation = useCreatePatientClinicalPlan();
     const addPhaseMutation = useAddPatientClinicalPlanPhase();
+    const updatePhaseMutation = useUpdatePatientClinicalPlanPhase();
+    const reorderPhasesMutation = useReorderPatientClinicalPlanPhases();
+    const deletePhaseMutation = useDeletePatientClinicalPlanPhase();
     const addPlanItemMutation = useAddPatientClinicalPlanItem();
     const removePlanItemMutation = useRemovePatientClinicalPlanItem();
     const transitionPlanMutation = useTransitionPatientClinicalPlan();
@@ -226,6 +242,117 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                 err?.response?.data?.detail ||
                 err?.message ||
                 t('clinical_plans.alerts.transition_error', 'Failed to update treatment plan status')
+            );
+        }
+    };
+
+    const handleMovePhaseUp = async (plan, phaseIndex) => {
+        if (phaseIndex <= 0 || reorderPhasesMutation.isPending) return;
+        const phases = [...(plan.phases || [])].sort((a, b) => a.phase_order - b.phase_order);
+        const temp = phases[phaseIndex];
+        phases[phaseIndex] = phases[phaseIndex - 1];
+        phases[phaseIndex - 1] = temp;
+        const phaseIds = phases.map((p) => p.id);
+
+        try {
+            await reorderPhasesMutation.mutateAsync({
+                patientId,
+                planId: plan.id,
+                phaseIds,
+            });
+            toast.success(t('clinical_plans.alerts.reorder_success', 'Phases reordered successfully'));
+        } catch (err) {
+            toast.error(
+                err?.response?.data?.detail ||
+                err?.message ||
+                t('clinical_plans.alerts.reorder_error', 'Failed to reorder phases')
+            );
+        }
+    };
+
+    const handleMovePhaseDown = async (plan, phaseIndex) => {
+        const phases = [...(plan.phases || [])].sort((a, b) => a.phase_order - b.phase_order);
+        if (phaseIndex >= phases.length - 1 || reorderPhasesMutation.isPending) return;
+        const temp = phases[phaseIndex];
+        phases[phaseIndex] = phases[phaseIndex + 1];
+        phases[phaseIndex + 1] = temp;
+        const phaseIds = phases.map((p) => p.id);
+
+        try {
+            await reorderPhasesMutation.mutateAsync({
+                patientId,
+                planId: plan.id,
+                phaseIds,
+            });
+            toast.success(t('clinical_plans.alerts.reorder_success', 'Phases reordered successfully'));
+        } catch (err) {
+            toast.error(
+                err?.response?.data?.detail ||
+                err?.message ||
+                t('clinical_plans.alerts.reorder_error', 'Failed to reorder phases')
+            );
+        }
+    };
+
+    const handleOpenEditPhase = (planId, phase) => {
+        setEditingPhase({
+            planId,
+            phaseId: phase.id,
+            name: phase.name,
+            notes: phase.notes || '',
+        });
+    };
+
+    const handleCloseEditPhase = () => {
+        if (updatePhaseMutation.isPending) return;
+        setEditingPhase(null);
+    };
+
+    const handleSubmitEditPhase = async (e) => {
+        e.preventDefault();
+        if (!editingPhase) return;
+        const trimmedName = editingPhase.name.trim();
+        if (!trimmedName) {
+            toast.error(t('clinical_plans.alerts.phase_name_required', 'Phase name is required'));
+            return;
+        }
+
+        try {
+            await updatePhaseMutation.mutateAsync({
+                patientId,
+                planId: editingPhase.planId,
+                phaseId: editingPhase.phaseId,
+                data: {
+                    name: trimmedName,
+                    notes: editingPhase.notes?.trim() || null,
+                },
+            });
+            toast.success(t('clinical_plans.alerts.update_phase_success', 'Phase updated successfully'));
+            handleCloseEditPhase();
+        } catch (err) {
+            toast.error(
+                err?.response?.data?.detail ||
+                err?.message ||
+                t('clinical_plans.alerts.update_phase_error', 'Failed to update phase')
+            );
+        }
+    };
+
+    const handleConfirmDeletePhase = async () => {
+        if (!deletingPhase || deletePhaseMutation.isPending) return;
+        try {
+            await deletePhaseMutation.mutateAsync({
+                patientId,
+                planId: deletingPhase.planId,
+                phaseId: deletingPhase.phaseId,
+            });
+            toast.success(t('clinical_plans.alerts.delete_phase_success', 'Phase deleted successfully'));
+            setDeletingPhase(null);
+        } catch (err) {
+            toast.error(
+                err?.response?.data?.detail ||
+                err?.message ||
+                t('clinical_plans.alerts.delete_phase_error', 'Failed to delete phase')
             );
         }
     };
@@ -471,6 +598,31 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                                                     </>
                                                 )}
 
+                                                {/* Plan Overlay on Chart toggle (G9-M09) */}
+                                                <button
+                                                    type="button"
+                                                    data-testid={`overlay-plan-button-${plan.id}`}
+                                                    onClick={() => onToggleOverlay?.(plan.id, null)}
+                                                    aria-pressed={activeOverlayPlanId === plan.id && activeOverlayPhaseId === null}
+                                                    className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors ${
+                                                        activeOverlayPlanId === plan.id && activeOverlayPhaseId === null
+                                                            ? 'border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-600'
+                                                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+                                                    }`}
+                                                    title={
+                                                        activeOverlayPlanId === plan.id && activeOverlayPhaseId === null
+                                                            ? t('clinical_plans.overlay.hide', 'Hide from Chart')
+                                                            : t('clinical_plans.overlay.show', 'Show on Chart')
+                                                    }
+                                                >
+                                                    <Layers size={14} />
+                                                    <span>
+                                                        {activeOverlayPlanId === plan.id && activeOverlayPhaseId === null
+                                                            ? t('clinical_plans.overlay.hide', 'Hide from Chart')
+                                                            : t('clinical_plans.overlay.show', 'Show on Chart')}
+                                                    </span>
+                                                </button>
+
                                                 {/* Add Phase button - only visible if plan is draft or proposed (Decision 4) */}
                                                 {canModifyPlan && (
                                                     <button
@@ -478,7 +630,7 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                                                         data-testid={`add-phase-button-${plan.id}`}
                                                         onClick={() => handleAddPhase(plan)}
                                                         disabled={addPhaseMutation.isPending}
-                                                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                                        className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                                                     >
                                                         {addPhaseMutation.isPending ? (
                                                             <Loader2 size={13} className="animate-spin" />
@@ -493,7 +645,7 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                                                     type="button"
                                                     data-testid={`toggle-plan-accordion-${plan.id}`}
                                                     onClick={() => togglePlanExpanded(plan.id)}
-                                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
+                                                    className="inline-flex min-h-11 w-11 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
                                                     aria-label={isExpanded ? t('clinical_plans.collapse', 'Collapse') : t('clinical_plans.expand', 'Expand')}
                                                 >
                                                     {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -507,7 +659,7 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                                                 data-testid={`plan-phases-accordion-${plan.id}`}
                                                 className="mt-4 space-y-3 border-t border-slate-100 pt-3 dark:border-slate-800/70"
                                             >
-                                                {(plan.phases || []).map((phase) => (
+                                                {(plan.phases || []).map((phase, idx) => (
                                                     <div
                                                         key={phase.id}
                                                         data-testid={`clinical-phase-item-${phase.id}`}
@@ -515,7 +667,7 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                                                     >
                                                         {/* Phase Header */}
                                                         <div className="flex flex-wrap items-center justify-between gap-2">
-                                                            <div className="flex items-center gap-2">
+                                                            <div className="flex flex-wrap items-center gap-2">
                                                                 <span className="inline-flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-100 text-xs font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
                                                                     {phase.phase_order + 1}
                                                                 </span>
@@ -528,20 +680,101 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                                                                 >
                                                                     {t(`clinical_plans.status.${phase.status}`, phase.status)}
                                                                 </span>
+                                                                {phase.notes && (
+                                                                    <span
+                                                                        data-testid={`phase-notes-${phase.id}`}
+                                                                        className="text-xs text-slate-500 italic dark:text-slate-400"
+                                                                    >
+                                                                        ({phase.notes})
+                                                                    </span>
+                                                                )}
                                                             </div>
 
-                                                            {/* Add Procedure button - only visible if plan is draft or proposed (Decision 4) */}
-                                                            {canModifyPlan && (
+                                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                                {/* Overlay Phase toggle (G9-M09) */}
                                                                 <button
                                                                     type="button"
-                                                                    data-testid={`add-procedure-button-${phase.id}`}
-                                                                    onClick={() => handleOpenAddProcedure(plan.id, phase.id, phase.name)}
-                                                                    className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                                                    data-testid={`overlay-phase-button-${phase.id}`}
+                                                                    onClick={() => onToggleOverlay?.(plan.id, phase.id)}
+                                                                    aria-pressed={activeOverlayPlanId === plan.id && activeOverlayPhaseId === phase.id}
+                                                                    className={`inline-flex min-h-11 items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-medium transition-colors ${
+                                                                        activeOverlayPlanId === plan.id && activeOverlayPhaseId === phase.id
+                                                                            ? 'border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-950/60 dark:text-blue-300'
+                                                                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                                                                    }`}
+                                                                    title={t('clinical_plans.overlay.phase_tooltip', 'Highlight only this phase on chart')}
                                                                 >
-                                                                    <Plus size={13} />
-                                                                    <span>{t('clinical_plans.add_procedure', 'Add Procedure')}</span>
+                                                                    <Layers size={13} />
+                                                                    <span>{t('clinical_plans.overlay.phase_btn', 'Overlay Phase')}</span>
                                                                 </button>
-                                                            )}
+
+                                                                {canModifyPlan && (
+                                                                    <>
+                                                                        {/* Move Up */}
+                                                                        <button
+                                                                            type="button"
+                                                                            data-testid={`move-up-phase-${phase.id}`}
+                                                                            disabled={idx === 0 || reorderPhasesMutation.isPending}
+                                                                            onClick={() => handleMovePhaseUp(plan, idx)}
+                                                                            className="inline-flex min-h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                                                                            title={t('clinical_plans.actions.move_up', 'Move Up')}
+                                                                            aria-label={`Move phase ${phase.name} up`}
+                                                                        >
+                                                                            <ChevronUp size={14} />
+                                                                        </button>
+
+                                                                        {/* Move Down */}
+                                                                        <button
+                                                                            type="button"
+                                                                            data-testid={`move-down-phase-${phase.id}`}
+                                                                            disabled={idx === (plan.phases || []).length - 1 || reorderPhasesMutation.isPending}
+                                                                            onClick={() => handleMovePhaseDown(plan, idx)}
+                                                                            className="inline-flex min-h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                                                                            title={t('clinical_plans.actions.move_down', 'Move Down')}
+                                                                            aria-label={`Move phase ${phase.name} down`}
+                                                                        >
+                                                                            <ChevronDown size={14} />
+                                                                        </button>
+
+                                                                        {/* Edit / Rename */}
+                                                                        <button
+                                                                            type="button"
+                                                                            data-testid={`edit-phase-button-${phase.id}`}
+                                                                            onClick={() => handleOpenEditPhase(plan.id, phase)}
+                                                                            className="inline-flex min-h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                                                                            title={t('clinical_plans.actions.edit_phase', 'Edit Phase')}
+                                                                            aria-label={`Edit phase ${phase.name}`}
+                                                                        >
+                                                                            <Pencil size={13} />
+                                                                        </button>
+
+                                                                        {/* Delete Phase */}
+                                                                        <button
+                                                                            type="button"
+                                                                            data-testid={`delete-phase-button-${phase.id}`}
+                                                                            onClick={() => setDeletingPhase({ planId: plan.id, phaseId: phase.id, name: phase.name })}
+                                                                            className="inline-flex min-h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-rose-600 hover:bg-rose-50 dark:border-slate-700 dark:bg-slate-800 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                                                                            title={t('clinical_plans.actions.delete_phase', 'Delete Phase')}
+                                                                            aria-label={`Delete phase ${phase.name}`}
+                                                                        >
+                                                                            <Trash2 size={13} />
+                                                                        </button>
+                                                                    </>
+                                                                )}
+
+                                                                {/* Add Procedure button - only visible if plan is draft or proposed (Decision 4) */}
+                                                                {canModifyPlan && (
+                                                                    <button
+                                                                        type="button"
+                                                                        data-testid={`add-procedure-button-${phase.id}`}
+                                                                        onClick={() => handleOpenAddProcedure(plan.id, phase.id, phase.name)}
+                                                                        className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-xs transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                                                                    >
+                                                                        <Plus size={13} />
+                                                                        <span>{t('clinical_plans.add_procedure', 'Add Procedure')}</span>
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         </div>
 
                                                         {/* Phase Items */}
@@ -816,6 +1049,133 @@ const TreatmentPlansCard = memo(({ patientId }) => {
                     </div>
                 </form>
             </DentixDialog>
+
+            {/* Edit Phase Dialog */}
+            <DentixDialog
+                open={Boolean(editingPhase)}
+                onOpenChange={(open) => {
+                    if (!open) handleCloseEditPhase();
+                }}
+                title={t('clinical_plans.dialog.edit_phase_title', 'Edit Treatment Plan Phase')}
+                size="md"
+                closeLabel={t('common.close', 'Close')}
+                closeOnOutside={!updatePhaseMutation.isPending}
+            >
+                <form
+                    data-testid="edit-phase-dialog"
+                    onSubmit={handleSubmitEditPhase}
+                    className="space-y-4"
+                    dir={isRtl ? 'rtl' : 'ltr'}
+                >
+                    <div>
+                        <label
+                            htmlFor="edit-phase-name-input"
+                            className="block text-xs font-semibold text-slate-700 dark:text-slate-300"
+                        >
+                            {t('clinical_plans.dialog.phase_name_label', 'Phase Name')}{' '}
+                            <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            id="edit-phase-name-input"
+                            data-testid="edit-phase-name-input"
+                            type="text"
+                            required
+                            value={editingPhase?.name || ''}
+                            onChange={(e) => setEditingPhase((prev) => ({ ...prev, name: e.target.value }))}
+                            placeholder={t('clinical_plans.dialog.phase_name_placeholder', 'e.g., Phase 1 - Preparatory')}
+                            className="mt-1.5 block w-full min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                        />
+                    </div>
+
+                    <div>
+                        <label
+                            htmlFor="edit-phase-notes-input"
+                            className="block text-xs font-semibold text-slate-700 dark:text-slate-300"
+                        >
+                            {t('clinical_plans.dialog.phase_notes_label', 'Notes (Optional)')}
+                        </label>
+                        <textarea
+                            id="edit-phase-notes-input"
+                            data-testid="edit-phase-notes-input"
+                            rows={3}
+                            value={editingPhase?.notes || ''}
+                            onChange={(e) => setEditingPhase((prev) => ({ ...prev, notes: e.target.value }))}
+                            placeholder={t('clinical_plans.dialog.phase_notes_placeholder', 'Optional clinical instructions for this phase...')}
+                            className="mt-1.5 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                        />
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-2">
+                        <button
+                            type="button"
+                            onClick={handleCloseEditPhase}
+                            disabled={updatePhaseMutation.isPending}
+                            className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                        >
+                            {t('common.cancel', 'Cancel')}
+                        </button>
+                        <button
+                            type="submit"
+                            data-testid="submit-edit-phase-button"
+                            disabled={updatePhaseMutation.isPending || !editingPhase?.name?.trim()}
+                            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-500"
+                        >
+                            {updatePhaseMutation.isPending && (
+                                <Loader2 size={16} className="animate-spin" />
+                            )}
+                            <span>{t('common.save', 'Save')}</span>
+                        </button>
+                    </div>
+                </form>
+            </DentixDialog>
+
+            {/* Delete Phase Confirmation Dialog */}
+            <DentixDialog
+                open={Boolean(deletingPhase)}
+                onOpenChange={(open) => {
+                    if (!open && !deletePhaseMutation.isPending) setDeletingPhase(null);
+                }}
+                title={t('clinical_plans.dialog.delete_phase_title', 'Delete Phase')}
+                size="sm"
+                closeLabel={t('common.close', 'Close')}
+                closeOnOutside={!deletePhaseMutation.isPending}
+            >
+                <div data-testid="delete-phase-dialog" className="space-y-4" dir={isRtl ? 'rtl' : 'ltr'}>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                        {t(
+                            'clinical_plans.dialog.delete_phase_confirm',
+                            'Are you sure you want to delete this phase? Any linked procedures will be detached from this phase, but the underlying work items will remain intact.'
+                        )}
+                    </p>
+                    {deletingPhase && (
+                        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
+                            {deletingPhase.name}
+                        </div>
+                    )}
+                    <div className="flex justify-end gap-2 pt-2">
+                        <button
+                            type="button"
+                            onClick={() => setDeletingPhase(null)}
+                            disabled={deletePhaseMutation.isPending}
+                            className="min-h-11 rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                        >
+                            {t('common.cancel', 'Cancel')}
+                        </button>
+                        <button
+                            type="button"
+                            data-testid="confirm-delete-phase-button"
+                            onClick={handleConfirmDeletePhase}
+                            disabled={deletePhaseMutation.isPending}
+                            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-rose-700 disabled:opacity-50"
+                        >
+                            {deletePhaseMutation.isPending && (
+                                <Loader2 size={16} className="animate-spin" />
+                            )}
+                            <span>{t('common.delete', 'Delete')}</span>
+                        </button>
+                    </div>
+                </div>
+            </DentixDialog>
         </section>
     );
 });
@@ -824,6 +1184,9 @@ TreatmentPlansCard.displayName = 'TreatmentPlansCard';
 
 TreatmentPlansCard.propTypes = {
     patientId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    activeOverlayPlanId: PropTypes.number,
+    activeOverlayPhaseId: PropTypes.number,
+    onToggleOverlay: PropTypes.func,
 };
 
 export default TreatmentPlansCard;

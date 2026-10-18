@@ -263,6 +263,7 @@ const SVGTooth = memo(function SVGTooth({
     readOnly,
     toothVisual,
     notationMode,
+    planOverlayTooth = null,
 }) {
     const reactId = useId();
     const path = getToothPath(number, isPediatric);
@@ -352,6 +353,16 @@ const SVGTooth = memo(function SVGTooth({
 
     const toothContent = (
         <>
+            {planOverlayTooth && (
+                <span
+                    data-testid={`plan-overlay-tooth-badge-${toothKey}`}
+                    title={`${planOverlayTooth.phaseName}: ${(planOverlayTooth.procedureCodes || []).join(', ')}`}
+                    className="absolute -top-2 z-10 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase text-white shadow-sm ring-1 ring-white dark:ring-slate-900"
+                    style={{ backgroundColor: planOverlayTooth.color }}
+                >
+                    {planOverlayTooth.badge || `P${planOverlayTooth.phaseIndex + 1}`}
+                </span>
+            )}
             {showRoots ? (
                 <span
                     aria-hidden={enableSurfaceSelection ? undefined : true}
@@ -374,12 +385,21 @@ const SVGTooth = memo(function SVGTooth({
         </>
     );
 
+    const overlayStyle = planOverlayTooth
+        ? {
+            outline: `2px solid ${planOverlayTooth.color}`,
+            outlineOffset: '2px',
+            backgroundColor: `${planOverlayTooth.color}15`,
+        }
+        : undefined;
+
     const toothClassName = `group relative flex min-w-[50px] shrink-0 flex-col items-center gap-1 rounded-lg focus-visible:ring-focus ${showRoots ? (arch === 'upper' ? 'min-h-[112px]' : 'min-h-[98px]') : 'min-h-[76px]'}`;
 
     if (enableSurfaceSelection) {
         return (
             <div
                 className={`${toothClassName} cursor-pointer ${isSelected ? 'ring-2 ring-blue-500 rounded-lg bg-blue-50/50 dark:bg-blue-950/30' : ''}`}
+                style={overlayStyle}
                 role="group"
                 aria-disabled={disabled}
                 aria-pressed={isSelected}
@@ -398,6 +418,7 @@ const SVGTooth = memo(function SVGTooth({
             <div
                 aria-label={condition ? `Tooth ${toothLabel} — ${condition}` : `Tooth ${toothLabel}`}
                 className={`${toothClassName} cursor-default`}
+                style={overlayStyle}
             >
                 {toothContent}
             </div>
@@ -408,6 +429,7 @@ const SVGTooth = memo(function SVGTooth({
         <button
             type="button"
             className={`${toothClassName} cursor-pointer ${isSelected ? 'ring-2 ring-blue-500 rounded-lg bg-blue-50/50 dark:bg-blue-950/30' : ''}`}
+            style={overlayStyle}
             disabled={disabled}
             onClick={() => onClick(number)}
             aria-pressed={isSelected}
@@ -434,6 +456,7 @@ export default memo(function DentalChartSVG({
     onSurfaceClick,
     readOnly = false,
     notationMode = DEFAULT_CHART_NOTATION_MODE,
+    planOverlay = null,
 }) {
     const isMixedDentition = Array.isArray(toothOrder);
     const layout = isMixedDentition
@@ -465,6 +488,7 @@ export default memo(function DentalChartSVG({
             status={teethStatus[tooth.toothKey]}
             toothKey={tooth.toothKey}
             toothVisual={toothVisuals[tooth.toothKey]}
+            planOverlayTooth={planOverlay?.teeth?.[tooth.toothKey] || null}
         />
     );
 

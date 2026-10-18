@@ -1475,3 +1475,302 @@ async def test_transition_router_endpoint_rbac_and_gates(client, seed_data, asyn
         json={"to_status": "accepted"},
     )
     assert res_flag_off.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_phase_update_success_and_guards(seed_data, async_db_session, monkeypatch):
+    """
+    Test phase update (name/notes):
+    - Succeeds in draft and proposed statuses.
+    - Locked (409) in accepted/completed/cancelled statuses.
+    - Validation (422) on empty name.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+
+    service = TreatmentPlanService(async_db_session, tenant_1.id, doctor_1)
+    plan = await service.create_plan(patient_1.id, schemas.ClinicalTreatmentPlanCreate(title="Phase Edit Plan"))
+    default_phase = plan.phases[0]
+
+    # 1. Update name and notes in draft
+    updated = await service.update_phase(
+        patient_1.id,
+        plan.id,
+        default_phase.id,
+        schemas.ClinicalTreatmentPlanPhaseUpdate(name="Preparatory Phase", notes="Clean tartar first"),
+    )
+    assert updated.name == "Preparatory Phase"
+    assert updated.notes == "Clean tartar first"
+
+    # 2. Transition to proposed -> update still succeeds
+    await service.transition_plan(patient_1.id, plan.id, "proposed")
+    updated_prop = await service.update_phase(
+        patient_1.id,
+        plan.id,
+        default_phase.id,
+        schemas.ClinicalTreatmentPlanPhaseUpdate(name="Phase 1 - Prep"),
+    )
+    assert updated_prop.name == "Phase 1 - Prep"
+    assert updated_prop.notes == "Clean tartar first"  # Unchanged
+
+    # 3. Validation error on empty name
+    with pytest.raises(HTTPException) as exc_empty:
+        await service.update_phase(
+            patient_1.id,
+            plan.id,
+            default_phase.id,
+            schemas.ClinicalTreatmentPlanPhaseUpdate(name="   "),
+        )
+    assert exc_empty.value.status_code == 422
+
+    # 4. Transition to accepted -> update phase fails with 409
+    await service.transition_plan(patient_1.id, plan.id, "accepted")
+    with pytest.raises(HTTPException) as exc_locked:
+        await service.update_phase(
+            patient_1.id,
+            plan.id,
+            default_phase.id,
+            schemas.ClinicalTreatmentPlanPhaseUpdate(name="Cannot Change"),
+        )
+    assert exc_locked.value.status_code == 409
+    assert "cannot be updated" in exc_locked.value.detail
+
+
+@pytest.mark.asyncio
+async def test_phase_reorder_atomic_and_guards(seed_data, async_db_session, monkeypatch):
+    """
+    Test phase reordering (G9-M03):
+    - Atomically reorders phase_order without uq_ctpp_plan_phase_order collision.
+    - Validates all phases must be present (422 on missing/duplicate).
+    - Locked (409) in accepted/completed/cancelled statuses.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+
+    service = TreatmentPlanService(async_db_session, tenant_1.id, doctor_1)
+    plan = await service.create_plan(patient_1.id, schemas.ClinicalTreatmentPlanCreate(title="Reorder Test Plan"))
+    phase_0 = plan.phases[0]  # phase_order: 0
+
+    phase_1 = await service.add_phase(patient_1.id, plan.id, schemas.ClinicalTreatmentPlanPhaseCreate(name="Phase 2"))
+    phase_2 = await service.add_phase(patient_1.id, plan.id, schemas.ClinicalTreatmentPlanPhaseCreate(name="Phase 3"))
+
+    assert [p.id for p in [phase_0, phase_1, phase_2]] == [phase_0.id, phase_1.id, phase_2.id]
+
+    # Reverse order: [phase_2, phase_1, phase_0]
+    reversed_phases = await service.reorder_phases(
+        patient_1.id,
+        plan.id,
+        schemas.ClinicalTreatmentPlanPhaseReorder(phase_ids=[phase_2.id, phase_1.id, phase_0.id]),
+    )
+    assert [p.id for p in reversed_phases] == [phase_2.id, phase_1.id, phase_0.id]
+    assert [p.phase_order for p in reversed_phases] == [0, 1, 2]
+
+    # Swap again: [phase_1, phase_0, phase_2]
+    reordered_again = await service.reorder_phases(
+        patient_1.id,
+        plan.id,
+        schemas.ClinicalTreatmentPlanPhaseReorder(phase_ids=[phase_1.id, phase_0.id, phase_2.id]),
+    )
+    assert [p.id for p in reordered_again] == [phase_1.id, phase_0.id, phase_2.id]
+    assert [p.phase_order for p in reordered_again] == [0, 1, 2]
+
+    # 422 on duplicate phase IDs
+    with pytest.raises(HTTPException) as exc_dup:
+        await service.reorder_phases(
+            patient_1.id,
+            plan.id,
+            schemas.ClinicalTreatmentPlanPhaseReorder(phase_ids=[phase_1.id, phase_1.id, phase_2.id]),
+        )
+    assert exc_dup.value.status_code == 422
+
+    # 422 on missing phase IDs
+    with pytest.raises(HTTPException) as exc_missing:
+        await service.reorder_phases(
+            patient_1.id,
+            plan.id,
+            schemas.ClinicalTreatmentPlanPhaseReorder(phase_ids=[phase_1.id, phase_2.id]),
+        )
+    assert exc_missing.value.status_code == 422
+
+    # 409 when plan transitioned to accepted
+    await service.transition_plan(patient_1.id, plan.id, "proposed")
+    await service.transition_plan(patient_1.id, plan.id, "accepted")
+    with pytest.raises(HTTPException) as exc_locked:
+        await service.reorder_phases(
+            patient_1.id,
+            plan.id,
+            schemas.ClinicalTreatmentPlanPhaseReorder(phase_ids=[phase_0.id, phase_1.id, phase_2.id]),
+        )
+    assert exc_locked.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_phase_delete_and_guards(seed_data, async_db_session, monkeypatch):
+    """
+    Test phase deletion (G9-M03):
+    - Succeeds in draft/proposed plan.
+    - Underlying ClinicalWorkItems linked to items are untouched.
+    - Remaining phases re-compacted sequentially.
+    - Locked (409) in accepted/completed/cancelled statuses.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+
+    # Create work item
+    wi = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="CROWN_PORCELAIN",
+        status="active",
+        created_by_user_id=doctor_1.id,
+    )
+    async_db_session.add(wi)
+    await async_db_session.flush()
+
+    service = TreatmentPlanService(async_db_session, tenant_1.id, doctor_1)
+    plan = await service.create_plan(patient_1.id, schemas.ClinicalTreatmentPlanCreate(title="Delete Phase Plan"))
+    phase_0 = plan.phases[0]
+    phase_1 = await service.add_phase(patient_1.id, plan.id, schemas.ClinicalTreatmentPlanPhaseCreate(name="Phase 2"))
+    phase_2 = await service.add_phase(patient_1.id, plan.id, schemas.ClinicalTreatmentPlanPhaseCreate(name="Phase 3"))
+
+    # Attach work item to phase 1
+    await service.add_work_item_to_phase(
+        patient_1.id,
+        plan.id,
+        phase_1.id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi.id),
+    )
+
+    # Delete phase 1 (the middle phase)
+    await service.delete_phase(patient_1.id, plan.id, phase_1.id)
+
+    # Reload plan
+    plans = await service.list_plans(patient_1.id)
+    plan_reloaded = next(p for p in plans if p.id == plan.id)
+    remaining_phases = sorted(plan_reloaded.phases, key=lambda x: x.phase_order)
+    assert len(remaining_phases) == 2
+    assert [p.id for p in remaining_phases] == [phase_0.id, phase_2.id]
+    assert [p.phase_order for p in remaining_phases] == [0, 1]
+
+    # Underlying work item is untouched
+    stmt_wi = select(models.ClinicalWorkItem).where(models.ClinicalWorkItem.id == wi.id)
+    wi_reloaded = (await async_db_session.execute(stmt_wi)).scalar_one()
+    assert wi_reloaded.status == "active"
+
+    # Transition to proposed -> delete still works
+    await service.transition_plan(patient_1.id, plan.id, "proposed")
+    await service.delete_phase(patient_1.id, plan.id, phase_2.id)
+
+    # Transition to accepted -> delete fails with 409
+    await service.transition_plan(patient_1.id, plan.id, "accepted")
+    with pytest.raises(HTTPException) as exc_locked:
+        await service.delete_phase(patient_1.id, plan.id, phase_0.id)
+    assert exc_locked.value.status_code == 409
+
+
+def test_phase_endpoints_router_integration(client, seed_data, monkeypatch):
+    """
+    Test HTTP endpoints for phase PATCH, reorder POST, and DELETE:
+    - TREATMENT_PLAN_WRITE permission required.
+    - Receptionist without permission gets 403.
+    - Flag-off returns 404.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    receptionist_1 = seed_data["receptionist_1"]
+    patient_1 = seed_data["patient_1"]
+
+    doc_token = create_access_token(data={"sub": doctor_1.username, "tenant_id": tenant_1.id})
+    doc_headers = {"Authorization": f"Bearer {doc_token}"}
+    recep_token = create_access_token(data={"sub": receptionist_1.username, "tenant_id": tenant_1.id})
+    recep_headers = {"Authorization": f"Bearer {recep_token}"}
+
+    # Create plan
+    res_create = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans",
+        headers=doc_headers,
+        json={"title": "Router Phase Test Plan"},
+    )
+    assert res_create.status_code == 200
+    plan_id = res_create.json()["data"]["id"]
+    phase_0_id = res_create.json()["data"]["phases"][0]["id"]
+
+    # Add second phase
+    res_add_ph = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/phases",
+        headers=doc_headers,
+        json={"name": "Second Phase"},
+    )
+    assert res_add_ph.status_code == 200
+    phase_1_id = res_add_ph.json()["data"]["id"]
+
+    # 1. PATCH phase (Update)
+    # Receptionist gets 403
+    res_patch_recep = client.patch(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/phases/{phase_0_id}",
+        headers=recep_headers,
+        json={"name": "Updated by Recep"},
+    )
+    assert res_patch_recep.status_code == 403
+
+    # Doctor succeeds
+    res_patch_doc = client.patch(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/phases/{phase_0_id}",
+        headers=doc_headers,
+        json={"name": "Renamed Phase 1", "notes": "New phase notes"},
+    )
+    assert res_patch_doc.status_code == 200
+    assert res_patch_doc.json()["data"]["name"] == "Renamed Phase 1"
+    assert res_patch_doc.json()["data"]["notes"] == "New phase notes"
+
+    # 2. POST reorder
+    # Receptionist gets 403
+    res_reorder_recep = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/phases/reorder",
+        headers=recep_headers,
+        json={"phase_ids": [phase_1_id, phase_0_id]},
+    )
+    assert res_reorder_recep.status_code == 403
+
+    # Doctor succeeds
+    res_reorder_doc = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/phases/reorder",
+        headers=doc_headers,
+        json={"phase_ids": [phase_1_id, phase_0_id]},
+    )
+    assert res_reorder_doc.status_code == 200
+    phases_out = res_reorder_doc.json()["data"]
+    assert [p["id"] for p in phases_out] == [phase_1_id, phase_0_id]
+    assert [p["phase_order"] for p in phases_out] == [0, 1]
+
+    # 3. DELETE phase
+    # Receptionist gets 403
+    res_del_recep = client.delete(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/phases/{phase_1_id}",
+        headers=recep_headers,
+    )
+    assert res_del_recep.status_code == 403
+
+    # Doctor succeeds
+    res_del_doc = client.delete(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/phases/{phase_1_id}",
+        headers=doc_headers,
+    )
+    assert res_del_doc.status_code == 200
+
+    # 4. Flag off -> 404
+    monkeypatch.delenv("CLINICAL_TREATMENT_PLANS_ENABLED", raising=False)
+    res_flag_off = client.patch(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/phases/{phase_0_id}",
+        headers=doc_headers,
+        json={"name": "Will fail"},
+    )
+    assert res_flag_off.status_code == 404

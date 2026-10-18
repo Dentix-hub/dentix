@@ -145,6 +145,7 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
         selection = null,
         selectedToothKeys = null,
         selectedSurfacesByTooth = null,
+        planOverlay = null,
         onToothClick,
         onSurfaceClick,
     } = options;
@@ -295,6 +296,7 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
             selection: projection.selection,
             selectedToothKeys: activeSelectedToothKeys,
             selectedSurfacesByTooth,
+            planOverlay,
         },
         notationMode,
         interactionMode: isReadOnly ? CHART_INTERACTION_MODES.READ_ONLY : CHART_INTERACTION_MODES.EDIT,

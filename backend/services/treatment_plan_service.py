@@ -314,6 +314,157 @@ class TreatmentPlanService:
                 await self.db.rollback()
                 raise HTTPException(status_code=409, detail="Concurrent phase order conflict")
 
+    async def update_phase(
+        self,
+        patient_id: int,
+        plan_id: int,
+        phase_id: int,
+        data: schemas.ClinicalTreatmentPlanPhaseUpdate,
+    ) -> models.ClinicalTreatmentPlanPhase:
+        """
+        Update phase name or notes.
+        Allowed only in 'draft' or 'proposed' plan status (G9-M03).
+        """
+        plan, phase = await self._get_phase_and_verify(patient_id, plan_id, phase_id)
+        if plan.status not in ("draft", "proposed"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Phases cannot be updated in a plan in '{plan.status}' status",
+            )
+
+        if data.name is not None:
+            clean_name = data.name.strip()
+            if not clean_name:
+                raise HTTPException(status_code=422, detail="Phase name cannot be empty")
+            if len(clean_name) > 255:
+                raise HTTPException(status_code=422, detail="Phase name cannot exceed 255 characters")
+            phase.name = clean_name
+
+        if data.notes is not None:
+            phase.notes = data.notes.strip() if data.notes.strip() else None
+
+        await self.db.commit()
+
+        stmt = (
+            select(models.ClinicalTreatmentPlanPhase)
+            .where(
+                models.ClinicalTreatmentPlanPhase.id == phase.id,
+                models.ClinicalTreatmentPlanPhase.tenant_id == self.tenant_id,
+            )
+            .options(
+                selectinload(models.ClinicalTreatmentPlanPhase.items)
+                .selectinload(models.ClinicalTreatmentPlanItem.work_item)
+                .selectinload(models.ClinicalWorkItem.targets)
+            )
+        )
+        return (await self.db.execute(stmt)).scalar_one()
+
+    async def reorder_phases(
+        self,
+        patient_id: int,
+        plan_id: int,
+        data: schemas.ClinicalTreatmentPlanPhaseReorder,
+    ) -> List[models.ClinicalTreatmentPlanPhase]:
+        """
+        Atomically reorder phases within a plan (G9-M03).
+        Allowed only in 'draft' or 'proposed' status.
+        Uses a temporary offset during flush to satisfy uq_ctpp_plan_phase_order and
+        ck_ctpp_phase_order_non_negative simultaneously.
+        """
+        plan = await self._get_plan_and_verify(patient_id, plan_id)
+        if plan.status not in ("draft", "proposed"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Phases cannot be reordered in a plan in '{plan.status}' status",
+            )
+
+        stmt = (
+            select(models.ClinicalTreatmentPlanPhase)
+            .where(
+                models.ClinicalTreatmentPlanPhase.tenant_id == self.tenant_id,
+                models.ClinicalTreatmentPlanPhase.plan_id == plan.id,
+            )
+            .order_by(models.ClinicalTreatmentPlanPhase.phase_order.asc())
+        )
+        existing_phases = list((await self.db.execute(stmt)).scalars().all())
+        existing_by_id = {p.id: p for p in existing_phases}
+
+        if len(data.phase_ids) != len(set(data.phase_ids)):
+            raise HTTPException(status_code=422, detail="Duplicate phase IDs in reorder list")
+
+        if set(data.phase_ids) != set(existing_by_id.keys()):
+            raise HTTPException(
+                status_code=422,
+                detail="All phases of the plan must be included in reorder list",
+            )
+
+        # Temporary non-colliding offset >= 10000 to respect ck_ctpp_phase_order_non_negative
+        # and prevent unique collisions on uq_ctpp_plan_phase_order
+        TEMP_OFFSET = 10000
+        for idx, pid in enumerate(data.phase_ids):
+            existing_by_id[pid].phase_order = TEMP_OFFSET + idx
+        await self.db.flush()
+
+        for idx, pid in enumerate(data.phase_ids):
+            existing_by_id[pid].phase_order = idx
+        await self.db.commit()
+
+        stmt_reload = (
+            select(models.ClinicalTreatmentPlanPhase)
+            .where(
+                models.ClinicalTreatmentPlanPhase.tenant_id == self.tenant_id,
+                models.ClinicalTreatmentPlanPhase.plan_id == plan.id,
+            )
+            .options(
+                selectinload(models.ClinicalTreatmentPlanPhase.items)
+                .selectinload(models.ClinicalTreatmentPlanItem.work_item)
+                .selectinload(models.ClinicalWorkItem.targets)
+            )
+            .order_by(models.ClinicalTreatmentPlanPhase.phase_order.asc())
+        )
+        return list((await self.db.execute(stmt_reload)).scalars().all())
+
+    async def delete_phase(
+        self,
+        patient_id: int,
+        plan_id: int,
+        phase_id: int,
+    ) -> None:
+        """
+        Delete a phase from a treatment plan (G9-M03).
+        Allowed only in 'draft' or 'proposed' status (409 otherwise).
+        Phase items cascade delete; underlying ClinicalWorkItems remain untouched.
+        Remaining phases are re-compacted sequentially.
+        """
+        plan, phase = await self._get_phase_and_verify(patient_id, plan_id, phase_id)
+        if plan.status not in ("draft", "proposed"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Phases cannot be deleted from a plan in '{plan.status}' status",
+            )
+
+        await self.db.delete(phase)
+        await self.db.flush()
+
+        stmt_rem = (
+            select(models.ClinicalTreatmentPlanPhase)
+            .where(
+                models.ClinicalTreatmentPlanPhase.tenant_id == self.tenant_id,
+                models.ClinicalTreatmentPlanPhase.plan_id == plan.id,
+            )
+            .order_by(models.ClinicalTreatmentPlanPhase.phase_order.asc())
+        )
+        remaining = list((await self.db.execute(stmt_rem)).scalars().all())
+        if remaining:
+            TEMP_OFFSET = 10000
+            for idx, p in enumerate(remaining):
+                p.phase_order = TEMP_OFFSET + idx
+            await self.db.flush()
+            for idx, p in enumerate(remaining):
+                p.phase_order = idx
+
+        await self.db.commit()
+
     async def add_work_item_to_phase(
         self,
         patient_id: int,

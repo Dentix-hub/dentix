@@ -96,6 +96,70 @@ async def add_patient_clinical_plan_phase(
     )
 
 
+@router.patch(
+    "/{patient_id}/clinical-plans/{plan_id}/phases/{phase_id}",
+    response_model=StandardResponse[schemas.ClinicalTreatmentPlanPhaseRead],
+    summary="Update treatment plan phase",
+    description="Update phase name or notes in a draft or proposed treatment plan.",
+)
+async def update_patient_clinical_plan_phase(
+    patient_id: int,
+    plan_id: int,
+    phase_id: int,
+    payload: schemas.ClinicalTreatmentPlanPhaseUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
+):
+    service = TreatmentPlanService(db, current_user.tenant_id, current_user)
+    phase = await service.update_phase(patient_id, plan_id, phase_id, payload)
+    return success_response(
+        data=schemas.ClinicalTreatmentPlanPhaseRead.model_validate(phase),
+        message="Phase updated successfully",
+    )
+
+
+@router.post(
+    "/{patient_id}/clinical-plans/{plan_id}/phases/reorder",
+    response_model=StandardResponse[List[schemas.ClinicalTreatmentPlanPhaseRead]],
+    summary="Reorder treatment plan phases",
+    description="Atomically reorder phases of a draft or proposed treatment plan.",
+)
+async def reorder_patient_clinical_plan_phases(
+    patient_id: int,
+    plan_id: int,
+    payload: schemas.ClinicalTreatmentPlanPhaseReorder,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
+):
+    service = TreatmentPlanService(db, current_user.tenant_id, current_user)
+    phases = await service.reorder_phases(patient_id, plan_id, payload)
+    return success_response(
+        data=[schemas.ClinicalTreatmentPlanPhaseRead.model_validate(p) for p in phases],
+        message="Phases reordered successfully",
+    )
+
+
+@router.delete(
+    "/{patient_id}/clinical-plans/{plan_id}/phases/{phase_id}",
+    response_model=StandardResponse[None],
+    summary="Delete treatment plan phase",
+    description="Delete a phase from a draft or proposed treatment plan.",
+)
+async def delete_patient_clinical_plan_phase(
+    patient_id: int,
+    plan_id: int,
+    phase_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.TREATMENT_PLAN_WRITE)),
+):
+    service = TreatmentPlanService(db, current_user.tenant_id, current_user)
+    await service.delete_phase(patient_id, plan_id, phase_id)
+    return success_response(
+        data=None,
+        message="Phase deleted successfully",
+    )
+
+
 @router.post(
     "/{patient_id}/clinical-plans/{plan_id}/phases/{phase_id}/items",
     response_model=StandardResponse[schemas.ClinicalTreatmentPlanItemRead],
