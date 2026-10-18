@@ -321,6 +321,7 @@ describe('PatientDetails Clinical Workspace Tab', () => {
         expect(tooth16).not.toBeNull();
 
         fireEvent.click(tooth16);
+        fireEvent.click(screen.getByTestId('record-treatment-button'));
 
         expect(screen.getByTestId('treatment-modal-tooth')).toHaveTextContent('UR6');
     });
