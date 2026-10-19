@@ -256,6 +256,7 @@ jobs:
           pytest backend/ci_tests/test_auth_bootstrap_rls_probe.py \
             backend/ci_tests/test_auth_cookie_flow_http.py \
             backend/ci_tests/test_child_tenant_rls_postgres.py \
+            backend/ci_tests/test_clinical_commands_concurrency_postgres.py \
             backend/ci_tests/test_clinical_projection_coverage_rls_postgres.py \
             backend/ci_tests/test_cross_tenant_http_postgres.py \
             backend/ci_tests/test_upload_postgres_smoke.py \
