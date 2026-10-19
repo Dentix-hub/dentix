@@ -168,13 +168,15 @@ class ClinicalCommandService:
         Locate existing event with matching idempotency key for this patient and tenant.
         Raises 409 Conflict if key matches but fingerprint differs.
         Returns matching ClinicalEvent if found, None otherwise.
-        Uses portable Python-level inspection matching TreatmentService._find_linked_clinical_work_item.
+        The key is filtered in SQL through the portable JSON path (SQLite and PostgreSQL), so only
+        matching events are loaded instead of the patient's whole event history.
         """
         stmt = (
             select(models.ClinicalEvent)
             .where(
                 models.ClinicalEvent.tenant_id == self.tenant_id,
                 models.ClinicalEvent.patient_id == patient_id,
+                models.ClinicalEvent.payload["idempotency_key"].as_string() == idempotency_key,
             )
             .order_by(models.ClinicalEvent.id.desc())
         )
