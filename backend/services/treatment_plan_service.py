@@ -32,6 +32,7 @@ Enforces:
      remain 100% invariant across all treatment plan operations.
 """
 
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, List, Optional, Tuple, Union
 from fastapi import HTTPException
 from sqlalchemy import func, inspect, or_, select
@@ -64,6 +65,11 @@ def _eager_plan_options():
         .selectinload(models.ClinicalTreatmentPlanItem.work_item)
         .selectinload(models.ClinicalWorkItem.targets)
     )
+
+
+# The product has no per-tenant currency yet (Tenant has no currency column; the finance UI is EGP-only).
+# Keep a single named constant so a future multi-currency change has one place to update.
+ESTIMATE_CURRENCY = "EGP"
 
 
 class TreatmentPlanService:
@@ -185,6 +191,13 @@ class TreatmentPlanService:
         2. Clinic default price list (PriceListItem)
         3. Procedure base price (Procedure.price)
         4. If not found or procedure unpriced, fee=0.00 and unpriced=True.
+
+        Money is accumulated with ``Decimal`` (quantized to 0.01, half-up) and only converted
+        to ``float`` at the API boundary, so phase/plan totals never drift. Only the procedures
+        and price rows that the plans' work-item codes can actually match are loaded.
+
+        Also attaches ``estimate_price_list_id`` (patient price list when set, otherwise the
+        clinic default list) to every plan so the estimate endpoint reports the list in effect.
         """
         if not plans:
             return
@@ -207,62 +220,94 @@ class TreatmentPlanService:
         def_list = (await self.db.execute(stmt_def_list)).scalars().first()
         clinic_default_price_list_id = def_list.id if def_list else None
 
-        # 3. Load all available procedures for this tenant + globals
-        stmt_procs = select(models.Procedure).where(
-            or_(
-                models.Procedure.tenant_id == self.tenant_id,
-                models.Procedure.tenant_id.is_(None),
-            )
-        )
-        procs = (await self.db.execute(stmt_procs)).scalars().all()
+        # 3. Collect the distinct work-item codes referenced by these plans
+        def _clean_code(item: Any) -> str:
+            work_item = getattr(item, "work_item", None)
+            code = getattr(work_item, "code", "") if work_item else ""
+            return str(code).strip() if code else ""
+
+        codes: set = set()
+        for plan in plan_list:
+            for phase in getattr(plan, "phases", []) or []:
+                for item in getattr(phase, "items", []) or []:
+                    clean = _clean_code(item)
+                    if clean:
+                        codes.add(clean)
 
         from backend.clinical.legacy_mapping import LEGACY_PROCEDURE_ALLOWLIST
 
+        # 4. Load only procedures that can match one of those codes (this tenant + globals).
+        #    (Procedure.name is globally unique, so a code maps to at most one procedure.)
         proc_by_key: Dict[str, models.Procedure] = {}
-        for p in procs:
-            if not p.name:
-                continue
-            name_clean = p.name.strip()
-            proc_by_key[name_clean] = p
-            proc_by_key[name_clean.lower()] = p
-            if name_clean in LEGACY_PROCEDURE_ALLOWLIST:
-                canon = LEGACY_PROCEDURE_ALLOWLIST[name_clean]
-                if canon not in proc_by_key:
-                    proc_by_key[canon] = p
-                    proc_by_key[canon.lower()] = p
-
-        # 4. Load price list items for patient's price list and clinic default price list
-        patient_prices: Dict[int, float] = {}
-        if patient_price_list_id:
-            stmt_pli = select(models.PriceListItem).where(
-                models.PriceListItem.price_list_id == patient_price_list_id
+        if codes:
+            lowered_codes = {c.lower() for c in codes}
+            legacy_names = [name for name, canon in LEGACY_PROCEDURE_ALLOWLIST.items() if canon in codes]
+            name_filters = [func.lower(func.trim(models.Procedure.name)).in_(lowered_codes)]
+            if legacy_names:
+                name_filters.append(func.trim(models.Procedure.name).in_(legacy_names))
+            stmt_procs = (
+                select(models.Procedure)
+                .where(
+                    or_(
+                        models.Procedure.tenant_id == self.tenant_id,
+                        models.Procedure.tenant_id.is_(None),
+                    ),
+                    or_(*name_filters),
+                )
+                .order_by(models.Procedure.id)
             )
-            for pli in (await self.db.execute(stmt_pli)).scalars().all():
-                if pli.final_price is not None:
-                    patient_prices[pli.procedure_id] = float(pli.final_price)
+            procs = (await self.db.execute(stmt_procs)).scalars().all()
 
-        clinic_default_prices: Dict[int, float] = {}
-        if clinic_default_price_list_id and clinic_default_price_list_id != patient_price_list_id:
-            stmt_def_pli = select(models.PriceListItem).where(
-                models.PriceListItem.price_list_id == clinic_default_price_list_id
-            )
-            for pli in (await self.db.execute(stmt_def_pli)).scalars().all():
-                if pli.final_price is not None:
-                    clinic_default_prices[pli.procedure_id] = float(pli.final_price)
+            for p in procs:
+                if not p.name:
+                    continue
+                name_clean = p.name.strip()
+                proc_by_key[name_clean] = p
+                proc_by_key[name_clean.lower()] = p
+                if name_clean in LEGACY_PROCEDURE_ALLOWLIST:
+                    canon = LEGACY_PROCEDURE_ALLOWLIST[name_clean]
+                    if canon not in proc_by_key:
+                        proc_by_key[canon] = p
+                        proc_by_key[canon.lower()] = p
 
-        # 5. Calculate and attach estimates
+        matched_proc_ids = {p.id for p in proc_by_key.values()}
+
+        # 5. Load price list items only for matched procedures
+        patient_prices: Dict[int, Decimal] = {}
+        clinic_default_prices: Dict[int, Decimal] = {}
+        if matched_proc_ids:
+            if patient_price_list_id:
+                stmt_pli = select(models.PriceListItem).where(
+                    models.PriceListItem.price_list_id == patient_price_list_id,
+                    models.PriceListItem.procedure_id.in_(matched_proc_ids),
+                )
+                for pli in (await self.db.execute(stmt_pli)).scalars().all():
+                    if pli.final_price is not None:
+                        patient_prices[pli.procedure_id] = Decimal(str(pli.final_price))
+
+            if clinic_default_price_list_id and clinic_default_price_list_id != patient_price_list_id:
+                stmt_def_pli = select(models.PriceListItem).where(
+                    models.PriceListItem.price_list_id == clinic_default_price_list_id,
+                    models.PriceListItem.procedure_id.in_(matched_proc_ids),
+                )
+                for pli in (await self.db.execute(stmt_def_pli)).scalars().all():
+                    if pli.final_price is not None:
+                        clinic_default_prices[pli.procedure_id] = Decimal(str(pli.final_price))
+
+        cent = Decimal("0.01")
+        zero = Decimal("0.00")
+
+        # 6. Calculate and attach estimates
         for plan in plan_list:
-            plan_total = 0.0
+            plan_total = zero
             plan_unpriced_count = 0
 
             for phase in getattr(plan, "phases", []) or []:
-                phase_total = 0.0
+                phase_total = zero
                 phase_unpriced_count = 0
 
                 for item in getattr(phase, "items", []) or []:
-                    work_item = getattr(item, "work_item", None)
-                    code = getattr(work_item, "code", "") if work_item else ""
-                    clean_code = str(code).strip() if code else ""
+                    clean_code = _clean_code(item)
 
                     # Find matching Procedure
                     matching_proc = (
@@ -270,7 +315,7 @@ class TreatmentPlanService:
                         or proc_by_key.get(clean_code.lower())
                     )
 
-                    fee = 0.0
+                    fee = zero
                     is_unpriced = True
 
                     if matching_proc:
@@ -284,24 +329,26 @@ class TreatmentPlanService:
                             is_unpriced = False
                         # Priority 3: Base Procedure price
                         elif matching_proc.price is not None:
-                            fee = float(matching_proc.price)
+                            fee = Decimal(str(matching_proc.price))
                             is_unpriced = False
 
-                    item.estimated_fee = round(fee, 2)
+                    fee = fee.quantize(cent, rounding=ROUND_HALF_UP)
+                    item.estimated_fee = float(fee)
                     item.unpriced = is_unpriced
 
-                    phase_total += item.estimated_fee
+                    phase_total += fee
                     if is_unpriced:
                         phase_unpriced_count += 1
 
-                phase.phase_estimated_total = round(phase_total, 2)
+                phase.phase_estimated_total = float(phase_total)
                 phase.unpriced_items_count = phase_unpriced_count
 
-                plan_total += phase.phase_estimated_total
-                plan_unpriced_count += phase.unpriced_items_count
+                plan_total += phase_total
+                plan_unpriced_count += phase_unpriced_count
 
-            plan.plan_estimated_total = round(plan_total, 2)
+            plan.plan_estimated_total = float(plan_total)
             plan.unpriced_items_count = plan_unpriced_count
+            plan.estimate_price_list_id = patient_price_list_id or clinic_default_price_list_id
 
     async def get_plan(
         self,
@@ -339,12 +386,6 @@ class TreatmentPlanService:
 
         plan = await self.get_plan(patient_id, plan_id)
 
-        stmt_patient = select(models.Patient.default_price_list_id).where(
-            models.Patient.id == patient_id,
-            models.Patient.tenant_id == self.tenant_id,
-        )
-        patient_price_list_id = (await self.db.execute(stmt_patient)).scalar_one_or_none()
-
         phase_estimates = [
             schemas.ClinicalTreatmentPlanPhaseEstimateRead(
                 phase_id=ph.id,
@@ -364,8 +405,8 @@ class TreatmentPlanService:
             plan_status=plan.status,
             plan_estimated_total=getattr(plan, "plan_estimated_total", 0.0),
             unpriced_items_count=getattr(plan, "unpriced_items_count", 0),
-            currency="EGP",
-            price_list_id=patient_price_list_id,
+            currency=ESTIMATE_CURRENCY,
+            price_list_id=getattr(plan, "estimate_price_list_id", None),
             phases=phase_estimates,
         )
 
