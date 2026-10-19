@@ -78,9 +78,11 @@ export const updatePatientClinicalWorkItem = (patientId, workItemId, data) =>
 export const correctPatientClinicalWorkItem = (patientId, workItemId, data, headers = {}) =>
     api.post(`/api/v1/patients/${patientId}/clinical-work-items/${workItemId}/correct`, data, { headers });
 
-// Care Session APIs (Slices S18, S19, S20)
+// Care Session APIs (Slices S18, S19, S20, S21)
 export const getActiveCareSession = (patientId) =>
     api.get(`/api/v1/patients/${patientId}/care-sessions/active`);
+export const getResumableCareSessionContext = (patientId) =>
+    api.get(`/api/v1/patients/${patientId}/care-sessions/resumable`);
 export const getPatientCareSessions = (patientId, params = {}) =>
     api.get(`/api/v1/patients/${patientId}/care-sessions`, { params });
 export const getCareSession = (patientId, sessionId) =>

@@ -22,6 +22,7 @@ import {
     transitionPatientClinicalPlan,
     getTenantFeatures,
     getActiveCareSession,
+    getResumableCareSessionContext,
     getPatientCareSessions,
     startCareSession,
     finishCareSession,
@@ -399,6 +400,21 @@ export function useActiveCareSession(patientId, { enabled = true } = {}) {
 }
 
 /**
+ * Hook for resumable care session context (Slice S21 / G10-M12)
+ */
+export function useResumableCareSession(patientId, { enabled = true } = {}) {
+    return useQuery({
+        queryKey: queryKeys.patientResumableCareSession(patientId),
+        queryFn: async () => {
+            const res = await getResumableCareSessionContext(patientId);
+            return res.data || { has_resumable: false, items: [] };
+        },
+        enabled: !!patientId && enabled,
+        staleTime: 10 * 1000,
+    });
+}
+
+/**
  * Hook for listing patient care sessions
  */
 export function usePatientCareSessions(patientId, params = {}, { enabled = true } = {}) {
@@ -425,6 +441,9 @@ export function useStartCareSession() {
                 queryKey: queryKeys.patientActiveCareSession(variables.patientId),
             });
             queryClient.invalidateQueries({
+                queryKey: queryKeys.patientResumableCareSession(variables.patientId),
+            });
+            queryClient.invalidateQueries({
                 queryKey: queryKeys.patientCareSessions(variables.patientId),
             });
             queryClient.invalidateQueries({
@@ -446,6 +465,9 @@ export function useFinishCareSession() {
                 queryKey: queryKeys.patientActiveCareSession(variables.patientId),
             });
             queryClient.invalidateQueries({
+                queryKey: queryKeys.patientResumableCareSession(variables.patientId),
+            });
+            queryClient.invalidateQueries({
                 queryKey: queryKeys.patientCareSessions(variables.patientId),
             });
             queryClient.invalidateQueries({
@@ -465,6 +487,9 @@ export function useTransitionCareSession() {
         onSuccess: (_data, variables) => {
             queryClient.invalidateQueries({
                 queryKey: queryKeys.patientActiveCareSession(variables.patientId),
+            });
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientResumableCareSession(variables.patientId),
             });
             queryClient.invalidateQueries({
                 queryKey: queryKeys.patientCareSessions(variables.patientId),

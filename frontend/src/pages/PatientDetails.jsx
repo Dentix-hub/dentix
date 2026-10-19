@@ -25,8 +25,10 @@ import {
     useTenantFeatures,
     usePatientClinicalPlans,
     useActiveCareSession,
+    useResumableCareSession,
     useStartCareSession,
     useFinishCareSession,
+    useTransitionCareSession,
     useUpdateCareSessionStep,
     useApplyCareSessionTemplate,
     useRecordCareObservation,
@@ -34,6 +36,7 @@ import {
 import TreatmentPlansCard from '@/features/clinical-plans/TreatmentPlansCard';
 import {
     CareSessionActiveBanner,
+    ContinueTreatmentCard,
     RctStructuredCard,
     FinishCareSessionSheet,
 } from '@/features/care-sessions';
@@ -195,8 +198,12 @@ export default function PatientDetails() {
     const { data: activeCareSession, refetch: refetchActiveSession } = useActiveCareSession(id, {
         enabled: !!id && activeTab === 'chart',
     });
+    const { data: resumableCareSession, refetch: refetchResumableSession } = useResumableCareSession(id, {
+        enabled: !!id && activeTab === 'chart',
+    });
     const startCareSessionMutation = useStartCareSession();
     const finishCareSessionMutation = useFinishCareSession();
+    const transitionCareSessionMutation = useTransitionCareSession();
     const updateCareSessionStepMutation = useUpdateCareSessionStep();
     const applyCareSessionTemplateMutation = useApplyCareSessionTemplate();
     const recordCareObservationMutation = useRecordCareObservation();
@@ -219,13 +226,49 @@ export default function PatientDetails() {
                     data: { template_code: 'ENDO_RCT' },
                 });
                 await refetchActiveSession();
+                await refetchResumableSession();
                 setIsRctWorkflowOpen(true);
                 toast.success(t('care_session.rct_started', 'RCT care session started successfully'));
             }
         } catch (err) {
             toast.error(err?.response?.data?.detail?.message || err?.response?.data?.detail || t('care_session.start_error', 'Failed to start care session'));
         }
-    }, [id, resolvedActiveTooth, startCareSessionMutation, applyCareSessionTemplateMutation, refetchActiveSession, t]);
+    }, [id, resolvedActiveTooth, startCareSessionMutation, applyCareSessionTemplateMutation, refetchActiveSession, refetchResumableSession, t]);
+
+    const handleResumeTreatment = useCallback(async ({ workItemId, sessionId, isPaused, toothKey }) => {
+        try {
+            if (isPaused && sessionId) {
+                await transitionCareSessionMutation.mutateAsync({
+                    patientId: id,
+                    sessionId,
+                    data: { to_status: 'in_progress' },
+                });
+            } else {
+                const sessionRes = await startCareSessionMutation.mutateAsync({
+                    patientId: id,
+                    data: {
+                        resume_work_item_id: workItemId || undefined,
+                        resume_from_session_id: sessionId || undefined,
+                        notes: toothKey ? `Resumed treatment on tooth ${toothKey}` : undefined,
+                    },
+                });
+                const createdSession = sessionRes.data;
+                if (createdSession?.id && (!createdSession.steps || createdSession.steps.length === 0)) {
+                    await applyCareSessionTemplateMutation.mutateAsync({
+                        patientId: id,
+                        sessionId: createdSession.id,
+                        data: { template_code: 'ENDO_RCT', work_item_id: workItemId || undefined },
+                    });
+                }
+            }
+            await refetchActiveSession();
+            await refetchResumableSession();
+            setIsRctWorkflowOpen(true);
+            toast.success(t('care_session.resumed_success', 'Treatment resumed successfully'));
+        } catch (err) {
+            toast.error(err?.response?.data?.detail?.message || err?.response?.data?.detail || t('care_session.resume_error', 'Failed to resume treatment'));
+        }
+    }, [id, transitionCareSessionMutation, startCareSessionMutation, applyCareSessionTemplateMutation, refetchActiveSession, refetchResumableSession, t]);
 
     const handleUpdateStepStatus = useCallback(async (stepId, updateData) => {
         if (!activeCareSession?.id) return;
@@ -277,6 +320,7 @@ export default function PatientDetails() {
                 data: { notes },
             });
             await refetchActiveSession();
+            await refetchResumableSession();
             refetchWorkspace();
             setIsRctWorkflowOpen(false);
             setIsFinishSheetOpen(false);
@@ -284,7 +328,7 @@ export default function PatientDetails() {
         } catch (err) {
             toast.error(err?.response?.data?.detail || 'Failed to finish care session');
         }
-    }, [id, activeCareSession?.id, finishCareSessionMutation, refetchActiveSession, refetchWorkspace, t]);
+    }, [id, activeCareSession?.id, finishCareSessionMutation, refetchActiveSession, refetchResumableSession, refetchWorkspace, t]);
 
     const adaptedChart = useMemo(() => {
         return adaptWorkspaceSnapshotToRenderer(effectiveSnapshot, {
@@ -681,7 +725,7 @@ export default function PatientDetails() {
                                     </section>
                                 ) : (
                                     <>
-                                        {activeCareSession && (
+                                        {activeCareSession ? (
                                             <div className="mb-3">
                                                 <CareSessionActiveBanner
                                                     session={activeCareSession}
@@ -690,7 +734,16 @@ export default function PatientDetails() {
                                                     t={t}
                                                 />
                                             </div>
-                                        )}
+                                        ) : resumableCareSession?.has_resumable ? (
+                                            <div className="mb-3">
+                                                <ContinueTreatmentCard
+                                                    resumableContext={resumableCareSession}
+                                                    onResumeTreatment={handleResumeTreatment}
+                                                    isResuming={startCareSessionMutation.isPending || transitionCareSessionMutation.isPending}
+                                                    t={t}
+                                                />
+                                            </div>
+                                        ) : null}
                                         <div
                                             onTouchStart={handleTouchStart}
                                             onTouchMove={handleTouchMove}
