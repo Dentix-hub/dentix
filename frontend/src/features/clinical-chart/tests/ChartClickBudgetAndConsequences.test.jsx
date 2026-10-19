@@ -103,6 +103,12 @@ vi.mock('@/hooks/usePatientDetails', () => ({
     useAddPatientClinicalPlanItem: () => ({ mutate: vi.fn(), mutateAsync: vi.fn() }),
     useRemovePatientClinicalPlanItem: () => ({ mutate: vi.fn(), mutateAsync: vi.fn() }),
     useTransitionPatientClinicalPlan: () => ({ mutate: vi.fn(), mutateAsync: vi.fn() }),
+    useActiveCareSession: () => ({ data: null, isLoading: false, refetch: vi.fn() }),
+    useStartCareSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useFinishCareSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useUpdateCareSessionStep: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useApplyCareSessionTemplate: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useRecordCareObservation: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 vi.mock('@/features/clinical-plans/TreatmentPlansCard', () => ({
