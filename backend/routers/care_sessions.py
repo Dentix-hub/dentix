@@ -225,8 +225,27 @@ async def list_care_observations(
 
 
 # ---------------------------------------------------------------------------
-# Care Session Query Endpoints (Slice S18)
+# Care Session Query Endpoints (Slices S18 & S21 / G10-M12)
 # ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/{patient_id}/care-sessions/resumable",
+    response_model=StandardResponse[schemas.CareSessionResumableResponse],
+    summary="Get resumable care session context",
+    description="Retrieve active/paused care session and in-progress procedures with their recorded steps and canal observations for one-click chairside resumption (G10-M12).",
+)
+async def get_resumable_care_session_context(
+    patient_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    context = await service.get_resumable_context(patient_id)
+    return success_response(
+        data=schemas.CareSessionResumableResponse.model_validate(context),
+        message="Resumable care session context retrieved successfully",
+    )
 
 
 @router.get(

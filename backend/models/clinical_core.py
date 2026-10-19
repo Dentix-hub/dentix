@@ -20,6 +20,7 @@ All tables enforce tenant ownership, RLS policies, explicit integer PK/FKs,
 deterministic constraint naming, and portable FDI/shape validation.
 """
 
+from typing import Optional
 from rls.schemas import Command, ConditionArg, Permissive
 from sqlalchemy import (
     Boolean,
@@ -509,6 +510,18 @@ class CareObservation(Base):
     step = relationship("CareSessionStep", back_populates="observations")
     work_item = relationship("ClinicalWorkItem", back_populates="observations")
     recorded_by = relationship("User", foreign_keys=[recorded_by_user_id])
+
+    @property
+    def canal_id(self) -> Optional[str]:
+        if isinstance(self.structured_value, dict):
+            return self.structured_value.get("canal_id")
+        return None
+
+    @property
+    def root_id(self) -> Optional[str]:
+        if isinstance(self.structured_value, dict):
+            return self.structured_value.get("root_id")
+        return None
 
 
 class WorkflowTemplate(Base):

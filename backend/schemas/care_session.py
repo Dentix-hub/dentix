@@ -11,6 +11,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class CareSessionCreate(BaseModel):
     appointment_id: Optional[int] = None
     notes: Optional[str] = None
+    resume_work_item_id: Optional[int] = Field(None, description="Optional work item ID to resume in this new session")
+    resume_from_session_id: Optional[int] = Field(None, description="Optional previous care session ID to carry forward steps and observations from")
 
     model_config = ConfigDict(extra="forbid")
 
@@ -176,6 +178,7 @@ class CareSessionRead(BaseModel):
     version_id: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    summary: Optional[str] = None
     steps: List[CareSessionStepRead] = Field(default_factory=list)
     observations: List[CareObservationRead] = Field(default_factory=list)
 
@@ -204,9 +207,46 @@ class CareSessionRead(BaseModel):
                     "version_id": getattr(data, "version_id", 1),
                     "created_at": getattr(data, "created_at", None),
                     "updated_at": getattr(data, "updated_at", None),
+                    "summary": getattr(data, "summary", None),
                     "steps": [] if "steps" in unloaded else getattr(data, "steps", []),
                     "observations": [] if "observations" in unloaded else getattr(data, "observations", []),
                 }
         except Exception:
             pass
         return data
+
+
+# ---------------------------------------------------------------------------
+# Care Session Resumable Schemas (Slice S21 / G10-M12, G10-M13)
+# ---------------------------------------------------------------------------
+
+
+class ResumableWorkItemRead(BaseModel):
+    work_item_id: int
+    procedure_code: str
+    tooth_key: Optional[str] = None
+    surface_code: Optional[str] = None
+    title: str
+    status: str
+    total_steps: int = 0
+    completed_steps_count: int = 0
+    completed_steps: List[CareSessionStepRead] = Field(default_factory=list)
+    remaining_steps: List[CareSessionStepRead] = Field(default_factory=list)
+    observations: List[CareObservationRead] = Field(default_factory=list)
+    last_session_id: Optional[int] = None
+    last_session_at: Optional[datetime] = None
+    last_notes: Optional[str] = None
+    summary: Optional[str] = None
+    next_step_title: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CareSessionResumableResponse(BaseModel):
+    has_resumable: bool = False
+    active_session: Optional[CareSessionRead] = None
+    paused_session: Optional[CareSessionRead] = None
+    items: List[ResumableWorkItemRead] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+

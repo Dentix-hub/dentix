@@ -202,7 +202,110 @@ class CareSessionService:
                 detail="Concurrent care session conflict",
             ) from exc
 
+        # G10-M12 / G10-M19: Resume carryover support
+        if data.resume_work_item_id is not None or data.resume_from_session_id is not None:
+            resume_wi_id = data.resume_work_item_id
+            if resume_wi_id is not None:
+                await self._verify_work_item(patient_id, resume_wi_id)
+
+            # Query prior steps for this work item or session
+            prior_steps_query = (
+                select(models.CareSessionStep)
+                .join(models.CareSession)
+                .where(
+                    models.CareSessionStep.tenant_id == self.tenant_id,
+                    models.CareSession.patient_id == patient_id,
+                )
+            )
+            if resume_wi_id is not None:
+                prior_steps_query = prior_steps_query.where(
+                    models.CareSessionStep.work_item_id == resume_wi_id
+                )
+            elif data.resume_from_session_id is not None:
+                prior_steps_query = prior_steps_query.where(
+                    models.CareSessionStep.care_session_id == data.resume_from_session_id
+                )
+
+            prior_steps_query = prior_steps_query.order_by(
+                models.CareSessionStep.step_order.asc(),
+                models.CareSessionStep.id.asc(),
+            )
+            prior_steps = (await self.db.execute(prior_steps_query)).scalars().all()
+
+            # Carry over steps into new session
+            seen_step_codes = set()
+            new_order = 1
+            for p_step in prior_steps:
+                if p_step.step_code in seen_step_codes:
+                    continue
+                seen_step_codes.add(p_step.step_code)
+
+                # Preserve completed state; if partial/in_progress, keep partial/in_progress; otherwise pending
+                step_status = p_step.status
+                new_step = models.CareSessionStep(
+                    tenant_id=self.tenant_id,
+                    care_session_id=session.id,
+                    work_item_id=resume_wi_id or p_step.work_item_id,
+                    step_order=new_order,
+                    step_code=p_step.step_code,
+                    title=p_step.title,
+                    status=step_status,
+                    started_at=p_step.started_at,
+                    completed_at=p_step.completed_at,
+                    notes=f"[Resumed from Step #{p_step.step_order}] {p_step.notes or ''}".strip() if p_step.notes else None,
+                )
+                self.db.add(new_step)
+                new_order += 1
+
+            # Query and carry forward canal observations
+            obs_query = select(models.CareObservation).where(
+                models.CareObservation.tenant_id == self.tenant_id,
+                models.CareObservation.patient_id == patient_id,
+            )
+            if resume_wi_id is not None:
+                obs_query = obs_query.where(models.CareObservation.work_item_id == resume_wi_id)
+            elif data.resume_from_session_id is not None:
+                obs_query = obs_query.where(models.CareObservation.care_session_id == data.resume_from_session_id)
+
+            obs_query = obs_query.order_by(models.CareObservation.recorded_at.asc())
+            prior_obs = (await self.db.execute(obs_query)).scalars().all()
+
+            for p_obs in prior_obs:
+                carried_obs = models.CareObservation(
+                    tenant_id=self.tenant_id,
+                    patient_id=patient_id,
+                    care_session_id=session.id,
+                    work_item_id=resume_wi_id or p_obs.work_item_id,
+                    observation_code=p_obs.observation_code,
+                    tooth_key=p_obs.tooth_key,
+                    structured_value=dict(p_obs.structured_value or {}),
+                    notes=f"[Carried over from Session {p_obs.care_session_id}] {p_obs.notes or ''}".strip() if p_obs.notes else None,
+                    recorded_by_user_id=user.id if user else None,
+                )
+                self.db.add(carried_obs)
+
+            try:
+                await self.db.flush()
+            except (IntegrityError, StaleDataError) as exc:
+                await self.db.rollback()
+                await self._get_active_current_user()
+                raise HTTPException(
+                    status_code=409,
+                    detail="Concurrent care session conflict during step carryover",
+                ) from exc
+
         # Audit event
+        event_payload = {
+            "session_id": session.id,
+            "appointment_id": session.appointment_id,
+            "provider_user_id": session.provider_user_id,
+            "status": "in_progress",
+        }
+        if data.resume_work_item_id is not None:
+            event_payload["resume_work_item_id"] = data.resume_work_item_id
+        if data.resume_from_session_id is not None:
+            event_payload["resume_from_session_id"] = data.resume_from_session_id
+
         event = models.ClinicalEvent(
             tenant_id=self.tenant_id,
             patient_id=patient_id,
@@ -210,12 +313,7 @@ class CareSessionService:
             event_type="care_session_started",
             occurred_at=now,
             actor_user_id=user.id if user else None,
-            payload={
-                "session_id": session.id,
-                "appointment_id": session.appointment_id,
-                "provider_user_id": session.provider_user_id,
-                "status": "in_progress",
-            },
+            payload=event_payload,
             notes=session.notes,
         )
         self.db.add(event)
@@ -270,6 +368,10 @@ class CareSessionService:
                 detail="Concurrent care session conflict during finish",
             ) from exc
 
+        # G10-M14: Deterministic clinical summary generation
+        summary = self.generate_session_summary(session)
+        setattr(session, "summary", summary)
+
         # G10-M17: Finalization audit trail via log_admin_action
         log_admin_action(
             db=self.db,
@@ -278,7 +380,12 @@ class CareSessionService:
             entity_type="care_session",
             entity_id=session.id,
             details=f"Care session {session.id} finished for patient {patient_id}",
-            new_value={"status": "completed", "notes": session.notes, "finished_at": now.isoformat()},
+            new_value={
+                "status": "completed",
+                "summary": summary,
+                "notes": session.notes,
+                "finished_at": now.isoformat(),
+            },
             tenant_id=self.tenant_id,
         )
 
@@ -292,6 +399,7 @@ class CareSessionService:
             payload={
                 "session_id": session.id,
                 "status": "completed",
+                "summary": summary,
                 "started_at": session.started_at.isoformat() if session.started_at else None,
                 "finished_at": now.isoformat(),
             },
@@ -859,13 +967,16 @@ class CareSessionService:
             models.CareSession.patient_id == patient_id,
         )
         if eager_load:
-            stmt = stmt.options(
-                selectinload(models.CareSession.steps),
+            stmt = stmt.execution_options(populate_existing=True).options(
+                selectinload(models.CareSession.steps).selectinload(models.CareSessionStep.work_item).selectinload(models.ClinicalWorkItem.targets),
                 selectinload(models.CareSession.observations),
             )
         session = (await self.db.execute(stmt)).scalars().first()
         if not session:
             raise HTTPException(status_code=404, detail="Care session not found")
+
+        if session.status == "completed":
+            setattr(session, "summary", self.generate_session_summary(session))
         return session
 
     async def get_active_session(self, patient_id: int) -> Optional[models.CareSession]:
@@ -875,8 +986,9 @@ class CareSessionService:
 
         stmt = (
             select(models.CareSession)
+            .execution_options(populate_existing=True)
             .options(
-                selectinload(models.CareSession.steps),
+                selectinload(models.CareSession.steps).selectinload(models.CareSessionStep.work_item).selectinload(models.ClinicalWorkItem.targets),
                 selectinload(models.CareSession.observations),
             )
             .where(
@@ -886,7 +998,12 @@ class CareSessionService:
             )
             .order_by(models.CareSession.id.desc())
         )
-        return (await self.db.execute(stmt)).scalars().first()
+        session = (await self.db.execute(stmt)).scalars().first()
+        if session:
+            if session.status == "completed":
+                setattr(session, "summary", self.generate_session_summary(session))
+            return session
+        return None
 
     async def list_sessions(
         self, patient_id: int, status: Optional[str] = None
@@ -911,4 +1028,245 @@ class CareSessionService:
 
         stmt = stmt.order_by(models.CareSession.created_at.desc(), models.CareSession.id.desc())
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        sessions = list(result.scalars().all())
+        for s in sessions:
+            if s.status == "completed":
+                setattr(s, "summary", self.generate_session_summary(s))
+        return sessions
+
+    # -----------------------------------------------------------------------
+    # Summary Generation & Resume Engine (Slice S21 / G10-M12, G10-M14)
+    # -----------------------------------------------------------------------
+
+    def generate_session_summary(self, session: models.CareSession) -> str:
+        """
+        Deterministic template string clinical summary generator (G10-M14).
+        Avoids LLM/AI inside transactional path. Produces a structured summary
+        of procedure, completed/partial steps, canal measurements, and notes.
+        """
+        parts = []
+
+        steps = sorted(session.steps or [], key=lambda s: s.step_order)
+        completed_steps = [s for s in steps if s.status == "completed"]
+        partial_steps = [s for s in steps if s.status == "partial"]
+        skipped_steps = [s for s in steps if s.status == "skipped"]
+        pending_steps = [s for s in steps if s.status in ("pending", "in_progress")]
+
+        # Determine procedure title & tooth key
+        tooth_str = ""
+        procedure_code = None
+        for s in steps:
+            if getattr(s, "work_item", None):
+                wi = s.work_item
+                procedure_code = wi.code
+                targets = getattr(wi, "targets", []) or []
+                if targets:
+                    tooth_str = f" on Tooth {targets[0].tooth_key}"
+                break
+
+        if not tooth_str and session.observations:
+            for obs in session.observations:
+                if obs.tooth_key:
+                    tooth_str = f" on Tooth {obs.tooth_key}"
+                    break
+
+        header = f"{procedure_code or 'Clinical Care Session'}{tooth_str}"
+        parts.append(header)
+
+        # Steps summary
+        if steps:
+            step_summary = f"{len(completed_steps)}/{len(steps)} steps completed"
+            completed_names = [s.title or s.step_code for s in completed_steps]
+            if completed_names:
+                step_summary += f" ({', '.join(completed_names)})"
+            if partial_steps:
+                partial_names = [f"{s.title or s.step_code} (partial)" for s in partial_steps]
+                step_summary += f"; In progress: {', '.join(partial_names)}"
+            if pending_steps:
+                pending_names = [s.title or s.step_code for s in pending_steps]
+                step_summary += f"; Remaining: {', '.join(pending_names)}"
+            if skipped_steps:
+                skipped_names = [s.title or s.step_code for s in skipped_steps]
+                step_summary += f"; Skipped: {', '.join(skipped_names)}"
+            parts.append(f"Steps: {step_summary}")
+
+        # Observations summary (especially canal working lengths)
+        obs_list = session.observations or []
+        canal_obs = [
+            o for o in obs_list
+            if o.observation_code in ("working_length", "canal_measurement")
+            or (isinstance(o.structured_value, dict) and (o.structured_value.get("length_mm") is not None or o.structured_value.get("canal_id")))
+        ]
+        if canal_obs:
+            canal_parts = []
+            for o in canal_obs:
+                sv = o.structured_value or {}
+                canal_id = getattr(o, "canal_id", None) or sv.get("canal_id") or getattr(o, "root_id", None) or sv.get("root_id") or "Canal"
+                length = sv.get("length_mm")
+                maf = sv.get("maf")
+                ref = sv.get("reference_point")
+                detail = f"{canal_id}: {length}mm" if length is not None else str(canal_id)
+                extras = []
+                if maf:
+                    extras.append(f"MAF {maf}")
+                if ref:
+                    extras.append(f"ref {ref}")
+                if extras:
+                    detail += f" ({', '.join(extras)})"
+                canal_parts.append(detail)
+            parts.append(f"Canals: {', '.join(canal_parts)}")
+
+        # Free-text clinical notes
+        if session.notes:
+            cleaned_notes = session.notes.strip()
+            if cleaned_notes and not cleaned_notes.startswith("[CARE SESSION SUMMARY]"):
+                parts.append(f"Notes: {cleaned_notes}")
+
+        return " | ".join(parts)
+
+    async def get_resumable_context(self, patient_id: int) -> dict:
+        """
+        Care Session Resume Engine (G10-M12).
+        Returns active/paused session and active ClinicalWorkItem rows with their
+        recorded steps and canal observations for one-click chairside treatment resumption.
+        """
+        await self.ensure_native_writes_enabled()
+        await self._verify_patient(patient_id)
+
+        # 1. Query active session
+        stmt_active = (
+            select(models.CareSession)
+            .options(
+                selectinload(models.CareSession.steps),
+                selectinload(models.CareSession.observations),
+            )
+            .where(
+                models.CareSession.tenant_id == self.tenant_id,
+                models.CareSession.patient_id == patient_id,
+                models.CareSession.status == "in_progress",
+            )
+            .order_by(models.CareSession.id.desc())
+        )
+        active_session = (await self.db.execute(stmt_active)).scalars().first()
+        if active_session:
+            setattr(active_session, "summary", self.generate_session_summary(active_session))
+
+        # 2. Query paused session
+        stmt_paused = (
+            select(models.CareSession)
+            .options(
+                selectinload(models.CareSession.steps),
+                selectinload(models.CareSession.observations),
+            )
+            .where(
+                models.CareSession.tenant_id == self.tenant_id,
+                models.CareSession.patient_id == patient_id,
+                models.CareSession.status == "paused",
+            )
+            .order_by(models.CareSession.id.desc())
+        )
+        paused_session = (await self.db.execute(stmt_paused)).scalars().first()
+        if paused_session:
+            setattr(paused_session, "summary", self.generate_session_summary(paused_session))
+
+        # 3. Query active or resumable work items
+        wi_stmt = (
+            select(models.ClinicalWorkItem)
+            .options(
+                selectinload(models.ClinicalWorkItem.targets),
+                selectinload(models.ClinicalWorkItem.session_steps),
+                selectinload(models.ClinicalWorkItem.observations),
+            )
+            .where(
+                models.ClinicalWorkItem.tenant_id == self.tenant_id,
+                models.ClinicalWorkItem.patient_id == patient_id,
+                models.ClinicalWorkItem.kind == "procedure",
+                models.ClinicalWorkItem.status.in_(["active", "in_progress", "proposed"]),
+            )
+            .order_by(models.ClinicalWorkItem.updated_at.desc(), models.ClinicalWorkItem.id.desc())
+        )
+        work_items = (await self.db.execute(wi_stmt)).scalars().all()
+
+        items = []
+        for wi in work_items:
+            steps = sorted(wi.session_steps or [], key=lambda s: s.step_order)
+            obs = list(wi.observations or [])
+
+            tooth_key = wi.targets[0].tooth_key if wi.targets else None
+            surface_code = wi.targets[0].surface_code if wi.targets else None
+
+            # If work item has no directly linked steps or observations, check if recent session had them targeting this tooth
+            if not steps and tooth_key:
+                # Fallback: check care session steps or observations matching this tooth
+                alt_obs_stmt = (
+                    select(models.CareObservation)
+                    .where(
+                        models.CareObservation.tenant_id == self.tenant_id,
+                        models.CareObservation.patient_id == patient_id,
+                        models.CareObservation.tooth_key == tooth_key,
+                    )
+                    .order_by(models.CareObservation.recorded_at.asc())
+                )
+                alt_obs = list((await self.db.execute(alt_obs_stmt)).scalars().all())
+                if alt_obs:
+                    obs = alt_obs
+
+            # Only include work items that have either session steps, observations, or are active/in_progress procedures
+            if not steps and not obs and wi.status not in ("active", "in_progress"):
+                continue
+
+            completed_steps = [s for s in steps if s.status == "completed"]
+            remaining_steps = [s for s in steps if s.status != "completed"]
+
+            # Determine last session info
+            last_session_id = None
+            last_session_at = None
+            last_notes = None
+            all_records = list(steps) + list(obs)
+            if all_records:
+                latest_record = max(all_records, key=lambda r: getattr(r, "created_at", None) or datetime.min.replace(tzinfo=timezone.utc))
+                last_session_id = getattr(latest_record, "care_session_id", None)
+
+            if last_session_id:
+                sess = (await self.db.execute(
+                    select(models.CareSession).where(
+                        models.CareSession.id == last_session_id,
+                        models.CareSession.tenant_id == self.tenant_id,
+                    )
+                )).scalars().first()
+                if sess:
+                    last_session_at = sess.finished_at or sess.updated_at or sess.started_at
+                    last_notes = sess.notes
+
+            next_step_title = remaining_steps[0].title if remaining_steps else None
+            summary_str = f"{wi.code} on Tooth {tooth_key or 'N/A'}: {len(completed_steps)}/{len(steps)} steps completed"
+            if next_step_title:
+                summary_str += f". Next: {next_step_title}"
+
+            items.append({
+                "work_item_id": wi.id,
+                "procedure_code": wi.code,
+                "tooth_key": tooth_key,
+                "surface_code": surface_code,
+                "title": wi.code,
+                "status": wi.status,
+                "total_steps": len(steps),
+                "completed_steps_count": len(completed_steps),
+                "completed_steps": completed_steps,
+                "remaining_steps": remaining_steps,
+                "observations": obs,
+                "last_session_id": last_session_id,
+                "last_session_at": last_session_at,
+                "last_notes": last_notes,
+                "summary": summary_str,
+                "next_step_title": next_step_title,
+            })
+
+        has_resumable = bool(active_session or paused_session or items)
+
+        return {
+            "has_resumable": has_resumable,
+            "active_session": active_session,
+            "paused_session": paused_session,
+            "items": items,
+        }

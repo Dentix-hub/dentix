@@ -114,6 +114,8 @@ from .care_session import (
     CareSessionTemplateApply,
     CareObservationCreate,
     CareObservationRead,
+    ResumableWorkItemRead,
+    CareSessionResumableResponse,
 )
 
 
