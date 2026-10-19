@@ -3525,3 +3525,97 @@ async def test_g9_m14_treatment_plan_e2e_http_acceptance_flow(
 
 
 
+
+
+# ===========================================================================
+# Estimate hardening: tenant currency, effective price list, procedure matching
+# ===========================================================================
+
+
+async def _single_item_plan(service, async_db_session, tenant, patient, code):
+    work_item = models.ClinicalWorkItem(
+        tenant_id=tenant.id,
+        patient_id=patient.id,
+        kind="procedure",
+        code=code,
+        status="planned",
+    )
+    async_db_session.add(work_item)
+    await async_db_session.flush()
+    plan = await service.create_plan(
+        patient.id,
+        schemas.ClinicalTreatmentPlanCreate(title="Hardening Plan"),
+    )
+    await service.add_work_item_to_phase(
+        patient.id,
+        plan.id,
+        plan.phases[0].id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=work_item.id),
+    )
+    return plan
+
+
+@pytest.mark.asyncio
+async def test_estimate_reports_effective_price_list(async_db_session, seed_data, monkeypatch):
+    """price_list_id reports the list actually in effect (patient list, else clinic default)."""
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    patient_1 = seed_data["patient_1"]
+    doctor_1 = seed_data["doctor_1"]
+
+    clinic_default = models.PriceList(tenant_id=tenant_1.id, name="Clinic Default", is_default=True, is_active=True)
+    async_db_session.add(clinic_default)
+    await async_db_session.flush()
+
+    proc = models.Procedure(tenant_id=tenant_1.id, name="Currency Proc", price=100.0)
+    async_db_session.add(proc)
+    await async_db_session.flush()
+    async_db_session.add(models.PriceListItem(price_list_id=clinic_default.id, procedure_id=proc.id, price=120.0))
+    await async_db_session.flush()
+
+    service = TreatmentPlanService(async_db_session, tenant_1.id, doctor_1)
+    plan = await _single_item_plan(service, async_db_session, tenant_1, patient_1, "Currency Proc")
+
+    fetched = await service.get_plan(patient_1.id, plan.id)
+    assert fetched.plan_estimated_total == 120.0
+
+    estimate = await service.get_plan_estimate(patient_1.id, plan.id)
+    assert estimate.currency == "EGP"
+    assert estimate.plan_estimated_total == 120.0
+    # Patient has no own list -> the clinic default list is the effective one
+    assert estimate.price_list_id == clinic_default.id
+
+    # Once the patient has an own list, that list is reported
+    vip = models.PriceList(tenant_id=tenant_1.id, name="VIP", is_default=False, is_active=True)
+    async_db_session.add(vip)
+    await async_db_session.flush()
+    patient_1.default_price_list_id = vip.id
+    await async_db_session.flush()
+    estimate_vip = await service.get_plan_estimate(patient_1.id, plan.id)
+    assert estimate_vip.price_list_id == vip.id
+
+
+@pytest.mark.asyncio
+async def test_estimate_matches_global_procedure_case_insensitively_and_ignores_unrelated(
+    async_db_session, seed_data, monkeypatch
+):
+    """Only procedures that a plan's work-item codes can match are priced (globals included, case-insensitive)."""
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    patient_1 = seed_data["patient_1"]
+    doctor_1 = seed_data["doctor_1"]
+
+    global_proc = models.Procedure(tenant_id=None, name="Global Scaling Proc", price=180.0)
+    unrelated = models.Procedure(tenant_id=tenant_1.id, name="Never Referenced Proc", price=999.0)
+    async_db_session.add_all([global_proc, unrelated])
+    await async_db_session.flush()
+
+    service = TreatmentPlanService(async_db_session, tenant_1.id, doctor_1)
+    plan = await _single_item_plan(service, async_db_session, tenant_1, patient_1, "global scaling proc")
+
+    fetched = await service.get_plan(patient_1.id, plan.id)
+    item = fetched.phases[0].items[0]
+    assert item.unpriced is False
+    assert item.estimated_fee == 180.0
+    assert fetched.plan_estimated_total == 180.0
+    assert fetched.unpriced_items_count == 0
