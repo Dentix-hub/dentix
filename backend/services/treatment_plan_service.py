@@ -1,17 +1,35 @@
 """
-Clinical Treatment Plan Service (Slices G9a & G9b).
+Clinical Treatment Plan Service (Slices G9a, G9b, G9c, S12, S13, S15).
 
-Manages patient-level treatment plans with sequential phases and procedure membership.
+Manages patient-level treatment plans with sequential phases, procedure membership,
+and dynamic fee estimate projections.
+
 Enforces:
 - Tenant isolation and patient visibility scoping (404 on mismatch).
 - Feature flag gate (fail-closed 404 when disabled).
 - Single default phase ("Phase 1", phase_order 0, draft) on plan creation.
 - Creator attribution (created_by_user_id).
-- Status locked to 'draft' in this slice.
 - Phase creation with sequential phase_order and retry on ordering race.
 - Procedure/work-item attachment with non-cancelled validation and 409 duplicate check.
 - Work items shared across alternative plans without duplicating care episodes (G9-M05).
 - Unlink item leaves underlying ClinicalWorkItem untouched.
+- Legacy Non-Interference Safety Invariants (G9-M12):
+  1. Zero side effects on legacy tables:
+     Creating, editing, reordering, estimating, proposing, accepting, completing, or
+     cancelling plans strictly mutates native clinical plan tables and NEVER writes to,
+     updates, or deletes rows in:
+     - `treatments` (models.Treatment)
+     - `treatment_sessions` (models.TreatmentSession)
+     - `payments` (models.Payment)
+     - `stock_movements` (models.StockMovement)
+     - `treatment_material_usages` (models.TreatmentMaterialUsage)
+     - `lab_orders` (models.LabOrder)
+  2. Zero procedure duplication across alternative plans:
+     Procedures shared across alternative plans (Plan A vs. Plan B) link via independent
+     `ClinicalTreatmentPlanItem` references, keeping `ClinicalWorkItem` row count constant.
+  3. Zero impact on patient billing balances:
+     Legacy billing queries and `BillingService.get_outstanding_balance(patient_id)`
+     remain 100% invariant across all treatment plan operations.
 """
 
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -49,6 +67,15 @@ def _eager_plan_options():
 
 
 class TreatmentPlanService:
+    # Models strictly forbidden from being written to by TreatmentPlanService (G9-M12)
+    LEGACY_FORBIDDEN_WRITE_MODELS: Tuple[type, ...] = (
+        models.Treatment,
+        models.TreatmentSession,
+        models.Payment,
+        models.StockMovement,
+        models.TreatmentMaterialUsage,
+        models.LabOrder,
+    )
     def __init__(
         self,
         db: AsyncSession,

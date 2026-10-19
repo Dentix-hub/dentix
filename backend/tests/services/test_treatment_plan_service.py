@@ -21,6 +21,8 @@ from sqlalchemy.orm.exc import StaleDataError
 
 from backend import models, schemas
 from backend.services.treatment_plan_service import TreatmentPlanService
+from backend.services.billing_service import BillingService
+from backend.crud import billing as crud_billing
 from backend.routers.treatment_plans import (
     create_patient_clinical_plan,
     list_patient_clinical_plans,
@@ -2119,3 +2121,613 @@ async def test_http_endpoints_estimate_projection(client, seed_data, async_db_se
     matched = [p for p in plans_list if p["id"] == plan_id]
     assert len(matched) == 1
     assert matched[0]["plan_estimated_total"] == 120.0
+
+
+# ==============================================================================
+# SLICE S15: Treatment Plan Legacy Safety Rules (G9-M12)
+# ==============================================================================
+
+
+@pytest.mark.asyncio
+async def test_legacy_safety_rules_zero_writes_across_entire_plan_lifecycle(
+    async_db_session, seed_data, monkeypatch
+):
+    """
+    Verify G9-M12 / Slice S15 Invariant:
+    A treatment plan's entire lifecycle (creation, update, phasing, item linking,
+    reordering, fee estimation, proposal, acceptance, completion, cancellation,
+    item unlinking, and deletion) strictly mutates native clinical plan tables and
+    NEVER writes to, updates, or deletes rows in:
+    - models.Treatment
+    - models.TreatmentSession
+    - models.Payment
+    - models.StockMovement
+    - models.TreatmentMaterialUsage
+    - models.LabOrder
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    patient_1 = seed_data["patient_1"]
+    doctor_1 = seed_data["doctor_1"]
+    tenant_1 = seed_data["tenant_1"]
+
+    service = TreatmentPlanService(async_db_session, tenant_1.id, doctor_1)
+
+    # 1. Seed baseline rows across all 6 legacy tables
+    legacy_treatment = models.Treatment(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        doctor_id=doctor_1.id,
+        procedure="Baseline Legacy Amalgam",
+        cost=180.0,
+        discount=15.0,
+        notes="Baseline treatment notes",
+    )
+    async_db_session.add(legacy_treatment)
+    await async_db_session.flush()
+
+    legacy_session = models.TreatmentSession(
+        tenant_id=tenant_1.id,
+        treatment_id=legacy_treatment.id,
+        notes="Baseline session notes",
+    )
+    legacy_payment = models.Payment(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        doctor_id=doctor_1.id,
+        amount=95.0,
+        notes="Baseline payment notes",
+    )
+    legacy_lab_order = models.LabOrder(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        doctor_id=doctor_1.id,
+        work_type="Crown",
+        cost=120.0,
+        status="pending",
+    )
+    material = models.Material(
+        tenant_id=tenant_1.id,
+        name="Bonding Agent",
+        type="consumable",
+        base_unit="ml",
+    )
+    warehouse = models.Warehouse(
+        tenant_id=tenant_1.id,
+        name="Main Storage",
+    )
+    async_db_session.add_all([material, warehouse])
+    await async_db_session.flush()
+
+    from datetime import date
+    batch = models.Batch(
+        tenant_id=tenant_1.id,
+        material_id=material.id,
+        batch_number="B101",
+        expiry_date=date(2028, 1, 1),
+    )
+    async_db_session.add(batch)
+    await async_db_session.flush()
+
+    stock_item = models.StockItem(
+        tenant_id=tenant_1.id,
+        warehouse_id=warehouse.id,
+        batch_id=batch.id,
+        quantity=100.0,
+    )
+    async_db_session.add(stock_item)
+    await async_db_session.flush()
+
+    legacy_stock_movement = models.StockMovement(
+        tenant_id=tenant_1.id,
+        stock_item_id=stock_item.id,
+        change_amount=10.0,
+        reason="Stock replenishment",
+        performed_by=doctor_1.id,
+    )
+    legacy_material_usage = models.TreatmentMaterialUsage(
+        tenant_id=tenant_1.id,
+        treatment_id=legacy_treatment.id,
+        material_id=material.id,
+        quantity_used=1.0,
+    )
+    async_db_session.add_all([legacy_session, legacy_payment, legacy_lab_order, legacy_stock_movement, legacy_material_usage])
+    await async_db_session.flush()
+
+    # Also add standard procedures and work items to attach to plans
+    proc1 = models.Procedure(tenant_id=tenant_1.id, name="Proc Composite", price=250.0)
+    proc2 = models.Procedure(tenant_id=tenant_1.id, name="Proc Crown", price=800.0)
+    async_db_session.add_all([proc1, proc2])
+    await async_db_session.flush()
+
+    wi1 = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="Proc Composite",
+        status="planned",
+    )
+    wi2 = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="Proc Crown",
+        status="planned",
+    )
+    async_db_session.add_all([wi1, wi2])
+    await async_db_session.flush()
+
+    # Record baseline counts and snapshots
+    counts_before = {
+        models.Treatment: (await async_db_session.execute(select(func.count(models.Treatment.id)))).scalar_one(),
+        models.TreatmentSession: (await async_db_session.execute(select(func.count(models.TreatmentSession.id)))).scalar_one(),
+        models.Payment: (await async_db_session.execute(select(func.count(models.Payment.id)))).scalar_one(),
+        models.StockMovement: (await async_db_session.execute(select(func.count(models.StockMovement.id)))).scalar_one(),
+        models.TreatmentMaterialUsage: (await async_db_session.execute(select(func.count(models.TreatmentMaterialUsage.id)))).scalar_one(),
+        models.LabOrder: (await async_db_session.execute(select(func.count(models.LabOrder.id)))).scalar_one(),
+    }
+    baseline_treatment_snapshot = {
+        "cost": legacy_treatment.cost,
+        "discount": legacy_treatment.discount,
+        "notes": legacy_treatment.notes,
+        "is_deleted": legacy_treatment.is_deleted,
+    }
+    baseline_payment_amount = legacy_payment.amount
+    baseline_lab_status = legacy_lab_order.status
+
+    # 2. Execute EVERY treatment plan mutation across full lifecycle
+    # (a) Create Plan A
+    plan_a = await service.create_plan(
+        patient_1.id,
+        schemas.ClinicalTreatmentPlanCreate(
+            title="Comprehensive Restorative Plan",
+            notes="Initial consultation plan",
+        ),
+    )
+    assert plan_a.status == "draft"
+    default_phase_a1 = plan_a.phases[0]
+
+    # (b) Add Phase 2 to Plan A
+    phase_a2 = await service.add_phase(
+        patient_1.id,
+        plan_a.id,
+        schemas.ClinicalTreatmentPlanPhaseCreate(
+            name="Phase 2 - Prosthodontics",
+            notes="Crown placement",
+        ),
+    )
+
+    # (c) Update Phase 2
+    updated_phase_a2 = await service.update_phase(
+        patient_1.id,
+        plan_a.id,
+        phase_a2.id,
+        schemas.ClinicalTreatmentPlanPhaseUpdate(
+            name="Phase 2 - Fixed Prosthodontics",
+        ),
+    )
+    assert updated_phase_a2.name == "Phase 2 - Fixed Prosthodontics"
+
+    # (d) Reorder Phases
+    reordered_phases = await service.reorder_phases(
+        patient_1.id,
+        plan_a.id,
+        schemas.ClinicalTreatmentPlanPhaseReorder(phase_ids=[phase_a2.id, default_phase_a1.id]),
+    )
+    assert reordered_phases[0].id == phase_a2.id
+    assert reordered_phases[1].id == default_phase_a1.id
+
+    # (e) Add work items to phases
+    item_1 = await service.add_work_item_to_phase(
+        patient_1.id,
+        plan_a.id,
+        default_phase_a1.id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi1.id),
+    )
+    item_2 = await service.add_work_item_to_phase(
+        patient_1.id,
+        plan_a.id,
+        phase_a2.id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi2.id),
+    )
+    assert item_1.work_item_id == wi1.id
+    assert item_2.work_item_id == wi2.id
+
+    # (f) Calculate dynamic fee estimates
+    estimate_projection = await service.get_plan_estimate(patient_1.id, plan_a.id)
+    assert estimate_projection.plan_estimated_total == 1050.0  # 250 + 800
+
+    # (g) State transitions: draft -> proposed
+    prop_plan = await service.transition_plan(
+        patient_1.id,
+        plan_a.id,
+        "proposed",
+    )
+    assert prop_plan.status == "proposed"
+
+    # (h) State transitions: proposed -> accepted
+    acc_plan = await service.transition_plan(
+        patient_1.id,
+        plan_a.id,
+        "accepted",
+    )
+    assert acc_plan.status == "accepted"
+
+    # (i) State transitions: accepted -> completed
+    comp_plan = await service.transition_plan(
+        patient_1.id,
+        plan_a.id,
+        "completed",
+    )
+    assert comp_plan.status == "completed"
+
+    # (j) Create alternative Plan B, propose and cancel
+    plan_b = await service.create_plan(
+        patient_1.id,
+        schemas.ClinicalTreatmentPlanCreate(
+            title="Alternative Plan B - Extraction Only",
+        ),
+    )
+    canc_plan_b = await service.transition_plan(
+        patient_1.id,
+        plan_b.id,
+        "cancelled",
+    )
+    assert canc_plan_b.status == "cancelled"
+
+    # (k) Create Plan C, add phase & item, then remove item, delete phase, and cancel plan
+    plan_c = await service.create_plan(
+        patient_1.id,
+        schemas.ClinicalTreatmentPlanCreate(title="Plan C - Temporary"),
+    )
+    phase_c1 = plan_c.phases[0]
+    item_c = await service.add_work_item_to_phase(
+        patient_1.id,
+        plan_c.id,
+        phase_c1.id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi1.id),
+    )
+    await service.remove_work_item_from_phase(patient_1.id, plan_c.id, phase_c1.id, item_c.id)
+
+    phase_c2 = await service.add_phase(
+        patient_1.id,
+        plan_c.id,
+        schemas.ClinicalTreatmentPlanPhaseCreate(name="Phase C2"),
+    )
+    await service.delete_phase(patient_1.id, plan_c.id, phase_c2.id)
+    await service.transition_plan(
+        patient_1.id,
+        plan_c.id,
+        "cancelled",
+    )
+
+    # 3. Assert zero writes across all 6 legacy models
+    for model_cls, count_before in counts_before.items():
+        count_after = (
+            await async_db_session.execute(select(func.count(model_cls.id)))
+        ).scalar_one()
+        assert count_after == count_before, (
+            f"Legacy safety rule violated: row count changed for {model_cls.__name__} "
+            f"(before: {count_before}, after: {count_after})"
+        )
+
+    # 4. Assert baseline rows are 100% unmutated
+    await async_db_session.refresh(legacy_treatment)
+    await async_db_session.refresh(legacy_payment)
+    await async_db_session.refresh(legacy_lab_order)
+
+    assert legacy_treatment.cost == baseline_treatment_snapshot["cost"]
+    assert legacy_treatment.discount == baseline_treatment_snapshot["discount"]
+    assert legacy_treatment.notes == baseline_treatment_snapshot["notes"]
+    assert legacy_treatment.is_deleted == baseline_treatment_snapshot["is_deleted"]
+    assert legacy_payment.amount == baseline_payment_amount
+    assert legacy_lab_order.status == baseline_lab_status
+
+
+@pytest.mark.asyncio
+async def test_legacy_safety_rules_zero_work_item_duplication_on_shared_plans(
+    async_db_session, seed_data, monkeypatch
+):
+    """
+    Verify G9-M05 / G9-M12 Invariant:
+    When procedures are shared across multiple alternative treatment plans
+    (e.g., Plan A: Endodontics + Crown vs. Plan B: Extraction + Implant),
+    the underlying ClinicalWorkItem is referenced by multiple ClinicalTreatmentPlanItem
+    records without EVER duplicating or creating redundant ClinicalWorkItem rows.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    patient_1 = seed_data["patient_1"]
+    doctor_1 = seed_data["doctor_1"]
+    tenant_1 = seed_data["tenant_1"]
+
+    service = TreatmentPlanService(async_db_session, tenant_1.id, doctor_1)
+
+    # 1. Create two canonical work items
+    wi_shared = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="ENDO_RCT",
+        status="planned",
+    )
+    wi_crown = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="PROS_CROWN",
+        status="planned",
+    )
+    async_db_session.add_all([wi_shared, wi_crown])
+    await async_db_session.flush()
+
+    work_items_count_initial = (
+        await async_db_session.execute(
+            select(func.count(models.ClinicalWorkItem.id)).where(
+                models.ClinicalWorkItem.tenant_id == tenant_1.id,
+                models.ClinicalWorkItem.patient_id == patient_1.id,
+            )
+        )
+    ).scalar_one()
+
+    # 2. Plan A references wi_shared & wi_crown
+    plan_a = await service.create_plan(
+        patient_1.id,
+        schemas.ClinicalTreatmentPlanCreate(title="Plan A - Root Canal"),
+    )
+    phase_a1 = plan_a.phases[0]
+    await service.add_work_item_to_phase(
+        patient_1.id, plan_a.id, phase_a1.id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_shared.id),
+    )
+    await service.add_work_item_to_phase(
+        patient_1.id, plan_a.id, phase_a1.id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_crown.id),
+    )
+
+    # 3. Plan B (alternative) also references wi_shared
+    plan_b = await service.create_plan(
+        patient_1.id,
+        schemas.ClinicalTreatmentPlanCreate(title="Plan B - Alternative Consultation"),
+    )
+    phase_b1 = plan_b.phases[0]
+    await service.add_work_item_to_phase(
+        patient_1.id, plan_b.id, phase_b1.id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_shared.id),
+    )
+
+    # 4. Plan C (second alternative) also references wi_shared
+    plan_c = await service.create_plan(
+        patient_1.id,
+        schemas.ClinicalTreatmentPlanCreate(title="Plan C - Minimalist"),
+    )
+    phase_c1 = plan_c.phases[0]
+    await service.add_work_item_to_phase(
+        patient_1.id, plan_c.id, phase_c1.id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_shared.id),
+    )
+
+    # Transition Plan A to accepted
+    await service.transition_plan(patient_1.id, plan_a.id, "proposed")
+    await service.transition_plan(patient_1.id, plan_a.id, "accepted")
+
+    # Cancel Plan B and Plan C
+    await service.transition_plan(patient_1.id, plan_b.id, "cancelled")
+    await service.transition_plan(patient_1.id, plan_c.id, "cancelled")
+
+    # 5. Assert: ClinicalWorkItem row count remains strictly constant (no duplication)
+    work_items_count_final = (
+        await async_db_session.execute(
+            select(func.count(models.ClinicalWorkItem.id)).where(
+                models.ClinicalWorkItem.tenant_id == tenant_1.id,
+                models.ClinicalWorkItem.patient_id == patient_1.id,
+            )
+        )
+    ).scalar_one()
+
+    assert work_items_count_final == work_items_count_initial == 2
+
+    # Verify underlying wi_shared attributes are completely preserved
+    await async_db_session.refresh(wi_shared)
+    assert wi_shared.code == "ENDO_RCT"
+    assert wi_shared.kind == "procedure"
+    assert wi_shared.status == "planned"
+
+
+@pytest.mark.asyncio
+async def test_legacy_safety_rules_billing_and_balance_exact_invariance(
+    async_db_session, seed_data, monkeypatch
+):
+    """
+    Verify G9-M12 Invariant:
+    Treatment plan mutations, dynamic estimates, and lifecycle transitions
+    NEVER alter patient billing balance, financial statistics, or legacy ledger queries.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    patient_1 = seed_data["patient_1"]
+    doctor_1 = seed_data["doctor_1"]
+    tenant_1 = seed_data["tenant_1"]
+
+    service = TreatmentPlanService(async_db_session, tenant_1.id, doctor_1)
+    billing_service = BillingService(async_db_session, tenant_1.id)
+
+    # 1. Establish baseline legacy treatment and payment
+    # Patient had 1 treatment costing 600.0 with 100.0 discount (net revenue: 500.0)
+    treatment = models.Treatment(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        doctor_id=doctor_1.id,
+        procedure="Surgical Extraction",
+        cost=600.0,
+        discount=100.0,
+    )
+    # Patient paid 350.0 (outstanding balance: 150.0)
+    payment = models.Payment(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        doctor_id=doctor_1.id,
+        amount=350.0,
+    )
+    async_db_session.add_all([treatment, payment])
+    await async_db_session.flush()
+
+    # 2. Query initial billing balance and stats
+    balance_before = await billing_service.get_outstanding_balance(patient_1.id)
+    assert balance_before == 150.0
+
+    treatments_before = await crud_billing.get_treatments(async_db_session, patient_1.id, tenant_1.id)
+    payments_before = await crud_billing.get_payments(async_db_session, patient_1.id, tenant_1.id)
+    stats_before = await crud_billing.get_financial_stats(async_db_session, tenant_1.id)
+
+    assert len(treatments_before) == 1
+    assert len(payments_before) == 1
+
+    # 3. Create high-value treatment plan with multiple procedures
+    proc = models.Procedure(tenant_id=tenant_1.id, name="Implant Fixture", price=1500.0)
+    async_db_session.add(proc)
+    await async_db_session.flush()
+
+    wi = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="Implant Fixture",
+        status="planned",
+    )
+    async_db_session.add(wi)
+    await async_db_session.flush()
+
+    plan = await service.create_plan(
+        patient_1.id,
+        schemas.ClinicalTreatmentPlanCreate(title="Implant Reconstruction"),
+    )
+    phase_id = plan.phases[0].id
+    await service.add_work_item_to_phase(
+        patient_1.id, plan.id, phase_id,
+        schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi.id),
+    )
+
+    # Calculate dynamic estimates (1500.0 estimated total)
+    estimate = await service.get_plan_estimate(patient_1.id, plan.id)
+    assert estimate.plan_estimated_total == 1500.0
+
+    # Advance plan through transitions
+    await service.transition_plan(patient_1.id, plan.id, "proposed")
+    await service.transition_plan(patient_1.id, plan.id, "accepted")
+    await service.transition_plan(patient_1.id, plan.id, "completed")
+
+    # 4. Verify post-plan billing metrics are 100% invariant
+    balance_after = await billing_service.get_outstanding_balance(patient_1.id)
+    treatments_after = await crud_billing.get_treatments(async_db_session, patient_1.id, tenant_1.id)
+    payments_after = await crud_billing.get_payments(async_db_session, patient_1.id, tenant_1.id)
+    stats_after = await crud_billing.get_financial_stats(async_db_session, tenant_1.id)
+
+    assert balance_after == balance_before == 150.0
+    assert len(treatments_after) == len(treatments_before) == 1
+    assert len(payments_after) == len(payments_before) == 1
+    assert stats_after == stats_before
+
+
+@pytest.mark.asyncio
+async def test_legacy_safety_rules_via_http_endpoints(
+    client, seed_data, async_db_session, monkeypatch
+):
+    """
+    Verify HTTP API level invariance:
+    Invoking plan endpoints via TestClient never populates legacy treatment lists
+    or modifies legacy billing.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    patient_1 = seed_data["patient_1"]
+    doctor_1 = seed_data["doctor_1"]
+    tenant_1 = seed_data["tenant_1"]
+
+    doc_token = create_access_token(
+        data={"sub": doctor_1.username, "tenant_id": doctor_1.tenant_id, "role": "doctor"}
+    )
+    doc_headers = {"Authorization": f"Bearer {doc_token}"}
+
+    # Baseline legacy treatment
+    legacy_tr = models.Treatment(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        doctor_id=doctor_1.id,
+        procedure="Existing Filling",
+        cost=150.0,
+    )
+    async_db_session.add(legacy_tr)
+    await async_db_session.flush()
+
+    # Query treatments via HTTP or CRUD
+    res_treatments_before = client.get(
+        f"/api/v1/treatments/?patient_id={patient_1.id}",
+        headers=doc_headers,
+    )
+    if res_treatments_before.status_code == 200:
+        count_treatments_api_before = len(res_treatments_before.json())
+    else:
+        count_treatments_api_before = 1
+
+    # Procedure and work item
+    proc = models.Procedure(tenant_id=tenant_1.id, name="HTTP Proc", price=450.0)
+    async_db_session.add(proc)
+    await async_db_session.flush()
+
+    wi = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="HTTP Proc",
+        status="planned",
+    )
+    async_db_session.add(wi)
+    await async_db_session.flush()
+
+    # HTTP plan lifecycle
+    res_plan = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans",
+        headers=doc_headers,
+        json={"title": "HTTP Safety Test Plan"},
+    )
+    assert res_plan.status_code == 200
+    plan_id = res_plan.json()["data"]["id"]
+    phase_id = res_plan.json()["data"]["phases"][0]["id"]
+
+    res_item = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/phases/{phase_id}/items",
+        headers=doc_headers,
+        json={"work_item_id": wi.id},
+    )
+    assert res_item.status_code == 200
+
+    res_prop = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/transition",
+        headers=doc_headers,
+        json={"to_status": "proposed"},
+    )
+    assert res_prop.status_code == 200
+
+    res_acc = client.post(
+        f"/api/v1/patients/{patient_1.id}/clinical-plans/{plan_id}/transition",
+        headers=doc_headers,
+        json={"to_status": "accepted"},
+    )
+    assert res_acc.status_code == 200
+
+    # Verify treatments API still has same count
+    res_treatments_after = client.get(
+        f"/api/v1/treatments/?patient_id={patient_1.id}",
+        headers=doc_headers,
+    )
+    if res_treatments_after.status_code == 200:
+        assert len(res_treatments_after.json()) == count_treatments_api_before
+
+    # Verify DB count of models.Treatment is strictly 1
+    db_count = (
+        await async_db_session.execute(
+            select(func.count(models.Treatment.id)).where(
+                models.Treatment.tenant_id == tenant_1.id,
+                models.Treatment.patient_id == patient_1.id,
+            )
+        )
+    ).scalar_one()
+    assert db_count == 1
+
