@@ -78,3 +78,29 @@ export const updatePatientClinicalWorkItem = (patientId, workItemId, data) =>
 export const correctPatientClinicalWorkItem = (patientId, workItemId, data, headers = {}) =>
     api.post(`/api/v1/patients/${patientId}/clinical-work-items/${workItemId}/correct`, data, { headers });
 
+// Care Session APIs (Slices S18, S19, S20)
+export const getActiveCareSession = (patientId) =>
+    api.get(`/api/v1/patients/${patientId}/care-sessions/active`);
+export const getPatientCareSessions = (patientId, params = {}) =>
+    api.get(`/api/v1/patients/${patientId}/care-sessions`, { params });
+export const getCareSession = (patientId, sessionId) =>
+    api.get(`/api/v1/patients/${patientId}/care-sessions/${sessionId}`);
+export const startCareSession = (patientId, data) =>
+    api.post(`/api/v1/patients/${patientId}/care-sessions`, data);
+export const finishCareSession = (patientId, sessionId, data) =>
+    api.post(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/finish`, data);
+export const transitionCareSession = (patientId, sessionId, data) =>
+    api.post(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/transition`, data);
+export const addCareSessionStep = (patientId, sessionId, data) =>
+    api.post(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/steps`, data);
+export const updateCareSessionStep = (patientId, sessionId, stepId, data) =>
+    api.patch(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/steps/${stepId}`, data);
+export const applyCareSessionTemplate = (patientId, sessionId, data) =>
+    api.post(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/steps/from-template`, data);
+export const getCareSessionSteps = (patientId, sessionId) =>
+    api.get(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/steps`);
+export const recordCareObservation = (patientId, sessionId, data) =>
+    api.post(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/observations`, data);
+export const getCareObservations = (patientId, sessionId, params = {}) =>
+    api.get(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/observations`, { params });
+
