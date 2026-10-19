@@ -106,3 +106,13 @@ export const recordCareObservation = (patientId, sessionId, data) =>
 export const getCareObservations = (patientId, sessionId, params = {}) =>
     api.get(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/observations`, { params });
 
+// Appointment Integration & Next-Visit Requests (Slice S22 / G11)
+export const linkCareSessionAppointment = (patientId, sessionId, data) =>
+    api.post(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/link-appointment`, data);
+export const suggestNextVisit = (patientId, sessionId) =>
+    api.get(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/suggest-next-visit`);
+export const createNextVisitRequest = (patientId, sessionId, data) =>
+    api.post(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/next-visit-requests`, data);
+export const getNextVisitRequests = (patientId, params = {}) =>
+    api.get(`/api/v1/patients/${patientId}/next-visit-requests`, { params });
+

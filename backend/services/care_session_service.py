@@ -407,6 +407,14 @@ class CareSessionService:
         )
         self.db.add(event)
 
+        # G11-M02: Create chairside next-visit request if specified
+        if getattr(data, "next_visit_request", None) is not None:
+            await self._create_next_visit_request_internal(
+                patient_id=patient_id,
+                data=data.next_visit_request,
+                session=session,
+            )
+
         try:
             await self.db.commit()
         except (IntegrityError, StaleDataError) as exc:
@@ -970,6 +978,7 @@ class CareSessionService:
             stmt = stmt.execution_options(populate_existing=True).options(
                 selectinload(models.CareSession.steps).selectinload(models.CareSessionStep.work_item).selectinload(models.ClinicalWorkItem.targets),
                 selectinload(models.CareSession.observations),
+                selectinload(models.CareSession.next_visit_requests),
             )
         session = (await self.db.execute(stmt)).scalars().first()
         if not session:
@@ -990,6 +999,7 @@ class CareSessionService:
             .options(
                 selectinload(models.CareSession.steps).selectinload(models.CareSessionStep.work_item).selectinload(models.ClinicalWorkItem.targets),
                 selectinload(models.CareSession.observations),
+                selectinload(models.CareSession.next_visit_requests),
             )
             .where(
                 models.CareSession.tenant_id == self.tenant_id,
@@ -1270,3 +1280,303 @@ class CareSessionService:
             "paused_session": paused_session,
             "items": items,
         }
+
+    # -----------------------------------------------------------------------
+    # Appointment Integration & Next-Visit Requests (Slice S22 / G11)
+    # -----------------------------------------------------------------------
+
+    async def link_appointment(
+        self, patient_id: int, session_id: int, appointment_id: Optional[int]
+    ) -> models.CareSession:
+        """
+        Link or unlink a CareSession to an existing Appointment (G11-M01).
+        Verifies appointment tenant and patient ownership.
+        """
+        await self.ensure_native_writes_enabled()
+        await self._verify_patient(patient_id)
+
+        session = await self.get_session(patient_id, session_id)
+        if appointment_id is not None:
+            await self._verify_appointment(patient_id, appointment_id)
+            session.appointment_id = appointment_id
+            event_type = "care_session_linked_appointment"
+        else:
+            session.appointment_id = None
+            event_type = "care_session_unlinked_appointment"
+
+        user = await self._get_active_current_user()
+        event = models.ClinicalEvent(
+            tenant_id=self.tenant_id,
+            patient_id=patient_id,
+            care_session_id=session.id,
+            event_type=event_type,
+            occurred_at=datetime.now(timezone.utc),
+            actor_user_id=user.id if user else None,
+            payload={
+                "session_id": session.id,
+                "appointment_id": appointment_id,
+            },
+        )
+        self.db.add(event)
+        try:
+            await self.db.commit()
+        except (IntegrityError, StaleDataError) as exc:
+            await self.db.rollback()
+            await self._get_active_current_user()
+            raise HTTPException(
+                status_code=409,
+                detail="Concurrent care session conflict during appointment linking",
+            ) from exc
+
+        return await self.get_session(patient_id, session.id)
+
+    async def suggest_next_visit(
+        self,
+        patient_id: int,
+        session_id: Optional[int] = None,
+        work_item_id: Optional[int] = None,
+    ) -> schemas.NextVisitSuggestionRead:
+        """
+        Auto-suggest appointment reason and duration based on session context (G11-M06, G11-M07).
+        """
+        await self.ensure_native_writes_enabled()
+        await self._verify_patient(patient_id)
+
+        target_work_item_id = work_item_id
+        session = None
+        remaining_steps = []
+        next_step_title = None
+
+        if session_id is not None:
+            session = await self.get_session(patient_id, session_id)
+            steps = session.steps or []
+            remaining_steps = [s for s in steps if s.status in ("pending", "partial")]
+            if remaining_steps:
+                next_step_title = remaining_steps[0].title
+            if not target_work_item_id:
+                for s in steps:
+                    if s.work_item_id:
+                        target_work_item_id = s.work_item_id
+                        break
+
+        work_item = None
+        tooth_key = None
+        proc_code = None
+        proc_title = None
+
+        if target_work_item_id is not None:
+            stmt = (
+                select(models.ClinicalWorkItem)
+                .options(selectinload(models.ClinicalWorkItem.targets))
+                .where(
+                    models.ClinicalWorkItem.id == target_work_item_id,
+                    models.ClinicalWorkItem.tenant_id == self.tenant_id,
+                    models.ClinicalWorkItem.patient_id == patient_id,
+                )
+            )
+            work_item = (await self.db.execute(stmt)).scalars().first()
+            if work_item:
+                proc_code = work_item.code
+                proc_title = work_item.code
+                if work_item.targets:
+                    tooth_key = work_item.targets[0].tooth_key
+
+        PROC_DISPLAY_MAP = {
+            "ENDO_RCT": "Root Canal Treatment",
+            "PROS_CROWN": "Crown",
+            "PROS_BRIDGE": "Bridge",
+            "REST_COMPOSITE": "Composite Restoration",
+            "SURG_EXTRACTION": "Tooth Extraction",
+            "IMPLANT_FIXTURE": "Implant Placement",
+            "IMPLANT_CROWN": "Implant Crown",
+            "PROS_DENTURE": "Denture",
+        }
+        display_proc = PROC_DISPLAY_MAP.get(proc_code, proc_title or proc_code or "Treatment")
+
+        # Determine Reason (G11-M06) and Suggested Duration (G11-M07)
+        if next_step_title:
+            if tooth_key:
+                reason = f"Tooth {tooth_key}: {display_proc} - {next_step_title}"
+            else:
+                reason = f"{display_proc} - {next_step_title}"
+
+            if proc_code == "ENDO_RCT":
+                suggested_duration = 45
+            elif proc_code in ("PROS_CROWN", "PROS_BRIDGE"):
+                lower_title = next_step_title.lower()
+                if any(k in lower_title for k in ("prep", "scan", "impression")):
+                    suggested_duration = 60
+                else:
+                    suggested_duration = 30
+            else:
+                suggested_duration = 30
+        elif work_item is not None:
+            if tooth_key:
+                reason = f"Follow-up: Tooth {tooth_key} - {display_proc}"
+            else:
+                reason = f"Follow-up: {display_proc}"
+            suggested_duration = 30
+        elif session is not None:
+            reason = f"Follow-up for Care Session #{session.id}"
+            suggested_duration = 30
+        else:
+            reason = "Dental Follow-up Visit"
+            suggested_duration = 30
+
+        return schemas.NextVisitSuggestionRead(
+            reason=reason,
+            suggested_duration_minutes=suggested_duration,
+            care_session_id=session_id,
+            work_item_id=target_work_item_id,
+            procedure_code=proc_code,
+            tooth_key=tooth_key,
+            next_step_title=next_step_title,
+            remaining_steps_count=len(remaining_steps),
+        )
+
+    async def _create_next_visit_request_internal(
+        self,
+        patient_id: int,
+        data: schemas.NextVisitRequestCreate,
+        session: Optional[models.CareSession] = None,
+    ) -> models.NextVisitRequest:
+        """
+        Internal creation helper.
+        Enforces G11-M08: NEVER auto-books an appointment without user action.
+        """
+        target_session_id = session.id if session else data.care_session_id
+        target_work_item_id = data.work_item_id
+
+        if not target_work_item_id and session and session.steps:
+            for s in session.steps:
+                if s.work_item_id:
+                    target_work_item_id = s.work_item_id
+                    break
+
+        reason = data.reason.strip() if data.reason and data.reason.strip() else None
+        duration = data.suggested_duration_minutes
+
+        if not reason:
+            suggestion = await self.suggest_next_visit(
+                patient_id=patient_id,
+                session_id=target_session_id,
+                work_item_id=target_work_item_id,
+            )
+            reason = suggestion.reason
+            if not data.suggested_duration_minutes or data.suggested_duration_minutes == 30:
+                duration = suggestion.suggested_duration_minutes
+
+        user = await self._get_active_current_user()
+        request = models.NextVisitRequest(
+            tenant_id=self.tenant_id,
+            patient_id=patient_id,
+            care_session_id=target_session_id,
+            work_item_id=target_work_item_id,
+            requested_by_user_id=user.id if user else None,
+            reason=reason,
+            suggested_duration_minutes=duration,
+            preferred_time_window_start=data.preferred_time_window_start,
+            preferred_time_window_end=data.preferred_time_window_end,
+            status="requested",
+            notes=data.notes,
+        )
+        self.db.add(request)
+        await self.db.flush()
+
+        event = models.ClinicalEvent(
+            tenant_id=self.tenant_id,
+            patient_id=patient_id,
+            care_session_id=target_session_id,
+            work_item_id=target_work_item_id,
+            event_type="next_visit_request_created",
+            occurred_at=datetime.now(timezone.utc),
+            actor_user_id=user.id if user else None,
+            payload={
+                "request_id": request.id,
+                "reason": request.reason,
+                "suggested_duration_minutes": request.suggested_duration_minutes,
+                "care_session_id": target_session_id,
+                "work_item_id": target_work_item_id,
+                "status": "requested",
+            },
+            notes=data.notes,
+        )
+        self.db.add(event)
+        return request
+
+    async def create_next_visit_request(
+        self,
+        patient_id: int,
+        data: schemas.NextVisitRequestCreate,
+        session_id: Optional[int] = None,
+    ) -> models.NextVisitRequest:
+        """
+        Create a chairside next-visit request for reception scheduling (G11-M02).
+        Enforces G11-M08: NEVER auto-books an appointment without user action.
+        """
+        await self.ensure_native_writes_enabled()
+        await self._verify_patient(patient_id)
+
+        session = None
+        target_session_id = session_id or data.care_session_id
+        if target_session_id is not None:
+            session = await self.get_session(patient_id, target_session_id)
+
+        if data.work_item_id is not None:
+            await self._verify_work_item(patient_id, data.work_item_id)
+
+        request = await self._create_next_visit_request_internal(
+            patient_id=patient_id,
+            data=data,
+            session=session,
+        )
+
+        try:
+            await self.db.commit()
+        except (IntegrityError, StaleDataError) as exc:
+            await self.db.rollback()
+            await self._get_active_current_user()
+            raise HTTPException(
+                status_code=409,
+                detail="Concurrent conflict during next-visit request creation",
+            ) from exc
+
+        return request
+
+    async def list_next_visit_requests(
+        self,
+        patient_id: int,
+        session_id: Optional[int] = None,
+        status: Optional[str] = None,
+    ) -> List[models.NextVisitRequest]:
+        """List next-visit requests for a patient with optional session and status filtering."""
+        await self.ensure_native_writes_enabled()
+        await self._verify_patient(patient_id)
+
+        stmt = select(models.NextVisitRequest).where(
+            models.NextVisitRequest.tenant_id == self.tenant_id,
+            models.NextVisitRequest.patient_id == patient_id,
+        )
+        if session_id is not None:
+            stmt = stmt.where(models.NextVisitRequest.care_session_id == session_id)
+        if status is not None:
+            stmt = stmt.where(models.NextVisitRequest.status == status)
+        stmt = stmt.order_by(models.NextVisitRequest.created_at.desc())
+        return list((await self.db.execute(stmt)).scalars().all())
+
+    async def get_next_visit_request(
+        self, patient_id: int, request_id: int
+    ) -> models.NextVisitRequest:
+        """Retrieve a specific next-visit request with tenant and patient isolation."""
+        await self.ensure_native_writes_enabled()
+        await self._verify_patient(patient_id)
+
+        stmt = select(models.NextVisitRequest).where(
+            models.NextVisitRequest.id == request_id,
+            models.NextVisitRequest.tenant_id == self.tenant_id,
+            models.NextVisitRequest.patient_id == patient_id,
+        )
+        req = (await self.db.execute(stmt)).scalar_one_or_none()
+        if not req:
+            raise HTTPException(status_code=404, detail="Next visit request not found")
+        return req

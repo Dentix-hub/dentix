@@ -17,8 +17,66 @@ class CareSessionCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+# ---------------------------------------------------------------------------
+# Appointment Integration & Next-Visit Request Schemas (Slice S22 / G11)
+# ---------------------------------------------------------------------------
+
+
+class CareSessionLinkAppointment(BaseModel):
+    appointment_id: Optional[int] = Field(None, description="Appointment ID to link to the care session, or None to unlink")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class NextVisitRequestCreate(BaseModel):
+    care_session_id: Optional[int] = Field(None, description="Optional care session ID generating this request")
+    work_item_id: Optional[int] = Field(None, description="Optional clinical work item ID")
+    reason: Optional[str] = Field(None, description="Reason for next visit (auto-populated if omitted)")
+    suggested_duration_minutes: int = Field(30, ge=5, le=480, description="Suggested appointment duration in minutes")
+    preferred_time_window_start: Optional[datetime] = Field(None, description="Preferred window start datetime")
+    preferred_time_window_end: Optional[datetime] = Field(None, description="Preferred window end datetime")
+    notes: Optional[str] = Field(None, description="Clinical or front-desk instructions/notes")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class NextVisitRequestRead(BaseModel):
+    id: int
+    tenant_id: int
+    patient_id: int
+    care_session_id: Optional[int] = None
+    work_item_id: Optional[int] = None
+    requested_by_user_id: Optional[int] = None
+    reason: str
+    suggested_duration_minutes: int = 30
+    preferred_time_window_start: Optional[datetime] = None
+    preferred_time_window_end: Optional[datetime] = None
+    status: str = "requested"
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class NextVisitSuggestionRead(BaseModel):
+    reason: str
+    suggested_duration_minutes: int = 30
+    care_session_id: Optional[int] = None
+    work_item_id: Optional[int] = None
+    procedure_code: Optional[str] = None
+    tooth_key: Optional[str] = None
+    next_step_title: Optional[str] = None
+    remaining_steps_count: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CareSessionFinish(BaseModel):
     notes: Optional[str] = None
+    next_visit_request: Optional[NextVisitRequestCreate] = Field(
+        None, description="Optional chairside next-visit request to create when completing session"
+    )
 
     model_config = ConfigDict(extra="forbid")
 
@@ -181,6 +239,7 @@ class CareSessionRead(BaseModel):
     summary: Optional[str] = None
     steps: List[CareSessionStepRead] = Field(default_factory=list)
     observations: List[CareObservationRead] = Field(default_factory=list)
+    next_visit_requests: List[NextVisitRequestRead] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -210,6 +269,7 @@ class CareSessionRead(BaseModel):
                     "summary": getattr(data, "summary", None),
                     "steps": [] if "steps" in unloaded else getattr(data, "steps", []),
                     "observations": [] if "observations" in unloaded else getattr(data, "observations", []),
+                    "next_visit_requests": [] if "next_visit_requests" in unloaded else getattr(data, "next_visit_requests", []),
                 }
         except Exception:
             pass
