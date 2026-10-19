@@ -516,12 +516,14 @@ class TreatmentPlanService:
                 notes=clean_notes,
             )
             self.db.add(phase)
+            await self.db.flush()
+            saved_phase_id = phase.id
             await self.db.commit()
 
             stmt_reload = (
                 select(models.ClinicalTreatmentPlanPhase)
                 .where(
-                    models.ClinicalTreatmentPlanPhase.id == phase.id,
+                    models.ClinicalTreatmentPlanPhase.id == saved_phase_id,
                     models.ClinicalTreatmentPlanPhase.tenant_id == self.tenant_id,
                 )
                 .options(
@@ -529,8 +531,9 @@ class TreatmentPlanService:
                     .selectinload(models.ClinicalTreatmentPlanItem.work_item)
                     .selectinload(models.ClinicalWorkItem.targets)
                 )
+                .execution_options(populate_existing=True)
             )
-            phase_obj = (await self.db.execute(stmt_reload)).scalar_one()
+            phase_obj = (await self.db.execute(stmt_reload)).scalar_one_or_none() or phase
             phase_obj.phase_estimated_total = 0.0
             phase_obj.unpriced_items_count = 0
             return phase_obj
@@ -574,7 +577,14 @@ class TreatmentPlanService:
         if data.notes is not None:
             phase.notes = data.notes.strip() if data.notes.strip() else None
 
-        await self.db.commit()
+        try:
+            await self.db.commit()
+        except (IntegrityError, StaleDataError):
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Phase was modified concurrently by another user",
+            )
 
         stmt = (
             select(models.ClinicalTreatmentPlanPhase)
@@ -608,6 +618,7 @@ class TreatmentPlanService:
         Allowed only in 'draft' or 'proposed' status.
         Uses a temporary offset during flush to satisfy uq_ctpp_plan_phase_order and
         ck_ctpp_phase_order_non_negative simultaneously.
+        Handles concurrent collisions on uq_ctpp_plan_phase_order with HTTP 409.
         """
         plan = await self._get_plan_and_verify(patient_id, plan_id)
         if plan.status not in ("draft", "proposed"):
@@ -639,13 +650,20 @@ class TreatmentPlanService:
         # Temporary non-colliding offset >= 10000 to respect ck_ctpp_phase_order_non_negative
         # and prevent unique collisions on uq_ctpp_plan_phase_order
         TEMP_OFFSET = 10000
-        for idx, pid in enumerate(data.phase_ids):
-            existing_by_id[pid].phase_order = TEMP_OFFSET + idx
-        await self.db.flush()
+        try:
+            for idx, pid in enumerate(data.phase_ids):
+                existing_by_id[pid].phase_order = TEMP_OFFSET + idx
+            await self.db.flush()
 
-        for idx, pid in enumerate(data.phase_ids):
-            existing_by_id[pid].phase_order = idx
-        await self.db.commit()
+            for idx, pid in enumerate(data.phase_ids):
+                existing_by_id[pid].phase_order = idx
+            await self.db.commit()
+        except (IntegrityError, StaleDataError):
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Concurrent phase reorder conflict; please refresh and try again",
+            )
 
         plan_reloaded = await self.get_plan(patient_id, plan_id)
         return plan_reloaded.phases
@@ -669,27 +687,34 @@ class TreatmentPlanService:
                 detail=f"Phases cannot be deleted from a plan in '{plan.status}' status",
             )
 
-        await self.db.delete(phase)
-        await self.db.flush()
-
-        stmt_rem = (
-            select(models.ClinicalTreatmentPlanPhase)
-            .where(
-                models.ClinicalTreatmentPlanPhase.tenant_id == self.tenant_id,
-                models.ClinicalTreatmentPlanPhase.plan_id == plan.id,
-            )
-            .order_by(models.ClinicalTreatmentPlanPhase.phase_order.asc())
-        )
-        remaining = list((await self.db.execute(stmt_rem)).scalars().all())
-        if remaining:
-            TEMP_OFFSET = 10000
-            for idx, p in enumerate(remaining):
-                p.phase_order = TEMP_OFFSET + idx
+        try:
+            await self.db.delete(phase)
             await self.db.flush()
-            for idx, p in enumerate(remaining):
-                p.phase_order = idx
 
-        await self.db.commit()
+            stmt_rem = (
+                select(models.ClinicalTreatmentPlanPhase)
+                .where(
+                    models.ClinicalTreatmentPlanPhase.tenant_id == self.tenant_id,
+                    models.ClinicalTreatmentPlanPhase.plan_id == plan.id,
+                )
+                .order_by(models.ClinicalTreatmentPlanPhase.phase_order.asc())
+            )
+            remaining = list((await self.db.execute(stmt_rem)).scalars().all())
+            if remaining:
+                TEMP_OFFSET = 10000
+                for idx, p in enumerate(remaining):
+                    p.phase_order = TEMP_OFFSET + idx
+                await self.db.flush()
+                for idx, p in enumerate(remaining):
+                    p.phase_order = idx
+
+            await self.db.commit()
+        except (IntegrityError, StaleDataError):
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Concurrent phase conflict during deletion; please refresh and try again",
+            )
 
     async def add_work_item_to_phase(
         self,
@@ -765,20 +790,23 @@ class TreatmentPlanService:
                 notes=clean_notes,
             )
             self.db.add(item)
+            await self.db.flush()
+            saved_item_id = item.id
             await self.db.commit()
 
             stmt_reload = (
                 select(models.ClinicalTreatmentPlanItem)
                 .where(
-                    models.ClinicalTreatmentPlanItem.id == item.id,
+                    models.ClinicalTreatmentPlanItem.id == saved_item_id,
                     models.ClinicalTreatmentPlanItem.tenant_id == self.tenant_id,
                 )
                 .options(
                     selectinload(models.ClinicalTreatmentPlanItem.work_item)
                     .selectinload(models.ClinicalWorkItem.targets)
                 )
+                .execution_options(populate_existing=True)
             )
-            inserted_item = (await self.db.execute(stmt_reload)).scalar_one()
+            inserted_item = (await self.db.execute(stmt_reload)).scalar_one_or_none() or item
             plan_reloaded = await self.get_plan(patient_id, plan_id)
             for ph in plan_reloaded.phases:
                 if ph.id == phase_id:
