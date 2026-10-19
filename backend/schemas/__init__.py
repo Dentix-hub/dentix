@@ -101,13 +101,19 @@ from .clinical_workspace import (
     TenantClinicalDriftReport,
 )
 
-# Care Sessions (Slice S18)
+# Care Sessions (Slices S18 & S19)
 from .care_session import (
     CareSessionCreate,
     CareSessionFinish,
     CareSessionTransition,
     CareSessionUpdate,
     CareSessionRead,
+    CareSessionStepCreate,
+    CareSessionStepUpdate,
+    CareSessionStepRead,
+    CareSessionTemplateApply,
+    CareObservationCreate,
+    CareObservationRead,
 )
 
 
@@ -402,11 +408,17 @@ __all__ = [
     "ClinicalWorkItemCorrectionResponse",
     "ClinicalEventRead",
     "ClinicalToothDetailRead",
-    # Care Sessions (Slice S18)
+    # Care Sessions (Slices S18 & S19)
     "CareSessionCreate",
     "CareSessionFinish",
     "CareSessionTransition",
     "CareSessionUpdate",
     "CareSessionRead",
+    "CareSessionStepCreate",
+    "CareSessionStepUpdate",
+    "CareSessionStepRead",
+    "CareSessionTemplateApply",
+    "CareObservationCreate",
+    "CareObservationRead",
 ]
 

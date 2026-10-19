@@ -110,7 +110,23 @@ async def seed_data(async_db_session):
         duration_minutes=30,
         status="Confirmed",
     )
-    async_db_session.add_all([appointment_1, appointment_2])
+    work_item_1 = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_1.id,
+        kind="procedure",
+        code="ENDO_RCT",
+        status="active",
+        created_by_user_id=doctor_1.id,
+    )
+    work_item_2 = models.ClinicalWorkItem(
+        tenant_id=tenant_2.id,
+        patient_id=patient_2.id,
+        kind="procedure",
+        code="ENDO_RCT",
+        status="active",
+        created_by_user_id=doctor_2.id,
+    )
+    async_db_session.add_all([appointment_1, appointment_2, work_item_1, work_item_2])
     await async_db_session.commit()
 
     return {
@@ -124,6 +140,8 @@ async def seed_data(async_db_session):
         "patient_2": patient_2,
         "appointment_1": appointment_1,
         "appointment_2": appointment_2,
+        "work_item_1": work_item_1,
+        "work_item_2": work_item_2,
     }
 
 
@@ -718,3 +736,492 @@ async def test_optimistic_concurrency_staledataerror_mapping(async_db_session, s
     # Verify session remains in_progress and user can be re-queried without MissingGreenlet
     session_after = await service.get_session(patient_id, session_id)
     assert session_after.status == "in_progress"
+
+
+# ---------------------------------------------------------------------------
+# Slice S19 Tests: Steps, Observations, Free Notes & Finalization Audit
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_add_step_manual_and_auto_order(client, seed_data, async_db_session):
+    """
+    G10-M04: Add structured step to care session.
+    Auto-assigns step_order sequentially and emits care_session_step_added event.
+    """
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    work_item_1 = seed_data["work_item_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    # 1. Start care session
+    r_session = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions",
+        headers=headers,
+        json={"notes": "RCT Chairside"},
+    )
+    session_id = r_session.json()["data"]["id"]
+
+    # 2. Add step 1 without step_order (auto-assigned to 1)
+    r_step1 = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/steps",
+        headers=headers,
+        json={
+            "step_code": "access_cavity",
+            "title": "Access Cavity Preparation",
+            "work_item_id": work_item_1.id,
+            "notes": "Good visibility, rubber dam placed",
+        },
+    )
+    assert r_step1.status_code == 201
+    s1_data = r_step1.json()["data"]
+    assert s1_data["step_order"] == 1
+    assert s1_data["step_code"] == "access_cavity"
+    assert s1_data["status"] == "pending"
+    assert s1_data["work_item_id"] == work_item_1.id
+    assert "rubber dam placed" in s1_data["notes"]
+
+    # 3. Add step 2 without step_order (auto-assigned to 2)
+    r_step2 = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/steps",
+        headers=headers,
+        json={
+            "step_code": "working_length",
+            "title": "Working Length Determination",
+            "status": "in_progress",
+        },
+    )
+    assert r_step2.status_code == 201
+    s2_data = r_step2.json()["data"]
+    assert s2_data["step_order"] == 2
+    assert s2_data["status"] == "in_progress"
+    assert s2_data["started_at"] is not None
+
+    # Verify audit event
+    stmt = select(models.ClinicalEvent).where(
+        models.ClinicalEvent.care_session_id == session_id,
+        models.ClinicalEvent.event_type == "care_session_step_added",
+    )
+    events = (await async_db_session.execute(stmt)).scalars().all()
+    assert len(events) == 2
+
+
+@pytest.mark.asyncio
+async def test_partial_step_support(client, seed_data, async_db_session):
+    """
+    G10-M05: Add partial-step support.
+    Step can be marked as 'partial' when procedure could only be partially completed chairside.
+    """
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    r_session = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions",
+        headers=headers,
+        json={},
+    )
+    session_id = r_session.json()["data"]["id"]
+
+    # Add step initially pending
+    r_step = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/steps",
+        headers=headers,
+        json={"step_code": "canal_shaping", "title": "Canal Cleaning and Shaping"},
+    )
+    step_id = r_step.json()["data"]["id"]
+
+    # Update step to partial
+    r_update = client.patch(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/steps/{step_id}",
+        headers=headers,
+        json={
+            "status": "partial",
+            "notes": "MB and ML shaped to size 25. Distal canal calcified, deferred to next visit.",
+        },
+    )
+    assert r_update.status_code == 200
+    up_data = r_update.json()["data"]
+    assert up_data["status"] == "partial"
+    assert up_data["completed_at"] is not None
+    assert "calcified" in up_data["notes"]
+
+
+@pytest.mark.asyncio
+async def test_update_step_and_preserve_notes(client, seed_data, async_db_session):
+    """
+    G10-M15: Preserve free notes across step creation and updates.
+    """
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    r_session = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions",
+        headers=headers,
+        json={"notes": "Session free note 1"},
+    )
+    session_id = r_session.json()["data"]["id"]
+
+    r_step = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/steps",
+        headers=headers,
+        json={"step_code": "prep", "title": "Preparation", "notes": "Initial step notes"},
+    )
+    step_id = r_step.json()["data"]["id"]
+    assert r_step.json()["data"]["notes"] == "Initial step notes"
+
+    r_patch = client.patch(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/steps/{step_id}",
+        headers=headers,
+        json={"notes": "Updated detailed clinical findings and step remarks", "status": "completed"},
+    )
+    assert r_patch.status_code == 200
+    assert r_patch.json()["data"]["notes"] == "Updated detailed clinical findings and step remarks"
+    assert r_patch.json()["data"]["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_step_terminal_session_error(client, seed_data, async_db_session):
+    """Attempting to add or update steps on a completed or cancelled session returns 400."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    r_session = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions",
+        headers=headers,
+        json={},
+    )
+    session_id = r_session.json()["data"]["id"]
+
+    # Finish session
+    client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/finish",
+        headers=headers,
+        json={},
+    )
+
+    # Adding step to completed session -> 400
+    r_add = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/steps",
+        headers=headers,
+        json={"step_code": "post_finish", "title": "Late Step"},
+    )
+    assert r_add.status_code == 400
+    assert "cannot add steps" in r_add.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_step_cross_patient_work_item_rejected(client, seed_data, async_db_session):
+    """Attempting to link a step to a work item of another patient returns 404 (matching trigger trg_css_session_work_item_patient)."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    work_item_2 = seed_data["work_item_2"]  # Belongs to patient 2
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    r_session = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions",
+        headers=headers,
+        json={},
+    )
+    session_id = r_session.json()["data"]["id"]
+
+    r_step = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/steps",
+        headers=headers,
+        json={
+            "step_code": "invalid_wi",
+            "title": "Invalid Work Item Step",
+            "work_item_id": work_item_2.id,
+        },
+    )
+    assert r_step.status_code == 404
+    assert "work item not found" in r_step.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_apply_workflow_template_steps(client, seed_data, async_db_session):
+    """
+    Initialize care session steps from canonical workflow template blueprints (e.g. ENDO_RCT).
+    """
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    work_item_1 = seed_data["work_item_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    r_session = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions",
+        headers=headers,
+        json={},
+    )
+    session_id = r_session.json()["data"]["id"]
+
+    # Apply ENDO_RCT template
+    r_apply = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/steps/from-template",
+        headers=headers,
+        json={"template_code": "ENDO_RCT", "work_item_id": work_item_1.id},
+    )
+    assert r_apply.status_code == 201
+    steps = r_apply.json()["data"]
+    assert len(steps) == 6
+    step_codes = [s["step_code"] for s in steps]
+    assert step_codes == ["assessment", "access", "canal_measurement", "clean_shape", "obturate", "restore"]
+    assert all(s["work_item_id"] == work_item_1.id for s in steps)
+
+    # Test unknown template -> 404
+    r_unknown = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/steps/from-template",
+        headers=headers,
+        json={"template_code": "UNKNOWN_TEMPLATE"},
+    )
+    assert r_unknown.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_record_care_observation(client, seed_data, async_db_session):
+    """
+    G10-M07: Add observation API.
+    Records structured observations (working length, canal ID, apex measurement) and preserves free notes.
+    """
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    r_session = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions",
+        headers=headers,
+        json={},
+    )
+    session_id = r_session.json()["data"]["id"]
+
+    # Add a step
+    r_step = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/steps",
+        headers=headers,
+        json={"step_code": "canal_measurement", "title": "Canal Lengths"},
+    )
+    step_id = r_step.json()["data"]["id"]
+
+    # Record observation on step
+    r_obs = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/observations",
+        headers=headers,
+        json={
+            "observation_code": "working_length",
+            "step_id": step_id,
+            "tooth_key": "46",
+            "root_id": "M",
+            "canal_id": "MB",
+            "structured_value": {"length_mm": 21.5, "maf": 25, "reference_point": "mesiobuccal cusp"},
+            "notes": "Good apical tugback",
+        },
+    )
+    assert r_obs.status_code == 201
+    obs_data = r_obs.json()["data"]
+    assert obs_data["observation_code"] == "working_length"
+    assert obs_data["tooth_key"] == "46"
+    assert obs_data["root_id"] == "M"
+    assert obs_data["canal_id"] == "MB"
+    assert obs_data["structured_value"]["length_mm"] == 21.5
+    assert obs_data["notes"] == "Good apical tugback"
+    assert obs_data["recorded_by_user_id"] == doctor_1.id
+
+    # List observations for session
+    r_list = client.get(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/observations",
+        headers=headers,
+    )
+    assert r_list.status_code == 200
+    assert len(r_list.json()["data"]) == 1
+
+    # Filter by step_id
+    r_list_step = client.get(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/observations?step_id={step_id}",
+        headers=headers,
+    )
+    assert r_list_step.status_code == 200
+    assert len(r_list_step.json()["data"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_observation_invalid_tooth_key(client, seed_data, async_db_session):
+    """Observation with invalid non-FDI tooth key returns 422."""
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    r_session = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions",
+        headers=headers,
+        json={},
+    )
+    session_id = r_session.json()["data"]["id"]
+
+    r_obs = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/observations",
+        headers=headers,
+        json={
+            "observation_code": "color_shade",
+            "tooth_key": "99",  # Invalid tooth key
+        },
+    )
+    assert r_obs.status_code == 422
+    assert "invalid tooth key" in r_obs.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_observation_cross_session_step_rejected(client, seed_data, async_db_session):
+    """
+    Attempting to associate an observation with a step from another care session
+    returns 404 (preventing violation of trigger trg_co_step_care_session_match).
+    """
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    # Session 1 with Step 1
+    r_s1 = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions",
+        headers=headers,
+        json={},
+    )
+    s1_id = r_s1.json()["data"]["id"]
+    r_step1 = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{s1_id}/steps",
+        headers=headers,
+        json={"step_code": "s1_step", "title": "Step from Session 1"},
+    )
+    s1_step_id = r_step1.json()["data"]["id"]
+
+    # Finish Session 1 and start Session 2
+    client.post(f"/api/v1/patients/{patient_1.id}/care-sessions/{s1_id}/finish", headers=headers, json={})
+    r_s2 = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions",
+        headers=headers,
+        json={},
+    )
+    s2_id = r_s2.json()["data"]["id"]
+
+    # Try to add observation to Session 2 referencing step from Session 1 -> 404
+    r_obs = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{s2_id}/observations",
+        headers=headers,
+        json={
+            "observation_code": "cross_session_test",
+            "step_id": s1_step_id,
+        },
+    )
+    assert r_obs.status_code == 404
+    assert "step not found" in r_obs.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_finalization_audit_trail(client, seed_data, async_db_session):
+    """
+    G10-M17: Add finalization audit trail.
+    Finishing a care session logs an AuditLog row via log_admin_action AND an append-only ClinicalEvent.
+    """
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    r_session = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions",
+        headers=headers,
+        json={"notes": "Finalization audit test session"},
+    )
+    session_id = r_session.json()["data"]["id"]
+
+    r_finish = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/finish",
+        headers=headers,
+        json={"notes": "Completed with all canals obturated"},
+    )
+    assert r_finish.status_code == 200
+
+    # 1. Verify AuditLog written
+    stmt_audit = select(models.AuditLog).where(
+        models.AuditLog.entity_id == session_id,
+        models.AuditLog.action == "FINISH_CARE_SESSION",
+        models.AuditLog.entity_type == "care_session",
+    )
+    audit_log = (await async_db_session.execute(stmt_audit)).scalars().first()
+    assert audit_log is not None
+    assert audit_log.performed_by_id == doctor_1.id
+    assert audit_log.tenant_id == doctor_1.tenant_id
+
+    # 2. Verify ClinicalEvent written
+    stmt_event = select(models.ClinicalEvent).where(
+        models.ClinicalEvent.care_session_id == session_id,
+        models.ClinicalEvent.event_type == "care_session_finished",
+    )
+    event = (await async_db_session.execute(stmt_event)).scalars().first()
+    assert event is not None
+    assert event.payload["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_eager_loaded_session_with_steps_and_observations(client, seed_data, async_db_session):
+    """
+    GET /care-sessions/{session_id} returns session with eager-loaded steps and observations.
+    """
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    headers = make_headers(doctor_1)
+
+    await set_native_writes_flag(async_db_session, doctor_1.tenant_id, True)
+
+    r_session = client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions",
+        headers=headers,
+        json={"notes": "Full session"},
+    )
+    session_id = r_session.json()["data"]["id"]
+
+    # Add step
+    client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/steps",
+        headers=headers,
+        json={"step_code": "step1", "title": "Step 1"},
+    )
+
+    # Add observation
+    client.post(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}/observations",
+        headers=headers,
+        json={"observation_code": "obs1", "tooth_key": "11"},
+    )
+
+    # Retrieve session details
+    r_get = client.get(
+        f"/api/v1/patients/{patient_1.id}/care-sessions/{session_id}",
+        headers=headers,
+    )
+    assert r_get.status_code == 200
+    data = r_get.json()["data"]
+    assert len(data["steps"]) == 1
+    assert data["steps"][0]["step_code"] == "step1"
+    assert len(data["observations"]) == 1
+    assert data["observations"][0]["observation_code"] == "obs1"
