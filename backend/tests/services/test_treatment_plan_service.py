@@ -3097,3 +3097,431 @@ async def test_concurrency_zero_missing_greenlet_after_rollback_across_all_endpo
     assert plan_reloaded.phases[0].name == "Phase 1"
 
 
+@pytest.mark.asyncio
+async def test_g9_m14_treatment_plan_e2e_acceptance_scenario(
+    seed_data, async_db_session, monkeypatch
+):
+    """
+    S17 / G9-M14: Treatment Plan E2E Acceptance Scenario.
+
+    Acceptance Criteria:
+    - Create 2 alternative plans (Plan A and Plan B) for a patient.
+    - Add phases and shared work items across the plans (G9-M05).
+    - Overlay on chart: verify planned teeth and phase separation for each plan (G9-M09).
+    - Dynamic estimates: calculate and project estimates on-the-fly (G9-M10, G9-M11).
+    - Accept Plan A: transition through lifecycle states (G9-M06, G9-M07).
+    - Verify Plan B is strictly preserved (G9-M08, G9-M14).
+    - Invariant: treatment plans work without duplicating care episodes or mutating
+      legacy tables (treatments, sessions, payments, stock, usages) (G9-M12).
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    patient_id = int(patient_1.id)
+    service = TreatmentPlanService(db=async_db_session, tenant_id=tenant_1.id, current_user=doctor_1)
+
+    # 1. Setup price list and procedures for realistic dynamic fee estimates
+    standard_price_list = models.PriceList(
+        tenant_id=tenant_1.id,
+        name="Standard Fee Schedule",
+        is_default=True,
+        is_active=True,
+    )
+    async_db_session.add(standard_price_list)
+    await async_db_session.flush()
+
+    proc_comp = models.Procedure(tenant_id=tenant_1.id, name="REST_COMPOSITE", price=800.0)
+    proc_crown = models.Procedure(tenant_id=tenant_1.id, name="CROWN", price=3500.0)
+    proc_veneer = models.Procedure(tenant_id=tenant_1.id, name="VENEER", price=3000.0)
+    proc_endo = models.Procedure(tenant_id=tenant_1.id, name="ENDO_MOLAR", price=2500.0)
+    proc_ext = models.Procedure(tenant_id=tenant_1.id, name="EXTRACTION", price=600.0)
+    async_db_session.add_all([proc_comp, proc_crown, proc_veneer, proc_endo, proc_ext])
+    await async_db_session.flush()
+
+    pli_comp = models.PriceListItem(price_list_id=standard_price_list.id, procedure_id=proc_comp.id, price=800.0)
+    pli_crown = models.PriceListItem(price_list_id=standard_price_list.id, procedure_id=proc_crown.id, price=3500.0)
+    pli_veneer = models.PriceListItem(price_list_id=standard_price_list.id, procedure_id=proc_veneer.id, price=3000.0)
+    pli_endo = models.PriceListItem(price_list_id=standard_price_list.id, procedure_id=proc_endo.id, price=2500.0)
+    pli_ext = models.PriceListItem(price_list_id=standard_price_list.id, procedure_id=proc_ext.id, price=600.0)
+    async_db_session.add_all([pli_comp, pli_crown, pli_veneer, pli_endo, pli_ext])
+    await async_db_session.flush()
+
+    # 2. Setup Clinical Work Items with Targets (Teeth)
+    wi_comp = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_id,
+        kind="procedure",
+        code="REST_COMPOSITE",
+        status="proposed",
+    )
+    wi_endo = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_id,
+        kind="procedure",
+        code="ENDO_MOLAR",
+        status="proposed",
+    )
+    wi_ext = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_id,
+        kind="procedure",
+        code="EXTRACTION",
+        status="proposed",
+    )
+    wi_crown = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_id,
+        kind="procedure",
+        code="CROWN",
+        status="proposed",
+    )
+    wi_veneer = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_id,
+        kind="procedure",
+        code="VENEER",
+        status="proposed",
+    )
+    async_db_session.add_all([wi_comp, wi_endo, wi_ext, wi_crown, wi_veneer])
+    await async_db_session.flush()
+
+    # Add tooth targets
+    t_comp = models.ClinicalWorkItemTarget(tenant_id=tenant_1.id, work_item_id=wi_comp.id, target_kind="tooth", tooth_key="16")
+    t_endo = models.ClinicalWorkItemTarget(tenant_id=tenant_1.id, work_item_id=wi_endo.id, target_kind="tooth", tooth_key="36")
+    t_ext = models.ClinicalWorkItemTarget(tenant_id=tenant_1.id, work_item_id=wi_ext.id, target_kind="tooth", tooth_key="38")
+    t_crown = models.ClinicalWorkItemTarget(tenant_id=tenant_1.id, work_item_id=wi_crown.id, target_kind="tooth", tooth_key="16")
+    t_veneer = models.ClinicalWorkItemTarget(tenant_id=tenant_1.id, work_item_id=wi_veneer.id, target_kind="tooth", tooth_key="21")
+    async_db_session.add_all([t_comp, t_endo, t_ext, t_crown, t_veneer])
+    await async_db_session.flush()
+
+    # Record initial count of work items (exactly 5)
+    initial_wi_count = (await async_db_session.execute(
+        select(func.count(models.ClinicalWorkItem.id)).where(models.ClinicalWorkItem.tenant_id == tenant_1.id)
+    )).scalar()
+    assert initial_wi_count == 5
+
+    # 3. Create 2 Alternative Treatment Plans
+    plan_a = await service.create_plan(
+        patient_id,
+        schemas.ClinicalTreatmentPlanCreate(
+            title="Option A: Comprehensive Reconstruction",
+            notes="Root canal therapy, extractions, direct composite, and indirect crowns",
+        ),
+    )
+    plan_b = await service.create_plan(
+        patient_id,
+        schemas.ClinicalTreatmentPlanCreate(
+            title="Option B: Conservative Restoration",
+            notes="Direct composite restorations and aesthetic anterior veneers",
+        ),
+    )
+    assert plan_a.id is not None
+    assert plan_b.id is not None
+    assert plan_a.id != plan_b.id
+    assert plan_a.status == "draft"
+    assert plan_b.status == "draft"
+    assert len(plan_a.phases) == 1
+    assert len(plan_b.phases) == 1
+
+    phase_a1_id = plan_a.phases[0].id
+    phase_b1_id = plan_b.phases[0].id
+
+    # 4. Add Phase 2 to Plan A (Sequential Multi-Phase Plan)
+    phase_a2 = await service.add_phase(
+        patient_id,
+        plan_a.id,
+        schemas.ClinicalTreatmentPlanPhaseCreate(
+            name="Phase 2: Prosthodontics",
+            notes="Indirect fixed prosthetic restorations",
+        ),
+    )
+    phase_a2_id = phase_a2.id
+    assert phase_a2.phase_order == 1
+
+    # 5. Attach Shared & Unique Work Items
+    # Shared item attached to Plan A Phase 1 AND Plan B Phase 1
+    item_a_comp = await service.add_work_item_to_phase(
+        patient_id, plan_a.id, phase_a1_id, schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_comp.id)
+    )
+    item_b_comp = await service.add_work_item_to_phase(
+        patient_id, plan_b.id, phase_b1_id, schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_comp.id)
+    )
+    assert item_a_comp.id != item_b_comp.id
+    assert item_a_comp.work_item_id == wi_comp.id
+    assert item_b_comp.work_item_id == wi_comp.id
+
+    # Attach remaining Plan A items
+    await service.add_work_item_to_phase(
+        patient_id, plan_a.id, phase_a1_id, schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_endo.id)
+    )
+    await service.add_work_item_to_phase(
+        patient_id, plan_a.id, phase_a1_id, schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_ext.id)
+    )
+    await service.add_work_item_to_phase(
+        patient_id, plan_a.id, phase_a2_id, schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_crown.id)
+    )
+
+    # Attach remaining Plan B item
+    await service.add_work_item_to_phase(
+        patient_id, plan_b.id, phase_b1_id, schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_veneer.id)
+    )
+
+    # 6. Verify Candidate Work Items Filtering (Amendment A)
+    candidates_a = await service.get_candidate_work_items(patient_id, plan_a.id)
+    candidate_a_ids = {c.id for c in candidates_a}
+    assert {wi_comp.id, wi_endo.id, wi_ext.id, wi_crown.id, wi_veneer.id}.issubset(candidate_a_ids)
+
+    # UI Phase-level candidate filter: items already in Phase A1 are excluded from Phase A1 selector
+    plan_a_current = await service.get_plan(patient_id, plan_a.id)
+    phase_a1_current = next(p for p in plan_a_current.phases if p.id == phase_a1_id)
+    phase_a1_item_wi_ids = {it.work_item_id for it in phase_a1_current.items}
+    phase_a1_available_candidates = [c for c in candidates_a if c.id not in phase_a1_item_wi_ids]
+    phase_a1_available_ids = {c.id for c in phase_a1_available_candidates}
+    assert wi_comp.id not in phase_a1_available_ids
+    assert wi_endo.id not in phase_a1_available_ids
+    assert wi_crown.id in phase_a1_available_ids
+    assert wi_veneer.id in phase_a1_available_ids
+
+    # 7. Chart Overlay Data Projection Verification (G9-M09)
+    plan_a_reloaded = await service.get_plan(patient_id, plan_a.id)
+    plan_a_teeth = {
+        target.tooth_key
+        for phase in plan_a_reloaded.phases
+        for item in phase.items
+        for target in (item.work_item.targets if item.work_item else [])
+        if target.tooth_key
+    }
+    assert plan_a_teeth == {"16", "36", "38"}
+    assert "21" not in plan_a_teeth
+
+    plan_b_reloaded = await service.get_plan(patient_id, plan_b.id)
+    plan_b_teeth = {
+        target.tooth_key
+        for phase in plan_b_reloaded.phases
+        for item in phase.items
+        for target in (item.work_item.targets if item.work_item else [])
+        if target.tooth_key
+    }
+    assert plan_b_teeth == {"16", "21"}
+    assert "36" not in plan_b_teeth
+    assert "38" not in plan_b_teeth
+
+    # 8. Dynamic Fee Estimates & Side-by-Side Comparison (G9-M10, G9-M11)
+    est_a = await service.get_plan_estimate(patient_id, plan_a.id)
+    assert est_a.plan_id == plan_a.id
+    assert est_a.currency == "EGP"
+    assert est_a.plan_estimated_total == 7400.0
+    assert len(est_a.phases) == 2
+    assert est_a.phases[0].phase_estimated_total == 3900.0
+    assert est_a.phases[1].phase_estimated_total == 3500.0
+
+    est_b = await service.get_plan_estimate(patient_id, plan_b.id)
+    assert est_b.plan_id == plan_b.id
+    assert est_b.currency == "EGP"
+    assert est_b.plan_estimated_total == 3800.0
+    assert len(est_b.phases) == 1
+    assert est_b.phases[0].phase_estimated_total == 3800.0
+
+    shared_wi_ids = {item_a_comp.work_item_id}
+    assert shared_wi_ids == {wi_comp.id}
+    cost_diff = est_a.plan_estimated_total - est_b.plan_estimated_total
+    assert cost_diff == 3600.0
+
+    # 9. Plan Transition & Acceptance (G9-M06, G9-M07)
+    plan_a_prop = await service.transition_plan(patient_id, plan_a.id, "proposed")
+    assert plan_a_prop.status == "proposed"
+
+    plan_a_acc = await service.transition_plan(patient_id, plan_a.id, "accepted")
+    assert plan_a_acc.status == "accepted"
+    assert plan_a_acc.plan_estimated_total == 7400.0
+
+    # 10. Alternative Plan Preservation (G9-M08, G9-M14)
+    plan_b_preserved = await service.get_plan(patient_id, plan_b.id)
+    assert plan_b_preserved.id == plan_b.id
+    assert plan_b_preserved.status == "draft"
+    assert len(plan_b_preserved.phases) == 1
+    assert len(plan_b_preserved.phases[0].items) == 2
+    assert plan_b_preserved.plan_estimated_total == 3800.0
+
+    # 11. Zero Duplicate Care Episodes & Legacy Safety Invariance (G9-M12, G9-M14)
+    count_treatments = (await async_db_session.execute(select(func.count(models.Treatment.id)))).scalar()
+    count_sessions = (await async_db_session.execute(select(func.count(models.TreatmentSession.id)))).scalar()
+    count_payments = (await async_db_session.execute(select(func.count(models.Payment.id)))).scalar()
+    count_stock = (await async_db_session.execute(select(func.count(models.StockMovement.id)))).scalar()
+    count_materials = (await async_db_session.execute(select(func.count(models.TreatmentMaterialUsage.id)))).scalar()
+    assert count_treatments == 0, "Accepting plan created forbidden Treatment rows!"
+    assert count_sessions == 0, "Accepting plan created forbidden TreatmentSession rows!"
+    assert count_payments == 0, "Accepting plan created forbidden Payment rows!"
+    assert count_stock == 0, "Accepting plan created forbidden StockMovement rows!"
+    assert count_materials == 0, "Accepting plan created forbidden TreatmentMaterialUsage rows!"
+
+    final_wi_count = (await async_db_session.execute(
+        select(func.count(models.ClinicalWorkItem.id)).where(models.ClinicalWorkItem.tenant_id == tenant_1.id)
+    )).scalar()
+    assert final_wi_count == 5
+
+    # 12. Full List Parity
+    all_plans = await service.list_plans(patient_id)
+    assert len(all_plans) == 2
+    plans_by_id = {p.id: p for p in all_plans}
+    assert plans_by_id[plan_a.id].status == "accepted"
+    assert plans_by_id[plan_b.id].status == "draft"
+
+
+@pytest.mark.asyncio
+async def test_g9_m14_treatment_plan_e2e_http_acceptance_flow(
+    client, seed_data, async_db_session, monkeypatch
+):
+    """
+    S17 / G9-M14: HTTP REST API E2E acceptance flow:
+    - Create 2 alternative plans via POST
+    - Add phases via POST
+    - Attach candidate items via POST
+    - Fetch estimate projections via GET
+    - Accept Plan A via POST transition
+    - Verify Plan A accepted and Plan B preserved via GET
+    - Verify zero legacy side effects
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    patient_1 = seed_data["patient_1"]
+    doctor_1 = seed_data["doctor_1"]
+    tenant_1 = seed_data["tenant_1"]
+    patient_id = int(patient_1.id)
+
+    doc_token = create_access_token(
+        data={"sub": doctor_1.username, "tenant_id": doctor_1.tenant_id, "role": "doctor"}
+    )
+    headers = {"Authorization": f"Bearer {doc_token}"}
+
+    # Setup procedure and 2 work items
+    proc = models.Procedure(tenant_id=tenant_1.id, name="Proc E2E HTTP", price=500.0)
+    async_db_session.add(proc)
+    await async_db_session.flush()
+
+    wi1 = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_id,
+        kind="procedure",
+        code="Proc E2E HTTP",
+        status="planned",
+    )
+    wi2 = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_id,
+        kind="procedure",
+        code="Proc E2E HTTP",
+        status="planned",
+    )
+    async_db_session.add_all([wi1, wi2])
+    await async_db_session.flush()
+
+    t1 = models.ClinicalWorkItemTarget(tenant_id=tenant_1.id, work_item_id=wi1.id, target_kind="tooth", tooth_key="11")
+    t2 = models.ClinicalWorkItemTarget(tenant_id=tenant_1.id, work_item_id=wi2.id, target_kind="tooth", tooth_key="12")
+    async_db_session.add_all([t1, t2])
+    await async_db_session.flush()
+
+    # 1. Create Plan A and Plan B via HTTP
+    res_plan_a = client.post(
+        f"/api/v1/patients/{patient_id}/clinical-plans",
+        headers=headers,
+        json={"title": "HTTP Alternative Plan A"},
+    )
+    assert res_plan_a.status_code == 200
+    plan_a_data = res_plan_a.json()["data"]
+    plan_a_id = plan_a_data["id"]
+    phase_a1_id = plan_a_data["phases"][0]["id"]
+
+    res_plan_b = client.post(
+        f"/api/v1/patients/{patient_id}/clinical-plans",
+        headers=headers,
+        json={"title": "HTTP Alternative Plan B"},
+    )
+    assert res_plan_b.status_code == 200
+    plan_b_data = res_plan_b.json()["data"]
+    plan_b_id = plan_b_data["id"]
+    phase_b1_id = plan_b_data["phases"][0]["id"]
+
+    # 2. Add Phase 2 to Plan A via HTTP
+    res_phase_a2 = client.post(
+        f"/api/v1/patients/{patient_id}/clinical-plans/{plan_a_id}/phases",
+        headers=headers,
+        json={"name": "Phase 2: Rehabilitation"},
+    )
+    assert res_phase_a2.status_code == 200
+    phase_a2_id = res_phase_a2.json()["data"]["id"]
+
+    # 3. Attach wi1 (shared) to both Plan A and Plan B
+    res_item_a1 = client.post(
+        f"/api/v1/patients/{patient_id}/clinical-plans/{plan_a_id}/phases/{phase_a1_id}/items",
+        headers=headers,
+        json={"work_item_id": wi1.id},
+    )
+    assert res_item_a1.status_code == 200
+
+    res_item_b1 = client.post(
+        f"/api/v1/patients/{patient_id}/clinical-plans/{plan_b_id}/phases/{phase_b1_id}/items",
+        headers=headers,
+        json={"work_item_id": wi1.id},
+    )
+    assert res_item_b1.status_code == 200
+
+    # Attach wi2 to Plan A Phase 2
+    res_item_a2 = client.post(
+        f"/api/v1/patients/{patient_id}/clinical-plans/{plan_a_id}/phases/{phase_a2_id}/items",
+        headers=headers,
+        json={"work_item_id": wi2.id},
+    )
+    assert res_item_a2.status_code == 200
+
+    # 4. GET estimate for Plan A
+    res_est_a = client.get(
+        f"/api/v1/patients/{patient_id}/clinical-plans/{plan_a_id}/estimate",
+        headers=headers,
+    )
+    assert res_est_a.status_code == 200
+    assert res_est_a.json()["data"]["plan_estimated_total"] == 1000.0  # 500 + 500
+
+    # GET estimate for Plan B
+    res_est_b = client.get(
+        f"/api/v1/patients/{patient_id}/clinical-plans/{plan_b_id}/estimate",
+        headers=headers,
+    )
+    assert res_est_b.status_code == 200
+    assert res_est_b.json()["data"]["plan_estimated_total"] == 500.0  # 500
+
+    # 5. Transition Plan A to proposed then accepted
+    res_prop_a = client.post(
+        f"/api/v1/patients/{patient_id}/clinical-plans/{plan_a_id}/transition",
+        headers=headers,
+        json={"to_status": "proposed"},
+    )
+    assert res_prop_a.status_code == 200
+    assert res_prop_a.json()["data"]["status"] == "proposed"
+
+    res_acc_a = client.post(
+        f"/api/v1/patients/{patient_id}/clinical-plans/{plan_a_id}/transition",
+        headers=headers,
+        json={"to_status": "accepted"},
+    )
+    assert res_acc_a.status_code == 200
+    assert res_acc_a.json()["data"]["status"] == "accepted"
+
+    # 6. GET plans list via HTTP - verifies Plan A is accepted and Plan B is preserved as draft
+    res_list = client.get(
+        f"/api/v1/patients/{patient_id}/clinical-plans",
+        headers=headers,
+    )
+    assert res_list.status_code == 200
+    plans_list = res_list.json()["data"]
+    assert len(plans_list) == 2
+    plans_map = {p["id"]: p for p in plans_list}
+    assert plans_map[plan_a_id]["status"] == "accepted"
+    assert plans_map[plan_b_id]["status"] == "draft"
+
+    # 7. Non-duplication verification
+    count_treatments = (await async_db_session.execute(select(func.count(models.Treatment.id)))).scalar()
+    assert count_treatments == 0
+
+
+

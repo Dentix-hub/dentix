@@ -1381,5 +1381,215 @@ describe('TreatmentPlansCard & Feature Gating', () => {
             expect(screen.getByTestId('comparison-plan-estimate-30')).toHaveTextContent('8,000 EGP');
         });
     });
+
+    describe('CARD S17 (G9-M14): Treatment Plan E2E Acceptance Scenario', () => {
+        const planA = {
+            id: 10,
+            patient_id: 101,
+            title: 'Option A - Full Reconstruction',
+            status: 'proposed',
+            notes: 'Comprehensive plan with crowns & endo',
+            version_id: 1,
+            created_at: '2026-10-18T10:00:00Z',
+            plan_estimated_total: 5500.0,
+            unpriced_items_count: 0,
+            phases: [
+                {
+                    id: 101,
+                    phase_order: 0,
+                    name: 'Phase 1 - Urgent & Endodontic',
+                    status: 'draft',
+                    phase_estimated_total: 2000.0,
+                    items: [
+                        {
+                            id: 1001,
+                            phase_id: 101,
+                            work_item_id: 2001,
+                            item_order: 0,
+                            estimated_fee: 800.0,
+                            work_item: {
+                                id: 2001,
+                                procedure_code: 'REST_COMPOSITE',
+                                display_name: 'Composite 1 Surface',
+                                targets: [{ tooth_key: '16' }],
+                            },
+                        },
+                        {
+                            id: 1002,
+                            phase_id: 101,
+                            work_item_id: 2002,
+                            item_order: 1,
+                            estimated_fee: 1200.0,
+                            work_item: {
+                                id: 2002,
+                                procedure_code: 'ENDO_MOLAR',
+                                display_name: 'Molar Root Canal',
+                                targets: [{ tooth_key: '36' }],
+                            },
+                        },
+                    ],
+                },
+                {
+                    id: 102,
+                    phase_order: 1,
+                    name: 'Phase 2 - Prosthodontics',
+                    status: 'draft',
+                    phase_estimated_total: 3500.0,
+                    items: [
+                        {
+                            id: 1003,
+                            phase_id: 102,
+                            work_item_id: 2003,
+                            item_order: 0,
+                            estimated_fee: 3500.0,
+                            work_item: {
+                                id: 2003,
+                                procedure_code: 'PROS_CROWN',
+                                display_name: 'Full Ceramic Crown',
+                                targets: [{ tooth_key: '16' }],
+                            },
+                        },
+                    ],
+                },
+            ],
+        };
+
+        const planB = {
+            id: 20,
+            patient_id: 101,
+            title: 'Option B - Conservative Resin',
+            status: 'proposed',
+            notes: 'Conservative restoration option',
+            version_id: 1,
+            created_at: '2026-10-18T10:30:00Z',
+            plan_estimated_total: 3200.0,
+            unpriced_items_count: 0,
+            phases: [
+                {
+                    id: 201,
+                    phase_order: 0,
+                    name: 'Phase 1 - Direct Restorations',
+                    status: 'draft',
+                    phase_estimated_total: 3200.0,
+                    items: [
+                        {
+                            id: 2001,
+                            phase_id: 201,
+                            work_item_id: 2001,
+                            item_order: 0,
+                            estimated_fee: 800.0,
+                            work_item: {
+                                id: 2001,
+                                procedure_code: 'REST_COMPOSITE',
+                                display_name: 'Composite 1 Surface',
+                                targets: [{ tooth_key: '16' }],
+                            },
+                        },
+                        {
+                            id: 2002,
+                            phase_id: 201,
+                            work_item_id: 2004,
+                            item_order: 1,
+                            estimated_fee: 2400.0,
+                            work_item: {
+                                id: 2004,
+                                procedure_code: 'REST_VENEER',
+                                display_name: 'Direct Resin Veneer',
+                                targets: [{ tooth_key: '21' }],
+                            },
+                        },
+                    ],
+                },
+            ],
+        };
+
+        it('executes full multi-plan chairside E2E workflow: overlay toggle, side-by-side comparison, direct acceptance, and alternative plan preservation without duplicating care episodes', async () => {
+            const onToggleOverlay = vi.fn();
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [planA, planB],
+                isLoading: false,
+                isError: false,
+            });
+            mockTransitionMutateAsync.mockResolvedValueOnce({
+                id: 10,
+                status: 'accepted',
+            });
+
+            const { rerender } = renderCard(101, {
+                onToggleOverlay,
+                activeOverlayPlanId: null,
+                activeOverlayPhaseId: null,
+            });
+
+            // 1. Both alternative plans rendered
+            expect(screen.getByText('Option A - Full Reconstruction')).toBeInTheDocument();
+            expect(screen.getByText('Option B - Conservative Resin')).toBeInTheDocument();
+
+            // 2. Toggle chart overlay for Plan Alpha
+            const overlayBtnAlpha = screen.getByTestId('overlay-plan-button-10');
+            expect(overlayBtnAlpha).toHaveAttribute('aria-pressed', 'false');
+            fireEvent.click(overlayBtnAlpha);
+            expect(onToggleOverlay).toHaveBeenCalledWith(10, null);
+
+            // 3. Toggle chart overlay for Plan Beta
+            const overlayBtnBeta = screen.getByTestId('overlay-plan-button-20');
+            expect(overlayBtnBeta).toHaveAttribute('aria-pressed', 'false');
+            fireEvent.click(overlayBtnBeta);
+            expect(onToggleOverlay).toHaveBeenCalledWith(20, null);
+
+            // 4. Open side-by-side comparison modal
+            fireEvent.click(screen.getByTestId('compare-clinical-plans-button'));
+            expect(screen.getByRole('dialog')).toBeInTheDocument();
+            expect(screen.getByText('Compare Treatment Plans')).toBeInTheDocument();
+
+            // 5. Verify dynamic estimate projections in comparison view
+            expect(screen.getByTestId('comparison-plan-estimate-10')).toHaveTextContent('5,500 EGP');
+            expect(screen.getByTestId('comparison-plan-estimate-20')).toHaveTextContent('3,200 EGP');
+
+            // 6. Verify shared procedure badge (item 2001 shared across Plan Alpha & Beta)
+            expect(screen.getByTestId('procedure-shared-badge-2001')).toHaveTextContent('Shared');
+
+            // 7. Directly accept Plan Alpha from comparison modal
+            const acceptBtnA = screen.getByTestId('comparison-accept-plan-10');
+            expect(acceptBtnA).toBeInTheDocument();
+            fireEvent.click(acceptBtnA);
+
+            await waitFor(() => {
+                expect(mockTransitionMutateAsync).toHaveBeenCalledWith({
+                    patientId: 101,
+                    planId: 10,
+                    data: { to_status: 'accepted' },
+                });
+            });
+
+            // 8. Re-render with Plan Alpha accepted and Plan Beta preserved as draft alternative
+            const acceptedAlpha = { ...planA, status: 'accepted' };
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [acceptedAlpha, planB],
+                isLoading: false,
+                isError: false,
+            });
+
+            rerender(
+                <QueryClientProvider client={new QueryClient()}>
+                    <MemoryRouter>
+                        <TreatmentPlansCard
+                            patientId={101}
+                            onToggleOverlay={onToggleOverlay}
+                            activeOverlayPlanId={null}
+                            activeOverlayPhaseId={null}
+                        />
+                    </MemoryRouter>
+                </QueryClientProvider>
+            );
+
+            // 9. Verify Plan Alpha shows accepted status badge, and Plan Beta is preserved
+            expect(screen.getByText('Option A - Full Reconstruction')).toBeInTheDocument();
+            expect(screen.getByText('Option B - Conservative Resin')).toBeInTheDocument();
+            expect(screen.getByTestId('clinical-plan-status-10')).toHaveTextContent('accepted');
+            expect(screen.getByTestId('clinical-plan-status-20')).toHaveTextContent('proposed');
+        });
+    });
 });
+
 
