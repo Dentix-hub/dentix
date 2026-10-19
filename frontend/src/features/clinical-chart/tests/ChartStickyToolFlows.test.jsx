@@ -91,6 +91,12 @@ vi.mock('@/hooks/usePatientDetails', () => ({
     useDeletePayment: () => ({ mutateAsync: vi.fn() }),
     useTenantFeatures: () => ({ data: mockTenantFeatures, isLoading: false }),
     usePatientClinicalPlans: () => ({ data: [], isLoading: false }),
+    useActiveCareSession: () => ({ data: null, isLoading: false, refetch: vi.fn() }),
+    useStartCareSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useFinishCareSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useUpdateCareSessionStep: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useApplyCareSessionTemplate: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useRecordCareObservation: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 vi.mock('@/features/patients/hooks/useTreatmentOperations', () => ({

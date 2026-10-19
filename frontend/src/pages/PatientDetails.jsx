@@ -24,8 +24,19 @@ import {
     useDeletePayment,
     useTenantFeatures,
     usePatientClinicalPlans,
+    useActiveCareSession,
+    useStartCareSession,
+    useFinishCareSession,
+    useUpdateCareSessionStep,
+    useApplyCareSessionTemplate,
+    useRecordCareObservation,
 } from '@/hooks/usePatientDetails';
 import TreatmentPlansCard from '@/features/clinical-plans/TreatmentPlansCard';
+import {
+    CareSessionActiveBanner,
+    RctStructuredCard,
+    FinishCareSessionSheet,
+} from '@/features/care-sessions';
 import { useTreatmentOperations } from '@/features/patients/hooks/useTreatmentOperations';
 import { Baby, Sparkles } from 'lucide-react';
 
@@ -180,6 +191,100 @@ export default function PatientDetails() {
         activeOverlayPhaseId,
         treatmentPlans,
     });
+
+    const { data: activeCareSession, refetch: refetchActiveSession } = useActiveCareSession(id, {
+        enabled: !!id && activeTab === 'chart',
+    });
+    const startCareSessionMutation = useStartCareSession();
+    const finishCareSessionMutation = useFinishCareSession();
+    const updateCareSessionStepMutation = useUpdateCareSessionStep();
+    const applyCareSessionTemplateMutation = useApplyCareSessionTemplate();
+    const recordCareObservationMutation = useRecordCareObservation();
+
+    const [isRctWorkflowOpen, setIsRctWorkflowOpen] = useState(false);
+    const [isFinishSheetOpen, setIsFinishSheetOpen] = useState(false);
+
+    const handleStartRctSession = useCallback(async (targetToothKey) => {
+        try {
+            const tooth = targetToothKey || resolvedActiveTooth || '46';
+            const sessionRes = await startCareSessionMutation.mutateAsync({
+                patientId: id,
+                data: { notes: `Started RCT workflow on tooth ${tooth}` },
+            });
+            const createdSession = sessionRes.data;
+            if (createdSession?.id) {
+                await applyCareSessionTemplateMutation.mutateAsync({
+                    patientId: id,
+                    sessionId: createdSession.id,
+                    data: { template_code: 'ENDO_RCT' },
+                });
+                await refetchActiveSession();
+                setIsRctWorkflowOpen(true);
+                toast.success(t('care_session.rct_started', 'RCT care session started successfully'));
+            }
+        } catch (err) {
+            toast.error(err?.response?.data?.detail?.message || err?.response?.data?.detail || t('care_session.start_error', 'Failed to start care session'));
+        }
+    }, [id, resolvedActiveTooth, startCareSessionMutation, applyCareSessionTemplateMutation, refetchActiveSession, t]);
+
+    const handleUpdateStepStatus = useCallback(async (stepId, updateData) => {
+        if (!activeCareSession?.id) return;
+        try {
+            await updateCareSessionStepMutation.mutateAsync({
+                patientId: id,
+                sessionId: activeCareSession.id,
+                stepId,
+                data: updateData,
+            });
+            await refetchActiveSession();
+        } catch (err) {
+            toast.error(err?.response?.data?.detail || 'Failed to update step');
+        }
+    }, [id, activeCareSession?.id, updateCareSessionStepMutation, refetchActiveSession]);
+
+    const handleSaveObservation = useCallback(async (obsData) => {
+        if (!activeCareSession?.id) return;
+        try {
+            await recordCareObservationMutation.mutateAsync({
+                patientId: id,
+                sessionId: activeCareSession.id,
+                data: {
+                    observation_code: 'working_length',
+                    tooth_key: String(obsData.tooth_key),
+                    root_id: obsData.root_id,
+                    canal_id: obsData.canal_id,
+                    structured_value: {
+                        length_mm: obsData.length_mm,
+                        reference_point: obsData.reference_point,
+                        maf: obsData.maf,
+                    },
+                    notes: obsData.notes,
+                },
+            });
+            await refetchActiveSession();
+            toast.success(t('care_session.length_saved', `Saved ${obsData.canal_id} length: ${obsData.length_mm} mm`));
+        } catch (err) {
+            toast.error(err?.response?.data?.detail || 'Failed to record measurement');
+        }
+    }, [id, activeCareSession?.id, recordCareObservationMutation, refetchActiveSession, t]);
+
+    const handleFinishSession = useCallback(async ({ notes }) => {
+        if (!activeCareSession?.id) return;
+        try {
+            await finishCareSessionMutation.mutateAsync({
+                patientId: id,
+                sessionId: activeCareSession.id,
+                data: { notes },
+            });
+            await refetchActiveSession();
+            refetchWorkspace();
+            setIsRctWorkflowOpen(false);
+            setIsFinishSheetOpen(false);
+            toast.success(t('care_session.finished_success', 'Care session completed successfully'));
+        } catch (err) {
+            toast.error(err?.response?.data?.detail || 'Failed to finish care session');
+        }
+    }, [id, activeCareSession?.id, finishCareSessionMutation, refetchActiveSession, refetchWorkspace, t]);
 
     const adaptedChart = useMemo(() => {
         return adaptWorkspaceSnapshotToRenderer(effectiveSnapshot, {
@@ -576,6 +681,16 @@ export default function PatientDetails() {
                                     </section>
                                 ) : (
                                     <>
+                                        {activeCareSession && (
+                                            <div className="mb-3">
+                                                <CareSessionActiveBanner
+                                                    session={activeCareSession}
+                                                    onOpenWorkflow={() => setIsRctWorkflowOpen(true)}
+                                                    onOpenFinishSheet={() => setIsFinishSheetOpen(true)}
+                                                    t={t}
+                                                />
+                                            </div>
+                                        )}
                                         <div
                                             onTouchStart={handleTouchStart}
                                             onTouchMove={handleTouchMove}
@@ -650,6 +765,9 @@ export default function PatientDetails() {
                                             treatmentPlans={treatmentPlans}
                                             payments={payments}
                                             handleRemoveWorkItemOrTreatment={handleRemoveWorkItemOrTreatment}
+                                            activeCareSession={activeCareSession}
+                                            onStartRctSession={handleStartRctSession}
+                                            onOpenRctWorkflow={() => setIsRctWorkflowOpen(true)}
                                         />
                                     </>
                                 )}
@@ -759,6 +877,38 @@ export default function PatientDetails() {
                     </div>
                 </div>
             </Modal>
+
+            {isRctWorkflowOpen && activeCareSession && (
+                <Modal
+                    isOpen={isRctWorkflowOpen}
+                    onClose={() => setIsRctWorkflowOpen(false)}
+                    title={t('care_session.rct_modal_title', 'Root Canal Treatment (RCT) Workflow')}
+                    size="xl"
+                >
+                    <RctStructuredCard
+                        session={activeCareSession}
+                        toothKey={resolvedActiveTooth || '46'}
+                        onUpdateStepStatus={handleUpdateStepStatus}
+                        onSaveObservation={handleSaveObservation}
+                        onFinishSession={handleFinishSession}
+                        isUpdatingStep={updateCareSessionStepMutation.isPending}
+                        isSavingObservation={recordCareObservationMutation.isPending}
+                        isFinishingSession={finishCareSessionMutation.isPending}
+                        t={t}
+                    />
+                </Modal>
+            )}
+
+            {isFinishSheetOpen && activeCareSession && (
+                <FinishCareSessionSheet
+                    isOpen={isFinishSheetOpen}
+                    onClose={() => setIsFinishSheetOpen(false)}
+                    session={activeCareSession}
+                    onFinishSession={handleFinishSession}
+                    isFinishing={finishCareSessionMutation.isPending}
+                    t={t}
+                />
+            )}
         </div>
     );
 }

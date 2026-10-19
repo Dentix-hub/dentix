@@ -27,6 +27,9 @@ export default function ChairsideSelectionBar({
     treatmentPlans,
     payments,
     handleRemoveWorkItemOrTreatment,
+    activeCareSession = null,
+    onStartRctSession = null,
+    onOpenRctWorkflow = null,
 }) {
     if (!selectedTeeth || selectedTeeth.length === 0) {
         return null;
@@ -87,6 +90,25 @@ export default function ChairsideSelectionBar({
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {activeCareSession ? (
+                        <button
+                            type="button"
+                            onClick={onOpenRctWorkflow}
+                            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-blue-600 bg-blue-50 px-3.5 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                            data-testid="chairside-active-session-button"
+                        >
+                            <span>{t('care_session.active_session_btn', 'RCT Steps')}</span>
+                        </button>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => onStartRctSession?.(resolvedActiveTooth || selectedTeeth[0])}
+                            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50 px-3.5 py-2 text-xs font-bold text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
+                            data-testid="chairside-start-rct-button"
+                        >
+                            <span>{t('care_session.start_rct_btn', 'Start RCT')}</span>
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={handleClearSelection}

@@ -21,6 +21,15 @@ import {
     removePatientClinicalPlanItem,
     transitionPatientClinicalPlan,
     getTenantFeatures,
+    getActiveCareSession,
+    getPatientCareSessions,
+    startCareSession,
+    finishCareSession,
+    transitionCareSession,
+    addCareSessionStep,
+    updateCareSessionStep,
+    applyCareSessionTemplate,
+    recordCareObservation,
 } from '@/api';
 
 
@@ -369,6 +378,159 @@ export function useTransitionPatientClinicalPlan() {
         onSuccess: (_data, variables) => {
             queryClient.invalidateQueries({
                 queryKey: queryKeys.patientClinicalPlans(variables.patientId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for active patient care session
+ */
+export function useActiveCareSession(patientId, { enabled = true } = {}) {
+    return useQuery({
+        queryKey: queryKeys.patientActiveCareSession(patientId),
+        queryFn: async () => {
+            const res = await getActiveCareSession(patientId);
+            return res.data || null;
+        },
+        enabled: !!patientId && enabled,
+        staleTime: 10 * 1000,
+    });
+}
+
+/**
+ * Hook for listing patient care sessions
+ */
+export function usePatientCareSessions(patientId, params = {}, { enabled = true } = {}) {
+    return useQuery({
+        queryKey: queryKeys.patientCareSessions(patientId, params),
+        queryFn: async () => {
+            const res = await getPatientCareSessions(patientId, params);
+            return res.data || [];
+        },
+        enabled: !!patientId && enabled,
+        staleTime: 30 * 1000,
+    });
+}
+
+/**
+ * Hook for starting a care session
+ */
+export function useStartCareSession() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, data }) => startCareSession(patientId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientActiveCareSession(variables.patientId),
+            });
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientCareSessions(variables.patientId),
+            });
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalWorkspace(variables.patientId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for finishing a care session
+ */
+export function useFinishCareSession() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, sessionId, data }) => finishCareSession(patientId, sessionId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientActiveCareSession(variables.patientId),
+            });
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientCareSessions(variables.patientId),
+            });
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientClinicalWorkspace(variables.patientId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for transitioning care session status
+ */
+export function useTransitionCareSession() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, sessionId, data }) => transitionCareSession(patientId, sessionId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientActiveCareSession(variables.patientId),
+            });
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientCareSessions(variables.patientId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for adding a step to a care session
+ */
+export function useAddCareSessionStep() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, sessionId, data }) => addCareSessionStep(patientId, sessionId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientActiveCareSession(variables.patientId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for updating a care session step
+ */
+export function useUpdateCareSessionStep() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, sessionId, stepId, data }) =>
+            updateCareSessionStep(patientId, sessionId, stepId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientActiveCareSession(variables.patientId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for applying a workflow template to a care session
+ */
+export function useApplyCareSessionTemplate() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, sessionId, data }) =>
+            applyCareSessionTemplate(patientId, sessionId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientActiveCareSession(variables.patientId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for recording a care observation
+ */
+export function useRecordCareObservation() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, sessionId, data }) =>
+            recordCareObservation(patientId, sessionId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientActiveCareSession(variables.patientId),
             });
         },
     });

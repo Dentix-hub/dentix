@@ -28,6 +28,8 @@ export const queryKeys = {
     patientTreatments: (id) => ['patient', id, 'treatments'],
     patientClinicalPlans: (id) => ['patient', id, 'clinical-plans'],
     patientClinicalPlanCandidates: (patientId, planId) => ['patient', patientId, 'clinical-plans', planId, 'candidates'],
+    patientActiveCareSession: (id) => ['patient', id, 'care-sessions', 'active'],
+    patientCareSessions: (id, filters = {}) => ['patient', id, 'care-sessions', filters],
     patientPayments: (id) => ['patient', id, 'payments'],
     patientAttachments: (id) => ['patient', id, 'attachments'],
     tenantFeatures: ['tenant', 'features'],
