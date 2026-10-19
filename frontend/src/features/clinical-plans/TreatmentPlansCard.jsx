@@ -15,9 +15,11 @@ import {
     XCircle,
     Send,
     Pencil,
+    GitCompare,
 } from 'lucide-react';
 import { toast, DentixDialog } from '@/shared/ui';
 import { formatCurrency } from '@/utils/formatters';
+import PlanComparisonModal from './PlanComparisonModal';
 import {
     usePatientClinicalPlans,
     useCreatePatientClinicalPlan,
@@ -58,6 +60,7 @@ const TreatmentPlansCard = memo(({
 
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [isCompareOpen, setIsCompareOpen] = useState(false);
     const [title, setTitle] = useState('');
     const [notes, setNotes] = useState('');
 
@@ -83,6 +86,9 @@ const TreatmentPlansCard = memo(({
         isError,
         error,
     } = usePatientClinicalPlans(patientId, { enabled: !!patientId });
+
+    const nonCancelledPlans = plans.filter((p) => p.status !== 'cancelled');
+    const canComparePlans = nonCancelledPlans.length >= 2;
 
     const createPlanMutation = useCreatePatientClinicalPlan();
     const addPhaseMutation = useAddPatientClinicalPlanPhase();
@@ -391,6 +397,18 @@ const TreatmentPlansCard = memo(({
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {canComparePlans && (
+                        <button
+                            type="button"
+                            data-testid="compare-clinical-plans-button"
+                            onClick={() => setIsCompareOpen(true)}
+                            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        >
+                            <GitCompare size={16} aria-hidden="true" />
+                            <span>{t('clinical_plans.compare_plans', 'Compare Plans')}</span>
+                        </button>
+                    )}
+
                     <button
                         type="button"
                         data-testid="new-clinical-plan-button"
@@ -1236,6 +1254,15 @@ const TreatmentPlansCard = memo(({
                     </div>
                 </div>
             </DentixDialog>
+
+            {/* Plan Comparison Modal */}
+            <PlanComparisonModal
+                open={isCompareOpen}
+                onClose={() => setIsCompareOpen(false)}
+                plans={nonCancelledPlans}
+                onAcceptPlan={(plan) => handleTransitionPlan(plan, 'accepted')}
+                isTransitionPending={transitionPlanMutation.isPending}
+            />
         </section>
     );
 });

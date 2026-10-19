@@ -1046,4 +1046,340 @@ describe('TreatmentPlansCard & Feature Gating', () => {
             expect(screen.queryByTestId('item-estimate-302')).toBeNull();
         });
     });
+
+    describe('Treatment Plan Comparison UX (G9-M11 / S14)', () => {
+        const planAlpha = {
+            id: 10,
+            patient_id: 101,
+            title: 'Option A - Conservative Restoration',
+            status: 'proposed',
+            notes: 'Conservative restoration option with crowns',
+            version_id: 1,
+            created_at: '2026-10-18T10:00:00Z',
+            plan_estimated_total: 4000.0,
+            unpriced_items_count: 0,
+            phases: [
+                {
+                    id: 101,
+                    phase_order: 0,
+                    name: 'Phase 1 - Preparation',
+                    status: 'draft',
+                    notes: null,
+                    phase_estimated_total: 4000.0,
+                    unpriced_items_count: 0,
+                    items: [
+                        {
+                            id: 1001,
+                            phase_id: 101,
+                            work_item_id: 501,
+                            item_order: 0,
+                            estimated_fee: 1500.0,
+                            unpriced: false,
+                            work_item: {
+                                id: 501,
+                                procedure_code: 'PERIO_CLEAN',
+                                display_name: 'Deep Cleaning',
+                                status: 'active',
+                                targets: [{ tooth_key: '16', surface: null }],
+                            },
+                        },
+                        {
+                            id: 1002,
+                            phase_id: 101,
+                            work_item_id: 502,
+                            item_order: 1,
+                            estimated_fee: 2500.0,
+                            unpriced: false,
+                            work_item: {
+                                id: 502,
+                                procedure_code: 'PROS_CROWN',
+                                display_name: 'Ceramic Crown',
+                                status: 'active',
+                                targets: [{ tooth_key: '16', surface: 'O' }],
+                            },
+                        },
+                    ],
+                },
+            ],
+        };
+
+        const planBeta = {
+            id: 20,
+            patient_id: 101,
+            title: 'Option B - Extraction and Bridge',
+            status: 'proposed',
+            notes: 'Extraction alternative',
+            version_id: 1,
+            created_at: '2026-10-18T11:00:00Z',
+            plan_estimated_total: 5500.0,
+            unpriced_items_count: 1,
+            phases: [
+                {
+                    id: 201,
+                    phase_order: 0,
+                    name: 'Phase 1 - Surgery',
+                    status: 'draft',
+                    notes: null,
+                    phase_estimated_total: 5500.0,
+                    unpriced_items_count: 1,
+                    items: [
+                        {
+                            id: 2001,
+                            phase_id: 201,
+                            work_item_id: 501, // Shared procedure!
+                            item_order: 0,
+                            estimated_fee: 1500.0,
+                            unpriced: false,
+                            work_item: {
+                                id: 501,
+                                procedure_code: 'PERIO_CLEAN',
+                                display_name: 'Deep Cleaning',
+                                status: 'active',
+                                targets: [{ tooth_key: '16', surface: null }],
+                            },
+                        },
+                        {
+                            id: 2002,
+                            phase_id: 201,
+                            work_item_id: 503, // Unique to Beta!
+                            item_order: 1,
+                            estimated_fee: 4000.0,
+                            unpriced: false,
+                            work_item: {
+                                id: 503,
+                                procedure_code: 'SURG_EXTRACT',
+                                display_name: 'Surgical Extraction',
+                                status: 'active',
+                                targets: [{ tooth_key: '26', surface: null }],
+                            },
+                        },
+                        {
+                            id: 2003,
+                            phase_id: 201,
+                            work_item_id: 504, // Unique to Beta and unpriced!
+                            item_order: 2,
+                            estimated_fee: 0.0,
+                            unpriced: true,
+                            work_item: {
+                                id: 504,
+                                procedure_code: 'PROS_BRIDGE',
+                                display_name: 'Fixed Bridge',
+                                status: 'active',
+                                targets: [
+                                    { tooth_key: '25', surface: null },
+                                    { tooth_key: '27', surface: null },
+                                ],
+                            },
+                        },
+                    ],
+                },
+            ],
+        };
+
+        const planGamma = {
+            id: 30,
+            patient_id: 101,
+            title: 'Option C - Alignment Only',
+            status: 'draft',
+            notes: 'Ortho option',
+            version_id: 1,
+            created_at: '2026-10-18T12:00:00Z',
+            plan_estimated_total: 8000.0,
+            unpriced_items_count: 0,
+            phases: [],
+        };
+
+        it('hides Compare Plans button when patient has fewer than 2 non-cancelled plans', () => {
+            // Case 1: 0 plans
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [],
+                isLoading: false,
+                isError: false,
+            });
+            const { unmount } = renderCard();
+            expect(screen.queryByTestId('compare-clinical-plans-button')).toBeNull();
+            unmount();
+
+            // Case 2: 1 plan
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [planAlpha],
+                isLoading: false,
+                isError: false,
+            });
+            const { unmount: unmount2 } = renderCard();
+            expect(screen.queryByTestId('compare-clinical-plans-button')).toBeNull();
+            unmount2();
+
+            // Case 3: 1 active plan + 1 cancelled plan
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [planAlpha, { ...planBeta, status: 'cancelled' }],
+                isLoading: false,
+                isError: false,
+            });
+            renderCard();
+            expect(screen.queryByTestId('compare-clinical-plans-button')).toBeNull();
+        });
+
+        it('shows Compare Plans button when patient has >= 2 non-cancelled plans', () => {
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [planAlpha, planBeta],
+                isLoading: false,
+                isError: false,
+            });
+
+            renderCard();
+            expect(screen.getByTestId('compare-clinical-plans-button')).toBeInTheDocument();
+            expect(screen.getByTestId('compare-clinical-plans-button')).toHaveTextContent('Compare Plans');
+        });
+
+        it('opens comparison modal and renders side-by-side columns with titles, status badges, phase counts, target teeth, and estimates', () => {
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [planAlpha, planBeta],
+                isLoading: false,
+                isError: false,
+            });
+
+            renderCard();
+
+            // Click Compare Plans button
+            fireEvent.click(screen.getByTestId('compare-clinical-plans-button'));
+
+            // Dialog is open
+            expect(screen.getByTestId('compare-clinical-plans-dialog')).toBeInTheDocument();
+            expect(screen.getByText('Compare Treatment Plans')).toBeInTheDocument();
+
+            // Column Plan A
+            const colA = screen.getByTestId('comparison-column-plan-a');
+            expect(colA).toBeInTheDocument();
+            expect(within(colA).getByText('Option A - Conservative Restoration')).toBeInTheDocument();
+            expect(screen.getByTestId('comparison-plan-status-10')).toHaveTextContent(/proposed/i);
+            expect(screen.getByTestId('comparison-plan-phase-count-10')).toHaveTextContent('1 Phase');
+            expect(screen.getByTestId('comparison-plan-teeth-10')).toHaveTextContent('16');
+            expect(screen.getByTestId('comparison-plan-estimate-10')).toHaveTextContent('4,000 EGP');
+
+            // Column Plan B
+            const colB = screen.getByTestId('comparison-column-plan-b');
+            expect(colB).toBeInTheDocument();
+            expect(within(colB).getByText('Option B - Extraction and Bridge')).toBeInTheDocument();
+            expect(screen.getByTestId('comparison-plan-status-20')).toHaveTextContent(/proposed/i);
+            expect(screen.getByTestId('comparison-plan-phase-count-20')).toHaveTextContent('1 Phase');
+            expect(screen.getByTestId('comparison-plan-teeth-20')).toHaveTextContent('16, 25, 26, 27');
+            expect(screen.getByTestId('comparison-plan-estimate-20')).toHaveTextContent('5,500 EGP');
+            expect(screen.getByTestId('comparison-plan-unpriced-20')).toHaveTextContent('*');
+        });
+
+        it('correctly flags shared procedures across plans and unique procedures per plan with summary metrics', () => {
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [planAlpha, planBeta],
+                isLoading: false,
+                isError: false,
+            });
+
+            renderCard();
+            fireEvent.click(screen.getByTestId('compare-clinical-plans-button'));
+
+            // Summary metrics banner
+            expect(screen.getByTestId('comparison-summary-banner')).toBeInTheDocument();
+            expect(screen.getByTestId('comparison-shared-count')).toHaveTextContent('1');
+            expect(screen.getByTestId('comparison-unique-count-a')).toHaveTextContent('1');
+            expect(screen.getByTestId('comparison-unique-count-b')).toHaveTextContent('2');
+            expect(screen.getByTestId('comparison-cost-diff')).toHaveTextContent('1,500 EGP');
+
+            // Plan A items
+            // Item 1001 (work item 501) is shared
+            expect(screen.getByTestId('procedure-shared-badge-1001')).toBeInTheDocument();
+            expect(screen.getByTestId('procedure-shared-badge-1001')).toHaveTextContent('Shared');
+            // Item 1002 (work item 502) is unique to A
+            expect(screen.getByTestId('procedure-unique-badge-1002')).toBeInTheDocument();
+            expect(screen.getByTestId('procedure-unique-badge-1002')).toHaveTextContent('Unique');
+
+            // Plan B items
+            // Item 2001 (work item 501) is shared
+            expect(screen.getByTestId('procedure-shared-badge-2001')).toBeInTheDocument();
+            expect(screen.getByTestId('procedure-shared-badge-2001')).toHaveTextContent('Shared');
+            // Items 2002 and 2003 are unique to B
+            expect(screen.getByTestId('procedure-unique-badge-2002')).toBeInTheDocument();
+            expect(screen.getByTestId('procedure-unique-badge-2002')).toHaveTextContent('Unique');
+            expect(screen.getByTestId('procedure-unique-badge-2003')).toBeInTheDocument();
+            expect(screen.getByTestId('procedure-unique-badge-2003')).toHaveTextContent('Unique');
+        });
+
+        it('allows directly accepting a proposed plan from comparison view and triggers transition mutation', async () => {
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [planAlpha, planBeta],
+                isLoading: false,
+                isError: false,
+            });
+            mockTransitionMutateAsync.mockResolvedValueOnce({
+                id: 10,
+                status: 'accepted',
+            });
+
+            renderCard();
+            fireEvent.click(screen.getByTestId('compare-clinical-plans-button'));
+
+            // Both proposed plans have accept buttons
+            const acceptBtnA = screen.getByTestId('comparison-accept-plan-10');
+            const acceptBtnB = screen.getByTestId('comparison-accept-plan-20');
+            expect(acceptBtnA).toBeInTheDocument();
+            expect(acceptBtnB).toBeInTheDocument();
+
+            // Click accept for Plan A
+            fireEvent.click(acceptBtnA);
+
+            await waitFor(() => {
+                expect(mockTransitionMutateAsync).toHaveBeenCalledWith({
+                    patientId: 101,
+                    planId: 10,
+                    data: { to_status: 'accepted' },
+                });
+            });
+        });
+
+        it('displays Currently Accepted badge when an accepted plan is viewed in comparison and hides accept button', () => {
+            const acceptedPlanAlpha = { ...planAlpha, status: 'accepted' };
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [acceptedPlanAlpha, planBeta],
+                isLoading: false,
+                isError: false,
+            });
+
+            renderCard();
+            fireEvent.click(screen.getByTestId('compare-clinical-plans-button'));
+
+            // Plan A is accepted: shows Currently Accepted badge, no accept button
+            expect(screen.getByTestId('comparison-accepted-status-10')).toBeInTheDocument();
+            expect(screen.getByTestId('comparison-accepted-status-10')).toHaveTextContent('Currently Accepted');
+            expect(screen.queryByTestId('comparison-accept-plan-10')).toBeNull();
+
+            // Plan B is still proposed: shows Accept Plan button
+            expect(screen.getByTestId('comparison-accept-plan-20')).toBeInTheDocument();
+        });
+
+        it('renders plan dropdown selectors when >= 3 plans exist and allows switching compared plans', () => {
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [planAlpha, planBeta, planGamma],
+                isLoading: false,
+                isError: false,
+            });
+
+            renderCard();
+            fireEvent.click(screen.getByTestId('compare-clinical-plans-button'));
+
+            // Dropdowns should be present
+            const selectA = screen.getByTestId('compare-plan-a-select');
+            const selectB = screen.getByTestId('compare-plan-b-select');
+            expect(selectA).toBeInTheDocument();
+            expect(selectB).toBeInTheDocument();
+
+            // Change Plan B dropdown to planGamma (id 30)
+            fireEvent.change(selectB, { target: { value: '30' } });
+
+            // Column Plan B should now show Option C - Alignment Only
+            const colB = screen.getByTestId('comparison-column-plan-b');
+            expect(within(colB).getByText('Option C - Alignment Only')).toBeInTheDocument();
+            expect(screen.getByTestId('comparison-plan-estimate-30')).toHaveTextContent('8,000 EGP');
+        });
+    });
 });
+
