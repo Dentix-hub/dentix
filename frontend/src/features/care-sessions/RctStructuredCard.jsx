@@ -8,8 +8,6 @@ import {
     Play,
     AlertTriangle,
     Flag,
-    ChevronDown,
-    ChevronUp,
 } from 'lucide-react';
 import CanalTargetSelector from './CanalTargetSelector';
 import WorkingLengthEntryTable from './WorkingLengthEntryTable';
