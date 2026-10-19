@@ -101,6 +101,15 @@ from .clinical_workspace import (
     TenantClinicalDriftReport,
 )
 
+# Care Sessions (Slice S18)
+from .care_session import (
+    CareSessionCreate,
+    CareSessionFinish,
+    CareSessionTransition,
+    CareSessionUpdate,
+    CareSessionRead,
+)
+
 
 # Billing
 from .billing import (
@@ -393,5 +402,11 @@ __all__ = [
     "ClinicalWorkItemCorrectionResponse",
     "ClinicalEventRead",
     "ClinicalToothDetailRead",
+    # Care Sessions (Slice S18)
+    "CareSessionCreate",
+    "CareSessionFinish",
+    "CareSessionTransition",
+    "CareSessionUpdate",
+    "CareSessionRead",
 ]
 
