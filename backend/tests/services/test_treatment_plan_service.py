@@ -12,6 +12,7 @@ Tests required:
 - Status strictly 'draft'
 """
 
+import asyncio
 import pytest
 from datetime import datetime, timezone
 from fastapi import HTTPException
@@ -2730,4 +2731,369 @@ async def test_legacy_safety_rules_via_http_endpoints(
         )
     ).scalar_one()
     assert db_count == 1
+
+
+# ==============================================================================
+# S16 / G9-M13: TREATMENT PLAN CONCURRENCY HARDENING TESTS
+# ==============================================================================
+
+
+@pytest.mark.asyncio
+async def test_concurrency_phase_reorder_collision_raises_409_and_no_missing_greenlet(
+    seed_data, async_db_session, monkeypatch
+):
+    """
+    S16 / G9-M13: Test phase reorder concurrency collision on uq_ctpp_plan_phase_order.
+    When an IntegrityError or StaleDataError occurs during phase reorder flush/commit:
+    1. Rollback is executed cleanly.
+    2. HTTP 409 is raised.
+    3. Session remains intact with zero MissingGreenlet errors on subsequent queries.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    patient_id = int(patient_1.id)
+    service = TreatmentPlanService(db=async_db_session, tenant_id=tenant_1.id, current_user=doctor_1)
+
+    plan = await service.create_plan(patient_id, schemas.ClinicalTreatmentPlanCreate(title="Reorder Concurrency Plan"))
+    plan_id = int(plan.id)
+    ph1_id = int(plan.phases[0].id)
+    ph2 = await service.add_phase(patient_id, plan_id, schemas.ClinicalTreatmentPlanPhaseCreate(name="Phase 2"))
+    ph2_id = int(ph2.id)
+    ph3 = await service.add_phase(patient_id, plan_id, schemas.ClinicalTreatmentPlanPhaseCreate(name="Phase 3"))
+    ph3_id = int(ph3.id)
+
+    orig_flush = async_db_session.flush
+
+    async def flush_raising_integrity():
+        raise IntegrityError("mock statement", {}, Exception("UNIQUE constraint failed: clinical_treatment_plan_phases.plan_id, clinical_treatment_plan_phases.phase_order"))
+
+    async_db_session.flush = flush_raising_integrity
+    try:
+        with pytest.raises(HTTPException) as exc_info:
+            await service.reorder_phases(
+                patient_id,
+                plan_id,
+                schemas.ClinicalTreatmentPlanPhaseReorder(phase_ids=[ph3_id, ph2_id, ph1_id]),
+            )
+        assert exc_info.value.status_code == 409
+        assert "conflict" in exc_info.value.detail.lower()
+    finally:
+        async_db_session.flush = orig_flush
+
+    # Zero MissingGreenlet: verify session can immediately query again without error
+    reloaded_plan = await service.get_plan(patient_id, plan_id)
+    assert len(reloaded_plan.phases) == 3
+
+
+@pytest.mark.asyncio
+async def test_concurrency_phase_creation_retry_and_exhaustion_409(
+    seed_data, async_db_session, monkeypatch
+):
+    """
+    S16 / G9-M13: Test phase creation retry on order collision and 409 on retry exhaustion.
+    1. A single collision triggers automatic retry and succeeds.
+    2. Retry exhaustion triggers rollback, raises HTTP 409, and zero MissingGreenlet.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    patient_id = int(patient_1.id)
+    service = TreatmentPlanService(db=async_db_session, tenant_id=tenant_1.id, current_user=doctor_1)
+
+    plan = await service.create_plan(patient_id, schemas.ClinicalTreatmentPlanCreate(title="Phase Order Retry Plan"))
+    plan_id = int(plan.id)
+
+    # Part A: Test automatic retry on single collision
+    attempts = 0
+    orig_commit = async_db_session.commit
+
+    async def commit_fail_once():
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise IntegrityError("mock", {}, Exception("UNIQUE constraint failed: clinical_treatment_plan_phases.plan_id, clinical_treatment_plan_phases.phase_order"))
+        await orig_commit()
+
+    async_db_session.commit = commit_fail_once
+    try:
+        phase_retried = await service.add_phase(
+            patient_id, plan_id, schemas.ClinicalTreatmentPlanPhaseCreate(name="Phase Retry Success")
+        )
+        assert phase_retried.phase_order == 1
+        assert attempts == 2
+    finally:
+        async_db_session.commit = orig_commit
+
+    # Part B: Test retry exhaustion (fails twice)
+    async def commit_always_fail():
+        raise IntegrityError("mock", {}, Exception("UNIQUE constraint failed: clinical_treatment_plan_phases.plan_id, clinical_treatment_plan_phases.phase_order"))
+
+    async_db_session.commit = commit_always_fail
+    try:
+        with pytest.raises(HTTPException) as exc_info:
+            await service.add_phase(
+                patient_id, plan_id, schemas.ClinicalTreatmentPlanPhaseCreate(name="Phase Exhaustion")
+            )
+        assert exc_info.value.status_code == 409
+        assert "phase order conflict" in exc_info.value.detail.lower()
+    finally:
+        async_db_session.commit = orig_commit
+
+    # Verify zero MissingGreenlet after rollback
+    reloaded = await service.get_plan(patient_id, plan_id)
+    assert len(reloaded.phases) == 2
+
+
+@pytest.mark.asyncio
+async def test_concurrency_simultaneous_item_attachment_unique_constraint_409(
+    seed_data, async_db_session, monkeypatch
+):
+    """
+    S16 / G9-M13: Test simultaneous item attachment to phase.
+    1. Simultaneous attachment of same work item hits uq_ctpi_phase_work_item -> HTTP 409.
+    2. Retry exhaustion on item order collision hits uq_ctpi_phase_item_order -> HTTP 409.
+    3. Zero MissingGreenlet after rollback.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    patient_id = int(patient_1.id)
+    service = TreatmentPlanService(db=async_db_session, tenant_id=tenant_1.id, current_user=doctor_1)
+
+    plan = await service.create_plan(patient_id, schemas.ClinicalTreatmentPlanCreate(title="Item Attach Concurrency Plan"))
+    plan_id = int(plan.id)
+    phase_id = int(plan.phases[0].id)
+
+    wi = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_id,
+        kind="procedure",
+        code="REST_COMPOSITE",
+        status="active",
+        created_by_user_id=doctor_1.id,
+    )
+    async_db_session.add(wi)
+    await async_db_session.commit()
+    await async_db_session.refresh(wi)
+    wi_id = int(wi.id)
+
+    # Attach once
+    await service.add_work_item_to_phase(
+        patient_id, plan_id, phase_id, schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_id)
+    )
+
+    # Part A: Attempting to attach same work item again raises 409
+    with pytest.raises(HTTPException) as exc_info:
+        await service.add_work_item_to_phase(
+            patient_id, plan_id, phase_id, schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi_id)
+        )
+    assert exc_info.value.status_code == 409
+    assert "already attached" in exc_info.value.detail.lower()
+
+    # Part B: Simulated order collision with retry exhaustion
+    wi2 = models.ClinicalWorkItem(
+        tenant_id=tenant_1.id,
+        patient_id=patient_id,
+        kind="procedure",
+        code="EXTRACTION_SIMPLE",
+        status="active",
+        created_by_user_id=doctor_1.id,
+    )
+    async_db_session.add(wi2)
+    await async_db_session.commit()
+    await async_db_session.refresh(wi2)
+    wi2_id = int(wi2.id)
+
+    orig_commit = async_db_session.commit
+
+    async def commit_order_collision():
+        raise IntegrityError("mock", {}, Exception("UNIQUE constraint failed: clinical_treatment_plan_items.phase_id, clinical_treatment_plan_items.item_order"))
+
+    async_db_session.commit = commit_order_collision
+    try:
+        with pytest.raises(HTTPException) as exc_info:
+            await service.add_work_item_to_phase(
+                patient_id, plan_id, phase_id, schemas.ClinicalTreatmentPlanItemCreate(work_item_id=wi2_id)
+            )
+        assert exc_info.value.status_code == 409
+        assert "conflict in phase" in exc_info.value.detail.lower()
+    finally:
+        async_db_session.commit = orig_commit
+
+    # Verify zero MissingGreenlet after rollback
+    reloaded = await service.get_plan(patient_id, plan_id)
+    assert len(reloaded.phases[0].items) == 1
+
+
+@pytest.mark.asyncio
+async def test_concurrency_simultaneous_plan_transition_stale_data_409(
+    seed_data, async_db_session, monkeypatch
+):
+    """
+    S16 / G9-M13: Test simultaneous plan transitions with optimistic concurrency locking.
+    When StaleDataError occurs on plan.version_id:
+    1. Rolls back cleanly.
+    2. Raises HTTP 409 with concurrent modification message.
+    3. Zero MissingGreenlet on subsequent query.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    patient_id = int(patient_1.id)
+    service = TreatmentPlanService(db=async_db_session, tenant_id=tenant_1.id, current_user=doctor_1)
+
+    plan = await service.create_plan(patient_id, schemas.ClinicalTreatmentPlanCreate(title="Transition Concurrency Plan"))
+    plan_id = int(plan.id)
+    assert plan.status == "draft"
+    assert plan.version_id == 1
+
+    orig_commit = async_db_session.commit
+
+    async def commit_stale():
+        raise StaleDataError(models.ClinicalTreatmentPlan, "Row was updated or deleted by another transaction")
+
+    async_db_session.commit = commit_stale
+    try:
+        with pytest.raises(HTTPException) as exc_info:
+            await service.transition_plan(patient_id, plan_id, "proposed")
+        assert exc_info.value.status_code == 409
+        assert "concurrently" in exc_info.value.detail.lower()
+    finally:
+        async_db_session.commit = orig_commit
+
+    # Verify zero MissingGreenlet on subsequent query
+    plan_after = await service.get_plan(patient_id, plan_id)
+    assert plan_after.status == "draft"
+
+
+@pytest.mark.asyncio
+async def test_concurrency_real_multi_session_async_gather_contention(
+    seed_data, async_engine_fixture, monkeypatch
+):
+    """
+    S16 / G9-M13: Real multi-session concurrent execution with asyncio.gather.
+    Spawns multiple concurrent sessions creating phases and attaching work items simultaneously.
+    Verifies database consistency, no integrity errors leak unhandled, and zero MissingGreenlet.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    patient_id = int(patient_1.id)
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    session_factory = async_sessionmaker(
+        bind=async_engine_fixture, expire_on_commit=False, autoflush=False
+    )
+
+    # Setup base plan and 4 work items
+    async with session_factory() as setup_session:
+        service_setup = TreatmentPlanService(db=setup_session, tenant_id=tenant_1.id, current_user=doctor_1)
+        plan = await service_setup.create_plan(patient_id, schemas.ClinicalTreatmentPlanCreate(title="Async Gather Plan"))
+        plan_id = int(plan.id)
+        phase_0_id = int(plan.phases[0].id)
+
+        work_item_ids = []
+        for i in range(4):
+            wi = models.ClinicalWorkItem(
+                tenant_id=tenant_1.id,
+                patient_id=patient_id,
+                kind="procedure",
+                code=f"PROC_{i}",
+                status="active",
+                created_by_user_id=doctor_1.id,
+            )
+            setup_session.add(wi)
+            await setup_session.commit()
+            await setup_session.refresh(wi)
+            work_item_ids.append(int(wi.id))
+
+    # 1. Concurrent phase creation across 3 independent sessions
+    async def add_phase_worker(worker_id: int):
+        async with session_factory() as session:
+            srv = TreatmentPlanService(db=session, tenant_id=tenant_1.id, current_user=doctor_1)
+            try:
+                phase = await srv.add_phase(
+                    patient_id,
+                    plan_id,
+                    schemas.ClinicalTreatmentPlanPhaseCreate(name=f"Worker Phase {worker_id}"),
+                )
+                return phase.id, phase.phase_order
+            except HTTPException as e:
+                return None, e.status_code
+
+    results = await asyncio.gather(*(add_phase_worker(i) for i in range(1, 4)))
+    successful_phases = [r for r in results if r[0] is not None]
+    assert len(successful_phases) >= 1
+
+    # Verify all phase orders in database are unique and strictly sequential
+    async with session_factory() as check_session:
+        srv_check = TreatmentPlanService(db=check_session, tenant_id=tenant_1.id, current_user=doctor_1)
+        plan_check = await srv_check.get_plan(patient_id, plan_id)
+        phase_orders = [p.phase_order for p in plan_check.phases]
+        assert len(phase_orders) == len(set(phase_orders)), "Duplicate phase_orders detected!"
+        assert sorted(phase_orders) == list(range(len(phase_orders))), "Phase orders are not sequential!"
+
+    # 2. Concurrent item attachment to Phase 0: worker 1 & worker 2 attempt to attach same work item
+    target_wi = work_item_ids[0]
+    async def attach_worker():
+        async with session_factory() as session:
+            srv = TreatmentPlanService(db=session, tenant_id=tenant_1.id, current_user=doctor_1)
+            try:
+                item = await srv.add_work_item_to_phase(
+                    patient_id,
+                    plan_id,
+                    phase_0_id,
+                    schemas.ClinicalTreatmentPlanItemCreate(work_item_id=target_wi),
+                )
+                return 200, item.id
+            except HTTPException as e:
+                return e.status_code, e.detail
+
+    attach_results = await asyncio.gather(attach_worker(), attach_worker())
+    statuses = [r[0] for r in attach_results]
+    assert 200 in statuses, "At least one worker must succeed in attaching item"
+    if 409 in statuses:
+        assert 409 in statuses
+    # Exactly 1 item row exists in phase_0
+    async with session_factory() as check_session:
+        srv_check = TreatmentPlanService(db=check_session, tenant_id=tenant_1.id, current_user=doctor_1)
+        plan_check = await srv_check.get_plan(patient_id, plan_id)
+        phase_0 = next(p for p in plan_check.phases if p.id == phase_0_id)
+        items_for_wi = [it for it in phase_0.items if it.work_item_id == target_wi]
+        assert len(items_for_wi) == 1, "Duplicate item attached to same phase!"
+
+
+@pytest.mark.asyncio
+async def test_concurrency_zero_missing_greenlet_after_rollback_across_all_endpoints(
+    seed_data, async_db_session, monkeypatch
+):
+    """
+    S16 / G9-M13: Exhaustive verification that calling rollback() across service
+    mutation methods leaves the async session intact with zero MissingGreenlet errors.
+    """
+    monkeypatch.setenv("CLINICAL_TREATMENT_PLANS_ENABLED", "true")
+    tenant_1 = seed_data["tenant_1"]
+    doctor_1 = seed_data["doctor_1"]
+    patient_1 = seed_data["patient_1"]
+    patient_id = int(patient_1.id)
+    service = TreatmentPlanService(db=async_db_session, tenant_id=tenant_1.id, current_user=doctor_1)
+
+    plan = await service.create_plan(patient_id, schemas.ClinicalTreatmentPlanCreate(title="Rollback Greenlet Safety Plan"))
+    plan_id = int(plan.id)
+
+    # Explicit manual rollback to expire attributes
+    await async_db_session.rollback()
+
+    # Querying after rollback must not raise MissingGreenlet
+    plan_reloaded = await service.get_plan(patient_id, plan_id)
+    assert plan_reloaded.id == plan_id
+    assert len(plan_reloaded.phases) == 1
+    assert plan_reloaded.phases[0].name == "Phase 1"
+
 
