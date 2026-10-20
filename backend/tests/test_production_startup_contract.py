@@ -28,3 +28,19 @@ def test_container_smoke_separates_schema_owner_from_runtime_roles():
     assert "-m backend.scripts.preflight_migrations" in workflow
     assert workflow.index(owner_preflight) < workflow.index(runtime_start)
     assert "GRANT CREATE ON SCHEMA public TO dentix_container_app" not in workflow
+
+
+def test_preflight_database_url_prefers_migration_and_owner_urls(monkeypatch):
+    from backend.scripts.preflight_migrations import _database_url
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://app@db/prod")
+    monkeypatch.delenv("MIGRATION_DATABASE_URL", raising=False)
+    monkeypatch.delenv("OWNER_DATABASE_URL", raising=False)
+    assert _database_url() == "postgresql://app@db/prod"
+
+    monkeypatch.setenv("OWNER_DATABASE_URL", "postgresql://owner@db/prod")
+    assert _database_url() == "postgresql://owner@db/prod"
+
+    monkeypatch.setenv("MIGRATION_DATABASE_URL", "postgresql://migration@db/prod")
+    assert _database_url() == "postgresql://migration@db/prod"
+
