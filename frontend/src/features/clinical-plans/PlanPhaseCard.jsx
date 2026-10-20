@@ -27,8 +27,14 @@ export default function PlanPhaseCard({
     onRemoveItem,
     isReorderPending,
     isRemoveItemPending,
+    isNativeWritesEnabled = false,
+    onPerformItem,
 }) {
     const { t, i18n } = useTranslation();
+    const totalItems = phase.items?.length || 0;
+    const completedItems = (phase.items || []).filter(
+        (it) => (it.work_item?.status || it.status) === 'completed'
+    ).length;
 
     return (
         <div
@@ -72,6 +78,17 @@ export default function PlanPhaseCard({
                             </span>
                         )}
                     </span>
+                    {totalItems > 0 && (
+                        <span
+                            data-testid={`phase-progress-${phase.id}`}
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                        >
+                            {t('clinical_plans.progress_done', '{{completed}} of {{total}} done', {
+                                completed: completedItems,
+                                total: totalItems,
+                            })}
+                        </span>
+                    )}
                     {phase.notes && (
                         <span
                             data-testid={`phase-notes-${phase.id}`}
@@ -186,9 +203,12 @@ export default function PlanPhaseCard({
                         <PlanItemRow
                             key={item.id}
                             item={item}
+                            plan={plan}
                             canModifyPlan={canModifyPlan}
                             onRemoveItem={() => onRemoveItem(plan.id, phase.id, item.id)}
                             isRemovePending={isRemoveItemPending}
+                            isNativeWritesEnabled={isNativeWritesEnabled}
+                            onPerformItem={onPerformItem}
                         />
                     ))
                 )}
@@ -225,4 +245,6 @@ PlanPhaseCard.propTypes = {
     onRemoveItem: PropTypes.func.isRequired,
     isReorderPending: PropTypes.bool,
     isRemoveItemPending: PropTypes.bool,
+    isNativeWritesEnabled: PropTypes.bool,
+    onPerformItem: PropTypes.func,
 };

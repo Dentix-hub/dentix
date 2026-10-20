@@ -1,20 +1,33 @@
 import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
-import { Trash2 } from 'lucide-react';
+import { Play, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatters';
 
 export default function PlanItemRow({
     item,
+    plan,
     canModifyPlan,
     onRemoveItem,
     isRemovePending,
+    isNativeWritesEnabled = false,
+    onPerformItem,
 }) {
     const { t, i18n } = useTranslation();
 
-    const targetsDesc = (item.work_item?.targets || [])
+    const targets = item.work_item?.targets || [];
+    const toothKeys = Array.from(new Set(targets.map((tg) => tg.tooth_key).filter(Boolean)));
+    const isSingleTooth = toothKeys.length === 1;
+    const surfaces = targets.map((tg) => tg.surface || tg.surface_code).filter(Boolean);
+
+    const isProcedure = (item.work_item?.kind || 'procedure') === 'procedure';
+    const isOpenStatus = ['open', 'proposed', 'planned', 'active', 'scheduled', 'in_progress'].includes(item.work_item?.status);
+    const isPlanAccepted = plan?.status === 'accepted';
+    const canPerformNow = !isNativeWritesEnabled && isPlanAccepted && isProcedure && isOpenStatus && isSingleTooth;
+
+    const targetsDesc = targets
         .map((tg) =>
             tg.tooth_key
-                ? `${tg.tooth_key}${tg.surface ? ` (${tg.surface})` : ''}`
+                ? `${tg.tooth_key}${tg.surface || tg.surface_code ? ` (${tg.surface || tg.surface_code})` : ''}`
                 : ''
         )
         .filter(Boolean)
@@ -61,20 +74,37 @@ export default function PlanItemRow({
                 )}
             </div>
 
-            {/* Remove Procedure button - only visible if plan is draft or proposed (Decision 4) */}
-            {canModifyPlan && (
-                <button
-                    type="button"
-                    data-testid={`remove-phase-item-${item.id}`}
-                    onClick={onRemoveItem}
-                    disabled={isRemovePending}
-                    title={t('clinical_plans.remove_procedure', 'Remove procedure from phase')}
-                    aria-label={t('clinical_plans.remove_procedure', 'Remove procedure from phase')}
-                    className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400"
-                >
-                    <Trash2 size={13} />
-                </button>
-            )}
+            <div className="flex items-center gap-1.5">
+                {/* Perform now button (U2.3): when native writes OFF, accepted plan, open procedure, single tooth */}
+                {canPerformNow && (
+                    <button
+                        type="button"
+                        data-testid={`perform-plan-item-${item.id}`}
+                        onClick={() => onPerformItem?.({ item, plan, toothKey: toothKeys[0], surfaces })}
+                        title={t('clinical_plans.perform_now', 'Perform now')}
+                        aria-label={t('clinical_plans.perform_now', 'Perform now')}
+                        className="inline-flex min-h-7 items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-900/60 transition-colors"
+                    >
+                        <Play size={11} className="fill-current" />
+                        <span>{t('clinical_plans.perform_now', 'Perform now')}</span>
+                    </button>
+                )}
+
+                {/* Remove Procedure button - only visible if plan is draft or proposed (Decision 4) */}
+                {canModifyPlan && (
+                    <button
+                        type="button"
+                        data-testid={`remove-phase-item-${item.id}`}
+                        onClick={onRemoveItem}
+                        disabled={isRemovePending}
+                        title={t('clinical_plans.remove_procedure', 'Remove procedure from phase')}
+                        aria-label={t('clinical_plans.remove_procedure', 'Remove procedure from phase')}
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                    >
+                        <Trash2 size={13} />
+                    </button>
+                )}
+            </div>
         </div>
     );
 }
@@ -85,18 +115,28 @@ PlanItemRow.propTypes = {
         unpriced: PropTypes.bool,
         estimated_fee: PropTypes.number,
         work_item: PropTypes.shape({
+            id: PropTypes.number,
+            kind: PropTypes.string,
             display_name: PropTypes.string,
             procedure_code: PropTypes.string,
+            code: PropTypes.string,
             status: PropTypes.string,
             targets: PropTypes.arrayOf(
                 PropTypes.shape({
                     tooth_key: PropTypes.string,
                     surface: PropTypes.string,
+                    surface_code: PropTypes.string,
                 })
             ),
         }),
     }).isRequired,
+    plan: PropTypes.shape({
+        id: PropTypes.number,
+        status: PropTypes.string,
+    }),
     canModifyPlan: PropTypes.bool,
     onRemoveItem: PropTypes.func.isRequired,
     isRemovePending: PropTypes.bool,
+    isNativeWritesEnabled: PropTypes.bool,
+    onPerformItem: PropTypes.func,
 };

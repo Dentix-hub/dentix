@@ -366,6 +366,161 @@ class TreatmentService:
 
         return work_item
 
+    async def _is_shadow_active(self) -> bool:
+        if not self.tenant_id:
+            return False
+        from backend.services.feature_service import FeatureFlagService
+        is_shadow = await FeatureFlagService.is_feature_enabled(
+            self.db, "clinical_vnext_shadow", self.tenant_id
+        )
+        if is_shadow:
+            return True
+        is_primary = await FeatureFlagService.is_feature_enabled(
+            self.db, "clinical_vnext_primary", self.tenant_id
+        )
+        return is_primary
+
+    async def _link_existing_clinical_work_item(
+        self,
+        treatment: models.Treatment,
+        work_item_id: int,
+        surfaces: Optional[List[str]] = None,
+        provenance: Optional[str] = None,
+    ) -> models.ClinicalWorkItem:
+        """
+        Link a created treatment to an existing ClinicalWorkItem (U2.1).
+        Enforces tenant isolation, patient match, open status, code/target validation,
+        concurrency row-locks, and duplicate-link prevention.
+        """
+        from sqlalchemy.orm.exc import StaleDataError
+        from sqlalchemy.exc import IntegrityError
+
+        # 1. Shadow gate must be active else 409 CLINICAL_LINK_UNAVAILABLE
+        if not await self._is_shadow_active():
+            raise HTTPException(status_code=409, detail="CLINICAL_LINK_UNAVAILABLE")
+
+        # 2. Load work item tenant-scoped with row lock (with_for_update)
+        stmt = (
+            select(models.ClinicalWorkItem)
+            .options(selectinload(models.ClinicalWorkItem.targets))
+            .where(
+                models.ClinicalWorkItem.id == work_item_id,
+                models.ClinicalWorkItem.tenant_id == self.tenant_id,
+            )
+        )
+        bind = self.db.get_bind()
+        if bind and bind.dialect.name == "postgresql":
+            stmt = stmt.with_for_update()
+
+        result = await self.db.execute(stmt)
+        work_item = result.scalars().first()
+
+        # Not found / other tenant / other patient -> 404 (do not reveal existence across tenants)
+        if not work_item or work_item.patient_id != treatment.patient_id:
+            raise HTTPException(status_code=404, detail="Work item not found")
+
+        # 3. Require kind == 'procedure' and status in ('proposed','planned','active'), else 409 CLINICAL_LINK_NOT_OPEN
+        if work_item.kind != "procedure" or work_item.status not in ("proposed", "planned", "active"):
+            raise HTTPException(status_code=409, detail="CLINICAL_LINK_NOT_OPEN")
+
+        # 4. Require the treatment's mapped canonical code to equal work_item.code, else 422 CLINICAL_LINK_CODE_MISMATCH
+        mapping = self._map_treatment_to_clinical(treatment, surfaces=surfaces)
+        if mapping is None:
+            raise HTTPException(status_code=422, detail="CLINICAL_LINK_CODE_MISMATCH")
+
+        canonical_code, status, tooth_key, valid_surfs = mapping
+        if canonical_code != work_item.code:
+            raise HTTPException(status_code=422, detail="CLINICAL_LINK_CODE_MISMATCH")
+
+        # 5. Require the same tooth_key; if the work item has surface targets, treatment valid surfaces must equal that set
+        wi_teeth = {t.tooth_key for t in work_item.targets if t.tooth_key}
+        if len(wi_teeth) != 1 or tooth_key not in wi_teeth:
+            raise HTTPException(status_code=422, detail="CLINICAL_LINK_TARGET_MISMATCH")
+
+        wi_surfaces = {t.surface_code for t in work_item.targets if t.target_kind == "surface" and t.surface_code}
+        treatment_surfaces = set(valid_surfs)
+        if wi_surfaces:
+            if treatment_surfaces != wi_surfaces:
+                raise HTTPException(status_code=422, detail="CLINICAL_LINK_TARGET_MISMATCH")
+        else:
+            if treatment_surfaces:
+                raise HTTPException(status_code=422, detail="CLINICAL_LINK_TARGET_MISMATCH")
+
+        # 6. Require that work item is not already linked to another existing treatment
+        event_stmt = select(models.ClinicalEvent).where(
+            models.ClinicalEvent.tenant_id == self.tenant_id,
+            models.ClinicalEvent.work_item_id == work_item.id,
+        )
+        ev_res = await self.db.execute(event_stmt)
+        events = ev_res.scalars().all()
+        for ev in events:
+            if isinstance(ev.payload, dict) and ev.payload.get("treatment_id") is not None:
+                linked_t_id = ev.payload.get("treatment_id")
+                t_stmt = select(models.Treatment).where(
+                    models.Treatment.id == linked_t_id,
+                    models.Treatment.tenant_id == self.tenant_id,
+                )
+                t_res = await self.db.execute(t_stmt)
+                linked_t = t_res.scalar_one_or_none()
+                if linked_t and not getattr(linked_t, "is_deleted", False):
+                    raise HTTPException(status_code=409, detail="CLINICAL_LINK_ALREADY_LINKED")
+
+        # 7. Update work_item.status from the treatment mapping with optimistic concurrency
+        work_item.status = status
+        try:
+            await self.db.flush()
+        except (IntegrityError, StaleDataError) as exc:
+            raise HTTPException(status_code=409, detail="CLINICAL_LINK_CONFLICT") from exc
+
+        # 8. Append ClinicalEvent with linked_existing_work_item: True
+        payload = {
+            "kind": "procedure",
+            "canonical_code": canonical_code,
+            "treatment_id": treatment.id,
+            "surfaces": valid_surfs,
+            "status": status,
+            "linked_existing_work_item": True,
+        }
+        if provenance:
+            payload["provenance"] = provenance
+            payload["source"] = "legacy_treatment"
+
+        event = models.ClinicalEvent(
+            tenant_id=self.tenant_id,
+            patient_id=treatment.patient_id,
+            work_item_id=work_item.id,
+            event_type="procedure_recorded",
+            occurred_at=treatment.date or datetime.now(timezone.utc).replace(tzinfo=None),
+            actor_user_id=treatment.doctor_id or (self.current_user.id if self.current_user else None),
+            payload=payload,
+            notes=treatment.notes,
+        )
+        self.db.add(event)
+        await self.db.flush()
+
+        if valid_surfs:
+            for s in valid_surfs:
+                self.db.add(
+                    models.clinical_core.ClinicalEventTarget(
+                        tenant_id=self.tenant_id,
+                        event_id=event.id,
+                        target_kind="surface",
+                        tooth_key=tooth_key,
+                        surface_code=s,
+                    )
+                )
+        else:
+            self.db.add(
+                models.clinical_core.ClinicalEventTarget(
+                    tenant_id=self.tenant_id,
+                    event_id=event.id,
+                    target_kind="tooth",
+                    tooth_key=tooth_key,
+                )
+            )
+
+        return work_item
+
     async def _sync_clinical_work_item_update(
         self,
         treatment: models.Treatment,
@@ -612,7 +767,15 @@ class TreatmentService:
         )
 
         # 5.5. Synchronize ClinicalWorkItem / ClinicalEvent for odontogram projection
-        await self._sync_clinical_work_item(created_treatment, surfaces=surfaces)
+        clinical_work_item_id = getattr(treatment_data, "clinical_work_item_id", None)
+        if clinical_work_item_id is not None:
+            await self._link_existing_clinical_work_item(
+                created_treatment,
+                work_item_id=clinical_work_item_id,
+                surfaces=surfaces,
+            )
+        else:
+            await self._sync_clinical_work_item(created_treatment, surfaces=surfaces)
 
         # 6. Consume stock (post-creation) — skip if requested
         if not skip_stock:

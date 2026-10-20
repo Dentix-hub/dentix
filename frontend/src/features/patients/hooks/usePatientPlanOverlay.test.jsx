@@ -72,4 +72,55 @@ describe('usePatientPlanOverlay (contract read by DentalChartSVG / PlanOverlayAc
         expect(Object.keys(overlay.teeth)).toEqual(['26']);
         expect(overlay.phases).toHaveLength(2);
     });
+
+    it('computes tooth status (completed, active, open) and count aggregates (U2.4)', () => {
+        const planWithStatuses = [
+            {
+                id: 10,
+                title: 'Plan With Statuses',
+                phases: [
+                    {
+                        id: 21,
+                        name: 'Phase 1',
+                        phase_order: 0,
+                        items: [
+                            { id: 1, work_item: { id: 101, status: 'completed', targets: [{ tooth_key: '11' }] } },
+                            { id: 2, work_item: { id: 102, status: 'active', targets: [{ tooth_key: '12' }] } },
+                            { id: 3, work_item: { id: 103, status: 'planned', targets: [{ tooth_key: '13' }] } },
+                            { id: 4, work_item: { id: 104, status: 'completed', targets: [{ tooth_key: '14' }] } },
+                            { id: 5, work_item: { id: 105, status: 'planned', targets: [{ tooth_key: '14' }] } },
+                        ],
+                    },
+                ],
+            },
+        ];
+
+        const overlay = renderHook(() =>
+            usePatientPlanOverlay({ activeOverlayPlanId: 10, activeOverlayPhaseId: null, treatmentPlans: planWithStatuses })
+        ).result.current;
+
+        // Tooth 11: all completed -> status: 'completed'
+        expect(overlay.teeth['11'].status).toBe('completed');
+        expect(overlay.teeth['11'].completedCount).toBe(1);
+        expect(overlay.teeth['11'].totalCount).toBe(1);
+
+        // Tooth 12: active item -> status: 'active'
+        expect(overlay.teeth['12'].status).toBe('active');
+        expect(overlay.teeth['12'].activeCount).toBe(1);
+
+        // Tooth 13: planned item -> status: 'open'
+        expect(overlay.teeth['13'].status).toBe('open');
+        expect(overlay.teeth['13'].openCount).toBe(1);
+
+        // Tooth 14: mixed (1 completed, 1 planned) -> not all completed, so status: 'open'
+        expect(overlay.teeth['14'].status).toBe('open');
+        expect(overlay.teeth['14'].completedCount).toBe(1);
+        expect(overlay.teeth['14'].openCount).toBe(1);
+        expect(overlay.teeth['14'].totalCount).toBe(2);
+
+        // Phase level counts
+        expect(overlay.phases[0].completedCount).toBe(2);
+        expect(overlay.phases[0].totalCount).toBe(5);
+        expect(overlay.phases[0].isCompleted).toBe(false);
+    });
 });

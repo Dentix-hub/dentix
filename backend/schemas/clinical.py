@@ -171,6 +171,7 @@ class TreatmentCreate(TreatmentBase):
     consumedMaterials: Optional[list[ConsumedMaterialItem]] = None
     skip_stock_check: Optional[bool] = False
     price_list_id: Optional[int] = None
+    clinical_work_item_id: Optional[int] = None
 
     model_config = ConfigDict(
         json_schema_extra={

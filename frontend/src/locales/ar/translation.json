@@ -894,6 +894,17 @@
         "no_candidate_procedures": "لا توجد إجراءات متاحة لهذا المريض.",
         "select_procedure": "اختر إجراءً",
         "remove_procedure": "إزالة الإجراء من المرحلة",
+        "perform_now": "تنفيذ الآن",
+        "linked_plan_item": "عنصر من الخطة",
+        "progress_done": "{{completed}} من {{total}} مكتمل",
+        "errors": {
+            "link_unavailable": "وضع المزامنة السريرية غير مفعل.",
+            "link_not_open": "هذا الإجراء في الخطة لم يعد مفتوحاً للتنفيذ.",
+            "link_code_mismatch": "الإجراء المحدد لا يتطابق مع الإجراء المخطط له.",
+            "link_target_mismatch": "السن أو السطح المحدد لا يتطابق مع الإجراء المخطط له.",
+            "link_already_linked": "هذا الإجراء في الخطة تم تنفيذه وربطه بالفعل.",
+            "link_conflict": "حدث تعارض أثناء التحديث المتزامن. يرجى إعادة المحاولة."
+        },
         "status": {
             "draft": "مسودة",
             "proposed": "مقترحة",

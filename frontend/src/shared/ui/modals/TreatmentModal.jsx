@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Package, Plus, Trash2, Droplets } from 'lucide-react';
+import { Package, Plus, Trash2, Droplets, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { getMaterials, getStockSummary, getActiveSessions } from '@/api/inventory';
 import { palmerToFdi } from '@/utils/toothUtils';
 import TrackSessionModal from '@/features/inventory/components/TrackSessionModal';
@@ -36,6 +37,25 @@ const normalizeTreatmentData = (data) => {
     };
 };
 
+const getClinicalLinkErrorMessage = (errorCode, t) => {
+    switch (errorCode) {
+        case 'CLINICAL_LINK_UNAVAILABLE':
+            return t('clinical_plans.errors.link_unavailable', 'Clinical shadow mode is not active.');
+        case 'CLINICAL_LINK_NOT_OPEN':
+            return t('clinical_plans.errors.link_not_open', 'This planned item is already completed or closed.');
+        case 'CLINICAL_LINK_CODE_MISMATCH':
+            return t('clinical_plans.errors.link_code_mismatch', 'Selected procedure code does not match the planned item.');
+        case 'CLINICAL_LINK_TARGET_MISMATCH':
+            return t('clinical_plans.errors.link_target_mismatch', 'Selected tooth or surfaces do not match the planned item.');
+        case 'CLINICAL_LINK_ALREADY_LINKED':
+            return t('clinical_plans.errors.link_already_linked', 'This plan item has already been performed and linked.');
+        case 'CLINICAL_LINK_CONFLICT':
+            return t('clinical_plans.errors.link_conflict', 'A concurrent update occurred. Please refresh.');
+        default:
+            return errorCode;
+    }
+};
+
 export default function TreatmentModal({
     isOpen,
     onClose,
@@ -46,12 +66,24 @@ export default function TreatmentModal({
     selectedToothCondition,
     setSelectedToothCondition
 }) {
+    const { t } = useTranslation();
     const [treatment, setTreatment] = useState(() => normalizeTreatmentData(initialData) || initialData);
     const [isSaving, setIsSaving] = useState(false);
     const isSavingRef = useRef(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [isManualProcedure, setIsManualProcedure] = useState(false);
+    const [linkError, setLinkError] = useState(null);
     const safeProcedures = useMemo(() => (Array.isArray(procedures) ? procedures : []), [procedures]);
+
+    const displayProcedures = useMemo(() => {
+        if (treatment?.prefill_source === 'plan_item' && treatment?.work_item_code) {
+            const matching = safeProcedures.filter(
+                (p) => p.canonical_code === treatment.work_item_code
+            );
+            if (matching.length > 0) return matching;
+        }
+        return safeProcedures;
+    }, [safeProcedures, treatment?.prefill_source, treatment?.work_item_code]);
     // Modal Tabs
     const [toothModalTab, setToothModalTab] = useState('Status');
     const [selectedPathologies, setSelectedPathologies] = useState([]);
@@ -101,6 +133,7 @@ export default function TreatmentModal({
     }, [isOpen]);
     useEffect(() => {
         if (isOpen) {
+            setLinkError(null);
             const normalized = normalizeTreatmentData(initialData);
             setTreatment(normalized);
             setIsManualProcedure(false);
@@ -296,6 +329,7 @@ export default function TreatmentModal({
             surface: surfaceStr,
             surfaces: surfaceList.length > 0 ? surfaceList : undefined,
             target_kind: targetKind,
+            clinical_work_item_id: !isEditing && treatment.clinical_work_item_id ? treatment.clinical_work_item_id : undefined,
             procedure_id: safeProcedures.find(p => p.name === treatment.procedure)?.id,
             cost: parseFloat(treatment.cost) || 0,
             discount: parseFloat(treatment.discount) || 0,
@@ -311,6 +345,7 @@ export default function TreatmentModal({
         logger.debug('[TREATMENT] Saving with payload:', payload);
 
         try {
+            setLinkError(null);
             await onSave(payload);
         } catch (error) {
             logger.error('[TREATMENT] Save Error Details:', {
@@ -325,9 +360,26 @@ export default function TreatmentModal({
                 return;
             }
 
-            // Case: Stock validation failure (400 with stock-related message)
             const responseData = error.response?.data;
             const errDetail = responseData?.detail;
+
+            // Case: Clinical plan item linking error (U2.3)
+            const clinicalLinkCode = (
+                (typeof errDetail === 'string' && errDetail.startsWith('CLINICAL_LINK_') ? errDetail : null) ||
+                (typeof errDetail?.code === 'string' && errDetail.code.startsWith('CLINICAL_LINK_') ? errDetail.code : null) ||
+                (typeof responseData?.code === 'string' && responseData.code.startsWith('CLINICAL_LINK_') ? responseData.code : null) ||
+                (typeof responseData?.message === 'string' && responseData.message.startsWith('CLINICAL_LINK_') ? responseData.message : null) ||
+                (typeof error?.message === 'string' && error.message.includes('CLINICAL_LINK_') ? error.message : null)
+            );
+
+            if (clinicalLinkCode) {
+                const linkErrorMsg = getClinicalLinkErrorMessage(clinicalLinkCode, t);
+                setLinkError(linkErrorMsg);
+                toast.error(linkErrorMsg);
+                return;
+            }
+
+            // Case: Stock validation failure (400 with stock-related message)
             const isStockError = error.response?.status === 400 && (
                 (typeof errDetail === 'string' && (errDetail.includes('مخزون') || errDetail.includes('stock') || errDetail.includes('Insufficient'))) ||
                 (typeof responseData?.message === 'string' && responseData.message.includes('مخزون'))
@@ -394,6 +446,40 @@ export default function TreatmentModal({
                 closeLabel="إغلاق نافذة العلاج"
             >
                 <div className="space-y-4">
+                    {/* Clinical link error banner */}
+                    {linkError && (
+                        <div
+                            data-testid="clinical-link-error-banner"
+                            className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
+                        >
+                            <AlertCircle size={16} className="shrink-0 text-red-600 dark:text-red-400" />
+                            <span>{linkError}</span>
+                        </div>
+                    )}
+
+                    {/* Plan Item Chip when linking from treatment plan */}
+                    {Boolean(treatment.clinical_work_item_id) && (
+                        <div
+                            data-testid="clinical-link-item-chip"
+                            className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/70 p-2.5 text-xs text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300"
+                        >
+                            <div className="flex items-center gap-2">
+                                <span className="rounded-md bg-blue-600 px-2 py-0.5 text-[10px] font-bold text-white uppercase">
+                                    {t('clinical_plans.linked_plan_item', 'Plan Item')}
+                                </span>
+                                <span className="font-semibold">
+                                    {treatment.plan_title ? `${treatment.plan_title} — ` : ''}
+                                    {treatment.procedure || treatment.work_item_code || `#${treatment.clinical_work_item_id}`}
+                                </span>
+                                {treatment.tooth_number && (
+                                    <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-900/60 dark:text-blue-200">
+                                        #{treatment.tooth_number} {treatment.surface ? `(${treatment.surface})` : ''}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {treatment.tooth_number && (
                         <div className="bg-surface rounded-2xl border border-border p-4 shadow-low mb-4">
                             {/* Segmented Control */}
@@ -583,7 +669,7 @@ export default function TreatmentModal({
                                 >
                                     <option value="">اختر الإجراء العلاجي...</option>
                                     <option value="MANUAL_ENTRY_OPTION" className="font-bold text-primary bg-blue-50">✍️ كتابة إجراء يدوي (غير مضاف)</option>
-                                    {safeProcedures.map(p => (
+                                    {displayProcedures.map(p => (
                                         <option key={p.id} value={p.name}>{p.name}</option>
                                     ))}
                                 </select>

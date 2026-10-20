@@ -357,11 +357,17 @@ const SVGTooth = memo(function SVGTooth({
             {planOverlayTooth && (
                 <span
                     data-testid={`plan-overlay-tooth-badge-${toothKey}`}
-                    title={`${planOverlayTooth.phaseName}: ${(planOverlayTooth.procedureCodes || []).join(', ')}`}
-                    className="absolute -top-2 z-10 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase text-white shadow-sm ring-1 ring-white dark:ring-slate-900"
-                    style={{ backgroundColor: planOverlayTooth.color }}
+                    title={`${planOverlayTooth.phaseName}: ${(planOverlayTooth.procedureCodes || []).join(', ')}${planOverlayTooth.status ? ` (${planOverlayTooth.status})` : ''}`}
+                    className="absolute -top-2 z-10 inline-flex items-center justify-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase text-white shadow-sm ring-1 ring-white dark:ring-slate-900"
+                    style={{ backgroundColor: planOverlayTooth.status === 'completed' ? '#059669' : planOverlayTooth.color }}
                 >
-                    {planOverlayTooth.badge || `P${planOverlayTooth.phaseIndex + 1}`}
+                    <span>{planOverlayTooth.badge || `P${planOverlayTooth.phaseIndex + 1}`}</span>
+                    {planOverlayTooth.status === 'completed' && (
+                        <span data-testid={`plan-overlay-check-${toothKey}`} aria-label="Completed" className="text-[10px] leading-none">✓</span>
+                    )}
+                    {planOverlayTooth.status === 'active' && (
+                        <span data-testid={`plan-overlay-active-${toothKey}`} aria-label="Active" className="text-[8px] leading-none">●</span>
+                    )}
                 </span>
             )}
             {Boolean(labStatusTooth && (labStatusTooth === 'lab_ready' || labStatusTooth.isReady === true || labStatusTooth.status === 'lab_ready')) && (
@@ -397,9 +403,9 @@ const SVGTooth = memo(function SVGTooth({
 
     const overlayStyle = planOverlayTooth
         ? {
-            outline: `2px solid ${planOverlayTooth.color}`,
+            outline: `2px ${planOverlayTooth.status === 'completed' ? 'dashed' : 'solid'} ${planOverlayTooth.status === 'completed' ? '#059669' : planOverlayTooth.color}`,
             outlineOffset: '2px',
-            backgroundColor: `${planOverlayTooth.color}15`,
+            backgroundColor: `${planOverlayTooth.status === 'completed' ? '#059669' : planOverlayTooth.color}15`,
         }
         : undefined;
 

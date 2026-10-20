@@ -887,6 +887,17 @@
         "no_candidate_procedures": "No available procedures found for this patient.",
         "select_procedure": "Select a procedure",
         "remove_procedure": "Remove procedure from phase",
+        "perform_now": "Perform now",
+        "linked_plan_item": "Plan Item",
+        "progress_done": "{{completed}} of {{total}} done",
+        "errors": {
+            "link_unavailable": "Clinical shadow mode is not active.",
+            "link_not_open": "This planned item is already completed or closed.",
+            "link_code_mismatch": "Selected procedure code does not match the planned item.",
+            "link_target_mismatch": "Selected tooth or surfaces do not match the planned item.",
+            "link_already_linked": "This plan item has already been performed and linked.",
+            "link_conflict": "A concurrent update occurred. Please refresh."
+        },
         "status": {
             "draft": "Draft",
             "proposed": "Proposed",

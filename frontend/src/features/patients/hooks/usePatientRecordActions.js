@@ -1,4 +1,6 @@
 import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { invalidatePatientClinicalQueries } from '../utils/invalidatePatientClinicalQueries';
 import { toast } from '@/shared/ui';
 import { fdiToPalmer, getTodayStr } from '@/utils/toothUtils';
 import {
@@ -29,6 +31,8 @@ export function usePatientRecordActions({
     setNewTreatment,
     getInitialTreatment,
 }) {
+    const queryClient = useQueryClient();
+
     const handleFileUpload = useCallback(async (event) => {
         const file = event.target.files[0];
         if (!file) return;
@@ -138,17 +142,19 @@ export function usePatientRecordActions({
         try {
             await deleteTreatment(treatmentId);
             await Promise.all([refetchHistory(), refetchWorkspace()]);
+            invalidatePatientClinicalQueries(queryClient, id);
             toast.success(t('common.delete_success', 'تم الحذف بنجاح'));
         } catch (error) {
             toast.error(error.response?.data?.detail || t('patient_details.alerts.delete_treatment_fail'));
         }
-    }, [refetchHistory, refetchWorkspace, t]);
+    }, [refetchHistory, refetchWorkspace, t, queryClient, id]);
 
     const handleRemoveWorkItemOrTreatment = useCallback(async (item) => {
         try {
             if (item.sourceType === 'treatment' || (!item.sourceType && item.treatment_id)) {
                 await deleteTreatment(item.id);
                 await Promise.all([refetchHistory(), refetchWorkspace()]);
+                invalidatePatientClinicalQueries(queryClient, id);
                 toast.success(t('common.delete_success', 'تم الحذف بنجاح'));
             } else {
                 const workItemId = item.id;
@@ -156,12 +162,13 @@ export function usePatientRecordActions({
                     await updatePatientClinicalWorkItem(id, workItemId, { status: 'cancelled' });
                 }
                 await refetchWorkspace();
+                invalidatePatientClinicalQueries(queryClient, id);
                 toast.success(t('common.delete_success', 'تم الحذف بنجاح'));
             }
         } catch (error) {
             toast.error(error.response?.data?.detail || t('patient_details.alerts.delete_treatment_fail', 'Failed to remove item'));
         }
-    }, [id, refetchHistory, refetchWorkspace, t]);
+    }, [id, refetchHistory, refetchWorkspace, t, queryClient]);
 
     const handleDeletePayment = useCallback(async (paymentId) => {
         if (!window.confirm(t('patient_details.alerts.delete_payment_confirm'))) return;

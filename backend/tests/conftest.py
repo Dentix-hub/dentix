@@ -240,6 +240,8 @@ def test_patient(db_session, test_tenant, test_user):
         phone="01234567890",
         email="patient@test.com",
         age=30,
+        medical_history="",
+        notes="",
         tenant_id=test_tenant.id,
         assigned_doctor_id=test_user.id,
     )
