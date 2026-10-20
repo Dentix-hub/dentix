@@ -279,6 +279,7 @@ class ProcedureDefinition:
     allowed_target_kinds: tuple[str, ...]
     allow_multiple_targets: bool = False
     renderer_supported: bool = True
+    requires_lab: bool = False
     description: str = ""
 
     def __post_init__(self) -> None:
@@ -328,6 +329,7 @@ _PROCEDURE_DEFINITIONS: dict[str, ProcedureDefinition] = {
         allowed_target_kinds=(TargetKind.TOOTH.value,),
         allow_multiple_targets=False,
         renderer_supported=True,
+        requires_lab=True,
         description="Fixed single extra-coronal crown restoration targeting an individual tooth.",
     ),
     ProcedureCode.PROS_BRIDGE.value: ProcedureDefinition(
@@ -338,6 +340,7 @@ _PROCEDURE_DEFINITIONS: dict[str, ProcedureDefinition] = {
         allowed_target_kinds=(TargetKind.TOOTH.value,),
         allow_multiple_targets=True,
         renderer_supported=True,
+        requires_lab=True,
         description="Fixed multi-unit partial denture (bridge) spanning multiple tooth targets.",
     ),
     ProcedureCode.IMPLANT_FIXTURE.value: ProcedureDefinition(
@@ -358,6 +361,7 @@ _PROCEDURE_DEFINITIONS: dict[str, ProcedureDefinition] = {
         allowed_target_kinds=(TargetKind.TOOTH.value,),
         allow_multiple_targets=False,
         renderer_supported=True,
+        requires_lab=True,
         description="Implant-supported prosthetic crown restoration targeting tooth position.",
     ),
     ProcedureCode.SURG_EXTRACTION.value: ProcedureDefinition(
@@ -378,11 +382,32 @@ _PROCEDURE_DEFINITIONS: dict[str, ProcedureDefinition] = {
         allowed_target_kinds=(TargetKind.TOOTH.value,),
         allow_multiple_targets=True,
         renderer_supported=False,
+        requires_lab=True,
         description="Removable partial or complete denture spanning multiple teeth (backend catalog-only; non-renderer).",
     ),
 }
 
+# Canonical procedure definitions
 PROCEDURE_DEFINITIONS: MappingProxyType[str, ProcedureDefinition] = MappingProxyType(_PROCEDURE_DEFINITIONS)
+
+# ---------------------------------------------------------------------------
+# G12-M04: Lab Required Procedure Codes
+# Prosthodontic and implant prosthetic procedures that require dental laboratory work
+# ---------------------------------------------------------------------------
+
+LAB_REQUIRED_PROCEDURE_CODES: tuple[str, ...] = (
+    ProcedureCode.PROS_CROWN.value,
+    ProcedureCode.PROS_BRIDGE.value,
+    ProcedureCode.IMPLANT_CROWN.value,
+    ProcedureCode.PROS_DENTURE.value,
+)
+
+
+def is_lab_required_procedure(procedure_code: str) -> bool:
+    """Return True if the procedure requires or supports dental laboratory fabrication (G12-M04)."""
+    proc = _PROCEDURE_DEFINITIONS.get(procedure_code)
+    return bool(proc and proc.requires_lab)
+
 
 
 # ---------------------------------------------------------------------------

@@ -8,6 +8,8 @@ export const deleteLaboratory = (id) => api.delete(`/api/v1/laboratories/${id}`)
 export const getLabOrders = (params = {}) => api.get('/api/v1/lab-orders', { params });
 export const getPatientLabOrders = (patientId) => api.get(`/api/v1/patients/${patientId}/lab_orders`);
 export const createLabOrder = (data) => api.post('/api/v1/lab-orders', data);
+export const dispatchLabHandoff = (patientId, workItemId, data) =>
+    api.post(`/api/v1/patients/${patientId}/clinical-work-items/${workItemId}/lab-handoff`, data);
 export const updateLabOrder = (id, data) => api.put(`/api/v1/lab-orders/${id}`, data);
 export const deleteLabOrder = (id) => api.delete(`/api/v1/lab-orders/${id}`);
 export const getLabOrdersStats = () => api.get('/api/v1/lab-orders/stats/summary');

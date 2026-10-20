@@ -609,3 +609,49 @@ def get_latest_template(template_code: str) -> WorkflowTemplateDefinition:
 def list_templates(template_code: str | None = None) -> tuple[WorkflowTemplateDefinition, ...]:
     """List templates from default registry."""
     return _DEFAULT_REGISTRY.list_templates(template_code)
+
+
+# ---------------------------------------------------------------------------
+# G12-M05: Lab-Ready Step Codes & Trigger Logic
+# Steps in prosthetic workflows that signal the case is ready for lab handoff
+# ---------------------------------------------------------------------------
+
+LAB_READY_STEP_CODES: tuple[str, ...] = (
+    "preparation",
+    "abutment_preparation",
+    "impression_scan",
+    "impression",
+    "jaw_relation",
+    "try_in",
+    "lab",
+)
+
+
+def is_lab_ready_step(step_code: str) -> bool:
+    """Return True if step code indicates laboratory handoff readiness (G12-M05)."""
+    return step_code in LAB_READY_STEP_CODES
+
+
+def is_procedure_lab_ready(
+    procedure_code: str,
+    completed_or_active_step_codes: Iterable[str] | None = None,
+) -> bool:
+    """
+    Evaluate whether a procedure work item is ready for lab handoff (G12-M05).
+    True if the procedure requires lab work AND at least one lab-ready step was initiated/completed
+    (or if no steps are tracked, any active lab-required procedure is eligible for handoff).
+    """
+    from backend.clinical.catalog import is_lab_required_procedure
+
+    if not is_lab_required_procedure(procedure_code):
+        return False
+
+    if completed_or_active_step_codes is None:
+        return True
+
+    steps = list(completed_or_active_step_codes)
+    if not steps:
+        return True
+
+    return any(is_lab_ready_step(code) for code in steps)
+

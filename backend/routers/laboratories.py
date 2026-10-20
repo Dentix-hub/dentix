@@ -7,9 +7,12 @@ from sqlalchemy.orm import selectinload
 
 from .. import models, schemas
 from ..cache import cache_response, invalidate_cache
+from backend.clinical.catalog import _PROCEDURE_DEFINITIONS
 from backend.core.permissions import DOCTOR_ROLES, Permission, require_permission
 from backend.core.response import success_response
 from backend.database import get_async_db
+from backend.services.clinical_workspace_service import FEATURE_FLAG_CLINICAL_NATIVE_WRITES
+from backend.services.feature_service import FeatureFlagService
 from backend.services.patient_access_service import (
     ensure_patient_visible,
     visible_patient_ids_query,
@@ -270,6 +273,27 @@ async def create_lab_order(
         if not work_item:
             raise HTTPException(status_code=404, detail="Clinical work item not found")
 
+        # G12-M16: Handoff idempotency - return existing active lab order if present
+        stmt_existing = (
+            select(models.LabOrder)
+            .options(
+                selectinload(models.LabOrder.patient),
+                selectinload(models.LabOrder.laboratory),
+            )
+            .where(
+                models.LabOrder.tenant_id == current_user.tenant_id,
+                models.LabOrder.work_item_id == order.work_item_id,
+                models.LabOrder.status != "cancelled",
+            )
+            .order_by(models.LabOrder.id.desc())
+        )
+        existing_order = (await db.execute(stmt_existing)).scalars().first()
+        if existing_order:
+            result = schemas.LabOrder.model_validate(existing_order).model_dump()
+            result["patient_name"] = existing_order.patient.name if existing_order.patient else patient.name
+            result["laboratory_name"] = existing_order.laboratory.name if existing_order.laboratory else lab.name
+            return success_response(result)
+
     provider_id = await _resolve_lab_provider_id(db, current_user, patient)
     db_order = models.LabOrder(
         **order.model_dump(),
@@ -279,7 +303,9 @@ async def create_lab_order(
     db.add(db_order)
     await db.flush()
 
-    if db_order.price_to_patient and db_order.price_to_patient > 0:
+    # G12-M08 & G12-M09 / R06: Decouple lab price from synthetic treatment creation.
+    # When linked to a clinical work item, create 0 synthetic treatments!
+    if order.work_item_id is None and db_order.price_to_patient and db_order.price_to_patient > 0:
         tooth_num = None
         if db_order.tooth_number:
             try:
@@ -480,7 +506,7 @@ async def update_lab_order(
         linked_treatment.doctor_id = order.doctor_id
         if active_lab:
             linked_treatment.diagnosis = f"تركيبة معملية - {active_lab.name}"
-    elif order.price_to_patient and order.price_to_patient > 0:
+    elif order.work_item_id is None and order.price_to_patient and order.price_to_patient > 0:
         tooth_num = None
         if order.tooth_number:
             try:
@@ -686,3 +712,132 @@ async def get_lab_payments(
         )
     ).scalars().all()
     return success_response(payments)
+
+
+@router.post(
+    "/patients/{patient_id}/clinical-work-items/{work_item_id}/lab-handoff",
+    summary="1-Tap Lab Handoff for Clinical Work Item (G12-M06)",
+)
+async def create_clinical_lab_handoff(
+    patient_id: int,
+    work_item_id: int,
+    payload: schemas.LabHandoffCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    """
+    1-Tap Chairside Lab Handoff (Slice S28 / G12-M06).
+    Dispatches a lab order linked directly to a clinical work item.
+    - Decouples lab price from synthetic treatment creation (G12-M08, G12-M09, R06).
+      Creates exactly 0 synthetic Treatment rows!
+    - Enforces idempotency: repeated submissions return the existing order (G12-M16).
+    - Fails closed (404) when clinical_vnext_native_writes is disabled.
+    """
+    native_writes = await FeatureFlagService.is_feature_enabled(
+        db, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, current_user.tenant_id
+    )
+    if not native_writes:
+        raise HTTPException(
+            status_code=404,
+            detail="Clinical native writes are disabled",
+        )
+
+    await ensure_patient_visible(db, current_user, patient_id)
+
+    patient = (
+        await db.execute(
+            select(models.Patient).where(
+                models.Patient.id == patient_id,
+                models.Patient.tenant_id == current_user.tenant_id,
+                models.Patient.is_deleted == False,  # noqa: E712
+            )
+        )
+    ).scalars().first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    work_item = (
+        await db.execute(
+            select(models.ClinicalWorkItem)
+            .options(selectinload(models.ClinicalWorkItem.targets))
+            .where(
+                models.ClinicalWorkItem.id == work_item_id,
+                models.ClinicalWorkItem.tenant_id == current_user.tenant_id,
+                models.ClinicalWorkItem.patient_id == patient_id,
+            )
+        )
+    ).scalars().first()
+    if not work_item:
+        raise HTTPException(status_code=404, detail="Clinical work item not found")
+
+    lab = (
+        await db.execute(
+            select(models.Laboratory).where(
+                models.Laboratory.id == payload.laboratory_id,
+                models.Laboratory.tenant_id == current_user.tenant_id,
+            )
+        )
+    ).scalars().first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Laboratory not found")
+
+    # G12-M16: Handoff idempotency - return existing active lab order if present
+    stmt_existing = (
+        select(models.LabOrder)
+        .options(
+            selectinload(models.LabOrder.patient),
+            selectinload(models.LabOrder.laboratory),
+        )
+        .where(
+            models.LabOrder.tenant_id == current_user.tenant_id,
+            models.LabOrder.work_item_id == work_item_id,
+            models.LabOrder.status != "cancelled",
+        )
+        .order_by(models.LabOrder.id.desc())
+    )
+    existing_order = (await db.execute(stmt_existing)).scalars().first()
+    if existing_order:
+        result = schemas.LabOrder.model_validate(existing_order).model_dump()
+        result["patient_name"] = existing_order.patient.name if existing_order.patient else patient.name
+        result["laboratory_name"] = existing_order.laboratory.name if existing_order.laboratory else lab.name
+        return success_response(result)
+
+    # Smart pre-population of tooth number and work type
+    tooth_number = payload.tooth_number
+    if not tooth_number and work_item.targets:
+        teeth = sorted({str(t.tooth_key) for t in work_item.targets if t.tooth_key})
+        tooth_number = ", ".join(teeth) if teeth else None
+
+    work_type = payload.work_type
+    if not work_type:
+        proc = _PROCEDURE_DEFINITIONS.get(work_item.code)
+        work_type = proc.display_name if proc else work_item.code
+
+    provider_id = await _resolve_lab_provider_id(db, current_user, patient)
+
+    db_order = models.LabOrder(
+        tenant_id=current_user.tenant_id,
+        patient_id=patient_id,
+        laboratory_id=payload.laboratory_id,
+        work_item_id=work_item_id,
+        work_type=work_type,
+        tooth_number=tooth_number,
+        shade=payload.shade,
+        material=payload.material,
+        cost=payload.cost,
+        price_to_patient=payload.price_to_patient,
+        status="pending",
+        notes=payload.notes,
+        delivery_date=payload.delivery_date,
+        doctor_id=provider_id,
+    )
+    db.add(db_order)
+    # G12-M08 & G12-M09 / R06: ZERO synthetic Treatment rows created!
+    await db.commit()
+    await db.refresh(db_order)
+
+    result = schemas.LabOrder.model_validate(db_order).model_dump()
+    result["patient_name"] = patient.name
+    result["laboratory_name"] = lab.name
+    return success_response(result)
+

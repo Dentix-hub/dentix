@@ -9,8 +9,11 @@ import {
     Loader2,
     CalendarPlus,
     Info,
+    FlaskConical,
 } from 'lucide-react';
 import Modal from '@/shared/ui/Modal';
+import { isLabReadyStep } from '@/features/clinical-chart/domain';
+import LabHandoffSheet from './LabHandoffSheet';
 
 /**
  * Compact Finish-Session Sheet (Slice S20 / G10-M11 & S22 / G11-M02, G11-M06..M08).
@@ -65,6 +68,11 @@ export default function FinishCareSessionSheet({
     const [nextVisitReason, setNextVisitReason] = useState(defaultReason);
     const [nextVisitDuration, setNextVisitDuration] = useState(defaultDuration);
     const [nextVisitNotes, setNextVisitNotes] = useState('');
+    const [isLabHandoffOpen, setIsLabHandoffOpen] = useState(false);
+
+    const hasLabReadyStep = steps.some(
+        (s) => (s.status === 'completed' || s.status === 'in_progress') && isLabReadyStep(s.step_code)
+    );
 
     if (!session) return null;
 
@@ -228,6 +236,35 @@ export default function FinishCareSessionSheet({
                     />
                 </div>
 
+                {/* Chairside Lab Handoff Trigger (Slice S28 / G12-M05, G12-M06) */}
+                <div
+                    className="flex items-center justify-between rounded-card border border-teal-200 bg-teal-50/50 p-3 dark:border-teal-900/40 dark:bg-teal-950/20"
+                    data-testid="lab-handoff-trigger-section"
+                >
+                    <div className="flex items-center gap-2">
+                        <FlaskConical className="h-4 w-4 text-teal-600 dark:text-teal-400" aria-hidden="true" />
+                        <div>
+                            <span className="text-xs font-bold text-teal-950 dark:text-teal-200">
+                                {t('care_session.lab_handoff_label', 'Dental Lab Order')}
+                            </span>
+                            <p className="text-[11px] text-teal-800 dark:text-teal-300">
+                                {hasLabReadyStep
+                                    ? t('care_session.lab_ready_prompt', 'Preparation / impression step recorded — dispatch lab handoff.')
+                                    : t('care_session.lab_optional_prompt', 'Dispatch 1-tap prosthetic prescription with non-duplicating billing.')}
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setIsLabHandoffOpen(true)}
+                        data-testid="open-lab-handoff-button"
+                        className="inline-flex items-center gap-1.5 rounded-control bg-teal-600 px-3 py-1.5 text-xs font-bold text-white shadow-low hover:bg-teal-700"
+                    >
+                        <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>{t('care_session.send_to_lab', 'Send to Lab')}</span>
+                    </button>
+                </div>
+
                 {/* Chairside Next-Visit Request (Slice S22 / G11-M02, G11-M06, G11-M07, G11-M08) */}
                 <div
                     className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3.5 dark:border-blue-900/40 dark:bg-blue-950/20"
@@ -381,6 +418,17 @@ export default function FinishCareSessionSheet({
                     </button>
                 </div>
             </form>
+
+            {isLabHandoffOpen && (
+                <LabHandoffSheet
+                    isOpen={isLabHandoffOpen}
+                    onClose={() => setIsLabHandoffOpen(false)}
+                    patientId={session.patient_id}
+                    toothKey={extractedTooth}
+                    workItem={steps.find((s) => s.work_item)?.work_item || null}
+                    t={t}
+                />
+            )}
         </Modal>
     );
 }
