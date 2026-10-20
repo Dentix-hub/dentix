@@ -305,3 +305,132 @@ async def list_care_sessions(
         data=[schemas.CareSessionRead.model_validate(s) for s in sessions],
         message="Care sessions retrieved successfully",
     )
+
+
+# ---------------------------------------------------------------------------
+# Appointment Integration & Next-Visit Request Endpoints (Slice S22 / G11)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{patient_id}/care-sessions/{session_id}/link-appointment",
+    response_model=StandardResponse[schemas.CareSessionRead],
+    summary="Link session to appointment",
+    description="Link or unlink a care session to an existing appointment (G11-M01).",
+)
+async def link_care_session_appointment(
+    patient_id: int,
+    session_id: int,
+    payload: schemas.CareSessionLinkAppointment,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    session = await service.link_appointment(patient_id, session_id, payload.appointment_id)
+    return success_response(
+        data=schemas.CareSessionRead.model_validate(session),
+        message="Appointment linked to care session successfully" if payload.appointment_id else "Appointment unlinked from care session",
+    )
+
+
+@router.get(
+    "/{patient_id}/care-sessions/{session_id}/suggest-next-visit",
+    response_model=StandardResponse[schemas.NextVisitSuggestionRead],
+    summary="Suggest next visit reason and duration",
+    description="Auto-suggest appointment reason and duration based on remaining steps and procedure (G11-M06, G11-M07).",
+)
+async def suggest_next_visit(
+    patient_id: int,
+    session_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    suggestion = await service.suggest_next_visit(patient_id, session_id=session_id)
+    return success_response(
+        data=schemas.NextVisitSuggestionRead.model_validate(suggestion),
+        message="Next visit suggestion generated successfully",
+    )
+
+
+@router.post(
+    "/{patient_id}/care-sessions/{session_id}/next-visit-requests",
+    response_model=StandardResponse[schemas.NextVisitRequestRead],
+    status_code=status.HTTP_201_CREATED,
+    summary="Create chairside next-visit request from session",
+    description="Create next-visit request linked to an active/finished care session (G11-M02). Enforces G11-M08: never auto-books an appointment.",
+)
+async def create_care_session_next_visit_request(
+    patient_id: int,
+    session_id: int,
+    payload: schemas.NextVisitRequestCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    req = await service.create_next_visit_request(patient_id, payload, session_id=session_id)
+    return success_response(
+        data=schemas.NextVisitRequestRead.model_validate(req),
+        message="Next-visit request created successfully",
+    )
+
+
+@router.get(
+    "/{patient_id}/care-sessions/{session_id}/next-visit-requests",
+    response_model=StandardResponse[List[schemas.NextVisitRequestRead]],
+    summary="List care session next-visit requests",
+    description="List next-visit requests generated from a specific care session.",
+)
+async def list_care_session_next_visit_requests(
+    patient_id: int,
+    session_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    requests = await service.list_next_visit_requests(patient_id, session_id=session_id)
+    return success_response(
+        data=[schemas.NextVisitRequestRead.model_validate(r) for r in requests],
+        message="Next-visit requests retrieved successfully",
+    )
+
+
+@router.post(
+    "/{patient_id}/next-visit-requests",
+    response_model=StandardResponse[schemas.NextVisitRequestRead],
+    status_code=status.HTTP_201_CREATED,
+    summary="Create patient next-visit request",
+    description="Create chairside next-visit request for reception triage (G11-M02). Enforces G11-M08: never auto-books.",
+)
+async def create_patient_next_visit_request(
+    patient_id: int,
+    payload: schemas.NextVisitRequestCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    req = await service.create_next_visit_request(patient_id, payload)
+    return success_response(
+        data=schemas.NextVisitRequestRead.model_validate(req),
+        message="Next-visit request created successfully",
+    )
+
+
+@router.get(
+    "/{patient_id}/next-visit-requests",
+    response_model=StandardResponse[List[schemas.NextVisitRequestRead]],
+    summary="List patient next-visit requests",
+    description="List all next-visit requests for a patient with optional status filtering.",
+)
+async def list_patient_next_visit_requests(
+    patient_id: int,
+    status: Optional[str] = Query(None, description="Optional status filter (e.g. requested, scheduled, cancelled)"),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    requests = await service.list_next_visit_requests(patient_id, status=status)
+    return success_response(
+        data=[schemas.NextVisitRequestRead.model_validate(r) for r in requests],
+        message="Patient next-visit requests retrieved successfully",
+    )

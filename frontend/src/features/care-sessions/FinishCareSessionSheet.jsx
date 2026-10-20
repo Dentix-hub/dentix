@@ -7,13 +7,16 @@ import {
     FileText,
     Ruler,
     Loader2,
+    CalendarPlus,
+    Info,
 } from 'lucide-react';
 import Modal from '@/shared/ui/Modal';
 
 /**
- * Compact Finish-Session Sheet (Slice S20 / G10-M11).
+ * Compact Finish-Session Sheet (Slice S20 / G10-M11 & S22 / G11-M02, G11-M06..M08).
  * Compact chairside drawer/sheet to review steps, canal observations,
- * add finalization notes, and complete the active care session.
+ * add finalization notes, optionally queue next-visit request for reception,
+ * and complete the active care session.
  */
 export default function FinishCareSessionSheet({
     isOpen,
@@ -25,10 +28,8 @@ export default function FinishCareSessionSheet({
 }) {
     const [notes, setNotes] = useState('');
 
-    if (!session) return null;
-
-    const steps = session.steps || [];
-    const observations = session.observations || [];
+    const steps = session?.steps || [];
+    const observations = session?.observations || [];
 
     const completedSteps = steps.filter((s) => s.status === 'completed');
     const partialSteps = steps.filter((s) => s.status === 'partial');
@@ -39,11 +40,48 @@ export default function FinishCareSessionSheet({
         (o) => o.observation_code === 'working_length'
     );
 
+    const extractedTooth =
+        observations.find((o) => o.tooth_key)?.tooth_key ||
+        steps.find((s) => s.work_item?.targets?.[0]?.tooth_key)?.work_item?.targets?.[0]?.tooth_key ||
+        session?.tooth_key ||
+        '';
+
+    const firstRemainingStep = pendingSteps[0] || partialSteps[0];
+    const defaultReason = firstRemainingStep
+        ? (extractedTooth
+            ? `Tooth ${extractedTooth}: Root Canal Treatment - ${firstRemainingStep.title}`
+            : `Root Canal Treatment - ${firstRemainingStep.title}`)
+        : (extractedTooth
+            ? `Follow-up: Tooth ${extractedTooth}`
+            : 'Dental Follow-up Visit');
+
+    const isRctSession =
+        steps.some((s) => (s.step_code || '').toLowerCase().includes('rct') || (s.title || '').toLowerCase().includes('canal')) ||
+        observations.some((o) => o.observation_code === 'working_length');
+
+    const defaultDuration = isRctSession ? 45 : 30;
+
+    const [requestNextVisit, setRequestNextVisit] = useState(false);
+    const [nextVisitReason, setNextVisitReason] = useState(defaultReason);
+    const [nextVisitDuration, setNextVisitDuration] = useState(defaultDuration);
+    const [nextVisitNotes, setNextVisitNotes] = useState('');
+
+    if (!session) return null;
+
     const handleSubmit = async (e) => {
         e.preventDefault();
-        await onFinishSession({
+        const payload = {
             notes: notes.trim() || undefined,
-        });
+        };
+        if (requestNextVisit && nextVisitReason.trim()) {
+            payload.next_visit_request = {
+                care_session_id: session.id,
+                reason: nextVisitReason.trim(),
+                suggested_duration_minutes: Number(nextVisitDuration) || 30,
+                notes: nextVisitNotes.trim() || undefined,
+            };
+        }
+        await onFinishSession(payload);
         setNotes('');
         onClose();
     };
@@ -188,6 +226,128 @@ export default function FinishCareSessionSheet({
                         data-testid="finish-session-notes-input"
                         className="w-full rounded-xl border border-slate-300 bg-white p-3 text-xs text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                     />
+                </div>
+
+                {/* Chairside Next-Visit Request (Slice S22 / G11-M02, G11-M06, G11-M07, G11-M08) */}
+                <div
+                    className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3.5 dark:border-blue-900/40 dark:bg-blue-950/20"
+                    data-testid="next-visit-request-section"
+                >
+                    <div className="flex items-center justify-between">
+                        <label
+                            htmlFor="toggle-request-next-visit"
+                            className="flex cursor-pointer items-center gap-2 text-xs font-bold text-blue-900 dark:text-blue-300"
+                        >
+                            <CalendarPlus className="h-4 w-4 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+                            <span>{t('care_session.request_next_visit_label', 'Request Next Appointment for Reception')}</span>
+                        </label>
+                        <input
+                            type="checkbox"
+                            id="toggle-request-next-visit"
+                            checked={requestNextVisit}
+                            onChange={(e) => setRequestNextVisit(e.target.checked)}
+                            data-testid="request-next-visit-toggle"
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900"
+                        />
+                    </div>
+
+                    {requestNextVisit && (
+                        <div className="space-y-3 pt-2 text-xs">
+                            {/* Invariant G11-M08 Notice */}
+                            <div
+                                data-testid="no-auto-booking-badge"
+                                className="flex items-center gap-1.5 rounded-lg border border-blue-200/80 bg-white/80 px-2.5 py-1.5 text-[11px] font-medium text-blue-800 dark:border-blue-900/60 dark:bg-slate-900/80 dark:text-blue-300"
+                            >
+                                <Info className="h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+                                <span>
+                                    {t(
+                                        'care_session.no_auto_booking_notice',
+                                        'Queued for reception scheduling. Invariant: No appointment is booked automatically.'
+                                    )}
+                                </span>
+                            </div>
+
+                            {/* Reason for Next Visit (G11-M06) */}
+                            <div className="space-y-1">
+                                <label
+                                    htmlFor="next-visit-reason"
+                                    className="block font-semibold text-slate-700 dark:text-slate-300"
+                                >
+                                    {t('care_session.next_visit_reason_label', 'Appointment Reason')}
+                                </label>
+                                <input
+                                    type="text"
+                                    id="next-visit-reason"
+                                    value={nextVisitReason}
+                                    onChange={(e) => setNextVisitReason(e.target.value)}
+                                    placeholder={t(
+                                        'care_session.next_visit_reason_placeholder',
+                                        'e.g. Tooth 46: Root Canal Treatment - Obturation'
+                                    )}
+                                    data-testid="next-visit-reason-input"
+                                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                />
+                            </div>
+
+                            {/* Suggested Duration (G11-M07) */}
+                            <div className="space-y-1">
+                                <label className="block font-semibold text-slate-700 dark:text-slate-300">
+                                    {t('care_session.suggested_duration_label', 'Suggested Duration')}
+                                </label>
+                                <div className="flex flex-wrap items-center gap-1.5" data-testid="next-visit-duration-chips">
+                                    {[15, 30, 45, 60].map((dur) => (
+                                        <button
+                                            key={dur}
+                                            type="button"
+                                            onClick={() => setNextVisitDuration(dur)}
+                                            data-testid={`duration-chip-${dur}`}
+                                            className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-colors ${
+                                                Number(nextVisitDuration) === dur
+                                                    ? 'bg-blue-600 text-white shadow-sm'
+                                                    : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                            }`}
+                                        >
+                                            {dur} {t('common.minutes_short', 'min')}
+                                        </button>
+                                    ))}
+                                    <select
+                                        value={nextVisitDuration}
+                                        onChange={(e) => setNextVisitDuration(Number(e.target.value))}
+                                        data-testid="next-visit-duration-select"
+                                        className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                    >
+                                        <option value={15}>15 min</option>
+                                        <option value={30}>30 min</option>
+                                        <option value={45}>45 min</option>
+                                        <option value={60}>60 min</option>
+                                        <option value={90}>90 min</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Instructions for Reception */}
+                            <div className="space-y-1">
+                                <label
+                                    htmlFor="next-visit-notes"
+                                    className="block font-semibold text-slate-700 dark:text-slate-300"
+                                >
+                                    {t('care_session.reception_instructions', 'Reception Instructions (optional)')}
+                                </label>
+                                <input
+                                    type="text"
+                                    id="next-visit-notes"
+                                    value={nextVisitNotes}
+                                    onChange={(e) => setNextVisitNotes(e.target.value)}
+                                    placeholder={t(
+                                        'care_session.reception_instructions_placeholder',
+                                        'e.g. Schedule after 7 days, check symptoms'
+                                    )}
+                                    data-testid="next-visit-notes-input"
+                                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                />
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Action Buttons */}

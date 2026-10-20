@@ -311,13 +311,13 @@ export default function PatientDetails() {
         }
     }, [id, activeCareSession?.id, recordCareObservationMutation, refetchActiveSession, t]);
 
-    const handleFinishSession = useCallback(async ({ notes }) => {
+    const handleFinishSession = useCallback(async ({ notes, next_visit_request } = {}) => {
         if (!activeCareSession?.id) return;
         try {
             await finishCareSessionMutation.mutateAsync({
                 patientId: id,
                 sessionId: activeCareSession.id,
-                data: { notes },
+                data: { notes, next_visit_request },
             });
             await refetchActiveSession();
             await refetchResumableSession();

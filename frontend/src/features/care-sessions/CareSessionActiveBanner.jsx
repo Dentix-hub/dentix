@@ -1,8 +1,8 @@
 import PropTypes from 'prop-types';
-import { Activity, Clock, Flag, CheckCircle2 } from 'lucide-react';
+import { Activity, Clock, Flag, CheckCircle2, Calendar } from 'lucide-react';
 
 /**
- * CareSessionActiveBanner (Slice S20).
+ * CareSessionActiveBanner (Slice S20 & S22 / G11-M01).
  * Prominent chairside active session indicator banner rendered on the patient chart.
  */
 export default function CareSessionActiveBanner({
@@ -50,6 +50,15 @@ export default function CareSessionActiveBanner({
                         <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
                             {t('care_session.active_banner_title', 'Active Care Session')} #{session.id}
                         </span>
+                        {session.appointment_id && (
+                            <span
+                                data-testid="linked-appointment-badge"
+                                className="inline-flex items-center gap-1 rounded-md bg-indigo-100 px-2 py-0.5 text-xs font-bold text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300"
+                            >
+                                <Calendar className="h-3 w-3" aria-hidden="true" />
+                                <span>Appt #{session.appointment_id}</span>
+                            </span>
+                        )}
                         {session.started_at && (
                             <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
                                 <Clock className="h-3 w-3" />
