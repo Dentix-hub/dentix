@@ -118,6 +118,24 @@ CANONICAL_CORRECTION_STATUSES: tuple[str, ...] = (
 )
 
 
+# ---------------------------------------------------------------------------
+# G15-M06: Attachment Context Purpose Codes (Decision PD05, Slice S23)
+# ---------------------------------------------------------------------------
+
+class AttachmentPurposeCode(StrEnum):
+    PRE_OP_XRAY = "PRE_OP_XRAY"
+    POST_OP_XRAY = "POST_OP_XRAY"
+    WORKING_LENGTH_XRAY = "WORKING_LENGTH_XRAY"
+    INTRAORAL_PHOTO = "INTRAORAL_PHOTO"
+    EXTRAORAL_PHOTO = "EXTRAORAL_PHOTO"
+    LAB_SCAN = "LAB_SCAN"
+    CONSENT_DOC = "CONSENT_DOC"
+    OTHER = "OTHER"
+
+
+CANONICAL_ATTACHMENT_PURPOSE_CODES: tuple[str, ...] = tuple(c.value for c in AttachmentPurposeCode)
+
+
 
 # ---------------------------------------------------------------------------
 # Target Kinds (Exact parity with PROJECTION_TARGET_KINDS)
