@@ -480,6 +480,30 @@ export default function TreatmentModal({
                         </div>
                     )}
 
+                    {/* Modal Context Header for chart-driven opens (U3.3) */}
+                    {Boolean(treatment.prefill_source && !treatment.clinical_work_item_id) && (
+                        <div
+                            data-testid="treatment-modal-context-banner"
+                            className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50/80 p-2.5 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300"
+                        >
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="rounded-md bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700 uppercase dark:bg-slate-800 dark:text-slate-200">
+                                    {t(`treatment_modal.prefill_source.${treatment.prefill_source}`, treatment.prefill_source)}
+                                </span>
+                                {treatment.procedure && (
+                                    <span className="font-semibold text-text-primary">
+                                        {treatment.procedure}
+                                    </span>
+                                )}
+                                {treatment.tooth_number && (
+                                    <span className="rounded bg-slate-200/70 px-1.5 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                        #{treatment.tooth_number} {treatment.surface ? `(${treatment.surface})` : ''}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {treatment.tooth_number && (
                         <div className="bg-surface rounded-2xl border border-border p-4 shadow-low mb-4">
                             {/* Segmented Control */}

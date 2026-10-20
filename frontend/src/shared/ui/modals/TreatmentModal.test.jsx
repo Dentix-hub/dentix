@@ -306,4 +306,22 @@ describe('TreatmentModal', () => {
         expect(banner).toHaveTextContent(/This planned item is already completed or closed/i);
         expect(onClose).not.toHaveBeenCalled();
     });
+
+    it('renders context header banner when prefill_source is set for chart-driven opens', () => {
+        renderTreatmentModal({
+            initialData: {
+                ...initialData,
+                prefill_source: 'quick_launcher',
+                procedure: 'Cleaning',
+                tooth_number: 'UR1',
+                surface: 'MO',
+            },
+        });
+
+        const contextBanner = screen.getByTestId('treatment-modal-context-banner');
+        expect(contextBanner).toBeInTheDocument();
+        expect(contextBanner).toHaveTextContent('quick_launcher');
+        expect(contextBanner).toHaveTextContent('Cleaning');
+        expect(contextBanner).toHaveTextContent('#UR1 (MO)');
+    });
 });

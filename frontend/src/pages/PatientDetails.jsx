@@ -45,7 +45,7 @@ import {
 import { useTreatmentOperations } from '@/features/patients/hooks/useTreatmentOperations';
 import { Baby, Sparkles } from 'lucide-react';
 
-import { fdiToPalmer, getTodayStr } from '../utils/toothUtils';
+import { getTodayStr } from '../utils/toothUtils';
 import {
     createPatientClinicalFinding,
     createPatientClinicalFindingsBulk,
@@ -60,6 +60,7 @@ import { usePatientChartSelection } from '@/features/patients/hooks/usePatientCh
 import { usePatientPlanOverlay } from '@/features/patients/hooks/usePatientPlanOverlay';
 import { usePatientRecordActions } from '@/features/patients/hooks/usePatientRecordActions';
 import { invalidatePatientClinicalQueries } from '@/features/patients/utils/invalidatePatientClinicalQueries';
+import { buildTreatmentPrefill } from '@/features/patients/utils/buildTreatmentPrefill';
 import ClinicalWorkspaceStatusBanner from '@/features/patients/components/ClinicalWorkspaceStatusBanner';
 import PlanOverlayActiveBanner from '@/features/patients/components/PlanOverlayActiveBanner';
 import ChairsideSelectionBar from '@/features/patients/components/ChairsideSelectionBar';
@@ -517,28 +518,21 @@ export default function PatientDetails() {
         }
 
         // For procedures: open TreatmentModal pre-populated
-        const fdi = Number.parseInt(primaryTooth, 10);
-        const palmerPrefix = fdiToPalmer(fdi);
-        const surfaceStr = Array.isArray(surfaces) ? surfaces.join('') : (surfaces || '');
-
-        setNewTreatment({
-            ...getInitialTreatment(),
-            tooth_number: palmerPrefix,
-            procedure: item.name,
-            prefill_source: 'quick_launcher',
-            surface: surfaceStr,
-            surfaces: Array.isArray(surfaces) ? [...surfaces] : [],
-            target_kind: targetKind || (surfaceStr ? 'surface' : 'tooth'),
-            default_price_list_id: patient?.default_price_list_id,
+        const prefill = buildTreatmentPrefill({
+            baseTreatment: getInitialTreatment(),
+            source: 'quick_launcher',
+            toothKey: primaryTooth,
+            surfaces,
+            targetKind,
+            procedureName: item.name,
+            defaultPriceListId: patient?.default_price_list_id,
         });
+        setNewTreatment(prefill);
         setIsTreatmentModalOpen(true);
         return true;
     }, [id, resolvedActiveTooth, isNativeWritesEnabled, patient, getInitialTreatment, refetchWorkspace, refetchTeeth, refetchHistory, queryClient, t]);
 
     const handlePerformPlanItem = useCallback(({ item, plan, toothKey, surfaces }) => {
-        const fdi = Number.parseInt(toothKey, 10);
-        const palmerPrefix = fdiToPalmer(fdi);
-        const surfaceStr = Array.isArray(surfaces) ? surfaces.join('') : (surfaces || '');
         const workItemId = item.work_item?.id || item.work_item_id;
         const code = item.work_item?.code || item.work_item?.procedure_code;
 
@@ -552,20 +546,19 @@ export default function PatientDetails() {
             }
         }
 
-        setNewTreatment({
-            ...getInitialTreatment(),
-            tooth_number: palmerPrefix,
-            procedure: matchedProcedureName,
-            prefill_source: 'plan_item',
-            clinical_work_item_id: workItemId,
-            plan_title: plan?.title,
-            plan_id: plan?.id,
-            work_item_code: code,
-            surface: surfaceStr,
-            surfaces: Array.isArray(surfaces) ? [...surfaces] : [],
-            target_kind: surfaceStr ? 'surface' : 'tooth',
-            default_price_list_id: patient?.default_price_list_id,
+        const prefill = buildTreatmentPrefill({
+            baseTreatment: getInitialTreatment(),
+            source: 'plan_item',
+            toothKey,
+            surfaces,
+            procedureName: matchedProcedureName,
+            clinicalWorkItemId: workItemId,
+            planTitle: plan?.title,
+            planId: plan?.id,
+            workItemCode: code,
+            defaultPriceListId: patient?.default_price_list_id,
         });
+        setNewTreatment(prefill);
         setIsTreatmentModalOpen(true);
     }, [procedures, patient, getInitialTreatment]);
 
