@@ -116,3 +116,13 @@ export const createNextVisitRequest = (patientId, sessionId, data) =>
 export const getNextVisitRequests = (patientId, params = {}) =>
     api.get(`/api/v1/patients/${patientId}/next-visit-requests`, { params });
 
+// Clinical Attachment Context Links (Slice S23 / G15)
+export const createClinicalAttachmentLink = (patientId, data) =>
+    api.post(`/api/v1/patients/${patientId}/clinical-attachment-links`, data);
+export const getClinicalAttachmentLinks = (patientId, params = {}) =>
+    api.get(`/api/v1/patients/${patientId}/clinical-attachment-links`, { params });
+export const getClinicalAttachmentLink = (patientId, linkId) =>
+    api.get(`/api/v1/patients/${patientId}/clinical-attachment-links/${linkId}`);
+export const deleteClinicalAttachmentLink = (patientId, linkId) =>
+    api.delete(`/api/v1/patients/${patientId}/clinical-attachment-links/${linkId}`);
+

@@ -12,8 +12,8 @@
 
 - **Total Phases Tracked:** 35 (A0–A17, G0–G16)
 - **DONE:** 27 phases (A0–A17, G0–G3, G5–G10)
-- **PARTIAL:** 3 phases (G4, G11, G16)
-- **SCHEMA_ONLY:** 1 phase (G15)
+- **PARTIAL:** 4 phases (G4, G11, G15, G16)
+- **SCHEMA_ONLY:** 0 phases
 - **NOT_STARTED:** 3 phases (G12, G13, G14)
 
 ---
@@ -44,7 +44,7 @@
 | **G1** | Additive Clinical Core Schema | **DONE** | `backend/models/clinical_core.py:97-590`, migration `f4a5b6c7d8e9`, `test_clinical_core_schema.py`, PR #222 |
 | **G2** | Canonical Catalog, Taxonomy, & Templates | **DONE** | `backend/clinical/catalog.py:1-120`, `backend/clinical/workflow_templates.py:1-150`, `test_clinical_catalog.py`, PR #222 |
 | **G3** | Deterministic Legacy Mapping Engine | **DONE** | `backend/clinical/legacy_mapping.py:1-140`, `treatment_service.py:189-224`, `test_clinical_legacy_mapping.py`, PR #222 & PR #226 |
-| **G4** | Controlled Backfill | **PARTIAL** | Treatment, tooth-status, and session backfill tool extended and tested (`scripts/backfill_clinical_work_items.py:1-617`, `backend/tests/services/test_clinical_backfill.py` (14 tests), PR #227 & PR #237); tooth-status (`G4-M06`), care session (`G4-M07`), inventory invariance (`G4-M12`), and payment invariance (`G4-M13`) implemented in S03; lab (`G4-M08` in S27) and attachment link (`G4-M09` in S23) backfill slices pending. |
+| **G4** | Controlled Backfill | **PARTIAL** | Treatment, tooth-status, session, and attachment link backfill tool extended and tested (`scripts/backfill_clinical_work_items.py:1-740`, `backend/tests/services/test_clinical_backfill.py` (18 tests), PR #227 & PR #237); tooth-status (`G4-M06`), care session (`G4-M07`), inventory invariance (`G4-M12`), and payment invariance (`G4-M13`) implemented in S03; attachment link backfill (`G4-M09`) implemented in S23; lab (`G4-M08` in S27) backfill slice pending. |
 | **G5** | Projection Layer & Real Chart Data | **DONE** | `backend/services/clinical_workspace_service.py:1-1017`, `backend/tests/test_clinical_workspace_snapshot.py`, `backend/routers/patients.py:217-232`, PR #222 |
 | **G7** | Command / API Layer | **DONE** | Command service, work item mutation APIs, single/bulk finding & procedure APIs, work-item correction (`G7-M08`), tooth detail (`G7-M10`), history APIs (`G7-M11`), RBAC permission enforcement (`G7-M12`), tenant security tests (`G7-M13`), API contract tests (`G7-M14`), race-safe idempotency keys (`G7-M15`), and optimistic concurrency handling (`G7-M16`) implemented and verified (`G7-M01`..`G7-M16`: `backend/services/clinical_command_service.py`, `backend/routers/clinical_commands.py`, `backend/schemas/clinical_commands.py`, `backend/services/clinical_service.py:193`, `backend/services/treatment_service.py:260-470`, `backend/tests/services/test_clinical_command_service.py`, `backend/tests/services/test_clinical_command_security_and_contracts.py`, PR #238, PR #239, PR #240, S07). |
 | **G8** | Zero-Friction Charting UX | **DONE** | Tooth selection state (`G8-M01`), multi-tooth selection (`G8-M06`), and direct surface interaction (`G8-M07`) implemented in S08; quick action launcher (`G8-M02`), favorites (`G8-M08`), recents (`G8-M09`), instant search (`G8-M10`), and catalog-driven smart defaults (`G8-M11`) implemented in S09; tooth-first flow (`G8-M03`), procedure-first flow (`G8-M04`), and sticky tool mode (`G8-M05`) implemented in S10; consequence-aware remove (`G8-M13`), deterministic click-budget telemetry (`G8-M14`), and giant modal de-emphasis (`G8-M15`) implemented in S11 (`ClinicalChartInspector.jsx`, `PatientDetails.jsx`, `ChartClickBudgetAndConsequences.test.jsx`, S11). All active requirements satisfied (`G8-M12` dropped per PD00). |
@@ -54,7 +54,7 @@
 | **G12** | Lab Integration | **NOT_STARTED** | `backend/models/clinical.py:326` (`LabOrder` has no `work_item_id` foreign key); direct work item link and decoupling not implemented. |
 | **G13** | Inventory Integration | **NOT_STARTED** | `backend/models/inventory.py:289` (`TreatmentMaterialUsage` references `material_sessions.id`, not `care_sessions.id`). |
 | **G14** | Finance Integration and Parity | **NOT_STARTED** | `clinical_charges` table does not exist in schema, models, or migrations (`git grep clinical_charges` returns 0). |
-| **G15** | Files and Clinical Context | **SCHEMA_ONLY** | `backend/models/clinical_core.py:582-615` (`ClinicalAttachmentLink`), migration `f4a5b6c7d8e9`; link API and attachment context UI not yet implemented. |
+| **G15** | Files and Clinical Context | **PARTIAL** | Attachment context link service, PD05 canonical purpose codes, REST APIs, and deterministic legacy attachment link backfill implemented in S23 (`backend/services/clinical_attachment_link_service.py`, `backend/routers/clinical_attachment_links.py`, `backend/clinical/catalog.py`, `backend/clinical/legacy_mapping.py`, `backend/tests/services/test_clinical_attachment_link_service.py`, `backend/tests/services/test_clinical_backfill.py`). Physical attachment storage left 100% untouched (`G15-M01`). Context UI strip, inspector media tab, and lightbox preview scheduled in S24. |
 | **G16** | Rollout and Controlled Cutover | **PARTIAL** | `backend/services/clinical_workspace_service.py:42-44,997-1017` (supports `LEGACY_ONLY`, `SHADOW`, `VNEXT_PRIMARY` via `FeatureFlagService`), `PatientDetails.jsx:446-456`; read-only clinical drift & error observer implemented (`G16-M04`, `G16-M05`: `backend/services/clinical_drift_observer_service.py`, `GET /api/v1/admin/clinical-drift/{tenant_id}`, `backend/tests/services/test_clinical_drift_observer.py`). |
 
 ---
