@@ -47,6 +47,7 @@ from backend.clinical.legacy_mapping import (
     map_legacy_tooth_status,
     map_legacy_treatment_session,
     parse_legacy_attachment_link,
+    resolve_exact_lab_link,
     VerifiedPatientContext,
 )
 from backend.services.treatment_service import TreatmentService
@@ -88,6 +89,12 @@ class TenantBackfillReport:
     attachments_already_synced: int = 0
     attachments_skipped: int = 0
 
+    # LabOrder backfill counters (G4-M08, G12-M02)
+    lab_orders_scanned: int = 0
+    lab_orders_created: int = 0
+    lab_orders_already_synced: int = 0
+    lab_orders_skipped: int = 0
+
     @property
     def total_skipped(self) -> int:
         return (
@@ -123,6 +130,10 @@ class TenantBackfillReport:
             "attachments_created": self.attachments_created,
             "attachments_already_synced": self.attachments_already_synced,
             "attachments_skipped": self.attachments_skipped,
+            "lab_orders_scanned": self.lab_orders_scanned,
+            "lab_orders_created": self.lab_orders_created,
+            "lab_orders_already_synced": self.lab_orders_already_synced,
+            "lab_orders_skipped": self.lab_orders_skipped,
             "batch_count": self.batch_count,
             "last_processed_id": self.last_processed_id,
         }
@@ -145,6 +156,7 @@ class TenantBackfillReport:
             f"Tooth Statuses:      scanned={self.tooth_statuses_scanned}, {created_label.strip().lower()}={self.tooth_statuses_created}, synced={self.tooth_statuses_already_synced}, skipped={self.tooth_statuses_skipped}\n"
             f"Sessions:            scanned={self.sessions_scanned}, {created_label.strip().lower()}={self.sessions_created}, synced={self.sessions_already_synced}, skipped={self.sessions_skipped}\n"
             f"Attachments:         scanned={self.attachments_scanned}, {created_label.strip().lower()}={self.attachments_created}, synced={self.attachments_already_synced}, skipped={self.attachments_skipped}\n"
+            f"Lab Orders:          scanned={self.lab_orders_scanned}, {created_label.strip().lower()}={self.lab_orders_created}, synced={self.lab_orders_already_synced}, skipped={self.lab_orders_skipped}\n"
             f"Batches Processed:   {self.batch_count}\n"
             f"Last Treatment ID:   {self.last_processed_id}\n"
             f"------------------------------------------------------------"
@@ -545,6 +557,112 @@ async def backfill_tenant(
                 await db.commit()
 
             if len(att_batch) < batch_size:
+                break
+
+        # -------------------------------------------------------------
+        # Phase 5: LabOrder <-> ClinicalWorkItem Link Backfill (G4-M08, G12-M02)
+        # -------------------------------------------------------------
+        current_after_lo_id = 0
+        while True:
+            stmt_lo = (
+                select(models.LabOrder)
+                .where(
+                    models.LabOrder.tenant_id == tenant_id,
+                    models.LabOrder.id > current_after_lo_id,
+                )
+                .order_by(models.LabOrder.id.asc())
+                .limit(batch_size)
+            )
+            result_lo = await db.execute(stmt_lo)
+            lo_batch = result_lo.scalars().all()
+
+            if not lo_batch:
+                break
+
+            lo_patient_ids = {lo.patient_id for lo in lo_batch if lo.patient_id}
+
+            treatments_map = {}
+            if lo_patient_ids:
+                tx_stmt = select(models.Treatment).where(
+                    models.Treatment.tenant_id == tenant_id,
+                    models.Treatment.patient_id.in_(lo_patient_ids),
+                )
+                tx_res = await db.execute(tx_stmt)
+                for tx in tx_res.scalars().all():
+                    if tx.notes and "Link:LabOrder:" in tx.notes:
+                        treatments_map.setdefault(tx.patient_id, []).append(tx)
+
+            for lo in lo_batch:
+                report.lab_orders_scanned += 1
+                current_after_lo_id = lo.id
+
+                if not lo.patient_id:
+                    report.lab_orders_skipped += 1
+                    continue
+
+                if lo.work_item_id is not None:
+                    report.lab_orders_already_synced += 1
+                    continue
+
+                candidate_treatments = treatments_map.get(lo.patient_id, [])
+                matching_txs = [
+                    tx for tx in candidate_treatments
+                    if tx.notes == f"Link:LabOrder:{lo.id}"
+                ]
+
+                if not matching_txs:
+                    report.lab_orders_skipped += 1
+                    continue
+
+                if len(matching_txs) > 1:
+                    report.lab_orders_skipped += 1
+                    continue
+
+                tx = matching_txs[0]
+                verified_ctx = VerifiedPatientContext(
+                    patient_id=lo.patient_id, tenant_id=tenant_id
+                )
+                draft, issue = resolve_exact_lab_link(
+                    treatment=tx,
+                    supplied_lab_orders=[lo],
+                    verified_patient=verified_ctx,
+                )
+                if draft is None or issue is not None:
+                    report.lab_orders_skipped += 1
+                    continue
+
+                linked_wi = await service.find_linked_clinical_work_item(
+                    treatment_id=tx.id, patient_id=lo.patient_id
+                )
+                if linked_wi is None and apply:
+                    linked_wi = await service.sync_legacy_treatment(
+                        treatment=tx,
+                        surfaces=tx.surfaces,
+                        provenance="backfill",
+                    )
+
+                if linked_wi is None and not apply:
+                    mapping = service.map_treatment_to_clinical(tx)
+                    if mapping is not None:
+                        report.lab_orders_created += 1
+                    else:
+                        report.lab_orders_skipped += 1
+                    continue
+
+                if linked_wi is None:
+                    report.lab_orders_skipped += 1
+                    continue
+
+                if not apply:
+                    report.lab_orders_created += 1
+                else:
+                    lo.work_item_id = linked_wi.id
+                    report.lab_orders_created += 1
+
+            if apply:
+                await db.commit()
+
+            if len(lo_batch) < batch_size:
                 break
 
         return report

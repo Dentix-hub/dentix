@@ -168,6 +168,8 @@ CHILD_TENANT_RELATIONSHIPS = (
     # Phase G13 / S26: Inventory Usage Care Session & Work Item Links
     ("treatment_material_usages", "care_session_id", "care_sessions", True),
     ("treatment_material_usages", "work_item_id", "clinical_work_items", True),
+    # Phase G12 / S27: Lab Order Work Item Link
+    ("lab_orders", "work_item_id", "clinical_work_items", True),
 )
 
 CLINICAL_G1_DIRECT_PARENT_PATIENT_RELATIONSHIPS = (
