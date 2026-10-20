@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import ClinicalChartRenderer from '@/features/clinical-chart/components/ClinicalChartRenderer';
 import ChartStickyToolBanner from '@/features/clinical-chart/components/ChartStickyToolBanner';
@@ -58,6 +59,7 @@ import { usePatientTouchScrollGuard } from '@/features/patients/hooks/usePatient
 import { usePatientChartSelection } from '@/features/patients/hooks/usePatientChartSelection';
 import { usePatientPlanOverlay } from '@/features/patients/hooks/usePatientPlanOverlay';
 import { usePatientRecordActions } from '@/features/patients/hooks/usePatientRecordActions';
+import { invalidatePatientClinicalQueries } from '@/features/patients/utils/invalidatePatientClinicalQueries';
 import ClinicalWorkspaceStatusBanner from '@/features/patients/components/ClinicalWorkspaceStatusBanner';
 import PlanOverlayActiveBanner from '@/features/patients/components/PlanOverlayActiveBanner';
 import ChairsideSelectionBar from '@/features/patients/components/ChairsideSelectionBar';
@@ -69,6 +71,7 @@ const LabOrdersTab = lazy(() => import('@/features/lab/LabOrdersTab'));
 const PatientTimeline = lazy(() => import('@/features/patients/PatientTabs/PatientTimeline'));
 
 export default function PatientDetails() {
+    const queryClient = useQueryClient();
     const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const { id } = useParams();
@@ -479,6 +482,7 @@ export default function PatientDetails() {
                     }
                 }
                 await Promise.all([refetchWorkspace?.(), refetchTeeth?.(), refetchHistory?.()]);
+                invalidatePatientClinicalQueries(queryClient, id);
                 toast.success(t('patient_details.alerts.treatment_save_success', 'Action recorded successfully'));
                 return true;
             } catch (err) {
@@ -503,6 +507,7 @@ export default function PatientDetails() {
                     condition,
                 });
                 await Promise.all([refetchTeeth?.(), refetchWorkspace?.()]);
+                invalidatePatientClinicalQueries(queryClient, id);
                 toast.success(t('patient_details.alerts.treatment_save_success', 'Finding recorded successfully'));
                 return true;
             } catch (err) {
@@ -528,7 +533,41 @@ export default function PatientDetails() {
         });
         setIsTreatmentModalOpen(true);
         return true;
-    }, [id, resolvedActiveTooth, isNativeWritesEnabled, patient, getInitialTreatment, refetchWorkspace, refetchTeeth, refetchHistory, t]);
+    }, [id, resolvedActiveTooth, isNativeWritesEnabled, patient, getInitialTreatment, refetchWorkspace, refetchTeeth, refetchHistory, queryClient, t]);
+
+    const handlePerformPlanItem = useCallback(({ item, plan, toothKey, surfaces }) => {
+        const fdi = Number.parseInt(toothKey, 10);
+        const palmerPrefix = fdiToPalmer(fdi);
+        const surfaceStr = Array.isArray(surfaces) ? surfaces.join('') : (surfaces || '');
+        const workItemId = item.work_item?.id || item.work_item_id;
+        const code = item.work_item?.code || item.work_item?.procedure_code;
+
+        let matchedProcedureName = item.work_item?.display_name || '';
+        if (procedures && procedures.length > 0) {
+            const match = procedures.find(
+                (p) => (code && p.canonical_code === code) || p.name === matchedProcedureName
+            );
+            if (match) {
+                matchedProcedureName = match.name;
+            }
+        }
+
+        setNewTreatment({
+            ...getInitialTreatment(),
+            tooth_number: palmerPrefix,
+            procedure: matchedProcedureName,
+            prefill_source: 'plan_item',
+            clinical_work_item_id: workItemId,
+            plan_title: plan?.title,
+            plan_id: plan?.id,
+            work_item_code: code,
+            surface: surfaceStr,
+            surfaces: Array.isArray(surfaces) ? [...surfaces] : [],
+            target_kind: surfaceStr ? 'surface' : 'tooth',
+            default_price_list_id: patient?.default_price_list_id,
+        });
+        setIsTreatmentModalOpen(true);
+    }, [procedures, patient, getInitialTreatment]);
 
     executeClinicalActionRef.current = executeClinicalAction;
     const handleQuickLauncherAction = executeClinicalAction;
@@ -846,6 +885,8 @@ export default function PatientDetails() {
                                         activeOverlayPlanId={activeOverlayPlanId}
                                         activeOverlayPhaseId={activeOverlayPhaseId}
                                         onToggleOverlay={handleTogglePlanOverlay}
+                                        onPerformItem={handlePerformPlanItem}
+                                        isNativeWritesEnabled={isNativeWritesEnabled}
                                     />
                                 )}
                             </div>

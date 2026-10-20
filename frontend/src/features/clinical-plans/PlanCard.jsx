@@ -51,9 +51,16 @@ export default function PlanCard({
     onRemoveItem,
     isReorderPending,
     isRemoveItemPending,
+    isNativeWritesEnabled = false,
+    onPerformItem,
 }) {
     const { t, i18n } = useTranslation();
     const phasesCount = plan.phases?.length || 0;
+    const allPlanItems = (plan.phases || []).flatMap((p) => p.items || []);
+    const planCompletedItems = allPlanItems.filter(
+        (it) => (it.work_item?.status || it.status) === 'completed'
+    ).length;
+    const planTotalItems = allPlanItems.length;
     const formattedDate = plan.created_at
         ? new Date(plan.created_at).toLocaleDateString(i18n.language, {
               year: 'numeric',
@@ -106,6 +113,17 @@ export default function PlanCard({
                                 </span>
                             )}
                         </span>
+                        {planTotalItems > 0 && (
+                            <span
+                                data-testid={`plan-progress-${plan.id}`}
+                                className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                            >
+                                {t('clinical_plans.progress_done', '{{completed}} of {{total}} done', {
+                                    completed: planCompletedItems,
+                                    total: planTotalItems,
+                                })}
+                            </span>
+                        )}
                     </div>
 
                     <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
@@ -291,6 +309,8 @@ export default function PlanCard({
                             onRemoveItem={onRemoveItem}
                             isReorderPending={isReorderPending}
                             isRemoveItemPending={isRemoveItemPending}
+                            isNativeWritesEnabled={isNativeWritesEnabled}
+                            onPerformItem={onPerformItem}
                         />
                     ))}
                 </div>
@@ -328,4 +348,6 @@ PlanCard.propTypes = {
     onRemoveItem: PropTypes.func.isRequired,
     isReorderPending: PropTypes.bool,
     isRemoveItemPending: PropTypes.bool,
+    isNativeWritesEnabled: PropTypes.bool,
+    onPerformItem: PropTypes.func,
 };

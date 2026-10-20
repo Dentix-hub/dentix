@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
 import PropTypes from 'prop-types';
+import { invalidatePatientClinicalQueries } from '@/features/patients/utils/invalidatePatientClinicalQueries';
 import {
     FlaskConical,
     Calendar,
@@ -33,6 +35,7 @@ export default function LabHandoffSheet({
     onSuccess = null,
     t = (k, f) => f || k,
 }) {
+    const queryClient = useContext(QueryClientContext);
     const [laboratories, setLaboratories] = useState([]);
     const [loadingLabs, setLoadingLabs] = useState(false);
     const [selectedLabId, setSelectedLabId] = useState('');
@@ -135,6 +138,9 @@ export default function LabHandoffSheet({
             const res = await dispatchLabHandoff(patientId, workItemId, payload);
             const orderData = res?.data?.data || res?.data;
             setSuccessOrder(orderData);
+            if (queryClient && patientId) {
+                invalidatePatientClinicalQueries(queryClient, patientId);
+            }
             if (onSuccess) {
                 onSuccess(orderData);
             }

@@ -34,6 +34,8 @@ const TreatmentPlansCard = memo(({
     activeOverlayPlanId = null,
     activeOverlayPhaseId = null,
     onToggleOverlay,
+    onPerformItem,
+    isNativeWritesEnabled = false,
 }) => {
     const { t, i18n } = useTranslation();
     const isRtl = i18n.language === 'ar' || document.documentElement.dir === 'rtl';
@@ -478,6 +480,8 @@ const TreatmentPlansCard = memo(({
                                     onRemoveItem={handleRemoveItem}
                                     isReorderPending={reorderPhasesMutation.isPending}
                                     isRemoveItemPending={removePlanItemMutation.isPending}
+                                    isNativeWritesEnabled={isNativeWritesEnabled}
+                                    onPerformItem={onPerformItem}
                                 />
                             ))}
                         </div>
@@ -551,6 +555,8 @@ TreatmentPlansCard.propTypes = {
     activeOverlayPlanId: PropTypes.number,
     activeOverlayPhaseId: PropTypes.number,
     onToggleOverlay: PropTypes.func,
+    onPerformItem: PropTypes.func,
+    isNativeWritesEnabled: PropTypes.bool,
 };
 
 export default TreatmentPlansCard;

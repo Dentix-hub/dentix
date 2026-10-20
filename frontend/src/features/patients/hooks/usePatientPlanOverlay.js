@@ -23,14 +23,22 @@ export function usePatientPlanOverlay({ activeOverlayPlanId, activeOverlayPhaseI
         if (!plan) return null;
 
         const teethMap = {};
+        const toothItemsMap = {};
+
         (plan.phases || []).forEach((ph, pIdx) => {
             if (activeOverlayPhaseId && ph.id !== activeOverlayPhaseId) return;
             const colorConfig = PHASE_COLORS[pIdx % PHASE_COLORS.length];
             (ph.items || []).forEach((item) => {
                 const targets = item.work_item?.targets || [];
+                const itemStatus = item.work_item?.status || item.status || 'planned';
                 targets.forEach((target) => {
                     if (target.tooth_key) {
                         const tk = String(target.tooth_key);
+                        if (!toothItemsMap[tk]) {
+                            toothItemsMap[tk] = [];
+                        }
+                        toothItemsMap[tk].push(itemStatus);
+
                         if (!teethMap[tk]) {
                             teethMap[tk] = {
                                 phaseId: ph.id,
@@ -51,16 +59,46 @@ export function usePatientPlanOverlay({ activeOverlayPlanId, activeOverlayPhaseI
             });
         });
 
+        // Compute status and counts per tooth (U2.4)
+        Object.keys(teethMap).forEach((tk) => {
+            const statuses = toothItemsMap[tk] || [];
+            const completedCount = statuses.filter((s) => s === 'completed').length;
+            const activeCount = statuses.filter((s) => s === 'active').length;
+            const openCount = statuses.filter((s) => s !== 'completed' && s !== 'active').length;
+            const totalCount = statuses.length;
+
+            let toothStatus = 'open';
+            if (totalCount > 0 && completedCount === totalCount) {
+                toothStatus = 'completed';
+            } else if (activeCount > 0) {
+                toothStatus = 'active';
+            }
+
+            teethMap[tk].status = toothStatus;
+            teethMap[tk].completedCount = completedCount;
+            teethMap[tk].activeCount = activeCount;
+            teethMap[tk].openCount = openCount;
+            teethMap[tk].totalCount = totalCount;
+        });
+
         return {
             planId: plan.id,
             planTitle: plan.title,
             phaseId: activeOverlayPhaseId,
             teeth: teethMap,
-            phases: (plan.phases || []).map((ph, idx) => ({
-                id: ph.id,
-                name: ph.name,
-                colorConfig: PHASE_COLORS[idx % PHASE_COLORS.length],
-            })),
+            phases: (plan.phases || []).map((ph, idx) => {
+                const items = ph.items || [];
+                const completedCount = items.filter((it) => (it.work_item?.status || it.status) === 'completed').length;
+                const totalCount = items.length;
+                return {
+                    id: ph.id,
+                    name: ph.name,
+                    colorConfig: PHASE_COLORS[idx % PHASE_COLORS.length],
+                    completedCount,
+                    totalCount,
+                    isCompleted: totalCount > 0 && completedCount === totalCount,
+                };
+            }),
         };
     }, [activeOverlayPlanId, activeOverlayPhaseId, treatmentPlans]);
 }

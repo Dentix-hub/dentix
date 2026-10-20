@@ -50,13 +50,13 @@ const {
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
         t: (key, fallback, options) => {
-            if (options && options.n !== undefined) {
-                return (fallback || key).replace('{{n}}', options.n);
+            let res = typeof fallback === 'string' ? fallback : key;
+            if (options && typeof options === 'object') {
+                for (const [k, v] of Object.entries(options)) {
+                    res = res.replaceAll(`{{${k}}}`, v);
+                }
             }
-            if (options && options.number !== undefined) {
-                return (fallback || key).replace('{{number}}', options.number);
-            }
-            return typeof fallback === 'string' ? fallback : key;
+            return res;
         },
         i18n: { language: 'en' },
     }),
@@ -1601,6 +1601,72 @@ describe('TreatmentPlansCard & Feature Gating', () => {
             expect(screen.getByText('Option B - Conservative Resin')).toBeInTheDocument();
             expect(screen.getByTestId('clinical-plan-status-10')).toHaveTextContent('accepted');
             expect(screen.getByTestId('clinical-plan-status-20')).toHaveTextContent('proposed');
+        });
+
+        it('renders "Perform now" button and progress badge for accepted plan items when native writes is off', () => {
+            const onPerformItem = vi.fn();
+            mockUseTenantFeatures.mockReturnValue({
+                data: ['clinical_treatment_plans'],
+                isLoading: false,
+            });
+
+            const acceptedPlan = {
+                id: 50,
+                title: 'Restorative Plan',
+                status: 'accepted',
+                patient_id: 101,
+                phases: [
+                    {
+                        id: 501,
+                        plan_id: 50,
+                        name: 'Direct Fillings',
+                        phase_order: 0,
+                        items: [
+                            {
+                                id: 5001,
+                                phase_id: 501,
+                                work_item_id: 6001,
+                                item_order: 0,
+                                work_item: {
+                                    id: 6001,
+                                    kind: 'procedure',
+                                    procedure_code: 'REST_COMP',
+                                    display_name: 'Composite Class I',
+                                    status: 'open',
+                                    targets: [{ tooth_key: '11' }],
+                                },
+                            },
+                        ],
+                    },
+                ],
+            };
+
+            mockUsePatientClinicalPlans.mockReturnValue({
+                data: [acceptedPlan],
+                isLoading: false,
+                isError: false,
+            });
+
+            renderCard(101, { onPerformItem });
+
+            // Verify progress badge
+            const planBadge = screen.getByTestId('plan-progress-50');
+            expect(planBadge).toHaveTextContent('0 of 1 done');
+
+            const phaseBadge = screen.getByTestId('phase-progress-501');
+            expect(phaseBadge).toHaveTextContent('0 of 1 done');
+
+            // Verify perform button exists and is clickable
+            const performBtn = screen.getByTestId('perform-plan-item-5001');
+            expect(performBtn).toBeInTheDocument();
+            fireEvent.click(performBtn);
+
+            expect(onPerformItem).toHaveBeenCalledTimes(1);
+            expect(onPerformItem).toHaveBeenCalledWith(expect.objectContaining({
+                item: acceptedPlan.phases[0].items[0],
+                plan: acceptedPlan,
+                toothKey: '11',
+            }));
         });
     });
 });

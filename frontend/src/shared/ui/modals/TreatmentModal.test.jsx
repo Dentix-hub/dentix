@@ -255,4 +255,55 @@ describe('TreatmentModal', () => {
             target_kind: 'surface',
         }));
     });
+
+    it('renders plan item prefill chip and sends clinical_work_item_id in save payload', async () => {
+        const onSave = vi.fn().mockResolvedValue(undefined);
+        renderTreatmentModal({
+            onSave,
+            initialData: {
+                ...initialData,
+                prefill_source: 'plan_item',
+                clinical_work_item_id: 88,
+                plan_title: 'Phase 1 - Restorative',
+                work_item_code: 'D2391',
+            },
+        });
+
+        expect(screen.getByTestId('clinical-link-item-chip')).toBeInTheDocument();
+        expect(screen.getByText(/Phase 1 - Restorative/i)).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'حفظ' }));
+
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+            clinical_work_item_id: 88,
+        }));
+    });
+
+    it('displays error banner on CLINICAL_LINK rejection and keeps modal open', async () => {
+        const onSave = vi.fn().mockRejectedValue({
+            response: {
+                data: {
+                    detail: 'CLINICAL_LINK_NOT_OPEN',
+                },
+            },
+        });
+        const onClose = vi.fn();
+        renderTreatmentModal({
+            onSave,
+            onClose,
+            initialData: {
+                ...initialData,
+                prefill_source: 'plan_item',
+                clinical_work_item_id: 88,
+            },
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'حفظ' }));
+
+        const banner = await screen.findByTestId('clinical-link-error-banner');
+        expect(banner).toBeInTheDocument();
+        expect(banner).toHaveTextContent(/This planned item is already completed or closed/i);
+        expect(onClose).not.toHaveBeenCalled();
+    });
 });

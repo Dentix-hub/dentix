@@ -1,6 +1,6 @@
-import { useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { queryKeys } from '@/lib/queryClient';
+import { useCallback, useContext } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
+import { invalidatePatientClinicalQueries } from '../utils/invalidatePatientClinicalQueries';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { createTreatment, updateTreatment, updateToothStatus } from '@/api';
@@ -18,7 +18,7 @@ export const useTreatmentOperations = ({
     selectedToothCondition
 }) => {
     const { t } = useTranslation();
-    const queryClient = useQueryClient();
+    const queryClient = useContext(QueryClientContext);
 
     const handleSaveTreatment = useCallback(async (data) => {
         try {
@@ -86,9 +86,7 @@ export const useTreatmentOperations = ({
                 Promise.resolve(refetchWorkspace?.()),
             ]);
             if (queryClient && patientId) {
-                queryClient.invalidateQueries({
-                    queryKey: queryKeys.patientClinicalWorkspace(patientId),
-                });
+                invalidatePatientClinicalQueries(queryClient, patientId);
             }
             toast.success(t('patient_details.alerts.treatment_save_success'));
         } catch (err) {
@@ -101,6 +99,7 @@ export const useTreatmentOperations = ({
             // SPECIAL HANDLING: Rethrow specific errors so TreatmentModal can handle them.
             // 1. CONFIRM_OPEN_REQUIRED — TreatmentModal shows session tracking modal
             // 2. Stock validation errors — TreatmentModal shows "save without stock" option
+            // 3. CLINICAL_LINK_* — TreatmentModal shows localized plan item link error banner
             const isConfirmOpen = (
                 detail?.code === "CONFIRM_OPEN_REQUIRED" ||
                 envelope?.details?.code === "CONFIRM_OPEN_REQUIRED" ||
@@ -110,8 +109,12 @@ export const useTreatmentOperations = ({
                 (typeof detail === 'string' && (detail.includes('مخزون') || detail.includes('stock') || detail.includes('Insufficient'))) ||
                 (typeof msg === 'string' && (msg.includes('مخزون') || msg.includes('Insufficient')))
             );
+            const isClinicalLink = (
+                (typeof detail === 'string' && detail.startsWith('CLINICAL_LINK_')) ||
+                (typeof msg === 'string' && msg.includes('CLINICAL_LINK_'))
+            );
 
-            if (isConfirmOpen || isStockError) {
+            if (isConfirmOpen || isStockError || isClinicalLink) {
                 throw err; // Let TreatmentModal handle with specialized UI
             }
 
