@@ -40,6 +40,9 @@ from backend.clinical.catalog import (
     validate_target_kind,
     validate_tooth_lifecycle,
     validate_treatment_status,
+    LAB_REQUIRED_PROCEDURE_CODES,
+    is_lab_required_procedure,
+    map_lab_order_status,
 )
 from backend.clinical.legacy_mapping import (
     LEGACY_PROCEDURE_ALLOWLIST,
@@ -134,6 +137,9 @@ __all__ = [
     "validate_procedure_targets",
     "validate_treatment_status",
     "validate_tooth_lifecycle",
+    "LAB_REQUIRED_PROCEDURE_CODES",
+    "is_lab_required_procedure",
+    "map_lab_order_status",
     # Workflow templates
     "WorkflowStepDefinition",
     "WorkflowTemplateDefinition",

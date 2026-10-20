@@ -559,6 +559,11 @@ class ClinicalWorkspaceService:
                     recorded_at=wi.created_at,
                     temporal_certainty="EXACT",
                     is_renderer_supported=is_supported,
+                    lab_order_id=wi.lab_order_id,
+                    lab_status=wi.lab_status,
+                    lab_ready=wi.lab_ready,
+                    shade=wi.shade,
+                    material=wi.material,
                 )
                 work_item_summaries.append(summary)
 
@@ -732,6 +737,8 @@ class ClinicalWorkspaceService:
                 treatment_sessions=legacy_data.treatment_sessions,
                 lab_orders=legacy_data.lab_orders,
             )
+            lab_link_by_treatment_id = {ll.treatment_id: ll.lab_order_id for ll in batch.lab_links}
+            legacy_lab_orders_by_id = {getattr(lo, "id", None): lo for lo in legacy_data.lab_orders}
 
             for amb in list(batch.ambiguities) + list(batch.issues):
                 warnings.append(
@@ -906,6 +913,11 @@ class ClinicalWorkspaceService:
                             )
                         )
 
+                    linked_lab_id = lab_link_by_treatment_id.get(wi_draft.source_id)
+                    linked_lab = legacy_lab_orders_by_id.get(linked_lab_id) if linked_lab_id else None
+                    from backend.clinical.catalog import map_lab_order_status
+                    fallback_lab_status = map_lab_order_status(linked_lab.status) if linked_lab else None
+
                     work_item_summaries.append(
                         schemas.WorkspaceWorkItemSummary(
                             id=f"legacy-{wi_draft.source_id}",
@@ -917,6 +929,11 @@ class ClinicalWorkspaceService:
                             provenance="legacy_fallback",
                             temporal_certainty="EXACT" if wi_draft.diagnosis else "UNKNOWN",
                             is_renderer_supported=is_supported,
+                            lab_order_id=linked_lab.id if linked_lab else None,
+                            lab_status=fallback_lab_status,
+                            lab_ready=(fallback_lab_status == "lab_ready"),
+                            shade=linked_lab.shade if linked_lab else None,
+                            material=linked_lab.material if linked_lab else None,
                         )
                     )
 

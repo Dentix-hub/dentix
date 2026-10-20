@@ -248,6 +248,7 @@ export const createClinicalChartRendererAdapter = (input) => {
             readOnly: isReadOnly,
             notationMode: normalizedInput.notationMode,
             planOverlay: normalizedInput.visualState.planOverlay || null,
+            labStatusByTooth: normalizedInput.visualState.labStatusByTooth || null,
         }),
         intents: Object.freeze({
             toothSelected,

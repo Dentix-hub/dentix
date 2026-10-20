@@ -10,6 +10,7 @@ import {
     getAttachments,
     createPayment,
     deletePayment,
+    getPatientLabOrders,
     getPatientClinicalPlans,
     createPatientClinicalPlan,
     getPatientClinicalPlanCandidates,
@@ -95,6 +96,21 @@ export function usePatientTreatments(patientId, enabled = true) {
             return res.data || [];
         },
         enabled: !!patientId && enabled,
+        staleTime: 30 * 1000,
+    });
+}
+
+/**
+ * Hook for patient lab orders (G12-M11).
+ */
+export function usePatientLabOrders(patientId, enabled = true) {
+    return useQuery({
+        queryKey: ['patient', patientId, 'lab-orders'],
+        queryFn: async () => {
+            const res = await getPatientLabOrders(patientId);
+            return res.data || [];
+        },
+        enabled: Boolean(patientId && enabled),
         staleTime: 30 * 1000,
     });
 }

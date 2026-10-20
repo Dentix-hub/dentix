@@ -249,3 +249,16 @@ export function isLabReadyStep(stepCode) {
     return LAB_READY_STEP_CODES.includes(clean);
 }
 
+/**
+ * Standardize raw LabOrder.status into work item lab status per Decision D4 (G12-M10).
+ * - 'completed' -> 'lab_ready'
+ * - all other strings or falsy -> 'unmapped' (neutral)
+ */
+export function mapLabOrderStatus(status) {
+    if (!status) return 'unmapped';
+    const clean = String(status).trim().toLowerCase();
+    if (clean === 'completed') return 'lab_ready';
+    return 'unmapped';
+}
+
+

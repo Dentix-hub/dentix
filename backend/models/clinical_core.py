@@ -143,7 +143,53 @@ class ClinicalWorkItem(Base):
     observations = relationship("CareObservation", back_populates="work_item")
     next_visit_requests = relationship("NextVisitRequest", back_populates="work_item")
     attachment_links = relationship("ClinicalAttachmentLink", back_populates="work_item")
-    lab_orders = relationship("LabOrder", back_populates="work_item")
+    lab_orders = relationship("LabOrder", back_populates="work_item", lazy="selectin")
+
+    @property
+    def latest_active_lab_order(self):
+        """Return latest active linked lab order (G12-M11)."""
+        from sqlalchemy import inspect
+        from sqlalchemy.orm.base import NO_VALUE
+        try:
+            state = inspect(self)
+            if state is None or "lab_orders" not in state.dict:
+                return None
+            orders = state.dict["lab_orders"]
+            if orders is NO_VALUE or not orders:
+                return None
+            active = [lo for lo in orders if (getattr(lo, "status", None) or "").lower() != "cancelled"]
+            if active:
+                return max(active, key=lambda lo: lo.id if lo.id is not None else 0)
+            return max(orders, key=lambda lo: lo.id if lo.id is not None else 0)
+        except Exception:
+            return None
+
+    @property
+    def lab_order_id(self) -> Optional[int]:
+        lo = self.latest_active_lab_order
+        return lo.id if lo else None
+
+    @property
+    def lab_status(self) -> Optional[str]:
+        lo = self.latest_active_lab_order
+        if not lo:
+            return None
+        from backend.clinical.catalog import map_lab_order_status
+        return map_lab_order_status(lo.status)
+
+    @property
+    def lab_ready(self) -> bool:
+        return self.lab_status == "lab_ready"
+
+    @property
+    def shade(self) -> Optional[str]:
+        lo = self.latest_active_lab_order
+        return lo.shade if lo else None
+
+    @property
+    def material(self) -> Optional[str]:
+        lo = self.latest_active_lab_order
+        return lo.material if lo else None
 
 
 class ClinicalWorkItemTarget(Base):

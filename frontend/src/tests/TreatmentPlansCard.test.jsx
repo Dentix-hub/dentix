@@ -91,6 +91,11 @@ vi.mock('@/hooks/usePatientDetails', () => ({
         isLoading: false,
         refetch: vi.fn(),
     }),
+    usePatientLabOrders: () => ({
+        data: [],
+        isLoading: false,
+        refetch: vi.fn(),
+    }),
     useCreatePayment: () => ({ mutate: vi.fn() }),
     useDeletePayment: () => ({ mutate: vi.fn() }),
     usePatientClinicalPlans: (...args) => mockUsePatientClinicalPlans(...args),
