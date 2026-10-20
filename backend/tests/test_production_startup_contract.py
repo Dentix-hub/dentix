@@ -137,3 +137,69 @@ def test_alembic_env_resolves_migration_and_owner_urls_when_unset(monkeypatch):
     assert cfg.get_main_option("sqlalchemy.url") == "postgresql://migration@db/prod"
 
 
+def test_same_database_target_matches_host_and_database():
+    from backend.scripts.preflight_migrations import _same_database_target
+
+    assert _same_database_target(
+        "postgresql://dentix_app:pass@aws-1-eu-west-3.pooler.supabase.com:6543/postgres",
+        "postgresql://postgres:pass@aws-1-eu-west-3.pooler.supabase.com:5432/postgres",
+    )
+    assert not _same_database_target(
+        "postgresql://postgres:postgres@127.0.0.1:5432/dentix_contract_123",
+        "postgresql://dentix_ci_system:pass@127.0.0.1:5432/dentix_test",
+    )
+
+
+def test_preflight_database_url_falls_back_to_system_url_when_it_owns_tables(monkeypatch):
+    import backend.scripts.preflight_migrations as preflight
+
+    app_url = "postgresql://dentix_app:pass@pooler.supabase.com:6543/postgres"
+    sys_url = "postgresql://postgres:pass@pooler.supabase.com:6543/postgres"
+
+    monkeypatch.delenv("MIGRATION_DATABASE_URL", raising=False)
+    monkeypatch.delenv("OWNER_DATABASE_URL", raising=False)
+    monkeypatch.delenv("BACKUP_SOURCE_DATABASE_URL", raising=False)
+    monkeypatch.delenv("DENTIX_MIGRATION_SET_ROLE", raising=False)
+    monkeypatch.setenv("DATABASE_URL", app_url)
+    monkeypatch.setenv("SYSTEM_DATABASE_URL", sys_url)
+
+    def fake_probe(url: str):
+        if url == app_url:
+            return {
+                "current_user": "dentix_app",
+                "session_user": "dentix_app",
+                "tables": {
+                    "treatment_material_usages": {
+                        "owner": "postgres",
+                        "has_usage": False,
+                        "is_member": False,
+                    }
+                },
+                "usage_count": 0,
+                "member_count": 0,
+                "total_probed": 1,
+                "set_role_target": None,
+            }
+        if url == sys_url:
+            return {
+                "current_user": "postgres",
+                "session_user": "postgres",
+                "tables": {
+                    "treatment_material_usages": {
+                        "owner": "postgres",
+                        "has_usage": True,
+                        "is_member": True,
+                    }
+                },
+                "usage_count": 1,
+                "member_count": 1,
+                "total_probed": 1,
+                "set_role_target": None,
+            }
+        return None
+
+    monkeypatch.setattr(preflight, "_probe_postgresql_candidate", fake_probe)
+    assert preflight._database_url() == sys_url
+
+
+
