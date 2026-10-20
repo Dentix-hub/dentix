@@ -44,6 +44,9 @@ vi.mock('@/hooks/useAppointments', () => ({
     }),
     useUpdateAppointmentStatus: () => ({ mutateAsync: vi.fn(), isPending: false }),
     useUpdateAppointment: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useNextVisitRequests: () => ({ data: [], isLoading: false, refetch: vi.fn() }),
+    useScheduleNextVisitRequest: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useCancelNextVisitRequest: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 vi.mock('@/hooks/usePatients', () => ({

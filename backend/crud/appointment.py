@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 from sqlalchemy.orm import joinedload
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -136,6 +137,55 @@ async def update_appointment_status(
         return None
 
     db_appt.status = status
+
+    # Synchronize linked NextVisitRequest safety lifecycle (G11-M09, G11-M10)
+    normalized_status = status.strip().lower()
+    token = f"[APPOINTMENT:{appointment_id}]"
+    stmt_nvr = select(models.NextVisitRequest).where(
+        models.NextVisitRequest.tenant_id == tenant_id,
+        models.NextVisitRequest.notes.contains(token),
+    )
+    nvrs = (await db.execute(stmt_nvr)).scalars().all()
+    now = datetime.now(timezone.utc)
+    for nvr in nvrs:
+        if normalized_status in ("cancelled", "canceled", "no show", "postponed"):
+            if nvr.status == "scheduled":
+                nvr.status = "requested"
+                event = models.ClinicalEvent(
+                    tenant_id=tenant_id,
+                    patient_id=nvr.patient_id,
+                    care_session_id=nvr.care_session_id,
+                    work_item_id=nvr.work_item_id,
+                    event_type="next_visit_request_reopened",
+                    occurred_at=now,
+                    payload={
+                        "request_id": nvr.id,
+                        "appointment_id": appointment_id,
+                        "status": "requested",
+                        "reason": f"appointment_{normalized_status}",
+                    },
+                    notes=f"Re-opened due to appointment #{appointment_id} status '{status}'",
+                )
+                db.add(event)
+        elif normalized_status == "completed":
+            if nvr.status == "scheduled":
+                nvr.status = "completed"
+                event = models.ClinicalEvent(
+                    tenant_id=tenant_id,
+                    patient_id=nvr.patient_id,
+                    care_session_id=nvr.care_session_id,
+                    work_item_id=nvr.work_item_id,
+                    event_type="next_visit_request_completed",
+                    occurred_at=now,
+                    payload={
+                        "request_id": nvr.id,
+                        "appointment_id": appointment_id,
+                        "status": "completed",
+                    },
+                    notes=f"Completed via appointment #{appointment_id}",
+                )
+                db.add(event)
+
     await db.commit()
     await db.refresh(db_appt)
     invalidate_dashboard_cache(tenant_id)
@@ -147,8 +197,6 @@ async def update_appointment_status(
 
 async def delete_appointment(db: AsyncSession, appointment_id: int, tenant_id: int):
     """Soft Delete Appointment."""
-    from datetime import datetime, timezone
-
     stmt = (
         select(models.Appointment)
         .join(models.Patient)
@@ -163,8 +211,36 @@ async def delete_appointment(db: AsyncSession, appointment_id: int, tenant_id: i
     if not db_appt or not db_appt.patient or db_appt.patient.tenant_id != tenant_id:
         return None
 
+    now = datetime.now(timezone.utc)
     db_appt.is_deleted = True
-    db_appt.deleted_at = datetime.now(timezone.utc)
+    db_appt.deleted_at = now
+
+    # Reopen linked NextVisitRequest safety lifecycle (G11-M09)
+    token = f"[APPOINTMENT:{appointment_id}]"
+    stmt_nvr = select(models.NextVisitRequest).where(
+        models.NextVisitRequest.tenant_id == tenant_id,
+        models.NextVisitRequest.notes.contains(token),
+    )
+    nvrs = (await db.execute(stmt_nvr)).scalars().all()
+    for nvr in nvrs:
+        if nvr.status == "scheduled":
+            nvr.status = "requested"
+            event = models.ClinicalEvent(
+                tenant_id=tenant_id,
+                patient_id=nvr.patient_id,
+                care_session_id=nvr.care_session_id,
+                work_item_id=nvr.work_item_id,
+                event_type="next_visit_request_reopened",
+                occurred_at=now,
+                payload={
+                    "request_id": nvr.id,
+                    "appointment_id": appointment_id,
+                    "status": "requested",
+                    "reason": "appointment_deleted",
+                },
+                notes=f"Re-opened due to deleted appointment #{appointment_id}",
+            )
+            db.add(event)
     await db.commit()
     await db.refresh(db_appt)
     invalidate_dashboard_cache(tenant_id)

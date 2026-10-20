@@ -32,7 +32,15 @@ import {
     StickyNote
 } from 'lucide-react';
 import { createAppointment, deleteAppointment, updateAppointmentStatus } from '@/api';
-import { useAppointments, useUpdateAppointmentStatus, useUpdateAppointment } from '@/hooks/useAppointments';
+import {
+    useAppointments,
+    useUpdateAppointmentStatus,
+    useUpdateAppointment,
+    useNextVisitRequests,
+    useScheduleNextVisitRequest,
+    useCancelNextVisitRequest
+} from '@/hooks/useAppointments';
+import NextVisitQueue from '@/features/appointments/components/NextVisitQueue';
 import { usePatients, useCreatePatient } from '@/hooks/usePatients';
 import { getTodayDateTimeStr } from '@/utils/toothUtils';
 import { getDateInTimeZone, selectAppointmentsForBusinessDate } from '@/utils/dateTime';
@@ -81,11 +89,13 @@ export default function Appointments() {
     const [viewMode, setViewMode] = useState(getInitialViewMode);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null });
+    const [activeRequestId, setActiveRequestId] = useState(null);
     const [newAppt, setNewAppt] = useState({
         patient_id: '',
         date_time: getTodayDateTimeStr(),
         notes: '',
-        doctor_id: user?.role === 'doctor' ? user.id : ''
+        doctor_id: user?.role === 'doctor' ? user.id : '',
+        duration_minutes: 30
     });
     const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
     const [quickPatient, setQuickPatient] = useState({ name: '', phone: '' });
@@ -114,9 +124,41 @@ export default function Appointments() {
 
     const { data: appointments = [], isLoading: apptsLoading, refetch: refetchAppointments } = useAppointments();
     const { data: patients = [], isLoading: patientsLoading, refetch: refetchPatients } = usePatients();
+    const { data: nextVisitRequests = [], isLoading: nvrLoading } = useNextVisitRequests({ status: 'all' });
     const updateMutation = useUpdateAppointment();
     const createPatientMutation = useCreatePatient();
+    const scheduleRequestMutation = useScheduleNextVisitRequest();
+    const cancelRequestMutation = useCancelNextVisitRequest();
     const loading = apptsLoading || patientsLoading;
+
+    const handleScheduleRequest = useCallback((request) => {
+        setActiveRequestId(request.id);
+        const preferredDate = request.preferred_time_window_start
+            ? new Date(request.preferred_time_window_start).toISOString().substring(0, 16)
+            : getTodayDateTimeStr();
+
+        setNewAppt({
+            patient_id: request.patient_id.toString(),
+            date_time: preferredDate,
+            notes: request.reason || '',
+            doctor_id: user?.role === 'doctor' ? user.id : '',
+            duration_minutes: request.suggested_duration_minutes || 30
+        });
+        setIsModalOpen(true);
+    }, [user]);
+
+    const handleDismissRequest = useCallback(async (request) => {
+        const toastId = toast.loading(t('common.processing', 'Processing...'));
+        try {
+            await cancelRequestMutation.mutateAsync({
+                requestId: request.id,
+                data: { reason: 'Dismissed from reception triage' }
+            });
+            toast.success(t('appointments.request_dismissed', 'Next-visit request dismissed'), { id: toastId });
+        } catch {
+            toast.error(t('common.error_occurred', 'Failed to dismiss request'), { id: toastId });
+        }
+    }, [cancelRequestMutation, t]);
 
     const handleCreate = useCallback(async () => {
         if (!newAppt.patient_id || !newAppt.date_time) {
@@ -125,26 +167,41 @@ export default function Appointments() {
         }
         const toastId = toast.loading(t('appointments.messages.booking'));
         try {
-            const payload = {
-                ...newAppt,
-                patient_id: parseInt(newAppt.patient_id, 10),
-                doctor_id: newAppt.doctor_id ? parseInt(newAppt.doctor_id, 10) : null,
-                price_list_id: newAppt.price_list_id ? parseInt(newAppt.price_list_id, 10) : null
-            };
-            await createAppointment(payload);
+            if (activeRequestId) {
+                await scheduleRequestMutation.mutateAsync({
+                    requestId: activeRequestId,
+                    data: {
+                        date_time: newAppt.date_time,
+                        doctor_id: newAppt.doctor_id ? parseInt(newAppt.doctor_id, 10) : null,
+                        duration_minutes: newAppt.duration_minutes || 30,
+                        price_list_id: newAppt.price_list_id ? parseInt(newAppt.price_list_id, 10) : null,
+                        notes: newAppt.notes,
+                    }
+                });
+            } else {
+                const payload = {
+                    ...newAppt,
+                    patient_id: parseInt(newAppt.patient_id, 10),
+                    doctor_id: newAppt.doctor_id ? parseInt(newAppt.doctor_id, 10) : null,
+                    price_list_id: newAppt.price_list_id ? parseInt(newAppt.price_list_id, 10) : null
+                };
+                await createAppointment(payload);
+            }
             setIsModalOpen(false);
+            setActiveRequestId(null);
             setNewAppt({
                 patient_id: '',
                 date_time: getTodayDateTimeStr(),
                 notes: '',
-                doctor_id: user?.role === 'doctor' ? user.id : ''
+                doctor_id: user?.role === 'doctor' ? user.id : '',
+                duration_minutes: 30
             });
             refetchAppointments();
             toast.success(t('appointments.messages.booking_success'), { id: toastId });
         } catch {
             toast.error(t('appointments.messages.booking_error'), { id: toastId });
         }
-    }, [newAppt, refetchAppointments, t, user]);
+    }, [activeRequestId, newAppt, refetchAppointments, scheduleRequestMutation, t, user]);
 
     const handleEventDrop = async (id, newDateTime) => {
         const toastId = toast.loading(t('appointments.messages.updating'));
@@ -329,6 +386,13 @@ export default function Appointments() {
                 ))}
             </div>
 
+            <NextVisitQueue
+                requests={nextVisitRequests}
+                isLoading={nvrLoading}
+                onSchedule={handleScheduleRequest}
+                onDismiss={handleDismissRequest}
+            />
+
             {loading ? (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
                     <SkeletonBox className="h-72 w-full rounded-3xl md:h-96" />
@@ -421,8 +485,9 @@ export default function Appointments() {
                 onClose={() => {
                     setIsModalOpen(false);
                     setIsQuickAddOpen(false);
+                    setActiveRequestId(null);
                 }}
-                title={t('appointments.form.title')}
+                title={activeRequestId ? (i18n.language === 'ar' ? 'تأكيد حجز موعد المتابعة' : 'Schedule Next-Visit Follow-up') : t('appointments.form.title')}
                 size="md"
             >
                 <div className="min-w-0 space-y-4">

@@ -17,7 +17,7 @@ Enforces:
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from fastapi import HTTPException
 from sqlalchemy import func, inspect, select, text
 from sqlalchemy.exc import IntegrityError
@@ -1579,4 +1579,221 @@ class CareSessionService:
         req = (await self.db.execute(stmt)).scalar_one_or_none()
         if not req:
             raise HTTPException(status_code=404, detail="Next visit request not found")
+        return req
+
+    async def list_reception_queue(
+        self,
+        status: Optional[str] = "requested",
+        patient_id: Optional[int] = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> List[models.NextVisitRequest]:
+        """
+        List next-visit requests for the reception triage queue (G11-M04).
+        Scoped by tenant, ordered by preferred window or creation time.
+        """
+        await self.ensure_native_writes_enabled()
+
+        stmt = (
+            select(models.NextVisitRequest)
+            .options(
+                selectinload(models.NextVisitRequest.patient),
+                selectinload(models.NextVisitRequest.care_session),
+                selectinload(models.NextVisitRequest.work_item),
+            )
+            .where(models.NextVisitRequest.tenant_id == self.tenant_id)
+        )
+        if status and status.lower() != "all":
+            stmt = stmt.where(models.NextVisitRequest.status == status)
+        if patient_id is not None:
+            stmt = stmt.where(models.NextVisitRequest.patient_id == patient_id)
+
+        stmt = (
+            stmt.order_by(
+                models.NextVisitRequest.preferred_time_window_start.asc().nullslast(),
+                models.NextVisitRequest.created_at.desc(),
+                models.NextVisitRequest.id.desc(),
+            )
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        requests = list(result.scalars().all())
+        for r in requests:
+            if r.patient:
+                setattr(r, "patient_name", r.patient.name)
+                setattr(r, "patient_phone", r.patient.phone)
+        return requests
+
+    async def schedule_next_visit_request(
+        self,
+        request_id: int,
+        data: schemas.NextVisitRequestSchedule,
+    ) -> Tuple[models.NextVisitRequest, models.Appointment]:
+        """
+        Convert a chairside next-visit request into a confirmed appointment (G11-M05).
+        Enforces G11-M08: never auto-books an appointment without confirmed receptionist action.
+        Guards against concurrency races (G11-M12): raises 409 if already scheduled/resolved.
+        """
+        await self.ensure_native_writes_enabled()
+
+        stmt = (
+            select(models.NextVisitRequest)
+            .options(selectinload(models.NextVisitRequest.patient))
+            .where(
+                models.NextVisitRequest.id == request_id,
+                models.NextVisitRequest.tenant_id == self.tenant_id,
+            )
+        )
+        if self.db.bind and self.db.bind.dialect.name == "postgresql":
+            stmt = stmt.with_for_update()
+
+        result = await self.db.execute(stmt)
+        req = result.scalar_one_or_none()
+        if not req:
+            raise HTTPException(status_code=404, detail="Next-visit request not found")
+
+        await self._verify_patient(req.patient_id)
+
+        if req.status != "requested":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot schedule next-visit request with status '{req.status}'. Only 'requested' items can be scheduled.",
+            )
+
+        duration = data.duration_minutes or req.suggested_duration_minutes or 30
+        appt_notes = data.notes.strip() if data.notes and data.notes.strip() else req.reason
+
+        appointment = models.Appointment(
+            tenant_id=self.tenant_id,
+            patient_id=req.patient_id,
+            doctor_id=data.doctor_id,
+            price_list_id=data.price_list_id,
+            date_time=data.date_time,
+            duration_minutes=duration,
+            status="Scheduled",
+            notes=appt_notes,
+        )
+        self.db.add(appointment)
+        await self.db.flush()
+
+        req.status = "scheduled"
+        token = f"[APPOINTMENT:{appointment.id}]"
+        if req.notes:
+            if token not in req.notes:
+                req.notes = f"{req.notes} {token}"
+        else:
+            req.notes = token
+
+        user = await self._get_active_current_user()
+        now = datetime.now(timezone.utc)
+        event = models.ClinicalEvent(
+            tenant_id=self.tenant_id,
+            patient_id=req.patient_id,
+            care_session_id=req.care_session_id,
+            work_item_id=req.work_item_id,
+            event_type="next_visit_request_scheduled",
+            occurred_at=now,
+            actor_user_id=user.id if user else None,
+            payload={
+                "request_id": req.id,
+                "appointment_id": appointment.id,
+                "date_time": appointment.date_time.isoformat() if appointment.date_time else None,
+                "doctor_id": appointment.doctor_id,
+                "duration_minutes": duration,
+                "status": "scheduled",
+            },
+            notes=f"Converted to Appointment #{appointment.id}",
+        )
+        self.db.add(event)
+
+        try:
+            await self.db.commit()
+            await self.db.refresh(req)
+            await self.db.refresh(appointment)
+        except (IntegrityError, StaleDataError) as exc:
+            await self.db.rollback()
+            await self._get_active_current_user()
+            raise HTTPException(
+                status_code=409,
+                detail="Concurrent conflict while scheduling next-visit request",
+            ) from exc
+
+        if req.patient:
+            setattr(req, "patient_name", req.patient.name)
+            setattr(req, "patient_phone", req.patient.phone)
+        setattr(req, "fulfilled_appointment_id", appointment.id)
+        return req, appointment
+
+    async def cancel_next_visit_request(
+        self,
+        request_id: int,
+        reason: Optional[str] = None,
+    ) -> models.NextVisitRequest:
+        """
+        Cancel a pending next-visit request (e.g. patient declines follow-up).
+        """
+        await self.ensure_native_writes_enabled()
+
+        stmt = (
+            select(models.NextVisitRequest)
+            .options(selectinload(models.NextVisitRequest.patient))
+            .where(
+                models.NextVisitRequest.id == request_id,
+                models.NextVisitRequest.tenant_id == self.tenant_id,
+            )
+        )
+        result = await self.db.execute(stmt)
+        req = result.scalar_one_or_none()
+        if not req:
+            raise HTTPException(status_code=404, detail="Next-visit request not found")
+
+        await self._verify_patient(req.patient_id)
+
+        if req.status == "completed":
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot cancel an already completed next-visit request",
+            )
+
+        req.status = "cancelled"
+        cancel_note = f"Cancelled: {reason.strip()}" if reason and reason.strip() else "Cancelled by front-desk"
+        if req.notes:
+            req.notes = f"{req.notes} ({cancel_note})"
+        else:
+            req.notes = cancel_note
+
+        user = await self._get_active_current_user()
+        now = datetime.now(timezone.utc)
+        event = models.ClinicalEvent(
+            tenant_id=self.tenant_id,
+            patient_id=req.patient_id,
+            care_session_id=req.care_session_id,
+            work_item_id=req.work_item_id,
+            event_type="next_visit_request_cancelled",
+            occurred_at=now,
+            actor_user_id=user.id if user else None,
+            payload={
+                "request_id": req.id,
+                "status": "cancelled",
+                "reason": reason,
+            },
+            notes=cancel_note,
+        )
+        self.db.add(event)
+
+        try:
+            await self.db.commit()
+            await self.db.refresh(req)
+        except (IntegrityError, StaleDataError) as exc:
+            await self.db.rollback()
+            await self._get_active_current_user()
+            raise HTTPException(
+                status_code=409,
+                detail="Concurrent conflict while cancelling next-visit request",
+            ) from exc
+
+        if req.patient:
+            setattr(req, "patient_name", req.patient.name)
+            setattr(req, "patient_phone", req.patient.phone)
         return req

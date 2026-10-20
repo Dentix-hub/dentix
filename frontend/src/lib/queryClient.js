@@ -41,6 +41,7 @@ export const queryKeys = {
     todayPayments: ['dashboard', 'todayPayments'],
     todayDebtors: ['dashboard', 'todayDebtors'],
     appointments: ['appointments'],
+    nextVisitRequests: (filters = {}) => ['next-visit-requests', filters],
     financialStats: ['financial', 'stats'],
     allPayments: ['payments'],
     expenses: ['expenses'],
