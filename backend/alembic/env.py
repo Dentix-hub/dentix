@@ -38,17 +38,23 @@ if config.config_file_name is not None:
 
 # Set database URL:
 # 1. Preserve the database URL if already configured on the Alembic Config object
-#    (e.g., set by preflight_migrations using MIGRATION_DATABASE_URL / OWNER_DATABASE_URL).
-# 2. Otherwise fall back to environment variables in order:
-#    MIGRATION_DATABASE_URL -> OWNER_DATABASE_URL -> DATABASE_URL.
+#    (e.g., set by preflight_migrations using MIGRATION_DATABASE_URL / OWNER_DATABASE_URL
+#    or PostgreSQL ownership probing across SYSTEM_DATABASE_URL / DATABASE_URL).
+# 2. Otherwise delegate to preflight_migrations._database_url() (with fallback to
+#    MIGRATION_DATABASE_URL -> OWNER_DATABASE_URL -> DATABASE_URL).
 configured_url = config.get_main_option("sqlalchemy.url")
 placeholder_urls = {"", "driver://user:pass@localhost/dbname"}
 if not configured_url or configured_url in placeholder_urls:
-    raw_url = (
-        os.getenv("MIGRATION_DATABASE_URL")
-        or os.getenv("OWNER_DATABASE_URL")
-        or os.getenv("DATABASE_URL")
-    )
+    try:
+        from backend.scripts.preflight_migrations import _database_url as _resolve_migration_url
+
+        raw_url = _resolve_migration_url()
+    except Exception:
+        raw_url = (
+            os.getenv("MIGRATION_DATABASE_URL")
+            or os.getenv("OWNER_DATABASE_URL")
+            or os.getenv("DATABASE_URL")
+        )
     if raw_url:
         raw_url = raw_url.strip().strip("'").strip('"')
         if raw_url.startswith("postgres://"):
@@ -103,6 +109,10 @@ def run_migrations_online() -> None:
         context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
+            migration_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+            if migration_role and connection.dialect.name == "postgresql":
+                escaped_role = migration_role.replace('"', '""')
+                context.execute(f'SET LOCAL ROLE "{escaped_role}"')
             context.run_migrations()
 
 
