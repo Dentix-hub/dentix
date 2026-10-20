@@ -143,6 +143,7 @@ class ClinicalWorkItem(Base):
     observations = relationship("CareObservation", back_populates="work_item")
     next_visit_requests = relationship("NextVisitRequest", back_populates="work_item")
     attachment_links = relationship("ClinicalAttachmentLink", back_populates="work_item")
+    lab_orders = relationship("LabOrder", back_populates="work_item")
 
 
 class ClinicalWorkItemTarget(Base):

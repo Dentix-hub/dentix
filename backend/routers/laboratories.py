@@ -257,6 +257,19 @@ async def create_lab_order(
     if not lab:
         raise HTTPException(status_code=404, detail="Laboratory not found")
 
+    if order.work_item_id is not None:
+        work_item = (
+            await db.execute(
+                select(models.ClinicalWorkItem).where(
+                    models.ClinicalWorkItem.id == order.work_item_id,
+                    models.ClinicalWorkItem.tenant_id == current_user.tenant_id,
+                    models.ClinicalWorkItem.patient_id == order.patient_id,
+                )
+            )
+        ).scalars().first()
+        if not work_item:
+            raise HTTPException(status_code=404, detail="Clinical work item not found")
+
     provider_id = await _resolve_lab_provider_id(db, current_user, patient)
     db_order = models.LabOrder(
         **order.model_dump(),
@@ -429,6 +442,19 @@ async def update_lab_order(
         ).scalars().first()
         if not target_lab:
             raise HTTPException(status_code=404, detail="Laboratory not found")
+
+    if update_data.get("work_item_id") is not None:
+        work_item = (
+            await db.execute(
+                select(models.ClinicalWorkItem).where(
+                    models.ClinicalWorkItem.id == update_data["work_item_id"],
+                    models.ClinicalWorkItem.tenant_id == current_user.tenant_id,
+                    models.ClinicalWorkItem.patient_id == order.patient_id,
+                )
+            )
+        ).scalars().first()
+        if not work_item:
+            raise HTTPException(status_code=404, detail="Clinical work item not found")
 
     if update_data.get("status") == "completed" and order.status != "completed":
         update_data["received_date"] = utc_now_naive()

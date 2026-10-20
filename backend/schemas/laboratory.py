@@ -45,6 +45,7 @@ class Laboratory(LaboratoryBase):
 class LabOrderBase(BaseModel):
     patient_id: Optional[int] = None
     laboratory_id: Optional[int] = None
+    work_item_id: Optional[int] = None
     work_type: str
     tooth_number: Optional[str] = None
     shade: Optional[str] = None
@@ -62,6 +63,7 @@ class LabOrderCreate(LabOrderBase):
 
 class LabOrderUpdate(BaseModel):
     laboratory_id: Optional[int] = None
+    work_item_id: Optional[int] = None
     work_type: Optional[str] = None
     tooth_number: Optional[str] = None
     shade: Optional[str] = None

@@ -328,6 +328,7 @@ class LabOrder(Base):
     __table_args__ = (
         Index("idx_laborder_doctor_date", "doctor_id", "order_date"),
         Index("idx_laborder_tenant_date", "tenant_id", "order_date"),
+        Index("ix_lab_orders_tenant_work_item", "tenant_id", "work_item_id"),
         CheckConstraint("cost >= 0", name="ck_lab_orders_cost_nonnegative"),
         CheckConstraint(
             "price_to_patient >= 0", name="ck_lab_orders_patient_price_nonnegative"
@@ -345,6 +346,12 @@ class LabOrder(Base):
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
     laboratory_id = Column(Integer, ForeignKey("laboratories.id"), index=True)
+    work_item_id = Column(
+        Integer,
+        ForeignKey("clinical_work_items.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     work_type = Column(String)
     tooth_number = Column(String, nullable=True)
     shade = Column(String, nullable=True)
@@ -367,6 +374,7 @@ class LabOrder(Base):
     patient = relationship("Patient", back_populates="lab_orders")
     laboratory = relationship("Laboratory", back_populates="lab_orders")
     doctor = relationship("User", back_populates="lab_orders")
+    work_item = relationship("ClinicalWorkItem", back_populates="lab_orders")
 
 
 class Procedure(Base):
