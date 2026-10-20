@@ -165,6 +165,9 @@ CHILD_TENANT_RELATIONSHIPS = (
     ("clinical_attachment_links", "clinical_event_id", "clinical_events", True),
     # Clinical Projection Coverage
     ("clinical_projection_coverages", "patient_id", "patients", False),
+    # Phase G13 / S26: Inventory Usage Care Session & Work Item Links
+    ("treatment_material_usages", "care_session_id", "care_sessions", True),
+    ("treatment_material_usages", "work_item_id", "clinical_work_items", True),
 )
 
 CLINICAL_G1_DIRECT_PARENT_PATIENT_RELATIONSHIPS = (

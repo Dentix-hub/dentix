@@ -430,6 +430,7 @@ class CareSession(Base):
     events = relationship("ClinicalEvent", back_populates="care_session")
     next_visit_requests = relationship("NextVisitRequest", back_populates="care_session")
     attachment_links = relationship("ClinicalAttachmentLink", back_populates="care_session")
+    material_usages = relationship("TreatmentMaterialUsage", back_populates="care_session")
 
 
 class CareSessionStep(Base):
