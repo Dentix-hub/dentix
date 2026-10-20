@@ -1,5 +1,5 @@
-import { useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useCallback, useContext } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
 import { invalidatePatientClinicalQueries } from '../utils/invalidatePatientClinicalQueries';
 import { toast } from '@/shared/ui';
 import { fdiToPalmer, getTodayStr } from '@/utils/toothUtils';
@@ -31,7 +31,7 @@ export function usePatientRecordActions({
     setNewTreatment,
     getInitialTreatment,
 }) {
-    const queryClient = useQueryClient();
+    const queryClient = useContext(QueryClientContext);
 
     const handleFileUpload = useCallback(async (event) => {
         const file = event.target.files[0];

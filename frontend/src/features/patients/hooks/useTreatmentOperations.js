@@ -1,5 +1,5 @@
-import { useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useCallback, useContext } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
 import { invalidatePatientClinicalQueries } from '../utils/invalidatePatientClinicalQueries';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
@@ -18,7 +18,7 @@ export const useTreatmentOperations = ({
     selectedToothCondition
 }) => {
     const { t } = useTranslation();
-    const queryClient = useQueryClient();
+    const queryClient = useContext(QueryClientContext);
 
     const handleSaveTreatment = useCallback(async (data) => {
         try {

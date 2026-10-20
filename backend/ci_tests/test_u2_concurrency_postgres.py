@@ -65,7 +65,24 @@ async def _seed() -> None:
                 db.add(patient)
                 await db.flush()
 
-            # Ensure shadow feature flag is enabled for tenant
+            # Ensure shadow feature flag exists and is enabled for tenant
+            stmt_flag = select(models.FeatureFlag).where(
+                models.FeatureFlag.key == "clinical_vnext_shadow"
+            )
+            flag = (await db.execute(stmt_flag)).scalar_one_or_none()
+            if not flag:
+                flag = models.FeatureFlag(
+                    key="clinical_vnext_shadow",
+                    description="Clinical vNext Shadow Mode",
+                    is_global_enabled=True,
+                    rollout_percentage=100,
+                )
+                db.add(flag)
+                await db.flush()
+            else:
+                flag.is_global_enabled = True
+                flag.rollout_percentage = 100
+
             await FeatureFlagService.set_tenant_override(
                 db, TENANT_U2, "clinical_vnext_shadow", True
             )
@@ -120,9 +137,8 @@ async def test_u2_postgres_concurrent_treatment_link():
             surface_code="O",
         )
         session.add(target)
-        await session.commit()
-        await session.refresh(wi)
         work_item_id = wi.id
+        await session.commit()
 
         wi_count_before = (
             await session.execute(

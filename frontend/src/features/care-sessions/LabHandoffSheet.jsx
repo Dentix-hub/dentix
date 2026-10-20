@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect, useContext } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
 import PropTypes from 'prop-types';
 import { invalidatePatientClinicalQueries } from '@/features/patients/utils/invalidatePatientClinicalQueries';
 import {
@@ -35,7 +35,7 @@ export default function LabHandoffSheet({
     onSuccess = null,
     t = (k, f) => f || k,
 }) {
-    const queryClient = useQueryClient();
+    const queryClient = useContext(QueryClientContext);
     const [laboratories, setLaboratories] = useState([]);
     const [loadingLabs, setLoadingLabs] = useState(false);
     const [selectedLabId, setSelectedLabId] = useState('');
