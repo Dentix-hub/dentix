@@ -19,6 +19,7 @@ export default function ChairsideSelectionBar({
     setActiveStickyTool,
     setStickyAppliedCount,
     procedures,
+    proceduresLoading = false,
     i18n,
     t,
     adaptedChart,
@@ -168,6 +169,7 @@ export default function ChairsideSelectionBar({
                     setStickyAppliedCount(0);
                 }}
                 clinicProcedures={procedures}
+                isLoading={proceduresLoading}
                 onClose={handleClearSelection}
             />
 

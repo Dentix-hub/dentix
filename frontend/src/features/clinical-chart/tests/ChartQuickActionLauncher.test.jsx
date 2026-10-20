@@ -8,19 +8,16 @@ import {
     isAnteriorTooth,
     isPosteriorTooth,
 } from '../domain/catalogDefinitions';
-
-vi.mock('react-i18next', () => ({
-    useTranslation: () => ({
-        t: (key, fallback) => (typeof fallback === 'string' ? fallback : key),
-        i18n: { language: 'en' },
-    }),
-}));
-
 import { useAuthStore } from '@/store/auth.store';
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
-        t: (key, fallback) => (typeof fallback === 'string' ? fallback : key),
+        t: (key, fallback, options) => {
+            if (options && options.count !== undefined && typeof fallback === 'string') {
+                return fallback.replace('{{count}}', options.count);
+            }
+            return typeof fallback === 'string' ? fallback : key;
+        },
         i18n: { language: 'en' },
     }),
 }));
@@ -110,57 +107,91 @@ describe('G8-M11: Smart Defaults driven by allowed_target_kinds', () => {
     });
 });
 
-describe('G8-M02, G8-M08, G8-M09, G8-M10: ChartQuickActionLauncher UI & Interactions', () => {
+describe('U1 & G8: ChartQuickActionLauncher Real Clinic Catalog & Pricing', () => {
+    const mockClinicProcedures = [
+        { id: 1, name: 'حشو كومبوزيت -- Composite Filling Class I', canonical_code: 'REST_COMPOSITE', price: 600 },
+        { id: 2, name: 'حشو عصب – Root Canal Treatment', canonical_code: 'ENDO_RCT', price: 1500 },
+        { id: 3, name: 'تاج بورسلين – Porcelain Crown', canonical_code: 'PROS_CROWN', price: 2000 },
+        { id: 4, name: 'خلع عادي – Simple Extraction', canonical_code: 'SURG_EXTRACTION', price: 300 },
+        { id: 5, name: 'طقم مرن – Flexible Denture', canonical_code: 'PROS_DENTURE', price: 0 },
+        { id: 6, name: 'Custom Whitening Procedure', canonical_code: null, price: 800 },
+    ];
+
     beforeEach(() => {
         localStorage.clear();
         useAuthStore.setState({ user: { id: 42, tenant_id: 101, role: 'doctor' } });
     });
 
-    it('renders default favorites and active tooth badge when a tooth is selected', () => {
-        render(
+    it('1. renders real clinic procedures with real prices; seeded price=0 has no price label; no EGP or invented prices anywhere in DOM', () => {
+        const { container } = render(
             <ChartQuickActionLauncher
                 selectedTeeth={['16']}
                 selectedSurfacesByTooth={{}}
                 onAction={vi.fn()}
+                clinicProcedures={mockClinicProcedures}
             />
         );
 
         expect(screen.getByTestId('chart-quick-action-launcher')).toBeInTheDocument();
         expect(screen.getByTestId('chart-quick-action-search')).toBeInTheDocument();
-        expect(screen.getByTestId('chart-quick-action-favorites')).toBeInTheDocument();
 
-        // Default favorites
+        // Default favorites: findings only (procedures start unstarred)
+        expect(screen.getByTestId('chart-quick-action-favorites')).toBeInTheDocument();
+        expect(screen.getByTestId('chart-quick-action-item-CARIES')).toBeInTheDocument();
+        expect(screen.getByTestId('chart-quick-action-item-FRACTURE')).toBeInTheDocument();
+        expect(screen.getByTestId('chart-quick-action-item-PAIN')).toBeInTheDocument();
+
+        // All procedures section renders real clinic procedures without searching
+        expect(screen.getByTestId('chart-quick-action-all-procedures')).toBeInTheDocument();
         expect(screen.getByTestId('chart-quick-action-item-REST_COMPOSITE')).toBeInTheDocument();
         expect(screen.getByTestId('chart-quick-action-item-ENDO_RCT')).toBeInTheDocument();
         expect(screen.getByTestId('chart-quick-action-item-PROS_CROWN')).toBeInTheDocument();
         expect(screen.getByTestId('chart-quick-action-item-SURG_EXTRACTION')).toBeInTheDocument();
-        expect(screen.getByTestId('chart-quick-action-item-CARIES')).toBeInTheDocument();
-        expect(screen.getByTestId('chart-quick-action-item-FRACTURE')).toBeInTheDocument();
-        expect(screen.getByTestId('chart-quick-action-item-PAIN')).toBeInTheDocument();
+        expect(screen.getByTestId('chart-quick-action-item-PROS_DENTURE')).toBeInTheDocument();
+        expect(screen.getByTestId('chart-quick-action-item-proc:6')).toBeInTheDocument();
+
+        // Real prices are rendered
+        expect(screen.getByText(/600/)).toBeInTheDocument();
+        expect(screen.getByText(/1,500/)).toBeInTheDocument();
+        expect(screen.getByText(/2,000/)).toBeInTheDocument();
+        expect(screen.getByText(/300/)).toBeInTheDocument();
+
+        // Seeded procedure with price 0 has NO price label
+        const dentureCard = screen.getByTestId('chart-quick-action-item-PROS_DENTURE');
+        expect(dentureCard.textContent).not.toMatch(/·\s*0/);
+
+        // Invariant: no hardcoded "EGP" or old fake prices (150, 500, 1200, 2400, 3000, 2500)
+        expect(container.textContent).not.toContain('EGP');
+        expect(container.textContent).not.toContain('150 EGP');
+        expect(container.textContent).not.toContain('500 EGP');
+        expect(container.textContent).not.toContain('1200 EGP');
     });
 
-    it('renders recents section when items are saved in localStorage under tenant/user-scoped key', () => {
+    it('2. renders recents section when items are saved in localStorage under tenant/user-scoped key', () => {
         const recentsKey = 'dentix_chart_recents_101_42';
-        localStorage.setItem(recentsKey, JSON.stringify(['ENDO_RCT', 'PROS_CROWN']));
+        localStorage.setItem(recentsKey, JSON.stringify(['proc:2', 'CARIES']));
 
         render(
             <ChartQuickActionLauncher
                 selectedTeeth={['16']}
                 selectedSurfacesByTooth={{}}
                 onAction={vi.fn()}
+                clinicProcedures={mockClinicProcedures}
             />
         );
 
         expect(screen.getByTestId('chart-quick-action-recents')).toBeInTheDocument();
         expect(screen.getByTestId('chart-quick-action-recent-item-ENDO_RCT')).toBeInTheDocument();
+        expect(screen.getByTestId('chart-quick-action-recent-item-CARIES')).toBeInTheDocument();
     });
 
-    it('filters items in real time when searching in English and Arabic', () => {
+    it('3. filters items in real time when searching in English and Arabic', () => {
         render(
             <ChartQuickActionLauncher
                 selectedTeeth={['16']}
                 selectedSurfacesByTooth={{}}
                 onAction={vi.fn()}
+                clinicProcedures={mockClinicProcedures}
             />
         );
 
@@ -171,8 +202,8 @@ describe('G8-M02, G8-M08, G8-M09, G8-M10: ChartQuickActionLauncher UI & Interact
         expect(screen.getByTestId('chart-quick-action-item-REST_COMPOSITE')).toBeInTheDocument();
         expect(screen.queryByTestId('chart-quick-action-item-ENDO_RCT')).not.toBeInTheDocument();
 
-        // Search Arabic
-        fireEvent.change(searchInput, { target: { value: 'جذور' } });
+        // Search Arabic (exact clinic procedure name has 'حشو عصب')
+        fireEvent.change(searchInput, { target: { value: 'عصب' } });
         expect(screen.getByTestId('chart-quick-action-item-ENDO_RCT')).toBeInTheDocument();
         expect(screen.queryByTestId('chart-quick-action-item-REST_COMPOSITE')).not.toBeInTheDocument();
 
@@ -181,7 +212,7 @@ describe('G8-M02, G8-M08, G8-M09, G8-M10: ChartQuickActionLauncher UI & Interact
         expect(screen.getByTestId('no-actions-found')).toBeInTheDocument();
     });
 
-    it('stars and unstars actions, updating favorites in localStorage', () => {
+    it('4. stars and unstars actions, updating favorites in localStorage by item.key', () => {
         const favoritesKey = 'dentix_chart_favorites_101_42';
 
         render(
@@ -189,27 +220,24 @@ describe('G8-M02, G8-M08, G8-M09, G8-M10: ChartQuickActionLauncher UI & Interact
                 selectedTeeth={['16']}
                 selectedSurfacesByTooth={{}}
                 onAction={vi.fn()}
+                clinicProcedures={mockClinicProcedures}
             />
         );
 
-        // Search for composite so the card stays rendered in search results even when unstarred
-        const searchInput = screen.getByTestId('chart-quick-action-search');
-        fireEvent.change(searchInput, { target: { value: 'composite' } });
-
+        // Star composite procedure (key is 'proc:1')
         const favToggle = screen.getByTestId('favorite-toggle-REST_COMPOSITE');
         fireEvent.click(favToggle);
 
-        // Should be removed from favorites
         const stored = JSON.parse(localStorage.getItem(favoritesKey) || '[]');
-        expect(stored.includes('REST_COMPOSITE')).toBe(false);
+        expect(stored.includes('proc:1')).toBe(true);
 
-        // Click again to re-add
+        // Unstar again
         fireEvent.click(favToggle);
         const storedAfter = JSON.parse(localStorage.getItem(favoritesKey) || '[]');
-        expect(storedAfter.includes('REST_COMPOSITE')).toBe(true);
+        expect(storedAfter.includes('proc:1')).toBe(false);
     });
 
-    it('executes a whole-tooth action immediately, updating recents in localStorage', () => {
+    it('5. executes a whole-tooth action immediately, updating recents in localStorage', () => {
         const onAction = vi.fn();
         const recentsKey = 'dentix_chart_recents_101_42';
 
@@ -218,6 +246,7 @@ describe('G8-M02, G8-M08, G8-M09, G8-M10: ChartQuickActionLauncher UI & Interact
                 selectedTeeth={['16']}
                 selectedSurfacesByTooth={{}}
                 onAction={onAction}
+                clinicProcedures={mockClinicProcedures}
             />
         );
 
@@ -226,19 +255,24 @@ describe('G8-M02, G8-M08, G8-M09, G8-M10: ChartQuickActionLauncher UI & Interact
 
         expect(onAction).toHaveBeenCalledWith(
             expect.objectContaining({
-                item: expect.objectContaining({ code: 'SURG_EXTRACTION' }),
+                item: expect.objectContaining({
+                    code: 'SURG_EXTRACTION',
+                    procedureId: 4,
+                    key: 'proc:4',
+                    name: 'خلع عادي – Simple Extraction',
+                }),
                 toothKeys: ['16'],
                 targetKind: 'tooth',
                 surfaces: [],
             })
         );
 
-        // Recents updated in localStorage
+        // Recents updated in localStorage by key
         const storedRecents = JSON.parse(localStorage.getItem(recentsKey) || '[]');
-        expect(storedRecents[0]).toBe('SURG_EXTRACTION');
+        expect(storedRecents[0]).toBe('proc:4');
     });
 
-    it('opens surface prompt for surface-capable action when no surface was pre-selected, pre-selecting smart default', () => {
+    it('6. opens surface prompt for surface-capable action when no surface was pre-selected, pre-selecting smart default', () => {
         const onAction = vi.fn();
 
         render(
@@ -246,6 +280,7 @@ describe('G8-M02, G8-M08, G8-M09, G8-M10: ChartQuickActionLauncher UI & Interact
                 selectedTeeth={['16']}
                 selectedSurfacesByTooth={{}}
                 onAction={onAction}
+                clinicProcedures={mockClinicProcedures}
             />
         );
 
@@ -266,11 +301,110 @@ describe('G8-M02, G8-M08, G8-M09, G8-M10: ChartQuickActionLauncher UI & Interact
 
         expect(onAction).toHaveBeenCalledWith(
             expect.objectContaining({
-                item: expect.objectContaining({ code: 'REST_COMPOSITE' }),
+                item: expect.objectContaining({ code: 'REST_COMPOSITE', procedureId: 1 }),
                 toothKeys: ['16'],
                 targetKind: 'surface',
                 surfaces: expect.arrayContaining(['O', 'M']),
             })
         );
+    });
+
+    it('7. displays billing-only tag for items with canonical_code=null and hides it for mapped items', () => {
+        render(
+            <ChartQuickActionLauncher
+                selectedTeeth={['16']}
+                selectedSurfacesByTooth={{}}
+                onAction={vi.fn()}
+                clinicProcedures={mockClinicProcedures}
+            />
+        );
+
+        // Custom procedure (id 6) has canonical_code=null -> billing-only tag shown
+        expect(screen.getByTestId('billing-only-tag-proc:6')).toBeInTheDocument();
+        expect(screen.getByTestId('billing-only-tag-proc:6')).toHaveTextContent(/Billing only/i);
+
+        // Mapped procedure (id 1) has canonical_code='REST_COMPOSITE' -> no tag
+        expect(screen.queryByTestId('billing-only-tag-REST_COMPOSITE')).not.toBeInTheDocument();
+    });
+
+    it('8. ignores legacy localStorage favorites like REST_COMPOSITE without crashing', () => {
+        const favoritesKey = 'dentix_chart_favorites_101_42';
+        localStorage.setItem(favoritesKey, JSON.stringify(['REST_COMPOSITE', 'ENDO_RCT', 'CARIES']));
+
+        render(
+            <ChartQuickActionLauncher
+                selectedTeeth={['16']}
+                selectedSurfacesByTooth={{}}
+                onAction={vi.fn()}
+                clinicProcedures={mockClinicProcedures}
+            />
+        );
+
+        // CARIES is a known key and renders; legacy procedure codes are ignored safely
+        expect(screen.getByTestId('chart-quick-action-item-CARIES')).toBeInTheDocument();
+        // Favorites container only has CARIES (legacy codes ignored)
+        const favoritesSection = screen.getByTestId('chart-quick-action-favorites');
+        expect(favoritesSection.querySelectorAll('[data-testid^="chart-quick-action-item-"]').length).toBe(1);
+    });
+
+    it('9. renders skeleton when loading and empty state when clinic procedures are empty (no fallback to fake catalog)', () => {
+        const { rerender } = render(
+            <ChartQuickActionLauncher
+                selectedTeeth={['16']}
+                selectedSurfacesByTooth={{}}
+                onAction={vi.fn()}
+                clinicProcedures={[]}
+                isLoading={true}
+            />
+        );
+
+        // Loading state
+        expect(screen.getByTestId('chart-quick-action-loading')).toBeInTheDocument();
+
+        // Loaded empty state
+        rerender(
+            <ChartQuickActionLauncher
+                selectedTeeth={['16']}
+                selectedSurfacesByTooth={{}}
+                onAction={vi.fn()}
+                clinicProcedures={[]}
+                isLoading={false}
+            />
+        );
+
+        expect(screen.getByTestId('no-clinic-procedures-hint')).toBeInTheDocument();
+        expect(screen.getByText(/No clinic procedures configured/i)).toBeInTheDocument();
+        expect(screen.getByText(/Settings → Procedures/i)).toBeInTheDocument();
+        // Never falls back to fake canonical procedures
+        expect(screen.queryByTestId('chart-quick-action-item-REST_COMPOSITE')).not.toBeInTheDocument();
+    });
+
+    it('10. renders expander button when clinic procedures exceed 8', () => {
+        const tenProcedures = Array.from({ length: 10 }, (_, i) => ({
+            id: i + 1,
+            name: `Procedure ${i + 1}`,
+            canonical_code: null,
+            price: 100 * (i + 1),
+            category: 'clinic',
+        }));
+
+        render(
+            <ChartQuickActionLauncher
+                selectedTeeth={['16']}
+                selectedSurfacesByTooth={{}}
+                onAction={vi.fn()}
+                clinicProcedures={tenProcedures}
+            />
+        );
+
+        // Button "Show all (10)" is visible
+        const expandBtn = screen.getByTestId('show-all-procedures-button');
+        expect(expandBtn).toBeInTheDocument();
+        expect(expandBtn).toHaveTextContent(/Show all \(10\)/i);
+
+        // Click to expand
+        fireEvent.click(expandBtn);
+        expect(expandBtn).toHaveTextContent(/Show less/i);
+        expect(screen.getByTestId('chart-quick-action-item-proc:10')).toBeInTheDocument();
     });
 });

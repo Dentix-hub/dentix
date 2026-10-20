@@ -35,8 +35,10 @@ export const useTreatmentOperations = ({
                 fdiToothNumber = null;
             }
 
+            const cleanData = { ...data };
+            delete cleanData.prefill_source;
             const payload = {
-                ...data,
+                ...cleanData,
                 tooth_number: fdiToothNumber,
                 patient_id: parseInt(patientId, 10)
             };

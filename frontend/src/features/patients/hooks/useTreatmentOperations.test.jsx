@@ -176,4 +176,38 @@ describe('useTreatmentOperations', () => {
         });
         expect(setEditingTreatmentId).toHaveBeenCalledWith(null);
     });
+
+    it('strips prefill_source from create and update payloads', async () => {
+        mockCreateTreatment.mockResolvedValue({ id: 33 });
+
+        const { result } = renderHook(
+            () =>
+                useTreatmentOperations({
+                    patientId: 101,
+                    refetchHistory,
+                    refetchTeeth,
+                    refetchWorkspace,
+                    setIsTreatmentModalOpen,
+                    setEditingTreatmentId,
+                    editingTreatmentId: null,
+                    selectedToothCondition: null,
+                }),
+            { wrapper: createWrapper() }
+        );
+
+        await act(async () => {
+            await result.current.handleSaveTreatment({
+                procedure: 'Composite Filling',
+                tooth_number: null,
+                cost: 150,
+                prefill_source: 'quick_launcher',
+            });
+        });
+
+        expect(mockCreateTreatment).toHaveBeenCalledTimes(1);
+        const sentPayload = mockCreateTreatment.mock.calls[0][0];
+        expect(sentPayload).not.toHaveProperty('prefill_source');
+        expect(sentPayload.procedure).toBe('Composite Filling');
+        expect(sentPayload.cost).toBe(150);
+    });
 });
