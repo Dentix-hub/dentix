@@ -31,6 +31,7 @@ export const CANONICAL_PROCEDURES = [
         category: 'prosthodontic',
         kind: 'procedure',
         allowed_target_kinds: ['tooth'],
+        requires_lab: true,
         defaultPrice: 1200,
         description: 'Fixed single extra-coronal crown restoration targeting an individual tooth.',
     },
@@ -41,6 +42,7 @@ export const CANONICAL_PROCEDURES = [
         category: 'prosthodontic',
         kind: 'procedure',
         allowed_target_kinds: ['tooth'],
+        requires_lab: true,
         defaultPrice: 2400,
         description: 'Fixed multi-unit partial denture (bridge) spanning multiple tooth targets.',
     },
@@ -61,6 +63,7 @@ export const CANONICAL_PROCEDURES = [
         category: 'implantology',
         kind: 'procedure',
         allowed_target_kinds: ['tooth'],
+        requires_lab: true,
         defaultPrice: 1500,
         description: 'Implant-supported prosthetic crown restoration targeting tooth position.',
     },
@@ -81,6 +84,7 @@ export const CANONICAL_PROCEDURES = [
         category: 'prosthodontic',
         kind: 'procedure',
         allowed_target_kinds: ['tooth'],
+        requires_lab: true,
         defaultPrice: 2500,
         description: 'Removable partial or complete denture spanning multiple teeth.',
     },
@@ -203,3 +207,45 @@ export function getSmartTargetKindAndSurfaces(definition, toothKey, existingSurf
         requiresSurfacePrompt: false,
     };
 }
+
+/**
+ * G12-M04: Lab Required Procedure Codes
+ */
+export const LAB_REQUIRED_PROCEDURE_CODES = [
+    'PROS_CROWN',
+    'PROS_BRIDGE',
+    'IMPLANT_CROWN',
+    'PROS_DENTURE',
+];
+
+/**
+ * Check whether a procedure code requires dental laboratory fabrication (G12-M04).
+ */
+export function isLabRequiredProcedure(procedureCode) {
+    if (!procedureCode) return false;
+    const clean = String(procedureCode).trim().toUpperCase();
+    return LAB_REQUIRED_PROCEDURE_CODES.includes(clean);
+}
+
+/**
+ * G12-M05: Lab-Ready Step Codes
+ */
+export const LAB_READY_STEP_CODES = [
+    'preparation',
+    'abutment_preparation',
+    'impression_scan',
+    'impression',
+    'jaw_relation',
+    'try_in',
+    'lab',
+];
+
+/**
+ * Check whether a workflow step code signals laboratory handoff readiness (G12-M05).
+ */
+export function isLabReadyStep(stepCode) {
+    if (!stepCode) return false;
+    const clean = String(stepCode).trim().toLowerCase();
+    return LAB_READY_STEP_CODES.includes(clean);
+}
+

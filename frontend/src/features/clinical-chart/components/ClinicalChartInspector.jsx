@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Trash2, AlertTriangle, Camera, Eye, Plus } from 'lucide-react';
+import { Trash2, AlertTriangle, Camera, Eye, Plus, FlaskConical } from 'lucide-react';
 import Modal from '@/shared/ui/Modal';
 import {
     buildAttachmentUrl,
@@ -8,6 +8,8 @@ import {
     DiagnosticImageLightbox,
     LinkClinicalAttachmentModal,
 } from '@/features/clinical-attachments';
+import { isLabRequiredProcedure } from '../domain';
+import LabHandoffSheet from '@/features/care-sessions/LabHandoffSheet';
 
 export default function ClinicalChartInspector({
     copy,
@@ -25,6 +27,7 @@ export default function ClinicalChartInspector({
     activeCareSession = null,
     onCreateAttachmentLink = null,
     onDeleteAttachmentLink = null,
+    onOpenLabHandoff = null,
 }) {
     const hasSelection = Boolean(selection?.toothKey);
     const toothKey = selection?.toothKey ? String(selection.toothKey) : null;
@@ -34,6 +37,7 @@ export default function ClinicalChartInspector({
     const [pendingRemovalItem, setPendingRemovalItem] = useState(null);
     const [selectedImageForLightbox, setSelectedImageForLightbox] = useState(null);
     const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+    const [activeLabHandoffItem, setActiveLabHandoffItem] = useState(null);
 
     const toothImages = useMemo(() => {
         if (!toothKey) return [];
@@ -312,18 +316,36 @@ export default function ClinicalChartInspector({
                                             )}
                                         </div>
 
-                                        {onRemoveItem && (
-                                            <button
-                                                type="button"
-                                                onClick={() => handleInitiateRemove(item)}
-                                                aria-label={`${copy.removeItem || 'Remove'} ${item.name}`}
-                                                data-testid={`remove-item-${item.id}`}
-                                                className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:border-red-900/60 dark:bg-slate-800 dark:text-red-400 dark:hover:bg-red-950/30"
-                                            >
-                                                <Trash2 size={15} aria-hidden="true" />
-                                                <span className="ms-1 hidden sm:inline">{copy.removeItem || 'Remove'}</span>
-                                            </button>
-                                        )}
+                                        <div className="flex items-center gap-1.5 shrink-0">
+                                            {item.kind === 'procedure' && isLabRequiredProcedure(item.code) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (onOpenLabHandoff) onOpenLabHandoff(item);
+                                                        setActiveLabHandoffItem(item);
+                                                    }}
+                                                    aria-label={`Send ${item.name} to Lab`}
+                                                    data-testid={`lab-handoff-${item.id}`}
+                                                    className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-control border border-teal-300 bg-teal-50 px-2.5 py-1.5 text-xs font-bold text-teal-700 shadow-low transition-colors hover:bg-teal-100 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-300 dark:hover:bg-teal-900/60"
+                                                >
+                                                    <FlaskConical size={14} className="me-1" aria-hidden="true" />
+                                                    <span className="hidden sm:inline">{copy.sendToLab || 'Send to Lab'}</span>
+                                                </button>
+                                            )}
+
+                                            {onRemoveItem && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleInitiateRemove(item)}
+                                                    aria-label={`${copy.removeItem || 'Remove'} ${item.name}`}
+                                                    data-testid={`remove-item-${item.id}`}
+                                                    className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:border-red-900/60 dark:bg-slate-800 dark:text-red-400 dark:hover:bg-red-950/30"
+                                                >
+                                                    <Trash2 size={15} aria-hidden="true" />
+                                                    <span className="ms-1 hidden sm:inline">{copy.removeItem || 'Remove'}</span>
+                                                </button>
+                                            )}
+                                        </div>
                                     </li>
                                 ))}
                             </ul>
@@ -473,6 +495,18 @@ export default function ClinicalChartInspector({
                     isArabic={isArabic}
                 />
             )}
+
+            {/* Chairside Lab Handoff Sheet (Slice S28 / G12-M06) */}
+            {activeLabHandoffItem && (
+                <LabHandoffSheet
+                    isOpen={Boolean(activeLabHandoffItem)}
+                    onClose={() => setActiveLabHandoffItem(null)}
+                    patientId={patientId}
+                    toothKey={toothKey}
+                    workItem={activeLabHandoffItem}
+                    t={(k, f) => f || k}
+                />
+            )}
         </aside>
     );
 }
@@ -500,4 +534,5 @@ ClinicalChartInspector.propTypes = {
     activeCareSession: PropTypes.object,
     onCreateAttachmentLink: PropTypes.func,
     onDeleteAttachmentLink: PropTypes.func,
+    onOpenLabHandoff: PropTypes.func,
 };

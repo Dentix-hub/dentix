@@ -129,6 +129,21 @@ class LabService:
         if not lab:
             raise ValueError("Laboratory not found")
 
+        # G12-M16: Handoff idempotency - return existing active lab order if one exists
+        if data.work_item_id is not None:
+            stmt_existing = (
+                select(models.LabOrder)
+                .where(
+                    models.LabOrder.tenant_id == self.tenant_id,
+                    models.LabOrder.work_item_id == data.work_item_id,
+                    models.LabOrder.status != "cancelled",
+                )
+                .order_by(models.LabOrder.id.desc())
+            )
+            existing_order = (await self.db.execute(stmt_existing)).scalars().first()
+            if existing_order:
+                return existing_order
+
         db_order = models.LabOrder(
             **data.model_dump(),
             tenant_id=self.tenant_id,
@@ -138,7 +153,9 @@ class LabService:
         # Generate the order ID without persisting a half-complete financial pair.
         await self.db.flush()
 
-        if db_order.price_to_patient and db_order.price_to_patient > 0:
+        # G12-M08 & G12-M09 / R06: Decouple lab price from synthetic treatment creation.
+        # When linked to a clinical work item, create 0 synthetic treatments!
+        if data.work_item_id is None and db_order.price_to_patient and db_order.price_to_patient > 0:
             await self._create_linked_treatment(db_order, lab)
 
         await self.db.commit()
@@ -250,7 +267,7 @@ class LabService:
             linked_treatment.doctor_id = order.doctor_id
             if order.laboratory:
                 linked_treatment.diagnosis = f"تركيبة معملية - {order.laboratory.name}"
-        elif order.price_to_patient and order.price_to_patient > 0:
+        elif order.work_item_id is None and order.price_to_patient and order.price_to_patient > 0:
             tooth_num = None
             if order.tooth_number:
                 try:

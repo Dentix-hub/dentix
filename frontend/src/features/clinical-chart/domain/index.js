@@ -33,3 +33,17 @@ export {
     getChartNotationConfig,
     resolveToothNotation,
 } from './chartNotation';
+export {
+    CANONICAL_PROCEDURES,
+    CANONICAL_FINDINGS,
+    ALL_CANONICAL_ACTIONS,
+    DEFAULT_FAVORITE_CODES,
+    LAB_REQUIRED_PROCEDURE_CODES,
+    LAB_READY_STEP_CODES,
+    isAnteriorTooth,
+    isPosteriorTooth,
+    getSmartTargetKindAndSurfaces,
+    isLabRequiredProcedure,
+    isLabReadyStep,
+} from './catalogDefinitions';
+

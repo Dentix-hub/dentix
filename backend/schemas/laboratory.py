@@ -61,6 +61,20 @@ class LabOrderCreate(LabOrderBase):
     pass
 
 
+class LabHandoffCreate(BaseModel):
+    """Payload for 1-tap chairside lab handoff linked directly to a clinical work item (G12-M06)."""
+    laboratory_id: int
+    work_type: Optional[str] = None
+    tooth_number: Optional[str] = None
+    shade: Optional[str] = None
+    material: Optional[str] = None
+    cost: NonNegativeMoney = Decimal("0.00")
+    price_to_patient: NonNegativeMoney = Decimal("0.00")
+    delivery_date: Optional[datetime] = None
+    notes: Optional[str] = None
+    idempotency_key: Optional[str] = None
+
+
 class LabOrderUpdate(BaseModel):
     laboratory_id: Optional[int] = None
     work_item_id: Optional[int] = None
