@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Package, Plus, Trash2, Droplets } from 'lucide-react';
 import { getMaterials, getStockSummary, getActiveSessions } from '@/api/inventory';
 import { palmerToFdi } from '@/utils/toothUtils';
@@ -11,6 +11,7 @@ import { addTreatmentSession } from '@/api';
 import { MultiSessionPanel } from '../components/MultiSessionPanel';
 import Modal from '@/shared/ui/Modal';
 import logger from '@/utils/logger';
+import { resolveProcedureSelection } from '@/features/patients/utils/resolveProcedureSelection';
 
 const CLINICAL_SURFACES = [
     { code: 'M', label: 'M', description: 'Mesial (أنسي)' },
@@ -50,7 +51,7 @@ export default function TreatmentModal({
     const isSavingRef = useRef(false);
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [isManualProcedure, setIsManualProcedure] = useState(false);
-    const safeProcedures = Array.isArray(procedures) ? procedures : [];
+    const safeProcedures = useMemo(() => (Array.isArray(procedures) ? procedures : []), [procedures]);
     // Modal Tabs
     const [toothModalTab, setToothModalTab] = useState('Status');
     const [selectedPathologies, setSelectedPathologies] = useState([]);
@@ -100,13 +101,51 @@ export default function TreatmentModal({
     }, [isOpen]);
     useEffect(() => {
         if (isOpen) {
-            setTreatment(normalizeTreatmentData(initialData));
+            const normalized = normalizeTreatmentData(initialData);
+            setTreatment(normalized);
+            setIsManualProcedure(false);
+
+            const prefillSource = normalized?.prefill_source;
+            if (prefillSource === 'quick_launcher' || prefillSource === 'plan_item') {
+                const procName = normalized?.procedure;
+                if (procName) {
+                    resolveProcedureSelection({
+                        procedureName: procName,
+                        procedures: safeProcedures,
+                        defaultPriceListId: normalized?.default_price_list_id,
+                        currentPriceListId: normalized?.price_list_id,
+                    }).then(({ found, cost, price_list_id, autoMaterials }) => {
+                        if (!found) {
+                            setIsManualProcedure(true);
+                            setTreatment(prev => ({
+                                ...prev,
+                                procedure: procName,
+                                cost: prev?.cost ?? '',
+                                price_list_id: null,
+                            }));
+                        } else {
+                            setTreatment(prev => ({
+                                ...prev,
+                                procedure: procName,
+                                cost,
+                                price_list_id,
+                            }));
+                            if (autoMaterials.length > 0) {
+                                logger.debug("[MATERIALS_DEBUG] Auto-loaded materials (BOM):", autoMaterials);
+                                setConsumedMaterials(autoMaterials);
+                                setShowInventory(true);
+                            }
+                        }
+                    });
+                }
+            }
+
             // FIX: Always reset consumed materials when opening modal to prevent stale data
-            if (isEditing && initialData.consumedMaterials && initialData.consumedMaterials.length > 0) {
+            if (isEditing && initialData?.consumedMaterials && initialData.consumedMaterials.length > 0) {
                 logger.debug("[TreatmentModal] Loading existing materials:", initialData.consumedMaterials);
                 setConsumedMaterials(initialData.consumedMaterials);
                 setShowInventory(true);
-            } else {
+            } else if (!prefillSource) {
                 // Reset for new entry or if no materials exist
                 setConsumedMaterials([]);
                 setShowInventory(false);
@@ -118,7 +157,7 @@ export default function TreatmentModal({
                 setSelectedRestorations([]);
             }
         }
-    }, [isOpen, initialData, isEditing]);
+    }, [isOpen, initialData, isEditing, safeProcedures]);
     const queryClient = useQueryClient();
 
     const addSessionMutation = useMutation({
@@ -522,60 +561,22 @@ export default function TreatmentModal({
                                             setTreatment({ ...treatment, procedure: '', cost: '', price_list_id: null });
                                             return;
                                         }
-                                        // Find generic procedure info
-                                        const foundProc = safeProcedures.find(p => p.name === val);
-                                        const baseProcedurePrice = foundProc?.price || 0; // Fallback value
-                                        let calculatedPrice = baseProcedurePrice;
-                                        let activePriceListId = treatment.price_list_id;
-                                        logger.debug('[PRICE_DEBUG] Found Procedure:', foundProc?.name, 'Base Price:', baseProcedurePrice);
-                                        logger.debug('[PRICE_DEBUG] Default Price List ID:', initialData?.default_price_list_id);
-                                        // If we have a patient default price list, try to fetch specific price
-                                        if (foundProc && initialData?.default_price_list_id) {
-                                            try {
-                                                // Dynamic import to avoid circular dependency
-                                                const { getProcedurePrices } = await import('@/api');
-                                                const pricesData = await getProcedurePrices(foundProc.id);
-                                                logger.debug('[PRICE_DEBUG] Prices Data:', pricesData?.data);
-                                                // Check if there's a price for the patient's list
-                                                const specificPrice = pricesData.data?.price_lists?.find(pl =>
-                                                    // Loose comparison for ID safety
-                                                    String(pl.price_list_id) === String(initialData.default_price_list_id)
-                                                );
-                                                logger.debug('[PRICE_DEBUG] Specific Price Found:', specificPrice);
-                                                if (specificPrice && specificPrice.final_price > 0) {
-                                                    // Use price list price ONLY if it's greater than 0
-                                                    calculatedPrice = specificPrice.final_price;
-                                                    activePriceListId = initialData.default_price_list_id;
-                                                } else if (specificPrice && specificPrice.final_price === 0) {
-                                                    // Price list has 0 - fallback to base procedure price
-                                                    logger.debug('[PRICE_DEBUG] Price list price is 0, using base procedure price:', baseProcedurePrice);
-                                                    calculatedPrice = baseProcedurePrice;
-                                                }
-                                            } catch (err) {
-                                                logger.error("Failed to fetch custom prices", err);
-                                            }
-                                        }
-                                        logger.debug('[PRICE_DEBUG] Final Calculated Price:', calculatedPrice);
-                                        // NEW: Auto-load consumed materials (BOM)
-                                        if (foundProc) {
-                                            const autoMaterials = (foundProc.suggestedMaterials || []).map(sm => ({
-                                                material_id: sm.id,
-                                                quantity: sm.quantity,
-                                                name: sm.name,
-                                                unit: sm.unit,
-                                                is_manual: false
-                                            }));
-                                            if (autoMaterials.length > 0) {
-                                                logger.debug("[MATERIALS_DEBUG] Auto-loaded materials (BOM):", autoMaterials);
-                                                setConsumedMaterials(autoMaterials);
-                                                setShowInventory(true);
-                                            }
+                                        const { cost, price_list_id, autoMaterials } = await resolveProcedureSelection({
+                                            procedureName: val,
+                                            procedures: safeProcedures,
+                                            defaultPriceListId: initialData?.default_price_list_id,
+                                            currentPriceListId: treatment.price_list_id,
+                                        });
+                                        if (autoMaterials.length > 0) {
+                                            logger.debug("[MATERIALS_DEBUG] Auto-loaded materials (BOM):", autoMaterials);
+                                            setConsumedMaterials(autoMaterials);
+                                            setShowInventory(true);
                                         }
                                         setTreatment({
                                             ...treatment,
                                             procedure: val,
-                                            cost: calculatedPrice,
-                                            price_list_id: activePriceListId
+                                            cost,
+                                            price_list_id,
                                         });
                                     }}
                                     className="w-full p-3 bg-surface border border-border rounded-xl outline-none appearance-none cursor-pointer font-bold text-text-primary focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"

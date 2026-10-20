@@ -11,7 +11,6 @@ export const CANONICAL_PROCEDURES = [
         category: 'restorative',
         kind: 'procedure',
         allowed_target_kinds: ['surface'],
-        defaultPrice: 150,
         description: 'Direct composite resin restoration placed on specific tooth surfaces.',
     },
     {
@@ -21,7 +20,6 @@ export const CANONICAL_PROCEDURES = [
         category: 'endodontic',
         kind: 'procedure',
         allowed_target_kinds: ['tooth', 'root', 'canal'],
-        defaultPrice: 500,
         description: 'Complete root canal treatment encompassing tooth, root, and canal anatomical targets.',
     },
     {
@@ -32,7 +30,6 @@ export const CANONICAL_PROCEDURES = [
         kind: 'procedure',
         allowed_target_kinds: ['tooth'],
         requires_lab: true,
-        defaultPrice: 1200,
         description: 'Fixed single extra-coronal crown restoration targeting an individual tooth.',
     },
     {
@@ -43,7 +40,6 @@ export const CANONICAL_PROCEDURES = [
         kind: 'procedure',
         allowed_target_kinds: ['tooth'],
         requires_lab: true,
-        defaultPrice: 2400,
         description: 'Fixed multi-unit partial denture (bridge) spanning multiple tooth targets.',
     },
     {
@@ -53,7 +49,6 @@ export const CANONICAL_PROCEDURES = [
         category: 'implantology',
         kind: 'procedure',
         allowed_target_kinds: ['tooth', 'root'],
-        defaultPrice: 3000,
         description: 'Endosseous dental implant fixture placed in tooth/root anatomical site.',
     },
     {
@@ -64,7 +59,6 @@ export const CANONICAL_PROCEDURES = [
         kind: 'procedure',
         allowed_target_kinds: ['tooth'],
         requires_lab: true,
-        defaultPrice: 1500,
         description: 'Implant-supported prosthetic crown restoration targeting tooth position.',
     },
     {
@@ -74,7 +68,6 @@ export const CANONICAL_PROCEDURES = [
         category: 'oral-surgery',
         kind: 'procedure',
         allowed_target_kinds: ['tooth'],
-        defaultPrice: 200,
         description: 'Surgical or non-surgical exodontia of a specific tooth.',
     },
     {
@@ -85,10 +78,13 @@ export const CANONICAL_PROCEDURES = [
         kind: 'procedure',
         allowed_target_kinds: ['tooth'],
         requires_lab: true,
-        defaultPrice: 2500,
         description: 'Removable partial or complete denture spanning multiple teeth.',
     },
 ];
+
+export const CANONICAL_PROCEDURES_BY_CODE = new Map(
+    CANONICAL_PROCEDURES.map((p) => [p.code, p])
+);
 
 export const CANONICAL_FINDINGS = [
     {
@@ -123,10 +119,6 @@ export const CANONICAL_FINDINGS = [
 export const ALL_CANONICAL_ACTIONS = [...CANONICAL_PROCEDURES, ...CANONICAL_FINDINGS];
 
 export const DEFAULT_FAVORITE_CODES = [
-    'REST_COMPOSITE',
-    'ENDO_RCT',
-    'PROS_CROWN',
-    'SURG_EXTRACTION',
     'CARIES',
     'FRACTURE',
     'PAIN',

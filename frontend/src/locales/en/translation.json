@@ -811,7 +811,13 @@
             "consequence_plan_warning": "Attached to Treatment Plan",
             "consequence_payment_warning": "Completed Sessions or Payments Recorded",
             "consequence_confirm_prompt": "Are you sure you want to proceed with removal? This action cannot be undone.",
-            "confirm_removal": "Confirm Removal"
+            "confirm_removal": "Confirm Removal",
+            "billing_only_tag": "Billing only — not shown on chart/plan",
+            "all_procedures": "All Procedures",
+            "show_all_procedures": "Show all ({{count}})",
+            "show_less": "Show less",
+            "no_clinic_procedures": "No clinic procedures configured.",
+            "configure_in_settings": "Go to Settings → Procedures to add clinic procedures."
         },
         "edit_modal": {
             "title": "Edit Patient Details",

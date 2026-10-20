@@ -818,7 +818,13 @@
             "consequence_plan_warning": "مرتبط بخطة علاجية نشطة",
             "consequence_payment_warning": "يوجد جلسات مكتملة أو مدفوعات مسجلة",
             "consequence_confirm_prompt": "هل أنت متأكد من رغبتك في المتابعة؟ لا يمكن التراجع عن هذا الإجراء.",
-            "confirm_removal": "تأكيد الحذف"
+            "confirm_removal": "تأكيد الحذف",
+            "billing_only_tag": "للفوترة فقط — لا يظهر على المخطط/الخطة",
+            "all_procedures": "جميع الإجراءات",
+            "show_all_procedures": "عرض الكل ({{count}})",
+            "show_less": "عرض أقل",
+            "no_clinic_procedures": "لا توجد إجراءات مضافة للعيادة.",
+            "configure_in_settings": "انتقل إلى الإعدادات ← الإجراءات لإضافة إجراءات للعيادة."
         },
         "edit_modal": {
             "title": "تعديل بيانات المريض",

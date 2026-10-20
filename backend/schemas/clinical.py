@@ -357,6 +357,8 @@ class ProcedureCreate(ProcedureBase):
 
 class Procedure(ProcedureBase):
     id: int
+    tenant_id: Optional[int] = None
+    canonical_code: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

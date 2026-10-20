@@ -108,7 +108,6 @@ export function usePatientChartSelection({
                 toothKeys: [toothKey],
                 targetKind: effectiveTargetKind,
                 surfaces: effectiveSurfaces,
-                defaultPrice: item.defaultPrice || 0,
             })?.then((success) => {
                 if (success) {
                     setStickyAppliedCount((prev) => prev + 1);
@@ -156,7 +155,6 @@ export function usePatientChartSelection({
                 toothKeys: [toothKey],
                 targetKind: 'surface',
                 surfaces: [surfaceCode],
-                defaultPrice: item.defaultPrice || 0,
             })?.then((success) => {
                 if (success) {
                     setStickyAppliedCount((prev) => prev + 1);

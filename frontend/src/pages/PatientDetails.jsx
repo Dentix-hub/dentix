@@ -81,7 +81,7 @@ export default function PatientDetails() {
         setSearchParams({ tab: tabId }, { replace: true });
     };
 
-    const { procedures } = useProcedures();
+    const { procedures, loading: proceduresLoading } = useProcedures();
     const [isPediatric, setIsPediatric] = useState(false);
     const [isToothSelectModalOpen, setIsToothSelectModalOpen] = useState(false);
 
@@ -436,12 +436,14 @@ export default function PatientDetails() {
     });
 
     const executeClinicalAction = useCallback(async (actionData) => {
-        const { item, toothKeys, targetKind, surfaces, defaultPrice } = actionData;
+        const { item, toothKeys, targetKind, surfaces } = actionData;
         const primaryTooth = toothKeys?.[0] || resolvedActiveTooth;
         if (!primaryTooth) return false;
 
-        // Flow A: When clinical_vnext_native_writes is enabled, dispatch to G7 endpoints
-        if (isNativeWritesEnabled) {
+        // Flow A: When clinical_vnext_native_writes is enabled, dispatch to G7 endpoints.
+        // R01/PD02: Native writes require a canonical code. If item.code is null (custom clinic procedure),
+        // fall back to Flow B (legacy modal) because native writes without a legacy Treatment are invisible to billing.
+        if (isNativeWritesEnabled && (item.kind === 'finding' || Boolean(item.code))) {
             try {
                 const isFinding = item.kind === 'finding';
                 if (isFinding) {
@@ -517,8 +519,8 @@ export default function PatientDetails() {
         setNewTreatment({
             ...getInitialTreatment(),
             tooth_number: palmerPrefix,
-            procedure_name: item.name,
-            cost: defaultPrice || 0,
+            procedure: item.name,
+            prefill_source: 'quick_launcher',
             surface: surfaceStr,
             surfaces: Array.isArray(surfaces) ? [...surfaces] : [],
             target_kind: targetKind || (surfaceStr ? 'surface' : 'tooth'),
@@ -798,6 +800,7 @@ export default function PatientDetails() {
                                                         setStickyAppliedCount(0);
                                                     }}
                                                     clinicProcedures={procedures}
+                                                    isLoading={proceduresLoading}
                                                     onClose={() => setIsQuickLauncherOpen(false)}
                                                 />
                                             </div>
@@ -818,6 +821,7 @@ export default function PatientDetails() {
                                             setActiveStickyTool={setActiveStickyTool}
                                             setStickyAppliedCount={setStickyAppliedCount}
                                             procedures={procedures}
+                                            proceduresLoading={proceduresLoading}
                                             i18n={i18n}
                                             t={t}
                                             adaptedChart={adaptedChart}

@@ -3,11 +3,23 @@ import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
 import { Search, Star, X, Check, Clock, Sparkles, MousePointerClick } from 'lucide-react';
 import { useAuthStore } from '@/store/auth.store';
+import { formatNumber } from '@/utils/formatters';
 import {
-    ALL_CANONICAL_ACTIONS,
+    CANONICAL_FINDINGS,
+    CANONICAL_PROCEDURES_BY_CODE,
     DEFAULT_FAVORITE_CODES,
     getSmartTargetKindAndSurfaces,
 } from '../domain/catalogDefinitions';
+
+const CATEGORY_LABELS = {
+    restorative: { en: 'Restorative', ar: 'حشوات وترميم' },
+    endodontic: { en: 'Endodontic', ar: 'علاج جذور' },
+    prosthodontic: { en: 'Prosthodontic', ar: 'تركيبات واستعاضة' },
+    implantology: { en: 'Implantology', ar: 'زراعة أسنان' },
+    'oral-surgery': { en: 'Oral Surgery', ar: 'جراحة فم وأسنان' },
+    clinic: { en: 'Clinic Procedures', ar: 'إجراءات العيادة' },
+    finding: { en: 'Findings', ar: 'تشخيصات' },
+};
 
 export default function ChartQuickActionLauncher({
     selectedTeeth = [],
@@ -15,6 +27,7 @@ export default function ChartQuickActionLauncher({
     onAction,
     onActivateStickyTool,
     clinicProcedures = [],
+    isLoading = false,
     onClose: _onClose,
 }) {
     const { t, i18n } = useTranslation();
@@ -27,10 +40,15 @@ export default function ChartQuickActionLauncher({
     const recentsStorageKey = `dentix_chart_recents_${tenantId}_${userId}`;
 
     const [searchQuery, setSearchQuery] = useState('');
+    const [showAllProcedures, setShowAllProcedures] = useState(false);
+
+    // Initial favorites from localStorage; defaults to findings only
     const [favorites, setFavorites] = useState(() => {
         try {
             const stored = localStorage.getItem(favoritesStorageKey);
-            return stored ? JSON.parse(stored) : DEFAULT_FAVORITE_CODES;
+            if (!stored) return DEFAULT_FAVORITE_CODES;
+            const parsed = JSON.parse(stored);
+            return Array.isArray(parsed) ? parsed : DEFAULT_FAVORITE_CODES;
         } catch {
             return DEFAULT_FAVORITE_CODES;
         }
@@ -39,7 +57,9 @@ export default function ChartQuickActionLauncher({
     const [recents, setRecents] = useState(() => {
         try {
             const stored = localStorage.getItem(recentsStorageKey);
-            return stored ? JSON.parse(stored) : [];
+            if (!stored) return [];
+            const parsed = JSON.parse(stored);
+            return Array.isArray(parsed) ? parsed : [];
         } catch {
             return [];
         }
@@ -50,67 +70,59 @@ export default function ChartQuickActionLauncher({
     const activeToothKey = selectedTeeth[selectedTeeth.length - 1] || selectedTeeth[0] || null;
     const existingSurfaces = (activeToothKey && selectedSurfacesByTooth[activeToothKey]) || [];
 
-    // Save favorites to localStorage
-    const toggleFavorite = useCallback((code, e) => {
-        if (e) e.stopPropagation();
-        setFavorites((prev) => {
-            const isFav = prev.includes(code);
-            const next = isFav ? prev.filter((c) => c !== code) : [...prev, code];
-            try {
-                localStorage.setItem(favoritesStorageKey, JSON.stringify(next));
-            } catch {
-                // Ignore storage errors
-            }
-            return next;
-        });
-    }, [favoritesStorageKey]);
-
-    // Save action to recents in localStorage
-    const pushToRecents = useCallback((code) => {
-        setRecents((prev) => {
-            const filtered = prev.filter((c) => c !== code);
-            const next = [code, ...filtered].slice(0, 5);
-            try {
-                localStorage.setItem(recentsStorageKey, JSON.stringify(next));
-            } catch {
-                // Ignore storage errors
-            }
-            return next;
-        });
-    }, [recentsStorageKey]);
-
-    // Combined catalog including clinic procedures if provided
-    const combinedActions = useMemo(() => {
-        const canonical = [...ALL_CANONICAL_ACTIONS];
+    // Procedure items built exclusively from clinic procedures
+    const procedureItems = useMemo(() => {
         if (!Array.isArray(clinicProcedures) || clinicProcedures.length === 0) {
-            return canonical;
+            return [];
         }
-        // Merge or append custom clinic procedures
-        const result = [...canonical];
-        clinicProcedures.forEach((proc) => {
-            if (!proc || !proc.name) return;
-            const existing = result.find(
-                (c) => c.name.toLowerCase() === proc.name.toLowerCase() || c.code === proc.code
-            );
-            if (!existing) {
-                result.push({
-                    code: proc.code || `CLINIC_${proc.id}`,
+        return clinicProcedures
+            .filter((proc) => proc && proc.name)
+            .map((proc) => {
+                const canonicalCode = proc.canonical_code || null;
+                const canonicalDef = canonicalCode
+                    ? CANONICAL_PROCEDURES_BY_CODE.get(canonicalCode)
+                    : null;
+                const category = canonicalDef?.category || 'clinic';
+                const allowed_target_kinds = canonicalDef?.allowed_target_kinds || ['tooth'];
+                const requires_lab = Boolean(canonicalDef?.requires_lab);
+                const rawPrice = Number(proc.price);
+                const basePrice = !isNaN(rawPrice) && rawPrice > 0 ? rawPrice : null;
+                const hasChartMapping = Boolean(canonicalCode);
+
+                return {
+                    key: `proc:${proc.id}`,
+                    code: canonicalCode,
+                    procedureId: proc.id,
                     name: proc.name,
-                    nameAr: proc.name_ar || proc.name,
-                    category: proc.category || 'clinic',
+                    nameAr: proc.name, // Clinic names are bilingual strings: display as-is, never split
                     kind: 'procedure',
-                    allowed_target_kinds: ['tooth'],
-                    defaultPrice: proc.price || proc.cost || 0,
-                    clinicProcedureId: proc.id,
-                });
-            }
-        });
-        return result;
+                    category,
+                    allowed_target_kinds,
+                    requires_lab,
+                    basePrice,
+                    hasChartMapping,
+                };
+            });
     }, [clinicProcedures]);
 
-    const actionsByCode = useMemo(() => {
+    // Finding items from canonical findings (no price)
+    const findingItems = useMemo(() => {
+        return CANONICAL_FINDINGS.map((finding) => ({
+            ...finding,
+            key: finding.code,
+            basePrice: null,
+            hasChartMapping: true,
+        }));
+    }, []);
+
+    const combinedActions = useMemo(() => {
+        return [...findingItems, ...procedureItems];
+    }, [findingItems, procedureItems]);
+
+    // Indexed by item.key for safe favorite/recent retrieval without crashing on legacy codes
+    const actionsByKey = useMemo(() => {
         const map = new Map();
-        combinedActions.forEach((item) => map.set(item.code, item));
+        combinedActions.forEach((item) => map.set(item.key, item));
         return map;
     }, [combinedActions]);
 
@@ -121,15 +133,44 @@ export default function ChartQuickActionLauncher({
         return combinedActions.filter((item) => {
             const matchName = item.name.toLowerCase().includes(q);
             const matchNameAr = item.nameAr && item.nameAr.toLowerCase().includes(q);
-            const matchCode = item.code.toLowerCase().includes(q);
+            const matchCode = item.code && item.code.toLowerCase().includes(q);
             const matchCat = item.category && item.category.toLowerCase().includes(q);
             return matchName || matchNameAr || matchCode || matchCat;
         });
     }, [combinedActions, searchQuery]);
 
+    // Save favorites to localStorage
+    const toggleFavorite = useCallback((key, e) => {
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+        setFavorites((prev) => {
+            const isFav = prev.includes(key);
+            const next = isFav ? prev.filter((k) => k !== key) : [...prev, key];
+            try {
+                localStorage.setItem(favoritesStorageKey, JSON.stringify(next));
+            } catch {
+                // Ignore storage errors
+            }
+            return next;
+        });
+    }, [favoritesStorageKey]);
+
+    // Save action to recents in localStorage
+    const pushToRecents = useCallback((key) => {
+        setRecents((prev) => {
+            const filtered = prev.filter((k) => k !== key);
+            const next = [key, ...filtered].slice(0, 5);
+            try {
+                localStorage.setItem(recentsStorageKey, JSON.stringify(next));
+            } catch {
+                // Ignore storage errors
+            }
+            return next;
+        });
+    }, [recentsStorageKey]);
+
     const handleActivateSticky = (item, e) => {
-        if (e) e.stopPropagation();
-        pushToRecents(item.code);
+        if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+        pushToRecents(item.key);
         if (onActivateStickyTool) {
             const isSurfaceCapable = item.allowed_target_kinds?.includes('surface');
             const targetKind = isSurfaceCapable ? 'surface' : 'tooth';
@@ -165,14 +206,13 @@ export default function ChartQuickActionLauncher({
         }
 
         // Apply immediately
-        pushToRecents(item.code);
+        pushToRecents(item.key);
         if (onAction) {
             onAction({
                 item,
                 toothKeys: selectedTeeth,
                 targetKind: smart.targetKind,
                 surfaces: smart.surfaces,
-                defaultPrice: item.defaultPrice || 0,
             });
         }
     };
@@ -180,7 +220,7 @@ export default function ChartQuickActionLauncher({
     const handleConfirmSurfacePrompt = () => {
         if (!surfacePrompt) return;
         const { item, surfaces } = surfacePrompt;
-        pushToRecents(item.code);
+        pushToRecents(item.key);
         setSurfacePrompt(null);
         if (onAction) {
             onAction({
@@ -188,7 +228,6 @@ export default function ChartQuickActionLauncher({
                 toothKeys: selectedTeeth,
                 targetKind: 'surface',
                 surfaces: surfaces.length > 0 ? surfaces : [surfacePrompt.defaultSurface || 'O'],
-                defaultPrice: item.defaultPrice || 0,
             });
         }
     };
@@ -207,17 +246,35 @@ export default function ChartQuickActionLauncher({
         });
     };
 
+    // Filter to known valid keys in current catalog (ignores old legacy keys like REST_COMPOSITE safely)
     const favoriteActions = useMemo(() => {
         return favorites
-            .map((code) => actionsByCode.get(code))
+            .map((key) => actionsByKey.get(key))
             .filter(Boolean);
-    }, [favorites, actionsByCode]);
+    }, [favorites, actionsByKey]);
 
     const recentActions = useMemo(() => {
         return recents
-            .map((code) => actionsByCode.get(code))
+            .map((key) => actionsByKey.get(key))
             .filter(Boolean);
-    }, [recents, actionsByCode]);
+    }, [recents, actionsByKey]);
+
+    // Group procedure items by category for the default view (first 8 visible, with show all expander)
+    const proceduresByCategory = useMemo(() => {
+        const visibleList = showAllProcedures ? procedureItems : procedureItems.slice(0, 8);
+        const groups = new Map();
+        visibleList.forEach((proc) => {
+            const cat = proc.category || 'clinic';
+            if (!groups.has(cat)) {
+                groups.set(cat, []);
+            }
+            groups.get(cat).push(proc);
+        });
+        return Array.from(groups.entries()).map(([category, items]) => ({
+            category,
+            items,
+        }));
+    }, [procedureItems, showAllProcedures]);
 
     return (
         <div
@@ -346,10 +403,10 @@ export default function ChartQuickActionLauncher({
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                             {filteredActions.map((item) => (
                                 <ActionCard
-                                    key={item.code}
+                                    key={item.key}
                                     item={item}
-                                    isFavorite={favorites.includes(item.code)}
-                                    onToggleFavorite={(e) => toggleFavorite(item.code, e)}
+                                    isFavorite={favorites.includes(item.key)}
+                                    onToggleFavorite={(e) => toggleFavorite(item.key, e)}
                                     onActivateSticky={(e) => handleActivateSticky(item, e)}
                                     onClick={() => handleActionClick(item)}
                                     isRtl={isRtl}
@@ -360,29 +417,31 @@ export default function ChartQuickActionLauncher({
                     )}
                 </div>
             ) : (
-                /* Not searching: Favorites, Recents, and All Actions */
+                /* Default view: Favorites -> Recents -> All procedures grouped by category */
                 <div className="space-y-4">
                     {/* Favorites */}
-                    <div data-testid="chart-quick-action-favorites" className="space-y-2">
-                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
-                            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
-                            <span>{t('patient_details.chart.favorites', 'Favorites')}</span>
+                    {favoriteActions.length > 0 && (
+                        <div data-testid="chart-quick-action-favorites" className="space-y-2">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300">
+                                <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />
+                                <span>{t('patient_details.chart.favorites', 'Favorites')}</span>
+                            </div>
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                {favoriteActions.map((item) => (
+                                    <ActionCard
+                                        key={item.key}
+                                        item={item}
+                                        isFavorite={true}
+                                        onToggleFavorite={(e) => toggleFavorite(item.key, e)}
+                                        onActivateSticky={(e) => handleActivateSticky(item, e)}
+                                        onClick={() => handleActionClick(item)}
+                                        isRtl={isRtl}
+                                        t={t}
+                                    />
+                                ))}
+                            </div>
                         </div>
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                            {favoriteActions.map((item) => (
-                                <ActionCard
-                                    key={item.code}
-                                    item={item}
-                                    isFavorite={true}
-                                    onToggleFavorite={(e) => toggleFavorite(item.code, e)}
-                                    onActivateSticky={(e) => handleActivateSticky(item, e)}
-                                    onClick={() => handleActionClick(item)}
-                                    isRtl={isRtl}
-                                    t={t}
-                                />
-                            ))}
-                        </div>
-                    </div>
+                    )}
 
                     {/* Recents */}
                     {recentActions.length > 0 && (
@@ -394,10 +453,10 @@ export default function ChartQuickActionLauncher({
                             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                                 {recentActions.map((item) => (
                                     <ActionCard
-                                        key={`recent-${item.code}`}
+                                        key={`recent-${item.key}`}
                                         item={item}
-                                        isFavorite={favorites.includes(item.code)}
-                                        onToggleFavorite={(e) => toggleFavorite(item.code, e)}
+                                        isFavorite={favorites.includes(item.key)}
+                                        onToggleFavorite={(e) => toggleFavorite(item.key, e)}
                                         onActivateSticky={(e) => handleActivateSticky(item, e)}
                                         onClick={() => handleActionClick(item)}
                                         isRtl={isRtl}
@@ -408,6 +467,85 @@ export default function ChartQuickActionLauncher({
                             </div>
                         </div>
                     )}
+
+                    {/* All Procedures Grouped by Category */}
+                    <div data-testid="chart-quick-action-all-procedures" className="space-y-3">
+                        <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
+                            <span>{t('patient_details.chart.all_procedures', 'All Procedures')}</span>
+                            {procedureItems.length > 0 && (
+                                <span className="text-slate-400 font-normal">
+                                    ({procedureItems.length})
+                                </span>
+                            )}
+                        </div>
+
+                        {isLoading ? (
+                            <div data-testid="chart-quick-action-loading" className="space-y-2 animate-pulse">
+                                <div className="h-4 w-28 bg-slate-200 rounded dark:bg-slate-700"></div>
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                    {[1, 2, 3].map((i) => (
+                                        <div key={i} className="h-11 bg-slate-100 rounded-xl dark:bg-slate-800"></div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : procedureItems.length === 0 ? (
+                            <div
+                                data-testid="no-clinic-procedures-hint"
+                                className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400"
+                            >
+                                <p>{t('patient_details.chart.no_clinic_procedures', 'No clinic procedures configured.')}</p>
+                                <p className="mt-1 text-[11px] text-slate-400">
+                                    {t('patient_details.chart.configure_in_settings', 'Go to Settings → Procedures to add clinic procedures.')}
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {proceduresByCategory.map(({ category, items }) => {
+                                    const catLabel = isRtl
+                                        ? CATEGORY_LABELS[category]?.ar || category
+                                        : CATEGORY_LABELS[category]?.en || category;
+                                    return (
+                                        <div key={category} className="space-y-2">
+                                            <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                                {catLabel}
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                                {items.map((item) => (
+                                                    <ActionCard
+                                                        key={item.key}
+                                                        item={item}
+                                                        isFavorite={favorites.includes(item.key)}
+                                                        onToggleFavorite={(e) => toggleFavorite(item.key, e)}
+                                                        onActivateSticky={(e) => handleActivateSticky(item, e)}
+                                                        onClick={() => handleActionClick(item)}
+                                                        isRtl={isRtl}
+                                                        t={t}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                                {procedureItems.length > 8 && (
+                                    <div className="flex justify-center pt-1">
+                                        <button
+                                            type="button"
+                                            data-testid="show-all-procedures-button"
+                                            onClick={() => setShowAllProcedures((prev) => !prev)}
+                                            className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-colors"
+                                        >
+                                            {showAllProcedures
+                                                ? t('patient_details.chart.show_less', 'Show less')
+                                                : t('patient_details.chart.show_all_procedures', 'Show all ({{count}})', {
+                                                      count: procedureItems.length,
+                                                  })}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>
@@ -425,11 +563,14 @@ function ActionCard({
     testIdPrefix = 'chart-quick-action-item',
 }) {
     const isFinding = item.kind === 'finding';
-    const displayName = isRtl ? item.nameAr || item.name : item.name;
+    const displayName = isFinding ? (isRtl ? item.nameAr || item.name : item.name) : item.name;
+    const testIdKey = item.code || item.key;
+    const formattedPrice = item.basePrice !== null ? formatNumber(item.basePrice, isRtl ? 'ar' : 'en') : null;
 
     return (
         <div
-            data-testid={`${testIdPrefix}-${item.code}`}
+            data-testid={`${testIdPrefix}-${testIdKey}`}
+            data-procedure-id={item.procedureId}
             role="button"
             tabIndex={0}
             onClick={onClick}
@@ -442,7 +583,7 @@ function ActionCard({
             className="group flex min-h-11 items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-start transition-all hover:border-blue-400 hover:bg-blue-50/40 hover:shadow-sm dark:border-slate-800 dark:bg-slate-800/40 dark:hover:border-blue-700 dark:hover:bg-blue-950/20"
         >
             <div className="flex min-w-0 flex-col">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
                         {displayName}
                     </span>
@@ -458,9 +599,22 @@ function ActionCard({
                             : t('patient_details.chart.procedure_badge', 'Procedure')}
                     </span>
                 </div>
-                <span className="truncate text-[11px] text-slate-500 dark:text-slate-400">
-                    {item.code} {item.defaultPrice ? `· ${item.defaultPrice} EGP` : ''}
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap text-[11px] text-slate-500 dark:text-slate-400">
+                    {item.code && <span>{item.code}</span>}
+                    {formattedPrice && (
+                        <span className="font-mono">
+                            {item.code ? `· ${formattedPrice}` : formattedPrice}
+                        </span>
+                    )}
+                    {item.kind === 'procedure' && !item.hasChartMapping && (
+                        <span
+                            data-testid={`billing-only-tag-${testIdKey}`}
+                            className="rounded px-1.5 py-0.2 text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                        >
+                            {t('patient_details.chart.billing_only_tag', 'Billing only — not shown on chart/plan')}
+                        </span>
+                    )}
+                </div>
             </div>
 
             <div className="ms-2 flex items-center gap-1 shrink-0">
@@ -472,7 +626,7 @@ function ActionCard({
                             onActivateSticky(e);
                         }
                     }}
-                    data-testid={`sticky-toggle-${item.code}`}
+                    data-testid={`sticky-toggle-${testIdKey}`}
                     aria-label={t('patient_details.chart.activate_sticky', 'Activate sticky mode')}
                     title={t('patient_details.chart.activate_sticky', 'Activate sticky mode')}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/40 dark:hover:text-blue-300"
@@ -481,8 +635,13 @@ function ActionCard({
                 </button>
                 <button
                     type="button"
-                    onClick={onToggleFavorite}
-                    data-testid={`favorite-toggle-${item.code}`}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (onToggleFavorite) {
+                            onToggleFavorite(e);
+                        }
+                    }}
+                    data-testid={`favorite-toggle-${testIdKey}`}
                     aria-label={
                         isFavorite
                             ? t('patient_details.chart.unstar_favorite', 'Remove from favorites')
@@ -506,17 +665,7 @@ ChartQuickActionLauncher.propTypes = {
     selectedSurfacesByTooth: PropTypes.object,
     onAction: PropTypes.func,
     onActivateStickyTool: PropTypes.func,
-    clinicProcedures: PropTypes.array,
+    clinicProcedures: PropTypes.arrayOf(PropTypes.object),
+    isLoading: PropTypes.bool,
     onClose: PropTypes.func,
-};
-
-ActionCard.propTypes = {
-    item: PropTypes.object.isRequired,
-    isFavorite: PropTypes.bool.isRequired,
-    onToggleFavorite: PropTypes.func.isRequired,
-    onActivateSticky: PropTypes.func,
-    onClick: PropTypes.func.isRequired,
-    isRtl: PropTypes.bool,
-    t: PropTypes.func.isRequired,
-    testIdPrefix: PropTypes.string,
 };

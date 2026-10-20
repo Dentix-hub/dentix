@@ -31,7 +31,13 @@ vi.mock('react-router-dom', async (importOriginal) => {
 });
 
 vi.mock('@/shared/context/ProceduresContext', () => ({
-    useProcedures: () => ({ procedures: [] }),
+    useProcedures: () => ({
+        procedures: [
+            { id: 1, name: 'Root Canal Treatment', canonical_code: 'ENDO_RCT', price: 500 },
+            { id: 2, name: 'Composite Restoration', canonical_code: 'REST_COMPOSITE', price: 150 },
+        ],
+        loading: false,
+    }),
 }));
 
 vi.mock('@/features/patients/modals/EditPatientModal.jsx', () => ({
