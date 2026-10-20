@@ -1,59 +1,62 @@
 import { useMemo } from 'react';
 
 const PHASE_COLORS = [
-    { border: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)', name: 'blue' },
-    { border: '#10b981', bg: 'rgba(16, 185, 129, 0.15)', name: 'green' },
-    { border: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)', name: 'amber' },
-    { border: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.15)', name: 'purple' },
+    { border: '#3b82f6', bg: '#eff6ff', text: '#1d4ed8', badgeBg: '#2563eb', label: 'Phase 1' },
+    { border: '#10b981', bg: '#ecfdf5', text: '#047857', badgeBg: '#059669', label: 'Phase 2' },
+    { border: '#f59e0b', bg: '#fffbeb', text: '#b45309', badgeBg: '#d97706', label: 'Phase 3' },
+    { border: '#8b5cf6', bg: '#f5f3ff', text: '#6d28d9', badgeBg: '#7c3aed', label: 'Phase 4' },
+    { border: '#ec4899', bg: '#fdf2f8', text: '#be185d', badgeBg: '#db2777', label: 'Phase 5' },
 ];
 
+/**
+ * Builds the treatment-plan overlay consumed by DentalChartSVG (per-tooth badge/colors)
+ * and PlanOverlayActiveBanner (plan title, phase chips).
+ *
+ * Teeth come from `item.work_item.targets[].tooth_key` (plan items carry no tooth_number).
+ * Entry shape per tooth: { phaseId, phaseOrder, phaseName, phaseIndex, color, borderColor,
+ * bgColor, badge, procedureCodes } — this is the contract the chart reads.
+ */
 export function usePatientPlanOverlay({ activeOverlayPlanId, activeOverlayPhaseId, treatmentPlans }) {
     return useMemo(() => {
-        if (!activeOverlayPlanId) return null;
-        const activePlan = treatmentPlans.find((p) => p.id === activeOverlayPlanId);
-        if (!activePlan) return null;
+        if (!activeOverlayPlanId || !treatmentPlans || treatmentPlans.length === 0) return null;
+        const plan = treatmentPlans.find((p) => p.id === activeOverlayPlanId);
+        if (!plan) return null;
 
-        const phases = activePlan.phases || [];
-        const filteredPhases = activeOverlayPhaseId
-            ? phases.filter((ph) => ph.id === activeOverlayPhaseId)
-            : phases;
-
-        const teeth = {};
-
-        filteredPhases.forEach((ph, pIdx) => {
-            const colorCfg = PHASE_COLORS[pIdx % PHASE_COLORS.length];
+        const teethMap = {};
+        (plan.phases || []).forEach((ph, pIdx) => {
+            if (activeOverlayPhaseId && ph.id !== activeOverlayPhaseId) return;
+            const colorConfig = PHASE_COLORS[pIdx % PHASE_COLORS.length];
             (ph.items || []).forEach((item) => {
-                const toothNum = item.tooth_number;
-                if (!toothNum) return;
-                const toothKey = String(toothNum);
-                if (!teeth[toothKey]) {
-                    teeth[toothKey] = {
-                        planId: activePlan.id,
-                        planTitle: activePlan.title,
-                        phaseId: ph.id,
-                        phaseName: ph.name,
-                        procedureName: item.procedure_name || item.procedure_code,
-                        colorConfig: colorCfg,
-                        items: [],
-                    };
-                }
-                teeth[toothKey].items.push({
-                    id: item.id,
-                    procedureName: item.procedure_name || item.procedure_code,
-                    status: item.status,
-                    phaseId: ph.id,
-                    phaseName: ph.name,
-                    colorConfig: colorCfg,
+                const targets = item.work_item?.targets || [];
+                targets.forEach((target) => {
+                    if (target.tooth_key) {
+                        const tk = String(target.tooth_key);
+                        if (!teethMap[tk]) {
+                            teethMap[tk] = {
+                                phaseId: ph.id,
+                                phaseOrder: ph.phase_order,
+                                phaseName: ph.name,
+                                phaseIndex: pIdx,
+                                color: colorConfig.badgeBg,
+                                borderColor: colorConfig.border,
+                                bgColor: colorConfig.bg,
+                                badge: `P${pIdx + 1}`,
+                                procedureCodes: [item.work_item?.code].filter(Boolean),
+                            };
+                        } else if (item.work_item?.code && !teethMap[tk].procedureCodes.includes(item.work_item.code)) {
+                            teethMap[tk].procedureCodes.push(item.work_item.code);
+                        }
+                    }
                 });
             });
         });
 
         return {
-            planId: activePlan.id,
-            planTitle: activePlan.title,
-            activePhaseId: activeOverlayPhaseId,
-            teeth,
-            phases: phases.map((ph, idx) => ({
+            planId: plan.id,
+            planTitle: plan.title,
+            phaseId: activeOverlayPhaseId,
+            teeth: teethMap,
+            phases: (plan.phases || []).map((ph, idx) => ({
                 id: ph.id,
                 name: ph.name,
                 colorConfig: PHASE_COLORS[idx % PHASE_COLORS.length],
