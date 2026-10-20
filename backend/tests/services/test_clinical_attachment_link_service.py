@@ -584,7 +584,7 @@ async def test_g15_m03_m04_m05_individual_and_composite_context_linking(async_db
         filters=schemas.ClinicalAttachmentLinkFilter(tooth_key="16"),
     )
     assert len(tooth_links) == 2
-    assert {l.id for l in tooth_links} == {link_tooth.id, link_composite.id}
+    assert {lnk.id for lnk in tooth_links} == {link_tooth.id, link_composite.id}
 
     # Query by care_session_id=cs1.id (finds link_composite)
     cs_links = await service.list_attachment_links(
