@@ -978,6 +978,15 @@
             "transition_error": "فشل تحديث حالة خطة العلاج"
         }
     },
+    "treatment_modal": {
+        "prefill_source": {
+            "quick_launcher": "إجراء سريع",
+            "chart_selection": "تحديد المخطط",
+            "tooth_picker": "اختيار السن",
+            "plan_item": "عنصر الخطة",
+            "manual": "يدوي"
+        }
+    },
     "inventory": {
 
         "title": "إدارة المخزون",

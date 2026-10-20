@@ -971,6 +971,15 @@
             "transition_error": "Failed to update treatment plan status"
         }
     },
+    "treatment_modal": {
+        "prefill_source": {
+            "quick_launcher": "Quick Action",
+            "chart_selection": "Chart Selection",
+            "tooth_picker": "Tooth Picker",
+            "plan_item": "Plan Item",
+            "manual": "Manual"
+        }
+    },
     "inventory": {
 
         "title": "Inventory Management",

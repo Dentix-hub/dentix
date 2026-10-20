@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getSmartTargetKindAndSurfaces } from '@/features/clinical-chart/domain/catalogDefinitions';
 import { toothToNumber, fdiToPalmer, universalToPalmer } from '@/utils/toothUtils';
+import { buildTreatmentPrefill } from '../utils/buildTreatmentPrefill';
 
 export function usePatientChartSelection({
     isPediatric,
@@ -70,14 +71,15 @@ export function usePatientChartSelection({
         const palmerPrefix = isFdiKey
             ? fdiToPalmer(fdi)
             : universalToPalmer(number, isPediatric);
-        setNewTreatment({
-            ...getInitialTreatment(),
-            tooth_number: palmerPrefix,
-            surface: '',
+        const prefill = buildTreatmentPrefill({
+            baseTreatment: getInitialTreatment(),
+            source: 'tooth_picker',
+            palmerTooth: palmerPrefix,
             surfaces: [],
-            target_kind: 'tooth',
-            default_price_list_id: patient?.default_price_list_id,
+            targetKind: 'tooth',
+            defaultPriceListId: patient?.default_price_list_id,
         });
+        setNewTreatment(prefill);
         setIsTreatmentModalOpen(true);
     }, [isPediatric, patient, effectiveTeethStatusRef, setSelectedToothCondition, setNewTreatment, getInitialTreatment, setIsTreatmentModalOpen]);
 
@@ -203,19 +205,16 @@ export function usePatientChartSelection({
     const handleRecordTreatmentFromSelection = useCallback(() => {
         const toothKey = resolvedActiveTooth || selectedTeeth[0];
         if (!toothKey) return;
-        const fdi = Number.parseInt(toothKey, 10);
-        const palmerPrefix = fdiToPalmer(fdi);
         const surfaces = selectedSurfacesByTooth[toothKey] || [];
-        const surfaceUpper = surfaces.join('');
 
-        setNewTreatment({
-            ...getInitialTreatment(),
-            tooth_number: palmerPrefix,
-            surface: surfaceUpper,
-            surfaces: [...surfaces],
-            target_kind: surfaces.length > 0 ? 'surface' : 'tooth',
-            default_price_list_id: patient?.default_price_list_id,
+        const prefill = buildTreatmentPrefill({
+            baseTreatment: getInitialTreatment(),
+            source: 'chart_selection',
+            toothKey,
+            surfaces,
+            defaultPriceListId: patient?.default_price_list_id,
         });
+        setNewTreatment(prefill);
         setIsTreatmentModalOpen(true);
     }, [resolvedActiveTooth, selectedTeeth, selectedSurfacesByTooth, patient, setNewTreatment, getInitialTreatment, setIsTreatmentModalOpen]);
 
