@@ -207,7 +207,11 @@ def _get_all_g1_patient_triggers() -> set[str]:
 
 
 def _database_url() -> str | None:
-    db_url = os.getenv("DATABASE_URL")
+    db_url = (
+        os.getenv("MIGRATION_DATABASE_URL")
+        or os.getenv("OWNER_DATABASE_URL")
+        or os.getenv("DATABASE_URL")
+    )
     if not db_url:
         return None
     db_url = db_url.strip().strip("'").strip('"')
