@@ -518,3 +518,383 @@ async def test_feature_flag_gated(async_db_session, seed_data):
     with pytest.raises(HTTPException) as exc3:
         await service.suggest_next_visit(pat1.id)
     assert exc3.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_reception_queue_retrieval_and_filtering(async_db_session, seed_data):
+    """
+    Test G11-M04: Reception queue retrieval, enrichment (patient name/phone), and status filtering.
+    """
+    t1 = seed_data["tenant_1"]
+    t2 = seed_data["tenant_2"]
+    doc1 = seed_data["doctor_1"]
+    doc2 = seed_data["doctor_2"]
+    pat1 = seed_data["patient_1"]
+    pat3 = seed_data["patient_3"]
+    pat2 = seed_data["patient_2"]
+
+    service_t1 = CareSessionService(async_db_session, t1.id, doc1)
+    service_t2 = CareSessionService(async_db_session, t2.id, doc2)
+
+    # 1. Create two requests in tenant 1 for different patients
+    req1 = await service_t1.create_next_visit_request(
+        pat1.id,
+        schemas.NextVisitRequestCreate(
+            reason="Tariq Obturation Step",
+            suggested_duration_minutes=45,
+            notes="Requires 45 min slot",
+        ),
+    )
+    req2 = await service_t1.create_next_visit_request(
+        pat3.id,
+        schemas.NextVisitRequestCreate(
+            reason="Patient Three Crown Delivery",
+            suggested_duration_minutes=30,
+        ),
+    )
+
+    # 2. Create one request in tenant 2
+    req_t2 = await service_t2.create_next_visit_request(
+        pat2.id,
+        schemas.NextVisitRequestCreate(
+            reason="External Clinic Followup",
+            suggested_duration_minutes=20,
+        ),
+    )
+
+    # 3. Retrieve reception queue for tenant 1
+    queue_t1 = await service_t1.list_reception_queue(status="requested")
+    t1_ids = [r.id for r in queue_t1]
+
+    assert req1.id in t1_ids
+    assert req2.id in t1_ids
+    assert req_t2.id not in t1_ids, "Cross-tenant leak: tenant 2 request appeared in tenant 1 queue!"
+
+    # Verify patient enrichment
+    found_r1 = next(r for r in queue_t1 if r.id == req1.id)
+    assert found_r1.patient_name == pat1.name
+    assert found_r1.patient_phone == pat1.phone
+    assert found_r1.suggested_duration_minutes == 45
+    assert found_r1.status == "requested"
+
+    # 4. Filter by patient
+    pat1_queue = await service_t1.list_reception_queue(status="requested", patient_id=pat1.id)
+    assert len(pat1_queue) == 1
+    assert pat1_queue[0].id == req1.id
+
+
+@pytest.mark.asyncio
+async def test_convert_request_to_appointment_and_lifecycle(async_db_session, seed_data):
+    """
+    Test G11-M05: Convert next-visit request to appointment with explicit receptionist submission.
+    Test G11-M09: Safe cancellation (reverts to 'requested').
+    Test G11-M10: Safe completion (marks 'completed').
+    Test G11-M11: Integration lifecycle from triage -> booking -> cancellation -> re-booking -> completion.
+    """
+    from backend import crud
+
+    t1 = seed_data["tenant_1"]
+    doc1 = seed_data["doctor_1"]
+    pat1 = seed_data["patient_1"]
+
+    service = CareSessionService(async_db_session, t1.id, doc1)
+
+    # 1. Chairside creates next-visit request
+    req = await service.create_next_visit_request(
+        pat1.id,
+        schemas.NextVisitRequestCreate(
+            reason="Tooth 46: RCT - Obturation & Seal",
+            suggested_duration_minutes=45,
+            notes="Bring pre-op radiograph",
+        ),
+    )
+    assert req.status == "requested"
+    initial_request_id = req.id
+
+    # 2. Receptionist views queue and explicitly books an appointment (G11-M05, G11-M08)
+    booking_time = datetime.now(timezone.utc) + timedelta(days=7)
+    scheduled_req, appt = await service.schedule_next_visit_request(
+        request_id=initial_request_id,
+        data=schemas.NextVisitRequestSchedule(
+            date_time=booking_time,
+            doctor_id=doc1.id,
+            duration_minutes=45,
+            notes="Scheduled per patient phone call",
+        ),
+    )
+
+    # Verify appointment was created
+    assert appt.id is not None
+    assert appt.patient_id == pat1.id
+    assert appt.doctor_id == doc1.id
+    assert appt.duration_minutes == 45
+    assert appt.status == "Scheduled"
+
+    # Verify request status updated to 'scheduled' and structured token added per PD06
+    assert scheduled_req.status == "scheduled"
+    assert f"[APPOINTMENT:{appt.id}]" in scheduled_req.notes
+    assert scheduled_req.fulfilled_appointment_id == appt.id
+
+    # Verify audit event emitted
+    stmt_event = select(models.ClinicalEvent).where(
+        models.ClinicalEvent.tenant_id == t1.id,
+        models.ClinicalEvent.event_type == "next_visit_request_scheduled",
+    )
+    evt = (await async_db_session.execute(stmt_event)).scalars().first()
+    assert evt is not None
+    assert evt.payload["appointment_id"] == appt.id
+    assert evt.payload["request_id"] == initial_request_id
+
+    # 3. Patient calls to cancel the appointment -> receptionist cancels it (G11-M09)
+    await crud.update_appointment_status(
+        async_db_session,
+        appointment_id=appt.id,
+        status="Cancelled",
+        tenant_id=t1.id,
+    )
+
+    # Verify request status safely reverted to 'requested' so it reappears in reception queue!
+    reloaded_req = await service.get_next_visit_request(pat1.id, initial_request_id)
+    assert reloaded_req.status == "requested", "Cancelled appointment must reopen NextVisitRequest to 'requested' (G11-M09)!"
+
+    # Verify it shows up in reception pending queue again
+    pending_queue = await service.list_reception_queue(status="requested")
+    assert any(r.id == initial_request_id for r in pending_queue)
+
+    # 4. Receptionist contacts patient and reschedules to a new appointment
+    new_booking_time = datetime.now(timezone.utc) + timedelta(days=10)
+    rescheduled_req, new_appt = await service.schedule_next_visit_request(
+        request_id=initial_request_id,
+        data=schemas.NextVisitRequestSchedule(
+            date_time=new_booking_time,
+            doctor_id=doc1.id,
+            duration_minutes=45,
+            notes="Rescheduled appointment",
+        ),
+    )
+    assert rescheduled_req.status == "scheduled"
+    assert f"[APPOINTMENT:{new_appt.id}]" in rescheduled_req.notes
+    assert rescheduled_req.fulfilled_appointment_id == new_appt.id
+
+    # 5. Patient attends and appointment is marked Completed (G11-M10)
+    await crud.update_appointment_status(
+        async_db_session,
+        appointment_id=new_appt.id,
+        status="Completed",
+        tenant_id=t1.id,
+    )
+
+    # Verify request is now marked 'completed'
+    completed_req = await service.get_next_visit_request(pat1.id, initial_request_id)
+    assert completed_req.status == "completed", "Completed appointment must mark NextVisitRequest 'completed' (G11-M10)!"
+
+
+@pytest.mark.asyncio
+async def test_appointment_soft_delete_reopens_request(async_db_session, seed_data):
+    """
+    Test G11-M09: Soft-deleting an appointment safely reopens linked next-visit request.
+    """
+    from backend import crud
+
+    t1 = seed_data["tenant_1"]
+    doc1 = seed_data["doctor_1"]
+    pat1 = seed_data["patient_1"]
+
+    service = CareSessionService(async_db_session, t1.id, doc1)
+
+    req = await service.create_next_visit_request(
+        pat1.id,
+        schemas.NextVisitRequestCreate(
+            reason="Check Suture Removal",
+            suggested_duration_minutes=15,
+        ),
+    )
+    scheduled_req, appt = await service.schedule_next_visit_request(
+        request_id=req.id,
+        data=schemas.NextVisitRequestSchedule(
+            date_time=datetime.now(timezone.utc) + timedelta(days=5),
+            doctor_id=doc1.id,
+        ),
+    )
+    assert scheduled_req.status == "scheduled"
+
+    # Delete appointment
+    await crud.delete_appointment(async_db_session, appointment_id=appt.id, tenant_id=t1.id)
+
+    # Verify request safely reopened to 'requested'
+    reloaded = await service.get_next_visit_request(pat1.id, req.id)
+    assert reloaded.status == "requested"
+
+
+@pytest.mark.asyncio
+async def test_concurrency_race_double_schedule_protection(async_db_session, seed_data):
+    """
+    Test G11-M12: Concurrency and race tests for request booking conversion.
+    Attempting to schedule an already scheduled or cancelled request raises 409 Conflict.
+    """
+    t1 = seed_data["tenant_1"]
+    doc1 = seed_data["doctor_1"]
+    pat1 = seed_data["patient_1"]
+
+    service = CareSessionService(async_db_session, t1.id, doc1)
+
+    req = await service.create_next_visit_request(
+        pat1.id,
+        schemas.NextVisitRequestCreate(
+            reason="Concurrent test request",
+            suggested_duration_minutes=30,
+        ),
+    )
+
+    # First schedule succeeds
+    booking_time = datetime.now(timezone.utc) + timedelta(days=3)
+    await service.schedule_next_visit_request(
+        request_id=req.id,
+        data=schemas.NextVisitRequestSchedule(
+            date_time=booking_time,
+            doctor_id=doc1.id,
+        ),
+    )
+
+    # Second concurrent attempt raises 409 Conflict
+    with pytest.raises(HTTPException) as exc:
+        await service.schedule_next_visit_request(
+            request_id=req.id,
+            data=schemas.NextVisitRequestSchedule(
+                date_time=booking_time + timedelta(hours=1),
+                doctor_id=doc1.id,
+            ),
+        )
+    assert exc.value.status_code == 409
+    assert "Only 'requested' items can be scheduled" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_cross_tenant_isolation_and_security(async_db_session, seed_data):
+    """
+    Test tenant security and isolation on reception queue and conversion operations.
+    """
+    t1 = seed_data["tenant_1"]
+    t2 = seed_data["tenant_2"]
+    doc1 = seed_data["doctor_1"]
+    doc2 = seed_data["doctor_2"]
+    pat1 = seed_data["patient_1"]
+
+    service_t1 = CareSessionService(async_db_session, t1.id, doc1)
+    service_t2 = CareSessionService(async_db_session, t2.id, doc2)
+
+    req_t1 = await service_t1.create_next_visit_request(
+        pat1.id,
+        schemas.NextVisitRequestCreate(reason="Tenant 1 Request", suggested_duration_minutes=30),
+    )
+
+    # Tenant 2 attempts to schedule Tenant 1's request -> 404
+    with pytest.raises(HTTPException) as exc:
+        await service_t2.schedule_next_visit_request(
+            request_id=req_t1.id,
+            data=schemas.NextVisitRequestSchedule(
+                date_time=datetime.now(timezone.utc) + timedelta(days=2),
+                doctor_id=doc2.id,
+            ),
+        )
+    assert exc.value.status_code == 404
+
+    # Tenant 2 attempts to cancel Tenant 1's request -> 404
+    with pytest.raises(HTTPException) as exc2:
+        await service_t2.cancel_next_visit_request(request_id=req_t1.id)
+    assert exc2.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_next_visit_requests_router_handlers(async_db_session, seed_data):
+    """
+    Test REST router endpoints directly:
+    - GET /api/v1/next-visit-requests (G11-M04)
+    - POST /api/v1/next-visit-requests/{id}/schedule (G11-M05)
+    - POST /api/v1/next-visit-requests/{id}/cancel
+    - GET /api/v1/next-visit-requests/{id}
+    """
+    from backend.routers import next_visit_requests as nvr_router
+
+    t1 = seed_data["tenant_1"]
+    doc1 = seed_data["doctor_1"]
+    pat1 = seed_data["patient_1"]
+
+    service = CareSessionService(async_db_session, t1.id, doc1)
+
+    # 1. Create chairside request
+    req = await service.create_next_visit_request(
+        pat1.id,
+        schemas.NextVisitRequestCreate(
+            reason="Router test follow-up",
+            suggested_duration_minutes=30,
+        ),
+    )
+
+    # 2. Test list_reception_queue router endpoint
+    res_list = await nvr_router.list_reception_queue(
+        status="requested",
+        patient_id=None,
+        skip=0,
+        limit=50,
+        db=async_db_session,
+        current_user=doc1,
+    )
+    items = res_list["data"]
+    assert any(r.id == req.id for r in items)
+    matched = next(r for r in items if r.id == req.id)
+    assert matched.patient_name == pat1.name
+    assert matched.status == "requested"
+
+    # 3. Test get_next_visit_request router endpoint
+    res_get = await nvr_router.get_next_visit_request(
+        request_id=req.id,
+        db=async_db_session,
+        current_user=doc1,
+    )
+    assert res_get["data"].id == req.id
+    assert res_get["data"].reason == "Router test follow-up"
+
+    # 4. Test schedule_next_visit_request router endpoint
+    booking_time = datetime.now(timezone.utc) + timedelta(days=2)
+    res_sched = await nvr_router.schedule_next_visit_request(
+        request_id=req.id,
+        payload=schemas.NextVisitRequestSchedule(
+            date_time=booking_time,
+            duration_minutes=30,
+            notes="Booked via router endpoint",
+        ),
+        db=async_db_session,
+        current_user=doc1,
+    )
+    assert res_sched["data"].status == "scheduled"
+    assert res_sched["data"].appointment_id is not None
+    assert res_sched["data"].request.fulfilled_appointment_id == res_sched["data"].appointment_id
+
+    # 5. Duplicate schedule via router endpoint returns 409
+    with pytest.raises(HTTPException) as exc_dup:
+        await nvr_router.schedule_next_visit_request(
+            request_id=req.id,
+            payload=schemas.NextVisitRequestSchedule(
+                date_time=booking_time,
+            ),
+            db=async_db_session,
+            current_user=doc1,
+        )
+    assert exc_dup.value.status_code == 409
+
+    # 6. Test cancel_next_visit_request router endpoint
+    req2 = await service.create_next_visit_request(
+        pat1.id,
+        schemas.NextVisitRequestCreate(
+            reason="Second request to cancel",
+            suggested_duration_minutes=15,
+        ),
+    )
+    res_cancel = await nvr_router.cancel_next_visit_request(
+        request_id=req2.id,
+        payload=nvr_router.CancelRequestPayload(reason="Patient moved"),
+        db=async_db_session,
+        current_user=doc1,
+    )
+    assert res_cancel["data"].status == "cancelled"

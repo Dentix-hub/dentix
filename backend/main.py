@@ -452,6 +452,7 @@ from backend.routers import (
     clinical_commands,  # Clinical Commands (Slice S04)
     care_sessions,  # Care Sessions (Slice S18)
     clinical_attachment_links,  # Clinical Attachment Links (Slice S23)
+    next_visit_requests,  # Next-Visit Requests Queue & Booking (Slice S25)
 )
 
 # --- Register Exception Handlers ---
@@ -484,6 +485,8 @@ app.include_router(care_sessions.router, prefix=API_V1_STR)
 app.include_router(care_sessions.router)
 app.include_router(clinical_attachment_links.router, prefix=API_V1_STR)
 app.include_router(clinical_attachment_links.router)
+app.include_router(next_visit_requests.router, prefix=API_V1_STR)
+app.include_router(next_visit_requests.router)
 app.include_router(auth.router, prefix=f"{API_V1_STR}/auth")
 
 app.include_router(password_reset.router, prefix=f"{API_V1_STR}/auth")

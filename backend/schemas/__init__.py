@@ -117,6 +117,8 @@ from .care_session import (
     CareObservationRead,
     NextVisitRequestCreate,
     NextVisitRequestRead,
+    NextVisitRequestSchedule,
+    NextVisitRequestScheduleResult,
     NextVisitSuggestionRead,
     ResumableWorkItemRead,
     CareSessionResumableResponse,

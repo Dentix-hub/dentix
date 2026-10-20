@@ -40,6 +40,16 @@ class NextVisitRequestCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class NextVisitRequestSchedule(BaseModel):
+    date_time: datetime = Field(..., description="Scheduled appointment datetime (ISO format)")
+    doctor_id: Optional[int] = Field(None, description="Assigned doctor user ID")
+    duration_minutes: Optional[int] = Field(None, ge=5, le=480, description="Duration in minutes (defaults to suggested_duration_minutes)")
+    price_list_id: Optional[int] = Field(None, description="Optional price list ID")
+    notes: Optional[str] = Field(None, description="Appointment notes")
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class NextVisitRequestRead(BaseModel):
     id: int
     tenant_id: int
@@ -55,6 +65,46 @@ class NextVisitRequestRead(BaseModel):
     notes: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    patient_name: Optional[str] = None
+    patient_phone: Optional[str] = None
+    fulfilled_appointment_id: Optional[int] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_enriched_fields(cls, data: Any) -> Any:
+        import re
+
+        if isinstance(data, dict):
+            if not data.get("fulfilled_appointment_id"):
+                notes = data.get("notes")
+                if notes and isinstance(notes, str):
+                    m = re.search(r"\[APPOINTMENT:(\d+)\]", notes)
+                    if m:
+                        data["fulfilled_appointment_id"] = int(m.group(1))
+            return data
+
+        notes = getattr(data, "notes", None)
+        if notes and isinstance(notes, str) and not getattr(data, "fulfilled_appointment_id", None):
+            m = re.search(r"\[APPOINTMENT:(\d+)\]", notes)
+            if m:
+                setattr(data, "fulfilled_appointment_id", int(m.group(1)))
+
+        patient = getattr(data, "patient", None)
+        if patient:
+            if not getattr(data, "patient_name", None):
+                setattr(data, "patient_name", getattr(patient, "name", None))
+            if not getattr(data, "patient_phone", None):
+                setattr(data, "patient_phone", getattr(patient, "phone", None))
+        return data
+
+
+class NextVisitRequestScheduleResult(BaseModel):
+    request: NextVisitRequestRead
+    appointment_id: int
+    appointment_date_time: datetime
+    status: str = "scheduled"
 
     model_config = ConfigDict(from_attributes=True)
 
