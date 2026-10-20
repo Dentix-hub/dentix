@@ -33,6 +33,7 @@ export const queryKeys = {
     patientCareSessions: (id, filters = {}) => ['patient', id, 'care-sessions', filters],
     patientPayments: (id) => ['patient', id, 'payments'],
     patientAttachments: (id) => ['patient', id, 'attachments'],
+    patientClinicalAttachmentLinks: (id, filters = {}) => ['patient', id, 'clinical-attachment-links', filters],
     tenantFeatures: ['tenant', 'features'],
 
 

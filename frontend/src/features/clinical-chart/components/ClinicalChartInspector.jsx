@@ -1,6 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Trash2, AlertTriangle } from 'lucide-react';
+import PropTypes from 'prop-types';
+import { Trash2, AlertTriangle, Camera, Eye, Plus } from 'lucide-react';
 import Modal from '@/shared/ui/Modal';
+import {
+    buildAttachmentUrl,
+    getPurposeLabel,
+    DiagnosticImageLightbox,
+    LinkClinicalAttachmentModal,
+} from '@/features/clinical-attachments';
 
 export default function ClinicalChartInspector({
     copy,
@@ -12,6 +19,12 @@ export default function ClinicalChartInspector({
     treatmentPlans = [],
     payments = [],
     onRemoveItem = null,
+    patientId = null,
+    attachments = [],
+    attachmentLinks = [],
+    activeCareSession = null,
+    onCreateAttachmentLink = null,
+    onDeleteAttachmentLink = null,
 }) {
     const hasSelection = Boolean(selection?.toothKey);
     const toothKey = selection?.toothKey ? String(selection.toothKey) : null;
@@ -19,6 +32,22 @@ export default function ClinicalChartInspector({
     const proceduresCount = toothState?.procedures?.length ?? 0;
 
     const [pendingRemovalItem, setPendingRemovalItem] = useState(null);
+    const [selectedImageForLightbox, setSelectedImageForLightbox] = useState(null);
+    const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+
+    const toothImages = useMemo(() => {
+        if (!toothKey) return [];
+        return (attachmentLinks || []).filter(
+            (lnk) =>
+                lnk.tooth_key != null &&
+                String(lnk.tooth_key) === String(toothKey) &&
+                (lnk.file_type?.includes('image') ||
+                    lnk.content_type?.includes('image') ||
+                    lnk.filename?.match(/\.(png|jpg|jpeg|webp|gif|svg)$/i) ||
+                    lnk.file_name?.match(/\.(png|jpg|jpeg|webp|gif|svg)$/i) ||
+                    (!lnk.file_type && !lnk.content_type))
+        );
+    }, [toothKey, attachmentLinks]);
 
     const activeToothItems = useMemo(() => {
         if (!toothKey) return [];
@@ -196,15 +225,17 @@ export default function ClinicalChartInspector({
         }
     };
 
+    const isArabic = copy?.localeName === 'العربية';
+
     return (
         <aside
-            aria-label={title + ' - ' + copy.inspector}
+            aria-label={(title || 'Clinical Chart') + ' - ' + (copy?.inspector || 'Inspector')}
             className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/60"
             data-testid="clinical-chart-inspector"
         >
             <div className="flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{copy.inspector}</h3>
-                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{copy.previewOnly}</span>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{copy?.inspector || 'Inspector'}</h3>
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{copy?.previewOnly || 'Preview Only'}</span>
             </div>
             <dl aria-live="polite" className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                 <div>
@@ -230,74 +261,138 @@ export default function ClinicalChartInspector({
             </dl>
 
             {hasSelection && (
-                <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-800" data-testid="inspector-items-section">
-                    <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                            {copy.activeItems || 'Active Findings & Procedures'}
-                        </h4>
-                        <span className="text-xs text-slate-400">
-                            ({activeToothItems.length})
-                        </span>
-                    </div>
+                <>
+                    {/* Active Findings & Procedures Section */}
+                    <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-800" data-testid="inspector-items-section">
+                        <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                {copy.activeItems || 'Active Findings & Procedures'}
+                            </h4>
+                            <span className="text-xs text-slate-400">
+                                ({activeToothItems.length})
+                            </span>
+                        </div>
 
-                    {activeToothItems.length === 0 ? (
-                        <p className="mt-2 text-xs italic text-slate-500 dark:text-slate-400" data-testid="inspector-no-items">
-                            {copy.noItemsOnTooth || 'No active findings or procedures on this tooth.'}
-                        </p>
-                    ) : (
-                        <ul className="mt-2 space-y-2" data-testid="inspector-items-list">
-                            {activeToothItems.map((item) => (
-                                <li
-                                    key={item.uniqueKey}
-                                    data-testid={`inspector-item-${item.id}`}
-                                    className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-                                >
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex flex-wrap items-center gap-1.5">
-                                            <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                                                {item.name}
-                                            </span>
-                                            <span
-                                                className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
-                                                    item.kind === 'finding'
-                                                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
-                                                        : 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300'
-                                                }`}
-                                            >
-                                                {item.kind === 'finding' ? (copy.findings || 'Finding') : (copy.procedures || 'Procedure')}
-                                            </span>
-                                            {item.surfaces && item.surfaces.length > 0 && (
-                                                <span className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                                    {item.surfaces.join('')}
+                        {activeToothItems.length === 0 ? (
+                            <p className="mt-2 text-xs italic text-slate-500 dark:text-slate-400" data-testid="inspector-no-items">
+                                {copy.noItemsOnTooth || 'No active findings or procedures on this tooth.'}
+                            </p>
+                        ) : (
+                            <ul className="mt-2 space-y-2" data-testid="inspector-items-list">
+                                {activeToothItems.map((item) => (
+                                    <li
+                                        key={item.uniqueKey}
+                                        data-testid={`inspector-item-${item.id}`}
+                                        className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                                    >
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                                                    {item.name}
                                                 </span>
+                                                <span
+                                                    className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
+                                                        item.kind === 'finding'
+                                                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
+                                                            : 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300'
+                                                    }`}
+                                                >
+                                                    {item.kind === 'finding' ? (copy.findings || 'Finding') : (copy.procedures || 'Procedure')}
+                                                </span>
+                                                {item.surfaces && item.surfaces.length > 0 && (
+                                                    <span className="inline-flex items-center rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                                        {item.surfaces.join('')}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {item.status && (
+                                                <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                                                    {copy.status || 'Status'}: {item.status}
+                                                </p>
                                             )}
                                         </div>
-                                        {item.status && (
-                                            <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                                                {copy.status || 'Status'}: {item.status}
-                                            </p>
-                                        )}
-                                    </div>
 
-                                    {onRemoveItem && (
-                                        <button
-                                            type="button"
-                                            onClick={() => handleInitiateRemove(item)}
-                                            aria-label={`${copy.removeItem || 'Remove'} ${item.name}`}
-                                            data-testid={`remove-item-${item.id}`}
-                                            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:border-red-900/60 dark:bg-slate-800 dark:text-red-400 dark:hover:bg-red-950/30"
-                                        >
-                                            <Trash2 size={15} aria-hidden="true" />
-                                            <span className="ms-1 hidden sm:inline">{copy.removeItem || 'Remove'}</span>
-                                        </button>
-                                    )}
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
+                                        {onRemoveItem && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleInitiateRemove(item)}
+                                                aria-label={`${copy.removeItem || 'Remove'} ${item.name}`}
+                                                data-testid={`remove-item-${item.id}`}
+                                                className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:border-red-900/60 dark:bg-slate-800 dark:text-red-400 dark:hover:bg-red-950/30"
+                                            >
+                                                <Trash2 size={15} aria-hidden="true" />
+                                                <span className="ms-1 hidden sm:inline">{copy.removeItem || 'Remove'}</span>
+                                            </button>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+
+                    {/* Diagnostic Images Section (Slice S24 / G15-M07) */}
+                    <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-800" data-testid="inspector-images-section">
+                        <div className="flex items-center justify-between">
+                            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                <Camera className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                                <span>{copy.diagnosticImages || 'Diagnostic Images & X-Rays'}</span>
+                            </h4>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-400" data-testid="tooth-images-count">
+                                    ({toothImages.length})
+                                </span>
+                                {attachments.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsLinkModalOpen(true)}
+                                        data-testid="btn-link-tooth-image"
+                                        className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                                    >
+                                        <Plus className="h-3 w-3" />
+                                        <span>{copy.linkImage || 'Link Image'}</span>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {toothImages.length === 0 ? (
+                            <p className="mt-2 text-xs italic text-slate-500 dark:text-slate-400" data-testid="inspector-no-images">
+                                {copy.noImagesOnTooth || 'No diagnostic images linked to this tooth.'}
+                            </p>
+                        ) : (
+                            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3" data-testid="tooth-inspector-images">
+                                {toothImages.map((img) => (
+                                    <div
+                                        key={img.id}
+                                        data-testid={`tooth-image-thumbnail-${img.id}`}
+                                        onClick={() => setSelectedImageForLightbox(img)}
+                                        className="group relative aspect-square cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-sm transition-transform hover:scale-[1.02] dark:border-slate-800 dark:bg-slate-800"
+                                    >
+                                        <img
+                                            src={buildAttachmentUrl(img.file_path)}
+                                            alt={img.filename || `Tooth ${toothKey} image`}
+                                            className="h-full w-full object-cover"
+                                        />
+                                        <div className="absolute top-1 start-1">
+                                            <span
+                                                data-testid={`tooth-image-purpose-${img.id}`}
+                                                className="rounded bg-black/75 px-1.5 py-0.5 text-[9px] font-bold text-white backdrop-blur-xs"
+                                            >
+                                                {getPurposeLabel(img.purpose_code, isArabic)}
+                                            </span>
+                                        </div>
+                                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                                            <Eye className="h-4 w-4 text-white" />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </>
             )}
 
+            {/* Removal Confirmation Consequence Modal */}
             {pendingRemovalItem && (
                 <Modal
                     isOpen={Boolean(pendingRemovalItem)}
@@ -351,6 +446,58 @@ export default function ClinicalChartInspector({
                     </div>
                 </Modal>
             )}
+
+            {/* Diagnostic Image Lightbox Modal */}
+            {selectedImageForLightbox && (
+                <DiagnosticImageLightbox
+                    isOpen={Boolean(selectedImageForLightbox)}
+                    onClose={() => setSelectedImageForLightbox(null)}
+                    image={selectedImageForLightbox}
+                    isArabic={isArabic}
+                />
+            )}
+
+            {/* Link Existing Attachment Modal from Tooth Inspector */}
+            {isLinkModalOpen && (
+                <LinkClinicalAttachmentModal
+                    isOpen={isLinkModalOpen}
+                    onClose={() => setIsLinkModalOpen(false)}
+                    attachment={attachments[0] || null}
+                    patientId={patientId}
+                    activeCareSession={activeCareSession}
+                    workItems={workItems}
+                    initialToothKey={toothKey}
+                    existingLinks={attachmentLinks}
+                    onLinkCreated={onCreateAttachmentLink}
+                    onLinkDeleted={onDeleteAttachmentLink}
+                    isArabic={isArabic}
+                />
+            )}
         </aside>
     );
 }
+
+ClinicalChartInspector.propTypes = {
+    copy: PropTypes.object.isRequired,
+    title: PropTypes.string,
+    selection: PropTypes.shape({
+        toothKey: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+        surfaceCode: PropTypes.string,
+        surfaceCodes: PropTypes.arrayOf(PropTypes.string),
+    }),
+    toothState: PropTypes.shape({
+        findings: PropTypes.array,
+        procedures: PropTypes.array,
+    }),
+    workItems: PropTypes.array,
+    treatments: PropTypes.array,
+    treatmentPlans: PropTypes.array,
+    payments: PropTypes.array,
+    onRemoveItem: PropTypes.func,
+    patientId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    attachments: PropTypes.array,
+    attachmentLinks: PropTypes.array,
+    activeCareSession: PropTypes.object,
+    onCreateAttachmentLink: PropTypes.func,
+    onDeleteAttachmentLink: PropTypes.func,
+};

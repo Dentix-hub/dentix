@@ -31,6 +31,9 @@ import {
     updateCareSessionStep,
     applyCareSessionTemplate,
     recordCareObservation,
+    getClinicalAttachmentLinks,
+    createClinicalAttachmentLink,
+    deleteClinicalAttachmentLink,
 } from '@/api';
 
 
@@ -560,6 +563,58 @@ export function useRecordCareObservation() {
         },
     });
 }
+
+/**
+ * Hook for listing patient clinical attachment links (Slice S24 / G15-M03..M05, M07..M08)
+ */
+export function usePatientClinicalAttachmentLinks(patientId, filters = {}, { enabled = true } = {}) {
+    return useQuery({
+        queryKey: queryKeys.patientClinicalAttachmentLinks(patientId, filters),
+        queryFn: async () => {
+            const res = await getClinicalAttachmentLinks(patientId, filters);
+            return Array.isArray(res.data) ? res.data : (Array.isArray(res) ? res : []);
+        },
+        enabled: !!patientId && enabled,
+        staleTime: 15 * 1000,
+    });
+}
+
+/**
+ * Hook for creating a clinical attachment link
+ */
+export function useCreateClinicalAttachmentLink() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, data }) => createClinicalAttachmentLink(patientId, data),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: ['patient', variables.patientId, 'clinical-attachment-links'],
+            });
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientAttachments(variables.patientId),
+            });
+        },
+    });
+}
+
+/**
+ * Hook for deleting a clinical attachment link
+ */
+export function useDeleteClinicalAttachmentLink() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ patientId, linkId }) => deleteClinicalAttachmentLink(patientId, linkId),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({
+                queryKey: ['patient', variables.patientId, 'clinical-attachment-links'],
+            });
+            queryClient.invalidateQueries({
+                queryKey: queryKeys.patientAttachments(variables.patientId),
+            });
+        },
+    });
+}
+
 
 
 
