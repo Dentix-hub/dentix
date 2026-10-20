@@ -30,6 +30,9 @@ export default function ChairsideSelectionBar({
     activeCareSession = null,
     onStartRctSession = null,
     onOpenRctWorkflow = null,
+    patientId = null,
+    attachments = [],
+    attachmentLinks = null,
 }) {
     if (!selectedTeeth || selectedTeeth.length === 0) {
         return null;
@@ -182,6 +185,10 @@ export default function ChairsideSelectionBar({
                 treatmentPlans={treatmentPlans || []}
                 payments={payments || []}
                 onRemoveItem={handleRemoveWorkItemOrTreatment}
+                patientId={patientId}
+                attachments={attachments}
+                attachmentLinks={attachmentLinks}
+                activeCareSession={activeCareSession}
             />
         </div>
     );

@@ -731,6 +731,7 @@ export default function PatientDetails() {
                                                     session={activeCareSession}
                                                     onOpenWorkflow={() => setIsRctWorkflowOpen(true)}
                                                     onOpenFinishSheet={() => setIsFinishSheetOpen(true)}
+                                                    patientId={id}
                                                     t={t}
                                                 />
                                             </div>
@@ -821,6 +822,8 @@ export default function PatientDetails() {
                                             activeCareSession={activeCareSession}
                                             onStartRctSession={handleStartRctSession}
                                             onOpenRctWorkflow={() => setIsRctWorkflowOpen(true)}
+                                            patientId={id}
+                                            attachments={attachments}
                                         />
                                     </>
                                 )}
@@ -854,6 +857,9 @@ export default function PatientDetails() {
                                 handleDeleteAttachment={handleDeleteAttachment}
                                 loading={attachmentsLoading}
                                 reloadAttachments={refetchAttachments}
+                                patientId={id}
+                                activeCareSession={activeCareSession}
+                                workItems={workspaceSnapshot?.work_items || []}
                             />
                         )}
 
@@ -947,6 +953,8 @@ export default function PatientDetails() {
                         isUpdatingStep={updateCareSessionStepMutation.isPending}
                         isSavingObservation={recordCareObservationMutation.isPending}
                         isFinishingSession={finishCareSessionMutation.isPending}
+                        patientId={id}
+                        attachments={attachments}
                         t={t}
                     />
                 </Modal>

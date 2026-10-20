@@ -11,8 +11,8 @@
 ## 1. Status Summary
 
 - **Total Phases Tracked:** 35 (A0–A17, G0–G16)
-- **DONE:** 27 phases (A0–A17, G0–G3, G5–G10)
-- **PARTIAL:** 4 phases (G4, G11, G15, G16)
+- **DONE:** 28 phases (A0–A17, G0–G3, G5–G10, G15)
+- **PARTIAL:** 3 phases (G4, G11, G16)
 - **SCHEMA_ONLY:** 0 phases
 - **NOT_STARTED:** 3 phases (G12, G13, G14)
 
@@ -54,7 +54,7 @@
 | **G12** | Lab Integration | **NOT_STARTED** | `backend/models/clinical.py:326` (`LabOrder` has no `work_item_id` foreign key); direct work item link and decoupling not implemented. |
 | **G13** | Inventory Integration | **NOT_STARTED** | `backend/models/inventory.py:289` (`TreatmentMaterialUsage` references `material_sessions.id`, not `care_sessions.id`). |
 | **G14** | Finance Integration and Parity | **NOT_STARTED** | `clinical_charges` table does not exist in schema, models, or migrations (`git grep clinical_charges` returns 0). |
-| **G15** | Files and Clinical Context | **PARTIAL** | Attachment context link service, PD05 canonical purpose codes, REST APIs, and deterministic legacy attachment link backfill implemented in S23 (`backend/services/clinical_attachment_link_service.py`, `backend/routers/clinical_attachment_links.py`, `backend/clinical/catalog.py`, `backend/clinical/legacy_mapping.py`, `backend/tests/services/test_clinical_attachment_link_service.py`, `backend/tests/services/test_clinical_backfill.py`). Physical attachment storage left 100% untouched (`G15-M01`). Context UI strip, inspector media tab, and lightbox preview scheduled in S24. |
+| **G15** | Files and Clinical Context | **DONE** | Attachment context link service, PD05 canonical purpose codes, REST APIs, and deterministic legacy attachment link backfill implemented in S23; chairside diagnostic viewers, tooth inspector media section, care session thumbnail strip, RCT card images tab, accessible lightbox, and context linking modal implemented in S24 (`backend/services/clinical_attachment_link_service.py`, `backend/routers/clinical_attachment_links.py`, `frontend/src/features/clinical-attachments/`, `ClinicalChartInspector.jsx`, `CareSessionActiveBanner.jsx`, `RctStructuredCard.jsx`, `PatientFiles.jsx`, `backend/tests/services/test_clinical_attachment_link_service.py` (9 tests, 100% coverage), `frontend/src/tests/ClinicalAttachmentViewers.test.jsx` (12 tests)). Physical attachment storage left 100% untouched (`G15-M01`). Closes Phase G15! |
 | **G16** | Rollout and Controlled Cutover | **PARTIAL** | `backend/services/clinical_workspace_service.py:42-44,997-1017` (supports `LEGACY_ONLY`, `SHADOW`, `VNEXT_PRIMARY` via `FeatureFlagService`), `PatientDetails.jsx:446-456`; read-only clinical drift & error observer implemented (`G16-M04`, `G16-M05`: `backend/services/clinical_drift_observer_service.py`, `GET /api/v1/admin/clinical-drift/{tenant_id}`, `backend/tests/services/test_clinical_drift_observer.py`). |
 
 ---

@@ -1,19 +1,34 @@
 import PropTypes from 'prop-types';
-import { Activity, Clock, Flag, CheckCircle2, Calendar } from 'lucide-react';
+import { Activity, Clock, Flag, CheckCircle2, Calendar, Camera } from 'lucide-react';
+import { buildAttachmentUrl } from '@/features/clinical-attachments';
 
 /**
- * CareSessionActiveBanner (Slice S20 & S22 / G11-M01).
- * Prominent chairside active session indicator banner rendered on the patient chart.
+ * CareSessionActiveBanner (Slice S20, S22 & S24 / G11-M01, G15-M08).
+ * Prominent chairside active session indicator banner rendered on the patient chart,
+ * featuring linked appointment badge and diagnostic image thumbnail viewer.
  */
 export default function CareSessionActiveBanner({
     session,
     onOpenWorkflow,
     onOpenFinishSheet,
+    attachmentLinks = [],
     t = (k, f) => f || k,
 }) {
     if (!session || session.status !== 'in_progress') {
         return null;
     }
+
+    const sessionImages = (attachmentLinks || []).filter(
+        (lnk) =>
+            lnk.care_session_id != null &&
+            (String(lnk.care_session_id) === String(session.id) ||
+                Number(lnk.care_session_id) === Number(session.id)) &&
+            (lnk.file_type?.includes('image') ||
+                lnk.content_type?.includes('image') ||
+                lnk.filename?.match(/\.(png|jpg|jpeg|webp|gif|svg)$/i) ||
+                lnk.file_name?.match(/\.(png|jpg|jpeg|webp|gif|svg)$/i) ||
+                (!lnk.file_type && !lnk.content_type))
+    );
 
     const steps = session.steps || [];
     const completedCount = steps.filter(
@@ -66,7 +81,7 @@ export default function CareSessionActiveBanner({
                             </span>
                         )}
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
                         <span>
                             {steps.length > 0
                                 ? `${completedCount} of ${steps.length} steps addressed`
@@ -78,11 +93,43 @@ export default function CareSessionActiveBanner({
                                 {session.observations.length} observations
                             </span>
                         )}
+                        {/* Session Diagnostic Images Badge (G15-M08) */}
+                        {sessionImages.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={onOpenWorkflow}
+                                data-testid="session-images-badge"
+                                className="inline-flex items-center gap-1 rounded-md bg-blue-100 px-1.5 py-0.5 font-bold text-blue-800 transition-colors hover:bg-blue-200 dark:bg-blue-950/50 dark:text-blue-300"
+                            >
+                                <Camera className="h-3 w-3" />
+                                <span>{sessionImages.length} {t('care_session.images', 'images')}</span>
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
 
+            {/* Session Images Thumbnail Strip & Actions (G15-M08) */}
             <div className="flex items-center gap-2">
+                {sessionImages.length > 0 && (
+                    <div
+                        data-testid="banner-session-images-strip"
+                        className="me-2 flex items-center gap-1.5"
+                    >
+                        {sessionImages.slice(0, 3).map((img) => (
+                            <img
+                                key={img.id}
+                                src={buildAttachmentUrl(img.file_path)}
+                                alt={img.filename || 'Session radiograph'}
+                                data-testid={`banner-session-image-${img.id}`}
+                                onClick={onOpenWorkflow}
+                                className="h-9 w-9 cursor-pointer rounded-lg object-cover border border-blue-200 shadow-xs transition-transform hover:scale-105 dark:border-blue-800"
+                                title={img.filename}
+                            />
+                        ))}
+                    </div>
+                )}
+
                 <button
                     type="button"
                     onClick={onOpenWorkflow}
@@ -110,5 +157,6 @@ CareSessionActiveBanner.propTypes = {
     session: PropTypes.object,
     onOpenWorkflow: PropTypes.func.isRequired,
     onOpenFinishSheet: PropTypes.func.isRequired,
+    attachmentLinks: PropTypes.array,
     t: PropTypes.func,
 };

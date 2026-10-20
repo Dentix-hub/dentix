@@ -521,6 +521,88 @@ async def test_list_and_delete_attachment_link_g15_m01(async_db_session, seed_da
     assert db_att1.patient_id == pat1.id
 
 
+@pytest.mark.asyncio
+async def test_g15_m03_m04_m05_individual_and_composite_context_linking(async_db_session, seed_data):
+    """
+    Test G15-M03 (link to tooth), G15-M04 (link to work item), and G15-M05 (link to care session).
+    Verifies that attachments can be linked to any combination of these contexts and queried reliably.
+    """
+    t1 = seed_data["tenant_1"]
+    doc1 = seed_data["doctor_1"]
+    pat1 = seed_data["patient_1"]
+    att1 = seed_data["att_1"]
+    att2 = seed_data["att_2"]
+    wi1 = seed_data["work_item_1"]
+    cs1 = seed_data["care_session_1"]
+
+    service = ClinicalAttachmentLinkService(async_db_session, t1.id, doc1)
+
+    # G15-M03: Link attachment to tooth only
+    link_tooth = await service.create_attachment_link(
+        patient_id=pat1.id,
+        data=schemas.ClinicalAttachmentLinkCreate(
+            attachment_id=att1.id,
+            tooth_key="16",
+            purpose_code=AttachmentPurposeCode.PRE_OP_XRAY.value,
+            notes="G15-M03 tooth-only link",
+        ),
+    )
+    assert link_tooth.tooth_key == "16"
+    assert link_tooth.work_item_id is None
+    assert link_tooth.care_session_id is None
+
+    # G15-M04: Link attachment to work item
+    link_wi = await service.create_attachment_link(
+        patient_id=pat1.id,
+        data=schemas.ClinicalAttachmentLinkCreate(
+            attachment_id=att2.id,
+            work_item_id=wi1.id,
+            purpose_code=AttachmentPurposeCode.WORKING_LENGTH_XRAY.value,
+            notes="G15-M04 work-item link",
+        ),
+    )
+    assert link_wi.work_item_id == wi1.id
+    assert link_wi.tooth_key is None
+
+    # G15-M05: Composite link to both tooth 16 and care session 1 (Acceptance Scenario)
+    link_composite = await service.create_attachment_link(
+        patient_id=pat1.id,
+        data=schemas.ClinicalAttachmentLinkCreate(
+            attachment_id=att1.id,
+            tooth_key="16",
+            care_session_id=cs1.id,
+            purpose_code=AttachmentPurposeCode.INTRAORAL_PHOTO.value,
+            notes="G15-M05 composite link to tooth and active session",
+        ),
+    )
+    assert link_composite.tooth_key == "16"
+    assert link_composite.care_session_id == cs1.id
+
+    # Query by tooth_key="16" (finds both link_tooth and link_composite)
+    tooth_links = await service.list_attachment_links(
+        patient_id=pat1.id,
+        filters=schemas.ClinicalAttachmentLinkFilter(tooth_key="16"),
+    )
+    assert len(tooth_links) == 2
+    assert {l.id for l in tooth_links} == {link_tooth.id, link_composite.id}
+
+    # Query by care_session_id=cs1.id (finds link_composite)
+    cs_links = await service.list_attachment_links(
+        patient_id=pat1.id,
+        filters=schemas.ClinicalAttachmentLinkFilter(care_session_id=cs1.id),
+    )
+    assert len(cs_links) == 1
+    assert cs_links[0].id == link_composite.id
+
+    # Query by work_item_id=wi1.id (finds link_wi)
+    wi_links = await service.list_attachment_links(
+        patient_id=pat1.id,
+        filters=schemas.ClinicalAttachmentLinkFilter(work_item_id=wi1.id),
+    )
+    assert len(wi_links) == 1
+    assert wi_links[0].id == link_wi.id
+
+
 def test_router_endpoints_and_rbac(client, seed_data):
     """
     Test FastAPI router endpoints for clinical attachment links.
