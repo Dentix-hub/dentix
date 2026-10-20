@@ -894,6 +894,18 @@ class CareSessionService:
         )
         self.db.add(obs)
 
+        # G12-M13: Sync shade and material observation to open lab orders
+        if obs.work_item_id:
+            from backend.clinical.shade_material_sync import sync_observation_to_open_lab_orders
+            await sync_observation_to_open_lab_orders(
+                self.db,
+                self.tenant_id,
+                obs.work_item_id,
+                obs.observation_code,
+                obs.structured_value,
+                obs.notes,
+            )
+
         try:
             await self.db.flush()
         except (IntegrityError, StaleDataError) as exc:

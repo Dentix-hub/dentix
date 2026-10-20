@@ -33,6 +33,7 @@ export default function ChairsideSelectionBar({
     patientId = null,
     attachments = [],
     attachmentLinks = null,
+    labOrders = [],
 }) {
     if (!selectedTeeth || selectedTeeth.length === 0) {
         return null;
@@ -184,6 +185,7 @@ export default function ChairsideSelectionBar({
                 treatments={history || []}
                 treatmentPlans={treatmentPlans || []}
                 payments={payments || []}
+                labOrders={labOrders || []}
                 onRemoveItem={handleRemoveWorkItemOrTreatment}
                 patientId={patientId}
                 attachments={attachments}

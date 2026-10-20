@@ -19,6 +19,7 @@ import {
     usePatientClinicalWorkspace,
     usePatientTreatments,
     usePatientPayments,
+    usePatientLabOrders,
     usePatientAttachments,
     useCreatePayment,
     useDeletePayment,
@@ -340,10 +341,11 @@ export default function PatientDetails() {
             selectedToothKeys: selectedTeeth,
             selectedSurfacesByTooth,
             planOverlay,
+            labOrders,
             onToothClick: handleToothClick,
             onSurfaceClick: handleSurfaceClick,
         });
-    }, [effectiveSnapshot, id, isPediatric, selectedTeeth, selectedSurfacesByTooth, planOverlay, handleToothClick, handleSurfaceClick]);
+    }, [effectiveSnapshot, id, isPediatric, selectedTeeth, selectedSurfacesByTooth, planOverlay, labOrders, handleToothClick, handleSurfaceClick]);
 
     const adaptedModalChart = useMemo(() => {
         return adaptWorkspaceSnapshotToRenderer(effectiveSnapshot, {
@@ -369,6 +371,10 @@ export default function PatientDetails() {
     const { data: payments = [] } = usePatientPayments(
         id,
         activeTab === 'chart' || activeTab === 'billing' || activeTab === 'timeline'
+    );
+    const { data: labOrders = [] } = usePatientLabOrders(
+        id,
+        activeTab === 'chart' || activeTab === 'labs'
     );
     const {
         data: attachments = [],
@@ -818,6 +824,7 @@ export default function PatientDetails() {
                                             history={history}
                                             treatmentPlans={treatmentPlans}
                                             payments={payments}
+                                            labOrders={labOrders}
                                             handleRemoveWorkItemOrTreatment={handleRemoveWorkItemOrTreatment}
                                             activeCareSession={activeCareSession}
                                             onStartRctSession={handleStartRctSession}

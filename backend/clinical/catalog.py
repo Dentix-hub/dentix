@@ -409,6 +409,24 @@ def is_lab_required_procedure(procedure_code: str) -> bool:
     return bool(proc and proc.requires_lab)
 
 
+# ---------------------------------------------------------------------------
+# G12-M10: Lab Status Mapping (Decision D4)
+# ---------------------------------------------------------------------------
+
+def map_lab_order_status(status: str | None) -> str:
+    """
+    Standardize raw LabOrder.status into work item lab status per Decision D4.
+    - 'completed' -> 'lab_ready'
+    - all other strings or None -> 'unmapped' (shown neutral in UI)
+    """
+    if not status:
+        return "unmapped"
+    clean = str(status).strip().lower()
+    if clean == "completed":
+        return "lab_ready"
+    return "unmapped"
+
+
 
 # ---------------------------------------------------------------------------
 # G2-M08: Finding Definitions and Target Mappings
