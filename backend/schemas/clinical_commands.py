@@ -112,6 +112,12 @@ class ClinicalWorkItemRead(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     targets: List[ClinicalTargetRead] = Field(default_factory=list)
+    # G12-M11: Read-only lab order indicator & sync metadata
+    lab_order_id: Optional[int] = None
+    lab_status: Optional[str] = None
+    lab_ready: bool = False
+    shade: Optional[str] = None
+    material: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

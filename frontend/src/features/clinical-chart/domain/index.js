@@ -46,5 +46,6 @@ export {
     getSmartTargetKindAndSurfaces,
     isLabRequiredProcedure,
     isLabReadyStep,
+    mapLabOrderStatus,
 } from './catalogDefinitions';
 

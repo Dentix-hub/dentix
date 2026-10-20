@@ -286,6 +286,40 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
 
     const isReadOnly = Boolean(options.readOnly);
 
+    // G12-M11: Derive per-tooth lab readiness indicator
+    const labStatusByTooth = { ...(options.labStatusByTooth || {}) };
+    (snapshot?.work_items || []).forEach((wi) => {
+        if (wi.status === 'cancelled' || wi.status === 'superseded' || wi.status === 'entered_in_error') {
+            return;
+        }
+        if (wi.lab_ready || wi.lab_status === 'lab_ready') {
+            (wi.targets || []).forEach((t) => {
+                const k = String(t.tooth_key || t.toothKey || '');
+                if (k) {
+                    labStatusByTooth[k] = {
+                        isReady: true,
+                        badge: 'LAB READY',
+                        title: 'Lab Ready',
+                    };
+                }
+            });
+        }
+    });
+    (options.labOrders || []).forEach((lo) => {
+        if (lo.status === 'completed' && lo.tooth_number) {
+            const teeth = String(lo.tooth_number).split(',').map((s) => s.trim());
+            teeth.forEach((k) => {
+                if (k) {
+                    labStatusByTooth[k] = {
+                        isReady: true,
+                        badge: 'LAB READY',
+                        title: 'Lab Ready',
+                    };
+                }
+            });
+        }
+    });
+
     const rendererInput = createClinicalChartRendererInput({
         chartId,
         anatomyDefinition: DENTAL_ANATOMY_REGISTRY,
@@ -297,6 +331,7 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
             selectedToothKeys: activeSelectedToothKeys,
             selectedSurfacesByTooth,
             planOverlay,
+            labStatusByTooth,
         },
         notationMode,
         interactionMode: isReadOnly ? CHART_INTERACTION_MODES.READ_ONLY : CHART_INTERACTION_MODES.EDIT,

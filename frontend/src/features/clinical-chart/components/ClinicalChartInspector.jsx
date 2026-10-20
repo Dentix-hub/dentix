@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
-import { Trash2, AlertTriangle, Camera, Eye, Plus, FlaskConical } from 'lucide-react';
+import { Trash2, AlertTriangle, Camera, Eye, Plus, FlaskConical, CheckCircle } from 'lucide-react';
 import Modal from '@/shared/ui/Modal';
 import {
     buildAttachmentUrl,
@@ -8,7 +8,7 @@ import {
     DiagnosticImageLightbox,
     LinkClinicalAttachmentModal,
 } from '@/features/clinical-attachments';
-import { isLabRequiredProcedure } from '../domain';
+import { isLabRequiredProcedure, mapLabOrderStatus } from '../domain';
 import LabHandoffSheet from '@/features/care-sessions/LabHandoffSheet';
 
 export default function ClinicalChartInspector({
@@ -20,6 +20,7 @@ export default function ClinicalChartInspector({
     treatments = [],
     treatmentPlans = [],
     payments = [],
+    labOrders = [],
     onRemoveItem = null,
     patientId = null,
     attachments = [],
@@ -68,6 +69,14 @@ export default function ClinicalChartInspector({
             if (targetsThisTooth.length > 0 || (wi.tooth_number && String(wi.tooth_number) === toothKey)) {
                 const id = wi.id;
                 const surfaces = targetsThisTooth.filter((t) => t.surface_code).map((t) => t.surface_code);
+
+                // G12-M10 & G12-M11: Lab status mapping & reflection
+                const linkedLab = (labOrders || []).find((lo) => lo.work_item_id === id || lo.id === wi.lab_order_id);
+                const labStatus = linkedLab ? mapLabOrderStatus(linkedLab.status) : (wi.lab_status || 'unmapped');
+                const isLabReady = labStatus === 'lab_ready' || Boolean(wi.lab_ready);
+                const shade = linkedLab?.shade || wi.shade || null;
+                const material = linkedLab?.material || wi.material || null;
+
                 itemsMap.set(`wi-${id}`, {
                     id,
                     uniqueKey: `wi-${id}`,
@@ -78,6 +87,11 @@ export default function ClinicalChartInspector({
                     status: wi.status,
                     surfaces,
                     notes: wi.notes,
+                    labOrderId: linkedLab?.id || wi.lab_order_id || null,
+                    labStatus,
+                    isLabReady,
+                    shade,
+                    material,
                     raw: wi,
                 });
             }
@@ -92,6 +106,12 @@ export default function ClinicalChartInspector({
                     ? tr.surfaces
                     : (tr.surface ? tr.surface.split('').filter(Boolean) : []);
                 if (!itemsMap.has(`wi-${id}`)) {
+                    const linkedLab = (labOrders || []).find((lo) => lo.treatment_id === id || String(lo.tooth_number) === String(toothKey));
+                    const labStatus = linkedLab ? mapLabOrderStatus(linkedLab.status) : 'unmapped';
+                    const isLabReady = labStatus === 'lab_ready';
+                    const shade = linkedLab?.shade || null;
+                    const material = linkedLab?.material || null;
+
                     itemsMap.set(`tr-${id}`, {
                         id,
                         uniqueKey: `tr-${id}`,
@@ -104,6 +124,11 @@ export default function ClinicalChartInspector({
                         cost: tr.cost,
                         paid: tr.paid,
                         sessions: tr.sessions,
+                        labOrderId: linkedLab?.id || null,
+                        labStatus,
+                        isLabReady,
+                        shade,
+                        material,
                         raw: tr,
                     });
                 }
@@ -112,7 +137,7 @@ export default function ClinicalChartInspector({
 
         // 3. From toothState visual findings (if not already mapped)
         (toothState?.findings || []).forEach((f, idx) => {
-            const id = f.visualId || `${toothKey}-finding-${idx}`;
+            const id = f.id ?? f.visualId ?? `${toothKey}-finding-${idx}`;
             if (![...itemsMap.values()].some((it) => String(it.id) === String(id) || String(it.uniqueKey) === `wi-${id}`)) {
                 const surfaces = (f.targets || []).filter((t) => t.surfaceCode).map((t) => t.surfaceCode);
                 itemsMap.set(`vis-${id}`, {
@@ -131,9 +156,15 @@ export default function ClinicalChartInspector({
 
         // 4. From toothState visual procedures (if not already mapped)
         (toothState?.procedures || []).forEach((p, idx) => {
-            const id = p.visualId || `${toothKey}-proc-${idx}`;
+            const id = p.id ?? p.visualId ?? `${toothKey}-proc-${idx}`;
             if (![...itemsMap.values()].some((it) => String(it.id) === String(id) || String(it.uniqueKey) === `wi-${id}` || String(it.uniqueKey) === `tr-${id}`)) {
                 const surfaces = (p.targets || []).filter((t) => t.surfaceCode).map((t) => t.surfaceCode);
+                const linkedLab = (labOrders || []).find((lo) => lo.work_item_id === id || lo.treatment_id === id || String(lo.tooth_number) === String(toothKey));
+                const labStatus = linkedLab ? mapLabOrderStatus(linkedLab.status) : (p.lab_status || (p.isLabReady ? 'lab_ready' : 'unmapped'));
+                const isLabReady = labStatus === 'lab_ready' || Boolean(p.isLabReady || p.lab_ready);
+                const shade = linkedLab?.shade || p.shade || null;
+                const material = linkedLab?.material || p.material || null;
+
                 itemsMap.set(`vis-${id}`, {
                     id,
                     uniqueKey: `vis-${id}`,
@@ -143,13 +174,18 @@ export default function ClinicalChartInspector({
                     name: copy.legend?.[p.code?.toLowerCase()] || copy[p.code] || p.code,
                     status: p.phase || 'active',
                     surfaces,
+                    labOrderId: linkedLab?.id || p.lab_order_id || null,
+                    labStatus,
+                    isLabReady,
+                    shade,
+                    material,
                     raw: p,
                 });
             }
         });
 
         return Array.from(itemsMap.values());
-    }, [toothKey, workItems, treatments, toothState, copy]);
+    }, [toothKey, workItems, treatments, toothState, copy, labOrders]);
 
     const inspectConsequences = (item) => {
         const consequences = [];
@@ -308,10 +344,29 @@ export default function ClinicalChartInspector({
                                                         {item.surfaces.join('')}
                                                     </span>
                                                 )}
+                                                {item.isLabReady && (
+                                                    <span
+                                                        data-testid={`lab-status-badge-${item.id}`}
+                                                        className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                                                    >
+                                                        <CheckCircle size={10} aria-hidden="true" />
+                                                        {copy.labReady || 'Lab Ready'}
+                                                    </span>
+                                                )}
                                             </div>
                                             {item.status && (
                                                 <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
                                                     {copy.status || 'Status'}: {item.status}
+                                                </p>
+                                            )}
+                                            {(item.shade || item.material) && (
+                                                <p
+                                                    data-testid={`item-shade-material-${item.id}`}
+                                                    className="mt-0.5 text-[11px] text-slate-600 dark:text-slate-300"
+                                                >
+                                                    {item.material && <span className="font-medium">{item.material}</span>}
+                                                    {item.material && item.shade && <span> • </span>}
+                                                    {item.shade && <span>{copy.shade || 'Shade'}: {item.shade}</span>}
                                                 </p>
                                             )}
                                         </div>
@@ -527,6 +582,7 @@ ClinicalChartInspector.propTypes = {
     treatments: PropTypes.array,
     treatmentPlans: PropTypes.array,
     payments: PropTypes.array,
+    labOrders: PropTypes.array,
     onRemoveItem: PropTypes.func,
     patientId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     attachments: PropTypes.array,

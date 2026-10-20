@@ -264,6 +264,7 @@ const SVGTooth = memo(function SVGTooth({
     toothVisual,
     notationMode,
     planOverlayTooth = null,
+    labStatusTooth = null,
 }) {
     const reactId = useId();
     const path = getToothPath(number, isPediatric);
@@ -363,6 +364,15 @@ const SVGTooth = memo(function SVGTooth({
                     {planOverlayTooth.badge || `P${planOverlayTooth.phaseIndex + 1}`}
                 </span>
             )}
+            {Boolean(labStatusTooth && (labStatusTooth === 'lab_ready' || labStatusTooth.isReady === true || labStatusTooth.status === 'lab_ready')) && (
+                <span
+                    data-testid={`lab-status-tooth-badge-${toothKey}`}
+                    title={labStatusTooth.title || 'Lab Ready'}
+                    className="absolute -top-2 z-10 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase text-white shadow-sm ring-1 ring-white dark:ring-slate-900 bg-emerald-600"
+                >
+                    {labStatusTooth.badge || 'LAB READY'}
+                </span>
+            )}
             {showRoots ? (
                 <span
                     aria-hidden={enableSurfaceSelection ? undefined : true}
@@ -457,6 +467,7 @@ export default memo(function DentalChartSVG({
     readOnly = false,
     notationMode = DEFAULT_CHART_NOTATION_MODE,
     planOverlay = null,
+    labStatusByTooth = null,
 }) {
     const isMixedDentition = Array.isArray(toothOrder);
     const layout = isMixedDentition
@@ -489,6 +500,7 @@ export default memo(function DentalChartSVG({
             toothKey={tooth.toothKey}
             toothVisual={toothVisuals[tooth.toothKey]}
             planOverlayTooth={planOverlay?.teeth?.[tooth.toothKey] || null}
+            labStatusTooth={labStatusByTooth?.[tooth.toothKey] || null}
         />
     );
 

@@ -68,6 +68,12 @@ class WorkspaceWorkItemSummary(BaseModel):
     recorded_at: Optional[datetime] = None
     temporal_certainty: str = "EXACT"  # 'EXACT' | 'UNKNOWN'
     is_renderer_supported: bool = True
+    # G12-M11: Read-only lab order indicator & sync metadata
+    lab_order_id: Optional[int] = None
+    lab_status: Optional[str] = None
+    lab_ready: bool = False
+    shade: Optional[str] = None
+    material: Optional[str] = None
 
 
 class ClinicalWorkspaceSnapshot(BaseModel):

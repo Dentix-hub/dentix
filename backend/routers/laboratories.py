@@ -493,6 +493,13 @@ async def update_lab_order(
     if valid_existing_provider is None:
         order.doctor_id = await _resolve_lab_provider_id(db, current_user, order.patient)
 
+    # G12-M13: Sync shade/material updates to active care session observations
+    if order.work_item_id and ("shade" in update_data or "material" in update_data):
+        from backend.clinical.shade_material_sync import sync_lab_order_to_active_care_session_observations
+        await sync_lab_order_to_active_care_session_observations(
+            db, current_user.tenant_id, order, actor_user_id=current_user.id
+        )
+
     await db.flush()
 
     linked_treatment = (
@@ -832,6 +839,14 @@ async def create_clinical_lab_handoff(
         doctor_id=provider_id,
     )
     db.add(db_order)
+
+    # G12-M13: Sync shade/material updates to active care session observations
+    if db_order.shade or db_order.material:
+        from backend.clinical.shade_material_sync import sync_lab_order_to_active_care_session_observations
+        await sync_lab_order_to_active_care_session_observations(
+            db, current_user.tenant_id, db_order, actor_user_id=current_user.id
+        )
+
     # G12-M08 & G12-M09 / R06: ZERO synthetic Treatment rows created!
     await db.commit()
     await db.refresh(db_order)

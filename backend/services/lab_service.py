@@ -177,6 +177,13 @@ class LabService:
         for key, value in update_data.items():
             setattr(order, key, value)
 
+        # G12-M13: Sync shade/material updates to active care session observations
+        if order.work_item_id and ("shade" in update_data or "material" in update_data):
+            from backend.clinical.shade_material_sync import sync_lab_order_to_active_care_session_observations
+            await sync_lab_order_to_active_care_session_observations(
+                self.db, self.tenant_id, order
+            )
+
         await self._sync_linked_treatment(order, commit=False)
         await self.db.commit()
         await self.db.refresh(order)

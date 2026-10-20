@@ -107,6 +107,11 @@ vi.mock('@/hooks/usePatientDetails', () => ({
         isLoading: false,
         refetch: vi.fn(),
     }),
+    usePatientLabOrders: () => ({
+        data: [],
+        isLoading: false,
+        refetch: vi.fn(),
+    }),
     useCreatePayment: () => ({ mutateAsync: vi.fn() }),
     useDeletePayment: () => ({ mutateAsync: vi.fn() }),
     useTenantFeatures: () => ({ data: mockTenantFeatures, isLoading: false }),
