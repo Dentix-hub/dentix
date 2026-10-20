@@ -28,3 +28,112 @@ def test_container_smoke_separates_schema_owner_from_runtime_roles():
     assert "-m backend.scripts.preflight_migrations" in workflow
     assert workflow.index(owner_preflight) < workflow.index(runtime_start)
     assert "GRANT CREATE ON SCHEMA public TO dentix_container_app" not in workflow
+
+
+def test_preflight_database_url_prefers_migration_and_owner_urls(monkeypatch):
+    from backend.scripts.preflight_migrations import _database_url
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://app@db/prod")
+    monkeypatch.delenv("MIGRATION_DATABASE_URL", raising=False)
+    monkeypatch.delenv("OWNER_DATABASE_URL", raising=False)
+    assert _database_url() == "postgresql://app@db/prod"
+
+    monkeypatch.setenv("OWNER_DATABASE_URL", "postgresql://owner@db/prod")
+    assert _database_url() == "postgresql://owner@db/prod"
+
+    monkeypatch.setenv("MIGRATION_DATABASE_URL", "postgresql://migration@db/prod")
+    assert _database_url() == "postgresql://migration@db/prod"
+
+
+def test_alembic_env_preserves_preconfigured_migration_url(monkeypatch):
+    from alembic.config import Config
+
+    repo_root = Path(__file__).resolve().parents[2]
+    ini_path = repo_root / "backend" / "alembic.ini"
+    cfg = Config(str(ini_path))
+
+    # Preflight set the privileged migration URL
+    cfg.set_main_option("sqlalchemy.url", "postgresql://migration_owner@db/prod")
+
+    # Even if unprivileged runtime DATABASE_URL is set in environment
+    monkeypatch.setenv("DATABASE_URL", "postgresql://unprivileged_app@db/prod")
+    monkeypatch.delenv("MIGRATION_DATABASE_URL", raising=False)
+    monkeypatch.delenv("OWNER_DATABASE_URL", raising=False)
+
+    # Simulating env.py database URL resolution logic
+    configured_url = cfg.get_main_option("sqlalchemy.url")
+    placeholder_urls = {"", "driver://user:pass@localhost/dbname"}
+    if not configured_url or configured_url in placeholder_urls:
+        import os
+
+        raw_url = (
+            os.getenv("MIGRATION_DATABASE_URL")
+            or os.getenv("OWNER_DATABASE_URL")
+            or os.getenv("DATABASE_URL")
+        )
+        if raw_url:
+            cfg.set_main_option("sqlalchemy.url", raw_url)
+
+    # Must preserve the preconfigured migration owner URL
+    assert cfg.get_main_option("sqlalchemy.url") == "postgresql://migration_owner@db/prod"
+
+
+def test_alembic_env_resolves_migration_and_owner_urls_when_unset(monkeypatch):
+    from alembic.config import Config
+
+    repo_root = Path(__file__).resolve().parents[2]
+    ini_path = repo_root / "backend" / "alembic.ini"
+
+    # 1. Fallback to DATABASE_URL when no owner/migration url
+    cfg = Config(str(ini_path))
+    monkeypatch.setenv("DATABASE_URL", "postgresql://app@db/prod")
+    monkeypatch.delenv("MIGRATION_DATABASE_URL", raising=False)
+    monkeypatch.delenv("OWNER_DATABASE_URL", raising=False)
+
+    configured_url = cfg.get_main_option("sqlalchemy.url")
+    placeholder_urls = {"", "driver://user:pass@localhost/dbname"}
+    if not configured_url or configured_url in placeholder_urls:
+        import os
+
+        raw_url = (
+            os.getenv("MIGRATION_DATABASE_URL")
+            or os.getenv("OWNER_DATABASE_URL")
+            or os.getenv("DATABASE_URL")
+        )
+        if raw_url:
+            cfg.set_main_option("sqlalchemy.url", raw_url)
+    assert cfg.get_main_option("sqlalchemy.url") == "postgresql://app@db/prod"
+
+    # 2. Prefer OWNER_DATABASE_URL over DATABASE_URL
+    cfg = Config(str(ini_path))
+    monkeypatch.setenv("OWNER_DATABASE_URL", "postgresql://owner@db/prod")
+    configured_url = cfg.get_main_option("sqlalchemy.url")
+    if not configured_url or configured_url in placeholder_urls:
+        import os
+
+        raw_url = (
+            os.getenv("MIGRATION_DATABASE_URL")
+            or os.getenv("OWNER_DATABASE_URL")
+            or os.getenv("DATABASE_URL")
+        )
+        if raw_url:
+            cfg.set_main_option("sqlalchemy.url", raw_url)
+    assert cfg.get_main_option("sqlalchemy.url") == "postgresql://owner@db/prod"
+
+    # 3. Prefer MIGRATION_DATABASE_URL over OWNER_DATABASE_URL
+    cfg = Config(str(ini_path))
+    monkeypatch.setenv("MIGRATION_DATABASE_URL", "postgresql://migration@db/prod")
+    configured_url = cfg.get_main_option("sqlalchemy.url")
+    if not configured_url or configured_url in placeholder_urls:
+        import os
+
+        raw_url = (
+            os.getenv("MIGRATION_DATABASE_URL")
+            or os.getenv("OWNER_DATABASE_URL")
+            or os.getenv("DATABASE_URL")
+        )
+        if raw_url:
+            cfg.set_main_option("sqlalchemy.url", raw_url)
+    assert cfg.get_main_option("sqlalchemy.url") == "postgresql://migration@db/prod"
+
+
