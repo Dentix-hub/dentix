@@ -196,6 +196,11 @@ export default function PatientDetails() {
         treatmentPlans,
     });
 
+    const { data: labOrders = [] } = usePatientLabOrders(
+        id,
+        activeTab === 'chart' || activeTab === 'labs'
+    );
+
     const { data: activeCareSession, refetch: refetchActiveSession } = useActiveCareSession(id, {
         enabled: !!id && activeTab === 'chart',
     });
@@ -371,10 +376,6 @@ export default function PatientDetails() {
     const { data: payments = [] } = usePatientPayments(
         id,
         activeTab === 'chart' || activeTab === 'billing' || activeTab === 'timeline'
-    );
-    const { data: labOrders = [] } = usePatientLabOrders(
-        id,
-        activeTab === 'chart' || activeTab === 'labs'
     );
     const {
         data: attachments = [],
