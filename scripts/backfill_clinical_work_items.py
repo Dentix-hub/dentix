@@ -46,6 +46,7 @@ from backend.models.clinical_core import FDI_TOOTH_KEYS
 from backend.clinical.legacy_mapping import (
     map_legacy_tooth_status,
     map_legacy_treatment_session,
+    parse_legacy_attachment_link,
     VerifiedPatientContext,
 )
 from backend.services.treatment_service import TreatmentService
@@ -81,6 +82,12 @@ class TenantBackfillReport:
     sessions_already_synced: int = 0
     sessions_skipped: int = 0
 
+    # ClinicalAttachmentLink backfill counters (G4-M09, G15-M09)
+    attachments_scanned: int = 0
+    attachments_created: int = 0
+    attachments_already_synced: int = 0
+    attachments_skipped: int = 0
+
     @property
     def total_skipped(self) -> int:
         return (
@@ -112,6 +119,10 @@ class TenantBackfillReport:
             "sessions_created": self.sessions_created,
             "sessions_already_synced": self.sessions_already_synced,
             "sessions_skipped": self.sessions_skipped,
+            "attachments_scanned": self.attachments_scanned,
+            "attachments_created": self.attachments_created,
+            "attachments_already_synced": self.attachments_already_synced,
+            "attachments_skipped": self.attachments_skipped,
             "batch_count": self.batch_count,
             "last_processed_id": self.last_processed_id,
         }
@@ -133,6 +144,7 @@ class TenantBackfillReport:
             f"  - unmapped:        {self.skipped_unmapped}\n"
             f"Tooth Statuses:      scanned={self.tooth_statuses_scanned}, {created_label.strip().lower()}={self.tooth_statuses_created}, synced={self.tooth_statuses_already_synced}, skipped={self.tooth_statuses_skipped}\n"
             f"Sessions:            scanned={self.sessions_scanned}, {created_label.strip().lower()}={self.sessions_created}, synced={self.sessions_already_synced}, skipped={self.sessions_skipped}\n"
+            f"Attachments:         scanned={self.attachments_scanned}, {created_label.strip().lower()}={self.attachments_created}, synced={self.attachments_already_synced}, skipped={self.attachments_skipped}\n"
             f"Batches Processed:   {self.batch_count}\n"
             f"Last Treatment ID:   {self.last_processed_id}\n"
             f"------------------------------------------------------------"
@@ -440,6 +452,101 @@ async def backfill_tenant(
             if len(sess_batch) < batch_size:
                 break
 
+        # -------------------------------------------------------------
+        # Phase 4: Attachment -> ClinicalAttachmentLink (G4-M09, G15-M09)
+        # -------------------------------------------------------------
+        current_after_att_id = 0
+        while True:
+            stmt_att = (
+                select(models.Attachment)
+                .where(
+                    models.Attachment.tenant_id == tenant_id,
+                    models.Attachment.id > current_after_att_id,
+                )
+                .order_by(models.Attachment.id.asc())
+                .limit(batch_size)
+            )
+            result_att = await db.execute(stmt_att)
+            att_batch = result_att.scalars().all()
+
+            if not att_batch:
+                break
+
+            att_patient_ids = {att.patient_id for att in att_batch if att.patient_id}
+
+            synced_att_ids = set()
+            if att_patient_ids:
+                link_stmt = select(models.ClinicalAttachmentLink.attachment_id).where(
+                    models.ClinicalAttachmentLink.tenant_id == tenant_id,
+                    models.ClinicalAttachmentLink.patient_id.in_(att_patient_ids),
+                )
+                link_res = await db.execute(link_stmt)
+                for aid in link_res.scalars().all():
+                    synced_att_ids.add(aid)
+
+            # Pre-load treatments for these patients to resolve treatment tokens
+            treatments_map = {}
+            if att_patient_ids:
+                tx_stmt = select(models.Treatment).where(
+                    models.Treatment.tenant_id == tenant_id,
+                    models.Treatment.patient_id.in_(att_patient_ids),
+                )
+                tx_res = await db.execute(tx_stmt)
+                for tx in tx_res.scalars().all():
+                    treatments_map[tx.id] = tx
+
+            for att in att_batch:
+                report.attachments_scanned += 1
+                current_after_att_id = att.id
+
+                if not att.patient_id:
+                    report.attachments_skipped += 1
+                    continue
+
+                if att.id in synced_att_ids:
+                    report.attachments_already_synced += 1
+                    continue
+
+                verified_ctx = VerifiedPatientContext(
+                    patient_id=att.patient_id, tenant_id=tenant_id
+                )
+                draft, issues = parse_legacy_attachment_link(att, verified_ctx, treatments_map)
+                if draft is None:
+                    report.attachments_skipped += 1
+                    continue
+
+                if any(iss.is_ambiguity for iss in issues):
+                    report.attachments_skipped += 1
+                    continue
+
+                if not apply:
+                    report.attachments_created += 1
+                else:
+                    linked_wi = None
+                    if draft.treatment_id:
+                        linked_wi = await service.find_linked_clinical_work_item(
+                            treatment_id=draft.treatment_id, patient_id=att.patient_id
+                        )
+
+                    link = models.ClinicalAttachmentLink(
+                        tenant_id=tenant_id,
+                        patient_id=att.patient_id,
+                        attachment_id=att.id,
+                        work_item_id=linked_wi.id if linked_wi else None,
+                        tooth_key=draft.tooth_key,
+                        purpose_code=draft.purpose_code,
+                        notes=draft.notes,
+                    )
+                    db.add(link)
+                    report.attachments_created += 1
+                    synced_att_ids.add(att.id)
+
+            if apply:
+                await db.commit()
+
+            if len(att_batch) < batch_size:
+                break
+
         return report
     finally:
         clear_tenant_context(token)
@@ -582,6 +689,10 @@ async def async_main(cli_args: Optional[Sequence[str]] = None) -> int:
                 "total_sessions_created": sum(r.sessions_created for r in reports),
                 "total_sessions_already_synced": sum(r.sessions_already_synced for r in reports),
                 "total_sessions_skipped": sum(r.sessions_skipped for r in reports),
+                "total_attachments_scanned": sum(r.attachments_scanned for r in reports),
+                "total_attachments_created": sum(r.attachments_created for r in reports),
+                "total_attachments_already_synced": sum(r.attachments_already_synced for r in reports),
+                "total_attachments_skipped": sum(r.attachments_skipped for r in reports),
             },
             "tenants": [r.to_dict() for r in reports],
         }
@@ -603,6 +714,10 @@ async def async_main(cli_args: Optional[Sequence[str]] = None) -> int:
         print(f"  Sessions {status_word}:       {sum(r.sessions_created for r in reports)}")
         print(f"  Sessions Synced:             {sum(r.sessions_already_synced for r in reports)}")
         print(f"  Sessions Skipped:            {sum(r.sessions_skipped for r in reports)}")
+        print(f"  Attachments Scanned:         {sum(r.attachments_scanned for r in reports)}")
+        print(f"  Attachments {status_word}:    {sum(r.attachments_created for r in reports)}")
+        print(f"  Attachments Synced:          {sum(r.attachments_already_synced for r in reports)}")
+        print(f"  Attachments Skipped:         {sum(r.attachments_skipped for r in reports)}")
         print("=" * 60)
 
     return 0

@@ -121,6 +121,14 @@ from .care_session import (
     ResumableWorkItemRead,
     CareSessionResumableResponse,
 )
+from .clinical_attachment_link import (
+    CANONICAL_ATTACHMENT_PURPOSE_CODES,
+    AttachmentPurposeCode,
+    ClinicalAttachmentLinkBase,
+    ClinicalAttachmentLinkCreate,
+    ClinicalAttachmentLinkRead,
+    ClinicalAttachmentLinkFilter,
+)
 
 
 # Billing
@@ -426,5 +434,12 @@ __all__ = [
     "CareSessionTemplateApply",
     "CareObservationCreate",
     "CareObservationRead",
+    # Clinical Attachment Links (Slice S23)
+    "CANONICAL_ATTACHMENT_PURPOSE_CODES",
+    "AttachmentPurposeCode",
+    "ClinicalAttachmentLinkBase",
+    "ClinicalAttachmentLinkCreate",
+    "ClinicalAttachmentLinkRead",
+    "ClinicalAttachmentLinkFilter",
 ]
 

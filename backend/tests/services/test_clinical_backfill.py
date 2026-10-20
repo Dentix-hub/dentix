@@ -707,6 +707,139 @@ class TestClinicalBackfillCLI:
         drift_after = await observer.compute_tenant_drift(tenant_id=3)
         assert drift_after.tooth_status_unbackfilled_count == 0
 
+    async def test_dry_run_attachments_writes_nothing(
+        self, async_db_session, sample_clinical_extended_data
+    ):
+        """Dry-run must report would-create counts for attachments without writing rows (G4-M09)."""
+        db = async_db_session
+
+        report = await backfill_tenant(
+            db=db,
+            tenant_id=1,
+            apply=False,
+            batch_size=10,
+        )
+
+        assert report.is_dry_run is True
+        assert report.attachments_scanned == 4
+        # att1 (tooth 16), att2 (treatment 101) -> 2 would create
+        assert report.attachments_created == 2
+        assert report.attachments_already_synced == 0
+        # att_ambiguous (2 teeth) + att_no_token (no tokens) -> 2 skipped
+        assert report.attachments_skipped == 2
+
+        # Assert no rows were created in ClinicalAttachmentLink
+        cal_count = (
+            await db.execute(
+                select(func.count(models.ClinicalAttachmentLink.id)).where(
+                    models.ClinicalAttachmentLink.tenant_id == 1
+                )
+            )
+        ).scalar()
+        assert cal_count == 0
+
+    async def test_apply_persists_attachment_links_with_provenance(
+        self, async_db_session, sample_clinical_extended_data
+    ):
+        """Apply mode persists ClinicalAttachmentLink with deterministic tooth and work item references (G4-M09, G15-M09)."""
+        db = async_db_session
+
+        report = await backfill_tenant(
+            db=db,
+            tenant_id=1,
+            apply=True,
+            batch_size=10,
+        )
+
+        assert report.is_dry_run is False
+        assert report.attachments_created == 2
+        assert report.attachments_already_synced == 0
+        assert report.attachments_skipped == 2
+
+        # Verify links created in database
+        links = (
+            await db.execute(
+                select(models.ClinicalAttachmentLink)
+                .where(models.ClinicalAttachmentLink.tenant_id == 1)
+                .order_by(models.ClinicalAttachmentLink.attachment_id.asc())
+            )
+        ).scalars().all()
+
+        assert len(links) == 2
+        # Link for att 1401 (tooth 16)
+        link1 = links[0]
+        assert link1.attachment_id == 1401
+        assert link1.tooth_key == "16"
+        assert link1.purpose_code == "PRE_OP_XRAY"
+
+        # Link for att 1402 (treatment 101)
+        link2 = links[1]
+        assert link2.attachment_id == 1402
+        assert link2.purpose_code == "POST_OP_XRAY"
+        # Since treatment 101 was backfilled in Phase 1 into a work item, link2 should reference work_item_id
+        assert link2.work_item_id is not None
+
+    async def test_idempotent_apply_twice_creates_no_duplicate_attachment_links(
+        self, async_db_session, sample_clinical_extended_data
+    ):
+        """Re-running backfill with apply must create zero duplicate attachment links (G4-M09)."""
+        db = async_db_session
+
+        # Run 1
+        r1 = await backfill_tenant(db=db, tenant_id=1, apply=True, batch_size=10)
+        assert r1.attachments_created == 2
+        assert r1.attachments_already_synced == 0
+
+        # Run 2
+        r2 = await backfill_tenant(db=db, tenant_id=1, apply=True, batch_size=10)
+        assert r2.attachments_created == 0
+        assert r2.attachments_already_synced == 2
+
+        total_links = (
+            await db.execute(
+                select(func.count(models.ClinicalAttachmentLink.id)).where(
+                    models.ClinicalAttachmentLink.tenant_id == 1
+                )
+            )
+        ).scalar()
+        assert total_links == 2
+
+    async def test_tenant_isolation_attachments(
+        self, async_db_session, sample_clinical_extended_data
+    ):
+        """Tenant 1 backfill never links Tenant 2 attachments and Tenant 2 backfill isolates to Tenant 2."""
+        db = async_db_session
+
+        # Run Tenant 1 apply
+        await backfill_tenant(db=db, tenant_id=1, apply=True, batch_size=10)
+
+        # Tenant 2 attachment links count is still 0
+        t2_links_count = (
+            await db.execute(
+                select(func.count(models.ClinicalAttachmentLink.id)).where(
+                    models.ClinicalAttachmentLink.tenant_id == 2
+                )
+            )
+        ).scalar()
+        assert t2_links_count == 0
+
+        # Run Tenant 2 apply
+        r_t2 = await backfill_tenant(db=db, tenant_id=2, apply=True, batch_size=10)
+        assert r_t2.attachments_scanned == 1
+        assert r_t2.attachments_created == 1
+
+        t2_links = (
+            await db.execute(
+                select(models.ClinicalAttachmentLink).where(
+                    models.ClinicalAttachmentLink.tenant_id == 2
+                )
+            )
+        ).scalars().all()
+        assert len(t2_links) == 1
+        assert t2_links[0].attachment_id == 1405
+        assert t2_links[0].tooth_key == "21"
+
+
 
 @pytest.fixture
 async def sample_clinical_extended_data(async_db_session, sample_clinical_data):
@@ -798,11 +931,60 @@ async def sample_clinical_extended_data(async_db_session, sample_clinical_data):
     pay1 = models.Payment(id=1301, tenant_id=1, patient_id=1, amount=300.0, notes="Cash")
     pay2 = models.Payment(id=1302, tenant_id=1, patient_id=1, amount=200.0, notes="Card")
 
+    # Attachments for Tenant 1 (G4-M09, G15-M09)
+    att1 = models.Attachment(
+        id=1401,
+        tenant_id=1,
+        patient_id=1,
+        filename="periapical_t16.png",
+        file_path="/storage/attachments/periapical_t16.png",
+        file_type="image/png",
+        note="Tooth 16 pre-op radiograph",
+    )
+    att2 = models.Attachment(
+        id=1402,
+        tenant_id=1,
+        patient_id=1,
+        filename="treatment_101_postop.png",
+        file_path="/storage/attachments/treatment_101_postop.png",
+        file_type="image/png",
+        note="[TREATMENT:101] Post-op X-ray",
+    )
+    att_ambiguous = models.Attachment(
+        id=1403,
+        tenant_id=1,
+        patient_id=1,
+        filename="ambiguous.png",
+        file_path="/storage/attachments/ambiguous.png",
+        file_type="image/png",
+        note="Tooth 16 and Tooth 26",
+    )
+    att_no_token = models.Attachment(
+        id=1404,
+        tenant_id=1,
+        patient_id=1,
+        filename="patient_id_scan.pdf",
+        file_path="/storage/attachments/patient_id_scan.pdf",
+        file_type="application/pdf",
+        note="National ID copy",
+    )
+    # Attachment for Tenant 2
+    att_t2 = models.Attachment(
+        id=1405,
+        tenant_id=2,
+        patient_id=2,
+        filename="tenant2_t21.png",
+        file_path="/storage/attachments/tenant2_t21.png",
+        file_type="image/png",
+        note="Tooth 21 X-ray",
+    )
+
     db.add_all([
         ts1, ts2, ts_invalid_fdi, ts_unmapped, ts_t2,
         sess1, sess2, sess_deleted, sess_t2,
         wh1, mat1, batch1, stock1, mov1, usage1,
         pay1, pay2,
+        att1, att2, att_ambiguous, att_no_token, att_t2,
     ])
     await db.commit()
 
@@ -810,5 +992,6 @@ async def sample_clinical_extended_data(async_db_session, sample_clinical_data):
         **sample_clinical_data,
         "tooth_statuses": [ts1, ts2, ts_invalid_fdi, ts_unmapped, ts_t2],
         "sessions": [sess1, sess2, sess_deleted, sess_t2],
+        "attachments": [att1, att2, att_ambiguous, att_no_token, att_t2],
     }
 

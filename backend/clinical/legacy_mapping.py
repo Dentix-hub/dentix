@@ -34,6 +34,8 @@ from types import MappingProxyType
 from typing import Any, Mapping, Sequence
 
 from backend.clinical.catalog import (
+    AttachmentPurposeCode,
+    CANONICAL_ATTACHMENT_PURPOSE_CODES,
     FindingCode,
     ProcedureCode,
     ToothLifecycleCode,
@@ -260,6 +262,21 @@ class LegacyLabLinkDraft:
 
 
 @dataclass(frozen=True)
+class LegacyAttachmentLinkDraft:
+    """Draft representing a verified deterministic attachment link (G15-M09, G4-M09)."""
+    stable_key: str
+    tenant_id: int
+    patient_id: int
+    attachment_id: int
+    tooth_key: str | None
+    treatment_id: int | None
+    purpose_code: str
+    notes: str | None
+    source_id: int
+    is_ambiguous_duplicate: bool = False
+
+
+@dataclass(frozen=True)
 class LegacyMappingBatchResult:
     """Complete result of mapping a set of legacy clinical records."""
     work_items: tuple[LegacyWorkItemDraft, ...]
@@ -268,6 +285,7 @@ class LegacyMappingBatchResult:
     lab_links: tuple[LegacyLabLinkDraft, ...]
     issues: tuple[LegacyMappingIssue, ...]
     ambiguities: tuple[LegacyMappingIssue, ...]
+    attachment_links: tuple[LegacyAttachmentLinkDraft, ...] = ()
 
 
 # ===========================================================================
@@ -1230,6 +1248,190 @@ def resolve_exact_lab_link(
     )
 
     return lab_link_draft, None
+
+
+# ===========================================================================
+# G15-M09 & G4-M09: Deterministic Legacy Attachment Link Resolution
+# ===========================================================================
+
+_ATTACHMENT_TREATMENT_TOKEN_REGEXES = (
+    re.compile(r"\[TREATMENT:([1-9][0-9]*)\]", re.IGNORECASE),
+    re.compile(r"\bLink:Treatment:([1-9][0-9]*)\b", re.IGNORECASE),
+    re.compile(r"\btreatment_id[:\s=]+([1-9][0-9]*)\b", re.IGNORECASE),
+    re.compile(r"\btreatment[:\s#]+([1-9][0-9]*)\b", re.IGNORECASE),
+    re.compile(r"\btx[:\s#]+([1-9][0-9]*)\b", re.IGNORECASE),
+)
+
+_ATTACHMENT_TOOTH_TOKEN_REGEXES = (
+    re.compile(r"\[TOOTH:([1-8][1-8])\]", re.IGNORECASE),
+    re.compile(r"\btooth[:\s#_]+([1-8][1-8])\b", re.IGNORECASE),
+    re.compile(r"\bT([1-8][1-8])\b", re.IGNORECASE),
+)
+
+
+def parse_legacy_attachment_link(
+    attachment: Any,
+    verified_patient: VerifiedPatientContext,
+    treatments_by_id: Mapping[int, Any] | None = None,
+) -> tuple[LegacyAttachmentLinkDraft | None, tuple[LegacyMappingIssue, ...]]:
+    """
+    Resolve deterministic attachment context link from legacy Attachment (G15-M09, G4-M09).
+    Scans notes and filename for explicit, unambiguous tooth or treatment tokens.
+    Never modifies attachment storage or original records (G15-M01).
+    """
+    att_id = getattr(attachment, "id", None)
+    att_patient_id = getattr(attachment, "patient_id", None)
+    att_tenant_id = getattr(attachment, "tenant_id", None)
+    att_notes = getattr(attachment, "note", None) or ""
+    att_filename = getattr(attachment, "filename", None) or ""
+
+    # Verify patient ownership
+    if att_patient_id != verified_patient.patient_id:
+        return None, (
+            LegacyMappingIssue(
+                code="PATIENT_OWNERSHIP_MISMATCH",
+                message=f"Attachment patient_id ({att_patient_id}) does not match verified patient ({verified_patient.patient_id}).",
+                source_kind="attachment",
+                source_id=att_id,
+                is_ambiguity=False,
+                raw_value=str(att_patient_id),
+            ),
+        )
+
+    # Verify tenant ownership
+    if att_tenant_id is not None and att_tenant_id != verified_patient.tenant_id:
+        return None, (
+            LegacyMappingIssue(
+                code="TENANT_MISMATCH",
+                message=f"Attachment tenant_id ({att_tenant_id}) does not match verified tenant ({verified_patient.tenant_id}). Cross-tenant resolution rejected.",
+                source_kind="attachment",
+                source_id=att_id,
+                is_ambiguity=False,
+                raw_value=str(att_tenant_id),
+            ),
+        )
+
+    combined_text = f"{att_notes} {att_filename}"
+
+    # 1. Search treatment tokens
+    found_tx_ids: set[int] = set()
+    for reg in _ATTACHMENT_TREATMENT_TOKEN_REGEXES:
+        for match in reg.finditer(combined_text):
+            found_tx_ids.add(int(match.group(1)))
+
+    if len(found_tx_ids) > 1:
+        return None, (
+            LegacyMappingIssue(
+                code="AMBIGUOUS_ATTACHMENT_TREATMENT_LINK",
+                message=f"Attachment {att_id} contains multiple conflicting treatment tokens: {sorted(found_tx_ids)}",
+                source_kind="attachment",
+                source_id=att_id,
+                is_ambiguity=True,
+                raw_value=combined_text,
+            ),
+        )
+
+    matched_treatment_id: int | None = None
+    linked_treatment: Any | None = None
+    if found_tx_ids:
+        matched_treatment_id = next(iter(found_tx_ids))
+        if treatments_by_id is not None:
+            linked_treatment = treatments_by_id.get(matched_treatment_id)
+            if not linked_treatment:
+                return None, (
+                    LegacyMappingIssue(
+                        code="ATTACHMENT_TREATMENT_NOT_FOUND",
+                        message=f"Attachment {att_id} references Treatment {matched_treatment_id}, but no supplied Treatment matches that ID.",
+                        source_kind="attachment",
+                        source_id=att_id,
+                        is_ambiguity=True,
+                        raw_value=str(matched_treatment_id),
+                    ),
+                )
+
+    # 2. Search tooth tokens
+    found_teeth: set[str] = set()
+    for reg in _ATTACHMENT_TOOTH_TOKEN_REGEXES:
+        for match in reg.finditer(combined_text):
+            candidate = match.group(1)
+            if candidate in FDI_TOOTH_KEYS:
+                found_teeth.add(candidate)
+
+    if len(found_teeth) > 1:
+        return None, (
+            LegacyMappingIssue(
+                code="AMBIGUOUS_ATTACHMENT_TOOTH_LINK",
+                message=f"Attachment {att_id} contains multiple conflicting tooth tokens: {sorted(found_teeth)}",
+                source_kind="attachment",
+                source_id=att_id,
+                is_ambiguity=True,
+                raw_value=combined_text,
+            ),
+        )
+
+    matched_tooth_key: str | None = next(iter(found_teeth)) if found_teeth else None
+
+    # If no explicit tooth in text but linked treatment has valid tooth, infer it
+    if matched_tooth_key is None and linked_treatment is not None:
+        tx_tooth = getattr(linked_treatment, "tooth_number", None)
+        if tx_tooth is not None and str(tx_tooth) in FDI_TOOTH_KEYS:
+            matched_tooth_key = str(tx_tooth)
+
+    # If neither treatment nor tooth found, this is not a clinical context attachment -> skip cleanly
+    if matched_treatment_id is None and matched_tooth_key is None:
+        return None, ()
+
+    # 3. Purpose code derivation based on keyword indicators
+    text_lower = combined_text.lower()
+    xray_kw = any(w in text_lower for w in ("xray", "x-ray", "radiograph", "rvg", "periapical", "bitewing", "panoramic", "pano", "cbct", "pa"))
+    photo_kw = any(w in text_lower for w in ("photo", "picture", "camera", "image", "pic"))
+
+    if xray_kw:
+        if any(w in text_lower for w in ("working", "working-length", "working_length", "wl")):
+            purpose = AttachmentPurposeCode.WORKING_LENGTH_XRAY.value
+        elif any(w in text_lower for w in ("post-op", "postop", "post_op", "post op", "obturation", "final")):
+            purpose = AttachmentPurposeCode.POST_OP_XRAY.value
+        elif any(w in text_lower for w in ("pre-op", "preop", "pre_op", "pre op", "initial", "diag")):
+            purpose = AttachmentPurposeCode.PRE_OP_XRAY.value
+        else:
+            purpose = AttachmentPurposeCode.PRE_OP_XRAY.value
+    elif any(w in text_lower for w in ("extraoral", "extra-oral", "profile", "facial", "face")):
+        purpose = AttachmentPurposeCode.EXTRAORAL_PHOTO.value
+    elif any(w in text_lower for w in ("intraoral", "intra-oral", "macro")) or (photo_kw and matched_tooth_key):
+        purpose = AttachmentPurposeCode.INTRAORAL_PHOTO.value
+    elif any(w in text_lower for w in ("lab scan", "scan", "stl", "impression")):
+        purpose = AttachmentPurposeCode.LAB_SCAN.value
+    elif any(w in text_lower for w in ("consent", "signed", "agreement")):
+        purpose = AttachmentPurposeCode.CONSENT_DOC.value
+    else:
+        purpose = AttachmentPurposeCode.OTHER.value
+
+    # 4. Deterministic stable key
+    identity_payload = (
+        f"att={att_id}:tooth={matched_tooth_key or ''}:tx={matched_treatment_id or 0}:purpose={purpose}"
+    )
+    stable_key = generate_stable_mapping_key(
+        draft_kind="clinical_attachment_link",
+        source_kind="attachment",
+        source_id=att_id if att_id is not None else 0,
+        tenant_id=verified_patient.tenant_id,
+        patient_id=verified_patient.patient_id,
+        identity_payload=identity_payload,
+    )
+
+    draft = LegacyAttachmentLinkDraft(
+        stable_key=stable_key,
+        tenant_id=verified_patient.tenant_id,
+        patient_id=verified_patient.patient_id,
+        attachment_id=att_id if att_id is not None else 0,
+        tooth_key=matched_tooth_key,
+        treatment_id=matched_treatment_id,
+        purpose_code=purpose,
+        notes=att_notes if att_notes else None,
+        source_id=att_id if att_id is not None else 0,
+    )
+
+    return draft, ()
 
 
 # ===========================================================================
