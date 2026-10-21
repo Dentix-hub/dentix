@@ -18,7 +18,7 @@ Every control below exists in `origin/staging` and has been verified against act
 | # | Control Name & Location | Component (`file:line`) | What it Writes | Gating Feature Flag | Proposed Cutover Fate | Notes / Rationale |
 |---|---|---|---|---|---|---|
 | **C01** | **Quick Action Launcher (Findings)**<br>Chairside drawer / sticky bar | `ChartQuickActionLauncher.jsx:260-310`<br>`PatientDetails.jsx:465-495` | `Native Finding` (Native ON)<br>or `Tooth Condition` (`updateToothStatus`, Native OFF) | None (Always visible when chart open) | **`keep`** [PROPOSAL] | Primary chairside rapid-entry path for caries, fracture, and pain observations. |
-| **C02** | **Quick Action Launcher (Procedures)**<br>Chairside drawer / sticky bar | `ChartQuickActionLauncher.jsx:315-420`<br>`PatientDetails.jsx:475-535` | `Native Procedure` (Native ON)<br>or `TreatmentModal` (Flow B, Native OFF) | None (Always visible when chart open) | **`keep`** [PROPOSAL] | Displays clinic's real procedures & prices (U1). Feeds `buildTreatmentPrefill`. |
+| **C02** | **Quick Action Launcher (Procedures)**<br>Chairside drawer / sticky bar | `ChartQuickActionLauncher.jsx:315-420`<br>`PatientDetails.jsx:475-535`<br>`QuickTreatmentSheet.jsx` | `Native Procedure` (Native ON)<br>or `QuickTreatmentSheet` (Flow B, Native OFF & non-canonical fallback) | None (Always visible when chart open) | **`keep`** [PROPOSAL] | Displays clinic's real procedures, prices & chart swatches (U1, U4C). Feeds `buildTreatmentPrefill` -> `QuickTreatmentSheet` (escalating to `TreatmentModal` on "More details" or errors per U4D). |
 | **C03** | **Plan Item "Perform now" Button**<br>Plan phase items list | `PlanItemRow.jsx:80-92`<br>`PatientDetails.jsx:538-570` | `TreatmentModal` with `clinical_work_item_id` (U2) | `!clinical_vnext_native_writes` & `plan.status === 'accepted'` | **`keep`** [PROPOSAL] | Enables executing planned care items directly through legacy billing and linking them to `ClinicalWorkItem`. |
 | **C04** | **Plan Chart Overlay Toggle**<br>Plan & Phase card header | `PlanCard.jsx:110-125`<br>`PlanPhaseCard.jsx:135-155`<br>`DentalChartSVG.jsx:355-375` | Read-only UI state (`usePatientPlanOverlay`) | `clinical_treatment_plans` | **`keep`** [PROPOSAL] | Highlights planned teeth, phase colors, and completion status (`✓` / `●`) on odontogram (U2.4). |
 | **C05** | **Plan Comparison Modal**<br>Plans card header button | `TreatmentPlansCard.jsx:382-392`<br>`PlanComparisonModal.jsx:1-240` | Read-only UI state / Plan acceptance | `clinical_treatment_plans` (>=2 plans) | **`keep`** [PROPOSAL] | Side-by-side alternative plan comparison and direct acceptance. |
@@ -33,15 +33,18 @@ Every control below exists in `origin/staging` and has been verified against act
 
 ---
 
-## 2. `TreatmentModal` Entry-Point Architecture
+## 2. `QuickTreatmentSheet` & `TreatmentModal` Entry-Point Architecture
 
-There are **7 verified entry points** that open `TreatmentModal` in the frontend. All chart-driven entry points (1–4) pass through the centralized `buildTreatmentPrefill` helper (U3.2):
+There are **7 verified entry points** that record treatments in the frontend. All chart-driven entry points (1–4) pass through the centralized `buildTreatmentPrefill` helper (U3.2), and both `QuickTreatmentSheet` and `TreatmentModal` construct their request body via the shared `buildTreatmentPayload` helper (U4D):
+
+- **Quick Action Launcher (Flow B)** opens the compact **`QuickTreatmentSheet`** (`DentixBottomSheet`), which escalates to `TreatmentModal` when the clinician taps **More details** or when a stock shortage, open-session conflict, or `CLINICAL_LINK_*` validation error requires advanced handling.
+- **Plan Item "Perform now" (U2.3)**, **Chairside Selection ("Advanced Entry")**, **Tooth Picker**, **Header "+ New Treatment"**, and **Treatment Edit** open **`TreatmentModal`** directly.
 
 ```
                                     ┌────────────────────────┐
-                                    │  Quick Action Launcher │ (Flow B)
+                                    │  Quick Action Launcher │ (Flow B -> QuickTreatmentSheet)
                                     └───────────┬────────────┘
-                                                │
+                                                │ (More details / error escalation)
                                     ┌───────────▼────────────┐
                                     │ Plan Item "Perform now"│ (U2.3)
                                     └───────────┬────────────┘
@@ -61,6 +64,9 @@ There are **7 verified entry points** that open `TreatmentModal` in the frontend
                                                 │
                                                 ▼
                                ┌─────────────────────────────────┐
+                               │  QuickTreatmentSheet (Flow B)   │
+                               │               │ (escalation)    │
+                               │               ▼                 │
                                │         TreatmentModal          │
                                │  (Context Header Banner U3.3)   │
                                └─────────────────────────────────┘
@@ -77,15 +83,15 @@ There are **7 verified entry points** that open `TreatmentModal` in the frontend
 
 ### Entry-Point Matrix
 
-| Entry Point | Trigger Action | Location (`file:line`) | Source Label (`prefill_source`) | Prefill Payload Built | Passes U1.3 / U3.2 Resolver? |
-|---|---|---|---|---|:---:|
-| **1. Quick Launcher** | Click clinic procedure in launcher drawer | `PatientDetails.jsx:520-535` | `'quick_launcher'` | `tooth_number` (Palmer), `procedure` (name), `surface`, `surfaces`, `target_kind`, `default_price_list_id` | **YES** (`buildTreatmentPrefill`) |
-| **2. Plan Item Perform** | Click "Perform now" on accepted plan item | `PatientDetails.jsx:538-570` | `'plan_item'` | `tooth_number` (Palmer), `procedure` (matched name), `clinical_work_item_id`, `plan_title`, `plan_id`, `work_item_code`, `surface`, `surfaces` | **YES** (`buildTreatmentPrefill`) |
-| **3. Chairside Selection** | Click "Record Treatment" on selection bar | `usePatientChartSelection.js:203-220` | `'chart_selection'` | `tooth_number` (Palmer), `surface`, `surfaces`, `target_kind`, `default_price_list_id` | **YES** (`buildTreatmentPrefill`) |
-| **4. Tooth Picker** | Select tooth in modal ('t' hotkey) | `usePatientChartSelection.js:65-82` | `'tooth_picker'` | `tooth_number` (Palmer), `target_kind: 'tooth'`, `default_price_list_id` | **YES** (`buildTreatmentPrefill`) |
-| **5. Header "+ New Treatment"** | Click "+ New Treatment" in treatments header | `usePatientRecordActions.js:93-100` | `'manual'` | Fresh unlinked treatment skeleton from `getInitialTreatment()` | No (Unlinked manual entry) |
-| **6. Treatment Row Edit** | Click "Edit" on treatment row in history table | `usePatientRecordActions.js:133-140` | `null` (Edit mode) | Existing treatment database row (`editingTreatmentId` set) | No (Edit existing) |
-| **7. Table Empty State CTA** | Click "+ Add First Treatment" in empty list | `PatientDetails.jsx:980-985` | `'manual'` | Fresh unlinked treatment skeleton from `getInitialTreatment()` | No (Unlinked manual entry) |
+| Entry Point | Trigger Action | Location (`file:line`) | Source Label (`prefill_source`) | Target UI Surface | Prefill Payload Built | Passes U1.3 / U3.2 Resolver? |
+|---|---|---|---|---|---|:---:|
+| **1. Quick Launcher** | Click clinic procedure in launcher drawer | `PatientDetails.jsx:520-535` | `'quick_launcher'` | **`QuickTreatmentSheet`** (escalates to `TreatmentModal`) | `tooth_number` (Palmer), `procedure` (name), `surface`, `surfaces`, `target_kind`, `default_price_list_id` | **YES** (`buildTreatmentPrefill` + `buildTreatmentPayload`) |
+| **2. Plan Item Perform** | Click "Perform now" on accepted plan item | `PatientDetails.jsx:538-570` | `'plan_item'` | `TreatmentModal` | `tooth_number` (Palmer), `procedure` (matched name), `clinical_work_item_id`, `plan_title`, `plan_id`, `work_item_code`, `surface`, `surfaces` | **YES** (`buildTreatmentPrefill` + `buildTreatmentPayload`) |
+| **3. Chairside Selection** | Click "Record Treatment" on selection bar | `usePatientChartSelection.js:203-220` | `'chart_selection'` | `TreatmentModal` | `tooth_number` (Palmer), `surface`, `surfaces`, `target_kind`, `default_price_list_id` | **YES** (`buildTreatmentPrefill` + `buildTreatmentPayload`) |
+| **4. Tooth Picker** | Select tooth in modal ('t' hotkey) | `usePatientChartSelection.js:65-82` | `'tooth_picker'` | `TreatmentModal` | `tooth_number` (Palmer), `target_kind: 'tooth'`, `default_price_list_id` | **YES** (`buildTreatmentPrefill` + `buildTreatmentPayload`) |
+| **5. Header "+ New Treatment"** | Click "+ New Treatment" in treatments header | `usePatientRecordActions.js:93-100` | `'manual'` | `TreatmentModal` | Fresh unlinked treatment skeleton from `getInitialTreatment()` | No (Unlinked manual entry) |
+| **6. Treatment Row Edit** | Click "Edit" on treatment row in history table | `usePatientRecordActions.js:133-140` | `null` (Edit mode) | `TreatmentModal` | Existing treatment database row (`editingTreatmentId` set) | No (Edit existing) |
+| **7. Table Empty State CTA** | Click "+ Add First Treatment" in empty list | `PatientDetails.jsx:980-985` | `'manual'` | `TreatmentModal` | Fresh unlinked treatment skeleton from `getInitialTreatment()` | No (Unlinked manual entry) |
 
 ---
 
