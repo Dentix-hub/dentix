@@ -635,10 +635,13 @@ def test_alembic_single_head_is_f4a5b6c7d8e9():
 
     heads = script_dir.get_heads()
     assert len(heads) == 1, f"Expected exactly 1 Alembic head revision, found {heads}"
-    assert heads[0] == "3c4d5e6f7a8b", f"Expected head revision 3c4d5e6f7a8b, got {heads[0]}"
+    assert heads[0] == "4d5e6f7a8b9c", f"Expected head revision 4d5e6f7a8b9c, got {heads[0]}"
 
-    head_rev = script_dir.get_revision("3c4d5e6f7a8b")
-    assert head_rev.down_revision == "2b3c4d5e6f7a", f"Expected parent revision 2b3c4d5e6f7a, got {head_rev.down_revision}"
+    head_rev = script_dir.get_revision("4d5e6f7a8b9c")
+    assert head_rev.down_revision == "3c4d5e6f7a8b", f"Expected parent revision 3c4d5e6f7a8b, got {head_rev.down_revision}"
+
+    s27_rev = script_dir.get_revision("3c4d5e6f7a8b")
+    assert s27_rev.down_revision == "2b3c4d5e6f7a", f"Expected parent revision 2b3c4d5e6f7a, got {s27_rev.down_revision}"
 
     s26_rev = script_dir.get_revision("2b3c4d5e6f7a")
     assert s26_rev.down_revision == "1a2b3c4d5e6f", f"Expected parent revision 1a2b3c4d5e6f, got {s26_rev.down_revision}"
