@@ -164,7 +164,7 @@ describe('U1 & S36: Chart Quick Entry Hand-off & Multi-State Flows', () => {
         mockTenantFeatures = [];
     });
 
-    it('5. Flow B Hand-off: opens TreatmentModal with exact clinic name, price list resolved, and BOM loaded', async () => {
+    it('5. Flow B Hand-off: opens QuickTreatmentSheet with exact clinic name, price list resolved, and BOM loaded', async () => {
         // Native writes OFF (default)
         mockTenantFeatures = [];
         const { container } = renderPatientDetails();
@@ -181,30 +181,33 @@ describe('U1 & S36: Chart Quick Entry Hand-off & Multi-State Flows', () => {
         expect(screen.getByTestId('surface-prompt-popover')).toBeInTheDocument();
         fireEvent.click(screen.getByTestId('confirm-action-button'));
 
-        // TreatmentModal is now open
+        // QuickTreatmentSheet is now open with exact clinic name
         await waitFor(() => {
-            const procSelect = screen.getByLabelText(/الإجراء العلاجي/i);
-            expect(procSelect).toBeInTheDocument();
-            // Value is exact clinic name
-            expect(procSelect.value).toBe('حشو كومبوزيت -- Composite Filling Class I');
+            expect(screen.getByTestId('quick-treatment-sheet')).toBeInTheDocument();
+            expect(screen.getByTestId('quick-treatment-sheet-procedure-name')).toHaveTextContent(
+                'حشو كومبوزيت -- Composite Filling Class I'
+            );
         });
 
         // Price list resolved via resolver (patient default_price_list_id=5 -> 550)
         await waitFor(() => {
-            const costInput = screen.getByLabelText(/التكلفة/i);
+            const costInput = screen.getByTestId('quick-treatment-cost-input');
             expect(costInput.value).toBe('550');
         });
 
-        // Tooth is prefilled with Palmer 'UR6'
-        const toothInput = screen.getByLabelText(/رقم السن/i);
-        expect(toothInput.value).toBe('UR6');
+        // Tooth chip shows FDI '16' and Palmer 'UR6'
+        const toothChip = screen.getByTestId('quick-treatment-tooth-chip');
+        expect(toothChip).toHaveAttribute('data-palmer-tooth', 'UR6');
+        expect(toothChip).toHaveAttribute('data-fdi-tooth', '16');
 
-        // Surfaces prefilled with 'O'
-        const surfaceInput = screen.getByLabelText(/سطح السن/i);
-        expect(surfaceInput.value).toBe('O');
+        // Surface chip shows 'O'
+        expect(screen.getByTestId('quick-treatment-surface-chip-O')).toBeInTheDocument();
 
-        // Save treatment
-        const saveBtn = screen.getByRole('button', { name: 'حفظ' });
+        // BOM summary shows 1 material will be deducted
+        expect(screen.getByTestId('quick-treatment-bom-summary')).toHaveTextContent(/1 materials will be deducted/i);
+
+        // Save treatment directly from sheet
+        const saveBtn = screen.getByTestId('quick-treatment-save-button');
         fireEvent.click(saveBtn);
 
         await waitFor(() => {
@@ -219,7 +222,7 @@ describe('U1 & S36: Chart Quick Entry Hand-off & Multi-State Flows', () => {
         expect(postBody.tooth_number).toBe(16);
     });
 
-    it('6. Flow A: with canonical code dispatches to G7 endpoint; with code=null falls back to Flow B modal', async () => {
+    it('6. Flow A: with canonical code dispatches to G7 endpoint; with code=null falls back to Flow B QuickTreatmentSheet', async () => {
         // Native writes ON
         mockTenantFeatures = ['clinical_vnext_native_writes'];
         const { container } = renderPatientDetails();
@@ -246,14 +249,15 @@ describe('U1 & S36: Chart Quick Entry Hand-off & Multi-State Flows', () => {
             );
         });
 
-        // 6b: Custom procedure with code=null -> falls back to Flow B legacy modal (R01/PD02)
+        // 6b: Custom procedure with code=null -> falls back to Flow B QuickTreatmentSheet (R01/PD02)
         const customCard = screen.getByTestId('chart-quick-action-item-proc:2');
         fireEvent.click(customCard);
 
         await waitFor(() => {
-            const procSelect = screen.getByLabelText(/الإجراء العلاجي/i);
-            expect(procSelect).toBeInTheDocument();
-            expect(procSelect.value).toBe('Custom Whitening Procedure');
+            expect(screen.getByTestId('quick-treatment-sheet')).toBeInTheDocument();
+            expect(screen.getByTestId('quick-treatment-sheet-procedure-name')).toHaveTextContent(
+                'Custom Whitening Procedure'
+            );
         });
     });
 

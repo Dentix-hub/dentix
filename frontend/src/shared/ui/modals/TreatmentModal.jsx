@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { Package, Plus, Trash2, Droplets, AlertCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getMaterials, getStockSummary, getActiveSessions } from '@/api/inventory';
-import { palmerToFdi } from '@/utils/toothUtils';
 import TrackSessionModal from '@/features/inventory/components/TrackSessionModal';
 import { EnhancedMaterialConsumption } from '@/features/inventory/components/EnhancedMaterialConsumption';
 import MaterialConsumptionPanel from '@/features/inventory/MaterialConsumptionPanel';
@@ -13,6 +12,7 @@ import { MultiSessionPanel } from '../components/MultiSessionPanel';
 import Modal from '@/shared/ui/Modal';
 import logger from '@/utils/logger';
 import { resolveProcedureSelection } from '@/features/patients/utils/resolveProcedureSelection';
+import { buildTreatmentPayload } from '@/features/patients/utils/buildTreatmentPayload';
 
 const CLINICAL_SURFACES = [
     { code: 'M', label: 'M', description: 'Mesial (أنسي)' },
@@ -139,7 +139,10 @@ export default function TreatmentModal({
             setIsManualProcedure(false);
 
             const prefillSource = normalized?.prefill_source;
-            if (prefillSource === 'quick_launcher' || prefillSource === 'plan_item') {
+            const preserveEscalatedEdits = Boolean(normalized?.escalated_from_quick_sheet);
+            const escalationErr = normalized?.escalation_error;
+
+            if (!preserveEscalatedEdits && (prefillSource === 'quick_launcher' || prefillSource === 'plan_item')) {
                 const procName = normalized?.procedure;
                 if (procName) {
                     resolveProcedureSelection({
@@ -174,11 +177,11 @@ export default function TreatmentModal({
             }
 
             // FIX: Always reset consumed materials when opening modal to prevent stale data
-            if (isEditing && initialData?.consumedMaterials && initialData.consumedMaterials.length > 0) {
+            if ((isEditing || preserveEscalatedEdits) && initialData?.consumedMaterials && initialData.consumedMaterials.length > 0) {
                 logger.debug("[TreatmentModal] Loading existing materials:", initialData.consumedMaterials);
                 setConsumedMaterials(initialData.consumedMaterials);
                 setShowInventory(true);
-            } else if (!prefillSource) {
+            } else if (!prefillSource || preserveEscalatedEdits) {
                 // Reset for new entry or if no materials exist
                 setConsumedMaterials([]);
                 setShowInventory(false);
@@ -189,7 +192,14 @@ export default function TreatmentModal({
                 setSelectedPathologies([]);
                 setSelectedRestorations([]);
             }
+
+            if (escalationErr) {
+                setTimeout(() => {
+                    handleSaveError(escalationErr, false);
+                }, 0);
+            }
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, initialData, isEditing, safeProcedures]);
     const queryClient = useQueryClient();
 
@@ -296,51 +306,103 @@ export default function TreatmentModal({
         }));
     };
 
+    function handleSaveError(error, forceSkipStock = false) {
+        logger.error('[TREATMENT] Save Error Details:', {
+            status: error.response?.status,
+            data: error.response?.data,
+            message: error.message
+        });
+
+        const confirmOpenDetail = getConfirmOpenDetail(error);
+        if (confirmOpenDetail) {
+            openTrackSessionForConflict(confirmOpenDetail);
+            return;
+        }
+
+        const responseData = error.response?.data;
+        const errDetail = responseData?.detail;
+
+        // Case: Clinical plan item linking error (U2.3)
+        const clinicalLinkCode = (
+            (typeof errDetail === 'string' && errDetail.startsWith('CLINICAL_LINK_') ? errDetail : null) ||
+            (typeof errDetail?.code === 'string' && errDetail.code.startsWith('CLINICAL_LINK_') ? errDetail.code : null) ||
+            (typeof responseData?.code === 'string' && responseData.code.startsWith('CLINICAL_LINK_') ? responseData.code : null) ||
+            (typeof responseData?.message === 'string' && responseData.message.startsWith('CLINICAL_LINK_') ? responseData.message : null) ||
+            (typeof error?.message === 'string' && error.message.includes('CLINICAL_LINK_') ? error.message : null)
+        );
+
+        if (clinicalLinkCode) {
+            const linkErrorMsg = getClinicalLinkErrorMessage(clinicalLinkCode, t);
+            setLinkError(linkErrorMsg);
+            toast.error(linkErrorMsg);
+            return;
+        }
+
+        // Case: Stock validation failure (400 with stock-related message)
+        const isStockError = error.response?.status === 400 && (
+            (typeof errDetail === 'string' && (errDetail.includes('مخزون') || errDetail.includes('stock') || errDetail.includes('Insufficient'))) ||
+            (typeof responseData?.message === 'string' && responseData.message.includes('مخزون'))
+        );
+
+        if (isStockError && !forceSkipStock) {
+            // Show rich toast with retry option
+            toast((t) => (
+                <div className="flex flex-col gap-2 max-w-xs" dir="rtl">
+                    <div className="flex items-center gap-2 text-red-700 font-bold text-sm">
+                        <span>⚠️</span>
+                        <span>نقص في المخزون</span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                        {typeof errDetail === 'string' ? errDetail : 'بعض المواد غير متوفرة في المخزن حالياً.'}
+                    </p>
+                    <div className="flex gap-2 pt-1 border-t border-slate-100">
+                        <button
+                            onClick={() => {
+                                toast.dismiss(t.id);
+                                handleSave(null, true);
+                            }}
+                            className="flex-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-colors"
+                        >
+                            حفظ بدون خصم مخزون
+                        </button>
+                        <button
+                            onClick={() => toast.dismiss(t.id)}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold transition-colors"
+                        >
+                            إلغاء
+                        </button>
+                    </div>
+                </div>
+            ), { duration: 15000 });
+            return;
+        }
+
+        // Case: Generic Error (other 400 or 500)
+        const errorEnvelope = responseData?.error;
+        const friendlyMsg = typeof errDetail === 'string' ? errDetail : 
+                           (errDetail?.message || errorEnvelope?.message || error.message || 'فشل حفظ العلاج');
+        
+        if (!error.alreadyNotified) {
+            toast.error(friendlyMsg);
+        }
+    }
+
     const handleSave = async (e, forceSkipStock = false) => {
         if (e) e.preventDefault();
         if (isSavingRef.current) return;
         isSavingRef.current = true;
         setIsSaving(true);
         
-        // Clean and validate consumed materials
-        const cleanedMaterials = (consumedMaterials || [])
-            .map(m => ({
-                material_id: m.material_id || m.id,
-                quantity: Number.isFinite(parseFloat(m.quantity)) ? parseFloat(m.quantity) : 1,
-                session_id: m.session_id || null,
-                weight_score: Number.isFinite(parseFloat(m.weight_score)) ? parseFloat(m.weight_score) : (Number.isFinite(parseFloat(m.weight)) ? parseFloat(m.weight) : 1.0),
-                is_manual_override: m.is_manual_override || false,
-                material_type: m.material_type || null,
-                category_id: m.category_id || null
-            }))
-            .filter(m => m.quantity > 0 && m.material_id);
+        const cleanTreatment = { ...(treatment || {}) };
+        delete cleanTreatment.escalated_from_quick_sheet;
+        delete cleanTreatment.escalation_error;
 
-        const surfaceList = Array.isArray(treatment.surfaces) && treatment.surfaces.length > 0
-            ? treatment.surfaces
-            : (treatment.surface ? String(treatment.surface).replace(/[^A-Za-z]/g, '').toUpperCase().split('') : []);
-        const surfaceStr = surfaceList.join('') || treatment.surface || null;
-        const targetKind = surfaceList.length > 0 ? 'surface' : (treatment.target_kind || 'tooth');
-
-        const payload = {
-            ...treatment,
-            patient_id: treatment.patient_id,
-            doctor_id: treatment.doctor_id,
-            tooth_number: palmerToFdi(treatment.tooth_number) || null,
-            surface: surfaceStr,
-            surfaces: surfaceList.length > 0 ? surfaceList : undefined,
-            target_kind: targetKind,
-            clinical_work_item_id: !isEditing && treatment.clinical_work_item_id ? treatment.clinical_work_item_id : undefined,
-            procedure_id: safeProcedures.find(p => p.name === treatment.procedure)?.id,
-            cost: parseFloat(treatment.cost) || 0,
-            discount: parseFloat(treatment.discount) || 0,
-            status: treatment.status || 'Done',
-            notes: treatment.notes,
-            canal_count: !isNaN(parseInt(treatment.canal_count)) ? parseInt(treatment.canal_count, 10) : null,
-            sessions: treatment.sessions,
-            complications: treatment.complications,
-            consumedMaterials: cleanedMaterials,
-            skip_stock_check: forceSkipStock
-        };
+        const payload = buildTreatmentPayload(cleanTreatment, {
+            consumedMaterials,
+            procedures: safeProcedures,
+            isEditing,
+            forceSkipStock,
+        });
 
         logger.debug('[TREATMENT] Saving with payload:', payload);
 
@@ -348,84 +410,7 @@ export default function TreatmentModal({
             setLinkError(null);
             await onSave(payload);
         } catch (error) {
-            logger.error('[TREATMENT] Save Error Details:', {
-                status: error.response?.status,
-                data: error.response?.data,
-                message: error.message
-            });
-
-            const confirmOpenDetail = getConfirmOpenDetail(error);
-            if (confirmOpenDetail) {
-                openTrackSessionForConflict(confirmOpenDetail);
-                return;
-            }
-
-            const responseData = error.response?.data;
-            const errDetail = responseData?.detail;
-
-            // Case: Clinical plan item linking error (U2.3)
-            const clinicalLinkCode = (
-                (typeof errDetail === 'string' && errDetail.startsWith('CLINICAL_LINK_') ? errDetail : null) ||
-                (typeof errDetail?.code === 'string' && errDetail.code.startsWith('CLINICAL_LINK_') ? errDetail.code : null) ||
-                (typeof responseData?.code === 'string' && responseData.code.startsWith('CLINICAL_LINK_') ? responseData.code : null) ||
-                (typeof responseData?.message === 'string' && responseData.message.startsWith('CLINICAL_LINK_') ? responseData.message : null) ||
-                (typeof error?.message === 'string' && error.message.includes('CLINICAL_LINK_') ? error.message : null)
-            );
-
-            if (clinicalLinkCode) {
-                const linkErrorMsg = getClinicalLinkErrorMessage(clinicalLinkCode, t);
-                setLinkError(linkErrorMsg);
-                toast.error(linkErrorMsg);
-                return;
-            }
-
-            // Case: Stock validation failure (400 with stock-related message)
-            const isStockError = error.response?.status === 400 && (
-                (typeof errDetail === 'string' && (errDetail.includes('مخزون') || errDetail.includes('stock') || errDetail.includes('Insufficient'))) ||
-                (typeof responseData?.message === 'string' && responseData.message.includes('مخزون'))
-            );
-
-            if (isStockError && !forceSkipStock) {
-                // Show rich toast with retry option
-                toast((t) => (
-                    <div className="flex flex-col gap-2 max-w-xs" dir="rtl">
-                        <div className="flex items-center gap-2 text-red-700 font-bold text-sm">
-                            <span>⚠️</span>
-                            <span>نقص في المخزون</span>
-                        </div>
-                        <p className="text-xs text-slate-600 leading-relaxed">
-                            {typeof errDetail === 'string' ? errDetail : 'بعض المواد غير متوفرة في المخزن حالياً.'}
-                        </p>
-                        <div className="flex gap-2 pt-1 border-t border-slate-100">
-                            <button
-                                onClick={() => {
-                                    toast.dismiss(t.id);
-                                    handleSave(null, true);
-                                }}
-                                className="flex-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-colors"
-                            >
-                                حفظ بدون خصم مخزون
-                            </button>
-                            <button
-                                onClick={() => toast.dismiss(t.id)}
-                                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-bold transition-colors"
-                            >
-                                إلغاء
-                            </button>
-                        </div>
-                    </div>
-                ), { duration: 15000 });
-                return;
-            }
-
-            // Case: Generic Error (other 400 or 500)
-            const errorEnvelope = responseData?.error;
-            const friendlyMsg = typeof errDetail === 'string' ? errDetail : 
-                               (errDetail?.message || errorEnvelope?.message || error.message || 'فشل حفظ العلاج');
-            
-            if (!error.alreadyNotified) {
-                toast.error(friendlyMsg);
-            }
+            handleSaveError(error, forceSkipStock);
         } finally {
             isSavingRef.current = false;
             setIsSaving(false);

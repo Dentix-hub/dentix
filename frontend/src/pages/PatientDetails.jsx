@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import ClinicalChartRenderer from '@/features/clinical-chart/components/ClinicalChartRenderer';
 import ChartStickyToolBanner from '@/features/clinical-chart/components/ChartStickyToolBanner';
 import ChartQuickActionLauncher from '@/features/clinical-chart/components/ChartQuickActionLauncher';
+import QuickTreatmentSheet from '@/features/clinical-chart/components/QuickTreatmentSheet';
 import { adaptWorkspaceSnapshotToRenderer } from '@/features/clinical-chart/adapters/workspaceSnapshotAdapter';
 import PatientInfoCard from '@/features/patients/PatientInfoCard';
 import { useProcedures } from '@/shared/context/ProceduresContext';
@@ -92,6 +93,7 @@ export default function PatientDetails() {
     const [isEditPatientOpen, setIsEditPatientOpen] = useState(false);
     const [isRxModalOpen, setIsRxModalOpen] = useState(false);
     const [isTreatmentModalOpen, setIsTreatmentModalOpen] = useState(false);
+    const [isQuickTreatmentSheetOpen, setIsQuickTreatmentSheetOpen] = useState(false);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
     const getInitialTreatment = useCallback(() => ({
@@ -517,7 +519,7 @@ export default function PatientDetails() {
             }
         }
 
-        // For procedures: open TreatmentModal pre-populated
+        // For procedures: open compact QuickTreatmentSheet pre-populated (U4D / D1)
         const prefill = buildTreatmentPrefill({
             baseTreatment: getInitialTreatment(),
             source: 'quick_launcher',
@@ -528,7 +530,7 @@ export default function PatientDetails() {
             defaultPriceListId: patient?.default_price_list_id,
         });
         setNewTreatment(prefill);
-        setIsTreatmentModalOpen(true);
+        setIsQuickTreatmentSheetOpen(true);
         return true;
     }, [id, resolvedActiveTooth, isNativeWritesEnabled, patient, getInitialTreatment, refetchWorkspace, refetchTeeth, refetchHistory, queryClient, t]);
 
@@ -930,6 +932,19 @@ export default function PatientDetails() {
                 onClose={() => setIsEditPatientOpen(false)}
                 onSave={handleSavePatient}
                 initialData={patient}
+            />
+
+            <QuickTreatmentSheet
+                isOpen={isQuickTreatmentSheetOpen}
+                onClose={() => setIsQuickTreatmentSheetOpen(false)}
+                onSave={handleSaveTreatment}
+                onOpenDetails={(escalatedData) => {
+                    setNewTreatment(escalatedData);
+                    setIsQuickTreatmentSheetOpen(false);
+                    setIsTreatmentModalOpen(true);
+                }}
+                initialData={newTreatment}
+                procedures={procedures}
             />
 
             <TreatmentModal
