@@ -6,10 +6,10 @@ import { useAuthStore } from '@/store/auth.store';
 import { formatNumber } from '@/utils/formatters';
 import {
     CANONICAL_FINDINGS,
-    CANONICAL_PROCEDURES_BY_CODE,
     DEFAULT_FAVORITE_CODES,
     getSmartTargetKindAndSurfaces,
 } from '../domain/catalogDefinitions';
+import { resolveEffectiveProcedureChartBehavior } from '../domain/procedureChartAppearance';
 
 const CATEGORY_LABELS = {
     restorative: { en: 'Restorative', ar: 'حشوات وترميم' },
@@ -78,29 +78,26 @@ export default function ChartQuickActionLauncher({
         return clinicProcedures
             .filter((proc) => proc && proc.name)
             .map((proc) => {
-                const canonicalCode = proc.canonical_code || null;
-                const canonicalDef = canonicalCode
-                    ? CANONICAL_PROCEDURES_BY_CODE.get(canonicalCode)
-                    : null;
-                const category = canonicalDef?.category || 'clinic';
-                const allowed_target_kinds = canonicalDef?.allowed_target_kinds || ['tooth'];
-                const requires_lab = Boolean(canonicalDef?.requires_lab);
+                const behavior = resolveEffectiveProcedureChartBehavior(proc);
                 const rawPrice = Number(proc.price);
                 const basePrice = !isNaN(rawPrice) && rawPrice > 0 ? rawPrice : null;
-                const hasChartMapping = Boolean(canonicalCode);
 
                 return {
                     key: `proc:${proc.id}`,
-                    code: canonicalCode,
+                    code: behavior.allowlistCode,
+                    effectiveTemplate: behavior.effectiveTemplate,
+                    styleTemplate: behavior.styleTemplate,
+                    styleColorKey: behavior.styleColorKey,
+                    paletteSwatch: behavior.paletteSwatch,
                     procedureId: proc.id,
                     name: proc.name,
                     nameAr: proc.name, // Clinic names are bilingual strings: display as-is, never split
                     kind: 'procedure',
-                    category,
-                    allowed_target_kinds,
-                    requires_lab,
+                    category: behavior.category,
+                    allowed_target_kinds: behavior.allowed_target_kinds,
+                    requires_lab: behavior.requires_lab,
                     basePrice,
-                    hasChartMapping,
+                    hasChartMapping: behavior.hasChartMapping,
                 };
             });
     }, [clinicProcedures]);
@@ -584,6 +581,19 @@ function ActionCard({
         >
             <div className="flex min-w-0 flex-col">
                 <div className="flex items-center gap-1.5 flex-wrap">
+                    {item.paletteSwatch && (
+                        <span
+                            data-testid={`procedure-color-swatch-${testIdKey}`}
+                            data-color-key={item.paletteSwatch.key}
+                            aria-label={isRtl ? item.paletteSwatch.labelAr : item.paletteSwatch.labelEn}
+                            title={isRtl ? item.paletteSwatch.labelAr : item.paletteSwatch.labelEn}
+                            style={{
+                                backgroundColor: item.paletteSwatch.fill,
+                                borderColor: item.paletteSwatch.stroke,
+                            }}
+                            className="inline-block h-3 w-3 shrink-0 rounded-full border"
+                        />
+                    )}
                     <span className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">
                         {displayName}
                     </span>

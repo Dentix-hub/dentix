@@ -49,3 +49,27 @@ export const invalidatePatientClinicalQueries = (queryClient, patientId) => {
     queryClient.invalidateQueries({ queryKey: ['patientPlanOverlay', pid] });
     queryClient.invalidateQueries({ queryKey: ['patientPlanOverlay', pidNum] });
 };
+
+/**
+ * Invalidates all cached patient clinical queries across any patient when a
+ * clinic-wide setting (such as procedure chart appearance styles) changes.
+ *
+ * @param {import('@tanstack/react-query').QueryClient} queryClient
+ */
+export const invalidateAllPatientsClinicalQueries = (queryClient) => {
+    if (!queryClient) return;
+    queryClient.invalidateQueries({
+        predicate: (query) => {
+            const key = query.queryKey;
+            if (!Array.isArray(key) || key[0] !== 'patient') return false;
+            return [
+                'clinical-workspace',
+                'clinical-plans',
+                'care-sessions',
+                'treatments',
+                'teeth',
+            ].includes(key[2]);
+        },
+    });
+    queryClient.invalidateQueries({ queryKey: ['patientPlanOverlay'] });
+};
