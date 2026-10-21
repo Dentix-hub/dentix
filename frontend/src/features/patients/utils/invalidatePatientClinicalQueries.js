@@ -10,7 +10,24 @@ import { queryKeys } from '@/lib/queryClient';
  * @param {string|number} patientId
  */
 export const invalidatePatientClinicalQueries = (queryClient, patientId) => {
-    if (!queryClient || !patientId) return;
+    if (!queryClient) return;
+    if (!patientId) {
+        queryClient.invalidateQueries({
+            predicate: (query) => {
+                const key = query.queryKey;
+                if (!Array.isArray(key) || key[0] !== 'patient') return false;
+                return [
+                    'clinical-workspace',
+                    'clinical-plans',
+                    'care-sessions',
+                    'treatments',
+                    'teeth',
+                ].includes(key[2]);
+            },
+        });
+        queryClient.invalidateQueries({ queryKey: ['patientPlanOverlay'] });
+        return;
+    }
 
     const pid = String(patientId);
     const pidNum = Number(patientId);

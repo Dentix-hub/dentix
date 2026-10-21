@@ -23,6 +23,16 @@ export {
     resolvePaletteColor,
 } from './procedureChartPalette';
 export {
+    CHART_APPEARANCE_TEMPLATES,
+    CHART_APPEARANCE_TEMPLATES_BY_KEY,
+    NEW_PROCEDURE_DEFAULT_CHART_STYLE,
+    PROCEDURE_TEMPLATE_SUGGESTION_RULES,
+    RENDERABLE_CHART_TEMPLATE_KEYS,
+    resolveEffectiveProcedureChartBehavior,
+    resolveTemplatePreviewColors,
+    suggestProcedureChartTemplate,
+} from './procedureChartAppearance';
+export {
     COLOR_OVERRIDABLE_PROCEDURE_EFFECTS,
     FINDING_CODES,
     PROCEDURE_CODES,

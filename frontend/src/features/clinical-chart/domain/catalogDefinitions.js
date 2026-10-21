@@ -159,9 +159,30 @@ export function getSmartTargetKindAndSurfaces(definition, toothKey, existingSurf
     const allowed = definition?.allowed_target_kinds || ['tooth'];
     const hasSurface = allowed.includes('surface');
     const hasTooth = allowed.includes('tooth');
+    const isMarkerProcedure = definition?.effectiveTemplate === 'MARKER'
+        || definition?.styleTemplate === 'MARKER';
 
     // Case 1: Allows tooth and NOT surface -> whole-tooth
     if (hasTooth && !hasSurface) {
+        return {
+            targetKind: 'tooth',
+            surfaces: [],
+            defaultSurface: null,
+            requiresSurfacePrompt: false,
+        };
+    }
+
+    // Case 1b: MARKER procedures allow both tooth and surface targets:
+    // reuse pre-selected surfaces when present, or target the whole tooth without forcing a surface prompt.
+    if (isMarkerProcedure && hasTooth && hasSurface) {
+        if (Array.isArray(existingSurfaces) && existingSurfaces.length > 0) {
+            return {
+                targetKind: 'surface',
+                surfaces: [...existingSurfaces],
+                defaultSurface: null,
+                requiresSurfacePrompt: false,
+            };
+        }
         return {
             targetKind: 'tooth',
             surfaces: [],
