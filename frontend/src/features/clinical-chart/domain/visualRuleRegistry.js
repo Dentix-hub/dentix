@@ -7,6 +7,7 @@ import {
     PROCEDURE_CODES,
     TOOTH_LIFECYCLE_CODES,
 } from './clinicalVisualCodes';
+import { resolvePaletteColor } from './procedureChartPalette';
 
 export { FINDING_CODES, PROCEDURE_CODES, TOOTH_LIFECYCLE_CODES } from './clinicalVisualCodes';
 
@@ -253,17 +254,33 @@ export const getVisualRule = (category, code) => (
     VISUAL_RULE_REGISTRY[category]?.[String(code).toUpperCase()] ?? null
 );
 
+export const COLOR_OVERRIDABLE_PROCEDURE_EFFECTS = Object.freeze([
+    'surface-restoration',
+    'endodontic-therapy',
+    'prosthetic-crown',
+    'bridge-unit',
+    'implant-fixture',
+    'implant-crown',
+    'surgical-extraction',
+]);
+
+const COLOR_OVERRIDABLE_EFFECT_SET = new Set(COLOR_OVERRIDABLE_PROCEDURE_EFFECTS);
+
 const resolveProcedureLayer = (phase) => (
     [PROJECTION_VISUAL_PHASES.PLANNED, PROJECTION_VISUAL_PHASES.ACTIVE].includes(phase)
         ? VISUAL_LAYER_ROLES.PLANNED_ACTIVE_WORK
         : VISUAL_LAYER_ROLES.EXISTING_COMPLETED_WORK
 );
 
-const resolvePresentation = (rule, phase) => {
+const resolvePresentation = (rule, phase, styleColorKey = null) => {
     const isPlanned = phase === PROJECTION_VISUAL_PHASES.PLANNED;
     const isActive = phase === PROJECTION_VISUAL_PHASES.ACTIVE;
     const isCompletedExtraction = rule.code === PROCEDURE_CODES.SURG_EXTRACTION
         && phase === PROJECTION_VISUAL_PHASES.COMPLETED;
+    const paletteOverride = rule.category === 'procedure'
+        && COLOR_OVERRIDABLE_EFFECT_SET.has(rule.effect)
+        ? resolvePaletteColor(styleColorKey)
+        : null;
 
     return Object.freeze({
         ...rule.presentation,
@@ -277,10 +294,14 @@ const resolvePresentation = (rule, phase) => {
         ...(isCompletedExtraction ? {
             stroke: '#64748b',
         } : {}),
+        ...(paletteOverride ? {
+            fill: paletteOverride.fill,
+            stroke: paletteOverride.stroke,
+        } : {}),
     });
 };
 
-const createInstruction = ({ rule, sourceId, phase, target, order }) => {
+const createInstruction = ({ rule, sourceId, phase, target, order, styleColorKey = null }) => {
     const layerRole = rule.category === 'procedure'
         ? resolveProcedureLayer(phase)
         : rule.layerRole;
@@ -296,7 +317,7 @@ const createInstruction = ({ rule, sourceId, phase, target, order }) => {
         layerRole,
         layerIndex: VISUAL_LAYER_SEQUENCE.indexOf(layerRole),
         order,
-        presentation: resolvePresentation(rule, phase),
+        presentation: resolvePresentation(rule, phase, styleColorKey),
     });
 };
 
@@ -305,6 +326,9 @@ const resolveEntryInstructions = (category, entries, startOrder) => entries.flat
     if (!rule) {
         throw new RangeError(`Unknown ${category} code: ${entry.code}`);
     }
+    const styleColorKey = category === 'procedure'
+        ? (entry.styleColorKey ?? entry.style_color_key ?? null)
+        : null;
     return entry.targets
         .filter((target) => rule.targetKinds.includes(target.kind))
         .map((target, targetIndex) => createInstruction({
@@ -313,6 +337,7 @@ const resolveEntryInstructions = (category, entries, startOrder) => entries.flat
             phase: entry.phase,
             target,
             order: startOrder + (entryIndex * 100) + targetIndex,
+            styleColorKey,
         }));
 });
 

@@ -5,6 +5,7 @@ import {
     CrownVisualLayers,
     RootVisualLayers,
 } from '@/features/clinical-chart/rendering/ClinicalToothVisualLayers';
+import ToothProcedureMarkers from '@/features/clinical-chart/rendering/ToothProcedureMarkers';
 import {
     getBaseAnatomyOpacity,
     shouldHideNaturalRoots,
@@ -288,6 +289,8 @@ const SVGTooth = memo(function SVGTooth({
     const directSurfaces = selectedSurfacesByTooth?.[toothKey] || [];
     const legacySingle = selectedSurface?.toothKey === toothKey && selectedSurface.surfaceCode ? [selectedSurface.surfaceCode] : [];
     const toothSelectedSurfaces = Array.from(new Set([...surfaceTargets, ...directSurfaces, ...legacySingle]));
+    const toothMarkers = status?.markers ?? toothVisual?.markers ?? [];
+    const markerOverflowCount = status?.markerOverflowCount ?? toothVisual?.markerOverflowCount ?? 0;
     const crownClipId = `dentix-crown-${reactId.replace(/:/g, '')}`;
     const crownBaseOpacity = getBaseAnatomyOpacity(toothVisual);
     const needsCrownClip = enableSurfaceSelection || (toothVisual?.instructions.length ?? 0) > 0;
@@ -347,6 +350,12 @@ const SVGTooth = memo(function SVGTooth({
                             disabled={disabled}
                         />
                     )}
+                    <ToothProcedureMarkers
+                        arch={arch}
+                        markers={toothMarkers}
+                        overflowCount={markerOverflowCount}
+                        toothKey={toothKey}
+                    />
                 </g>
             </g>
         </svg>
