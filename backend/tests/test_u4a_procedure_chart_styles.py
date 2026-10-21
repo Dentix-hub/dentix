@@ -103,6 +103,8 @@ class AsyncSessionWrapper:
 
 @pytest.fixture(scope="function")
 def u4a_engine():
+    from backend.cache import _cache
+    _cache.clear()
     engine = sa.create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
@@ -164,6 +166,7 @@ def u4a_engine():
         session.commit()
 
     yield engine
+    _cache.clear()
     engine.dispose()
 
 
