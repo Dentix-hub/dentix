@@ -5,7 +5,10 @@ import {
     getProcedureChartStyles,
     upsertProcedureChartStyle,
 } from '@/api/procedures';
-import { invalidatePatientClinicalQueries } from '@/features/patients/utils/invalidatePatientClinicalQueries';
+import {
+    invalidateAllPatientsClinicalQueries,
+    invalidatePatientClinicalQueries,
+} from '@/features/patients/utils/invalidatePatientClinicalQueries';
 import { useProcedures } from '@/shared/context/ProceduresContext';
 
 export const PROCEDURE_CHART_STYLES_QUERY_KEY = ['procedure-chart-styles'];
@@ -31,7 +34,11 @@ export function useProcedureChartStyles({ patientId = null, enabled = true } = {
         if (queryClient) {
             queryClient.invalidateQueries({ queryKey: PROCEDURE_CHART_STYLES_QUERY_KEY });
             queryClient.invalidateQueries({ queryKey: ['procedures'] });
-            invalidatePatientClinicalQueries(queryClient, patientId);
+            if (patientId) {
+                invalidatePatientClinicalQueries(queryClient, patientId);
+            } else {
+                invalidateAllPatientsClinicalQueries(queryClient);
+            }
         }
     }, [patientId, queryClient, refreshProcedures]);
 
