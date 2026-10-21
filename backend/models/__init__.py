@@ -30,6 +30,7 @@ from .clinical import (
     Laboratory,
     LabOrder,
     Procedure,
+    ProcedureChartStyle,
     TreatmentSession,
 )
 from .financial import Payment, Expense, SalaryPayment, LabPayment

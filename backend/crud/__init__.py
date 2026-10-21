@@ -58,6 +58,13 @@ from .procedure import (
     update_procedure,
     delete_procedure,
 )
+from .procedure_chart_style import (
+    get_procedure_chart_styles,
+    get_procedure_chart_style_by_id,
+    procedure_exists_for_tenant,
+    upsert_procedure_chart_style,
+    delete_procedure_chart_style,
+)
 from .clinical_workspace import (
     get_projection_coverages,
     set_projection_coverage,

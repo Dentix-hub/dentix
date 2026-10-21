@@ -41,6 +41,13 @@ async def get_procedures(
     """Get tenant procedures plus read-only global templates."""
     tenant_id = require_tenant_id(current_user)
     raw_procedures = await _get_cached_procedures(db, tenant_id, skip, limit)
+    styles = await crud.get_procedure_chart_styles(db, tenant_id)
+    styles_by_name = {
+        s.procedure_name: schemas.ProcedureChartStyleEmbedded(
+            template=s.template, color_key=s.color_key
+        )
+        for s in styles
+    }
     return [
         schemas.Procedure(
             id=p["id"],
@@ -48,6 +55,7 @@ async def get_procedures(
             price=p["price"],
             tenant_id=p["tenant_id"],
             canonical_code=map_legacy_procedure(p["name"])[0],
+            chart_style=styles_by_name.get(p["name"]),
         )
         for p in raw_procedures
     ]

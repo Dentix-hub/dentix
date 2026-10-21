@@ -417,6 +417,7 @@ from backend.routers import (
     laboratories,
     settings,
     procedures,
+    procedure_chart_styles,
     dashboard,
     notifications,
     ai,
@@ -497,6 +498,7 @@ app.include_router(expenses.router, prefix=API_V1_STR)
 app.include_router(laboratories.router, prefix=API_V1_STR)
 app.include_router(settings.router, prefix=API_V1_STR)
 app.include_router(procedures.router, prefix=API_V1_STR)
+app.include_router(procedure_chart_styles.router, prefix=API_V1_STR)
 app.include_router(dashboard.router, prefix=API_V1_STR)
 app.include_router(notifications.router, prefix=API_V1_STR)
 app.include_router(push.router, prefix=API_V1_STR)

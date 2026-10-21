@@ -41,6 +41,18 @@ class WorkspaceVisualEntry(BaseModel):
     recorded_at: Optional[datetime] = None
     provenance: str = "native"  # 'native' | 'legacy_fallback'
     temporal_certainty: str = "EXACT"  # 'EXACT' | 'ESTIMATED' | 'UNKNOWN'
+    style_color_key: Optional[str] = None
+
+
+class WorkspaceProcedureMarker(BaseModel):
+    """Small marker for custom procedures on a tooth (D3)."""
+    marker_id: str
+    procedure_name: str
+    color_key: Optional[str] = None
+    tooth_key: str
+    surface_codes: List[str] = Field(default_factory=list)
+    phase: str  # 'planned' | 'completed'
+    source_id: Optional[Union[int, str]] = None
 
 
 class WorkspaceToothSummary(BaseModel):
@@ -50,6 +62,7 @@ class WorkspaceToothSummary(BaseModel):
     condition: Optional[str] = None  # Neutral when no clinical evidence recorded
     findings: List[WorkspaceVisualEntry] = Field(default_factory=list)
     procedures: List[WorkspaceVisualEntry] = Field(default_factory=list)
+    markers: List[WorkspaceProcedureMarker] = Field(default_factory=list)
     provenance: str = "native"  # 'native' | 'legacy_fallback'
     temporal_certainty: str = "EXACT"  # 'EXACT' | 'UNKNOWN'
     notes: Optional[str] = None
@@ -68,6 +81,7 @@ class WorkspaceWorkItemSummary(BaseModel):
     recorded_at: Optional[datetime] = None
     temporal_certainty: str = "EXACT"  # 'EXACT' | 'UNKNOWN'
     is_renderer_supported: bool = True
+    style_color_key: Optional[str] = None
     # G12-M11: Read-only lab order indicator & sync metadata
     lab_order_id: Optional[int] = None
     lab_status: Optional[str] = None

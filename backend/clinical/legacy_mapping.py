@@ -41,6 +41,7 @@ from backend.clinical.catalog import (
     ToothLifecycleCode,
     TreatmentLifecycleCode,
 )
+from backend.clinical.chart_styles import RENDERABLE_TEMPLATES
 from backend.models.clinical_core import FDI_TOOTH_KEYS
 
 
@@ -680,6 +681,7 @@ def generate_stable_mapping_key(
 def map_legacy_treatment(
     treatment: Any,
     verified_patient: VerifiedPatientContext,
+    procedure_template_overrides: Mapping[str, str] | None = None,
 ) -> tuple[LegacyWorkItemDraft | None, LegacyEventDraft | None, tuple[LegacyMappingIssue, ...]]:
     """
     Map a legacy Treatment ORM row to LegacyWorkItemDraft and LegacyEventDraft.
@@ -738,6 +740,21 @@ def map_legacy_treatment(
 
     # 2. Procedure Mapping (Rule 1)
     canonical_procedure, proc_issue = map_legacy_procedure(t_procedure)
+    if (
+        canonical_procedure is None
+        and procedure_template_overrides
+        and t_procedure in procedure_template_overrides
+    ):
+        override_template = procedure_template_overrides[t_procedure]
+        if override_template in RENDERABLE_TEMPLATES:
+            canonical_procedure = override_template
+            proc_issue = None
+        else:
+            # For MARKER or NONE, suppress UNKNOWN_PROCEDURE_CODE warning
+            canonical_procedure = None
+            if proc_issue and proc_issue.code == "UNKNOWN_PROCEDURE_CODE":
+                proc_issue = None
+
     if proc_issue:
         issues.append(
             LegacyMappingIssue(
@@ -1596,6 +1613,7 @@ def map_legacy_clinical_batch(
     tooth_statuses: Sequence[Any] = (),
     treatment_sessions: Sequence[Any] = (),
     lab_orders: Sequence[Any] = (),
+    procedure_template_overrides: Mapping[str, str] | None = None,
 ) -> LegacyMappingBatchResult:
     """
     Execute full deterministic legacy mapping batch for a verified patient.
@@ -1618,7 +1636,11 @@ def map_legacy_clinical_batch(
         if t_id is not None:
             treatments_by_id[t_id] = t
 
-        wi, ev, issues = map_legacy_treatment(t, verified_patient)
+        wi, ev, issues = map_legacy_treatment(
+            t,
+            verified_patient,
+            procedure_template_overrides=procedure_template_overrides,
+        )
         for iss in issues:
             if iss.is_ambiguity:
                 all_ambiguities.append(iss)

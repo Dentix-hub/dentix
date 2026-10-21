@@ -84,6 +84,8 @@ def sanitize_dict(data: Dict[str, Any], *, _depth: int = 0) -> Dict[str, Any]:
                 else item
                 for item in v[:100]
             ]
+        elif isinstance(v, Exception):
+            sanitized[k] = str(v)
         else:
             sanitized[k] = v
     return sanitized

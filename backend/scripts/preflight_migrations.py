@@ -92,6 +92,7 @@ RLS_TABLES = (
     "laboratories",
     "lab_orders",
     "procedures",
+    "procedure_chart_styles",
     "payments",
     "expenses",
     "salary_payments",
