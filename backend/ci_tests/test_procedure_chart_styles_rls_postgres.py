@@ -36,16 +36,18 @@ async def test_procedure_chart_styles_table_has_force_rls_enabled():
             result = await db.execute(
                 text(
                     """
-                    SELECT rowsecurity, forcerowsecurity
-                    FROM pg_tables
-                    WHERE tablename = 'procedure_chart_styles'
+                    SELECT c.relrowsecurity, c.relforcerowsecurity
+                    FROM pg_class c
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE c.relname = 'procedure_chart_styles'
+                      AND n.nspname = current_schema()
                     """
                 )
             )
             row = result.first()
-            assert row is not None, "procedure_chart_styles table missing from pg_tables"
-            assert row.rowsecurity is True, "procedure_chart_styles must have rowsecurity enabled"
-            assert row.forcerowsecurity is True, "procedure_chart_styles must have forcerowsecurity enabled"
+            assert row is not None, "procedure_chart_styles table missing from pg_class"
+            assert row.relrowsecurity is True, "procedure_chart_styles must have rowsecurity enabled"
+            assert row.relforcerowsecurity is True, "procedure_chart_styles must have forcerowsecurity enabled"
 
 
 @pytest.mark.asyncio
