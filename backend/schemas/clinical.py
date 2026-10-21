@@ -5,6 +5,7 @@ from typing import Optional
 from datetime import datetime
 from decimal import Decimal
 from .patient import PatientSummary
+from .procedure_chart_style import ProcedureChartStyleEmbedded
 from backend.core.money import NonNegativeMoney
 
 
@@ -360,6 +361,7 @@ class Procedure(ProcedureBase):
     id: int
     tenant_id: Optional[int] = None
     canonical_code: Optional[str] = None
+    chart_style: Optional[ProcedureChartStyleEmbedded] = None
 
     model_config = ConfigDict(from_attributes=True)
 

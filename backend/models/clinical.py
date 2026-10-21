@@ -14,7 +14,7 @@ from .base import (
     Index,
     datetime,
 )
-from sqlalchemy import Boolean, CheckConstraint, column, text
+from sqlalchemy import Boolean, CheckConstraint, UniqueConstraint, column, text
 from rls.schemas import Permissive, ConditionArg, Command
 
 
@@ -418,3 +418,51 @@ class Procedure(Base):
     name = Column(String, nullable=False)
     price = Column(Numeric(14, 2))
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+
+
+class ProcedureChartStyle(Base):
+    __tablename__ = "procedure_chart_styles"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "procedure_name", name="uq_procedure_chart_styles_tenant_procedure"
+        ),
+        CheckConstraint(
+            "template IN ('REST_COMPOSITE', 'ENDO_RCT', 'PROS_CROWN', 'PROS_BRIDGE', 'IMPLANT_FIXTURE', 'IMPLANT_CROWN', 'SURG_EXTRACTION', 'MARKER', 'NONE')",
+            name="ck_procedure_chart_styles_template",
+        ),
+        CheckConstraint(
+            "color_key IS NULL OR color_key IN ('blue', 'teal', 'green', 'lime', 'amber', 'orange', 'purple', 'indigo', 'pink', 'cyan', 'slate', 'brown')",
+            name="ck_procedure_chart_styles_color_key",
+        ),
+        CheckConstraint(
+            "template != 'NONE' OR color_key IS NULL",
+            name="ck_procedure_chart_styles_none_no_color",
+        ),
+    )
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    procedure_name = Column(String(255), nullable=False)
+    template = Column(String(32), nullable=False)
+    color_key = Column(String(16), nullable=True)
+    created_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        nullable=False,
+    )
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        nullable=False,
+    )
+

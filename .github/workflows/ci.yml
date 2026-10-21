@@ -261,6 +261,7 @@ jobs:
             backend/ci_tests/test_cross_tenant_http_postgres.py \
             backend/ci_tests/test_upload_postgres_smoke.py \
             backend/ci_tests/test_u2_concurrency_postgres.py \
+            backend/ci_tests/test_procedure_chart_styles_rls_postgres.py \
             -v \
             --tb=short \
             --confcutdir=backend/ci_tests

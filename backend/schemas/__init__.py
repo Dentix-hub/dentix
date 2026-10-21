@@ -96,9 +96,18 @@ from .clinical_workspace import (
     WorkspaceVisualEntry,
     WorkspaceToothSummary,
     WorkspaceWorkItemSummary,
+    WorkspaceProcedureMarker,
     ClinicalWorkspaceSnapshot,
     PatientClinicalDriftItem,
     TenantClinicalDriftReport,
+)
+
+# Procedure Chart Styles (UX Stabilization U4)
+from .procedure_chart_style import (
+    ProcedureChartStyleBase,
+    ProcedureChartStyleCreate,
+    ProcedureChartStyleRead,
+    ProcedureChartStyleEmbedded,
 )
 
 # Care Sessions (Slices S18 & S19)
@@ -398,7 +407,13 @@ __all__ = [
     "WorkspaceVisualEntry",
     "WorkspaceToothSummary",
     "WorkspaceWorkItemSummary",
+    "WorkspaceProcedureMarker",
     "ClinicalWorkspaceSnapshot",
+    # Procedure Chart Styles
+    "ProcedureChartStyleBase",
+    "ProcedureChartStyleCreate",
+    "ProcedureChartStyleRead",
+    "ProcedureChartStyleEmbedded",
     # Clinical Treatment Plans (Slice G9a & G9b)
     "ClinicalWorkItemTargetRead",
     "ClinicalWorkItemSummaryRead",
