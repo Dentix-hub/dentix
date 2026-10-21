@@ -1,13 +1,29 @@
 export {
     CLINICAL_CHART_PROJECTION_VERSION,
+    MAX_VISIBLE_PROCEDURE_MARKERS,
     PROJECTION_DENTITIONS,
     PROJECTION_TARGET_KINDS,
     PROJECTION_VISUAL_PHASES,
     createClinicalChartProjection,
+    createProcedureMarker,
     createProjectionTarget,
     createToothVisualState,
 } from './clinicalChartProjection';
 export {
+    CARIES_FINDING_FILL,
+    DEFAULT_MARKER_COLOR_KEY,
+    PROCEDURE_CHART_PALETTE,
+    PROCEDURE_CHART_PALETTE_KEYS,
+    PROCEDURE_CHART_PALETTE_LIST,
+    computeColorDistanceFromCaries,
+    computeContrastRatio,
+    computeRelativeLuminance,
+    parseHexRgb,
+    resolveMarkerPaletteColor,
+    resolvePaletteColor,
+} from './procedureChartPalette';
+export {
+    COLOR_OVERRIDABLE_PROCEDURE_EFFECTS,
     FINDING_CODES,
     PROCEDURE_CODES,
     TOOTH_LIFECYCLE_CODES,

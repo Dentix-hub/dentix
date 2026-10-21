@@ -115,12 +115,46 @@ const mapVisualEntries = (
 
         if (targets.length === 0) return;
 
+        const rawStyleColorKey = entry.style_color_key ?? entry.styleColorKey ?? null;
+
         valid.push({
             visualId: String(entry.visual_id || entry.visualId || `${toothKey}-${code}-${idx}`),
             code,
             phase,
             targets,
             annotations: [],
+            ...(rawStyleColorKey ? { styleColorKey: String(rawStyleColorKey) } : {}),
+        });
+    });
+
+    return valid;
+};
+
+const mapProcedureMarkers = (rawMarkers, toothKey) => {
+    if (!Array.isArray(rawMarkers)) return [];
+    const valid = [];
+
+    rawMarkers.forEach((marker, idx) => {
+        if (!marker || typeof marker !== 'object') return;
+        const procedureName = String(
+            marker.procedure_name ?? marker.procedureName ?? '',
+        ).trim();
+        if (!procedureName) return;
+
+        const phase = Object.values(PROJECTION_VISUAL_PHASES).includes(marker.phase)
+            ? marker.phase
+            : PROJECTION_VISUAL_PHASES.COMPLETED;
+
+        valid.push({
+            markerId: String(marker.marker_id || marker.markerId || `marker:${toothKey}:${idx + 1}`),
+            procedureName,
+            colorKey: marker.color_key ?? marker.colorKey ?? null,
+            toothKey,
+            surfaceCodes: Array.isArray(marker.surface_codes)
+                ? marker.surface_codes
+                : (Array.isArray(marker.surfaceCodes) ? marker.surfaceCodes : []),
+            phase,
+            sourceId: marker.source_id ?? marker.sourceId ?? null,
         });
     });
 
@@ -170,6 +204,7 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
         if (!tooth) return false;
         if (tooth.findings && tooth.findings.length > 0) return true;
         if (tooth.procedures && tooth.procedures.length > 0) return true;
+        if (tooth.markers && tooth.markers.length > 0) return true;
         if (tooth.lifecycle && tooth.lifecycle !== 'PRESENT') return true;
         if (tooth.condition && String(tooth.condition).trim().length > 0) return true;
         if (tooth.notes && String(tooth.notes).trim().length > 0) return true;
@@ -233,6 +268,8 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
             reportInvalidTarget,
         );
 
+        const markers = mapProcedureMarkers(raw.markers, toothKey);
+
         const isSelected = activeSelectedToothKeys.includes(toothKey);
         const surfacesForTooth = selectedSurfacesByTooth?.[toothKey] || [];
         const mappedSurfaces = surfacesForTooth.map((code) => mapTarget(
@@ -259,6 +296,7 @@ export const adaptWorkspaceSnapshotToRenderer = (snapshot, options = {}) => {
             },
             disabled: false,
             annotations: [],
+            ...(markers.length > 0 ? { markers } : {}),
         };
 
         let toothCondition = raw.condition || null;
