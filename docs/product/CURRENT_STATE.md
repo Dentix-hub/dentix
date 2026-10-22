@@ -3,9 +3,9 @@
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
 - Plan: Odontogram & Clinical VNext (docs/product/ODONTOGRAM_EXECUTION_QUEUE.md)
-- Baseline: staging @ c449f199 (PR #278, U4D). U1-U3, S29, U4A-U4D merged.
+- Baseline: staging @ fac6aa5 (PR #280, governance cleanup). U1-U3, S29, U4A-U4D, S30 merged.
 - Current task: TBD (Eslam/Argon)
-- Last merged PR: #278
+- Last merged PR: #280
 - Next task: TBD (Eslam/Argon)
 - Current brief: TBD
 - Open decisions (Eslam): none recorded
