@@ -33,6 +33,7 @@ These are non-negotiable. No task, plan, or convenience may override them.
 
 - **Stay in scope**: Solve only the requested task. Do not refactor unrelated code.
 - **Protect governance**: Do not edit governance or CI files unless the task explicitly requires it.
+- **State card**: update docs/product/CURRENT_STATE.md in the same PR (max 10 lines).
 - **Stop after PR**: Stop immediately after opening the PR and reporting its URL (CI polling: see §8).
 - **Rollout flags**: New clinical features must go behind the existing clinical rollout flag.
 - **Tenant table tests**: Every new tenant-scoped table requires an explicit isolation test.
