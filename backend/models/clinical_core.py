@@ -16,6 +16,8 @@ Normalized additive clinical tables:
 - next_visit_requests
 - clinical_attachment_links
 
+Phase G14 / S32 adds the additive `clinical_charges` ledger table (billing policy D1).
+
 All tables enforce tenant ownership, RLS policies, explicit integer PK/FKs,
 deterministic constraint naming, and portable FDI/shape validation.
 """
@@ -31,11 +33,13 @@ from sqlalchemy import (
     Index,
     Integer,
     JSON,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
     column,
     func,
+    text,
     true,
 )
 from sqlalchemy.orm import relationship
@@ -741,6 +745,83 @@ class ClinicalProjectionCoverage(Base):
     patient = relationship("Patient")
 
 
+# Billing policy (D1): completing native clinical work creates a PENDING charge;
+# reception reviews it and creates the invoice. Legacy `Treatment` / `Payment`
+# remain the authoritative finance source until finance parity is proven.
+CLINICAL_CHARGE_STATUS_PENDING = "pending"
+CLINICAL_CHARGE_STATUS_INVOICED = "invoiced"
+CLINICAL_CHARGE_STATUS_VOIDED = "voided"
+CLINICAL_CHARGE_STATUSES = (
+    CLINICAL_CHARGE_STATUS_PENDING,
+    CLINICAL_CHARGE_STATUS_INVOICED,
+    CLINICAL_CHARGE_STATUS_VOIDED,
+)
+
+
+class ClinicalCharge(Base):
+    """
+    Pending clinical charge ledger row derived from a native clinical work item.
+
+    Policy D1: work completion creates a `pending` charge; reception reviews it and
+    marks it `invoiced` (or `voided`). At most one non-voided charge may exist per
+    (tenant, work item). Does not replace `Treatment` or `Payment`.
+    """
+    __tablename__ = "clinical_charges"
+
+    __rls_policies__ = _tenant_rls_policy()
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    work_item_id = Column(Integer, ForeignKey("clinical_work_items.id"), nullable=False, index=True)
+    care_session_id = Column(Integer, ForeignKey("care_sessions.id", ondelete="SET NULL"), nullable=True, index=True)
+    doctor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    legacy_treatment_id = Column(Integer, ForeignKey("treatments.id", ondelete="SET NULL"), nullable=True, index=True)
+    amount = Column(Numeric(14, 2), nullable=False)
+    discount = Column(Numeric(14, 2), nullable=False, default=0, server_default="0.00")
+    status = Column(
+        String(32),
+        nullable=False,
+        default=CLINICAL_CHARGE_STATUS_PENDING,
+        server_default=CLINICAL_CHARGE_STATUS_PENDING,
+    )
+    notes = Column(Text, nullable=True)
+    version_id = Column(Integer, nullable=False, default=1, server_default="1")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        CheckConstraint("amount >= 0", name="ck_cc_amount_non_negative"),
+        CheckConstraint("discount >= 0", name="ck_cc_discount_non_negative"),
+        CheckConstraint("discount <= amount", name="ck_cc_discount_lte_amount"),
+        CheckConstraint(
+            "status IN ('pending', 'invoiced', 'voided')",
+            name="ck_cc_status",
+        ),
+        Index("ix_cc_tenant_patient", "tenant_id", "patient_id"),
+        Index("ix_cc_tenant_status", "tenant_id", "status"),
+        Index("ix_cc_tenant_work_item", "tenant_id", "work_item_id"),
+        Index(
+            "uq_cc_active_work_item",
+            "tenant_id",
+            "work_item_id",
+            unique=True,
+            postgresql_where=text("status != 'voided'"),
+            sqlite_where=text("status != 'voided'"),
+        ),
+    )
+
+    __mapper_args__ = {
+        "version_id_col": version_id,
+    }
+
+    patient = relationship("Patient")
+    work_item = relationship("ClinicalWorkItem")
+    care_session = relationship("CareSession")
+    doctor = relationship("User", foreign_keys=[doctor_id])
+    legacy_treatment = relationship("Treatment", foreign_keys=[legacy_treatment_id])
+
+
 __all__ = [
     "ClinicalWorkItem",
     "ClinicalWorkItemTarget",
@@ -756,6 +837,8 @@ __all__ = [
     "NextVisitRequest",
     "ClinicalAttachmentLink",
     "ClinicalProjectionCoverage",
+    "ClinicalCharge",
+    "CLINICAL_CHARGE_STATUSES",
     "COVERAGE_DOMAINS",
     "COVERAGE_STATES",
     "DEFAULT_COVERAGE_STATE",

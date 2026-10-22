@@ -141,10 +141,10 @@ Every matrix ID below has citations checked against staging `f9fcae4b` and `docs
 | `G13-M09` | Aggregate work-item material cost | **DONE** | **S30** | `GET /api/v1/patients/{patient_id}/clinical-work-items/{work_item_id}/material-cost` -> `get_work_item_material_cost` (per-session breakdown, `total_cost`, `pending_cost_count` for unresolved divisible usages). |
 | `G13-M10` | Add migration invariance test | **DONE** | **S31** | `backend/tests/services/test_inventory_migration_invariance.py` (S26 Alembic upgrade/downgrade/re-upgrade leaves legacy usage values identical) + runtime legacy-untouched test in `test_care_session_endo_material_scenario.py`. |
 | `G13-M11` | Add endo material scenario test | **DONE** | **S31** | `backend/tests/services/test_care_session_endo_material_scenario.py`: 2-session ENDO_RCT (irrigant+files, then gutta-percha+sealer) with exact stock deduction and work-item cost (58.50). |
-| `G14-M01` | Define billing policy model | **NOT_STARTED** | **S32** | D1: completing work creates a `PENDING` clinical charge; reception creates the invoice. |
+| `G14-M01` | Define billing policy model | **PARTIAL** | **S32** | **S32 (schema)**: `ClinicalCharge` model (`backend/models/clinical_core.py`), `CLINICAL_CHARGE_STATUSES`, billing policy D1 documented; creation logic arrives in S33. |
 | `G14-M02` | Keep old finance source authoritative during shadow mode | **NOT_STARTED** | **S33** | Legacy `Treatment` remains authoritative until finance parity is proven. |
 | `G14-M03` | Add work-item billing projection | **NOT_STARTED** | **S33** | Not started. |
-| `G14-M04` | Design `clinical_charges` | **NOT_STARTED** | **S32** | **NEEDS_MIGRATION**: `clinical_charges` table does not exist in `backend/models/`. |
+| `G14-M04` | Design `clinical_charges` | **DONE** | **S32** | **DONE (S32)**: Alembic `5e6f7a8b9c0d` creates `clinical_charges` (RLS, tenant/patient triggers, partial unique active-charge index, CHECKs). |
 | `G14-M05` | Preserve payments unchanged | **NOT_STARTED** | **S33** | `models.Payment` (`backend/models/financial.py:21-57`) remains untouched. |
 | `G14-M06` | Create shadow calculator | **NOT_STARTED** | **S34** | Scheduled after `clinical_charges` slices S32–S33. |
 | `G14-M07` | Run per-patient parity | **NOT_STARTED** | **S34** | Scheduled after S32–S33. |

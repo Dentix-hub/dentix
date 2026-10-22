@@ -22,7 +22,7 @@ def test_alembic_single_head_and_linear_lineage():
 
     heads = script_dir.get_heads()
     assert len(heads) == 1, f"Expected exactly 1 Alembic head revision, found {heads}"
-    assert heads[0] == "4d5e6f7a8b9c", f"Expected current head revision, got {heads[0]}"
+    assert heads[0] == "5e6f7a8b9c0d", f"Expected current head revision, got {heads[0]}"
 
     # Verify all revisions in the directory are reachable
     all_revisions = list(script_dir.walk_revisions())

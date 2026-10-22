@@ -80,6 +80,7 @@ EXPECTED_TENANT_MODELS = {
     "SubscriptionCheckout",
     "SubscriptionRenewalRequest",
     "ProcedureChartStyle",
+    "ClinicalCharge",
 }
 
 # Models filtered via parent FK join (no own tenant_id column needed)

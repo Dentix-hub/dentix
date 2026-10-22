@@ -122,6 +122,7 @@ RLS_TABLES = (
     "push_subscriptions",
     *CLINICAL_G1_TABLES,
     "clinical_projection_coverages",
+    "clinical_charges",
 )
 
 CHILD_TENANT_RELATIONSHIPS = (
@@ -171,6 +172,19 @@ CHILD_TENANT_RELATIONSHIPS = (
     ("treatment_material_usages", "work_item_id", "clinical_work_items", True),
     # Phase G12 / S27: Lab Order Work Item Link
     ("lab_orders", "work_item_id", "clinical_work_items", True),
+    # Phase G14 / S32: Clinical Charges
+    ("clinical_charges", "patient_id", "patients", False),
+    ("clinical_charges", "work_item_id", "clinical_work_items", False),
+    ("clinical_charges", "care_session_id", "care_sessions", True),
+    ("clinical_charges", "doctor_id", "users", True),
+    ("clinical_charges", "legacy_treatment_id", "treatments", True),
+)
+
+# Phase G14 / S32: direct parent-patient checks for clinical_charges (kept separate from
+# the G1 tuple, which is locked in parity with migration f4a5b6c7d8e9).
+CLINICAL_CHARGES_DIRECT_PARENT_PATIENT_RELATIONSHIPS = (
+    ("clinical_charges", "work_item_id", "clinical_work_items", False),
+    ("clinical_charges", "care_session_id", "care_sessions", True),
 )
 
 CLINICAL_G1_DIRECT_PARENT_PATIENT_RELATIONSHIPS = (
@@ -205,6 +219,13 @@ def _get_all_g1_patient_triggers() -> set[str]:
     }
     names.update(trg for _, trg in SPECIALIZED_G1_PATIENT_TRIGGERS)
     return names
+
+
+def _get_clinical_charges_patient_triggers() -> set[str]:
+    return {
+        _child_patient_trigger_name(table, child_key)
+        for table, child_key, _, _ in CLINICAL_CHARGES_DIRECT_PARENT_PATIENT_RELATIONSHIPS
+    }
 
 
 _OWNERSHIP_PROBE_TABLES: tuple[str, ...] = (
@@ -601,7 +622,10 @@ def _install_postgresql_rls(connection) -> None:
             """
         )
     )
-    for table, child_key, parent, allow_null in CLINICAL_G1_DIRECT_PARENT_PATIENT_RELATIONSHIPS:
+    for table, child_key, parent, allow_null in (
+        CLINICAL_G1_DIRECT_PARENT_PATIENT_RELATIONSHIPS
+        + CLINICAL_CHARGES_DIRECT_PARENT_PATIENT_RELATIONSHIPS
+    ):
         trigger = _child_patient_trigger_name(table, child_key)
         connection.execute(text(f'DROP TRIGGER IF EXISTS "{trigger}" ON "{table}"'))
         connection.execute(
@@ -1169,7 +1193,7 @@ def _verify_postgresql_child_tenant_triggers(engine) -> list[str]:
 def _verify_postgresql_child_patient_triggers(engine) -> list[str]:
     if engine.name != "postgresql":
         return []
-    expected = _get_all_g1_patient_triggers()
+    expected = _get_all_g1_patient_triggers() | _get_clinical_charges_patient_triggers()
     with engine.connect() as connection:
         present = set(
             connection.execute(
