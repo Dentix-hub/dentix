@@ -5,7 +5,7 @@
 **Classification:** `ACTIVE`  
 **Target Executor:** Gemini Flash (one self-contained card per turn/branch).  
 **Global Rules for Every Card:**
-- **Shell / Env (Windows PowerShell):** Python via `.\.venv\Scripts\python.exe`; Frontend via `npm.cmd --prefix frontend`; GitHub CLI via `gh`.
+- **Shell / Env:** the dev server runs Linux (bash). Where a card shows .\.venv\Scripts\python.exe run uv run python; where it shows npm.cmd run npm. Do not edit the commands inside cards; they are historical records. GitHub CLI via gh.
 - **One PR -> `staging`, then STOP.** Never merge, never promote to `main`, never push directly to `staging`/`main`, never edit `.github/workflows/*`, never poll CI in a loop.
 - **Read the real code first:** Execute Step 0 of your card against `origin/staging`. If the real code contradicts the card, **STOP and report** before writing code.
 - **Test Integrity:** Never weaken, skip, or delete an existing assertion to make a failing test pass. Report real exit codes for every verification command.
