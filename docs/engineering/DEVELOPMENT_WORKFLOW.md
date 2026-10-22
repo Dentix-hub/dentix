@@ -87,13 +87,14 @@ This model is **validate once, promote the validated revision**, not **rerun the
 ## 6. Review & CI Interaction
 
 * **Normal Changes**: Standard product/UI changes rely on targeted testing, PR diff inspection, and passing CI.
-* **Sensitive Changes**: Mandatory independent review is required when changes materially touch:
+* **Sensitive Changes**: keep the HIGH_RISK label. Eslam decides after his staging test whether to accept the PR or escalate it to a stronger-model review (dentix-code-review skill). Sensitive means changes that materially touch:
   * Authentication, RBAC, or permissions
   * Tenant isolation or Row Level Security (RLS)
   * Finance, invoices, payments, or ledger calculations
   * Database schemas, Alembic migrations, or irreversible data operations
   * Clinical data semantics or medical records
   * Major shared API/UI contracts
+* **Final Plan Review (mandatory)**: when a whole plan (currently the odontogram / clinical VNext plan) is complete, and before the staging -> main promotion PR is merged, a stronger model reviews the cumulative main...staging diff, focusing on every PR labeled HIGH_RISK since the plan began. Eslam records the result in docs/product/CURRENT_STATE.md. No promotion without it.
 * **No AI CI Polling**: AI assistants must not poll CI in a loop. After opening a PR or triggering CI, report the PR URL and stop active execution.
 
 ---

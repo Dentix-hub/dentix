@@ -33,18 +33,16 @@ These are non-negotiable. No task, plan, or convenience may override them.
 
 - **Stay in scope**: Solve only the requested task. Do not refactor unrelated code.
 - **Protect governance**: Do not edit governance or CI files unless the task explicitly requires it.
-- **Stop after PR**: Stop immediately after opening the PR and reporting its URL. Do not poll CI.
+- **Stop after PR**: Stop immediately after opening the PR and reporting its URL (CI polling: see §8).
 - **Rollout flags**: New clinical features must go behind the existing clinical rollout flag.
 - **Tenant table tests**: Every new tenant-scoped table requires an explicit isolation test.
 
 ## 4. Execution Routing
 
-```
-Clear task → execute directly.
-```
+- **Clear task**: execute directly.
 
 - **NORMAL work**: Standard changes. Targeted verification during implementation. One real diff inspection before commit.
-- **HIGH_RISK work** (auth, RBAC, tenant isolation, RLS, finance/ledger/payments, migrations/schema, irreversible data, clinical semantics, major shared contracts): Activate the relevant DENTIX safety skill. Run relevant verification. Require independent review.
+- **HIGH_RISK work** (auth, RBAC, tenant isolation, RLS, finance/ledger/payments, migrations/schema, irreversible data, clinical semantics, major shared contracts): Activate the relevant DENTIX safety skill. Run relevant verification. Eslam decides per PR: accept after his staging test, or escalate to a stronger-model review. A mandatory stronger-model review of the whole plan precedes promotion to main (see DEVELOPMENT_WORKFLOW).
 
 ## 5. Completion Discipline
 
@@ -55,7 +53,7 @@ Clear task → execute directly.
 ## 6. Git Safety
 
 - **Preflight reconciliation**: Before starting new implementation on a slice or feature scope, check for existing work covering it: `git branch -a`, `git log --all --oneline --grep="<slice-id>"`, and open PRs. If unreconciled prior work exists, stop and choose one explicit path (continue the existing branch, reconcile/rebase it, or document why it's superseded) rather than silently creating a second parallel implementation.
-- **No orphaned local work**: A branch or worktree holding unmerged work must not be left idle across sessions without a remote copy (push to `origin` or create a verified `git bundle`). Local-only implementation work is not considered safely stored.
+- **No orphaned local work**: A branch or worktree holding unmerged work must not be left idle across sessions without a remote copy (push the task branch to origin when a PR was requested, otherwise create a verified git bundle). Local-only implementation work is not considered safely stored.
 - Do not discard unrelated user changes.
 - Do not use destructive reset/clean commands casually.
 - Do not invent alternate branches when a requested branch cannot be used.

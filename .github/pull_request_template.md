@@ -15,7 +15,8 @@
 
 ## Sensitive Change Review
 
-- [ ] Touches tenant isolation / RBAC / finance / migrations / clinical (independent review required)
+- [ ] Touches tenant isolation / RBAC / finance / migrations / clinical (add the HIGH_RISK label)
+- [ ] Escalate to stronger-model review (Eslam decision after staging test)
 - [ ] Standard non-sensitive change
 
 ## Known Limitations

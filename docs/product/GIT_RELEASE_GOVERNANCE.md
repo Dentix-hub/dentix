@@ -64,6 +64,8 @@ The repository workflow is not a substitute for GitHub branch/ruleset protection
 
 ## Required release evidence
 
+Evidence is reused from the validated staging revision (DEVELOPMENT_WORKFLOW §4-5). Do not re-run suites already passed on that exact revision.
+
 Before a production PR may merge into `main`:
 
 - backend tests and coverage pass;

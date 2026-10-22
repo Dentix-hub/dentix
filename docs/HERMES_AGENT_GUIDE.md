@@ -174,10 +174,9 @@ When the user reports a daily usage error, a bug in production, or unexpected be
 ### Step 7.1: Reconstruct the Error Context
 *   Identify the exact workflow, screen, or endpoint the user was interacting with.
 *   Request or locate the specific error message, status code, or log output in `app.log` or terminal trace outputs.
-*   Examine JSON payloads from files like `db_logs.json` or frontend network traces if available.
 
 ### Step 7.2: Trace the Data Flow (Frontend to Backend)
-Like the inventory cost report bug (found in `ROOT_CAUSE_ANALYSIS_CORRECTED.md`), bugs are often caused by discrepancies between layers:
+Bugs are often caused by discrepancies between layers:
 1.  **Frontend Modal / View**: Check if the React component strips fields before submission (e.g., cleaning up parameters in `handleSave()`).
 2.  **API Client Layer**: Verify which HTTP method and endpoint helper is being called (e.g., `createTreatment` vs a specific nested sub-endpoint).
 3.  **Pydantic Schema**: Check `backend/schemas/` to verify if all fields sent by the frontend are modeled on the request class.
@@ -200,30 +199,7 @@ Use search tools to find:
 
 Every bug fix or code change requires validation to guarantee that multi-tenancy and RBAC isolation are intact.
 
-### 8.1 Backend Verification
-Navigate to `backend/` and execute tests to verify logic:
-
-```bash
-# Run the complete test suite
-python -m pytest
-
-# Run RBAC security coverage tests
-python -m pytest tests/test_rbac_complete.py -v
-
-# Run tenant isolation security verification
-python -m pytest tests/test_tenant_isolation_complete.py -v
-
-# Check specific domain services
-python -m pytest tests/services/test_treatment_service.py -v
-```
-
-### 8.2 Frontend Verification
-Ensure that local modifications do not break Vite compilation or lint checks:
-```bash
-cd frontend
-npm run lint
-npm run build
-```
+Follow docs/engineering/DEVELOPMENT_WORKFLOW.md §4 and the dentix-testing-verification skill: smallest relevant targeted tests; CI is authoritative. Frontend when relevant: npm --prefix frontend run lint / build.
 
 ---
 

@@ -6,7 +6,7 @@
 DENTIX operates on a streamlined solo-developer model:
 - **Implementer**: One primary AI assistant (Gemini) handles local implementation, testing, and PR creation.
 - **Reviewer & Operator**: Eslam reviews all PRs, verifies changes manually on staging, and controls production promotion.
-- **HIGH_RISK Review**: Optional second-model review for sensitive changes (auth, RBAC, tenancy, finance, migrations, clinical semantics).
+- **HIGH_RISK Review**: Eslam decides per PR whether to accept after staging verification or escalate to a stronger model. A mandatory stronger-model review covers the whole plan before promotion to main.
 
 ## Authorities & Lifecycle
 
