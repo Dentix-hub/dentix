@@ -121,3 +121,4 @@ Historical decisions about Celery/Prefect or particular providers are not curren
 | `docs/product/DEPLOYMENT_ARTIFACT_DISPOSITION.md` | active/retired deployment artifact decisions |
 | `docs/product/PRODUCTION_ARCHITECTURE_NORMALIZATION_STATUS.md` | normalization closeout status and unresolved release blockers |
 | `DENTIX_MEMORY.md` | historical project memory, not current truth |
+| `docs/product/CURRENT_STATE.md` | current plan/task state card |

@@ -25,6 +25,7 @@ These are useful but are not allowed to override canonical/executable truth:
 - `docs/FINANCE_METRIC_CONTRACT.md`
 - `docs/AI_AGENT_STACK.md`
 - `docs/AI_GOVERNANCE_RULES.md`
+- `docs/product/CURRENT_STATE.md` — current plan/task state card
 - `docs/GLOBAL_RELEASE_GATE.md`
 - `docs/MODULE_CONVENTIONS.md`
 - `docs/E2E_TEST_PLAN.md`
