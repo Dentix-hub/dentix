@@ -77,6 +77,7 @@ from .clinical_core import (
     NextVisitRequest,
     ClinicalAttachmentLink,
     ClinicalProjectionCoverage,
+    ClinicalCharge,
     COVERAGE_DOMAINS,
     COVERAGE_STATES,
     DEFAULT_COVERAGE_STATE,
