@@ -12,6 +12,7 @@ from backend import models, schemas
 from backend.core.permissions import Permission, require_permission
 from backend.core.response import StandardResponse, success_response
 from backend.database import get_async_db
+from backend.services.care_session_material_service import CareSessionMaterialService
 from backend.services.care_session_service import CareSessionService
 
 router = APIRouter(prefix="/patients", tags=["Care Sessions"])
@@ -434,3 +435,65 @@ async def list_patient_next_visit_requests(
         data=[schemas.NextVisitRequestRead.model_validate(r) for r in requests],
         message="Patient next-visit requests retrieved successfully",
     )
+
+
+# ---------------------------------------------------------------------------
+# Point-of-Care Materials (Slice S30 / G13-M04, G13-M06, G13-M07, G13-M09)
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/{patient_id}/clinical-work-items/{work_item_id}/material-suggestions",
+    response_model=StandardResponse[schemas.MaterialSuggestionResponse],
+    summary="Suggest materials for a work item",
+    description="Read-only material suggestions by canonical procedure code (G13-M04). Deducts nothing (G13-M05).",
+)
+async def suggest_work_item_materials(
+    patient_id: int,
+    work_item_id: int,
+    step_code: Optional[str] = Query(None, description="Optional workflow step code (echoed)"),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
+):
+    service = CareSessionMaterialService(db, current_user.tenant_id, current_user)
+    result = await service.suggest_materials(patient_id, work_item_id, step_code)
+    return success_response(data=result, message="Material suggestions retrieved successfully")
+
+
+@router.post(
+    "/{patient_id}/care-sessions/{session_id}/material-usages",
+    response_model=StandardResponse[List[schemas.CareSessionMaterialUsageRead]],
+    status_code=status.HTTP_201_CREATED,
+    summary="Record care session material usage",
+    description="Deduct stock at the point of use and record TreatmentMaterialUsage linked to the care session (G13-M06/M07). Single transaction; no partial deduction.",
+)
+async def record_care_session_materials(
+    patient_id: int,
+    session_id: int,
+    payload: schemas.CareSessionMaterialUsageCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionMaterialService(db, current_user.tenant_id, current_user)
+    usages = await service.record_material_usage(patient_id, session_id, payload)
+    return success_response(
+        data=await service.to_usage_reads(usages),
+        message="Care session materials recorded successfully",
+    )
+
+
+@router.get(
+    "/{patient_id}/clinical-work-items/{work_item_id}/material-cost",
+    response_model=StandardResponse[schemas.WorkItemMaterialCostRead],
+    summary="Aggregate work item material cost",
+    description="Material usage and cost aggregated across all care sessions of a work item (G13-M09).",
+)
+async def get_work_item_material_cost(
+    patient_id: int,
+    work_item_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
+):
+    service = CareSessionMaterialService(db, current_user.tenant_id, current_user)
+    result = await service.get_work_item_material_cost(patient_id, work_item_id)
+    return success_response(data=result, message="Work item material cost retrieved successfully")

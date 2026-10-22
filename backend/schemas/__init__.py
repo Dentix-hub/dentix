@@ -132,6 +132,16 @@ from .care_session import (
     ResumableWorkItemRead,
     CareSessionResumableResponse,
 )
+
+# Care Session Materials (Slice S30)
+from .care_session_material import (
+    CareSessionMaterialItem,
+    CareSessionMaterialUsageCreate,
+    CareSessionMaterialUsageRead,
+    MaterialSuggestionResponse,
+    WorkItemSessionMaterialCost,
+    WorkItemMaterialCostRead,
+)
 from .clinical_attachment_link import (
     CANONICAL_ATTACHMENT_PURPOSE_CODES,
     AttachmentPurposeCode,
