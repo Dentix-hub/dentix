@@ -139,8 +139,8 @@ Every matrix ID below has citations checked against staging `f9fcae4b` and `docs
 | `G13-M07` | Support different materials per session | **DONE** | **S30** | Usages are recorded per care session against the same `work_item_id` (`test_different_materials_per_session_and_work_item_cost_aggregation`). |
 | `G13-M08` | Preserve divisible-material logic | **DONE** | **S30** | Divisible/reusable handling is delegated unchanged to `InventoryService.consume_stock` (`CONFIRM_OPEN_REQUIRED` -> 409, open package consumed virtually, `session_id` linked, cost left NULL until package close); `InventoryLearningService.close_session` untouched. |
 | `G13-M09` | Aggregate work-item material cost | **DONE** | **S30** | `GET /api/v1/patients/{patient_id}/clinical-work-items/{work_item_id}/material-cost` -> `get_work_item_material_cost` (per-session breakdown, `total_cost`, `pending_cost_count` for unresolved divisible usages). |
-| `G13-M10` | Add migration invariance test | **NOT_STARTED** | **S31** | Not started. |
-| `G13-M11` | Add endo material scenario test | **NOT_STARTED** | **S31** | Not started. |
+| `G13-M10` | Add migration invariance test | **DONE** | **S31** | `backend/tests/services/test_inventory_migration_invariance.py` (S26 Alembic upgrade/downgrade/re-upgrade leaves legacy usage values identical) + runtime legacy-untouched test in `test_care_session_endo_material_scenario.py`. |
+| `G13-M11` | Add endo material scenario test | **DONE** | **S31** | `backend/tests/services/test_care_session_endo_material_scenario.py`: 2-session ENDO_RCT (irrigant+files, then gutta-percha+sealer) with exact stock deduction and work-item cost (58.50). |
 | `G14-M01` | Define billing policy model | **NOT_STARTED** | **S32** | D1: completing work creates a `PENDING` clinical charge; reception creates the invoice. |
 | `G14-M02` | Keep old finance source authoritative during shadow mode | **NOT_STARTED** | **S33** | Legacy `Treatment` remains authoritative until finance parity is proven. |
 | `G14-M03` | Add work-item billing projection | **NOT_STARTED** | **S33** | Not started. |
