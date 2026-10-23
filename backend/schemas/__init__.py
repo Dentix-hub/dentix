@@ -165,6 +165,12 @@ from .clinical_attachment_link import (
     ClinicalAttachmentLinkRead,
     ClinicalAttachmentLinkFilter,
 )
+from .clinical_rollout import (
+    ClinicalRolloutTargetMode,
+    TenantClinicalRolloutStatus,
+    TenantClinicalRolloutModeRequest,
+    TenantClinicalRolloutResponse,
+)
 
 
 # Billing
