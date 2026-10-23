@@ -565,14 +565,14 @@ async def test_endpoints_fail_closed_when_flags_off(async_db_session, seed_data,
 
     # 2. POST /clinical-charges/{id}/invoice -> 404
     inv_res = await async_client.post(
-        f"/api/v1/clinical-charges/1/invoice",
+        "/api/v1/clinical-charges/1/invoice",
         headers=recep_hdrs,
     )
     assert inv_res.status_code == 404
 
     # 3. POST /clinical-charges/{id}/void -> 404
     void_res = await async_client.post(
-        f"/api/v1/clinical-charges/1/void",
+        "/api/v1/clinical-charges/1/void",
         headers=recep_hdrs,
     )
     assert void_res.status_code == 404
