@@ -142,6 +142,14 @@ from .care_session_material import (
     WorkItemSessionMaterialCost,
     WorkItemMaterialCostRead,
 )
+
+# Clinical Charges (Slice S33)
+from .clinical_charges import (
+    ClinicalChargeRead,
+    WorkItemBillingProjectionItem,
+    PatientClinicalChargesResponse,
+    ClinicalChargeActionRequest,
+)
 from .clinical_attachment_link import (
     CANONICAL_ATTACHMENT_PURPOSE_CODES,
     AttachmentPurposeCode,
@@ -470,5 +478,10 @@ __all__ = [
     "ClinicalAttachmentLinkCreate",
     "ClinicalAttachmentLinkRead",
     "ClinicalAttachmentLinkFilter",
+    # Clinical Charges (Slice S33)
+    "ClinicalChargeRead",
+    "WorkItemBillingProjectionItem",
+    "PatientClinicalChargesResponse",
+    "ClinicalChargeActionRequest",
 ]
 

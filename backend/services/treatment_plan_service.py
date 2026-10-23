@@ -350,6 +350,97 @@ class TreatmentPlanService:
             plan.unpriced_items_count = plan_unpriced_count
             plan.estimate_price_list_id = patient_price_list_id or clinic_default_price_list_id
 
+    async def resolve_procedure_price(
+        self,
+        patient_id: int,
+        procedure_code: str,
+    ) -> Optional[Decimal]:
+        """
+        Dynamically calculate and project on-the-fly fee estimate for a single procedure code (Decision D3).
+        Reuses the exact same resolution order as _attach_dynamic_estimates (PD04):
+        1. Patient default price list (PriceListItem)
+        2. Clinic default price list (PriceListItem)
+        3. Procedure base price (Procedure.price)
+        4. If not found or procedure unpriced or price <= 0, returns None.
+
+        Zero database writes. Returns Decimal quantized to 0.01 half-up.
+        """
+        clean_code = str(procedure_code or "").strip()
+        if not clean_code:
+            return None
+
+        # 1. Look up patient's default_price_list_id
+        stmt_patient = select(models.Patient.default_price_list_id).where(
+            models.Patient.id == patient_id,
+            models.Patient.tenant_id == self.tenant_id,
+        )
+        patient_price_list_id = (await self.db.execute(stmt_patient)).scalar_one_or_none()
+
+        # 2. Look up clinic default price list
+        stmt_def_list = select(models.PriceList.id).where(
+            models.PriceList.tenant_id == self.tenant_id,
+            models.PriceList.is_default == True,
+            models.PriceList.is_active == True,
+        )
+        clinic_default_price_list_id = (await self.db.execute(stmt_def_list)).scalar_one_or_none()
+
+        from backend.clinical.legacy_mapping import LEGACY_PROCEDURE_ALLOWLIST
+
+        # 3. Match Procedure (by exact clean code, lowercase, or legacy name)
+        lowered_code = clean_code.lower()
+        legacy_names = [name for name, canon in LEGACY_PROCEDURE_ALLOWLIST.items() if canon == clean_code]
+        name_filters = [func.lower(func.trim(models.Procedure.name)) == lowered_code]
+        if legacy_names:
+            name_filters.append(func.trim(models.Procedure.name).in_(legacy_names))
+
+        stmt_procs = (
+            select(models.Procedure)
+            .where(
+                or_(
+                    models.Procedure.tenant_id == self.tenant_id,
+                    models.Procedure.tenant_id.is_(None),
+                ),
+                or_(*name_filters),
+            )
+            .order_by(models.Procedure.id)
+        )
+        proc = (await self.db.execute(stmt_procs)).scalars().first()
+        if not proc:
+            return None
+
+        fee: Optional[Decimal] = None
+
+        # Priority 1: Patient default price list
+        if patient_price_list_id:
+            stmt_pli = select(models.PriceListItem.final_price).where(
+                models.PriceListItem.price_list_id == patient_price_list_id,
+                models.PriceListItem.procedure_id == proc.id,
+            )
+            pli_price = (await self.db.execute(stmt_pli)).scalar_one_or_none()
+            if pli_price is not None:
+                fee = Decimal(str(pli_price))
+
+        # Priority 2: Clinic default price list
+        if fee is None and clinic_default_price_list_id and clinic_default_price_list_id != patient_price_list_id:
+            stmt_def_pli = select(models.PriceListItem.final_price).where(
+                models.PriceListItem.price_list_id == clinic_default_price_list_id,
+                models.PriceListItem.procedure_id == proc.id,
+            )
+            def_pli_price = (await self.db.execute(stmt_def_pli)).scalar_one_or_none()
+            if def_pli_price is not None:
+                fee = Decimal(str(def_pli_price))
+
+        # Priority 3: Base Procedure price
+        if fee is None and proc.price is not None:
+            fee = Decimal(str(proc.price))
+
+        if fee is not None:
+            fee = fee.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            if fee > Decimal("0.00"):
+                return fee
+
+        return None
+
     async def get_plan(
         self,
         patient_id: int,

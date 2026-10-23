@@ -6,12 +6,15 @@ Domain service for native ClinicalWorkItem and ClinicalEvent mutations and queri
 from datetime import datetime, timezone
 import hashlib
 import json
+import logging
 from typing import List, Optional
 from fastapi import HTTPException
 from sqlalchemy import inspect, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.exc import StaleDataError
+
+logger = logging.getLogger(__name__)
 
 
 from backend import models, schemas
@@ -317,6 +320,18 @@ class ClinicalCommandService:
             )
         self.db.add(event)
         await self.db.flush()
+
+        # S33: Hook native completion on creation (D1-D4, D6)
+        if work_item.kind == "procedure" and work_item.status == "completed":
+            try:
+                from backend.services.clinical_charge_service import ClinicalChargeService
+                charge_service = ClinicalChargeService(self.db, self.tenant_id, user)
+                await charge_service.create_pending_for_work_item(
+                    work_item.id, doctor_id=self.current_user_id
+                )
+            except Exception as exc:
+                logger.error("clinical_charge_dispatch_failed: %s", exc, exc_info=True)
+
         return work_item
 
     async def create_work_item(
@@ -773,6 +788,7 @@ class ClinicalCommandService:
             )
 
         # Status transition checks
+        old_status = work_item.status
         if payload.status is not None:
             try:
                 validate_treatment_status(payload.status)
@@ -855,6 +871,22 @@ class ClinicalCommandService:
                 )
             )
         self.db.add(event)
+
+        # S33: Hook native completion on status transition to completed (D1, D2, D6)
+        if (
+            payload.status is not None
+            and old_status != "completed"
+            and work_item.status == "completed"
+            and work_item.kind == "procedure"
+        ):
+            try:
+                from backend.services.clinical_charge_service import ClinicalChargeService
+                charge_service = ClinicalChargeService(self.db, self.tenant_id, user)
+                await charge_service.create_pending_for_work_item(
+                    work_item.id, doctor_id=self.current_user_id
+                )
+            except Exception as exc:
+                logger.error("clinical_charge_dispatch_failed: %s", exc, exc_info=True)
 
         try:
             await self.db.commit()
