@@ -154,6 +154,8 @@ from .finance_parity import (
     PatientFinanceParitySummary,
     PatientFinanceParityDetail,
     TenantFinanceParityReport,
+    LabDoubleChargeAnomaly,
+    TenantLabAnomalyReport,
 )
 from .clinical_attachment_link import (
     CANONICAL_ATTACHMENT_PURPOSE_CODES,

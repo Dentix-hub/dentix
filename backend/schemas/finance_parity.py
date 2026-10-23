@@ -55,3 +55,34 @@ class TenantFinanceParityReport(BaseModel):
     patients: List[PatientFinanceParitySummary] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class LabDoubleChargeAnomaly(BaseModel):
+    patient_id: int
+    patient_name: Optional[str] = None
+    anomaly_type: str  # duplicate_manual_treatment | linked_treatment_price_mismatch | orphaned_linked_treatment | multiple_linked_treatments | unlinked_lab_with_manual_treatment
+    lab_order_id: Optional[int] = None
+    lab_work_type: Optional[str] = None
+    lab_order_price: Optional[Decimal] = None
+    lab_order_date: Optional[datetime] = None
+    tooth_number: Optional[str] = None
+    linked_treatment_id: Optional[int] = None
+    candidate_treatment_ids: List[int] = Field(default_factory=list)
+    total_treatment_cost: Decimal
+    estimated_overcharge_amount: Decimal
+    remediation_suggestion: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TenantLabAnomalyReport(BaseModel):
+    tenant_id: int
+    tenant_name: str
+    evaluated_at: datetime
+    total_anomalies_count: int
+    patients_affected_count: int
+    total_potential_overcharge: Decimal
+    anomalies: List[LabDoubleChargeAnomaly] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+

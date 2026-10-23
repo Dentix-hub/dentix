@@ -68,3 +68,30 @@ async def get_patient_finance_parity(
         tenant_id=tenant_id,
         patient_id=patient_id,
     )
+
+
+@router.get(
+    "/{tenant_id}/lab-anomalies",
+    response_model=schemas.TenantLabAnomalyReport,
+    summary="Tenant-level legacy lab double-charge anomalies report",
+)
+async def get_tenant_lab_anomalies(
+    tenant_id: int,
+    limit: int = Query(100, ge=1, le=1000, description="Max anomalies to return"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+    patient_id: int | None = Query(None, description="Optional filter by patient_id"),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(get_super_admin),
+):
+    """
+    Detect legacy lab double-charge cases and produce deterministic remediation report (G14-M09, G14-M10).
+    Super-admin only. Strictly read-only (zero database writes).
+    """
+    service = FinanceParityService(db)
+    return await service.detect_lab_double_charge_anomalies(
+        tenant_id=tenant_id,
+        limit=limit,
+        offset=offset,
+        patient_id=patient_id,
+    )
+
