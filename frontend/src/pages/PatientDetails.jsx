@@ -919,6 +919,7 @@ export default function PatientDetails() {
                                 onAddPayment={() => setIsPaymentModalOpen(true)}
                                 onDeletePayment={handleDeletePayment}
                                 onPrintInvoice={handlePrintInvoice}
+                                tenantFeatures={tenantFeatures}
                             />
                         )}
 

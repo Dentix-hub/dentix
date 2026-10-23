@@ -521,7 +521,26 @@
             },
             "empty_treatments": "لا يوجد علاجات مسجلة",
             "payments_title": "سجل المدفوعات",
-            "empty_payments": "لا يوجد مدفوعات مسجلة"
+            "empty_payments": "لا يوجد مدفوعات مسجلة",
+            "pending_charges": {
+                "title": "الرسوم السريرية المعلقة",
+                "empty": "لا توجد رسوم سريرية معلقة",
+                "invoice_btn": "فوترة",
+                "void_btn": "إلغاء",
+                "status_pending": "معلق",
+                "status_invoiced": "تمت الفوترة",
+                "status_voided": "ملغي",
+                "invoiced_success": "تمت فوترة الرسم بنجاح",
+                "voided_success": "تم إلغاء الرسم بنجاح",
+                "error_action": "فشل تحديث حالة الرسم",
+                "table": {
+                    "date": "التاريخ",
+                    "work_item": "الإجراء السريري",
+                    "amount": "المبلغ",
+                    "status": "الحالة",
+                    "actions": "الإجراءات"
+                }
+            }
         }
     },
     "appointments": {

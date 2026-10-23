@@ -513,7 +513,26 @@
             },
             "empty_treatments": "No treatments recorded",
             "payments_title": "Payments Record",
-            "empty_payments": "No payments recorded"
+            "empty_payments": "No payments recorded",
+            "pending_charges": {
+                "title": "Pending Clinical Charges",
+                "empty": "No pending clinical charges",
+                "invoice_btn": "Invoice",
+                "void_btn": "Void",
+                "status_pending": "Pending",
+                "status_invoiced": "Invoiced",
+                "status_voided": "Voided",
+                "invoiced_success": "Charge marked as invoiced",
+                "voided_success": "Charge voided",
+                "error_action": "Failed to update charge",
+                "table": {
+                    "date": "Date",
+                    "work_item": "Work Item",
+                    "amount": "Amount",
+                    "status": "Status",
+                    "actions": "Actions"
+                }
+            }
         }
     },
     "appointments": {
