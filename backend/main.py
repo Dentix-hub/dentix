@@ -456,6 +456,7 @@ from backend.routers import (
     next_visit_requests,  # Next-Visit Requests Queue & Booking (Slice S25)
     clinical_charges,  # Clinical Charges (Slice S33)
     admin_finance_parity,  # Admin Finance Parity (Slice S34)
+    admin_clinical_rollout,  # Admin Clinical Rollout (Slice S36)
 )
 
 # --- Register Exception Handlers ---
@@ -515,6 +516,7 @@ app.include_router(admin_stats.router, prefix=API_V1_STR)   # B3.1: Dashboard st
 app.include_router(admin_security.router, prefix=API_V1_STR)
 app.include_router(admin_features.router, prefix=API_V1_STR)
 app.include_router(admin_finance_parity.router, prefix=API_V1_STR)
+app.include_router(admin_clinical_rollout.router, prefix=API_V1_STR)
 # app.include_router(admin_subscriptions.router, prefix=API_V1_STR) # Already included above
 # app.include_router(admin.router, prefix=f"{API_V1_STR}/admin", tags=["admin"]) # Deprecated
 app.include_router(
