@@ -150,6 +150,11 @@ from .clinical_charges import (
     PatientClinicalChargesResponse,
     ClinicalChargeActionRequest,
 )
+from .finance_parity import (
+    PatientFinanceParitySummary,
+    PatientFinanceParityDetail,
+    TenantFinanceParityReport,
+)
 from .clinical_attachment_link import (
     CANONICAL_ATTACHMENT_PURPOSE_CODES,
     AttachmentPurposeCode,
@@ -483,5 +488,9 @@ __all__ = [
     "WorkItemBillingProjectionItem",
     "PatientClinicalChargesResponse",
     "ClinicalChargeActionRequest",
+    # Finance Parity (Slice S34)
+    "PatientFinanceParitySummary",
+    "PatientFinanceParityDetail",
+    "TenantFinanceParityReport",
 ]
 
