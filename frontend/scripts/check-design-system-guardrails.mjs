@@ -86,7 +86,7 @@ function scanAddedDiff(base) {
   const output = execFileSync(
     'git',
     ['diff', '--unified=0', `${base}...HEAD`, '--', 'src'],
-    { cwd: process.cwd(), encoding: 'utf8' },
+    { cwd: process.cwd(), encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 },
   );
   const findings = [];
   let currentFile = '';

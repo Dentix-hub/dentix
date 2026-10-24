@@ -813,7 +813,19 @@ def test_live_postgresql_if_available():
                     if not tenant_id:
                         tenant_id = conn.execute(
                             sa.text(
-                                "INSERT INTO tenants (name, domain) VALUES (:name, :domain) RETURNING id"
+                                """
+                                INSERT INTO tenants (
+                                    name, domain, subscription_status, plan, is_active,
+                                    created_at, total_revenue, backup_frequency, timezone,
+                                    payment_failed_count, is_deleted
+                                )
+                                VALUES (
+                                    :name, :domain, 'active', 'trial', TRUE,
+                                    NOW(), 0, 'off', 'Africa/Cairo',
+                                    0, FALSE
+                                )
+                                RETURNING id
+                                """
                             ),
                             {"name": f"Test Clinic {uid}", "domain": f"test-{uid}.com"},
                         ).scalar()
