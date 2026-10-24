@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import models
+from backend.models.clinical_core import FDI_TOOTH_KEYS
 
 
 SHADE_OBSERVATION_CODES = frozenset({"color_shade", "shade", "tooth_shade"})
@@ -123,8 +124,16 @@ async def sync_lab_order_to_active_care_session_observations(
     synced_obs: list[models.CareObservation] = []
     now = datetime.now(timezone.utc)
 
+    valid_teeth: list[Optional[str]]
+    if not order.tooth_number or not str(order.tooth_number).strip():
+        valid_teeth = [None]
+    else:
+        tokens = [t.strip() for t in str(order.tooth_number).split(",") if t.strip()]
+        valid = [t for t in tokens if t in FDI_TOOTH_KEYS]
+        valid_teeth = list(dict.fromkeys(valid))
+
     # 1. Sync shade observation
-    if order.shade:
+    if order.shade and valid_teeth:
         obs_stmt = (
             select(models.CareObservation)
             .where(
@@ -135,31 +144,38 @@ async def sync_lab_order_to_active_care_session_observations(
             )
         )
         obs_res = await db.execute(obs_stmt)
-        existing_obs = obs_res.scalars().first()
+        existing_obs_list = obs_res.scalars().all()
+        existing_by_tooth = {}
+        for obs in existing_obs_list:
+            if obs.tooth_key not in existing_by_tooth:
+                existing_by_tooth[obs.tooth_key] = obs
 
-        if existing_obs:
-            curr_struct = dict(existing_obs.structured_value or {})
-            curr_struct["shade"] = order.shade
-            existing_obs.structured_value = curr_struct
-            synced_obs.append(existing_obs)
-        else:
-            new_obs = models.CareObservation(
-                tenant_id=tenant_id,
-                patient_id=order.patient_id,
-                care_session_id=active_session.id,
-                work_item_id=order.work_item_id,
-                observation_code="color_shade",
-                tooth_key=order.tooth_number,
-                structured_value={"shade": order.shade},
-                notes=order.shade,
-                recorded_at=now,
-                recorded_by_user_id=actor_user_id or order.doctor_id,
-            )
-            db.add(new_obs)
-            synced_obs.append(new_obs)
+        for tk in valid_teeth:
+            existing_obs = existing_by_tooth.get(tk)
+            if existing_obs:
+                curr_struct = dict(existing_obs.structured_value or {})
+                curr_struct["shade"] = order.shade
+                existing_obs.structured_value = curr_struct
+                existing_obs.notes = order.shade
+                synced_obs.append(existing_obs)
+            else:
+                new_obs = models.CareObservation(
+                    tenant_id=tenant_id,
+                    patient_id=order.patient_id,
+                    care_session_id=active_session.id,
+                    work_item_id=order.work_item_id,
+                    observation_code="color_shade",
+                    tooth_key=tk,
+                    structured_value={"shade": order.shade},
+                    notes=order.shade,
+                    recorded_at=now,
+                    recorded_by_user_id=actor_user_id or order.doctor_id,
+                )
+                db.add(new_obs)
+                synced_obs.append(new_obs)
 
     # 2. Sync material observation
-    if order.material:
+    if order.material and valid_teeth:
         mat_stmt = (
             select(models.CareObservation)
             .where(
@@ -170,27 +186,34 @@ async def sync_lab_order_to_active_care_session_observations(
             )
         )
         mat_res = await db.execute(mat_stmt)
-        existing_mat_obs = mat_res.scalars().first()
+        existing_mat_list = mat_res.scalars().all()
+        existing_mat_by_tooth = {}
+        for obs in existing_mat_list:
+            if obs.tooth_key not in existing_mat_by_tooth:
+                existing_mat_by_tooth[obs.tooth_key] = obs
 
-        if existing_mat_obs:
-            curr_struct = dict(existing_mat_obs.structured_value or {})
-            curr_struct["material"] = order.material
-            existing_mat_obs.structured_value = curr_struct
-            synced_obs.append(existing_mat_obs)
-        else:
-            new_mat_obs = models.CareObservation(
-                tenant_id=tenant_id,
-                patient_id=order.patient_id,
-                care_session_id=active_session.id,
-                work_item_id=order.work_item_id,
-                observation_code="material",
-                tooth_key=order.tooth_number,
-                structured_value={"material": order.material},
-                notes=order.material,
-                recorded_at=now,
-                recorded_by_user_id=actor_user_id or order.doctor_id,
-            )
-            db.add(new_mat_obs)
-            synced_obs.append(new_mat_obs)
+        for tk in valid_teeth:
+            existing_mat_obs = existing_mat_by_tooth.get(tk)
+            if existing_mat_obs:
+                curr_struct = dict(existing_mat_obs.structured_value or {})
+                curr_struct["material"] = order.material
+                existing_mat_obs.structured_value = curr_struct
+                existing_mat_obs.notes = order.material
+                synced_obs.append(existing_mat_obs)
+            else:
+                new_mat_obs = models.CareObservation(
+                    tenant_id=tenant_id,
+                    patient_id=order.patient_id,
+                    care_session_id=active_session.id,
+                    work_item_id=order.work_item_id,
+                    observation_code="material",
+                    tooth_key=tk,
+                    structured_value={"material": order.material},
+                    notes=order.material,
+                    recorded_at=now,
+                    recorded_by_user_id=actor_user_id or order.doctor_id,
+                )
+                db.add(new_mat_obs)
+                synced_obs.append(new_mat_obs)
 
     return synced_obs

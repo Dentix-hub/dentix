@@ -208,81 +208,102 @@ class CareSessionService:
             if resume_wi_id is not None:
                 await self._verify_work_item(patient_id, resume_wi_id)
 
-            # Query prior steps for this work item or session
-            prior_steps_query = (
-                select(models.CareSessionStep)
-                .join(models.CareSession)
-                .where(
-                    models.CareSessionStep.tenant_id == self.tenant_id,
-                    models.CareSession.patient_id == patient_id,
+            # Resolve single source session: explicit resume_from_session_id or most recent prior session for work item
+            source_session_id = data.resume_from_session_id
+            if source_session_id is None and resume_wi_id is not None:
+                source_session_stmt = (
+                    select(models.CareSessionStep.care_session_id)
+                    .join(models.CareSession, models.CareSession.id == models.CareSessionStep.care_session_id)
+                    .where(
+                        models.CareSessionStep.tenant_id == self.tenant_id,
+                        models.CareSession.patient_id == patient_id,
+                        models.CareSessionStep.work_item_id == resume_wi_id,
+                        models.CareSession.id != session.id,
+                    )
+                    .order_by(models.CareSession.started_at.desc(), models.CareSession.id.desc())
+                    .limit(1)
                 )
-            )
-            if resume_wi_id is not None:
-                prior_steps_query = prior_steps_query.where(
-                    models.CareSessionStep.work_item_id == resume_wi_id
+                source_session_id = (await self.db.execute(source_session_stmt)).scalar_one_or_none()
+                if source_session_id is None:
+                    source_obs_stmt = (
+                        select(models.CareObservation.care_session_id)
+                        .join(models.CareSession, models.CareSession.id == models.CareObservation.care_session_id)
+                        .where(
+                            models.CareObservation.tenant_id == self.tenant_id,
+                            models.CareObservation.patient_id == patient_id,
+                            models.CareObservation.work_item_id == resume_wi_id,
+                            models.CareSession.id != session.id,
+                        )
+                        .order_by(models.CareSession.started_at.desc(), models.CareSession.id.desc())
+                        .limit(1)
+                    )
+                    source_session_id = (await self.db.execute(source_obs_stmt)).scalar_one_or_none()
+
+            if source_session_id is not None:
+                # Query prior steps from that single source session only
+                prior_steps_query = (
+                    select(models.CareSessionStep)
+                    .where(
+                        models.CareSessionStep.tenant_id == self.tenant_id,
+                        models.CareSessionStep.care_session_id == source_session_id,
+                    )
+                    .order_by(
+                        models.CareSessionStep.step_order.asc(),
+                        models.CareSessionStep.id.asc(),
+                    )
                 )
-            elif data.resume_from_session_id is not None:
-                prior_steps_query = prior_steps_query.where(
-                    models.CareSessionStep.care_session_id == data.resume_from_session_id
+                prior_steps = (await self.db.execute(prior_steps_query)).scalars().all()
+
+                # Carry over steps into new session
+                seen_step_codes = set()
+                new_order = 1
+                for p_step in prior_steps:
+                    if p_step.step_code in seen_step_codes:
+                        continue
+                    seen_step_codes.add(p_step.step_code)
+
+                    # Preserve completed state; if partial/in_progress, keep partial/in_progress; otherwise pending
+                    step_status = p_step.status
+                    new_step = models.CareSessionStep(
+                        tenant_id=self.tenant_id,
+                        care_session_id=session.id,
+                        work_item_id=resume_wi_id or p_step.work_item_id,
+                        step_order=new_order,
+                        step_code=p_step.step_code,
+                        title=p_step.title,
+                        status=step_status,
+                        started_at=p_step.started_at,
+                        completed_at=p_step.completed_at,
+                        notes=f"[Resumed from Step #{p_step.step_order}] {p_step.notes or ''}".strip() if p_step.notes else None,
+                    )
+                    self.db.add(new_step)
+                    new_order += 1
+
+                # Query and carry forward canal observations from source session only
+                obs_query = (
+                    select(models.CareObservation)
+                    .where(
+                        models.CareObservation.tenant_id == self.tenant_id,
+                        models.CareObservation.patient_id == patient_id,
+                        models.CareObservation.care_session_id == source_session_id,
+                    )
+                    .order_by(models.CareObservation.recorded_at.asc(), models.CareObservation.id.asc())
                 )
+                prior_obs = (await self.db.execute(obs_query)).scalars().all()
 
-            prior_steps_query = prior_steps_query.order_by(
-                models.CareSessionStep.step_order.asc(),
-                models.CareSessionStep.id.asc(),
-            )
-            prior_steps = (await self.db.execute(prior_steps_query)).scalars().all()
-
-            # Carry over steps into new session
-            seen_step_codes = set()
-            new_order = 1
-            for p_step in prior_steps:
-                if p_step.step_code in seen_step_codes:
-                    continue
-                seen_step_codes.add(p_step.step_code)
-
-                # Preserve completed state; if partial/in_progress, keep partial/in_progress; otherwise pending
-                step_status = p_step.status
-                new_step = models.CareSessionStep(
-                    tenant_id=self.tenant_id,
-                    care_session_id=session.id,
-                    work_item_id=resume_wi_id or p_step.work_item_id,
-                    step_order=new_order,
-                    step_code=p_step.step_code,
-                    title=p_step.title,
-                    status=step_status,
-                    started_at=p_step.started_at,
-                    completed_at=p_step.completed_at,
-                    notes=f"[Resumed from Step #{p_step.step_order}] {p_step.notes or ''}".strip() if p_step.notes else None,
-                )
-                self.db.add(new_step)
-                new_order += 1
-
-            # Query and carry forward canal observations
-            obs_query = select(models.CareObservation).where(
-                models.CareObservation.tenant_id == self.tenant_id,
-                models.CareObservation.patient_id == patient_id,
-            )
-            if resume_wi_id is not None:
-                obs_query = obs_query.where(models.CareObservation.work_item_id == resume_wi_id)
-            elif data.resume_from_session_id is not None:
-                obs_query = obs_query.where(models.CareObservation.care_session_id == data.resume_from_session_id)
-
-            obs_query = obs_query.order_by(models.CareObservation.recorded_at.asc())
-            prior_obs = (await self.db.execute(obs_query)).scalars().all()
-
-            for p_obs in prior_obs:
-                carried_obs = models.CareObservation(
-                    tenant_id=self.tenant_id,
-                    patient_id=patient_id,
-                    care_session_id=session.id,
-                    work_item_id=resume_wi_id or p_obs.work_item_id,
-                    observation_code=p_obs.observation_code,
-                    tooth_key=p_obs.tooth_key,
-                    structured_value=dict(p_obs.structured_value or {}),
-                    notes=f"[Carried over from Session {p_obs.care_session_id}] {p_obs.notes or ''}".strip() if p_obs.notes else None,
-                    recorded_by_user_id=user.id if user else None,
-                )
-                self.db.add(carried_obs)
+                for p_obs in prior_obs:
+                    carried_obs = models.CareObservation(
+                        tenant_id=self.tenant_id,
+                        patient_id=patient_id,
+                        care_session_id=session.id,
+                        work_item_id=resume_wi_id or p_obs.work_item_id,
+                        observation_code=p_obs.observation_code,
+                        tooth_key=p_obs.tooth_key,
+                        structured_value=dict(p_obs.structured_value or {}),
+                        notes=f"[Carried over from Session {p_obs.care_session_id}] {p_obs.notes or ''}".strip() if p_obs.notes else None,
+                        recorded_by_user_id=user.id if user else None,
+                    )
+                    self.db.add(carried_obs)
 
             try:
                 await self.db.flush()
@@ -1211,8 +1232,45 @@ class CareSessionService:
 
         items = []
         for wi in work_items:
-            steps = sorted(wi.session_steps or [], key=lambda s: s.step_order)
-            obs = list(wi.observations or [])
+            # Resolve steps & observations from the latest care session for this work item
+            latest_session_id = None
+            step_session_ids = [s.care_session_id for s in (wi.session_steps or []) if s.care_session_id]
+            obs_session_ids = [o.care_session_id for o in (wi.observations or []) if o.care_session_id]
+            candidate_session_ids = list(set(step_session_ids + obs_session_ids))
+
+            if candidate_session_ids:
+                sess_stmt = (
+                    select(models.CareSession.id)
+                    .where(
+                        models.CareSession.id.in_(candidate_session_ids),
+                        models.CareSession.tenant_id == self.tenant_id,
+                    )
+                    .order_by(models.CareSession.started_at.desc(), models.CareSession.id.desc())
+                    .limit(1)
+                )
+                latest_session_id = (await self.db.execute(sess_stmt)).scalar_one_or_none()
+
+            if latest_session_id:
+                steps = sorted(
+                    [s for s in (wi.session_steps or []) if s.care_session_id == latest_session_id],
+                    key=lambda s: s.step_order,
+                )
+                obs = [o for o in (wi.observations or []) if o.care_session_id == latest_session_id]
+                if not obs and wi.observations and obs_session_ids:
+                    obs_sess_stmt = (
+                        select(models.CareSession.id)
+                        .where(
+                            models.CareSession.id.in_(obs_session_ids),
+                            models.CareSession.tenant_id == self.tenant_id,
+                        )
+                        .order_by(models.CareSession.started_at.desc(), models.CareSession.id.desc())
+                        .limit(1)
+                    )
+                    latest_obs_sess_id = (await self.db.execute(obs_sess_stmt)).scalar_one_or_none()
+                    obs = [o for o in wi.observations if o.care_session_id == latest_obs_sess_id]
+            else:
+                steps = sorted(wi.session_steps or [], key=lambda s: s.step_order)
+                obs = list(wi.observations or [])
 
             tooth_key = wi.targets[0].tooth_key if wi.targets else None
             surface_code = wi.targets[0].surface_code if wi.targets else None
@@ -1241,13 +1299,14 @@ class CareSessionService:
             remaining_steps = [s for s in steps if s.status != "completed"]
 
             # Determine last session info
-            last_session_id = None
+            last_session_id = latest_session_id
             last_session_at = None
             last_notes = None
-            all_records = list(steps) + list(obs)
-            if all_records:
-                latest_record = max(all_records, key=lambda r: getattr(r, "created_at", None) or datetime.min.replace(tzinfo=timezone.utc))
-                last_session_id = getattr(latest_record, "care_session_id", None)
+            if not last_session_id:
+                all_records = list(steps) + list(obs)
+                if all_records:
+                    latest_record = max(all_records, key=lambda r: getattr(r, "created_at", None) or datetime.min.replace(tzinfo=timezone.utc))
+                    last_session_id = getattr(latest_record, "care_session_id", None)
 
             if last_session_id:
                 sess = (await self.db.execute(
@@ -1672,6 +1731,24 @@ class CareSessionService:
                 status_code=409,
                 detail=f"Cannot schedule next-visit request with status '{req.status}'. Only 'requested' items can be scheduled.",
             )
+
+        if data.doctor_id is not None:
+            doctor_stmt = select(models.User).where(
+                models.User.id == data.doctor_id,
+                models.User.tenant_id == self.tenant_id,
+            )
+            doctor = (await self.db.execute(doctor_stmt)).scalar_one_or_none()
+            if not doctor:
+                raise HTTPException(status_code=404, detail="Doctor not found")
+
+        if data.price_list_id is not None:
+            pl_stmt = select(models.PriceList).where(
+                models.PriceList.id == data.price_list_id,
+                models.PriceList.tenant_id == self.tenant_id,
+            )
+            price_list = (await self.db.execute(pl_stmt)).scalar_one_or_none()
+            if not price_list:
+                raise HTTPException(status_code=404, detail="Price list not found")
 
         duration = data.duration_minutes or req.suggested_duration_minutes or 30
         appt_notes = data.notes.strip() if data.notes and data.notes.strip() else req.reason

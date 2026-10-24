@@ -806,6 +806,93 @@ async def test_cross_tenant_isolation_and_security(async_db_session, seed_data):
 
 
 @pytest.mark.asyncio
+async def test_schedule_next_visit_request_rejects_cross_tenant_doctor_and_price_list(
+    async_db_session, seed_data
+):
+    """F-14: doctor_id and price_list_id must belong to the same tenant (404 otherwise)."""
+    t1 = seed_data["tenant_1"]
+    t2 = seed_data["tenant_2"]
+    doc1 = seed_data["doctor_1"]
+    doc2 = seed_data["doctor_2"]
+    pat1 = seed_data["patient_1"]
+
+    service_t1 = CareSessionService(async_db_session, t1.id, doc1)
+
+    pl_t1 = models.PriceList(tenant_id=t1.id, name="T1 Price List")
+    pl_t2 = models.PriceList(tenant_id=t2.id, name="T2 Price List")
+    async_db_session.add_all([pl_t1, pl_t2])
+    await async_db_session.flush()
+
+    req_1 = await service_t1.create_next_visit_request(
+        pat1.id,
+        schemas.NextVisitRequestCreate(reason="Checkup", suggested_duration_minutes=30),
+    )
+
+    # 1. Attempt to schedule with cross-tenant doctor_id (doc2 belongs to t2) -> 404
+    with pytest.raises(HTTPException) as exc_doc:
+        await service_t1.schedule_next_visit_request(
+            request_id=req_1.id,
+            data=schemas.NextVisitRequestSchedule(
+                date_time=datetime.now(timezone.utc) + timedelta(days=1),
+                doctor_id=doc2.id,
+            ),
+        )
+    assert exc_doc.value.status_code == 404
+    assert "Doctor not found" in exc_doc.value.detail
+
+    # 2. Attempt to schedule with non-existent doctor_id -> 404
+    with pytest.raises(HTTPException) as exc_doc_missing:
+        await service_t1.schedule_next_visit_request(
+            request_id=req_1.id,
+            data=schemas.NextVisitRequestSchedule(
+                date_time=datetime.now(timezone.utc) + timedelta(days=1),
+                doctor_id=99999999,
+            ),
+        )
+    assert exc_doc_missing.value.status_code == 404
+    assert "Doctor not found" in exc_doc_missing.value.detail
+
+    # 3. Attempt to schedule with cross-tenant price_list_id (pl_t2 belongs to t2) -> 404
+    with pytest.raises(HTTPException) as exc_pl:
+        await service_t1.schedule_next_visit_request(
+            request_id=req_1.id,
+            data=schemas.NextVisitRequestSchedule(
+                date_time=datetime.now(timezone.utc) + timedelta(days=1),
+                doctor_id=doc1.id,
+                price_list_id=pl_t2.id,
+            ),
+        )
+    assert exc_pl.value.status_code == 404
+    assert "Price list not found" in exc_pl.value.detail
+
+    # 4. Attempt to schedule with non-existent price_list_id -> 404
+    with pytest.raises(HTTPException) as exc_pl_missing:
+        await service_t1.schedule_next_visit_request(
+            request_id=req_1.id,
+            data=schemas.NextVisitRequestSchedule(
+                date_time=datetime.now(timezone.utc) + timedelta(days=1),
+                doctor_id=doc1.id,
+                price_list_id=88888888,
+            ),
+        )
+    assert exc_pl_missing.value.status_code == 404
+    assert "Price list not found" in exc_pl_missing.value.detail
+
+    # 5. Scheduling with valid tenant-owned doctor_id and price_list_id succeeds
+    req_res, appt = await service_t1.schedule_next_visit_request(
+        request_id=req_1.id,
+        data=schemas.NextVisitRequestSchedule(
+            date_time=datetime.now(timezone.utc) + timedelta(days=1),
+            doctor_id=doc1.id,
+            price_list_id=pl_t1.id,
+        ),
+    )
+    assert req_res.status == "scheduled"
+    assert appt.doctor_id == doc1.id
+    assert appt.price_list_id == pl_t1.id
+
+
+@pytest.mark.asyncio
 async def test_next_visit_requests_router_handlers(async_db_session, seed_data):
     """
     Test REST router endpoints directly:
