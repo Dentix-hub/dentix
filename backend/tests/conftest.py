@@ -43,6 +43,16 @@ from backend import models
 from backend.auth import create_access_token
 
 
+@pytest.fixture(autouse=True)
+def _noop_dashboard_precompute(monkeypatch, request):
+    """Prevent background dashboard cache tasks from uncoordinated database access in unit tests."""
+    if "test_dashboard_cache_task" in request.node.nodeid:
+        return
+    from backend.crud import billing, appointment
+    monkeypatch.setattr(billing, "schedule_dashboard_precompute", lambda tenant_id: None)
+    monkeypatch.setattr(appointment, "schedule_dashboard_precompute", lambda tenant_id: None)
+
+
 # ============================================
 # DATABASE FIXTURES
 # ============================================

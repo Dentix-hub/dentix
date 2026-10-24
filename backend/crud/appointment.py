@@ -1,5 +1,4 @@
 import asyncio
-import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import HTTPException
@@ -10,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend import models, schemas
 from backend.core.exceptions import TenantException
 from backend.services.cache_service import invalidate_dashboard_cache
-from backend.crud.billing import precompute_dashboard_cache
+from backend.crud.billing import schedule_dashboard_precompute
 from backend.services.event_service import event_service
 from backend.utils.audit_logger import log_admin_action
 
@@ -133,7 +132,7 @@ async def get_appointments(
         .join(models.Patient)
         .where(
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,  # noqa: E712
+            models.Patient.is_deleted == False,  # noqa: E712  # noqa: E712
             models.Appointment.is_deleted == False,  # noqa: E712
         )
     )
@@ -210,10 +209,7 @@ async def create_appointment(
     patient = result_patient.scalars().first()
     if patient:
         invalidate_dashboard_cache(patient.tenant_id)
-        if os.getenv("ENVIRONMENT") not in ("testing", "test", "ci"):
-            asyncio.create_task(
-                precompute_dashboard_cache(tenant_id=patient.tenant_id, db=db)
-            )
+        schedule_dashboard_precompute(patient.tenant_id)
         event_service.emit_event(
             db,
             event_type="appointment.created",
@@ -300,10 +296,7 @@ async def update_appointment_status(
     await db.commit()
     await db.refresh(db_appt)
     invalidate_dashboard_cache(tenant_id)
-    if os.getenv("ENVIRONMENT") not in ("testing", "test", "ci"):
-        asyncio.create_task(
-            precompute_dashboard_cache(tenant_id=tenant_id, db=db)
-        )
+    schedule_dashboard_precompute(tenant_id)
     return db_appt
 
 
@@ -356,10 +349,7 @@ async def delete_appointment(db: AsyncSession, appointment_id: int, tenant_id: i
     await db.commit()
     await db.refresh(db_appt)
     invalidate_dashboard_cache(tenant_id)
-    if os.getenv("ENVIRONMENT") not in ("testing", "test", "ci"):
-        asyncio.create_task(
-            precompute_dashboard_cache(tenant_id=tenant_id, db=db)
-        )
+    schedule_dashboard_precompute(tenant_id)
     return db_appt
 
 
@@ -393,7 +383,7 @@ async def update_appointment(
         p_stmt = select(models.Patient.id).where(
             models.Patient.id == update_data["patient_id"],
             models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,
+            models.Patient.is_deleted == False,  # noqa: E712
         )
         if (await db.execute(p_stmt)).scalars().first() is None:
             raise HTTPException(status_code=404, detail="Patient not found or belongs to another tenant")
@@ -485,10 +475,7 @@ async def update_appointment(
         await db.commit()
         await db.refresh(db_appt)
         invalidate_dashboard_cache(tenant_id)
-        if os.getenv("ENVIRONMENT") not in ("testing", "test", "ci"):
-            asyncio.create_task(
-                precompute_dashboard_cache(tenant_id=tenant_id, db=db)
-            )
+        schedule_dashboard_precompute(tenant_id)
         return db_appt
     except StaleDataError:
         await db.rollback()
