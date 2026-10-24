@@ -876,6 +876,27 @@
             "upload_fail": "Failed to upload file"
         }
     },
+    "clinical": {
+        "coverage": "Coverage",
+        "fallback_notice": "Notice",
+        "fallback_desc": "Displaying clinical records with legacy fallback contribution.",
+        "warnings": "Warnings",
+        "legacy_review_needed": "{{count}} legacy records need review",
+        "technical_details": "Technical details",
+        "empty_workspace": "No clinical events or work items recorded for this patient yet.",
+        "coverage_status": {
+            "complete": "Complete",
+            "partial": "Partial",
+            "uncovered": "Uncovered"
+        },
+        "domain": {
+            "teeth": "Teeth",
+            "periodontal": "Periodontal",
+            "endodontic": "Endodontic",
+            "soft_tissue": "Soft Tissue",
+            "restorative": "Restorative"
+        }
+    },
     "clinical_plans": {
         "title": "Treatment Plans",
         "subtitle": "Patient treatment plans and phases",

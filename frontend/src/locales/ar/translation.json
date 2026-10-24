@@ -883,6 +883,27 @@
             "upload_fail": "فشل رفع الملف"
         }
     },
+    "clinical": {
+        "coverage": "التغطية السريرية",
+        "fallback_notice": "ملاحظة",
+        "fallback_desc": "عرض السجلات السريرية بمساهمة السجلات القديمة.",
+        "warnings": "تنبيهات السجلات القديمة",
+        "legacy_review_needed": "{{count}} سجلات قديمة تحتاج مراجعة",
+        "technical_details": "التفاصيل التقنية",
+        "empty_workspace": "لم يتم تسجيل أي إجراءات أو ملاحظات سريرية لهذا المريض حتى الآن.",
+        "coverage_status": {
+            "complete": "مكتمل",
+            "partial": "جزئي",
+            "uncovered": "غير مغطى"
+        },
+        "domain": {
+            "teeth": "الأسنان",
+            "periodontal": "الأنسجة الداعمة",
+            "endodontic": "علاج الجذور",
+            "soft_tissue": "الأنسجة الرخوة",
+            "restorative": "الترميمات"
+        }
+    },
     "clinical_plans": {
         "title": "خطط العلاج",
         "subtitle": "خطط العلاج والمراحل الخاصة بالمريض",
