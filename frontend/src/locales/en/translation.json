@@ -1068,7 +1068,9 @@
             "periodontal": "Periodontal",
             "endodontic": "Endodontic",
             "soft_tissue": "Soft Tissue",
-            "restorative": "Restorative"
+            "restorative": "Restorative",
+            "treatments": "Treatments",
+            "sessions": "Sessions"
         }
     },
     "clinical_plans": {

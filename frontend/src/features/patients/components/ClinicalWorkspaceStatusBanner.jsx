@@ -56,6 +56,9 @@ export default function ClinicalWorkspaceStatusBanner({ adaptedChart, t }) {
                     return (
                         <span
                             key={domain}
+                            data-testid={`coverage-chip-${domain}`}
+                            data-domain={domain}
+                            data-status={status}
                             className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${
                                 status === 'COMPLETE'
                                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'

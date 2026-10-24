@@ -1068,7 +1068,9 @@
             "periodontal": "الأنسجة الداعمة",
             "endodontic": "علاج الجذور",
             "soft_tissue": "الأنسجة الرخوة",
-            "restorative": "الترميمات"
+            "restorative": "الترميمات",
+            "treatments": "العلاجات",
+            "sessions": "الجلسات"
         }
     },
     "clinical_plans": {
