@@ -195,6 +195,7 @@ class Treatment(Base):
 
     patient = relationship("Patient", back_populates="treatments")
     treatment_sessions = relationship("TreatmentSession", back_populates="treatment", cascade="all, delete-orphan")
+    lab_orders = relationship("LabOrder", back_populates="treatment", foreign_keys="[LabOrder.treatment_id]")
 
     @property
     def surfaces(self) -> list[str]:
@@ -329,6 +330,7 @@ class LabOrder(Base):
         Index("idx_laborder_doctor_date", "doctor_id", "order_date"),
         Index("idx_laborder_tenant_date", "tenant_id", "order_date"),
         Index("ix_lab_orders_tenant_work_item", "tenant_id", "work_item_id"),
+        Index("ix_lab_orders_tenant_treatment", "tenant_id", "treatment_id"),
         CheckConstraint("cost >= 0", name="ck_lab_orders_cost_nonnegative"),
         CheckConstraint(
             "price_to_patient >= 0", name="ck_lab_orders_patient_price_nonnegative"
@@ -356,6 +358,16 @@ class LabOrder(Base):
         nullable=True,
         index=True,
     )
+    treatment_id = Column(
+        Integer,
+        ForeignKey(
+            "treatments.id",
+            ondelete="SET NULL",
+            name="fk_lab_orders_treatment_id",
+        ),
+        nullable=True,
+        index=True,
+    )
     work_type = Column(String)
     tooth_number = Column(String, nullable=True)
     shade = Column(String, nullable=True)
@@ -379,6 +391,7 @@ class LabOrder(Base):
     laboratory = relationship("Laboratory", back_populates="lab_orders")
     doctor = relationship("User", back_populates="lab_orders")
     work_item = relationship("ClinicalWorkItem", back_populates="lab_orders")
+    treatment = relationship("Treatment", back_populates="lab_orders", foreign_keys=[treatment_id])
 
 
 class Procedure(Base):

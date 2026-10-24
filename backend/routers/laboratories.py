@@ -301,6 +301,41 @@ async def create_lab_order(
             result["laboratory_name"] = existing_order.laboratory.name if existing_order.laboratory else lab.name
             return success_response(result)
 
+    if order.treatment_id is not None:
+        treatment = (
+            await db.execute(
+                select(models.Treatment).where(
+                    models.Treatment.id == order.treatment_id,
+                    models.Treatment.tenant_id == current_user.tenant_id,
+                    models.Treatment.patient_id == order.patient_id,
+                    models.Treatment.is_deleted == False,
+                )
+            )
+        ).scalars().first()
+        if not treatment:
+            raise HTTPException(status_code=404, detail="Treatment not found")
+
+        # D3 / Step 2: Idempotency - return existing active non-cancelled lab order if present
+        stmt_existing = (
+            select(models.LabOrder)
+            .options(
+                selectinload(models.LabOrder.patient),
+                selectinload(models.LabOrder.laboratory),
+            )
+            .where(
+                models.LabOrder.tenant_id == current_user.tenant_id,
+                models.LabOrder.treatment_id == order.treatment_id,
+                models.LabOrder.status != "cancelled",
+            )
+            .order_by(models.LabOrder.id.desc())
+        )
+        existing_order = (await db.execute(stmt_existing)).scalars().first()
+        if existing_order:
+            result = schemas.LabOrder.model_validate(existing_order).model_dump()
+            result["patient_name"] = existing_order.patient.name if existing_order.patient else patient.name
+            result["laboratory_name"] = existing_order.laboratory.name if existing_order.laboratory else lab.name
+            return success_response(result)
+
     provider_id = await _resolve_lab_provider_id(db, current_user, patient)
     db_order = models.LabOrder(
         **order.model_dump(),
@@ -310,9 +345,9 @@ async def create_lab_order(
     db.add(db_order)
     await db.flush()
 
-    # G12-M08 & G12-M09 / R06: Decouple lab price from synthetic treatment creation.
-    # When linked to a clinical work item, create 0 synthetic treatments!
-    if order.work_item_id is None and db_order.price_to_patient and db_order.price_to_patient > 0:
+    # G12-M08 & G12-M09 / R06 / D3: Decouple lab price from synthetic treatment creation.
+    # When linked to a clinical work item or existing treatment, create 0 synthetic treatments!
+    if order.work_item_id is None and order.treatment_id is None and db_order.price_to_patient and db_order.price_to_patient > 0:
         tooth_num = None
         if db_order.tooth_number:
             try:
@@ -527,7 +562,7 @@ async def update_lab_order(
         linked_treatment.doctor_id = order.doctor_id
         if active_lab:
             linked_treatment.diagnosis = f"تركيبة معملية - {active_lab.name}"
-    elif order.work_item_id is None and order.price_to_patient and order.price_to_patient > 0:
+    elif order.work_item_id is None and order.treatment_id is None and order.price_to_patient and order.price_to_patient > 0:
         tooth_num = None
         if order.tooth_number:
             try:
