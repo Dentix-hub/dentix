@@ -270,6 +270,7 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
         "care_sessions": {},
         "care_session_steps": {},
         "clinical_events": {},
+        "treatments": {},
     }
 
     # 1. Import Users
@@ -465,7 +466,7 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
 
     # 13. Import Treatments
     for treat_data in data.get("treatments", []):
-        treat_data.pop("id", None)
+        old_id = treat_data.pop("id", None)
         treat_data["tenant_id"] = tenant_id
         treat_data["patient_id"] = id_maps["patients"].get(treat_data.get("patient_id"))
         treat_data["doctor_id"] = id_maps["users"].get(treat_data.get("doctor_id"))
@@ -477,6 +478,9 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
         if treat_data["patient_id"]:
             treat = models.Treatment(**treat_data)
             db.add(treat)
+            await db.flush()
+            if old_id:
+                id_maps["treatments"][old_id] = treat.id
     imported_counts["treatments"] = len(data.get("treatments", []))
 
     # 14. Import Payments
@@ -800,6 +804,25 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
             cpc = models.ClinicalProjectionCoverage(**cpc_data)
             db.add(cpc)
     imported_counts["clinical_projection_coverages"] = len(data.get("clinical_projection_coverages", []))
+
+    # 40. Import ClinicalCharges
+    for cc_data in data.get("clinical_charges", []):
+        cc_data.pop("id", None)
+        cc_data["tenant_id"] = tenant_id
+        cc_data["patient_id"] = id_maps["patients"].get(cc_data.get("patient_id"))
+        cc_data["work_item_id"] = id_maps["clinical_work_items"].get(cc_data.get("work_item_id"))
+        if cc_data.get("care_session_id"):
+            cc_data["care_session_id"] = id_maps["care_sessions"].get(cc_data.get("care_session_id"))
+        if cc_data.get("doctor_id"):
+            cc_data["doctor_id"] = id_maps["users"].get(cc_data.get("doctor_id"))
+        if cc_data.get("legacy_treatment_id"):
+            cc_data["legacy_treatment_id"] = id_maps["treatments"].get(cc_data.get("legacy_treatment_id"))
+        cc_data["created_at"] = parse_datetime(cc_data.get("created_at"))
+        cc_data["updated_at"] = parse_datetime(cc_data.get("updated_at"))
+        if cc_data["patient_id"] and cc_data["work_item_id"]:
+            cc = models.ClinicalCharge(**cc_data)
+            db.add(cc)
+    imported_counts["clinical_charges"] = len(data.get("clinical_charges", []))
 
     return imported_counts
 

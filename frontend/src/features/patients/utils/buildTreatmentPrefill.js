@@ -35,6 +35,8 @@ export function buildTreatmentPrefill({
     planId = null,
     workItemCode = '',
     defaultPriceListId = null,
+    selectedTeeth = [],
+    selectedSurfacesByTooth = {},
 } = {}) {
     // 1. Resolve tooth number in Palmer notation for legacy TreatmentModal
     let resolvedPalmer = palmerTooth || '';
@@ -67,6 +69,8 @@ export function buildTreatmentPrefill({
         surface: surfaceStr,
         surfaces: resolvedSurfaces,
         target_kind: resolvedTargetKind,
+        selectedTeeth: Array.isArray(selectedTeeth) && selectedTeeth.length > 0 ? selectedTeeth : (resolvedPalmer ? [resolvedPalmer] : (toothKey ? [String(toothKey)] : [])),
+        selectedSurfacesByTooth: selectedSurfacesByTooth || {},
         default_price_list_id: defaultPriceListId ?? baseTreatment.default_price_list_id ?? null,
         prefill_source: source,
         ...(clinicalWorkItemId ? { clinical_work_item_id: clinicalWorkItemId } : {}),

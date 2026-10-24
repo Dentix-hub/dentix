@@ -1,4 +1,5 @@
 import { memo, useId } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ROOT_VIEW_BOX, getRootGeometry } from '@/features/clinical-chart/rendering/rootGeometry';
 import { getSurfaceGeometry } from '@/features/clinical-chart/rendering/surfaceGeometry';
 import {
@@ -484,6 +485,7 @@ export default memo(function DentalChartSVG({
     planOverlay = null,
     labStatusByTooth = null,
 }) {
+    const { t } = useTranslation();
     const isMixedDentition = Array.isArray(toothOrder);
     const layout = isMixedDentition
         ? createMixedLayout(toothOrder)
@@ -492,8 +494,8 @@ export default memo(function DentalChartSVG({
         ? 'min-w-[600px]'
         : (isPediatric ? 'min-w-[480px]' : 'min-w-[700px]');
     const chartTitle = isMixedDentition
-        ? 'مخطط الأسنان (مختلط)'
-        : (isPediatric ? 'مخطط الأسنان (أطفال)' : 'مخطط الأسنان (بالغين)');
+        ? t('dental_chart.mixed', 'مخطط الأسنان (مختلط)')
+        : (isPediatric ? t('dental_chart.pediatric', 'مخطط الأسنان (أطفال)') : t('dental_chart.adult', 'مخطط الأسنان (بالغين)'));
     const surfaceSelectionEnabled = enableSurfaceSelection && !readOnly;
     const notationConfig = getChartNotationConfig(notationMode);
     const renderTooth = (tooth, arch) => (
@@ -573,11 +575,11 @@ export default memo(function DentalChartSVG({
                     <div key={status} className="flex min-h-8 items-center gap-2">
                         <div className="h-5 w-5 shrink-0 rounded-full border shadow-sm" style={{ backgroundColor: statusStyle.fill, borderColor: statusStyle.stroke, borderWidth: 2 }} aria-hidden="true" />
                         <span className="font-medium text-slate-600">
-                            {status === 'Healthy' ? 'سليم' :
-                                status === 'Decayed' ? 'تسوس' :
-                                    status === 'Filled' ? 'حشو' :
-                                        status === 'Missing' ? 'مخلوع' :
-                                            status === 'Crown' ? 'طربوش' : 'عصب'}
+                            {status === 'Healthy' ? t('dental_chart.status_healthy', 'سليم') :
+                                status === 'Decayed' ? t('dental_chart.status_decayed', 'تسوس') :
+                                    status === 'Filled' ? t('dental_chart.status_filled', 'حشو') :
+                                        status === 'Missing' ? t('dental_chart.status_missing', 'مخلوع') :
+                                            status === 'Crown' ? t('dental_chart.status_crown', 'طربوش') : t('dental_chart.status_endo', 'عصب')}
                         </span>
                     </div>
                 ))}

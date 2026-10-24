@@ -13,6 +13,7 @@ from .patient import (
     Patient,
     PatientSummary,
     PatientDirectoryItem,
+    MedicalAlert,
     AttachmentBase,
     AttachmentCreate,
     Attachment,
@@ -84,6 +85,7 @@ from .clinical_commands import (
     ClinicalBulkWorkItemResponse,
     ClinicalWorkItemCorrectionCreate,
     ClinicalWorkItemCorrectionResponse,
+    ClinicalWorkItemCorrectionWarning,
     ClinicalEventRead,
     ClinicalToothDetailRead,
 )
@@ -304,6 +306,7 @@ __all__ = [
     "Patient",
     "PatientSummary",
     "PatientDirectoryItem",
+    "MedicalAlert",
     "AttachmentBase",
     "AttachmentCreate",
     "Attachment",
@@ -470,6 +473,7 @@ __all__ = [
     "ClinicalBulkWorkItemResponse",
     "ClinicalWorkItemCorrectionCreate",
     "ClinicalWorkItemCorrectionResponse",
+    "ClinicalWorkItemCorrectionWarning",
     "ClinicalEventRead",
     "ClinicalToothDetailRead",
     # Care Sessions (Slices S18 & S19)

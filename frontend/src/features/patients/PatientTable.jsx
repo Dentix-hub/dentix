@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Archive, CalendarPlus, ExternalLink, Phone, RefreshCw, SearchX, UserRound, Users, MessageCircle } from 'lucide-react';
 import { Button, SkeletonBox } from '@/shared/ui';
 import { useAuth } from '@/auth/useAuth';
+import MedicalAlertBadge from './components/MedicalAlertBadge';
 
 function whatsappHref(phone) {
     if (!phone) return null;
@@ -24,13 +25,16 @@ function PatientIdentity({ patient }) {
                 {patient.name?.trim()?.charAt(0)?.toUpperCase() || '?'}
             </div>
             <div className="min-w-0 flex-1">
-                <Link
-                    to={`/patients/${patient.id}`}
-                    className="block break-words font-bold leading-snug text-text-primary hover:text-primary focus:outline-none focus:underline md:truncate"
-                    dir="auto"
-                >
-                    {patient.name}
-                </Link>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    <Link
+                        to={`/patients/${patient.id}`}
+                        className="block break-words font-bold leading-snug text-text-primary hover:text-primary focus:outline-none focus:underline md:truncate"
+                        dir="auto"
+                    >
+                        {patient.name}
+                    </Link>
+                    <MedicalAlertBadge alert={patient.medical_alert} />
+                </div>
                 <span className="text-xs text-text-muted" dir="ltr">#{patient.file_number || patient.id}</span>
             </div>
         </div>
@@ -144,7 +148,10 @@ export default memo(function PatientTable({ patients, isLoading, isError, search
 
             <div className="divide-y divide-border md:hidden">
                 {patients.map((patient) => (
-                    <article key={patient.id} className="p-4">
+                    <article
+                        key={patient.id}
+                        className={`p-4 transition-colors ${patient.medical_alert?.has_alert ? (patient.medical_alert?.kinds?.includes('pregnancy') && patient.medical_alert?.kinds?.length === 1 ? 'border-s-4 border-s-rose-400 bg-rose-50/10' : 'border-s-4 border-s-amber-400 bg-amber-50/10') : ''}`}
+                    >
                         <PatientIdentity patient={patient} />
                         <div className="mt-3 ms-[3.25rem] flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted">
                             {patient.age ? <span>{t('patientDetails.info_card.age_years', { age: patient.age })}</span> : null}

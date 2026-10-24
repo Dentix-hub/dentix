@@ -410,6 +410,15 @@ async def export_tenant_data(db: AsyncSession, tenant_id: int) -> Dict:
         model_to_dict(cov) for cov in clinical_projection_coverages
     ]
 
+    # 40. ClinicalCharges
+    res = await db.execute(
+        select(models.ClinicalCharge).filter(models.ClinicalCharge.tenant_id == tenant_id)
+    )
+    clinical_charges = res.scalars().all()
+    export_data["data"]["clinical_charges"] = [
+        model_to_dict(charge) for charge in clinical_charges
+    ]
+
     return export_data
 
 

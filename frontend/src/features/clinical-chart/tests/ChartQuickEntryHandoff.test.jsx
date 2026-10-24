@@ -7,12 +7,21 @@ import * as api from '@/api';
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
-        t: (key, fallback) => {
-            if (typeof fallback === 'string') return fallback;
-            if (fallback && typeof fallback === 'object' && fallback.defaultValue) {
-                return fallback.defaultValue;
+        t: (key, fallback, options) => {
+            let str = (typeof fallback === 'string')
+                ? fallback
+                : (fallback && typeof fallback === 'object' && fallback.defaultValue)
+                    ? fallback.defaultValue
+                    : key;
+            const params = (options && typeof options === 'object')
+                ? options
+                : (fallback && typeof fallback === 'object' ? fallback : null);
+            if (params && typeof str === 'string') {
+                Object.entries(params).forEach(([k, v]) => {
+                    str = str.replace(new RegExp(`{{${k}}}`, 'g'), String(v));
+                });
             }
-            return key;
+            return str;
         },
         i18n: { language: 'en' },
     }),

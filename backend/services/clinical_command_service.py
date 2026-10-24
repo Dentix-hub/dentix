@@ -44,6 +44,7 @@ from backend.clinical.catalog import (
 )
 from backend.core.permissions import Permission, has_permission
 from backend.models.clinical_core import (
+    CLINICAL_CHARGE_STATUS_INVOICED,
     CLINICAL_CHARGE_STATUS_PENDING,
     CLINICAL_CHARGE_STATUS_VOIDED,
     FDI_TOOTH_KEYS,
@@ -1028,6 +1029,10 @@ class ClinicalCommandService:
                     correction_event_id=existing_ev.id,
                     mode=existing_ev.payload.get("mode", payload.mode),
                     reason=existing_ev.payload.get("reason", payload.reason),
+                    warnings=[
+                        schemas.ClinicalWorkItemCorrectionWarning(**w)
+                        for w in existing_ev.payload.get("warnings", [])
+                    ],
                 )
 
         stmt = (
@@ -1195,6 +1200,54 @@ class ClinicalCommandService:
                 new_value={"status": CLINICAL_CHARGE_STATUS_VOIDED, "version_id": pending_charge.version_id},
             )
 
+        # F-05 follow-up: Invoiced charges are not modified or reversed.
+        # Write an audit entry via log_admin_action, add warning to response, and create ONE tenant-scoped Notification.
+        invoiced_stmt = select(models.ClinicalCharge).where(
+            models.ClinicalCharge.tenant_id == self.tenant_id,
+            models.ClinicalCharge.work_item_id == work_item.id,
+            models.ClinicalCharge.status == CLINICAL_CHARGE_STATUS_INVOICED,
+        )
+        invoiced_charges = list((await self.db.execute(invoiced_stmt)).scalars().all())
+        warnings: List[schemas.ClinicalWorkItemCorrectionWarning] = []
+        for inv_charge in invoiced_charges:
+            log_admin_action(
+                db=self.db,
+                admin_user=self.current_user,
+                action="invoiced_charge_requires_manual_review",
+                entity_type="clinical_charge",
+                entity_id=inv_charge.id,
+                tenant_id=self.tenant_id,
+                details=(
+                    f"Work item {work_item.id} was corrected ({payload.mode}) but charge {inv_charge.id} is already invoiced. "
+                    f"Manual review required by clinic reception/accountant."
+                ),
+                old_value={"status": CLINICAL_CHARGE_STATUS_INVOICED, "version_id": inv_charge.version_id},
+                new_value={"status": CLINICAL_CHARGE_STATUS_INVOICED, "version_id": inv_charge.version_id},
+            )
+            warnings.append(
+                schemas.ClinicalWorkItemCorrectionWarning(
+                    code="invoiced_charge_requires_manual_review",
+                    charge_id=inv_charge.id,
+                    message=f"Clinical charge {inv_charge.id} is already invoiced and requires manual review.",
+                )
+            )
+
+        if invoiced_charges:
+            charge_ids_str = ", ".join(str(c.id) for c in invoiced_charges)
+            notif = models.Notification(
+                tenant_id=self.tenant_id,
+                is_global=False,
+                type="warning",
+                title=f"Procedure Corrected with Invoiced Charge (Work Item #{work_item.id})",
+                content=(
+                    f"Procedure {work_item.id} for patient #{patient_id} was corrected via {payload.mode}. "
+                    f"Invoiced clinical charge(s) [{charge_ids_str}] require manual review."
+                ),
+                created_by_id=self.current_user_id,
+            )
+            self.db.add(notif)
+            ev_payload["warnings"] = [w.model_dump() for w in warnings]
+
         try:
             await self.db.commit()
         except StaleDataError:
@@ -1233,6 +1286,7 @@ class ClinicalCommandService:
             correction_event_id=correction_event.id,
             mode=payload.mode,
             reason=payload.reason,
+            warnings=warnings,
         )
 
     async def get_tooth_detail(

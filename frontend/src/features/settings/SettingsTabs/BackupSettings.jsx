@@ -1,10 +1,51 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Database, Upload, Download, AlertTriangle } from 'lucide-react';
+import { Database, Upload, Download, AlertTriangle, FileSpreadsheet } from 'lucide-react';
 import * as api from '@/api';
 const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo }) => {
     const { t } = useTranslation();
     const [restoring, setRestoring] = useState(false);
+    const [exportingXlsx, setExportingXlsx] = useState(false);
+
+    const handleExportXlsx = async () => {
+        try {
+            setExportingXlsx(true);
+            setMessage({ type: 'info', text: t('backup.export_excel_loading') });
+            const response = await api.exportTenantBackupXlsx();
+            const blob = new Blob([response.data], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+
+            let filename = '';
+            const disposition = response.headers?.['content-disposition'];
+            if (disposition) {
+                const match = disposition.match(/filename="?([^"]+)"?/);
+                if (match && match[1]) filename = match[1];
+            }
+            if (!filename) {
+                const tenantName = currentUser?.tenant?.name || `tenant_${currentUser?.tenant_id || 'backup'}`;
+                const slug = tenantName.toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'backup';
+                const today = new Date().toISOString().split('T')[0];
+                filename = `dentix-backup-${slug}-${today}.xlsx`;
+            }
+
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            setMessage({ type: 'success', text: t('backup.export_excel_success') });
+        } catch (err) {
+            let msg = t('backup.export_excel_fail');
+            if (err.response?.data?.detail) msg = err.response.data.detail;
+            setMessage({ type: 'error', text: msg });
+        } finally {
+            setExportingXlsx(false);
+        }
+    };
     const handleDownload = async () => {
         try {
             const response = await api.exportTenantBackup();
@@ -126,10 +167,24 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                     <div className="p-2 bg-amber-100 text-amber-600 rounded-lg"><Upload size={20} /></div>
                     {t('backup.local_title')}
                 </h3>
-                <div className="grid grid-cols-2 gap-4">
-                    <button onClick={handleDownload} className="p-6 border-2 border-slate-200 border-dashed rounded-2xl hover:bg-slate-50 transition flex flex-col items-center gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <button type="button" onClick={handleDownload} className="p-6 border-2 border-slate-200 border-dashed rounded-2xl hover:bg-slate-50 transition flex flex-col items-center gap-3">
                         <Download className="text-slate-500" size={32} />
                         <span className="font-bold text-slate-600">{t('backup.download_btn')} (.json)</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleExportXlsx}
+                        disabled={exportingXlsx}
+                        data-testid="export-excel-button"
+                        className="p-6 border-2 border-emerald-200 border-dashed rounded-2xl hover:bg-emerald-50/50 transition flex flex-col items-center gap-3 disabled:opacity-50"
+                    >
+                        {exportingXlsx ? (
+                            <div className="animate-spin h-8 w-8 border-4 border-emerald-500 border-t-transparent rounded-full" />
+                        ) : (
+                            <FileSpreadsheet className="text-emerald-600" size={32} />
+                        )}
+                        <span className="font-bold text-emerald-700">{t('backup.export_excel_btn')} (.xlsx)</span>
                     </button>
                     <div className="relative">
                         <input type="file" accept=".json" onChange={handleUpload} disabled={restoring} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />

@@ -22,6 +22,7 @@ export const purgeDeletedPatients = (tenantId) => api.delete(`/api/v1/admin/tena
 
 export const downloadBackup = () => api.get('/api/v1/settings/backup/download', { responseType: 'blob' });
 export const exportTenantBackup = () => api.get('/api/v1/settings/backup/export', { responseType: 'blob' });
+export const exportTenantBackupXlsx = () => api.get('/api/v1/settings/backup/export-xlsx', { responseType: 'blob' });
 export const uploadBackup = (formData) => api.post('/api/v1/settings/backup/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
 });

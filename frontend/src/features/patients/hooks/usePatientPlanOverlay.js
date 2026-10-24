@@ -31,13 +31,17 @@ export function usePatientPlanOverlay({ activeOverlayPlanId, activeOverlayPhaseI
             (ph.items || []).forEach((item) => {
                 const targets = item.work_item?.targets || [];
                 const itemStatus = item.work_item?.status || item.status || 'planned';
+                const seenTeethInItem = new Set();
                 targets.forEach((target) => {
                     if (target.tooth_key) {
                         const tk = String(target.tooth_key);
-                        if (!toothItemsMap[tk]) {
-                            toothItemsMap[tk] = [];
+                        if (!seenTeethInItem.has(tk)) {
+                            seenTeethInItem.add(tk);
+                            if (!toothItemsMap[tk]) {
+                                toothItemsMap[tk] = [];
+                            }
+                            toothItemsMap[tk].push(itemStatus);
                         }
-                        toothItemsMap[tk].push(itemStatus);
 
                         if (!teethMap[tk]) {
                             teethMap[tk] = {
