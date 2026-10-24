@@ -105,6 +105,15 @@ jobs:
             "$REVISION_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
             > .dentix-hf-deploy-revision
 
+      - name: Stamp frontend build info for Hugging Face
+        env:
+          REVISION_SHA: ${{ steps.staging-revision.outputs.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$REVISION_SHA"
+          mkdir -p frontend
+          printf '{"sha":"%s","environment":"staging"}\n' "$REVISION_SHA" > frontend/build-info.json
+
       - name: Sync tested revision to Hugging Face staging
         uses: huggingface/hub-sync@v0.3.0
         with:
@@ -366,6 +375,15 @@ jobs:
           printf 'target=production\ngithub_sha=%s\ngithub_run_id=%s\ngithub_run_attempt=%s\n' \
             "$REVISION_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
             > .dentix-hf-deploy-revision
+
+      - name: Stamp frontend build info for Hugging Face
+        env:
+          REVISION_SHA: ${{ steps.production-revision.outputs.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$REVISION_SHA"
+          mkdir -p frontend
+          printf '{"sha":"%s","environment":"production"}\n' "$REVISION_SHA" > frontend/build-info.json
 
       - name: Sync tested revision to Hugging Face production
         uses: huggingface/hub-sync@v0.3.0
