@@ -1820,6 +1820,10 @@
         "local_title": "النسخ المحلي (على الجهاز)",
         "download_btn": "تحميل نسخة على الجهاز",
         "restore_btn": "استعادة من ملف",
+        "export_excel_btn": "تصدير إلى Excel",
+        "export_excel_loading": "جاري إنشاء ملف Excel...",
+        "export_excel_success": "تم تصدير ملف Excel بنجاح",
+        "export_excel_fail": "فشل تصدير ملف Excel",
         "restore_warning": "تحذير: استعادة النسخة الاحتياطية ستمسح جميع البيانات الحالية وتستبدلها بالنسخة الجديدة. هل أنت متأكد؟",
         "restore_success": "تمت استعادة البيانات بنجاح! سيتم إعادة تحميل الصفحة...",
         "danger_zone": {

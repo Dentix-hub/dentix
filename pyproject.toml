@@ -48,6 +48,7 @@ dependencies = [
   "pgvector>=0.2.0",
   "rls>=0.3.0",
   "pywebpush>=2.4.0",
+  "openpyxl>=3.1.5",
 ]
 
 [dependency-groups]

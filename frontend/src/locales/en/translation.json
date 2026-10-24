@@ -1792,6 +1792,10 @@
         "local_title": "Local Backup (Download/Upload)",
         "download_btn": "Download Backup (.db)",
         "restore_btn": "Restore Backup",
+        "export_excel_btn": "Export to Excel",
+        "export_excel_loading": "Generating Excel export...",
+        "export_excel_success": "Excel backup exported successfully",
+        "export_excel_fail": "Failed to export Excel backup",
         "restore_warning": "Warning: Restoring a backup will delete all current data and replace it with the new version. Are you sure?",
         "restore_success": "Data restored successfully! Refreshing page...",
         "danger_zone": {

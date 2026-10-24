@@ -20,7 +20,8 @@ from fastapi import (
     Form,
     BackgroundTasks,
 )
-from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
+import re
 from starlette.background import BackgroundTask
 from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,6 +41,8 @@ from ..services.backup_service import (
 )
 from ..services.import_service import restore_tenant_from_json
 from ..services.export_service import export_tenant_to_json
+from ..services.excel_export_service import export_tenant_to_excel
+from ..utils.audit_logger import log_admin_action
 from ..services.secret_service import (
     GOOGLE_SUPER_ADMIN_TOKEN_KEY,
     encrypt_secret,
@@ -383,6 +386,54 @@ async def export_tenant_backup(
     return Response(
         content=json_content,
         media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/backup/export-xlsx")
+async def export_tenant_backup_xlsx(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
+):
+    """Export the current tenant's data as an Excel (.xlsx) workbook."""
+    tenant_id = getattr(current_user, "tenant_id", None) or (current_user.tenant.id if getattr(current_user, "tenant", None) else None)
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant associated with user")
+
+    tenant_name = None
+    if getattr(current_user, "tenant", None) and current_user.tenant.name:
+        tenant_name = current_user.tenant.name
+    else:
+        tenant = await db.get(models.Tenant, tenant_id)
+        if tenant and tenant.name:
+            tenant_name = tenant.name
+        else:
+            tenant_name = f"tenant_{tenant_id}"
+
+    slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", tenant_name.strip()).lower().strip("_") or f"tenant_{tenant_id}"
+    today = datetime.now().strftime("%Y-%m-%d")
+    filename = f"dentix-backup-{slug}-{today}.xlsx"
+
+    buffer = await export_tenant_to_excel(db, tenant_id)
+
+    log_admin_action(
+        db,
+        admin_user=current_user,
+        action="export",
+        entity_type="tenant_backup_xlsx",
+        entity_id=tenant_id,
+        details=f"Exported tenant backup to Excel (.xlsx): {filename}",
+        tenant_id=tenant_id,
+    )
+    await db.commit()
+
+    def iterfile():
+        while chunk := buffer.read(65536):
+            yield chunk
+
+    return StreamingResponse(
+        iterfile(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
