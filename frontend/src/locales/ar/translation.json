@@ -2481,6 +2481,7 @@
         "unit_cost_label": "سعر السن الواحد",
         "total_cost_label": "الإجمالي ({{count}} أسنان):",
         "save_all_button": "حفظ للكل ({{count}})",
+        "multi_save_success": "تم حفظ الإجراءات لـ {{count}} أسنان بنجاح",
         "whole_tooth_short": "كامل",
         "errors": {
             "surfaces_required_for_teeth": "يرجى تحديد أسطح للأسنان التالية: {{teeth}}",

@@ -8,6 +8,7 @@ import { buildTreatmentPayload } from '@/features/patients/utils/buildTreatmentP
 import { palmerToFdi } from '@/utils/toothUtils';
 import PatientDetails from '@/pages/PatientDetails';
 import * as api from '@/api';
+import { toast } from '@/shared/ui';
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
@@ -793,6 +794,7 @@ describe('N3: Multi-tooth quick treatment apply', () => {
                         procedures={props.procedures || mockProcedures}
                         selectedTeeth={props.selectedTeeth}
                         selectedSurfacesByTooth={props.selectedSurfacesByTooth}
+                        onRefetch={props.onRefetch}
                     />
                 </MemoryRouter>
             </QueryClientProvider>
@@ -847,7 +849,8 @@ describe('N3: Multi-tooth quick treatment apply', () => {
                 surfaces: ['M', 'O'],
                 target_kind: 'surface',
                 cost: 600,
-            })
+            }),
+            expect.objectContaining({ skipToast: true, skipRefetch: true })
         );
         // Tooth 17
         expect(onSave).toHaveBeenNthCalledWith(
@@ -857,7 +860,8 @@ describe('N3: Multi-tooth quick treatment apply', () => {
                 surfaces: ['O'],
                 target_kind: 'surface',
                 cost: 600,
-            })
+            }),
+            expect.objectContaining({ skipToast: true, skipRefetch: true })
         );
         // Tooth 18
         expect(onSave).toHaveBeenNthCalledWith(
@@ -867,7 +871,8 @@ describe('N3: Multi-tooth quick treatment apply', () => {
                 surfaces: ['O'],
                 target_kind: 'surface',
                 cost: 600,
-            })
+            }),
+            expect.objectContaining({ skipToast: true, skipRefetch: true })
         );
 
         // Clears selection and closes
@@ -911,6 +916,67 @@ describe('N3: Multi-tooth quick treatment apply', () => {
         expect(onSelectionChange).toHaveBeenCalledWith(['17', '18']);
         // Does not close sheet
         expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('does not toast error again when error has alreadyNotified = true', async () => {
+        const error = new Error('Already toasted error');
+        error.alreadyNotified = true;
+        const onSave = vi.fn().mockRejectedValueOnce(error);
+        const onSelectionChange = vi.fn();
+        const toastErrorSpy = vi.spyOn(toast, 'error');
+
+        renderSheet({
+            onSave,
+            onSelectionChange,
+            selectedTeeth: ['16', '17'],
+            selectedSurfacesByTooth: {
+                '16': ['O'],
+                '17': ['O'],
+            },
+            initialData: {
+                procedure: 'حشو كومبوزيت -- Composite Filling Class I',
+                cost: 600,
+                target_kind: 'surface',
+            },
+        });
+
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+        await waitFor(() => {
+            expect(onSave).toHaveBeenCalledTimes(1);
+        });
+
+        expect(toastErrorSpy).not.toHaveBeenCalled();
+        expect(onSelectionChange).toHaveBeenCalledWith(['16', '17']);
+    });
+
+    it('triggers onRefetch once at the end of multi-tooth save', async () => {
+        const onSave = vi.fn().mockResolvedValue({});
+        const onRefetch = vi.fn().mockResolvedValue({});
+        const onClose = vi.fn();
+
+        renderSheet({
+            onSave,
+            onRefetch,
+            onClose,
+            selectedTeeth: ['16', '17'],
+            selectedSurfacesByTooth: {
+                '16': ['O'],
+                '17': ['O'],
+            },
+            initialData: {
+                procedure: 'حشو كومبوزيت -- Composite Filling Class I',
+                cost: 600,
+                target_kind: 'surface',
+            },
+        });
+
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+        await waitFor(() => {
+            expect(onSave).toHaveBeenCalledTimes(2);
+        });
+
+        expect(onRefetch).toHaveBeenCalledTimes(1);
+        expect(onClose).toHaveBeenCalled();
     });
 
     it('blocks save when procedure requires surfaces and some selected teeth have no surfaces', async () => {

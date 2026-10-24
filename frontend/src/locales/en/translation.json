@@ -2469,6 +2469,7 @@
         "unit_cost_label": "Unit cost",
         "total_cost_label": "Total ({{count}} teeth):",
         "save_all_button": "Save all ({{count}})",
+        "multi_save_success": "Successfully saved treatments for {{count}} teeth",
         "whole_tooth_short": "Whole",
         "errors": {
             "surfaces_required_for_teeth": "Please specify surfaces for the following teeth: {{teeth}}",

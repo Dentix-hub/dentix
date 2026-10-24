@@ -397,7 +397,7 @@ export default function PatientDetails() {
         refetchWorkspace?.();
     }, [refetchTeeth, refetchWorkspace]);
 
-    const { handleSaveTreatment } = useTreatmentOperations({
+    const { handleSaveTreatment, refetchClinicalData } = useTreatmentOperations({
         patientId: id,
         refetchHistory,
         refetchTeeth: refetchAllTeeth,
@@ -941,6 +941,7 @@ export default function PatientDetails() {
                 isOpen={isQuickTreatmentSheetOpen}
                 onClose={() => setIsQuickTreatmentSheetOpen(false)}
                 onSave={handleSaveTreatment}
+                onRefetch={refetchClinicalData}
                 onOpenDetails={(escalatedData) => {
                     setNewTreatment(escalatedData);
                     setIsQuickTreatmentSheetOpen(false);
