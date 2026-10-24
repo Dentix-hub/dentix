@@ -416,3 +416,124 @@ async def test_full_multi_visit_rct_scenario_e2e(async_db_session, seed_data):
     post_completion_resumable = await service.get_resumable_context(patient_id)
     assert post_completion_resumable["has_resumable"] is False
     assert len(post_completion_resumable["items"]) == 0
+
+
+async def test_care_session_3_visit_resume_scenario(async_db_session, seed_data):
+    """
+    F-09: 3-visit resume scenario asserting:
+    1. Visit 3 step statuses equal Visit 2's latest status (not reverted to Visit 1).
+    2. Observation count does not grow/duplicate across visits.
+    3. Resumable context counts steps from latest state, not sum across all sessions.
+    """
+    data = seed_data
+    tenant_id = data["tenant_1"].id
+    patient_id = data["patient_1"].id
+    doctor = data["doctor_1"]
+
+    service = CareSessionService(async_db_session, tenant_id, doctor)
+
+    work_item = models.ClinicalWorkItem(
+        tenant_id=tenant_id,
+        patient_id=patient_id,
+        kind="procedure",
+        code="ENDO_RCT",
+        status="active",
+        created_by_user_id=doctor.id,
+    )
+    async_db_session.add(work_item)
+    await async_db_session.flush()
+
+    wi_target = models.ClinicalWorkItemTarget(
+        tenant_id=tenant_id,
+        work_item_id=work_item.id,
+        target_kind="tooth",
+        tooth_key="46",
+    )
+    async_db_session.add(wi_target)
+    await async_db_session.commit()
+
+    # VISIT 1:
+    session_1 = await service.start_session(
+        patient_id,
+        schemas.CareSessionCreate(notes="Visit 1"),
+    )
+    v1_steps = await service.apply_template(
+        patient_id,
+        session_1.id,
+        schemas.CareSessionTemplateApply(template_code="ENDO_RCT", work_item_id=work_item.id),
+    )
+    assert len(v1_steps) == 6
+    # Complete step 0, 1; mark step 2 partial
+    await service.update_step(patient_id, session_1.id, v1_steps[0].id, schemas.CareSessionStepUpdate(status="completed"))
+    await service.update_step(patient_id, session_1.id, v1_steps[1].id, schemas.CareSessionStepUpdate(status="completed"))
+    await service.update_step(patient_id, session_1.id, v1_steps[2].id, schemas.CareSessionStepUpdate(status="partial"))
+
+    # Add 2 canal observations
+    await service.add_observation(
+        patient_id, session_1.id,
+        schemas.CareObservationCreate(
+            observation_code="working_length",
+            step_id=v1_steps[2].id,
+            work_item_id=work_item.id,
+            tooth_key="46",
+            canal_id="MB",
+            structured_value={"length_mm": 20.0},
+        ),
+    )
+    await service.add_observation(
+        patient_id, session_1.id,
+        schemas.CareObservationCreate(
+            observation_code="working_length",
+            step_id=v1_steps[2].id,
+            work_item_id=work_item.id,
+            tooth_key="46",
+            canal_id="ML",
+            structured_value={"length_mm": 20.5},
+        ),
+    )
+    await service.finish_session(patient_id, session_1.id, schemas.CareSessionFinish(notes="Visit 1 done"))
+
+    # Resumable context check after Visit 1
+    r1 = await service.get_resumable_context(patient_id)
+    assert r1["has_resumable"] is True
+    assert r1["items"][0]["total_steps"] == 6
+    assert r1["items"][0]["completed_steps_count"] == 2
+    assert len(r1["items"][0]["observations"]) == 2
+
+    # VISIT 2: Resume by work item
+    session_2 = await service.start_session(
+        patient_id,
+        schemas.CareSessionCreate(resume_work_item_id=work_item.id, notes="Visit 2"),
+    )
+    v2_steps = await service.list_steps(patient_id, session_2.id)
+    assert len(v2_steps) == 6
+    assert v2_steps[0].status == "completed"
+    assert v2_steps[1].status == "completed"
+    assert v2_steps[2].status == "partial"
+
+    # In Visit 2, complete step 2 and mark step 3 partial
+    await service.update_step(patient_id, session_2.id, v2_steps[2].id, schemas.CareSessionStepUpdate(status="completed"))
+    await service.update_step(patient_id, session_2.id, v2_steps[3].id, schemas.CareSessionStepUpdate(status="partial"))
+    await service.finish_session(patient_id, session_2.id, schemas.CareSessionFinish(notes="Visit 2 done"))
+
+    # Resumable context check after Visit 2:
+    r2 = await service.get_resumable_context(patient_id)
+    assert r2["items"][0]["total_steps"] == 6
+    assert r2["items"][0]["completed_steps_count"] == 3
+    assert len(r2["items"][0]["observations"]) == 2
+
+    # VISIT 3: Resume by work item
+    session_3 = await service.start_session(
+        patient_id,
+        schemas.CareSessionCreate(resume_work_item_id=work_item.id, notes="Visit 3"),
+    )
+    v3_steps = await service.list_steps(patient_id, session_3.id)
+    assert len(v3_steps) == 6
+
+    # Step 2 MUST be completed (not reverted to Visit 1 partial!)
+    assert v3_steps[2].status == "completed", f"Step 2 reverted to {v3_steps[2].status} instead of completed"
+    assert v3_steps[3].status == "partial", f"Step 3 expected partial, got {v3_steps[3].status}"
+
+    # Observations in Visit 3 MUST be 2 (not 4 or 6)
+    v3_obs = await service.list_observations(patient_id, session_3.id)
+    assert len(v3_obs) == 2, f"Observations grew to {len(v3_obs)} instead of 2"
