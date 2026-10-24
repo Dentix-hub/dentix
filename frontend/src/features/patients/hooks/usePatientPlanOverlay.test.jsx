@@ -123,4 +123,43 @@ describe('usePatientPlanOverlay (contract read by DentalChartSVG / PlanOverlayAc
         expect(overlay.phases[0].totalCount).toBe(5);
         expect(overlay.phases[0].isCompleted).toBe(false);
     });
+
+    it('counts a multi-surface work item on one tooth as 1, not once per surface target', () => {
+        const planWithMultiSurface = [
+            {
+                id: 20,
+                title: 'Multi-surface Plan',
+                phases: [
+                    {
+                        id: 31,
+                        name: 'Phase 1',
+                        phase_order: 0,
+                        items: [
+                            {
+                                id: 1,
+                                work_item: {
+                                    id: 201,
+                                    code: 'REST_COMPOSITE',
+                                    status: 'completed',
+                                    targets: [
+                                        { tooth_key: '16', surface: 'M' },
+                                        { tooth_key: '16', surface: 'O' },
+                                        { tooth_key: '16', surface: 'D' },
+                                    ],
+                                },
+                            },
+                        ],
+                    },
+                ],
+            },
+        ];
+
+        const overlay = renderHook(() =>
+            usePatientPlanOverlay({ activeOverlayPlanId: 20, activeOverlayPhaseId: null, treatmentPlans: planWithMultiSurface })
+        ).result.current;
+
+        expect(overlay.teeth['16'].totalCount).toBe(1);
+        expect(overlay.teeth['16'].completedCount).toBe(1);
+        expect(overlay.teeth['16'].status).toBe('completed');
+    });
 });
