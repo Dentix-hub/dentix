@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Info } from 'lucide-react';
 import { BUILD_INFO, getBuildLabel } from '@/config/buildInfo';
+import { useAuth } from '@/auth/useAuth';
+import { useAuthStore } from '@/store/auth.store';
 
 const formatTimestamp = (value) => {
     if (!value) return '—';
@@ -60,17 +62,44 @@ export default function PwaDiagnostics() {
         ? Notification.permission
         : 'unsupported';
 
-    const rows = [
+    let user = null;
+    try {
+        const auth = useAuth();
+        user = auth?.user;
+    } catch {
+        user = useAuthStore.getState?.()?.user || null;
+    }
+    const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+
+    const baseRows = [
         { label: t('settings.pwa.build'), value: getBuildLabel(), copyable: true },
-        { label: t('settings.pwa.commit_sha'), value: BUILD_INFO.sha || 'unknown', mono: true },
         { label: t('settings.pwa.built_at'), value: formatTimestamp(BUILD_INFO.builtAt), mono: true },
-        { label: t('settings.pwa.environment'), value: BUILD_INFO.environment || 'unknown' },
+        {
+            label: t('settings.pwa.environment'),
+            value: t(`settings.pwa.env_${BUILD_INFO.environment}`, BUILD_INFO.environment || 'unknown'),
+        },
+        { label: t('settings.pwa.connection'), value: online ? t('settings.pwa.online') : t('settings.pwa.offline') },
+    ];
+
+    const adminRows = [
+        { label: t('settings.pwa.commit_sha'), value: BUILD_INFO.sha || 'unknown', mono: true },
         { label: t('settings.pwa.origin'), value: typeof window !== 'undefined' ? window.location.origin : 'unknown', mono: true },
         { label: t('settings.pwa.display_mode'), value: standalone ? t('settings.pwa.mode_standalone') : t('settings.pwa.mode_browser') },
         { label: t('settings.pwa.service_worker'), value: t(`settings.pwa.sw_${swState}`) },
-        { label: t('settings.pwa.connection'), value: online ? t('settings.pwa.online') : t('settings.pwa.offline') },
         { label: t('settings.pwa.notification_permission'), value: t(`settings.pwa.notif_${notificationPermission}`, notificationPermission) },
     ];
+
+    const rows = isAdmin ? [
+        baseRows[0],
+        adminRows[0],
+        baseRows[1],
+        baseRows[2],
+        adminRows[1],
+        adminRows[2],
+        adminRows[3],
+        baseRows[3],
+        adminRows[4],
+    ] : baseRows;
 
     return (
         <div className="space-y-4">

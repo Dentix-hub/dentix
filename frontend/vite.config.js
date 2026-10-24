@@ -1,34 +1,16 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
-import { execSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import { VitePWA } from 'vite-plugin-pwa'
+import { resolveBuildInfo } from './buildInfoResolver.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-// Build identity is generated at build time so every deployed bundle can be
-// traced back to the exact source revision. Never hard-code a build ID again.
-function resolveBuildInfo(mode) {
-    let sha = 'unknown';
-    try {
-        sha = execSync('git rev-parse HEAD', { cwd: __dirname, encoding: 'utf8' }).trim();
-    } catch {
-        sha = 'unknown';
-    }
-    const environment = process.env.VITE_ENVIRONMENT || mode || 'development';
-    return {
-        sha,
-        shaShort: sha === 'unknown' ? 'unknown' : sha.slice(0, 7),
-        builtAt: new Date().toISOString(),
-        environment,
-    };
-}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
     define: {
-        __BUILD_INFO__: JSON.stringify(resolveBuildInfo(mode)),
+        __BUILD_INFO__: JSON.stringify(resolveBuildInfo(mode, { cwd: __dirname })),
     },
     plugins: [
         react(),
