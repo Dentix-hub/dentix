@@ -6,10 +6,13 @@ This performs a FULL REPLACEMENT: deletes all existing tenant data, then imports
 """
 
 import json
+import logging
 from datetime import datetime
 from typing import Dict
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, or_
+
+logger = logging.getLogger(__name__)
 
 from .. import models
 from ..models.price_list import InsuranceProvider, PriceList, PriceListItem
@@ -88,11 +91,38 @@ async def delete_tenant_data(db: AsyncSession, tenant_id: int) -> Dict[str, int]
     res_wt = await db.execute(stmt_wt)
     deleted_counts["workflow_templates"] = res_wt.rowcount
 
-    # 1. MaterialSessions (via StockItem)
+    # 0. MaterialLearningLogs (child of MaterialSession and Material)
+    # Must be deleted before MaterialSession to respect foreign key constraints
     stmt_stock_items = select(models.StockItem.id).where(models.StockItem.tenant_id == tenant_id)
     res_stock_items = await db.execute(stmt_stock_items)
     stock_item_ids = list(res_stock_items.scalars().all())
 
+    if stock_item_ids:
+        stmt_sessions = select(models.MaterialSession.id).where(
+            models.MaterialSession.stock_item_id.in_(stock_item_ids)
+        )
+        res_sessions = await db.execute(stmt_sessions)
+        session_ids = list(res_sessions.scalars().all())
+        if session_ids:
+            stmt_mll = delete(models.MaterialLearningLog).where(
+                or_(
+                    models.MaterialLearningLog.tenant_id == tenant_id,
+                    models.MaterialLearningLog.session_id.in_(session_ids),
+                )
+            )
+        else:
+            stmt_mll = delete(models.MaterialLearningLog).where(
+                models.MaterialLearningLog.tenant_id == tenant_id
+            )
+    else:
+        stmt_mll = delete(models.MaterialLearningLog).where(
+            models.MaterialLearningLog.tenant_id == tenant_id
+        )
+
+    res_mll = await db.execute(stmt_mll)
+    deleted_counts["material_learning_logs"] = res_mll.rowcount
+
+    # 1. MaterialSessions (via StockItem)
     if stock_item_ids:
         stmt = delete(models.MaterialSession).where(models.MaterialSession.stock_item_id.in_(stock_item_ids))
         res = await db.execute(stmt)
@@ -849,7 +879,8 @@ async def restore_tenant_from_json(db: AsyncSession, tenant_id: int, json_conten
     try:
         backup_data = json.loads(json_content)
     except json.JSONDecodeError as e:
-        return {"success": False, "error": f"Invalid JSON: {str(e)}"}
+        logger.exception("Failed to parse JSON backup for tenant %s: %s", tenant_id, e)
+        return {"success": False, "error": "ملف النسخة الاحتياطية غير صالح (JSON غير صحيح)."}
 
     # 2. Validate
     validation = validate_backup_file(backup_data, tenant_id)
@@ -861,7 +892,8 @@ async def restore_tenant_from_json(db: AsyncSession, tenant_id: int, json_conten
         deleted_counts = await delete_tenant_data(db, tenant_id)
     except Exception as e:
         await db.rollback()
-        return {"success": False, "error": f"Failed to delete existing data: {str(e)}"}
+        logger.exception("Failed to delete existing data during restore for tenant %s: %s", tenant_id, e)
+        return {"success": False, "error": "تعذرت استعادة النسخة الاحتياطية. لم يتم تغيير بياناتك."}
 
     # 4. Import new data
     try:
@@ -869,7 +901,8 @@ async def restore_tenant_from_json(db: AsyncSession, tenant_id: int, json_conten
         await db.commit()
     except Exception as e:
         await db.rollback()
-        return {"success": False, "error": f"Failed to import data: {str(e)}"}
+        logger.exception("Failed to import data during restore for tenant %s: %s", tenant_id, e)
+        return {"success": False, "error": "تعذرت استعادة النسخة الاحتياطية. لم يتم تغيير بياناتك."}
 
     return {
         "success": True,

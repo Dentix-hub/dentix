@@ -346,21 +346,56 @@ async def upload_backup(
                 status_code=400, detail="No tenant associated with user"
             )
 
+        tenant_id = current_user.tenant.id
         content = await file.read()
-        json_content = content.decode("utf-8")
-        result = await restore_tenant_from_json(db, current_user.tenant.id, json_content)
+        try:
+            json_content = content.decode("utf-8")
+        except UnicodeDecodeError:
+            raise HTTPException(
+                status_code=400, detail="ملف النسخة الاحتياطية غير صالح (ترميز غير صحيح)."
+            )
 
-        if not result["success"]:
-            raise HTTPException(status_code=400, detail=result["error"])
+        try:
+            result = await restore_tenant_from_json(db, tenant_id, json_content)
 
-        return success_response(
-            data={
-                "deleted": result["deleted"],
-                "imported": result["imported"],
-                "backup_date": result["backup_date"],
-            },
-            message="Tenant data restored successfully",
-        )
+            if not result["success"]:
+                error_msg = result.get("error") or "تعذرت استعادة النسخة الاحتياطية. لم يتم تغيير بياناتك."
+                sql_keywords = (
+                    "update ",
+                    "delete ",
+                    "insert ",
+                    "select ",
+                    "table ",
+                    "violates",
+                    "foreign key",
+                    "constraint",
+                    "syntax error",
+                )
+                if any(kw in error_msg.lower() for kw in sql_keywords):
+                    logger.error(
+                        "Sanitizing SQL error in backup upload response for tenant %s: %s",
+                        tenant_id,
+                        error_msg,
+                    )
+                    error_msg = "تعذرت استعادة النسخة الاحتياطية. لم يتم تغيير بياناتك."
+                raise HTTPException(status_code=400, detail=error_msg)
+
+            return success_response(
+                data={
+                    "deleted": result["deleted"],
+                    "imported": result["imported"],
+                    "backup_date": result["backup_date"],
+                },
+                message="Tenant data restored successfully",
+            )
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("Failed to restore backup for tenant %s", tenant_id)
+            raise HTTPException(
+                status_code=400,
+                detail="تعذرت استعادة النسخة الاحتياطية. لم يتم تغيير بياناتك.",
+            )
 
     raise HTTPException(
         status_code=400,
