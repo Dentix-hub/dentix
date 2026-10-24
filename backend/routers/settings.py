@@ -22,6 +22,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 import re
+from urllib.parse import quote
 from starlette.background import BackgroundTask
 from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -367,6 +368,13 @@ async def upload_backup(
     )
 
 
+def build_content_disposition(ascii_filename: str, utf8_filename: str) -> str:
+    """Build RFC 5987 / RFC 6266 compliant Content-Disposition header with ASCII fallback."""
+    safe_ascii = re.sub(r"[^a-zA-Z0-9_.-]+", "_", ascii_filename).strip("_") or "backup"
+    encoded_utf8 = quote(utf8_filename, safe="")
+    return f'attachment; filename="{safe_ascii}"; filename*=UTF-8\'\'{encoded_utf8}'
+
+
 @router.get("/backup/export")
 async def export_tenant_backup(
     db: AsyncSession = Depends(get_async_db),
@@ -377,17 +385,26 @@ async def export_tenant_backup(
         raise HTTPException(status_code=400, detail="No tenant associated with user")
 
     tenant_id = current_user.tenant.id
-    tenant_name = current_user.tenant.name or f"tenant_{tenant_id}"
-    json_content = await export_tenant_to_json(db, tenant_id)
+    try:
+        tenant_name = current_user.tenant.name or f"tenant_{tenant_id}"
+        json_content = await export_tenant_to_json(db, tenant_id)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{tenant_name}_backup_{timestamp}.json"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", tenant_name.strip()).lower().strip("_") or f"tenant_{tenant_id}"
+        ascii_filename = f"{slug}_backup_{timestamp}.json"
+        utf8_filename = f"{tenant_name}_backup_{timestamp}.json"
+        content_disposition = build_content_disposition(ascii_filename, utf8_filename)
 
-    return Response(
-        content=json_content,
-        media_type="application/json",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+        return Response(
+            content=json_content,
+            media_type="application/json",
+            headers={"Content-Disposition": content_disposition},
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Failed exporting tenant backup JSON for tenant_id=%s", tenant_id)
+        raise HTTPException(status_code=500, detail="Failed to export tenant backup")
 
 
 @router.get("/backup/export-xlsx")
@@ -400,42 +417,50 @@ async def export_tenant_backup_xlsx(
     if not tenant_id:
         raise HTTPException(status_code=400, detail="No tenant associated with user")
 
-    tenant_name = None
-    if getattr(current_user, "tenant", None) and current_user.tenant.name:
-        tenant_name = current_user.tenant.name
-    else:
-        tenant = await db.get(models.Tenant, tenant_id)
-        if tenant and tenant.name:
-            tenant_name = tenant.name
+    try:
+        tenant_name = None
+        if getattr(current_user, "tenant", None) and current_user.tenant.name:
+            tenant_name = current_user.tenant.name
         else:
-            tenant_name = f"tenant_{tenant_id}"
+            tenant = await db.get(models.Tenant, tenant_id)
+            if tenant and tenant.name:
+                tenant_name = tenant.name
+            else:
+                tenant_name = f"tenant_{tenant_id}"
 
-    slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", tenant_name.strip()).lower().strip("_") or f"tenant_{tenant_id}"
-    today = datetime.now().strftime("%Y-%m-%d")
-    filename = f"dentix-backup-{slug}-{today}.xlsx"
+        slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", tenant_name.strip()).lower().strip("_") or f"tenant_{tenant_id}"
+        today = datetime.now().strftime("%Y-%m-%d")
+        ascii_filename = f"dentix-backup-{slug}-{today}.xlsx"
+        utf8_filename = f"dentix-backup-{tenant_name}-{today}.xlsx"
+        content_disposition = build_content_disposition(ascii_filename, utf8_filename)
 
-    buffer = await export_tenant_to_excel(db, tenant_id)
+        buffer = await export_tenant_to_excel(db, tenant_id)
 
-    log_admin_action(
-        db,
-        admin_user=current_user,
-        action="export",
-        entity_type="tenant_backup_xlsx",
-        entity_id=tenant_id,
-        details=f"Exported tenant backup to Excel (.xlsx): {filename}",
-        tenant_id=tenant_id,
-    )
-    await db.commit()
+        log_admin_action(
+            db,
+            admin_user=current_user,
+            action="export",
+            entity_type="tenant_backup_xlsx",
+            entity_id=tenant_id,
+            details=f"Exported tenant backup to Excel (.xlsx): {ascii_filename}",
+            tenant_id=tenant_id,
+        )
+        await db.commit()
 
-    def iterfile():
-        while chunk := buffer.read(65536):
-            yield chunk
+        def iterfile():
+            while chunk := buffer.read(65536):
+                yield chunk
 
-    return StreamingResponse(
-        iterfile(),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
+        return StreamingResponse(
+            iterfile(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": content_disposition},
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Failed exporting tenant backup XLSX for tenant_id=%s", tenant_id)
+        raise HTTPException(status_code=500, detail="Failed to export tenant backup to Excel")
 
 
 @router.get("/tenant", response_model=StandardResponse[schemas.Tenant])

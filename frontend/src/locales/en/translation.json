@@ -1796,6 +1796,13 @@
         "export_excel_loading": "Generating Excel export...",
         "export_excel_success": "Excel backup exported successfully",
         "export_excel_fail": "Failed to export Excel backup",
+        "download_fail": "Failed to download backup",
+        "restore_fail": "Failed to restore backup data",
+        "connect_fail": "Connection failed",
+        "purge_fail": "Operation failed",
+        "backing_up": "Backing up...",
+        "auto_not_available": "Automatic backup is currently unavailable",
+        "auto_not_available_hint": "Automatic backup is not available yet — use the manual backup button.",
         "restore_warning": "Warning: Restoring a backup will delete all current data and replace it with the new version. Are you sure?",
         "restore_success": "Data restored successfully! Refreshing page...",
         "danger_zone": {

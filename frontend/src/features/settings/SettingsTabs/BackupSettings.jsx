@@ -7,6 +7,65 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
     const [restoring, setRestoring] = useState(false);
     const [exportingXlsx, setExportingXlsx] = useState(false);
 
+    const readBlobText = async (blob) => {
+        if (typeof blob?.text === 'function') {
+            return await blob.text();
+        }
+        if (typeof FileReader !== 'undefined') {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(reader.error);
+                reader.readAsText(blob);
+            });
+        }
+        if (typeof Response !== 'undefined') {
+            try {
+                return await new Response(blob).text();
+            } catch {
+                // ignore
+            }
+        }
+        return '';
+    };
+
+    const extractErrorMessage = async (err, fallbackText) => {
+        let detail = '';
+        const status = err?.response?.status;
+        const data = err?.response?.data;
+
+        if (data instanceof Blob || (data && typeof data.text === 'function')) {
+            try {
+                const text = await readBlobText(data);
+                const parsed = JSON.parse(text);
+                detail = parsed.detail || parsed.message || text;
+            } catch {
+                try {
+                    const text = await readBlobText(data);
+                    if (text && text.length < 300) detail = text;
+                } catch {
+                    // ignore
+                }
+            }
+        } else if (data && typeof data === 'object') {
+            detail = data.detail || data.message || '';
+        } else if (typeof data === 'string') {
+            try {
+                const parsed = JSON.parse(data);
+                detail = parsed.detail || parsed.message || data;
+            } catch {
+                detail = data;
+            }
+        } else if (err?.message) {
+            detail = err.message;
+        }
+
+        if (detail) {
+            return status ? `${detail} (${status})` : detail;
+        }
+        return status ? `${fallbackText} (${status})` : fallbackText;
+    };
+
     const handleExportXlsx = async () => {
         try {
             setExportingXlsx(true);
@@ -39,8 +98,7 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
             window.URL.revokeObjectURL(url);
             setMessage({ type: 'success', text: t('backup.export_excel_success') });
         } catch (err) {
-            let msg = t('backup.export_excel_fail');
-            if (err.response?.data?.detail) msg = err.response.data.detail;
+            const msg = await extractErrorMessage(err, t('backup.export_excel_fail'));
             setMessage({ type: 'error', text: msg });
         } finally {
             setExportingXlsx(false);
@@ -58,8 +116,7 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
             link.click();
             link.remove();
         } catch (err) {
-            let msg = 'فشل تحميل النسخة الاحتياطية';
-            if (err.response?.data?.detail) msg = err.response.data.detail;
+            const msg = await extractErrorMessage(err, t('backup.download_fail', 'فشل تحميل النسخة الاحتياطية'));
             setMessage({ type: 'error', text: msg });
         }
     };
@@ -75,7 +132,8 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
             setMessage({ type: 'success', text: t('backup.restore_success') });
             setTimeout(() => window.location.reload(), 2000);
         } catch (err) {
-            setMessage({ type: 'error', text: 'فشل استعادة البيانات' });
+            const msg = await extractErrorMessage(err, t('backup.restore_fail', 'فشل استعادة البيانات'));
+            setMessage({ type: 'error', text: msg });
             setRestoring(false);
         }
     };
@@ -85,7 +143,8 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
             await api.purgeDeletedPatients(currentUser.tenant_id);
             setMessage({ type: 'success', text: t('backup.danger_zone.purge_success') });
         } catch (err) {
-            setMessage({ type: 'error', text: 'فشل تنفيذ العملية' });
+            const msg = await extractErrorMessage(err, t('backup.purge_fail', 'فشل تنفيذ العملية'));
+            setMessage({ type: 'error', text: msg });
         }
     };
     return (
@@ -110,7 +169,7 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                                     try {
                                         const res = await api.getGoogleAuthUrl();
                                         window.location.href = res.data.url;
-                                    } catch (err) { setMessage({ type: 'error', text: 'فشل الاتصال' }) }
+                                    } catch (err) { setMessage({ type: 'error', text: t('backup.connect_fail', 'فشل الاتصال') }) }
                                 }}
                                 className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700"
                             >
@@ -127,7 +186,7 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                                 <select
                                     defaultValue={currentUser?.tenant?.backup_frequency || 'off'}
                                     disabled
-                                    title="النسخ الاحتياطي التلقائي غير متوفر حالياً"
+                                    title={t('backup.auto_not_available', 'النسخ الاحتياطي التلقائي غير متوفر حالياً')}
                                     className="w-full mt-2 p-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-400 cursor-not-allowed"
                                 >
                                     <option value="off">{t('backup.off')}</option>
@@ -136,13 +195,13 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                                     <option value="monthly">{t('backup.monthly')}</option>
                                 </select>
                                 <p className="text-xs text-slate-500 mt-1">
-                                    النسخ التلقائي غير متوفر بعد — استخدم زر النسخ اليدوي.
+                                    {t('backup.auto_not_available_hint', 'النسخ التلقائي غير متوفر بعد — استخدم زر النسخ اليدوي.')}
                                 </p>
                             </div>
                             <div className="flex items-end">
                                 <button
                                     onClick={async () => {
-                                        setMessage({ type: 'success', text: 'جاري النسخ...' });
+                                        setMessage({ type: 'info', text: t('backup.backing_up', 'جاري النسخ...') });
                                         await api.triggerManualBackup();
                                         setMessage({ type: 'success', text: t('backup.backup_success') });
                                         loadUserInfo();

@@ -823,6 +823,7 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
             cc = models.ClinicalCharge(**cc_data)
             db.add(cc)
     imported_counts["clinical_charges"] = len(data.get("clinical_charges", []))
+    await db.flush()
 
     return imported_counts
 
