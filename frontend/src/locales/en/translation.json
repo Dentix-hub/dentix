@@ -32,12 +32,12 @@
         "separator": ", ",
         "days": "Day",
         "retry": "Retry",
-        "saving": "Saving",
+        "saving": "Saving...",
         "confirm": "Confirm",
-        "searching": "Searching",
+        "searching": "Searching...",
         "close": "Close",
         "error": "Error",
-        "no_data": "No Data",
+        "no_data": "No data available to display",
         "all": "All",
         "records": "records",
         "page": "Page",
@@ -47,23 +47,23 @@
         "minutes_short": "min",
         "done": "Done",
         "clear": "Clear",
-        "error_occurred": "Error Occurred",
+        "error_occurred": "An error occurred while saving settings",
         "access_denied": "Access Denied",
-        "try_again_later": "Try Again Later",
-        "showing_results": "Showing Results",
-        "prev_page": "Prev Page",
-        "next_page": "Next Page",
-        "clear_search": "Clear Search",
-        "reset_filters": "Reset Filters",
-        "active_filters": "Active Filters",
-        "search_for": "Search For",
-        "remove_search_filter": "Remove Search Filter",
-        "remove_filter": "Remove Filter",
-        "deleting": "Deleting",
-        "view_all": "View All",
+        "try_again_later": "Please try again later or check connection",
+        "showing_results": "Showing {{from}} to {{to}} of {{total}} records",
+        "prev_page": "Previous page",
+        "next_page": "Next page",
+        "clear_search": "Clear search",
+        "reset_filters": "Reset filters",
+        "active_filters": "Active filters:",
+        "search_for": "Search for:",
+        "remove_search_filter": "Remove search filter",
+        "remove_filter": "Remove filter",
+        "deleting": "Deleting...",
+        "view_all": "View all",
         "type": "Type",
         "egp": "Egp",
-        "view_details": "View Details",
+        "view_details": "View details",
         "details": "Details",
         "back": "Back",
         "status": "Status",
@@ -71,22 +71,22 @@
         "previous": "Previous",
         "next": "Next",
         "view": "View",
-        "prev_month": "Prev Month",
-        "next_month": "Next Month",
+        "prev_month": "Previous month",
+        "next_month": "Next month",
         "notes": "Notes",
         "general": "General",
         "pagination": {
             "label": "Pagination",
             "page": "Page",
-            "of": "Of",
+            "of": "of",
             "previous": "Previous",
             "next": "Next"
         },
-        "delete_success": "Delete Success",
+        "delete_success": "Deleted successfully",
         "close_menu": "Close menu",
         "main_navigation": "Main navigation",
-        "toggle_sidebar": "Toggle Sidebar",
-        "open_menu": "Open Menu",
+        "toggle_sidebar": "Toggle sidebar",
+        "open_menu": "Open menu",
         "processing": "Processing...",
         "unknown": "Unknown",
         "patient": "Patient",
@@ -94,7 +94,7 @@
         "amount": "Amount",
         "today": "Today",
         "hour": "Hour",
-        "minute": "Minutes",
+        "minute": "Minute",
         "search_min_chars": "Type at least 2 characters to search"
     },
     "static": {
@@ -469,32 +469,32 @@
         "patient_name": "Patient",
         "file_number": "File Number",
         "patient": "Patient",
-        "full_record": "Full Record",
-        "view_timeline": "View Timeline",
-        "view_profile": "View Profile",
+        "full_record": "Complete Medical & Financial Record",
+        "view_timeline": "View Patient Timeline",
+        "view_profile": "View Patient Profile",
         "workspace_search_placeholder": "Search by name, file number, or phone...",
         "workspace_search_label": "Search patients",
         "workspace_search_hint": "Arabic name variants and Egyptian phone formats are supported.",
         "workspace_subtitle": "Find the right patient quickly and continue the next clinic action.",
         "quick_filters": "Patient filters",
         "call_patient": "Call Patient",
-        "whatsapp_patient": "Whatsapp Patient",
+        "whatsapp_patient": "Message on WhatsApp",
         "new_appointment": "New Appointment",
-        "open_patient": "Open Patient",
+        "open_patient": "Open Patient File",
         "archive_patient": "Archive Patient",
-        "load_error": "Load Error",
-        "load_error_hint": "Load Error Hint",
-        "no_search_results": "No Search Results",
-        "no_search_results_hint": "No Search Results Hint",
+        "load_error": "Failed to load patient records",
+        "load_error_hint": "Failed to load patient records. Please refresh and try again.",
+        "no_search_results": "No matching patients found",
+        "no_search_results_hint": "Check the spelling of the name or phone number",
         "assigned_doctor": "Assigned Doctor",
         "load_more": "Load More",
-        "update_success": "Update Success",
-        "exact_dob_known": "Exact Dob Known",
-        "date_of_birth": "Date Of Birth",
-        "dob_hint": "Dob Hint",
+        "update_success": "Patient updated successfully",
+        "exact_dob_known": "Exact date of birth is known",
+        "date_of_birth": "Date of Birth",
+        "dob_hint": "Enter exact date of birth to calculate age",
         "fast_registration": "Fast Registration",
         "possible_matches": "Possible Matches",
-        "possible_matches_hint": "Possible Matches Hint",
+        "possible_matches_hint": "Patient may already exist with similar details",
         "additional_information": "Additional Information",
         "messages": {
             "name_required": "Patient name is required",
@@ -758,13 +758,13 @@
             "voice_unsupported": "Voice recognition not supported"
         },
         "treatments_count": "Treatments Count",
-        "no_treatments_period": "No Treatments Period",
+        "no_treatments_period": "No treatments performed for this doctor in this period",
         "procedure": "Procedure",
         "request_dismissed": "Next-visit request dismissed",
         "board": {
-            "swipe_hint": "Swipe horizontally to view stages. You can also change status from each card without dragging."
+            "swipe_hint": "Swipe horizontally to view stages, or update status directly from each card."
         },
-        "confirm_delete_desc": "Confirm Delete Desc",
+        "confirm_delete_desc": "Are you sure you want to delete this appointment? This action cannot be undone.",
         "drag_handle": "Drag appointment"
     },
     "settings": {
@@ -895,9 +895,9 @@
                     "saved": "Saved ✅"
                 }
             },
-            "deactivated_success": "Deactivated Success",
-            "deactivate_title": "Deactivate Title",
-            "deactivate_btn": "Deactivate Btn"
+            "deactivated_success": "Price list deactivated successfully",
+            "deactivate_title": "Deactivate Price List",
+            "deactivate_btn": "Deactivate"
         },
         "push": {
             "title": "Web Push Notifications",
@@ -1048,7 +1048,7 @@
             "rx_fail": "Failed to save/print prescription",
             "upload_fail": "Failed to upload file"
         },
-        "chart_error": "Failed to load clinical workspace"
+        "chart_error": "Failed to load clinical workspace and chart"
     },
     "clinical": {
         "coverage": "Coverage",
@@ -1221,7 +1221,7 @@
         "alerts": {
             "title": "Expiry Alerts",
             "days_left": "Days",
-            "more_alerts": "More Alerts"
+            "more_alerts": "Additional alerts"
         },
         "actions": {
             "search_placeholder": "Search material...",
@@ -1233,7 +1233,7 @@
             "delete": "Delete",
             "open_package": "Open Package",
             "close_package": "Close Package",
-            "add_warehouse": "Add Warehouse",
+            "add_warehouse": "Add New Warehouse",
             "more": "More material actions"
         },
         "categories": {
@@ -1278,7 +1278,7 @@
             "delete_requires_empty": "Materials with current stock or an open package cannot be deleted. Reduce stock to zero and close packages first.",
             "delete_confirm": "Are you sure you want to delete \"{{name}}\"?\nIt will be hidden while its inventory audit history is preserved.",
             "open_packages_tooltip": "{{count}} open packages. Click to close one by one.",
-            "load_error": "Load Error"
+            "load_error": "Failed to load inventory data"
         },
         "warehouses": {
             "add_button": "Add New Warehouse",
@@ -1289,14 +1289,14 @@
             "delete_success": "Warehouse deleted successfully.",
             "delete_fail": "Failed to delete warehouse",
             "delete_error": "An error occurred while deleting warehouse",
-            "add_success": "Add Success",
-            "add_fail": "Add Fail",
-            "add_title": "Add Title",
+            "add_success": "Warehouse added successfully",
+            "add_fail": "Failed to add warehouse",
+            "add_title": "Add New Warehouse",
             "name": "Name",
-            "name_placeholder": "Name Placeholder",
+            "name_placeholder": "e.g. Main Clinic Store",
             "type": "Type",
-            "type_main": "Type Main",
-            "type_clinic": "Type Clinic"
+            "type_main": "Main Warehouse",
+            "type_clinic": "Clinic / Sub-store"
         },
         "materials": {
             "modal_add": "Add New Material",
@@ -1403,9 +1403,9 @@
                 "select_error": "Please select a package",
                 "success_open": "Package opened successfully",
                 "error_prefix": "Error: ",
-                "success_close": "Success Close"
+                "success_close": "Session consumption recorded and closed successfully"
             },
-            "info_close_auto": "Info Close Auto"
+            "info_close_auto": "Upon ending session, consumption is computed automatically based on procedure relative weights."
         },
         "material_details": {
             "title": "Stock & Package Details",
@@ -1751,7 +1751,7 @@
                 "maintenance": "Maintenance",
                 "laboratory": "Laboratory"
             },
-            "notes": "Notes",
+            "notes": "Expense Notes",
             "notes_placeholder": "Optional expense notes..."
         },
         "payments": {
@@ -2103,10 +2103,10 @@
         "cancel": "Cancel",
         "delete_confirm": "Are you sure you want to deactivate this provider?",
         "price_lists_count": "Price Lists:",
-        "deactivated_success": "Deactivated Success",
-        "deactivate_title": "Deactivate Title",
-        "deactivate_confirm": "Deactivate Confirm",
-        "deactivate_btn": "Deactivate Btn"
+        "deactivated_success": "Insurance provider deactivated successfully",
+        "deactivate_title": "Deactivate Insurance Provider",
+        "deactivate_confirm": "Are you sure you want to deactivate this insurance provider?",
+        "deactivate_btn": "Deactivate"
     },
     "command_palette": {
         "placeholder": "Search anything...",
@@ -2754,7 +2754,7 @@
         "backup": {
             "oauth_success": "Google Drive connected successfully",
             "oauth_failed": "Failed to connect Google Drive",
-            "oauth_error": "An error occurred during Google OAuth",
+            "oauth_error": "An error occurred during Google OAuth authentication",
             "drive_not_configured": "Cloud backup target not configured yet",
             "connect_failed": "Failed to connect to cloud storage service",
             "started_msg": "Backup process started in background",
@@ -2781,7 +2781,13 @@
             "confirm_upload_msg": "A full snapshot of the database will be taken and uploaded immediately. Continue?",
             "confirm_start_btn": "Start Backup",
             "disconnect_confirm_title": "Confirm Google Drive Disconnect",
-            "disconnect_confirm_msg": "Are you sure you want to disconnect? Automated backups to Google Drive will be paused."
+            "disconnect_confirm_msg": "Are you sure you want to disconnect? Automated backups to Google Drive will be paused.",
+            "title": "Cloud Backup",
+            "desc": "Manage and configure automated backups to Google Drive",
+            "tab_status": "Backup Status",
+            "tab_logs": "Operation Logs",
+            "tab_config": "Sync Configuration",
+            "tab_restore": "Cloud Restore"
         },
         "profile": {
             "no_changes_error": "No changes to save",
@@ -3367,7 +3373,7 @@
         "empty": "No new notifications",
         "dismiss": "Dismiss notification",
         "title": "Notifications",
-        "new": "new"
+        "new": "New"
     },
     "care_sessions": {
         "continue_treatment": "Continue Treatment",
@@ -3393,7 +3399,7 @@
         "quick_handoff_subtitle": "Instant chairside dispatch linked to Clinical Work Item",
         "no_double_billing": "0 Duplicate Billing (R06)",
         "success_title": "Lab Order Dispatched Successfully!",
-        "success_detail": "Success Detail",
+        "success_detail": "Lab order created and linked to session successfully",
         "laboratory_label": "Select Dental Laboratory",
         "choose_lab": "-- Select Laboratory --",
         "tooth_number": "Tooth Number",
@@ -3402,16 +3408,16 @@
         "custom_shade": "Other shade...",
         "material_label": "Material",
         "custom_material": "Other material...",
-        "delivery_date": "Expected Delivery",
+        "delivery_date": "Expected Delivery Date",
         "lab_cost": "Lab Cost",
-        "patient_price": "Patient Price (Info)",
+        "patient_price": "Patient Price (Estimated)",
         "notes_label": "Instructions to Lab Technician",
         "notes_placeholder": "e.g. Subgingival margin on buccal, check contact with tooth 22...",
-        "submitting": "Dispatching...",
+        "submitting": "Dispatching to lab...",
         "submit_button": "Send to Lab (1-Tap)"
     },
     "nav": {
         "home": "Home",
-        "settings": "Manage your application preferences"
+        "settings": "Manage application preferences"
     }
 }
