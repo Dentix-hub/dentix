@@ -1,6 +1,9 @@
 import asyncio
 from datetime import datetime, timezone
+from typing import Optional
+from fastapi import HTTPException
 from sqlalchemy.orm import joinedload
+from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend import models, schemas
@@ -8,6 +11,7 @@ from backend.core.exceptions import TenantException
 from backend.services.cache_service import invalidate_dashboard_cache
 from backend.crud.billing import precompute_dashboard_cache
 from backend.services.event_service import event_service
+from backend.utils.audit_logger import log_admin_action
 
 
 async def get_appointments(
@@ -251,7 +255,11 @@ async def delete_appointment(db: AsyncSession, appointment_id: int, tenant_id: i
 
 
 async def update_appointment(
-    db: AsyncSession, appointment_id: int, appointment: schemas.AppointmentUpdate, tenant_id: int
+    db: AsyncSession,
+    appointment_id: int,
+    appointment: schemas.AppointmentUpdate,
+    tenant_id: int,
+    current_user: Optional[models.User] = None,
 ):
     """Update appointment details."""
     stmt = (
@@ -270,8 +278,100 @@ async def update_appointment(
         return None
 
     update_data = appointment.model_dump(exclude_unset=True)
+
+    # 1. Validate tenant ownership of related entities
+    if "patient_id" in update_data and update_data["patient_id"] is not None:
+        p_stmt = select(models.Patient.id).where(
+            models.Patient.id == update_data["patient_id"],
+            models.Patient.tenant_id == tenant_id,
+            models.Patient.is_deleted == False,
+        )
+        if (await db.execute(p_stmt)).scalars().first() is None:
+            raise HTTPException(status_code=404, detail="Patient not found or belongs to another tenant")
+
+    if "doctor_id" in update_data and update_data["doctor_id"] is not None:
+        doc_stmt = select(models.User.id).where(
+            models.User.id == update_data["doctor_id"],
+            models.User.tenant_id == tenant_id,
+        )
+        if (await db.execute(doc_stmt)).scalars().first() is None:
+            raise HTTPException(status_code=404, detail="Doctor not found or belongs to another tenant")
+
+    if "price_list_id" in update_data and update_data["price_list_id"] is not None:
+        pl_stmt = select(models.PriceList.id).where(
+            models.PriceList.id == update_data["price_list_id"],
+            models.PriceList.tenant_id == tenant_id,
+        )
+        if (await db.execute(pl_stmt)).scalars().first() is None:
+            raise HTTPException(status_code=404, detail="Price list not found or belongs to another tenant")
+
+    # 2. Only allow date/time/doctor/duration edits for open statuses
+    final_statuses = {"completed", "cancelled", "canceled", "no show", "no_show"}
+    current_status = (db_appt.status or "").strip().lower()
+    if current_status in final_statuses:
+        date_changed = "date_time" in update_data and update_data["date_time"] != db_appt.date_time
+        doc_changed = "doctor_id" in update_data and update_data["doctor_id"] != db_appt.doctor_id
+        duration_changed = "duration_minutes" in update_data and update_data["duration_minutes"] != db_appt.duration_minutes
+        patient_changed = "patient_id" in update_data and update_data["patient_id"] != db_appt.patient_id
+        if date_changed or doc_changed or duration_changed or patient_changed:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot edit appointment details for an appointment with final status '{db_appt.status}'",
+            )
+
+    # 3. Conflict check when date_time changes
+    if "date_time" in update_data and update_data["date_time"] != db_appt.date_time:
+        new_time = update_data["date_time"]
+        conflict_stmt = (
+            select(models.Appointment.id)
+            .join(models.Patient)
+            .where(
+                models.Patient.tenant_id == tenant_id,
+                models.Appointment.id != appointment_id,
+                models.Appointment.date_time == new_time,
+                models.Appointment.status != "Cancelled",
+                models.Appointment.is_deleted == False,
+            )
+        )
+        if (await db.execute(conflict_stmt)).scalars().first() is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="Appointment conflict: Another appointment is already scheduled at this time",
+            )
+
+        # 4. If date_time changes and current status is Postponed without explicit status payload, reset to Scheduled
+        if current_status == "postponed" and ("status" not in update_data or update_data["status"] is None):
+            update_data["status"] = "Scheduled"
+
+    # 5. Capture audit values and apply updates
+    old_val = {
+        "date_time": db_appt.date_time.isoformat() if db_appt.date_time else None,
+        "doctor_id": db_appt.doctor_id,
+        "status": db_appt.status,
+        "duration_minutes": db_appt.duration_minutes,
+    }
+
     for key, value in update_data.items():
         setattr(db_appt, key, value)
+
+    new_val = {
+        "date_time": db_appt.date_time.isoformat() if db_appt.date_time else None,
+        "doctor_id": db_appt.doctor_id,
+        "status": db_appt.status,
+        "duration_minutes": db_appt.duration_minutes,
+    }
+
+    log_admin_action(
+        db=db,
+        admin_user=current_user,
+        action="update",
+        entity_type="appointment",
+        entity_id=appointment_id,
+        details=f"Updated appointment #{appointment_id}",
+        old_value=old_val,
+        new_value=new_val,
+        tenant_id=tenant_id,
+    )
 
     try:
         await db.commit()
@@ -281,6 +381,15 @@ async def update_appointment(
             precompute_dashboard_cache(tenant_id=tenant_id, db=db)
         )
         return db_appt
+    except StaleDataError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="هذا الموعد تم تعديله من مستخدم آخر. يرجى تحديث الصفحة والمحاولة مرة أخرى.",
+        )
+    except HTTPException:
+        await db.rollback()
+        raise
     except Exception as e:
         await db.rollback()
         raise e

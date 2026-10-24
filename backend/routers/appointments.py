@@ -184,13 +184,19 @@ async def update_appointment(
     """Update an appointment."""
     try:
         updated = await crud.update_appointment(
-            db, appointment_id, appointment, current_user.tenant_id
+            db, appointment_id, appointment, current_user.tenant_id, current_user=current_user
         )
         if not updated:
             raise HTTPException(status_code=404, detail="Appointment not found")
         return success_response(data=updated, message="Appointment updated successfully")
     except HTTPException:
         raise
+    except StaleDataError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="هذا الموعد تم تعديله من مستخدم آخر. يرجى تحديث الصفحة والمحاولة مرة أخرى.",
+        )
     except Exception as e:
         await db.rollback()
         logger.error("Appointment Update Failed: %s", sanitize_text(str(e)))

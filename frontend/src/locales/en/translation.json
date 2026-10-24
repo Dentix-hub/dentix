@@ -530,6 +530,29 @@
         "no_appointments_desc": "No appointments booked yet",
         "add_appointment": "Add Appointment",
         "confirm_delete": "Are you sure you want to permanently delete this appointment?",
+        "actions": {
+            "edit": "Edit / Reschedule",
+            "postpone": "Postpone"
+        },
+        "edit_form": {
+            "title": "Edit / Reschedule Appointment",
+            "patient": "Patient",
+            "datetime": "Date & Time",
+            "duration": "Duration (minutes)",
+            "doctor": "Doctor",
+            "select_doctor": "-- Select Doctor --",
+            "notes": "Notes",
+            "notes_placeholder": "Additional notes...",
+            "save_btn": "Save Changes",
+            "cancel_btn": "Cancel"
+        },
+        "postpone": {
+            "title": "Postpone Appointment",
+            "desc": "Set this appointment status to Postponed. You can optionally pick a new date and time.",
+            "new_datetime": "New Date & Time (Optional)",
+            "confirm_btn": "Confirm Postpone",
+            "cancel_btn": "Cancel"
+        },
         "table": {
             "patient": "Patient",
             "datetime": "Date & Time",
