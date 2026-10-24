@@ -16,9 +16,9 @@
 const precacheManifest = self.__WB_MANIFEST || [];
 
 function manifestGenerationHash() {
-    // FNV-1a over the sorted manifest URLs: stable per build, changes when
-    // the precache payload changes.
-    const urls = precacheManifest.map((entry) => entry.url).sort().join('|');
+    // FNV-1a over sorted deduplicated manifest URLs: stable per build, changes
+    // when the precache payload changes.
+    const urls = Array.from(new Set(precacheManifest.map((entry) => entry.url))).sort().join('|');
     let hash = 0x811c9dc5;
     for (let i = 0; i < urls.length; i += 1) {
         hash ^= urls.charCodeAt(i);
@@ -30,12 +30,15 @@ function manifestGenerationHash() {
 const PRECACHE_CACHE = `dentix-precache-${manifestGenerationHash()}`;
 // Public, content-hashed build assets excluded from precache land here on
 // first use (plan §11.2: "selected hashed static chunks ... after measurement").
-const RUNTIME_ASSET_CACHE = 'dentix-runtime-assets-v1';
+const RUNTIME_ASSET_CACHE = 'dentix-runtime-assets-v2';
 const MANAGED_CACHE_PREFIXES = ['dentix-precache-', 'dentix-runtime-', 'workbox-precache-'];
 
 async function precacheAll() {
     const cache = await caches.open(PRECACHE_CACHE);
-    const urls = precacheManifest.map((entry) => new URL(entry.url, self.location.origin).href);
+    // Deduplicate normalized absolute URLs to avoid Cache.addAll() rejecting on duplicates
+    const urls = Array.from(
+        new Set(precacheManifest.map((entry) => new URL(entry.url, self.location.origin).href))
+    );
     await cache.addAll(urls);
 }
 

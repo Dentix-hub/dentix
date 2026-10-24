@@ -11,7 +11,7 @@ const MANIFEST = [
     { revision: 'r2', url: 'assets/app-abc.js' },
 ];
 
-function createStubs() {
+function createStubs(manifest = MANIFEST) {
     const cacheStub = {
         addAll: vi.fn().mockResolvedValue(undefined),
         put: vi.fn().mockResolvedValue(undefined),
@@ -26,7 +26,7 @@ function createStubs() {
     const listeners = {};
     const selfStub = {
         location: { origin: 'https://www.dentixs.app' },
-        __WB_MANIFEST: MANIFEST,
+        __WB_MANIFEST: manifest,
         registration: { showNotification: vi.fn().mockResolvedValue(undefined) },
         clients: {
             matchAll: vi.fn().mockResolvedValue([]),
@@ -66,6 +66,26 @@ describe('custom service worker contract (plan §11)', () => {
         expect(urls.some((u) => u.endsWith('/index.html'))).toBe(true);
         expect(urls.some((u) => u.includes('/assets/app-abc.js'))).toBe(true);
         expect(stubs.selfStub.skipWaiting).not.toHaveBeenCalled();
+    });
+
+    it('deduplicates precache manifest entries before cache.addAll to prevent duplicate request errors', async () => {
+        const manifestWithDuplicates = [
+            { revision: 'r1', url: 'index.html' },
+            { revision: 'r1', url: 'index.html' },
+            { revision: 'r2', url: 'icons/icon-192.png' },
+            { revision: 'r2', url: 'icons/icon-192.png' },
+            { revision: 'r3', url: '/index.html' },
+        ];
+        const dupStubs = createStubs(manifestWithDuplicates);
+        const event = { waitUntil: (p) => p };
+        dupStubs.listeners.install(event);
+        await vi.waitFor(() => expect(dupStubs.cacheStub.addAll).toHaveBeenCalled());
+
+        const urls = dupStubs.cacheStub.addAll.mock.calls[0][0];
+        expect(urls).toHaveLength(2);
+        expect(new Set(urls).size).toBe(urls.length);
+        expect(urls).toContain('https://www.dentixs.app/index.html');
+        expect(urls).toContain('https://www.dentixs.app/icons/icon-192.png');
     });
 
     it('cleans legacy workbox and older dentix cache generations at activate', async () => {
