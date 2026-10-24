@@ -180,13 +180,15 @@ async def test_excel_export_tenant_isolation_and_formula_sanitization(async_db_s
         for cell in row:
             assert cell != "Tenant B Secret Patient", "Tenant B data leaked to Tenant A!"
 
-    # Verify formula sanitization on patient name: starts with '
-    patient_name_cell = patient_rows[1][1]
-    assert patient_name_cell.startswith("'="), f"Expected formula sanitization prefix, got: {patient_name_cell}"
+    # Verify formula protection on patient name: stored as string cell, not executed as formula
+    cell_name = ws_patients.cell(row=2, column=2)
+    assert cell_name.data_type == "s"
+    assert cell_name.value == "=cmd|' /C calc'!A0"
 
-    # Verify medical history: starts with '+
-    med_history_cell = patient_rows[1][6]
-    assert med_history_cell.startswith("'+"), f"Expected formula sanitization prefix, got: {med_history_cell}"
+    # Verify medical history (+ prefix): preserved without prepended apostrophe
+    cell_med = ws_patients.cell(row=2, column=7)
+    assert cell_med.data_type == "s"
+    assert cell_med.value == "+Allergy to Penicillin"
 
     # Inspect Treatments sheet
     ws_treatments = wb["Treatments"]
@@ -196,3 +198,68 @@ async def test_excel_export_tenant_isolation_and_formula_sanitization(async_db_s
     cost_val = treatment_rows[1][7]
     assert isinstance(cost_val, (int, float))
     assert round(float(cost_val), 2) == 120.00
+
+
+@pytest.mark.asyncio
+async def test_excel_export_phone_numbers_and_formula_string_cells(async_db_session):
+    """
+    Test N4 fix:
+    - Values starting with '+', '-', '@' must NOT have leading apostrophe in the cell value.
+    - Phone number +201000000000 round-trips unchanged as string.
+    - Formulas like =HYPERLINK(...) are stored as explicit string cells (data_type == 's').
+    """
+    tenant = models.Tenant(name="Clinic N4", subscription_status="active", is_active=True)
+    async_db_session.add(tenant)
+    await async_db_session.flush()
+
+    admin = models.User(
+        username="admin_n4",
+        email="admin_n4@example.com",
+        role="admin",
+        tenant_id=tenant.id,
+        hashed_password="hash",
+    )
+    patient = models.Patient(
+        tenant_id=tenant.id,
+        name="=HYPERLINK(\"http://evil.com\",\"ClickMe\")",
+        age=30,
+        phone="+201000000000",
+        medical_history="-No known allergies",
+        notes="@Special Case",
+        created_at=datetime(2026, 1, 1, 12, 0),
+    )
+    async_db_session.add_all([admin, patient])
+    await async_db_session.commit()
+
+    token = create_access_token(data={"sub": admin.username, "tenant_id": tenant.id, "role": admin.role})
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        response = await ac.get(
+            "/api/v1/settings/backup/export-xlsx",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 200
+
+    wb = load_workbook(io.BytesIO(response.content))
+    ws = wb["Patients"]
+
+    # Row 1 is header, Row 2 is data
+    name_cell = ws.cell(row=2, column=2)
+    phone_cell = ws.cell(row=2, column=3)
+    med_cell = ws.cell(row=2, column=7)
+    notes_cell = ws.cell(row=2, column=8)
+
+    # Phone number +201000000000 round-trips unchanged
+    assert phone_cell.value == "+201000000000"
+    assert phone_cell.data_type == "s"
+
+    # Other non-equal prefixes preserved without prepended apostrophe
+    assert med_cell.value == "-No known allergies"
+    assert med_cell.data_type == "s"
+    assert notes_cell.value == "@Special Case"
+    assert notes_cell.data_type == "s"
+
+    # =HYPERLINK formula stored as string cell, NOT formula
+    assert name_cell.data_type == "s"
+    assert name_cell.value == '=HYPERLINK("http://evil.com","ClickMe")'
+
