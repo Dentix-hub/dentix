@@ -12,78 +12,83 @@ async def test_material_learning_logs_deleted_before_material_sessions_fk(async_
     references material_sessions.id and foreign keys are enforced.
     Must delete material_learning_logs before material_sessions.
     """
-    # Enforce foreign keys on SQLite connection
-    await async_db_session.execute(text("PRAGMA foreign_keys = ON;"))
+    try:
+        # Enforce foreign keys on SQLite connection for this test
+        await async_db_session.execute(text("PRAGMA foreign_keys = ON;"))
 
-    tenant = models.Tenant(name="FK Test Clinic", subscription_status="active", is_active=True)
-    async_db_session.add(tenant)
-    await async_db_session.flush()
+        tenant = models.Tenant(name="FK Test Clinic", subscription_status="active", is_active=True)
+        async_db_session.add(tenant)
+        await async_db_session.flush()
 
-    warehouse = models.Warehouse(name="Main WH", tenant_id=tenant.id)
-    async_db_session.add(warehouse)
-    await async_db_session.flush()
+        warehouse = models.Warehouse(name="Main WH", tenant_id=tenant.id)
+        async_db_session.add(warehouse)
+        await async_db_session.flush()
 
-    material = models.Material(
-        name="Composite Resin",
-        type="DIVISIBLE",
-        base_unit="g",
-        tenant_id=tenant.id,
-    )
-    async_db_session.add(material)
-    await async_db_session.flush()
+        material = models.Material(
+            name="Composite Resin",
+            type="DIVISIBLE",
+            base_unit="g",
+            tenant_id=tenant.id,
+        )
+        async_db_session.add(material)
+        await async_db_session.flush()
 
-    from datetime import datetime, timezone
+        from datetime import datetime, timezone
 
-    batch = models.Batch(
-        material_id=material.id,
-        tenant_id=tenant.id,
-        batch_number="B100",
-        expiry_date=datetime.now(timezone.utc),
-    )
-    async_db_session.add(batch)
-    await async_db_session.flush()
+        batch = models.Batch(
+            material_id=material.id,
+            tenant_id=tenant.id,
+            batch_number="B100",
+            expiry_date=datetime.now(timezone.utc),
+        )
+        async_db_session.add(batch)
+        await async_db_session.flush()
 
-    stock_item = models.StockItem(
-        tenant_id=tenant.id,
-        batch_id=batch.id,
-        warehouse_id=warehouse.id,
-        quantity=10.0,
-    )
-    async_db_session.add(stock_item)
-    await async_db_session.flush()
+        stock_item = models.StockItem(
+            tenant_id=tenant.id,
+            batch_id=batch.id,
+            warehouse_id=warehouse.id,
+            quantity=10.0,
+        )
+        async_db_session.add(stock_item)
+        await async_db_session.flush()
 
-    material_session = models.MaterialSession(
-        tenant_id=tenant.id,
-        stock_item_id=stock_item.id,
-        status="ACTIVE",
-    )
-    async_db_session.add(material_session)
-    await async_db_session.flush()
+        material_session = models.MaterialSession(
+            tenant_id=tenant.id,
+            stock_item_id=stock_item.id,
+            status="ACTIVE",
+        )
+        async_db_session.add(material_session)
+        await async_db_session.flush()
 
-    # Create MaterialLearningLog pointing to material_session.id
-    from backend.models.inventory import MaterialLearningLog
-    learning_log = MaterialLearningLog(
-        tenant_id=tenant.id,
-        session_id=material_session.id,
-        material_id=material.id,
-        total_consumed=1.5,
-        calculation_data="{}",
-    )
-    async_db_session.add(learning_log)
-    await async_db_session.commit()
+        # Create MaterialLearningLog pointing to material_session.id
+        from backend.models.inventory import MaterialLearningLog
+        learning_log = MaterialLearningLog(
+            tenant_id=tenant.id,
+            session_id=material_session.id,
+            material_id=material.id,
+            total_consumed=1.5,
+            calculation_data="{}",
+        )
+        async_db_session.add(learning_log)
+        await async_db_session.commit()
 
-    # Now attempt delete_tenant_data with FK enforcement ON
-    deleted_counts = await delete_tenant_data(async_db_session, tenant.id)
-    await async_db_session.commit()
+        # Now attempt delete_tenant_data with FK enforcement ON
+        deleted_counts = await delete_tenant_data(async_db_session, tenant.id)
+        await async_db_session.commit()
 
-    assert deleted_counts.get("material_learning_logs", 0) >= 1
-    assert deleted_counts.get("material_sessions", 0) >= 1
+        assert deleted_counts.get("material_learning_logs", 0) >= 1
+        assert deleted_counts.get("material_sessions", 0) >= 1
 
-    # Verify rows are deleted
-    remaining_logs = await async_db_session.execute(
-        select(MaterialLearningLog).where(MaterialLearningLog.tenant_id == tenant.id)
-    )
-    assert len(remaining_logs.scalars().all()) == 0
+        # Verify rows are deleted
+        remaining_logs = await async_db_session.execute(
+            select(MaterialLearningLog).where(MaterialLearningLog.tenant_id == tenant.id)
+        )
+        assert len(remaining_logs.scalars().all()) == 0
+    finally:
+        # Restore default SQLite foreign_keys state so subsequent tests are not poisoned
+        await async_db_session.execute(text("PRAGMA foreign_keys = OFF;"))
+        await async_db_session.commit()
 
 
 @pytest.mark.asyncio
