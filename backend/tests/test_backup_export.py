@@ -55,8 +55,6 @@ async def test_backup_export_clinical_charges_decimal_roundtrip(async_db_session
     Export must serialize clinical_charges (with Decimal amount and discount) to JSON
     and round-trip successfully through import_tenant_data.
     """
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-
     tenant_src = models.Tenant(name="Source Clinic", subscription_status="active", is_active=True)
     async_db_session.add(tenant_src)
     await async_db_session.flush()

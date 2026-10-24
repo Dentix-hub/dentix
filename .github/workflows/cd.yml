@@ -104,7 +104,6 @@ jobs:
           printf 'target=staging\ngithub_sha=%s\ngithub_run_id=%s\ngithub_run_attempt=%s\n' \
             "$REVISION_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
             > .dentix-hf-deploy-revision
-          printf '{"sha":"%s","environment":"staging"}\n' "$REVISION_SHA" > frontend/build-info.json
 
       - name: Sync tested revision to Hugging Face staging
         uses: huggingface/hub-sync@v0.3.0
@@ -367,7 +366,6 @@ jobs:
           printf 'target=production\ngithub_sha=%s\ngithub_run_id=%s\ngithub_run_attempt=%s\n' \
             "$REVISION_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
             > .dentix-hf-deploy-revision
-          printf '{"sha":"%s","environment":"production"}\n' "$REVISION_SHA" > frontend/build-info.json
 
       - name: Sync tested revision to Hugging Face production
         uses: huggingface/hub-sync@v0.3.0
