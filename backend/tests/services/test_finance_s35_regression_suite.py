@@ -822,3 +822,75 @@ async def test_g14_m14_multi_tenant_financial_isolation_regression(async_db_sess
 
     assert anom1.tenant_id == t1.id
     assert anom2.tenant_id == t2.id
+
+
+@pytest.mark.asyncio
+async def test_treatment_id_linked_lab_order_treated_as_single_charge_no_double_counting(async_db_session, s35_seed):
+    """
+    Step 3 test: Verify that finance_parity_service treats a treatment_id-linked LabOrder
+    as ONE charge (no double counting with the linked treatment's cost) and generates zero anomalies.
+    """
+    t1 = s35_seed["tenant_1"]
+    doc1 = s35_seed["doc_1"]
+    pat1 = s35_seed["pat_1"]
+    now = datetime.now(timezone.utc)
+
+    # 1. Laboratory and lab payment
+    lab = models.Laboratory(name="Master Dental Lab", tenant_id=t1.id)
+    async_db_session.add(lab)
+    await async_db_session.flush()
+
+    lab_payment = models.LabPayment(
+        laboratory_id=lab.id,
+        amount=Decimal("450.00"),
+        date=now,
+        notes="B2B lab payment for crown fabrication",
+        tenant_id=t1.id,
+    )
+    async_db_session.add(lab_payment)
+
+    # 2. Clinical Treatment (Crown recorded on tooth 16, cost = 2500.00)
+    treatment = models.Treatment(
+        patient_id=pat1.id,
+        doctor_id=doc1.id,
+        tooth_number=16,
+        procedure="تركيبة زيركون (Crown Zirconia)",
+        cost=Decimal("2500.00"),
+        discount=Decimal("0.00"),
+        date=now,
+        notes="Clinical crown preparation",
+        tenant_id=t1.id,
+    )
+    async_db_session.add(treatment)
+    await async_db_session.flush()
+
+    # 3. LabOrder linked directly via treatment_id (no synthetic treatment)
+    lab_order = models.LabOrder(
+        patient_id=pat1.id,
+        laboratory_id=lab.id,
+        treatment_id=treatment.id,
+        doctor_id=doc1.id,
+        work_type="Crown",
+        tooth_number="16",
+        shade="A2",
+        material="Zirconia",
+        cost=Decimal("450.00"),
+        price_to_patient=Decimal("0.00"),  # Lab fee absorbed into procedure price
+        status="in_progress",
+        order_date=now,
+        tenant_id=t1.id,
+    )
+    async_db_session.add(lab_order)
+    await async_db_session.commit()
+
+    parity_service = FinanceParityService(async_db_session)
+
+    # 4. Parity computation: patient has exactly ONE legacy charge of 2500.00
+    parity_detail = await parity_service.compute_patient_parity(tenant_id=t1.id, patient_id=pat1.id)
+    assert parity_detail.legacy_charges == Decimal("2500.00"), "Must be exactly ONE charge for the treatment (no double counting)"
+
+    # 5. Anomaly audit: zero anomalies, zero overcharge
+    anom_report = await parity_service.detect_lab_double_charge_anomalies(tenant_id=t1.id)
+    pat_anomalies = [a for a in anom_report.anomalies if a.patient_id == pat1.id]
+    assert len(pat_anomalies) == 0, f"Expected 0 anomalies for treatment_id-linked order, got: {pat_anomalies}"
+

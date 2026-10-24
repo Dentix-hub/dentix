@@ -601,6 +601,14 @@ class FinanceParityService:
                     except (ValueError, IndexError):
                         pass
 
+            # Map treatments linked directly via lab_orders.treatment_id (D3 / Step 3)
+            treatments_by_id = {t.id: t for t in treatments}
+            for order in lab_orders:
+                if order.treatment_id and order.treatment_id in treatments_by_id:
+                    t = treatments_by_id[order.treatment_id]
+                    if t not in linked_treatments_by_order_id.get(order.id, []):
+                        linked_treatments_by_order_id.setdefault(order.id, []).append(t)
+
             # ===================================================================
             # Check 1: Orphaned Linked Treatments (Treatment links to non-existent
             # or zero-priced or cancelled lab order)
@@ -706,7 +714,7 @@ class FinanceParityService:
                 linked_t = linked_for_this_order[0] if linked_for_this_order else None
 
                 # Check 3: Linked Treatment Price Mismatch
-                if len(linked_for_this_order) == 1 and linked_t:
+                if len(linked_for_this_order) == 1 and linked_t and order.treatment_id is None:
                     t_cost = _quantize(linked_t.cost - (linked_t.discount or 0))
                     if t_cost != order_price:
                         delta = abs(t_cost - order_price)
@@ -737,6 +745,8 @@ class FinanceParityService:
                     if linked_t and pt.id == linked_t.id:
                         continue
                     if pt in linked_for_this_order:
+                        continue
+                    if order.treatment_id and pt.id == order.treatment_id:
                         continue
 
                     net_cost = max(Decimal("0.00"), _quantize(pt.cost - (pt.discount or 0)))
