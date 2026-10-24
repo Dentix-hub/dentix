@@ -913,6 +913,98 @@ async def test_correct_work_item_voids_pending_charge_and_preserves_invoiced(
 
 
 @pytest.mark.asyncio
+async def test_correct_work_item_invoiced_charge_warnings_audit_notification(
+    async_db_session, seed_data, async_client
+):
+    """A4 (F-05 follow-up): Correcting a procedure with an invoiced charge emits warning, audit log, and tenant notification."""
+    t1 = seed_data["tenant_1"].id
+    p1 = seed_data["patient_1"].id
+    doc_hdrs = make_headers(seed_data["doctor_1"])
+    recep2_hdrs = make_headers(seed_data["receptionist_2"])
+
+    await set_feature_flag(async_db_session, t1, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, True)
+    await set_feature_flag(async_db_session, t1, FEATURE_FLAG_CLINICAL_FINANCE_READ, True)
+
+    # 1. Procedure with invoiced charge
+    res = await async_client.post(
+        f"/api/v1/patients/{p1}/clinical-procedures",
+        json={"code": "REST_COMPOSITE", "status": "completed", "targets": [{"target_kind": "tooth", "tooth_key": "14"}]},
+        headers=doc_hdrs,
+    )
+    assert res.status_code == 201
+    wi_id = res.json()["data"]["id"]
+
+    stmt = select(ClinicalCharge).where(ClinicalCharge.work_item_id == wi_id)
+    charge = (await async_db_session.execute(stmt)).scalars().first()
+    assert charge is not None
+    charge.status = CLINICAL_CHARGE_STATUS_INVOICED
+    await async_db_session.commit()
+
+    idemp_key = f"idem-correct-invoiced-{wi_id}"
+    cor_res = await async_client.post(
+        f"/api/v1/patients/{p1}/clinical-work-items/{wi_id}/correct",
+        json={"mode": "entered_in_error", "reason": "Accidental entry on invoiced item"},
+        headers={**doc_hdrs, "Idempotency-Key": idemp_key},
+    )
+    assert cor_res.status_code == 200
+    cor_data = cor_res.json()["data"]
+
+    # 1. Warning in response
+    assert "warnings" in cor_data
+    assert len(cor_data["warnings"]) == 1
+    w = cor_data["warnings"][0]
+    assert w["code"] == "invoiced_charge_requires_manual_review"
+    assert w["charge_id"] == charge.id
+    assert "manual review" in w["message"].lower()
+
+    # 2. Charge is still invoiced
+    await async_db_session.refresh(charge)
+    assert charge.status == CLINICAL_CHARGE_STATUS_INVOICED
+
+    # 3. Audit log persisted
+    audit_stmt = select(models.AuditLog).where(
+        models.AuditLog.tenant_id == t1,
+        models.AuditLog.entity_type == "clinical_charge",
+        models.AuditLog.entity_id == charge.id,
+        models.AuditLog.action == "invoiced_charge_requires_manual_review",
+    )
+    audit_rows = (await async_db_session.execute(audit_stmt)).scalars().all()
+    assert len(audit_rows) == 1
+
+    # 4. In-app tenant notification created
+    notif_stmt = select(models.Notification).where(
+        models.Notification.tenant_id == t1,
+        models.Notification.type == "warning",
+    )
+    notif_rows = (await async_db_session.execute(notif_stmt)).scalars().all()
+    assert len(notif_rows) == 1
+    assert notif_rows[0].is_global is False
+    assert str(wi_id) in notif_rows[0].content or str(wi_id) in notif_rows[0].title
+    assert str(charge.id) in notif_rows[0].content
+
+    # 5. Replay with same idempotency key produces no duplicate audit or notification
+    replay_res = await async_client.post(
+        f"/api/v1/patients/{p1}/clinical-work-items/{wi_id}/correct",
+        json={"mode": "entered_in_error", "reason": "Accidental entry on invoiced item"},
+        headers={**doc_hdrs, "Idempotency-Key": idemp_key},
+    )
+    assert replay_res.status_code == 200
+    replay_data = replay_res.json()["data"]
+    assert len(replay_data.get("warnings", [])) == 1
+
+    audit_rows_after = (await async_db_session.execute(audit_stmt)).scalars().all()
+    assert len(audit_rows_after) == 1
+    notif_rows_after = (await async_db_session.execute(notif_stmt)).scalars().all()
+    assert len(notif_rows_after) == 1
+
+    # 6. Tenant isolation: tenant 2 cannot see tenant 1's notification
+    notif_t2_res = await async_client.get("/api/v1/notifications", headers=recep2_hdrs)
+    assert notif_t2_res.status_code == 200
+    t2_notifs = notif_t2_res.json()["data"]
+    assert all(n["id"] != notif_rows[0].id for n in t2_notifs)
+
+
+@pytest.mark.asyncio
 async def test_mark_charge_invoiced_rejects_corrected_work_item(
     async_db_session, seed_data, async_client
 ):

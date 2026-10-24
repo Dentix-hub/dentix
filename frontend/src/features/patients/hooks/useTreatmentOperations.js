@@ -15,7 +15,7 @@ export const useTreatmentOperations = ({
     setIsTreatmentModalOpen,
     setEditingTreatmentId,
     editingTreatmentId,
-    selectedToothCondition
+    selectedToothCondition: _selectedToothCondition
 }) => {
     const { t } = useTranslation();
     const queryClient = useContext(QueryClientContext);
@@ -130,7 +130,7 @@ export const useTreatmentOperations = ({
             err.alreadyNotified = true;
             throw err;
         }
-    }, [patientId, editingTreatmentId, refetchHistory, refetchTeeth, refetchWorkspace, selectedToothCondition, setIsTreatmentModalOpen, setEditingTreatmentId, t, queryClient]);
+    }, [patientId, editingTreatmentId, refetchHistory, refetchTeeth, refetchWorkspace, setIsTreatmentModalOpen, setEditingTreatmentId, t, queryClient]);
 
     return { handleSaveTreatment };
 };

@@ -253,12 +253,21 @@ class ClinicalWorkItemCorrectionCreate(BaseModel):
         return self
 
 
+class ClinicalWorkItemCorrectionWarning(BaseModel):
+    code: str = "invoiced_charge_requires_manual_review"
+    charge_id: int
+    message: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ClinicalWorkItemCorrectionResponse(BaseModel):
     original_work_item: ClinicalWorkItemRead
     replacement_work_item: Optional[ClinicalWorkItemRead] = None
     correction_event_id: int
     mode: str
     reason: str
+    warnings: List[ClinicalWorkItemCorrectionWarning] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 

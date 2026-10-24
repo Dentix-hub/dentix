@@ -84,6 +84,7 @@ from .clinical_commands import (
     ClinicalBulkWorkItemResponse,
     ClinicalWorkItemCorrectionCreate,
     ClinicalWorkItemCorrectionResponse,
+    ClinicalWorkItemCorrectionWarning,
     ClinicalEventRead,
     ClinicalToothDetailRead,
 )
@@ -470,6 +471,7 @@ __all__ = [
     "ClinicalBulkWorkItemResponse",
     "ClinicalWorkItemCorrectionCreate",
     "ClinicalWorkItemCorrectionResponse",
+    "ClinicalWorkItemCorrectionWarning",
     "ClinicalEventRead",
     "ClinicalToothDetailRead",
     # Care Sessions (Slices S18 & S19)
