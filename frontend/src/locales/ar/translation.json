@@ -328,6 +328,7 @@
             "labs": "المعمل",
             "timeline": "الجدول الزمني"
         },
+        "medical_alert_generic": "تنبيه طبي",
         "medical_conditions": {
             "none": "لا يوجد",
             "diabetes": "سكري",

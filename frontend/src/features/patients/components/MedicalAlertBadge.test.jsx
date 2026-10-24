@@ -8,6 +8,7 @@ vi.mock('react-i18next', () => ({
     useTranslation: () => ({
         t: (key, options) => {
             const map = {
+                'patients.medical_alert_generic': 'تنبيه طبي',
                 'patients.medical_conditions.pregnancy': 'حمل/رضاعة',
                 'patients.medical_conditions.diabetes': 'سكري',
                 'patients.medical_conditions.hypertension': 'ضغط دم',
@@ -40,12 +41,20 @@ describe('MedicalAlertBadge', () => {
         expect(c3.firstChild).toBeNull();
     });
 
-    it('renders warning badge for general medical conditions with tooltip', () => {
+    it('renders warning badge for general medical conditions with generic tooltip', () => {
         render(<MedicalAlertBadge alert={{ has_alert: true, kinds: ['diabetes', 'hypertension'] }} />);
         const warning = screen.getByTestId('medical-alert-warning');
         expect(warning).toBeInTheDocument();
         expect(screen.queryByTestId('medical-alert-pregnancy')).toBeNull();
-        expect(warning.getAttribute('title')).toBe('سكري، ضغط دم');
+        expect(warning.getAttribute('title')).toBe('تنبيه طبي');
+    });
+
+    it('renders nothing when patient has only smoking', () => {
+        const { container: c1 } = render(<MedicalAlertBadge alert={{ has_alert: false, kinds: ['smoking'] }} />);
+        expect(c1.firstChild).toBeNull();
+
+        const { container: c2 } = render(<MedicalAlertBadge alert={{ has_alert: true, kinds: ['smoking'] }} />);
+        expect(c2.firstChild).toBeNull();
     });
 
     it('renders distinct badge for pregnancy condition', () => {

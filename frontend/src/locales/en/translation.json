@@ -352,6 +352,7 @@
             "title": "No Patients Found",
             "desc": "No patients match your search. Start by adding a new patient."
         },
+        "medical_alert_generic": "Medical Alert",
         "medical_conditions": {
             "none": "None",
             "diabetes": "Diabetes",

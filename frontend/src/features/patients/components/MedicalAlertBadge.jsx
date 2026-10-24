@@ -11,14 +11,14 @@ export default memo(function MedicalAlertBadge({ alert, className = '' }) {
 
     const kinds = alert.kinds;
     const hasPregnancy = kinds.includes('pregnancy');
-    const nonPregnancyKinds = kinds.filter((k) => k !== 'pregnancy');
+    const nonPregnancyKinds = kinds.filter((k) => k !== 'pregnancy' && k !== 'smoking');
 
-    const getKindLabel = (kind) => {
-        return t(`patients.medical_conditions.${kind}`, kind === 'other' ? (t('common.other', 'Other')) : kind);
-    };
+    if (!hasPregnancy && nonPregnancyKinds.length === 0) {
+        return null;
+    }
 
     const pregnancyTooltip = t('patients.medical_conditions.pregnancy', 'Pregnancy/Lactation');
-    const generalTooltip = nonPregnancyKinds.map(getKindLabel).join('، ');
+    const generalTooltip = t('patients.medical_alert_generic', 'تنبيه طبي');
 
     return (
         <span className={`inline-flex items-center gap-1 shrink-0 ${className}`}>

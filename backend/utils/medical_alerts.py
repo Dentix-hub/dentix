@@ -24,6 +24,14 @@ KNOWN_CONDITION_KEYS = {
 DEFAULT_LABEL_TO_KEY: Dict[str, str] = {
     # English
     "none": "none",
+    "no": "none",
+    "n/a": "none",
+    "na": "none",
+    "nil": "none",
+    "nothing": "none",
+    "-": "none",
+    "--": "none",
+    "—": "none",
     "diabetes": "diabetes",
     "hypertension": "hypertension",
     "heart disease": "heart_disease",
@@ -37,6 +45,13 @@ DEFAULT_LABEL_TO_KEY: Dict[str, str] = {
     # Arabic
     "لا يوجد": "none",
     "لايوجد": "none",
+    "لا توجد": "none",
+    "مفيش": "none",
+    "ما فيش": "none",
+    "مافيش": "none",
+    "لا شيء": "none",
+    "لا شئ": "none",
+    "سليم": "none",
     "سكري": "diabetes",
     "ضغط دم": "hypertension",
     "ضغط الدم": "hypertension",
@@ -133,7 +148,7 @@ def derive_medical_alerts(medical_history: Optional[str]) -> Dict[str, Any]:
 
     for raw_token in tokens:
         norm = _normalize_token(raw_token)
-        if not norm:
+        if not norm or re.match(r"^[-—_/.\s]+$", norm):
             continue
 
         key = _LABEL_MAP.get(norm)
@@ -147,7 +162,8 @@ def derive_medical_alerts(medical_history: Optional[str]) -> Dict[str, Any]:
             if "other" not in kinds:
                 kinds.append("other")
 
+    has_alert = any(k not in ("none", "smoking") for k in kinds)
     return {
-        "has_alert": len(kinds) > 0,
+        "has_alert": has_alert,
         "kinds": kinds,
     }
